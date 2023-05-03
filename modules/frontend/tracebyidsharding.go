@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,6 +17,7 @@ import (
 	"github.com/golang/protobuf/proto" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -25,29 +26,25 @@ import (
 
 const (
 	minQueryShards = 2
-	maxQueryShards = 256
+	maxQueryShards = 100_000
 )
 
-func newTraceByIDSharder(queryShards, maxFailedBlocks int, sloCfg SLOConfig, logger log.Logger) Middleware {
+func newTraceByIDSharder(cfg *TraceByIDConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
-			queryShards:     queryShards,
-			sloCfg:          sloCfg,
+			cfg:             cfg,
 			logger:          logger,
-			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
-			maxFailedBlocks: uint32(maxFailedBlocks),
+			blockBoundaries: createBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
 		}
 	})
 }
 
 type shardQuery struct {
 	next            http.RoundTripper
-	queryShards     int
-	sloCfg          SLOConfig
+	cfg             *TraceByIDConfig
 	logger          log.Logger
 	blockBoundaries [][]byte
-	maxFailedBlocks uint32
 }
 
 // RoundTrip implements http.RoundTripper
@@ -74,11 +71,14 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// execute requests
-	wg := sync.WaitGroup{}
+	concurrentShards := uint(s.cfg.QueryShards)
+	if s.cfg.ConcurrentShards > 0 {
+		concurrentShards = uint(s.cfg.ConcurrentShards)
+	}
+	wg := boundedwaitgroup.New(concurrentShards)
 	mtx := sync.Mutex{}
 
 	var overallError error
-	var totalFailedBlocks uint32
 	combiner := trace.NewCombiner()
 	combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
 	statusCode := http.StatusNotFound
@@ -139,14 +139,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				return
 			}
 
-			if traceResp.Metrics != nil {
-				totalFailedBlocks += traceResp.Metrics.FailedBlocks
-				if totalFailedBlocks > s.maxFailedBlocks {
-					overallError = fmt.Errorf("too many failed block queries %d (max %d)", totalFailedBlocks, s.maxFailedBlocks)
-					return
-				}
-			}
-
 			// if not found bail
 			if resp.StatusCode == http.StatusNotFound {
 				return
@@ -163,10 +155,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	if overallError != nil {
 		return nil, overallError
-	}
-
-	if totalFailedBlocks > 0 {
-		_ = level.Warn(s.logger).Log("msg", "some blocks failed. returning success due to tolerate_failed_blocks", "failed", totalFailedBlocks, "tolerate_failed_blocks", s.maxFailedBlocks)
 	}
 
 	overallTrace, _ := combiner.Result()
@@ -186,10 +174,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
-		Trace: overallTrace,
-		Metrics: &tempopb.TraceByIDMetrics{
-			FailedBlocks: totalFailedBlocks,
-		},
+		Trace:   overallTrace,
+		Metrics: &tempopb.TraceByIDMetrics{},
 	})
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
@@ -197,8 +183,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// only record metric when it's enabled and within slo
-	if s.sloCfg.DurationSLO != 0 {
-		if reqTime < s.sloCfg.DurationSLO {
+	if s.cfg.SLO.DurationSLO != 0 {
+		if reqTime < s.cfg.SLO.DurationSLO {
 			// we are within SLO if query returned 200 within DurationSLO seconds
 			// TODO: we don't have throughput metrics for TraceByID.
 			sloTraceByIDCounter.WithLabelValues(tenantID).Inc()
@@ -224,7 +210,7 @@ func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request
 		return nil, err
 	}
 
-	reqs := make([]*http.Request, s.queryShards)
+	reqs := make([]*http.Request, s.cfg.QueryShards)
 	// build sharded block queries
 	for i := 0; i < len(s.blockBoundaries); i++ {
 		reqs[i] = parent.Clone(ctx)
@@ -259,14 +245,25 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	for i := 0; i < queryShards+1; i++ {
 		blockBoundaries[i] = make([]byte, 16)
 	}
-	const MaxUint = uint64(^uint8(0))
+
+	// bucketSz is the min size for the bucket
+	bucketSz := (math.MaxUint64 / uint64(queryShards))
+	// numLarger is the number of buckets that have to be bumped by 1
+	numLarger := (math.MaxUint64 % uint64(queryShards))
+	boundary := uint64(0)
 	for i := 0; i < queryShards; i++ {
-		binary.LittleEndian.PutUint64(blockBoundaries[i][:8], (MaxUint/uint64(queryShards))*uint64(i))
-		binary.LittleEndian.PutUint64(blockBoundaries[i][8:], 0)
+		binary.BigEndian.PutUint64(blockBoundaries[i][:8], boundary)
+		binary.BigEndian.PutUint64(blockBoundaries[i][8:], 0)
+
+		boundary += bucketSz
+		if numLarger != 0 {
+			numLarger--
+			boundary++
+		}
 	}
-	const MaxUint64 = ^uint64(0)
-	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][:8], MaxUint64)
-	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][8:], MaxUint64)
+
+	binary.BigEndian.PutUint64(blockBoundaries[queryShards][:8], math.MaxUint64)
+	binary.BigEndian.PutUint64(blockBoundaries[queryShards][8:], math.MaxUint64)
 
 	return blockBoundaries
 }

@@ -13,6 +13,7 @@ valid:
   - '{ 1 <= 2 }'
   - '{ -1 = 2 }'
   - '{ "test" =~ "test" }'
+  - '{ "test" !~ "test" }'
   - '{ "test" = "test" }'
   - '{ "test" != "test" }'
   - '{ .a }'
@@ -27,6 +28,7 @@ valid:
   - '{ .a <= 2 }'
   - '{ -.a = 2 }'
   - '{ .a =~ "test" }'
+  - '{ .a !~ "test" }'
   - '{ .a = "test" }'
   - '{ .a != "test" }'
   - '{ resource.a != 3 }'
@@ -159,6 +161,7 @@ validate_fails:
   - '{ 1 > ok }'
   - '{ 1 = name }'
   - '{ 1 =~ 2}'
+  - '{ 1 !~ 2}'
   - '{ 1 && "foo" }'
   - '{ 1 || ok }'
   - '{ true || 1.1 }'
@@ -228,9 +231,6 @@ unsupported:
   - '{ !parent = nil }'
   # nil - will be valid when supported
   - '{ .foo = nil }'
-  # binary operations - will be valid when supported
-  - '{ "test" !~ "test" }'
-  - '{ .a !~ "test" }'
   # childCount - will be valid when supported
   - '{ 1 = childCount }'
   # childCount - will be invalid when supported

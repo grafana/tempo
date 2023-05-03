@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 func TestProcessorConfig_copyWithOverrides(t *testing.T) {
@@ -68,5 +69,66 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 
 		_, err := original.copyWithOverrides(o, "tenant")
 		require.Error(t, err)
+	})
+
+	t.Run("nil policy overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			spanMetricsFilterPolicies: nil,
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.Equal(t, *original, copied)
+	})
+
+	t.Run("empty policy overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			spanMetricsFilterPolicies: []config.FilterPolicy{},
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+
+		assert.Equal(t, []config.FilterPolicy{}, copied.SpanMetrics.FilterPolicies)
+	})
+
+	t.Run("policy overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			spanMetricsFilterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "key",
+								Value: "value",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+
+		assert.NotEqual(t, *original, copied)
+
+		assert.Equal(t, []config.FilterPolicy{
+			{
+				Include: &config.PolicyMatch{
+					MatchType: config.Strict,
+					Attributes: []config.MatchPolicyAttribute{
+						{
+							Key:   "key",
+							Value: "value",
+						},
+					},
+				},
+			},
+		}, copied.SpanMetrics.FilterPolicies)
 	})
 }

@@ -540,7 +540,7 @@ storage:
             secret_key: ""
             session_token: ""
             insecure: false
-            insecure_skip_verify: false
+            tls_insecure_skip_verify: false
             part_size: 0
             hedge_requests_at: 0s
             hedge_requests_up_to: 2

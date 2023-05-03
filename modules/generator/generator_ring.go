@@ -2,8 +2,9 @@ package generator
 
 import (
 	"flag"
-	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -23,6 +24,7 @@ type RingConfig struct {
 	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
 	InstanceAddr           string   `yaml:"instance_addr"`
 	InstancePort           int      `yaml:"instance_port"`
+	EnableInet6            bool     `yaml:"enable_inet6"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
@@ -57,7 +59,7 @@ func (cfg *RingConfig) ToRingConfig() ring.Config {
 }
 
 func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) {
-	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, log.Logger)
+	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, log.Logger, cfg.EnableInet6)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "failed to get instance address", "err", err)
 		return ring.BasicLifecyclerConfig{}, err
@@ -65,9 +67,11 @@ func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) 
 
 	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
 
+	instanceAddrPort := net.JoinHostPort(instanceAddr, strconv.Itoa(instancePort))
+
 	return ring.BasicLifecyclerConfig{
 		ID:              cfg.InstanceID,
-		Addr:            fmt.Sprintf("%s:%d", instanceAddr, instancePort),
+		Addr:            instanceAddrPort,
 		HeartbeatPeriod: cfg.HeartbeatPeriod,
 		NumTokens:       ringNumTokens,
 	}, nil
