@@ -90,7 +90,194 @@ func (t *RowNumber) Valid() bool {
 // gb     | 1 | 3 | {  0,  2,  0,  0 }
 // null   | 0 | 1 | {  1,  0, -1, -1 }
 func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
-	// Next row at this level
+	t[repetitionLevel]++
+
+	// the following is nextSlow() unrolled
+	switch repetitionLevel {
+	case 0:
+		switch definitionLevel {
+		case 0:
+			t[1] = -1
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 1:
+			t[1] = 0
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 2:
+			t[1] = 0
+			t[2] = 0
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 3:
+			t[1] = 0
+			t[2] = 0
+			t[3] = 0
+			t[4] = -1
+			t[5] = -1
+		case 4:
+			t[1] = 0
+			t[2] = 0
+			t[3] = 0
+			t[4] = 0
+			t[5] = -1
+		case 5:
+			t[1] = 0
+			t[2] = 0
+			t[3] = 0
+			t[4] = 0
+			t[5] = 0
+		}
+	case 1:
+		switch definitionLevel {
+		case 0:
+			t[1] = -1
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 1:
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 2:
+			t[2] = 0
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 3:
+			t[2] = 0
+			t[3] = 0
+			t[4] = -1
+			t[5] = -1
+		case 4:
+			t[2] = 0
+			t[3] = 0
+			t[4] = 0
+			t[5] = -1
+		case 5:
+			t[2] = 0
+			t[3] = 0
+			t[4] = 0
+			t[5] = 0
+		}
+	case 2:
+		switch definitionLevel {
+		case 0:
+			t[1] = -1
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 1:
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 2:
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 3:
+			t[3] = 0
+			t[4] = -1
+			t[5] = -1
+		case 4:
+			t[3] = 0
+			t[4] = 0
+			t[5] = -1
+		case 5:
+			t[3] = 0
+			t[4] = 0
+			t[5] = 0
+		}
+	case 3:
+		switch definitionLevel {
+		case 0:
+			t[1] = -1
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 1:
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 2:
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 3:
+			t[4] = -1
+			t[5] = -1
+		case 4:
+			t[4] = 0
+			t[5] = -1
+		case 5:
+			t[4] = 0
+			t[5] = 0
+		}
+	case 4:
+		switch definitionLevel {
+		case 0:
+			t[1] = -1
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 1:
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 2:
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 3:
+			t[4] = -1
+			t[5] = -1
+		case 4:
+			t[5] = -1
+		case 5:
+			t[5] = 0
+		}
+	case 5:
+		switch definitionLevel {
+		case 0:
+			t[1] = -1
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 1:
+			t[2] = -1
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 2:
+			t[3] = -1
+			t[4] = -1
+			t[5] = -1
+		case 3:
+			t[4] = -1
+			t[5] = -1
+		case 4:
+			t[5] = -1
+		}
+	}
+}
+
+// nextSlow is the original implementation of next. it is kept to test against
+// the unrolled version above
+func (t *RowNumber) nextSlow(repetitionLevel, definitionLevel int) {
 	t[repetitionLevel]++
 
 	// New children up through the definition level
@@ -98,7 +285,7 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 		t[i] = 0
 	}
 
-	// Children past the definition level are undefined
+	// // Children past the definition level are undefined
 	for i := definitionLevel + 1; i < len(t); i++ {
 		t[i] = -1
 	}

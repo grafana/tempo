@@ -357,11 +357,6 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
-    # number of block queries that are tolerated to error before considering the entire query as failed
-    # numbers greater than 0 make possible for a read to return partial results
-    # (default: 0)
-    [tolerate_failed_blocks: <int>]
-
     search:
         # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
         # (default: 2000)
@@ -416,6 +411,10 @@ query_frontend:
         # The number of shards to split a trace by id query into.
         # (default: 50)
         [query_shards: <int>]
+
+        # The maximum number of shards to execute at once. If set to 0 query_shards is used.
+        # (default: 0)
+        [concurrent_shards: <int>]
 
         # If set to a non-zero value, a second request will be issued at the provided duration.
         # Recommended to be set to p99 of search requests to reduce long-tail latency.
@@ -686,8 +685,32 @@ storage:
             [insecure: <bool>]
 
             # optional.
-            # Set to true to disable verification of an TLS endpoint.  The default value is false.
-            [insecure_skip_verify: <bool>]
+            # Path to the client certificate file.
+            [tls_cert_path: <string>]
+
+            # optional.
+            # Path to the private client key file.
+            [tls_key_path: <string>]
+
+            # optional.
+            # Path to the CA certificate file.
+            [tls_ca_path: <string>]
+
+            # optional.
+            # Path to the CA certificate file.
+            [tls_server_name: <string>]
+
+            # optional.
+            # Set to true to disable verification of a TLS endpoint.  The default value is false.
+            [tls_insecure_skip_verify: <bool>]
+
+            # optional.
+            # Override the default cipher suite list, separated by commas.
+            [tls_cipher_suites: <string>]
+
+            # optional.
+            # Override the default minimum TLS version. The default value is VersionTLS12.  Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
+            [tls_min_version: <string>]
 
             # optional.
             # enable to use path-style requests.

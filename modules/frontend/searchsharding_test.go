@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,11 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -379,7 +383,9 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
-				InspectedBlocks: 1,
+				TotalBlocks:     1,
+				CompletedJobs:   2,
+				TotalJobs:       2,
 				TotalBlockBytes: defaultTargetBytesPerRequest * 2,
 			}},
 		},
@@ -435,10 +441,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
-					InspectedBlocks: 2,
+					TotalBlocks:     2,
 					InspectedBytes:  3,
-					SkippedBlocks:   4,
-					SkippedTraces:   9,
 				}},
 			status2: 200,
 			response2: &tempopb.SearchResponse{
@@ -450,10 +454,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 5,
-					InspectedBlocks: 6,
+					TotalBlocks:     6,
 					InspectedBytes:  7,
-					SkippedBlocks:   8,
-					SkippedTraces:   10,
 				}},
 			expectedStatus: 200,
 			expectedResponse: &tempopb.SearchResponse{
@@ -469,10 +471,10 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 6,
-					InspectedBlocks: 1,
+					TotalBlocks:     1,
 					InspectedBytes:  10,
-					SkippedBlocks:   12,
-					SkippedTraces:   19,
+					CompletedJobs:   2,
+					TotalJobs:       2,
 					TotalBlockBytes: defaultTargetBytesPerRequest * 2,
 				}},
 		},
@@ -556,7 +558,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, testSLOcfg, log.NewNopLogger())
+			}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -602,7 +604,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -631,7 +633,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -680,4 +682,130 @@ func TestMaxDuration(t *testing.T) {
 	}
 	actual = sharder.maxDuration("test")
 	assert.Equal(t, 10*time.Minute, actual)
+}
+
+func TestSubRequestsCancelled(t *testing.T) {
+	totalJobs := 5
+
+	wg := sync.WaitGroup{}
+	nextSuccess := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		wg.Done()
+		wg.Wait()
+
+		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{{
+				TraceID: test.RandomString(),
+			}},
+			Metrics: &tempopb.SearchMetrics{},
+		})
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(resString)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	nextErr := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		wg.Done()
+		wg.Wait()
+
+		return nil, fmt.Errorf("error")
+	})
+
+	next500 := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		wg.Done()
+		wg.Wait()
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader("")),
+			StatusCode: 500,
+		}, nil
+	})
+
+	nextRequireCancelled := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		wg.Done()
+
+		ctx := r.Context()
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(1 * time.Second):
+		}
+
+		if ctx.Err() == nil {
+			return nil, fmt.Errorf("context should have been cancelled")
+		}
+
+		// check and see if there's an error
+		return httptest.NewRecorder().Result(), nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	sharder := newSearchSharder(&mockReader{
+		metas: []*backend.BlockMeta{
+			{
+				StartTime:    time.Unix(1100, 0),
+				EndTime:      time.Unix(1200, 0),
+				Size:         uint64(defaultTargetBytesPerRequest * totalJobs),
+				TotalRecords: uint32(totalJobs),
+				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+			},
+		},
+	}, o, SearchSharderConfig{
+		ConcurrentRequests:    10,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		DefaultLimit:          2,
+	}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
+
+	// return some things and assert the right subrequests are cancelled
+	// 500, err, limit
+	tcs := []struct {
+		name  string
+		nexts []RoundTripperFunc
+	}{
+		{
+			name:  "success",
+			nexts: []RoundTripperFunc{nextSuccess},
+		},
+		{
+			name:  "two successes -> reach limit",
+			nexts: []RoundTripperFunc{nextSuccess, nextSuccess, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
+		},
+		{
+			name:  "one errors",
+			nexts: []RoundTripperFunc{nextErr, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
+		},
+		{
+			name:  "one 500s",
+			nexts: []RoundTripperFunc{next500, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := atomic.NewInt32(0)
+
+			// create a next function that round robins through the nexts.
+			nextRR := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				next := tc.nexts[prev.Load()%int32(len(tc.nexts))]
+				prev.Inc()
+				return next.RoundTrip(r)
+			})
+
+			testRT := NewRoundTripper(nextRR, sharder)
+
+			// all requests will create totalJobs subrequests. let's reset the wg here
+			wg.Add(totalJobs)
+
+			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
+			ctx := req.Context()
+			ctx = user.InjectOrgID(ctx, "blerg")
+			req = req.WithContext(ctx)
+
+			_, _ = testRT.RoundTrip(req)
+		})
+	}
 }

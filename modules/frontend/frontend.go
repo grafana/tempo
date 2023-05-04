@@ -20,7 +20,6 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
@@ -31,14 +30,16 @@ const (
 	searchOp    = "search"
 )
 
+type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
+
 type QueryFrontend struct {
-	TraceByID, Search http.Handler
-	logger            log.Logger
-	store             storage.Store
+	TraceByIDHandler, SearchHandler http.Handler
+	streamingSearch                 streamingSearchHandler
+	logger                          log.Logger
 }
 
 // New returns a new QueryFrontend
-func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, reader tempodb.Reader, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -67,7 +68,7 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, store, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -75,11 +76,15 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	return &QueryFrontend{
-		TraceByID: newHandler(traces, traceByIDCounter, logger),
-		Search:    newHandler(search, searchCounter, logger),
-		logger:    logger,
-		store:     store,
+		TraceByIDHandler: newHandler(traces, traceByIDCounter, logger),
+		SearchHandler:    newHandler(search, searchCounter, logger),
+		streamingSearch:  newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
+		logger:           logger,
 	}, nil
+}
+
+func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
+	return q.streamingSearch(req, srv)
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
@@ -92,7 +97,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 		rt := NewRoundTripper(
 			next,
 			newDeduper(logger),
-			newTraceByIDSharder(cfg.TraceByID.QueryShards, cfg.TolerateFailedBlocks, cfg.TraceByID.SLO, logger),
+			newTraceByIDSharder(&cfg.TraceByID, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)
 
@@ -175,7 +180,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 func newSearchMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, logger))
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress(), logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding so we pass through a special roundtripper

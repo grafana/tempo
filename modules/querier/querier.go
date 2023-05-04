@@ -241,7 +241,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.Int("combinedTraces", traceCountTotal))
 	}
 
-	var failedBlocks int
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
 		span.LogFields(ot_log.String("timeStart", fmt.Sprint(timeStart)))
@@ -253,13 +252,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, retErr
 		}
 
-		if blockErrs != nil {
-			failedBlocks = len(blockErrs)
-			span.LogFields(
-				ot_log.Int("failedBlocks", failedBlocks),
-				ot_log.Error(multierr.Combine(blockErrs...)),
-			)
-			_ = level.Warn(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
+		if len(blockErrs) > 0 {
+			return nil, multierr.Combine(blockErrs...)
 		}
 
 		span.LogFields(
@@ -274,10 +268,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	completeTrace, _ := combiner.Result()
 
 	return &tempopb.TraceByIDResponse{
-		Trace: completeTrace,
-		Metrics: &tempopb.TraceByIDMetrics{
-			FailedBlocks: uint32(failedBlocks),
-		},
+		Trace:   completeTrace,
+		Metrics: &tempopb.TraceByIDMetrics{},
 	}, nil
 }
 
@@ -615,8 +607,6 @@ func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, r
 		if sr.Metrics != nil {
 			response.Metrics.InspectedBytes += sr.Metrics.InspectedBytes
 			response.Metrics.InspectedTraces += sr.Metrics.InspectedTraces
-			response.Metrics.InspectedBlocks += sr.Metrics.InspectedBlocks
-			response.Metrics.SkippedBlocks += sr.Metrics.SkippedBlocks
 		}
 	}
 
