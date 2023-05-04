@@ -97,6 +97,27 @@ func (m *MetricsResults) Record(series traceql.Static, durationNanos uint64, err
 	}
 }
 
+func (m *MetricsResults) Combine(other *MetricsResults) {
+
+	m.SpanCount += other.SpanCount
+	if other.Estimated {
+		m.Estimated = true
+	}
+
+	for k, v := range other.Series {
+		s := m.Series[k]
+		if s == nil {
+			s = &latencyHistogram{}
+			m.Series[k] = s
+		}
+		s.Combine(*v)
+	}
+
+	for k, v := range other.Errors {
+		m.Errors[k] += v
+	}
+}
+
 // GetMetrics
 func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
 	groupByAttr, err := traceql.ParseIdentifier(groupBy)

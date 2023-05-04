@@ -46,6 +46,37 @@ func TestPercentile(t *testing.T) {
 	}
 }
 
+func TestMetricsResultsCombine(t *testing.T) {
+	a := traceql.NewStaticString("1")
+	b := traceql.NewStaticString("2")
+	c := traceql.NewStaticString("3")
+
+	m := NewMetricsResults()
+	m.Record(a, 1, true)
+	m.Record(b, 1, false)
+	m.Record(b, 1, false)
+	m.Record(b, 1, true)
+
+	m2 := NewMetricsResults()
+	m2.Record(b, 1, true)
+	m2.Record(c, 1, false)
+	m2.Record(c, 1, false)
+	m2.Record(c, 1, true)
+
+	m.Combine(m2)
+
+	require.Equal(t, 3, len(m.Series))
+	require.Equal(t, 3, len(m.Errors))
+
+	require.Equal(t, 1, m.Series[a].Count())
+	require.Equal(t, 4, m.Series[b].Count())
+	require.Equal(t, 3, m.Series[c].Count())
+
+	require.Equal(t, 1, m.Errors[a])
+	require.Equal(t, 2, m.Errors[b])
+	require.Equal(t, 1, m.Errors[c])
+}
+
 func TestGetMetrics(t *testing.T) {
 
 	ctx := context.TODO()
