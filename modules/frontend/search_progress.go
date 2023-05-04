@@ -50,7 +50,9 @@ type searchProgress struct {
 }
 
 func newSearchProgress() *searchProgress {
-	return &searchProgress{}
+	return &searchProgress{
+		resultsMetrics: &tempopb.SearchMetrics{},
+	}
 }
 
 func (r *searchProgress) init(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) {
