@@ -45,7 +45,7 @@ endif
 
 GOTEST_OPT?= -race -timeout 20m -count=1 -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
-GOTEST=go test
+GOTEST=gotestsum --format=testname --
 LINT=golangci-lint
 
 UNAME := $(shell uname -s)
