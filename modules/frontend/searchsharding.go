@@ -218,7 +218,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// successful query, read the body
 			results := &tempopb.SearchResponse{}
-			err = jsonpb.Unmarshal(resp.Body, results)
+			err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(resp.Body, results)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
 				s.progress.setError(err)
