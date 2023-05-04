@@ -382,7 +382,7 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 // a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
 // a plain number, or the boolean values "true" or "false".
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false|)`)
+var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false)`)
 
 // TODO: Merge into a single regular expression
 

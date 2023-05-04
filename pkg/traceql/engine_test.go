@@ -83,11 +83,9 @@ func TestEngine_Execute(t *testing.T) {
 
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
 		{
-			TraceID:           "1",
-			RootServiceName:   "my-service",
-			RootTraceName:     "HTTP GET",
-			StartTimeUnixNano: 0,
-			DurationMs:        0,
+			TraceID:         "1",
+			RootServiceName: "my-service",
+			RootTraceName:   "HTTP GET",
 			SpanSet: &tempopb.SpanSet{
 				Spans: []*tempopb.Span{
 					{
@@ -287,23 +285,25 @@ type MockSpanSetIterator struct {
 	filter  FilterSpans
 }
 
-func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
-	if len(m.results) == 0 {
-		return nil, nil
-	}
-	r := m.results[0]
-	m.results = m.results[1:]
+func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
+	for {
+		if len(m.results) == 0 {
+			return nil, nil
+		}
+		r := m.results[0]
+		m.results = m.results[1:]
 
-	ss, err := m.filter(r)
-	if err != nil {
-		return nil, err
-	}
-	if len(ss) == 0 {
-		return &Spanset{}, nil
-	}
+		ss, err := m.filter(r)
+		if err != nil {
+			return nil, err
+		}
+		if len(ss) == 0 {
+			continue
+		}
 
-	r.Spans = r.Spans[len(ss):]
-	return r, nil
+		r.Spans = r.Spans[len(ss):]
+		return r, nil
+	}
 }
 
 func (m *MockSpanSetIterator) Close() {}
@@ -469,7 +469,7 @@ func TestExecuteTagValues(t *testing.T) {
 			},
 			expectedValues: []tempopb.TagValue{
 				{Type: "String", Value: "HTTP GET /status"},
-				{Type: "String", Value: "HTTP POST"},
+				{Type: "String", Value: "HTTP POST /api/v1/users"},
 				{Type: "String", Value: "redis call"},
 			},
 		},
