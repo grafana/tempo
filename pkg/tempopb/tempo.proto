@@ -14,7 +14,7 @@ service Pusher {
 
 service MetricsGenerator {
   rpc PushSpans(PushSpansRequest) returns (PushResponse) {};
-  rpc SpanSummary(SpanSummaryRequest) returns (SpanSummaryResponse) {};
+  rpc SpanMetrics(SpanMetricsRequest) returns (SpanMetricsResponse) {};
 }
 
 service Querier {
@@ -183,19 +183,23 @@ message LinkSlice {
   repeated tempopb.trace.v1.Span.Link links = 1;
 }
 
-message SpanSummaryRequest {
-  // tagFilter is a list of tags to filter on in the form of a traceql query, ie: tag=value
-  repeated string tagFilter = 1;
+message SpanMetricsRequest {
+  string query = 1;
   string groupBy = 2;
 }
 
-message SpanSummaryResponse {
-  repeated SpanSummaryGroup stats = 1;
+message SpanMetricsResponse {
+  repeated SpanMetricsGroup stats = 1;
 }
 
-message SpanSummaryGroup {
+message SpanMetricsGroup {
   string name = 1;
-  int64 spanCount = 2;
-  int64 errorSpanCount = 3;
-  map<string, double> latencies = 4;
+  uint64 spanCount = 2;
+  uint64 errorSpanCount = 3;
+  repeated RawHistogram latencies = 4;
+}
+
+message RawHistogram {
+  uint64 bucket = 1;
+  uint64 count = 2;
 }
