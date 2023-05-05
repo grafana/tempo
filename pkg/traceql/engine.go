@@ -20,10 +20,29 @@ type Engine struct {
 	spansPerSpanSet int
 }
 
-func NewEngine(spss int) *Engine {
-	return &Engine{
-		spansPerSpanSet: spss,
+func NewEngine(args ...int) *Engine {
+	var defaultSpansPerSpanSet = 3
+	if len(args) > 0 {
+		defaultSpansPerSpanSet = args[0]
 	}
+
+	return &Engine{
+		spansPerSpanSet: defaultSpansPerSpanSet,
+	}
+}
+
+func (e *Engine) Compile(query string) (func(input []*Spanset) (result []*Spanset, err error), *FetchSpansRequest, error) {
+	expr, err := Parse(query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	req := &FetchSpansRequest{
+		AllConditions: true,
+	}
+	expr.Pipeline.extractConditions(req)
+
+	return expr.Pipeline.evaluate, req, nil
 }
 
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
@@ -165,14 +184,27 @@ func (e *Engine) ExecuteTagValues(
 			}
 			return false
 		}
-	case AttributeScopeNone: // If tag is unscoped, let's check all scopes manually
+	case AttributeScopeNone:
+		// If tag is unscoped, it can either be an intrinsic (eg. `name`) or an unscoped attribute (eg. `.namespace`)
+		//
+		// If the tag is intrinsic Attribute.Intrinsic is set to the Intrinsic it corresponds,
+		// so we can check against `!= IntrinsicNone` and use wantAttr directly.
+		//
+		// If the tag is unscoped, we need to check resource and span scoped manually by building a new Attribute with each scope.
 		collectAttributeValue = func(s Span) bool {
-			for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
-				scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name, Intrinsic: wantAttr.Intrinsic}
-				if v, ok := s.Attributes()[scopedAttr]; ok {
+			if wantAttr.Intrinsic != IntrinsicNone { // it's intrinsic
+				if v, ok := s.Attributes()[wantAttr]; ok {
 					return cb(v)
 				}
+			} else { // it's unscoped
+				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
+					scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name}
+					if v, ok := s.Attributes()[scopedAttr]; ok {
+						return cb(v)
+					}
+				}
 			}
+
 			return false
 		}
 	default:
@@ -369,7 +401,7 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 // a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
 // a plain number, or the boolean values "true" or "false".
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._-]+"|[0-9smh]+|true|false)`)
+var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false)`)
 
 // TODO: Merge into a single regular expression
 
@@ -384,7 +416,7 @@ var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*
 // { .bar = "foo" || .foo = "bar" }          |   No
 // { .bar = "foo" } && { .foo = "bar" }      |   No
 // { .bar = "foo" } || { .foo = "bar" }      |   No
-var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()&=<>~!0-9"]*}$`)
+var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()/&=<>~!0-9"]*}$`)
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {

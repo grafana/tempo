@@ -110,11 +110,9 @@ func TestEngine_Execute(t *testing.T) {
 
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
 		{
-			TraceID:           "1",
-			RootServiceName:   "my-service",
-			RootTraceName:     "HTTP GET",
-			StartTimeUnixNano: 0,
-			DurationMs:        0,
+			TraceID:         "1",
+			RootServiceName: "my-service",
+			RootTraceName:   "HTTP GET",
 			SpanSet: &tempopb.SpanSet{
 				Spans: []*tempopb.Span{
 					{
@@ -227,7 +225,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		},
 	}
 
-	e := NewEngine(3)
+	e := NewEngine()
 
 	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
 
@@ -337,23 +335,26 @@ type MockSpanSetIterator struct {
 	filter  FilterSpans
 }
 
-func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
-	if len(m.results) == 0 {
-		return nil, nil
-	}
-	r := m.results[0]
-	m.results = m.results[1:]
+func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
+	for {
+		if len(m.results) == 0 {
+			return nil, nil
+		}
+		r := m.results[0]
+		m.results = m.results[1:]
 
-	ss, err := m.filter(r)
-	if err != nil {
-		return nil, err
-	}
-	if len(ss) == 0 {
-		return nil, nil
+		ss, err := m.filter(r)
+		if err != nil {
+			return nil, err
+		}
+		if len(ss) == 0 {
+			continue
+		}
+
+		r.Spans = ss[0].Spans
+		return r, nil
 	}
 
-	r.Spans = ss[0].Spans
-	return r, nil
 }
 
 func (m *MockSpanSetIterator) Close() {}
@@ -401,7 +402,7 @@ func TestExamplesInEngine(t *testing.T) {
 	err = yaml.Unmarshal(b, queries)
 	require.NoError(t, err)
 
-	e := NewEngine(3)
+	e := NewEngine()
 
 	for _, q := range queries.Valid {
 		t.Run("valid - "+q, func(t *testing.T) {
@@ -446,60 +447,114 @@ func TestExecuteTagValues(t *testing.T) {
 	now := time.Now()
 	e := Engine{}
 
-	req := &tempopb.SearchTagValuesRequest{
-		TagName: "resource.service.name",
-		Query:   "{}",
-	}
-
-	spanSetFetcher := MockSpanSetFetcher{
-		iterator: &MockSpanSetIterator{
-			results: []*Spanset{
-				{
-					TraceID:         []byte{1},
-					RootSpanName:    "HTTP GET",
-					RootServiceName: "my-service",
-					Spans: []Span{
-						&mockSpan{
-							id: []byte{1},
-							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
-								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+	mockSpansetFetcher := func() SpansetFetcher {
+		return &MockSpanSetFetcher{
+			iterator: &MockSpanSetIterator{
+				results: []*Spanset{
+					{
+						TraceID:         []byte{1},
+						RootSpanName:    "HTTP GET",
+						RootServiceName: "my-service",
+						Spans: []Span{
+							&mockSpan{
+								id: []byte{1},
+								attributes: map[Attribute]Static{
+									NewIntrinsic(IntrinsicName):                                       NewStaticString("HTTP POST /api/v1/users"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.method"):      NewStaticString("POST"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.target"):      NewStaticString("/api/v1/users"),
+									NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+								},
 							},
-						},
-						&mockSpan{
-							id:                 []byte{2},
-							startTimeUnixNanos: uint64(now.UnixNano()),
-							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
-							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
-								NewAttribute("bar"): NewStaticString("value"),
-								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							&mockSpan{
+								id:                 []byte{2},
+								startTimeUnixNanos: uint64(now.UnixNano()),
+								durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+								attributes: map[Attribute]Static{
+									NewIntrinsic(IntrinsicName):                                       NewStaticString("redis call"),
+									NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+								},
 							},
 						},
 					},
-				},
-				{
-					TraceID:         []byte{2},
-					RootSpanName:    "HTTP POST",
-					RootServiceName: "my-service",
-					Spans: []Span{
-						&mockSpan{
-							id: []byte{3},
-							attributes: map[Attribute]Static{
-								NewAttribute("bar"): NewStaticString("value"),
-								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+					{
+						TraceID:         []byte{2},
+						RootSpanName:    "HTTP POST",
+						RootServiceName: "my-service",
+						Spans: []Span{
+							&mockSpan{
+								id: []byte{3},
+								attributes: map[Attribute]Static{
+									NewIntrinsic(IntrinsicName):                                       NewStaticString("HTTP GET /status"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.method"):      NewStaticString("GET"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.target"):      NewStaticString("/status"),
+									NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+								},
 							},
 						},
 					},
 				},
 			},
-		},
+		}
 	}
-	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-	cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
-	assert.NoError(t, e.ExecuteTagValues(context.Background(), req, cb, &spanSetFetcher))
 
-	assert.Equal(t, []tempopb.TagValue{{Type: "String", Value: "my-service"}}, distinctValues.Values())
+	type testCase struct {
+		name           string
+		req            *tempopb.SearchTagValuesRequest
+		expectedValues []tempopb.TagValue
+	}
+
+	for _, tc := range []testCase{
+		{
+			name: "scoped param, no query",
+			req: &tempopb.SearchTagValuesRequest{
+				TagName: "resource.service.name",
+				Query:   "{}",
+			},
+			expectedValues: []tempopb.TagValue{{Type: "String", Value: "my-service"}},
+		},
+		{
+			name: "intrinsic param, no query",
+			req: &tempopb.SearchTagValuesRequest{
+				TagName: "name",
+				Query:   "{}",
+			},
+			expectedValues: []tempopb.TagValue{
+				{Type: "String", Value: "HTTP GET /status"},
+				{Type: "String", Value: "HTTP POST /api/v1/users"},
+				{Type: "String", Value: "redis call"},
+			},
+		},
+		{
+			name: "scoped param, with query",
+			req: &tempopb.SearchTagValuesRequest{
+				TagName: "span.http.method",
+				Query:   `{ span.http.target = "/api/v1/users" }`,
+			},
+			expectedValues: []tempopb.TagValue{{Type: "String", Value: "POST"}},
+		},
+		{
+			name: "intrinsic param, with query",
+			req: &tempopb.SearchTagValuesRequest{
+				TagName: "name",
+				Query:   `{ span.http.target = "/api/v1/users" }`,
+			},
+			expectedValues: []tempopb.TagValue{{Type: "String", Value: "HTTP POST /api/v1/users"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+
+			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
+
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tc.req, cb, mockSpansetFetcher()))
+			values := distinctValues.Values()
+			sort.Slice(values, func(i, j int) bool {
+				return values[i].Value < values[j].Value
+			})
+			assert.Equal(t, tc.expectedValues, values)
+		})
+	}
+
 }
 
 func TestExtractMatchers(t *testing.T) {
@@ -555,6 +610,11 @@ func TestExtractMatchers(t *testing.T) {
 			name:     "query with multiple selectors and pipelines",
 			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" } | count() > 4`,
 			expected: "{}",
+		},
+		{
+			name:     "query with slash in value",
+			query:    `{ span.http.target = "/api/v1/users" }`,
+			expected: `{span.http.target = "/api/v1/users"}`,
 		},
 	}
 	for _, tc := range testCases {

@@ -422,7 +422,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return distinctValues.Collect(tv)
 	}
 
-	engine := traceql.NewEngine(3)
+	engine := traceql.NewEngine()
 
 	wg := boundedwaitgroup.New(20) // TODO: Make configurable
 	var anyErr atomic.Error
