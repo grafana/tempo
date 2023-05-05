@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -60,7 +61,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		QueryMode:  queryMode,
 	}, timeStart, timeEnd)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 
@@ -121,7 +122,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 		resp, err = q.SearchRecent(ctx, req)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			handleError(w, err)
 			return
 		}
 	} else {
@@ -135,7 +136,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 		resp, err = q.SearchBlock(ctx, req)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			handleError(w, err)
 			return
 		}
 	}
@@ -165,7 +166,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := q.SearchTags(ctx, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 
@@ -194,7 +195,7 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := q.SearchTagsV2(ctx, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 
@@ -223,7 +224,7 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 
 	resp, err := q.SearchTagValues(ctx, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 
@@ -252,7 +253,7 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 
 	resp, err := q.SearchTagValuesV2(ctx, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 
@@ -263,4 +264,12 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+}
+
+func handleError(w http.ResponseWriter, err error) {
+	if errors.Is(err, context.Canceled) {
+		// ignore this error. we regularly cancel context once queries are complete
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
