@@ -369,21 +369,25 @@ To change the resources requirements, follow these steps:
    ````
 3. Save the changes to the file.
 
-> **Note**: Lowering these requirements can impact overall performance.
+{{% admonition type="note" %}}
+Lowering these requirements can impact overall performance.
 ## Deploy Tempo using Tanka
+{{% /admonition %}}
 
 1. Deploy Tempo using the Tanka command:
     ```bash
     tk apply environments/tempo/main.jsonnet
     ```
 
-> **Note**: If the ingesters don’t start after deploying Tempo with the Tanka command, this may be related to the storage class selected for the Write Ahead Logs. If this is the case, add an appropriate storage class to the ingester configuration. For example, to add a standard instead of fast storage class, add the following to the `config` (not `tempo_config`) section in the previous step:
+{{% admonition type="note" %}}
+If the ingesters don’t start after deploying Tempo with the Tanka command, this may be related to the storage class selected for the Write Ahead Logs. If this is the case, add an appropriate storage class to the ingester configuration. For example, to add a standard instead of fast storage class, add the following to the `config` (not `tempo_config`) section in the previous step:
 >
   ```bash
     ingester+: {
       pvc_storage_class: 'standard',
     },
   ```
+{{% /admonition %}}
 
 ## Next steps
 
