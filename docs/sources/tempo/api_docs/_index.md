@@ -423,7 +423,9 @@ GET /api/echo
 
 Returns status code 200 and body `echo` when the query frontend is up and ready to receive requests.
 
-**Note**: Meant to be used in a Query Visualization UI like Grafana to test that the Tempo datasource is working.
+{{% admonition type="note" %}}
+Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
+{{% /admonition %}}
 
 
 ### Flush
@@ -449,11 +451,15 @@ GET,POST /shutdown
 Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the
 ingester service.
 
-**Note**: This is usually used at the time of scaling down a cluster.
+{{% admonition type="note" %}}
+This is usually used at the time of scaling down a cluster.
+{{% /admonition %}}
 
 ### Distributor ring status
 
-> **Note**: This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration/#overrides" >}}).
+{{% admonition type="note" %}}
+This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration/#overrides" >}}).
+{{% /admonition %}}
 
 ```
 GET /distributor/ring
