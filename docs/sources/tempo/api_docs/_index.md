@@ -424,7 +424,7 @@ GET /api/echo
 Returns status code 200 and body `echo` when the query frontend is up and ready to receive requests.
 
 {{% admonition type="note" %}}
-Meant to be used in a Query Visualization UI like Grafana to test that the Tempo datasource is working.
+Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
 {{% /admonition %}}
 
 
