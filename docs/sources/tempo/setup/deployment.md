@@ -16,7 +16,9 @@ The deployment mode is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
 which is the monolithic deployment mode.
 
-> **Note:** _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (for example, Helm charts) do not yet reflect this change.
+{{% admonition type="note" %}}
+_Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (for example, Helm charts) do not yet reflect this change.
+{{% /admonition %}}
 
 ## Monolithic mode
 
@@ -70,8 +72,10 @@ Find a docker-compose deployment example at:
 
 Tempo can be easily deployed through a number of tools, including Helm, Tanka, Kubernetes, and Docker.
 
-> **Note**: The Tanka and Helm examples are equivalent.
-> They are both provided for people who prefer different configuration mechanisms.
+{{% admonition type="note" %}}
+The Tanka and Helm examples are equivalent.
+They are both provided for people who prefer different configuration mechanisms.
+{{% /admonition %}}
 
 ### Helm
 

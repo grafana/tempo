@@ -9,7 +9,9 @@ weight: 35
 
 Tempo can be configured to communicate between the components using Transport Layer Security, or TLS.
 
-> **Note:** The ciphers and TLS version here are for example purposes only. We are not recommending which ciphers or TLS versions for use in production environments.
+{{% admonition type="note" %}}
+The ciphers and TLS version here are for example purposes only. We are not recommending which ciphers or TLS versions for use in production environments.
+{{% /admonition %}}
 
 ## Server configuration
 
