@@ -1,4 +1,7 @@
 ## main / unreleased
+
+* [CHANGE] Remove `tenant_header_key` option from `tempo-query` config [#2414](https://github.com/grafana/tempo/pull/2414) (@kousikmitra)
+* [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2362](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
 * [CHANGE] **Breaking Change** Remove support tolerate_failed_blocks. [#2416](https://github.com/grafana/tempo/pull/2416) (@joe-elliott)
   Removed config option:
   ```
