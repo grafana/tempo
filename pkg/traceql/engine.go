@@ -26,12 +26,6 @@ func NewEngine(spss int) *Engine {
 	}
 }
 
-/*func NewEngineWithSpansPerSpanSet(spansPerSpanSet int) *Engine {
-	return &Engine{
-		spansPerSpanSet: spansPerSpanSet,
-	}
-}*/
-
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.Finish()
