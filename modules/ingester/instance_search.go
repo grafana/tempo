@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/grafana/regexp"
+	"regexp"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
