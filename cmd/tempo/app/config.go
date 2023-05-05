@@ -33,7 +33,7 @@ type Config struct {
 	HTTPAPIPrefix                string `yaml:"http_api_prefix"`
 	UseOTelTracer                bool   `yaml:"use_otel_tracer,omitempty"`
 	EnableGoRuntimeMetrics       bool   `yaml:"enable_go_runtime_metrics,omitempty"`
-	AutocompleteFilteringEnabled bool   `yaml:"autocomplete_filtering_enabled"`
+	AutocompleteFilteringEnabled bool   `yaml:"autocomplete_filtering_enabled,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
 	InternalServer  internalserver.Config   `yaml:"internal_server,omitempty"`

@@ -64,6 +64,9 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
+  
+# Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
+[autocomplete_filtering_enabled: <bool> | default = false]
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
