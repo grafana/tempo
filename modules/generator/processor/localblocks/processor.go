@@ -246,7 +246,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
-	since := time.Now().Add(-p.Cfg.MaxTraceIdle)
+	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
 	if immediate {
 		since = time.Time{}
 	}
