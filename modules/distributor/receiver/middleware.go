@@ -61,12 +61,14 @@ func (m *multiTenancyMiddleware) Wrap(next consumer.Traces) consumer.Traces {
 			info := client.FromContext(ctx)
 			orgIDs := info.Metadata.Get(user.OrgIDHeaderName)
 			if len(orgIDs) == 0 {
-				log.Logger.Log("msg", "failed to extract org id from both grpc and HTTP", "err", err)
+				log.Logger.Log("msg", "failed to extract org id from both grpc and HTTP",
+					"err", err, "client", info.Addr.String())
 				return err
 			}
 
 			if len(orgIDs) > 1 {
-				log.Logger.Log("msg", "more than one orgID found", "orgIDs", orgIDs)
+				log.Logger.Log("msg", "more than one orgID found", "orgIDs", orgIDs,
+					"client", info.Addr.String())
 				return err
 			}
 
