@@ -1,5 +1,11 @@
 ## main / unreleased
+<<<<<<< HEAD
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
+=======
+
+* [CHANGE] Remove `tenant_header_key` option from `tempo-query` config [#2414](https://github.com/grafana/tempo/pull/2414) (@kousikmitra)
+* [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2362](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
+>>>>>>> main
 * [CHANGE] **Breaking Change** Remove support tolerate_failed_blocks. [#2416](https://github.com/grafana/tempo/pull/2416) (@joe-elliott)
   Removed config option:
   ```
