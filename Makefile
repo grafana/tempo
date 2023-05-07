@@ -119,7 +119,7 @@ test-with-cover-others: test-serverless
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: docker-tempo
+test-e2e: docker-tempo docker-tempo-query
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
 
 # runs only serverless e2e tests
