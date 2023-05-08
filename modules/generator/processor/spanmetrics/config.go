@@ -3,8 +3,8 @@ package spanmetrics
 import (
 	"flag"
 
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )

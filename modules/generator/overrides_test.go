@@ -3,8 +3,8 @@ package generator
 import (
 	"time"
 
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 type mockOverrides struct {

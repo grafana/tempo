@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/registry"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -72,13 +72,15 @@ func TestSpanMetrics(t *testing.T) {
 
 func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -213,13 +215,14 @@ func TestSpanMetrics_collisions(t *testing.T) {
 
 func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
-
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -406,13 +409,15 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	// no service.name = no job label/dimension
 	// but service will still be there
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -456,13 +461,15 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 
 func TestLabelsWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -532,13 +539,15 @@ func TestTargetInfoEnabled(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -577,13 +586,15 @@ func TestTargetInfoEnabled(t *testing.T) {
 
 func TestTargetInfoDisabled(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = false
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -620,13 +631,15 @@ func TestTargetInfoSanitizeLabelName(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -667,13 +680,15 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.EnableTargetInfo = true
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -699,12 +714,14 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if both job and instance are missing, target info should not exist
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -744,13 +761,15 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 
 func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
@@ -812,6 +831,7 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 
 func TestSpanMetricsDimensionMapping(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -826,7 +846,8 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		},
 	}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO create some spans that are missing the custom dimensions/tags
@@ -869,6 +890,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 
 func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -896,7 +918,8 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		},
 	}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO create some spans that are missing the custom dimensions/tags

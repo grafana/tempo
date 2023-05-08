@@ -2,10 +2,10 @@ package spanmetrics
 
 import (
 	"context"
-	"fmt"
+	"time"
+
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/strutil"
-	"time"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -76,6 +76,7 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 		spanMetricsTargetInfo: registry.NewGauge(targetInfo),
 		now:                   time.Now,
 		labels:                labels,
+		filteredSpansCounter:  spanDiscardCounter,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -93,9 +94,6 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 		return nil, err
 	}
 
-	p.Cfg = cfg
-	p.registry = registry
-	p.now = time.Now
 	p.filteredSpansCounter = spanDiscardCounter
 	p.filter = filter
 	return p, nil
@@ -232,8 +230,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		}
 
 		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
-		fmt.Println(targetInfoLabels)
-		fmt.Println(targetInfoLabelValues)
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {

@@ -5,8 +5,8 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/overrides"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 type metricsGeneratorOverrides interface {
