@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,9 +28,23 @@ const (
 	image = "tempo:latest"
 )
 
+// GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
+func GetExtraArgs() []string {
+	// Get extra args from the TEMPO_EXTRA_ARGS env variable
+	// falling back to an empty list
+	if os.Getenv("TEMPO_EXTRA_ARGS") != "" {
+		return strings.Fields(os.Getenv("TEMPO_EXTRA_ARGS"))
+	}
+
+	return nil
+}
+
 func buildArgsWithExtra(args, extraArgs []string) []string {
 	if len(extraArgs) > 0 {
-		return append(extraArgs, args...)
+		args = append(args, extraArgs...)
+	}
+	if envExtraArgs := GetExtraArgs(); len(envExtraArgs) > 0 {
+		args = append(args, envExtraArgs...)
 	}
 
 	return args
