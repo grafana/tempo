@@ -116,9 +116,11 @@ type instance struct {
 	localWriter backend.Writer
 
 	hash hash.Hash32
+
+	autocompleteFilteringEnabled bool
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: map[uint32]uint32{},
@@ -134,6 +136,8 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		localWriter: backend.NewWriter(l),
 
 		hash: fnv.New32(),
+
+		autocompleteFilteringEnabled: autocompleteFiltering,
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
