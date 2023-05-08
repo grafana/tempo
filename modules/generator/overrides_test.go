@@ -7,13 +7,19 @@ import (
 )
 
 type mockOverrides struct {
-	processors                     map[string]struct{}
-	serviceGraphsHistogramBuckets  []float64
-	serviceGraphsDimensions        []string
-	spanMetricsHistogramBuckets    []float64
-	spanMetricsDimensions          []string
-	spanMetricsIntrinsicDimensions map[string]bool
-	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
+	processors                      map[string]struct{}
+	serviceGraphsHistogramBuckets   []float64
+	serviceGraphsDimensions         []string
+	spanMetricsHistogramBuckets     []float64
+	spanMetricsDimensions           []string
+	spanMetricsIntrinsicDimensions  map[string]bool
+	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
+	localBlocksMaxLiveTraces        uint64
+	localBlocksMaxBlockDuration     time.Duration
+	localBlocksMaxBlockBytes        uint64
+	localBlocksFlushCheckPeriod     time.Duration
+	localBlocksTraceIdlePeriod      time.Duration
+	localBlocksCompleteBlockTimeout time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -56,4 +62,28 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
 	return m.spanMetricsFilterPolicies
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+	return m.localBlocksMaxLiveTraces
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
+	return m.localBlocksMaxBlockDuration
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
+	return m.localBlocksMaxBlockBytes
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
+	return m.localBlocksTraceIdlePeriod
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
+	return m.localBlocksFlushCheckPeriod
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
+	return m.localBlocksCompleteBlockTimeout
 }

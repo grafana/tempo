@@ -352,6 +352,30 @@ func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID st
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsFilterPolicies
 }
 
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxLiveTraces
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxBlockDuration
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxBlockBytes
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
