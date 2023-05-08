@@ -7,19 +7,19 @@ import (
 )
 
 type mockOverrides struct {
-	processors                     map[string]struct{}
-	serviceGraphsHistogramBuckets  []float64
-	serviceGraphsDimensions        []string
-	spanMetricsHistogramBuckets    []float64
-	spanMetricsDimensions          []string
-	spanMetricsIntrinsicDimensions map[string]bool
-	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
-	localBlocksMaxLiveTraces       uint64
-	maxBlockDuration               time.Duration
-	maxBlockBytes                  uint64
-	flushCheckPeriod               time.Duration
-	traceIdlePeriod                time.Duration
-	completeBlockTimeout           time.Duration
+	processors                      map[string]struct{}
+	serviceGraphsHistogramBuckets   []float64
+	serviceGraphsDimensions         []string
+	spanMetricsHistogramBuckets     []float64
+	spanMetricsDimensions           []string
+	spanMetricsIntrinsicDimensions  map[string]bool
+	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
+	localBlocksMaxLiveTraces        uint64
+	localBlocksMaxBlockDuration     time.Duration
+	localBlocksMaxBlockBytes        uint64
+	localBlocksFlushCheckPeriod     time.Duration
+	localBlocksTraceIdlePeriod      time.Duration
+	localBlocksCompleteBlockTimeout time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -69,21 +69,21 @@ func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
-	return m.maxBlockDuration
+	return m.localBlocksMaxBlockDuration
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
-	return m.maxBlockBytes
+	return m.localBlocksMaxBlockBytes
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
-	return m.traceIdlePeriod
+	return m.localBlocksTraceIdlePeriod
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
-	return m.flushCheckPeriod
+	return m.localBlocksFlushCheckPeriod
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
-	return m.completeBlockTimeout
+	return m.localBlocksCompleteBlockTimeout
 }
