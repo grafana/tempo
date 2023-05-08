@@ -8,15 +8,15 @@ import (
 )
 
 type mockOverrides struct {
-	processors                     map[string]struct{}
-	serviceGraphsHistogramBuckets  []float64
-	serviceGraphsDimensions        []string
-	spanMetricsHistogramBuckets    []float64
-	spanMetricsDimensions          []string
-	spanMetricsIntrinsicDimensions map[string]bool
-	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
-	spanMetricsDimensionMappings   []sharedconfig.DimensionMappings
-	spanMetricsEnableTargetInfo    bool
+	processors                      map[string]struct{}
+	serviceGraphsHistogramBuckets   []float64
+	serviceGraphsDimensions         []string
+	spanMetricsHistogramBuckets     []float64
+	spanMetricsDimensions           []string
+	spanMetricsIntrinsicDimensions  map[string]bool
+	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings    []sharedconfig.DimensionMappings
+	spanMetricsEnableTargetInfo     bool
 	localBlocksMaxLiveTraces        uint64
 	localBlocksMaxBlockDuration     time.Duration
 	localBlocksMaxBlockBytes        uint64
