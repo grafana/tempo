@@ -616,6 +616,53 @@ func TestTargetInfoDisabled(t *testing.T) {
 	assert.Equal(t, false, targetInfoExist)
 }
 
+func TestTargetInfoSanitizeLabelName(t *testing.T) {
+	// no service.name = no job label/dimension
+	// if the only labels are job and instance then target_info should not exist
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+	batch := test.MakeBatch(10, nil)
+
+	// add instance
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "service.instance.id",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+	})
+
+	// add additional source attributes
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "cluster-id",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+	})
+
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "target.ip",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+	})
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"job":        "test-service",
+		"instance":   "abc-instance-id-test-def",
+		"cluster_id": "eu-west-0",
+		"target_ip":  "1.1.1.1",
+	})
+
+	assert.Equal(t, 1.0, testRegistry.Query("traces_target_info", lbls))
+}
+
 func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist

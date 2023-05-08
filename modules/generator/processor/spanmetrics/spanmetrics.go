@@ -213,9 +213,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	// update target_info label values
 	if p.Cfg.EnableTargetInfo {
 		resourceAttributesCount := len(targetInfoLabels)
-		for _, label := range targetInfoLabels {
+		for index, label := range targetInfoLabels {
 			value, _ := processor_util.FindAttributeValue(label, rs.Attributes, span.Attributes)
 			targetInfoLabelValues = append(targetInfoLabelValues, value)
+
+			// sanitize label name
+			targetInfoLabels[index] = sanitizeLabelNameWithCollisions(label)
 		}
 
 		// add joblabel to target info only if job is not blank
