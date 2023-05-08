@@ -30,7 +30,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [ENHANCEMENT] Add support for IPv6 [#1555](https://github.com/grafana/tempo/pull/1555) (@zalegrala)
 * [ENHANCEMENT] Add span filtering to spanmetrics processor [#2274](https://github.com/grafana/tempo/pull/2274) (@zalegrala)
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
-* [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#???](https://github.com/grafana/tempo/pull/???) (@zalegrala)
+* [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
     trace:
@@ -38,6 +38,7 @@ storage:
             insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
 
 ```
+* [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)
