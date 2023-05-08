@@ -72,6 +72,7 @@ type Limits struct {
 	MetricsGeneratorProcessorSpanMetricsDimensions          []string                    `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions map[string]bool             `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies      []filterconfig.FilterPolicy `yaml:"metrics_generator_processor_span_metrics_filter_policies" json:"metrics_generator_processor_span_metrics_filter_policies"`
+	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces       uint64                      `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
 
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`

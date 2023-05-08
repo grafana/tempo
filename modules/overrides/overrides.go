@@ -352,6 +352,10 @@ func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID st
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsFilterPolicies
 }
 
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxLiveTraces
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)

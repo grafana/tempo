@@ -21,6 +21,7 @@ type Config struct {
 	MaxBlockDuration     time.Duration         `yaml:"max_block_duration"`
 	MaxBlockBytes        uint64                `yaml:"max_block_bytes"`
 	CompleteBlockTimeout time.Duration         `yaml:"complete_block_timeout"`
+	MaxLiveTraces        uint64                `yaml:"max_live_traces"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

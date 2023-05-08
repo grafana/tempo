@@ -16,6 +16,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy
+	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64
 }
 
 var _ metricsGeneratorOverrides = (*overrides.Overrides)(nil)

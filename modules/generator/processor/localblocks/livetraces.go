@@ -6,7 +6,10 @@ import (
 	"time"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/pkg/errors"
 )
+
+var errMaxExceeded = errors.New("asdf")
 
 type liveTrace struct {
 	id        []byte
@@ -32,9 +35,13 @@ func (l *liveTraces) token(traceID []byte) uint64 {
 	return l.hash.Sum64()
 }
 
-func (l *liveTraces) Push(batch *v1.ResourceSpans) {
+func (l *liveTraces) Len() uint64 {
+	return uint64(len(l.traces))
+}
+
+func (l *liveTraces) Push(batch *v1.ResourceSpans, max uint64) error {
 	if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
-		return
+		return nil
 	}
 
 	traceID := batch.ScopeSpans[0].Spans[0].TraceId
@@ -42,6 +49,13 @@ func (l *liveTraces) Push(batch *v1.ResourceSpans) {
 
 	tr := l.traces[token]
 	if tr == nil {
+
+		// Before adding this check against max
+		// Zero means no limit
+		if max > 0 && uint64(len(l.traces)) >= max {
+			return errMaxExceeded
+		}
+
 		tr = &liveTrace{
 			id: traceID,
 		}
@@ -50,6 +64,7 @@ func (l *liveTraces) Push(batch *v1.ResourceSpans) {
 
 	tr.Batches = append(tr.Batches, batch)
 	tr.timestamp = time.Now()
+	return nil
 }
 
 func (l *liveTraces) CutIdle(idleSince time.Time) []*liveTrace {

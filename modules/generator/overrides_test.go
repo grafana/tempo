@@ -14,6 +14,7 @@ type mockOverrides struct {
 	spanMetricsDimensions          []string
 	spanMetricsIntrinsicDimensions map[string]bool
 	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
+	localBlocksMaxLiveTraces       uint64
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -56,4 +57,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
 	return m.spanMetricsFilterPolicies
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+	return m.localBlocksMaxLiveTraces
 }

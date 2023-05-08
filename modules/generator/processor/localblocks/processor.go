@@ -63,10 +63,11 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 		return nil, errors.Wrap(err, "replaying blocks")
 	}
 
-	p.wg.Add(3)
+	p.wg.Add(4)
 	go p.flushLoop()
 	go p.deleteLoop()
 	go p.completeLoop()
+	go p.metricLoop()
 
 	return p, nil
 }
@@ -80,11 +81,21 @@ func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
+	before := p.liveTraces.Len()
+
 	for _, batch := range req.Batches {
 		if batch = filterBatch(batch); batch != nil {
-			p.liveTraces.Push(batch)
+			switch err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces); err {
+			case errMaxExceeded:
+				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+			}
 		}
 	}
+
+	after := p.liveTraces.Len()
+
+	// Number of new traces is the delta
+	metricTotalTraces.WithLabelValues(p.tenant).Add(float64(after - before))
 }
 
 func (p *Processor) Shutdown(ctx context.Context) {
@@ -168,6 +179,24 @@ func (p *Processor) completeLoop() {
 	}
 }
 
+func (p *Processor) metricLoop() {
+	defer p.wg.Done()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Instead of reacting to every block flush/update, just run on a timer.
+			p.recordBlockBytes()
+
+		case <-p.closeCh:
+			return
+		}
+	}
+}
+
 func (p *Processor) completeBlock() error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
@@ -235,7 +264,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 			if err != nil {
 				return err
 			}
-			delete(p.walBlocks, id)
+			delete(p.completeBlocks, id)
 		}
 	}
 
@@ -245,6 +274,9 @@ func (p *Processor) deleteOldBlocks() (err error) {
 func (p *Processor) cutIdleTraces(immediate bool) error {
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
+
+	// Record live traces before flushing so we know the high water mark
+	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
 
 	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
 	if immediate {
@@ -418,6 +450,28 @@ func (p *Processor) reloadBlocks() error {
 	}
 
 	return nil
+}
+
+func (p *Processor) recordBlockBytes() {
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
+
+	sum := uint64(0)
+
+	if p.headBlock != nil {
+		sum += p.headBlock.DataLength()
+		fmt.Println("head block: ", p.headBlock.BlockMeta().BlockID, p.headBlock.DataLength())
+	}
+	for _, b := range p.walBlocks {
+		sum += b.DataLength()
+		fmt.Println("wal block: ", b.BlockMeta().BlockID, b.DataLength())
+	}
+	for _, b := range p.completeBlocks {
+		sum += b.BlockMeta().Size
+		fmt.Println("complete block: ", b.BlockMeta().BlockID, b.BlockMeta().Size)
+	}
+
+	metricBlockSize.WithLabelValues(p.tenant).Set(float64(sum))
 }
 
 // filterBatch to only spans with kind==server. Does not modify the input

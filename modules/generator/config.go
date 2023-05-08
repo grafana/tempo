@@ -84,6 +84,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {
 		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
 	}
+	if max := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); max > 0 {
+		copyCfg.LocalBlocks.MaxLiveTraces = max
+	}
 
 	return copyCfg, nil
 }
