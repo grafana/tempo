@@ -161,7 +161,7 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
-	github.com/grafana/regexp v0.0.0-20221005093135-b4c2bcb0a4b6 // indirect
+	github.com/grafana/regexp v0.0.0-20221123153739-15dc172cd2db // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.2 // indirect
 	github.com/hashicorp/consul/api v1.15.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

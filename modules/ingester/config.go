@@ -25,6 +25,8 @@ type Config struct {
 	MaxBlockBytes        uint64        `yaml:"max_block_bytes"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 	OverrideRingKey      string        `yaml:"override_ring_key"`
+
+	AutocompleteFilteringEnabled bool `yaml:"-"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.

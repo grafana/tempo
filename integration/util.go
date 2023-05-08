@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -28,19 +27,7 @@ const (
 	image = "tempo:latest"
 )
 
-// GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
-func GetExtraArgs() []string {
-	// Get extra args from the TEMPO_EXTRA_ARGS env variable
-	// falling back to an empty list
-	if os.Getenv("TEMPO_EXTRA_ARGS") != "" {
-		return strings.Fields(os.Getenv("TEMPO_EXTRA_ARGS"))
-	}
-
-	return nil
-}
-
-func buildArgsWithExtra(args []string) []string {
-	extraArgs := GetExtraArgs()
+func buildArgsWithExtra(args, extraArgs []string) []string {
 	if len(extraArgs) > 0 {
 		return append(extraArgs, args...)
 	}
@@ -48,9 +35,9 @@ func buildArgsWithExtra(args []string) []string {
 	return args
 }
 
-func NewTempoAllInOne() *e2e.HTTPService {
+func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"tempo",
@@ -68,9 +55,9 @@ func NewTempoAllInOne() *e2e.HTTPService {
 	return s
 }
 
-func NewTempoDistributor() *e2e.HTTPService {
+func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"distributor",
@@ -86,9 +73,9 @@ func NewTempoDistributor() *e2e.HTTPService {
 	return s
 }
 
-func NewTempoIngester(replica int) *e2e.HTTPService {
+func NewTempoIngester(replica int, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=ingester"}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"ingester-"+strconv.Itoa(replica),
@@ -103,9 +90,9 @@ func NewTempoIngester(replica int) *e2e.HTTPService {
 	return s
 }
 
-func NewTempoMetricsGenerator() *e2e.HTTPService {
+func NewTempoMetricsGenerator(extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=metrics-generator"}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"metrics-generator",
@@ -120,9 +107,9 @@ func NewTempoMetricsGenerator() *e2e.HTTPService {
 	return s
 }
 
-func NewTempoQueryFrontend() *e2e.HTTPService {
+func NewTempoQueryFrontend(extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=query-frontend"}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"query-frontend",
@@ -137,9 +124,9 @@ func NewTempoQueryFrontend() *e2e.HTTPService {
 	return s
 }
 
-func NewTempoQuerier() *e2e.HTTPService {
+func NewTempoQuerier(extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"querier",
@@ -154,9 +141,9 @@ func NewTempoQuerier() *e2e.HTTPService {
 	return s
 }
 
-func NewTempoScalableSingleBinary(replica int) *e2e.HTTPService {
+func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
-	args = buildArgsWithExtra(args)
+	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
 		"tempo-"+strconv.Itoa(replica),

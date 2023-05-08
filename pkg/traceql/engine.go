@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -110,16 +108,14 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
-	req *tempopb.SearchTagValuesRequest,
+	tag Attribute,
+	query string,
 	cb func(v Static) bool,
 	fetcher SpansetFetcher,
 ) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.Finish()
 
-	query := extractMatchers(req.Query)
-
-	span.SetTag("query", req.Query)
 	span.SetTag("sanitized query", query)
 
 	rootExpr, err := Parse(query)
@@ -135,11 +131,6 @@ func (e *Engine) ExecuteTagValues(
 		End:   math.MaxUint32,
 	}
 
-	wantAttr, err := ParseIdentifier(req.TagName)
-	if err != nil {
-		return err
-	}
-
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 	// TODO: remove other conditions for the wantAttr we're searching for
 	// for _, cond := range fetchSpansRequest.Conditions {
@@ -148,7 +139,7 @@ func (e *Engine) ExecuteTagValues(
 	// 	}
 	// }
 	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
-		Attribute: wantAttr,
+		Attribute: tag,
 		Op:        OpNone,
 	})
 
@@ -156,11 +147,11 @@ func (e *Engine) ExecuteTagValues(
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
 	var collectAttributeValue func(s Span) bool
-	switch wantAttr.Scope {
+	switch tag.Scope {
 	case AttributeScopeResource,
 		AttributeScopeSpan: // If tag is scoped, we can check the map directly
 		collectAttributeValue = func(s Span) bool {
-			if v, ok := s.Attributes()[wantAttr]; ok {
+			if v, ok := s.Attributes()[tag]; ok {
 				return cb(v)
 			}
 			return false
@@ -169,17 +160,17 @@ func (e *Engine) ExecuteTagValues(
 		// If tag is unscoped, it can either be an intrinsic (eg. `name`) or an unscoped attribute (eg. `.namespace`)
 		//
 		// If the tag is intrinsic Attribute.Intrinsic is set to the Intrinsic it corresponds,
-		// so we can check against `!= IntrinsicNone` and use wantAttr directly.
+		// so we can check against `!= IntrinsicNone` and use tag directly.
 		//
 		// If the tag is unscoped, we need to check resource and span scoped manually by building a new Attribute with each scope.
 		collectAttributeValue = func(s Span) bool {
-			if wantAttr.Intrinsic != IntrinsicNone { // it's intrinsic
-				if v, ok := s.Attributes()[wantAttr]; ok {
+			if tag.Intrinsic != IntrinsicNone { // it's intrinsic
+				if v, ok := s.Attributes()[tag]; ok {
 					return cb(v)
 				}
 			} else { // it's unscoped
 				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
-					scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name}
+					scopedAttr := Attribute{Scope: scope, Parent: tag.Parent, Name: tag.Name}
 					if v, ok := s.Attributes()[scopedAttr]; ok {
 						return cb(v)
 					}
@@ -189,7 +180,7 @@ func (e *Engine) ExecuteTagValues(
 			return false
 		}
 	default:
-		return fmt.Errorf("unknown attribute scope: %s", wantAttr)
+		return fmt.Errorf("unknown attribute scope: %s", tag)
 	}
 
 	// set up the expression evaluation as a filter to reduce data pulled
@@ -372,57 +363,4 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 		},
 	}
-}
-
-// Regex to extract matchers from a query string
-// This regular expression matches a string that contains three groups separated by operators.
-// The first group is a string of alphabetical characters, dots, and underscores.
-// The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
-// The third group is one of several possible values: a string enclosed in double quotes,
-// a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
-// a plain number, or the boolean values "true" or "false".
-// Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false)`)
-
-// TODO: Merge into a single regular expression
-
-// Regex to extract selectors from a query string
-// This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
-// Examples
-//
-//	Query                        |  Match
-//
-// { .bar = "foo" }                          |   Yes
-// { .bar = "foo" && .foo = "bar" }          |   Yes
-// { .bar = "foo" || .foo = "bar" }          |   No
-// { .bar = "foo" } && { .foo = "bar" }      |   No
-// { .bar = "foo" } || { .foo = "bar" }      |   No
-var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()/&=<>~!0-9"]*}$`)
-
-// extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
-func extractMatchers(query string) string {
-	query = strings.TrimSpace(query)
-
-	if len(query) == 0 {
-		return "{}"
-	}
-
-	selector := singleFilterRegexp.FindString(query)
-	if len(selector) == 0 {
-		return "{}"
-	}
-
-	matchers := matchersRegexp.FindAllString(query, -1)
-
-	var q strings.Builder
-	q.WriteString("{")
-	for i, m := range matchers {
-		if i > 0 {
-			q.WriteString(" && ")
-		}
-		q.WriteString(m)
-	}
-	q.WriteString("}")
-
-	return q.String()
 }
