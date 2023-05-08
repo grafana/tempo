@@ -68,6 +68,7 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 	}
 
 	ticker := time.NewTicker(compactionCycle)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
