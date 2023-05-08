@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/server"
 )
@@ -158,11 +159,11 @@ func (c *Config) CheckConfig() []ConfigWarning {
 	}
 
 	// check v2 specific settings
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != storage.DefaultIndexDownSampleBytes {
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != common.DefaultIndexDownSampleBytes {
 		warnings = append(warnings, newV2Warning("v2_index_downsample_bytes"))
 	}
 
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != storage.DefaultIndexPageSizeBytes {
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != common.DefaultIndexPageSizeBytes {
 		warnings = append(warnings, newV2Warning("v2_index_page_size_bytes"))
 	}
 
