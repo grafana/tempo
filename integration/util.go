@@ -43,10 +43,10 @@ func GetExtraArgs() []string {
 
 func buildArgsWithExtra(args, extraArgs []string) []string {
 	if len(extraArgs) > 0 {
-		args = append(extraArgs, args...)
+		args = append(args, extraArgs...)
 	}
 	if envExtraArgs := GetExtraArgs(); len(envExtraArgs) > 0 {
-		args = append(envExtraArgs, args...)
+		args = append(args, envExtraArgs...)
 	}
 
 	return args
