@@ -2,10 +2,10 @@ package spanmetrics
 
 import (
 	"context"
-	"time"
-
+	"fmt"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/strutil"
+	"time"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -122,13 +122,14 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		resourceLabels := make([]string, 0)
+		resourceValues := make([]string, 0)
 		if p.Cfg.EnableTargetInfo {
-			resourceLabels = processor_util.GetTargetInfoAttributes(rs.Resource.Attributes)
+			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
-					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, resourceLabels)
+					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, resourceLabels, resourceValues)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
@@ -137,15 +138,16 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, resourceLabels []string) {
+func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, resourceLabels []string, resourceValues []string) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
-	targetInfoLabelValues := make([]string, 0, len(resourceLabels))
+	targetInfoLabelValues := make([]string, len(resourceLabels))
 	labels := make([]string, len(p.labels))
 	targetInfoLabels := make([]string, len(resourceLabels))
 	copy(labels, p.labels)
 	copy(targetInfoLabels, resourceLabels)
+	copy(targetInfoLabelValues, resourceValues)
 
 	// important: the order of labelValues must correspond to the order of labels / intrinsic dimensions
 	if p.Cfg.IntrinsicDimensions.Service {
@@ -214,25 +216,24 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	if p.Cfg.EnableTargetInfo {
 		resourceAttributesCount := len(targetInfoLabels)
 		for index, label := range targetInfoLabels {
-			value, _ := processor_util.FindAttributeValue(label, rs.Attributes, span.Attributes)
-			targetInfoLabelValues = append(targetInfoLabelValues, value)
-
 			// sanitize label name
 			targetInfoLabels[index] = sanitizeLabelNameWithCollisions(label)
 		}
 
 		// add joblabel to target info only if job is not blank
-		if jobName != "" && p.Cfg.EnableTargetInfo {
+		if jobName != "" {
 			targetInfoLabels = append(targetInfoLabels, dimJob)
 			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
 		}
 		//  add instance label to target info only if job is not blank
-		if instanceID != "" && p.Cfg.EnableTargetInfo {
+		if instanceID != "" {
 			targetInfoLabels = append(targetInfoLabels, dimInstance)
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
 		}
 
 		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
+		fmt.Println(targetInfoLabels)
+		fmt.Println(targetInfoLabelValues)
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
