@@ -536,7 +536,6 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
 	wg.Wait()
-	// time.Sleep(2 * time.Second)
 }
 
 func TestWALBlockDeletedDuringSearch(t *testing.T) {
