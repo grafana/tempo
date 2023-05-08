@@ -37,7 +37,7 @@ storage:
             insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
 
 ```
-* [CHANGE] Ignore context canceled errors in the queriers [#2440https://github.com/grafana/tempo/pull/2440 (@joe-elliott)
+* [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)
