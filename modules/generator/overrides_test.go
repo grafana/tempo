@@ -15,6 +15,11 @@ type mockOverrides struct {
 	spanMetricsIntrinsicDimensions map[string]bool
 	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
 	localBlocksMaxLiveTraces       uint64
+	maxBlockDuration               time.Duration
+	maxBlockBytes                  uint64
+	flushCheckPeriod               time.Duration
+	traceIdlePeriod                time.Duration
+	completeBlockTimeout           time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -61,4 +66,24 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userI
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
 	return m.localBlocksMaxLiveTraces
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
+	return m.maxBlockDuration
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
+	return m.maxBlockBytes
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
+	return m.traceIdlePeriod
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
+	return m.flushCheckPeriod
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
+	return m.completeBlockTimeout
 }

@@ -460,15 +460,12 @@ func (p *Processor) recordBlockBytes() {
 
 	if p.headBlock != nil {
 		sum += p.headBlock.DataLength()
-		fmt.Println("head block: ", p.headBlock.BlockMeta().BlockID, p.headBlock.DataLength())
 	}
 	for _, b := range p.walBlocks {
 		sum += b.DataLength()
-		fmt.Println("wal block: ", b.BlockMeta().BlockID, b.DataLength())
 	}
 	for _, b := range p.completeBlocks {
 		sum += b.BlockMeta().Size
-		fmt.Println("complete block: ", b.BlockMeta().BlockID, b.BlockMeta().Size)
 	}
 
 	metricBlockSize.WithLabelValues(p.tenant).Set(float64(sum))

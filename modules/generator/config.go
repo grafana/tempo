@@ -84,8 +84,29 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {
 		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
 	}
+
 	if max := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); max > 0 {
 		copyCfg.LocalBlocks.MaxLiveTraces = max
+	}
+
+	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID); max > 0 {
+		copyCfg.LocalBlocks.MaxBlockDuration = max
+	}
+
+	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID); max > 0 {
+		copyCfg.LocalBlocks.MaxBlockBytes = max
+	}
+
+	if period := o.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID); period > 0 {
+		copyCfg.LocalBlocks.FlushCheckPeriod = period
+	}
+
+	if period := o.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID); period > 0 {
+		copyCfg.LocalBlocks.TraceIdlePeriod = period
+	}
+
+	if timeout := o.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID); timeout > 0 {
+		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
 	}
 
 	return copyCfg, nil
