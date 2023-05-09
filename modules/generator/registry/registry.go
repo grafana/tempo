@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -125,24 +126,29 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	return r
 }
 
-func (r *ManagedRegistry) NewLabelValues(values []string) *LabelValues {
-	return newLabelValuesWithMax(values, r.cfg.MaxLabelValueLength)
+func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *LabelValueCombo {
+	if len(labels) != len(values) {
+		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", labels, values))
+	}
+	return newLabelValueComboWithMax(labels, values, r.cfg.MaxLabelNameLength, r.cfg.MaxLabelValueLength)
 }
 
-func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
-	truncateLength(labels, r.cfg.MaxLabelNameLength)
-
-	c := newCounter(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries)
+func (r *ManagedRegistry) NewCounter(name string) Counter {
+	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(c)
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
-	truncateLength(labels, r.cfg.MaxLabelNameLength)
-
-	h := newHistogram(name, labels, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries)
+func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
+	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(h)
 	return h
+}
+
+func (r *ManagedRegistry) NewGauge(name string) Gauge {
+	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	r.registerMetric(g)
+	return g
 }
 
 func (r *ManagedRegistry) registerMetric(m metric) {

@@ -276,6 +276,10 @@ func (a *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	return common.ErrUnsupported
 }
 
+func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagCallbackV2, common.SearchOptions) error {
+	return common.ErrUnsupported
+}
+
 // Fetch implements traceql.SpansetFetcher
 func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported

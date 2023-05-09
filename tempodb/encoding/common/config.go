@@ -1,9 +1,18 @@
 package common
 
 import (
+	"flag"
 	"fmt"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
+)
+
+const (
+	DefaultBloomFP              = .01
+	DefaultBloomShardSizeBytes  = 100 * 1024
+	DefaultIndexDownSampleBytes = 1024 * 1024
+	DefaultIndexPageSizeBytes   = 250 * 1024
 )
 
 // BlockConfig holds configuration options for newly created blocks
@@ -21,6 +30,18 @@ type BlockConfig struct {
 
 	// parquet fields
 	RowGroupSizeBytes int `yaml:"parquet_row_group_size_bytes"`
+}
+
+func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	f.Float64Var(&cfg.BloomFP, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-false-positive"), DefaultBloomFP, "Bloom Filter False Positive.")
+	f.IntVar(&cfg.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-shard-size-bytes"), DefaultBloomShardSizeBytes, "Bloom Filter Shard Size in bytes.")
+	f.IntVar(&cfg.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.v2-index-downsample-bytes"), DefaultIndexDownSampleBytes, "Number of bytes (before compression) per index record.")
+	f.IntVar(&cfg.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-index-page-size-bytes"), DefaultIndexPageSizeBytes, "Number of bytes per index page.")
+	//cfg.Version = encoding.DefaultEncoding().Version() // Cyclic dependency - ugh
+	cfg.Encoding = backend.EncZstd
+	cfg.SearchEncoding = backend.EncSnappy
+	cfg.SearchPageSizeBytes = 1024 * 1024 // 1 MB
+	cfg.RowGroupSizeBytes = 100_000_000   // 100 MB
 }
 
 // ValidateConfig returns true if the config is valid

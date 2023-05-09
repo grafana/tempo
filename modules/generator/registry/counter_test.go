@@ -17,10 +17,10 @@ func Test_counter(t *testing.T) {
 		return true
 	}
 
-	c := newCounter("my_counter", []string{"label"}, onAdd, nil)
+	c := newCounter("my_counter", onAdd, nil)
 
-	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -34,8 +34,8 @@ func Test_counter(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
-	c.Inc(newLabelValues([]string{"value-3"}), 3.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -49,17 +49,6 @@ func Test_counter(t *testing.T) {
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
 
-func Test_counter_invalidLabelValues(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"}, nil, nil)
-
-	assert.Panics(t, func() {
-		c.Inc(nil, 1.0)
-	})
-	assert.Panics(t, func() {
-		c.Inc(newLabelValues([]string{"value-1", "value-2"}), 1.0)
-	})
-}
-
 func Test_counter_cantAdd(t *testing.T) {
 	canAdd := false
 	onAdd := func(count uint32) bool {
@@ -67,13 +56,13 @@ func Test_counter_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newCounter("my_counter", []string{"label"}, onAdd, nil)
+	c := newCounter("my_counter", onAdd, nil)
 
 	// allow adding new series
 	canAdd = true
 
-	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
@@ -88,8 +77,8 @@ func Test_counter_cantAdd(t *testing.T) {
 	// block new series - existing series can still be updated
 	canAdd = false
 
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
-	c.Inc(newLabelValues([]string{"value-3"}), 3.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
 
 	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
@@ -106,11 +95,11 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newCounter("my_counter", []string{"label"}, nil, onRemove)
+	c := newCounter("my_counter", nil, onRemove)
 
 	timeMs := time.Now().UnixMilli()
-	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -130,7 +119,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	timeMs = time.Now().UnixMilli()
 
 	// update value-2 series
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -144,10 +133,10 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 }
 
 func Test_counter_externalLabels(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"}, nil, nil)
+	c := newCounter("my_counter", nil, nil)
 
-	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
@@ -161,7 +150,7 @@ func Test_counter_externalLabels(t *testing.T) {
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"}, nil, nil)
+	c := newCounter("my_counter", nil, nil)
 
 	end := make(chan struct{})
 
@@ -178,8 +167,8 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		go accessor(func() {
-			c.Inc(newLabelValues([]string{"value-1"}), 1.0)
-			c.Inc(newLabelValues([]string{"value-2"}), 1.0)
+			c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+			c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.0)
 		})
 	}
 
@@ -190,7 +179,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		c.Inc(newLabelValues([]string{string(s)}), 1.0)
+		c.Inc(newLabelValueCombo([]string{"label"}, []string{string(s)}), 1.0)
 	})
 
 	go accessor(func() {
@@ -207,7 +196,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_counter_concurrencyCorrectness(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"}, nil, nil)
+	c := newCounter("my_counter", nil, nil)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -223,7 +212,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 				case <-end:
 					return
 				default:
-					c.Inc(newLabelValues([]string{"value-1"}), 1.0)
+					c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 					totalCount.Add(1)
 				}
 			}

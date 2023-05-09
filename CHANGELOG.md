@@ -18,6 +18,7 @@
       concurrent_shards: 3
   ```
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
+To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
   Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
@@ -29,7 +30,7 @@
 * [ENHANCEMENT] Add support for IPv6 [#1555](https://github.com/grafana/tempo/pull/1555) (@zalegrala)
 * [ENHANCEMENT] Add span filtering to spanmetrics processor [#2274](https://github.com/grafana/tempo/pull/2274) (@zalegrala)
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
-* [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#???](https://github.com/grafana/tempo/pull/???) (@zalegrala)
+* [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
     trace:
@@ -37,6 +38,7 @@ storage:
             insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
 
 ```
+* [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)
@@ -86,6 +88,7 @@ storage:
 * [BUGFIX] Support float as duration like `{duration > 1.5s}` [#2304](https://github.com/grafana/tempo/pull/2304) (@ie-pham)
 * [ENHANCEMENT] Supports range operators for strings in TraceQL [#2321](https://github.com/grafana/tempo/pull/2321) (@ie-pham)
 * [ENHANCEMENT] Supports TraceQL in Vulture [#2321](https://github.com/grafana/tempo/pull/2321) (@ie-pham)
+* [FEATURE] Add job & instance labels to span metrics, a new target_info metrics, and custom dimension label mapping [#2261](https://github.com/grafana/tempo/pull/2261) (@ie-pham)
 
 ## v2.0.1 / 2023-03-03
 
