@@ -201,7 +201,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 	var wg sync.WaitGroup
 	end := make(chan struct{})
 
-	totalCount := atomic.NewUint64(0)
+	totalCount := atomic.NewFloat64(0)
 
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
@@ -213,7 +213,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 					return
 				default:
 					c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
-					totalCount.Inc()
+					totalCount.Add(1)
 				}
 			}
 		}()
@@ -228,7 +228,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, offsetCollectionTimeMs, float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, offsetCollectionTimeMs, totalCount.Load()),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples, nil)
 }
