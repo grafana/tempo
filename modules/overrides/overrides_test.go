@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
@@ -148,6 +149,177 @@ func TestOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedMaxSearchDuration {
 				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
+			}
+
+			//if srv != nil {
+			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
+			//}
+		})
+	}
+}
+
+func TestMetricsGeneratorOverrides(t *testing.T) {
+
+	tests := []struct {
+		name                      string
+		limits                    Limits
+		overrides                 *perTenantOverrides
+		expectedEnableTargetInfo  map[string]bool
+		expectedDimensionMappings map[string][]sharedconfig.DimensionMappings
+	}{
+		{
+			name: "limits only",
+			limits: Limits{
+				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
+				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+					{
+						Name:        "test-name",
+						SourceLabel: []string{"service.name"},
+						Join:        "/",
+					},
+				},
+			},
+			expectedEnableTargetInfo: map[string]bool{"user1": true, "user2": true},
+			expectedDimensionMappings: map[string][]sharedconfig.DimensionMappings{
+				"user1": {
+					{
+						Name:        "test-name",
+						SourceLabel: []string{"service.name"},
+						Join:        "/",
+					},
+				},
+				"user2": {
+					{
+						Name:        "test-name",
+						SourceLabel: []string{"service.name"},
+						Join:        "/",
+					},
+				},
+			},
+		},
+		{
+			name:   "basic overrides",
+			limits: Limits{},
+			overrides: &perTenantOverrides{
+				TenantLimits: map[string]*Limits{
+					"user1": {
+						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
+						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+							{
+								Name:        "test-name",
+								SourceLabel: []string{"service.name"},
+								Join:        "/",
+							},
+						},
+					},
+				},
+			},
+			expectedEnableTargetInfo: map[string]bool{"user1": true, "user2": false},
+			expectedDimensionMappings: map[string][]sharedconfig.DimensionMappings{
+				"user1": {
+					{
+						Name:        "test-name",
+						SourceLabel: []string{"service.name"},
+						Join:        "/",
+					},
+				},
+				"user2": nil,
+			},
+		},
+		{
+			name: "wildcard override",
+			limits: Limits{
+				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: false,
+				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+					{
+						Name:        "test-name",
+						SourceLabel: []string{"service.name"},
+						Join:        "/",
+					},
+				},
+			},
+			overrides: &perTenantOverrides{
+				TenantLimits: map[string]*Limits{
+					"user1": {
+						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
+						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+							{
+								Name:        "another-name",
+								SourceLabel: []string{"service.namespace"},
+								Join:        "/",
+							},
+						},
+					},
+					"*": {
+						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: false,
+						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
+							{
+								Name:        "id-name",
+								SourceLabel: []string{"service.instance.id"},
+								Join:        "/",
+							},
+							{
+								Name:        "job",
+								SourceLabel: []string{"service.namespace", "service.name"},
+								Join:        "/",
+							},
+						},
+					},
+				},
+			},
+			expectedEnableTargetInfo: map[string]bool{"user1": true, "user2": false},
+			expectedDimensionMappings: map[string][]sharedconfig.DimensionMappings{
+				"user1": {
+					{
+						Name:        "another-name",
+						SourceLabel: []string{"service.namespace"},
+						Join:        "/",
+					},
+				},
+				"user2": {
+					{
+						Name:        "id-name",
+						SourceLabel: []string{"service.instance.id"},
+						Join:        "/",
+					},
+					{
+						Name:        "job",
+						SourceLabel: []string{"service.namespace", "service.name"},
+						Join:        "/",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.overrides != nil {
+				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
+
+				buff, err := yaml.Marshal(tt.overrides)
+				require.NoError(t, err)
+
+				err = os.WriteFile(overridesFile, buff, os.ModePerm)
+				require.NoError(t, err)
+
+				tt.limits.PerTenantOverrideConfig = overridesFile
+				tt.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
+			}
+
+			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
+			overrides, err := NewOverrides(tt.limits)
+			require.NoError(t, err)
+			err = services.StartAndAwaitRunning(context.TODO(), overrides)
+			require.NoError(t, err)
+
+			for user, expectedVal := range tt.expectedEnableTargetInfo {
+				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(user))
+			}
+
+			for user, expectedVal := range tt.expectedDimensionMappings {
+				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(user))
 			}
 
 			//if srv != nil {

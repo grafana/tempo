@@ -3,6 +3,7 @@ package generator
 import (
 	"time"
 
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
@@ -14,6 +15,8 @@ type mockOverrides struct {
 	spanMetricsDimensions           []string
 	spanMetricsIntrinsicDimensions  map[string]bool
 	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings    []sharedconfig.DimensionMappings
+	spanMetricsEnableTargetInfo     bool
 	localBlocksMaxLiveTraces        uint64
 	localBlocksMaxBlockDuration     time.Duration
 	localBlocksMaxBlockBytes        uint64
@@ -86,4 +89,14 @@ func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(use
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
 	return m.localBlocksCompleteBlockTimeout
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+	return m.spanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	return m.spanMetricsEnableTargetInfo
 }

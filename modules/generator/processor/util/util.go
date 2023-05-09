@@ -11,6 +11,14 @@ func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(semconv.AttributeServiceName, attributes)
 }
 
+func FindServiceNamespace(attributes []*v1_common.KeyValue) (string, bool) {
+	return FindAttributeValue(semconv.AttributeServiceNamespace, attributes)
+}
+
+func FindInstanceID(attributes []*v1_common.KeyValue) (string, bool) {
+	return FindAttributeValue(semconv.AttributeServiceInstanceID, attributes)
+}
+
 func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {
 	for _, attrs := range attributes {
 		for _, kv := range attrs {
@@ -35,4 +43,34 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span) float64 {
 		}
 	}
 	return spanMultiplier
+}
+
+func GetJobValue(attributes []*v1_common.KeyValue) string {
+	svName, _ := FindServiceName(attributes)
+	namespace, _ := FindServiceNamespace(attributes)
+
+	// if service name is not present, consider job value empty
+	if svName == "" {
+		return ""
+	} else if namespace != "" {
+		namespace += "/"
+	}
+
+	return namespace + svName
+}
+
+func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue) ([]string, []string) {
+	keys := make([]string, 0)
+	values := make([]string, 0)
+	for _, attrs := range attributes {
+		// ignoring job and instance
+		key := attrs.Key
+		value := tempo_util.StringifyAnyValue(attrs.Value)
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" {
+			keys = append(keys, key)
+			values = append(values, value)
+		}
+	}
+
+	return keys, values
 }

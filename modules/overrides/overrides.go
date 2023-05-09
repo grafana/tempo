@@ -9,9 +9,11 @@ import (
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -374,6 +376,16 @@ func (o *Overrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID 
 
 func (o *Overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsEnableTargetInfo
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

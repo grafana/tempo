@@ -19,7 +19,6 @@ type histogram struct {
 	nameCount    string
 	nameSum      string
 	nameBucket   string
-	labels       []string
 	buckets      []float64
 	bucketLabels []string
 
@@ -32,10 +31,10 @@ type histogram struct {
 }
 
 type histogramSeries struct {
-	// labelValues should not be modified after creation
-	labelValues []string
-	count       *atomic.Float64
-	sum         *atomic.Float64
+	// labelValueCombo should not be modified after creation
+	labels LabelPair
+	count  *atomic.Float64
+	sum    *atomic.Float64
 	// buckets includes the +Inf bucket
 	buckets []*atomic.Float64
 	// exemplar is stored as a single traceID
@@ -47,7 +46,7 @@ type histogramSeries struct {
 var _ Histogram = (*histogram)(nil)
 var _ metric = (*histogram)(nil)
 
-func newHistogram(name string, labels []string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *histogram {
+func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *histogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -70,7 +69,6 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 		nameCount:     fmt.Sprintf("%s_count", name),
 		nameSum:       fmt.Sprintf("%s_sum", name),
 		nameBucket:    fmt.Sprintf("%s_bucket", name),
-		labels:        labels,
 		buckets:       buckets,
 		bucketLabels:  bucketLabels,
 		series:        make(map[uint64]*histogramSeries),
@@ -79,12 +77,8 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 	}
 }
 
-func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64, traceID string, multiplier float64) {
-	if len(h.labels) != len(labelValues.getValues()) {
-		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", h.labels, labelValues))
-	}
-
-	hash := labelValues.getHash()
+func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
+	hash := labelValueCombo.getHash()
 
 	h.seriesMtx.RLock()
 	s, ok := h.series[hash]
@@ -99,7 +93,7 @@ func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64,
 		return
 	}
 
-	newSeries := h.newSeries(labelValues, value, traceID, multiplier)
+	newSeries := h.newSeries(labelValueCombo, value, traceID, multiplier)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
@@ -112,9 +106,9 @@ func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64,
 	h.series[hash] = newSeries
 }
 
-func (h *histogram) newSeries(labelValues *LabelValues, value float64, traceID string, multiplier float64) *histogramSeries {
+func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
-		labelValues: labelValues.getValuesCopy(),
+		labels:      labelValueCombo.getLabelPair(),
 		count:       atomic.NewFloat64(0),
 		sum:         atomic.NewFloat64(0),
 		buckets:     nil,
@@ -159,7 +153,11 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
-	lbls := make(labels.Labels, 1+len(externalLabels)+len(h.labels)+1)
+	labelsCount := 0
+	if activeSeries > 0 && h.series[0] != nil {
+		labelsCount = len(h.series[0].labels.names)
+	}
+	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 	lb := labels.NewBuilder(lbls)
 
 	// set external labels
@@ -169,8 +167,8 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 	for _, s := range h.series {
 		// set series-specific labels
-		for i, name := range h.labels {
-			lb.Set(name, s.labelValues[i])
+		for i, name := range s.labels.names {
+			lb.Set(name, s.labels.values[i])
 		}
 
 		// sum

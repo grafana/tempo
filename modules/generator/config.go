@@ -109,5 +109,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
 	}
 
+	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
+
+	copyCfg.SpanMetrics.EnableTargetInfo = o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
+
 	return copyCfg, nil
 }
