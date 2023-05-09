@@ -14,6 +14,8 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -240,6 +242,25 @@ func (p *Processor) completeBlock() error {
 	}
 
 	return nil
+}
+
+func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+
+	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return p.headBlock.Fetch(ctx, req, common.DefaultSearchOptions())
+	})
+
+	m, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, int(req.Limit), fetcher)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get metrics")
+	}
+
+	return &tempopb.SpanMetricsResponse{
+		// Series:    m.Series,
+		// Errors:    m.Errors,
+		SpanCount: uint64(m.SpanCount),
+		Estimated: m.Estimated,
+	}, nil
 }
 
 func (p *Processor) deleteOldBlocks() (err error) {

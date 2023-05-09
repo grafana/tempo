@@ -26,8 +26,8 @@ func (g *Generator) SpanSummaryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var resp *tempopb.SpanSummaryResponse
-	resp, err = g.SpanSummary(ctx, req)
+	var resp *tempopb.SpanMetricsResponse
+	resp, err = g.SpanMetrics(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

@@ -323,7 +323,7 @@ func (g *Generator) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {
 func (g *Generator) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
 
-func (g *Generator) SpanSummary(ctx context.Context, req *tempopb.SpanSummaryRequest) (*tempopb.SpanSummaryResponse, error) {
+func (g *Generator) SpanMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -334,5 +334,5 @@ func (g *Generator) SpanSummary(ctx context.Context, req *tempopb.SpanSummaryReq
 		return nil, err
 	}
 
-	return instance.spanSummary(ctx, req)
+	return instance.spanMetrics(ctx, req)
 }

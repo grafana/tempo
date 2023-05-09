@@ -364,20 +364,17 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
 }
 
-func (i *instance) spanSummary(ctx context.Context, req *tempopb.SpanSummaryRequest) (resp *tempopb.SpanSummaryResponse, err error) {
-	select {
-	case <-ctx.Done():
-		return nil, nil
-		// case i.spanSummaryCh <- req:
-	default:
-		// for _, processor := range i.processors {
-		// switch p := processor.(type) {
-		// case *localblocks.Processor:
-		// processor.GetMetrics(ctx, req)
-		// }
-		// }
-		return nil, fmt.Errorf("not implemented yet")
+func (i *instance) spanMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (resp *tempopb.SpanMetricsResponse, err error) {
+
+	for _, processor := range i.processors {
+		switch p := processor.(type) {
+		case *localblocks.Processor:
+			return p.GetMetrics(ctx, req)
+		default:
+		}
 	}
+
+	return nil, fmt.Errorf("localblocks processor not found")
 }
 
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
