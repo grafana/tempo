@@ -168,7 +168,7 @@ func TestFindByTraceID(t *testing.T) {
 }
 
 func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
-	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+	f := func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 		// find all traces pushed
 		ctx := context.Background()
 		for i, id := range ids {
@@ -176,6 +176,14 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 			require.NoError(t, err)
 			require.Equal(t, objs[i], obj)
 		}
+	}
+
+	// Test with both append methods
+	t.Run("Append", func(t *testing.T) {
+		runWALTestWithAppendMode(t, e.Version(), false, f)
+	})
+	t.Run("AppendTrace", func(t *testing.T) {
+		runWALTestWithAppendMode(t, e.Version(), true, f)
 	})
 }
 
@@ -374,6 +382,10 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 }
 
 func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
+	runWALTestWithAppendMode(t, encoding, false, runner)
+}
+
+func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: t.TempDir(),
 		Encoding: backend.EncNone,
@@ -400,17 +412,21 @@ func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.
 		trace.SortTrace(obj)
 
 		ids = append(ids, id)
-
-		b1, err := enc.PrepareForWrite(obj, 0, 0)
-		require.NoError(t, err)
-
-		b2, err := enc.ToObject([][]byte{b1})
-		require.NoError(t, err)
-
 		objs = append(objs, obj)
 
-		err = block.Append(id, b2, 0, 0)
-		require.NoError(t, err)
+		if appendTrace {
+			err = block.AppendTrace(id, obj, 0, 0)
+			require.NoError(t, err)
+		} else {
+			b1, err := enc.PrepareForWrite(obj, 0, 0)
+			require.NoError(t, err)
+
+			b2, err := enc.ToObject([][]byte{b1})
+			require.NoError(t, err)
+
+			err = block.Append(id, b2, 0, 0)
+			require.NoError(t, err)
+		}
 
 		if i%100 == 0 {
 			err = block.Flush()
@@ -437,7 +453,12 @@ func BenchmarkAppendFlush(b *testing.B) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		b.Run(version, func(b *testing.B) {
-			runWALBenchmark(b, version, b.N, nil)
+			b.Run("Append", func(b *testing.B) {
+				runWALBenchmarkWithAppendMode(b, version, b.N, false, nil)
+			})
+			b.Run("AppendTrace", func(b *testing.B) {
+				runWALBenchmarkWithAppendMode(b, version, b.N, true, nil)
+			})
 		})
 	}
 }
@@ -508,6 +529,11 @@ func BenchmarkSearch(b *testing.B) {
 }
 
 func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
+	runWALBenchmarkWithAppendMode(b, encoding, flushCount, false, runner)
+}
+
+func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
+
 	wal, err := New(&Config{
 		Filepath: b.TempDir(),
 		Encoding: backend.EncNone,
@@ -550,8 +576,12 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 
 	for flush := 0; flush < flushCount; flush++ {
 
-		for i := range objs {
-			require.NoError(b, block.Append(ids[i], objs[i], 0, 0))
+		for i := range traces {
+			if appendTrace {
+				require.NoError(b, block.AppendTrace(ids[i], traces[i], 0, 0))
+			} else {
+				require.NoError(b, block.Append(ids[i], objs[i], 0, 0))
+			}
 		}
 
 		err = block.Flush()
