@@ -22,6 +22,7 @@ const (
 	metricCallsTotal      = "traces_spanmetrics_calls_total"
 	metricDurationSeconds = "traces_spanmetrics_latency"
 	metricSizeTotal       = "traces_spanmetrics_size_total"
+	targetInfo            = "traces_target_info"
 )
 
 type Processor struct {
@@ -32,6 +33,8 @@ type Processor struct {
 	spanMetricsCallsTotal      registry.Counter
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
+	spanMetricsTargetInfo      registry.Gauge
+	labels                     []string
 
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
@@ -63,15 +66,27 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
-	p := &Processor{}
+	for _, m := range cfg.DimensionMappings {
+		labels = append(labels, m.Name)
+	}
+
+	p := &Processor{
+		Cfg:                   cfg,
+		registry:              registry,
+		spanMetricsTargetInfo: registry.NewGauge(targetInfo),
+		now:                   time.Now,
+		labels:                labels,
+		filteredSpansCounter:  spanDiscardCounter,
+	}
+
 	if cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets)
+		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets)
 	}
 	if cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal, labels)
+		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal)
 	}
 	if cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal, labels)
+		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal)
 	}
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
@@ -79,9 +94,6 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 		return nil, err
 	}
 
-	p.Cfg = cfg
-	p.registry = registry
-	p.now = time.Now
 	p.filteredSpansCounter = spanDiscardCounter
 	p.filter = filter
 	return p, nil
@@ -103,13 +115,19 @@ func (p *Processor) Shutdown(_ context.Context) {
 
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
-		// already extract service name, so we only have to do it once per batch of spans
+		// already extract job name & instance id, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
-
+		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
+		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
+		resourceLabels := make([]string, 0)
+		resourceValues := make([]string, 0)
+		if p.Cfg.EnableTargetInfo {
+			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes)
+		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
-					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span, resourceLabels, resourceValues)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
@@ -118,10 +136,17 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, span *v1_trace.Span) {
+func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, resourceLabels []string, resourceValues []string) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
+	targetInfoLabelValues := make([]string, len(resourceLabels))
+	labels := make([]string, len(p.labels))
+	targetInfoLabels := make([]string, len(resourceLabels))
+	copy(labels, p.labels)
+	copy(targetInfoLabels, resourceLabels)
+	copy(targetInfoLabelValues, resourceValues)
+
 	// important: the order of labelValues must correspond to the order of labels / intrinsic dimensions
 	if p.Cfg.IntrinsicDimensions.Service {
 		labelValues = append(labelValues, svcName)
@@ -138,19 +163,44 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	if p.Cfg.IntrinsicDimensions.StatusMessage {
 		labelValues = append(labelValues, span.GetStatus().GetMessage())
 	}
+
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		labelValues = append(labelValues, value)
 	}
+
+	for _, m := range p.Cfg.DimensionMappings {
+		values := ""
+		for _, s := range m.SourceLabel {
+			if value, _ := processor_util.FindAttributeValue(s, rs.Attributes, span.Attributes); value != "" {
+				if values == "" {
+					values += value
+				} else {
+					values = values + m.Join + value
+				}
+			}
+		}
+		labelValues = append(labelValues, values)
+	}
+
+	// add job label only if job is not blank
+	if jobName != "" && p.Cfg.EnableTargetInfo {
+		labels = append(labels, dimJob)
+		labelValues = append(labelValues, jobName)
+	}
+	//  add instance label only if job is not blank
+	if instanceID != "" && p.Cfg.EnableTargetInfo {
+		labels = append(labels, dimInstance)
+		labelValues = append(labelValues, instanceID)
+	}
+
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
 
-	registryLabelValues := p.registry.NewLabelValues(labelValues)
+	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
 	}
-
-	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size())*spanMultiplier)
 
 	if p.Cfg.Subprocessors[Latency] {
 		p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), spanMultiplier)
@@ -159,6 +209,34 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	if p.Cfg.Subprocessors[Size] {
 		p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
 	}
+
+	// update target_info label values
+	if p.Cfg.EnableTargetInfo {
+		resourceAttributesCount := len(targetInfoLabels)
+		for index, label := range targetInfoLabels {
+			// sanitize label name
+			targetInfoLabels[index] = sanitizeLabelNameWithCollisions(label)
+		}
+
+		// add joblabel to target info only if job is not blank
+		if jobName != "" {
+			targetInfoLabels = append(targetInfoLabels, dimJob)
+			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
+		}
+		//  add instance label to target info only if job is not blank
+		if instanceID != "" {
+			targetInfoLabels = append(targetInfoLabels, dimInstance)
+			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
+		}
+
+		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
+
+		// only register target info if at least (job or instance) AND one other attribute are present
+		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
+			p.spanMetricsTargetInfo.Set(targetInfoRegistryLabelValues, 1)
+		}
+	}
+
 }
 
 func sanitizeLabelNameWithCollisions(name string) string {
@@ -172,9 +250,10 @@ func sanitizeLabelNameWithCollisions(name string) string {
 }
 
 func isIntrinsicDimension(name string) bool {
-	return name == dimService ||
+	return name == dimJob ||
 		name == dimSpanName ||
 		name == dimSpanKind ||
 		name == dimStatusCode ||
-		name == dimStatusMessage
+		name == dimStatusMessage ||
+		name == dimInstance
 }

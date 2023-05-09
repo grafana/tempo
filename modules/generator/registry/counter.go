@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 
 type counter struct {
 	metricName string
-	labels     []string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
@@ -23,8 +21,7 @@ type counter struct {
 }
 
 type counterSeries struct {
-	// labelValues should not be modified after creation
-	labelValues []string
+	labels      LabelPair
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
@@ -47,7 +44,7 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *counter {
+func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *counter {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -59,22 +56,18 @@ func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onR
 
 	return &counter{
 		metricName:     name,
-		labels:         labels,
 		series:         make(map[uint64]*counterSeries),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 	}
 }
 
-func (c *counter) Inc(labelValues *LabelValues, value float64) {
+func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
-	if len(c.labels) != len(labelValues.getValues()) {
-		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", c.labels, labelValues))
-	}
 
-	hash := labelValues.getHash()
+	hash := labelValueCombo.getHash()
 
 	c.seriesMtx.RLock()
 	s, ok := c.series[hash]
@@ -89,7 +82,7 @@ func (c *counter) Inc(labelValues *LabelValues, value float64) {
 		return
 	}
 
-	newSeries := c.newSeries(labelValues, value)
+	newSeries := c.newSeries(labelValueCombo, value)
 
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
@@ -102,9 +95,9 @@ func (c *counter) Inc(labelValues *LabelValues, value float64) {
 	c.series[hash] = newSeries
 }
 
-func (c *counter) newSeries(labelValues *LabelValues, value float64) *counterSeries {
+func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
 	return &counterSeries{
-		labelValues: labelValues.getValuesCopy(),
+		labels:      labelValueCombo.getLabelPair(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
@@ -126,7 +119,11 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 
 	activeSeries = len(c.series)
 
-	lbls := make(labels.Labels, 1+len(externalLabels)+len(c.labels))
+	labelsCount := 0
+	if activeSeries > 0 && c.series[0] != nil {
+		labelsCount = len(c.series[0].labels.names)
+	}
+	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 	lb := labels.NewBuilder(lbls)
 
 	// set metric name
@@ -139,8 +136,8 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	for _, s := range c.series {
 		t := time.UnixMilli(timeMs)
 		// set series-specific labels
-		for i, name := range c.labels {
-			lb.Set(name, s.labelValues[i])
+		for i, name := range s.labels.names {
+			lb.Set(name, s.labels.values[i])
 		}
 
 		// If we are about to call Append for the first time on a series, we need
