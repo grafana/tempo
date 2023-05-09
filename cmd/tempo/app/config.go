@@ -21,18 +21,20 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/server"
 )
 
 // Config is the root config for App.
 type Config struct {
-	Target                 string `yaml:"target,omitempty"`
-	AuthEnabled            bool   `yaml:"auth_enabled,omitempty"`
-	MultitenancyEnabled    bool   `yaml:"multitenancy_enabled,omitempty"`
-	HTTPAPIPrefix          string `yaml:"http_api_prefix"`
-	UseOTelTracer          bool   `yaml:"use_otel_tracer,omitempty"`
-	EnableGoRuntimeMetrics bool   `yaml:"enable_go_runtime_metrics,omitempty"`
+	Target                       string `yaml:"target,omitempty"`
+	AuthEnabled                  bool   `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled          bool   `yaml:"multitenancy_enabled,omitempty"`
+	HTTPAPIPrefix                string `yaml:"http_api_prefix"`
+	UseOTelTracer                bool   `yaml:"use_otel_tracer,omitempty"`
+	EnableGoRuntimeMetrics       bool   `yaml:"enable_go_runtime_metrics,omitempty"`
+	AutocompleteFilteringEnabled bool   `yaml:"autocomplete_filtering_enabled,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
 	InternalServer  internalserver.Config   `yaml:"internal_server,omitempty"`
@@ -67,6 +69,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
+	f.BoolVar(&c.AutocompleteFilteringEnabled, "autocomplete-filtering.enabled", false, "Set to true to enable autocomplete filtering")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
@@ -156,11 +159,11 @@ func (c *Config) CheckConfig() []ConfigWarning {
 	}
 
 	// check v2 specific settings
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != storage.DefaultIndexDownSampleBytes {
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != common.DefaultIndexDownSampleBytes {
 		warnings = append(warnings, newV2Warning("v2_index_downsample_bytes"))
 	}
 
-	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != storage.DefaultIndexPageSizeBytes {
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != common.DefaultIndexPageSizeBytes {
 		warnings = append(warnings, newV2Warning("v2_index_page_size_bytes"))
 	}
 

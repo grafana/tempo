@@ -11,9 +11,9 @@ import (
 func TestTestRegistry_counter(t *testing.T) {
 	testRegistry := NewTestRegistry()
 
-	counter := testRegistry.NewCounter("counter", []string{"foo", "bar"})
+	counter := testRegistry.NewCounter("counter")
 
-	labelValues := newLabelValues([]string{"foo-value", "bar-value"})
+	labelValues := newLabelValueCombo([]string{"foo", "bar"}, []string{"foo-value", "bar-value"})
 	counter.Inc(labelValues, 1.0)
 	counter.Inc(labelValues, 2.0)
 	counter.Inc(labelValues, 1.5)
@@ -28,9 +28,9 @@ func TestTestRegistry_counter(t *testing.T) {
 func TestTestRegistry_histogram(t *testing.T) {
 	testRegistry := NewTestRegistry()
 
-	histogram := testRegistry.NewHistogram("histogram", []string{"foo", "bar"}, []float64{1.0, 2.0})
+	histogram := testRegistry.NewHistogram("histogram", []float64{1.0, 2.0})
 
-	labelValues := newLabelValues([]string{"foo-value", "bar-value"})
+	labelValues := newLabelValueCombo([]string{"foo", "bar"}, []string{"foo-value", "bar-value"})
 	histogram.ObserveWithExemplar(labelValues, 1.0, "", 1.0)
 	histogram.ObserveWithExemplar(labelValues, 2.0, "", 1.0)
 	histogram.ObserveWithExemplar(labelValues, 2.5, "", 1.0)
