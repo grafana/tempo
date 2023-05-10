@@ -222,13 +222,13 @@ message SpanMetricsSummaryResponse {
 }
 
 message TraceQLStatic {
-    int64 type = 1;
+    int8 type = 1;
     int64 n = 2;
     double f = 3;
     string s = 4;
     bool b = 5;
-    uint32 d = 6;
-    int64 status = 7;
-    int64 kind = 8;
+    uint64 d = 6;
+    int8 status = 7;
+    int8 kind = 8;
   }
 

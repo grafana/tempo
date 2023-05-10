@@ -270,12 +270,14 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		h := []*tempopb.RawHistogram{}
 
 		for bucket, count := range series.Buckets() {
-			histo := &tempopb.RawHistogram{
-				Bucket: uint64(bucket),
-				Count:  uint64(count),
-			}
+			if count != 0 {
+				histo := &tempopb.RawHistogram{
+					Bucket: uint64(bucket),
+					Count:  uint64(count),
+				}
 
-			h = append(h, histo)
+				h = append(h, histo)
+			}
 		}
 
 		xxx := &tempopb.SpanMetrics{

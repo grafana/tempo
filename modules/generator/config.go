@@ -33,7 +33,6 @@ type Config struct {
 	// MetricsIngestionSlack is the max amount of time passed since a span's start time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
-	SummaryTimeout        time.Duration `yaml:"summary_timeout"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
