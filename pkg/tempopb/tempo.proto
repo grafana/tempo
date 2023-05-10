@@ -25,6 +25,7 @@ service Querier {
   rpc SearchTagsV2(SearchTagsRequest) returns (SearchTagsV2Response) {};
   rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {};
+  // rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {};
 }
 
 service StreamingQuerier {
@@ -186,20 +187,31 @@ message LinkSlice {
 message SpanMetricsRequest {
   string query = 1;
   string groupBy = 2;
+  uint64 limit = 3;
 }
 
 message SpanMetricsResponse {
-  repeated SpanMetricsGroup stats = 1;
-}
-
-message SpanMetricsGroup {
-  string name = 1;
+  bool estimated = 1;
   uint64 spanCount = 2;
-  uint64 errorSpanCount = 3;
-  repeated RawHistogram latencies = 4;
+ // uint64 errorSpanCount = 3;
+//   repeated RawHistogram latencies = 4;
 }
 
 message RawHistogram {
   uint64 bucket = 1;
   uint64 count = 2;
+}
+
+message SpanMetricsSummaryRequest {
+  string query = 1;
+  string groupBy = 2;
+}
+
+message SpanMetricsSummaryResponse {
+  int64 spanCount = 2;
+  int64 errorSpanCount = 3;
+  uint64 p99 = 4;
+  uint64 p95 = 5;
+  uint64 p90 = 6;
+  uint64 p50 = 7;
 }

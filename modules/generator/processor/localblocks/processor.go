@@ -247,6 +247,9 @@ func (p *Processor) completeBlock() error {
 func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
 
 	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		if p.headBlock == nil {
+			return traceql.FetchSpansResponse{}, fmt.Errorf("head block is nil")
+		}
 		return p.headBlock.Fetch(ctx, req, common.DefaultSearchOptions())
 	})
 

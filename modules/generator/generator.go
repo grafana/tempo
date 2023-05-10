@@ -334,5 +334,5 @@ func (g *Generator) SpanMetrics(ctx context.Context, req *tempopb.SpanMetricsReq
 		return nil, err
 	}
 
-	return instance.spanMetrics(ctx, req)
+	return instance.spanMetricsFromLocalBlocks(ctx, req)
 }

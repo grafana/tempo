@@ -364,8 +364,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
 }
 
-func (i *instance) spanMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (resp *tempopb.SpanMetricsResponse, err error) {
-
+func (i *instance) spanMetricsFromLocalBlocks(ctx context.Context, req *tempopb.SpanMetricsRequest) (resp *tempopb.SpanMetricsResponse, err error) {
 	for _, processor := range i.processors {
 		switch p := processor.(type) {
 		case *localblocks.Processor:
