@@ -32,7 +32,7 @@ ingester:
   trace_idle_period: 1s
   max_block_bytes: 1
   max_block_duration: 2s
-  complete_block_timeout: 1s
+  complete_block_timeout: 20s
   flush_check_period: 1s
 
 storage:
