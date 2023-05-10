@@ -147,12 +147,12 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				return ctx.Err()
 			// stream results as they come in
 			case <-time.After(500 * time.Millisecond):
-				p := *progress.Load()
+				p := progress.Load()
 				if p == nil {
 					continue
 				}
 
-				result := p.result()
+				result := (*p).result()
 				if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
 					continue
 				}
@@ -164,7 +164,6 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				}
 			// final result is available
 			case roundTripRes := <-resultChan:
-				p := *progress.Load()
 				// check for errors in the http response
 				if roundTripRes.err != nil {
 					return roundTripRes.err
@@ -177,6 +176,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				}
 
 				// overall pipeline returned successfully, now grab the final results and send them
+				p := *progress.Load()
 				result := p.finalResult()
 				if result.err != nil || result.statusCode != http.StatusOK {
 					level.Error(logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
