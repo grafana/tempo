@@ -543,13 +543,13 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 
 func toStaticProto(static traceql.Static) *tempopb.TraceQLStatic {
 	return &tempopb.TraceQLStatic{
-		Type:   int64(static.Type),
+		Type:   int32(static.Type),
 		N:      int64(static.N),
 		F:      static.F,
 		S:      static.S,
 		B:      static.B,
-		D:      uint32(static.D),
-		Status: int64(static.Status),
-		Kind:   int64(static.Kind),
+		D:      uint64(static.D),
+		Status: int32(static.Status),
+		Kind:   int32(static.Kind),
 	}
 }
