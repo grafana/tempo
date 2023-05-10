@@ -264,6 +264,7 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		Metrics:   make([]*tempopb.SpanMetrics, 0, len(m.Series)),
 	}
 
+	var rawHistorgram *tempopb.RawHistogram
 	for static, series := range m.Series {
 		toStaticProto(static)
 
@@ -271,12 +272,12 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 
 		for bucket, count := range series.Buckets() {
 			if count != 0 {
-				histo := &tempopb.RawHistogram{
+				rawHistorgram = &tempopb.RawHistogram{
 					Bucket: uint64(bucket),
 					Count:  uint64(count),
 				}
 
-				h = append(h, histo)
+				h = append(h, rawHistorgram)
 			}
 		}
 
