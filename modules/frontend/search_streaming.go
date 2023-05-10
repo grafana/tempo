@@ -30,19 +30,11 @@ type diffSearchProgress struct {
 	mtx        sync.Mutex
 }
 
-func newDiffSearchProgress() *diffSearchProgress {
+func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) *diffSearchProgress {
 	return &diffSearchProgress{
 		seenTraces: map[string]struct{}{},
-		progress:   newSearchProgress(),
+		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
 	}
-}
-
-func (p *diffSearchProgress) init(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	p.seenTraces = map[string]struct{}{}
-	p.progress.init(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
 }
 
 func (p *diffSearchProgress) setStatus(statusCode int, statusMsg string) {
@@ -124,9 +116,13 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			return errors.New("request must contain a start/end date for streaming search")
 		}
 
-		progress := newDiffSearchProgress()
+		var progress *diffSearchProgress
+		fn := func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+			progress = newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
+			return progress
+		}
 		// build roundtripper
-		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, progress, logger))
+		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, fn, logger))
 
 		type roundTripResult struct {
 			resp *http.Response

@@ -558,7 +558,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
+			}, testSLOcfg, newSearchProgress, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -604,7 +604,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -633,7 +633,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -758,7 +758,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		ConcurrentRequests:    10,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		DefaultLimit:          2,
-	}, testSLOcfg, newSearchProgress(), log.NewNopLogger())
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
 
 	// return some things and assert the right subrequests are cancelled
 	// 500, err, limit
