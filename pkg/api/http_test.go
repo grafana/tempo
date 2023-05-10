@@ -340,9 +340,10 @@ func TestParseSearchBlockRequest(t *testing.T) {
 					Tags: map[string]string{
 						"foo": "bar",
 					},
-					Start: 10,
-					End:   20,
-					Limit: defaultLimit,
+					Start:           10,
+					End:             20,
+					Limit:           defaultLimit,
+					SpansPerSpanSet: defaultSpansPerSpanSet,
 				},
 				StartPage:     0,
 				PagesToSearch: 10,

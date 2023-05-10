@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,7 +97,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			// `service.name = "test-service"` and duration >= 1s
 			_, ids := pushTracesToInstance(t, i, 10)
 
-			req := &tempopb.SearchRequest{Query: query, Limit: 20}
+			req := &tempopb.SearchRequest{Query: query, Limit: 20, SpansPerSpanSet: 10}
 
 			// Test live traces
 			sr, err := i.Search(context.Background(), req)
@@ -453,8 +454,11 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	}
 
 	end := make(chan struct{})
+	wg := sync.WaitGroup{}
 
 	concurrent := func(f func()) {
+		wg.Add(1)
+		defer wg.Done()
 		for {
 			select {
 			case <-end:
@@ -494,7 +498,6 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		blockID, _ := i.CutBlockIfReady(0, 0, true)
 		if blockID != uuid.Nil {
 			err := i.CompleteBlock(blockID)
-			fmt.Println("complete block", blockID, err)
 			require.NoError(t, err)
 			err = i.ClearCompletingBlock(blockID)
 			require.NoError(t, err)
@@ -512,7 +515,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	go concurrent(func() {
 		_, err := i.Search(context.Background(), req)
-		require.NoError(t, err, "error finding trace by id")
+		require.NoError(t, err, "error searching")
 	})
 
 	go concurrent(func() {
@@ -533,7 +536,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	close(end)
 	// Wait for go funcs to quit before
 	// exiting and cleaning up
-	time.Sleep(2 * time.Second)
+	wg.Wait()
 }
 
 func TestWALBlockDeletedDuringSearch(t *testing.T) {

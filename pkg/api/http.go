@@ -214,7 +214,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		if spansPerSpanSet <= 0 {
 			return nil, errors.New("invalid spss: must be a positive number")
 		}
-		req.SpansPerSpanSet = uint8(spansPerSpanSet)
+		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
 
 	// start and end == 0 is fine

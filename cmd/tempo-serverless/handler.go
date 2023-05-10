@@ -110,7 +110,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 	var resp *tempopb.SearchResponse
 
 	if api.IsTraceQLQuery(searchReq.SearchReq) {
-		engine := traceql.NewEngine(int(searchReq.SearchReq.SpansPerSpanSet))
+		engine := traceql.NewEngine()
 
 		spansetFetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return block.Fetch(ctx, req, opts)
