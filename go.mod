@@ -3,7 +3,7 @@ module github.com/grafana/tempo
 go 1.20
 
 require (
-	cloud.google.com/go/storage v1.30.1
+	cloud.google.com/go/storage v1.29.0
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-storage-blob-go v0.15.0
