@@ -291,3 +291,5 @@ replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-
 
 // In sync with github.com/weaveworks/common v0.0.0-20230119144549-0aaa5abd1e63
 replace google.golang.org/grpc => google.golang.org/grpc v1.47.0
+
+replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20220421151946-72621c1f0bd3
