@@ -70,6 +70,10 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 	return uint64(dur)
 }
 
+func (m *latencyHistogram) Buckets() [64]int {
+	return m.buckets
+}
+
 type MetricsResults struct {
 	Estimated bool
 	SpanCount int

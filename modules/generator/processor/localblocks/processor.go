@@ -258,12 +258,35 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		return nil, errors.Wrap(err, "failed to get metrics")
 	}
 
-	return &tempopb.SpanMetricsResponse{
-		// Series:    m.Series,
-		// Errors:    m.Errors,
+	resp := &tempopb.SpanMetricsResponse{
 		SpanCount: uint64(m.SpanCount),
 		Estimated: m.Estimated,
-	}, nil
+		Metrics:   make([]*tempopb.SpanMetrics, 0, len(m.Series)),
+	}
+
+	for static, series := range m.Series {
+		toStaticProto(static)
+
+		h := []*tempopb.RawHistogram{}
+
+		for bucket, count := range series.Buckets() {
+			histo := &tempopb.RawHistogram{
+				Bucket: uint64(bucket),
+				Count:  uint64(count),
+			}
+
+			h = append(h, histo)
+		}
+
+		xxx := &tempopb.SpanMetrics{
+			LatencyHistogram: h,
+			Static:           toStaticProto(static),
+		}
+
+		resp.Metrics = append(resp.Metrics, xxx)
+	}
+
+	return resp, nil
 }
 
 func (p *Processor) deleteOldBlocks() (err error) {
@@ -513,4 +536,17 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 	}
 
 	return nil
+}
+
+func toStaticProto(static traceql.Static) *tempopb.TraceQLStatic {
+	return &tempopb.TraceQLStatic{
+		Type:   int64(static.Type),
+		N:      int64(static.N),
+		F:      static.F,
+		S:      static.S,
+		B:      static.B,
+		D:      uint32(static.D),
+		Status: int64(static.Status),
+		Kind:   int64(static.Kind),
+	}
 }
