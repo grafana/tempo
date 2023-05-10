@@ -181,7 +181,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 				series.Record(group, s.DurationNanos(), err)
 
 				spanCount++
-				if spanCount >= spanLimit {
+				if spanLimit > 0 && spanCount >= spanLimit {
 					return nil, io.EOF
 				}
 			}
