@@ -38,7 +38,7 @@ func TestManagedRegistry_concurrency(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		registry.NewCounter(string(s), nil)
+		registry.NewCounter(string(s))
 	})
 
 	go accessor(func() {
@@ -59,9 +59,9 @@ func TestManagedRegistry_counter(t *testing.T) {
 	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("my_counter", []string{"label"})
+	counter := registry.NewCounter("my_counter")
 
-	counter.Inc(newLabelValues([]string{"value-1"}), 1.0)
+	counter.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
@@ -76,9 +76,9 @@ func TestManagedRegistry_histogram(t *testing.T) {
 	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
+	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0})
 
-	histogram.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.0)
+	histogram.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
@@ -99,8 +99,8 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter1 := registry.NewCounter("metric_1", nil)
-	counter2 := registry.NewCounter("metric_2", nil)
+	counter1 := registry.NewCounter("metric_1")
+	counter2 := registry.NewCounter("metric_2")
 
 	counter1.Inc(nil, 1)
 	counter2.Inc(nil, 2)
@@ -140,7 +140,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("my_counter", nil)
+	counter := registry.NewCounter("my_counter")
 	counter.Inc(nil, 1.0)
 
 	expectedSamples := []sample{
@@ -159,12 +159,12 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter1 := registry.NewCounter("metric_1", []string{"label"})
-	counter2 := registry.NewCounter("metric_2", nil)
+	counter1 := registry.NewCounter("metric_1")
+	counter2 := registry.NewCounter("metric_2")
 
-	counter1.Inc(newLabelValues([]string{"value-1"}), 1.0)
+	counter1.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	// these series should be discarded
-	counter1.Inc(newLabelValues([]string{"value-2"}), 1.0)
+	counter1.Inc(newLabelValueCombo(nil, []string{"value-2"}), 1.0)
 	counter2.Inc(nil, 1.0)
 
 	assert.Equal(t, uint32(1), registry.activeSeries.Load())
@@ -184,7 +184,7 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("metric_1", nil)
+	counter := registry.NewCounter("metric_1")
 	counter.Inc(nil, 1.0)
 
 	// active series are still tracked
@@ -205,11 +205,11 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	counter := registry.NewCounter("counter", []string{"very_lengthy_label"})
-	histogram := registry.NewHistogram("histogram", []string{"another_very_lengthy_label"}, []float64{1.0})
+	counter := registry.NewCounter("counter")
+	histogram := registry.NewHistogram("histogram", []float64{1.0})
 
-	counter.Inc(registry.NewLabelValues([]string{"very_length_value"}), 1.0)
-	histogram.ObserveWithExemplar(registry.NewLabelValues([]string{"another_very_lengthy_value"}), 1.0, "", 1.0)
+	counter.Inc(registry.NewLabelValueCombo([]string{"very_lengthy_label"}, []string{"very_length_value"}), 1.0)
+	histogram.ObserveWithExemplar(registry.NewLabelValueCombo([]string{"another_very_lengthy_label"}, []string{"another_very_lengthy_value"}), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
@@ -220,6 +220,17 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+}
+
+func TestValidLabelValueCombo(t *testing.T) {
+	appender := &capturingAppender{}
+
+	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	assert.Panics(t, func() {
+		registry.NewLabelValueCombo([]string{"one-label"}, []string{"one-value", "two-value"})
+	})
 }
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {

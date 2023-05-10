@@ -18,6 +18,7 @@
       concurrent_shards: 3
   ```
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
+To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
   Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
@@ -86,6 +87,7 @@ storage:
 * [BUGFIX] Support float as duration like `{duration > 1.5s}` [#2304](https://github.com/grafana/tempo/pull/2304) (@ie-pham)
 * [ENHANCEMENT] Supports range operators for strings in TraceQL [#2321](https://github.com/grafana/tempo/pull/2321) (@ie-pham)
 * [ENHANCEMENT] Supports TraceQL in Vulture [#2321](https://github.com/grafana/tempo/pull/2321) (@ie-pham)
+* [FEATURE] Add job & instance labels to span metrics, a new target_info metrics, and custom dimension label mapping [#2261](https://github.com/grafana/tempo/pull/2261) (@ie-pham)
 
 ## v2.0.1 / 2023-03-03
 
