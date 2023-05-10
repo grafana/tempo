@@ -10,11 +10,13 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// searchProgressFactory is used to provide a way to construct a shardedSearchProgress to the searchSharder. It exists
+// so that streaming search can inject and track it's own special progress object
+type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress
+
 // shardedSearchProgress is an interface that allows us to get progress
 // events from the search sharding handler.
 type shardedSearchProgress interface {
-	init(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int)
-
 	setStatus(statusCode int, statusMsg string)
 	setError(err error)
 	addResponse(res *tempopb.SearchResponse)
@@ -49,26 +51,19 @@ type searchProgress struct {
 	mtx   sync.Mutex
 }
 
-func newSearchProgress() *searchProgress {
+func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
 	return &searchProgress{
-		resultsMetrics: &tempopb.SearchMetrics{},
+		ctx:              ctx,
+		statusCode:       http.StatusOK,
+		limit:            limit,
+		finishedRequests: 0,
+		resultsMetrics: &tempopb.SearchMetrics{
+			TotalBlocks:     uint32(totalBlocks),
+			TotalBlockBytes: uint64(totalBlockBytes),
+			TotalJobs:       uint32(totalJobs),
+		},
+		resultsMap: map[string]*tempopb.TraceSearchMetadata{},
 	}
-}
-
-func (r *searchProgress) init(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.ctx = ctx
-	r.statusCode = http.StatusOK
-	r.limit = limit
-	r.resultsMetrics = &tempopb.SearchMetrics{
-		TotalBlocks:     uint32(totalBlocks),
-		TotalBlockBytes: uint64(totalBlockBytes),
-		TotalJobs:       uint32(totalJobs),
-	}
-	r.finishedRequests = 0
-	r.resultsMap = map[string]*tempopb.TraceSearchMetadata{}
 }
 
 func (r *searchProgress) setStatus(statusCode int, statusMsg string) {

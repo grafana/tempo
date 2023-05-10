@@ -54,7 +54,7 @@ type searchSharder struct {
 	next      http.RoundTripper
 	reader    tempodb.Reader
 	overrides *overrides.Overrides
-	progress  shardedSearchProgress
+	progress  searchProgressFactory
 
 	cfg    SearchSharderConfig
 	sloCfg SLOConfig
@@ -72,7 +72,7 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress shardedSearchProgress, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgressFactory, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
@@ -169,12 +169,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	for _, b := range blocks {
 		totalBlockBytes += b.Size
 	}
-	s.progress.init(ctx, int(searchReq.Limit), len(reqs), len(blocks), int(totalBlockBytes))
+	progress := s.progress(ctx, int(searchReq.Limit), len(reqs), len(blocks), int(totalBlockBytes))
 
 	startedReqs := 0
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
-		if s.progress.shouldQuit() {
+		if progress.shouldQuit() {
 			break
 		}
 
@@ -184,7 +184,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 		go func(innerR *http.Request) {
 			defer func() {
-				if s.progress.shouldQuit() {
+				if progress.shouldQuit() {
 					subCancel()
 				}
 				wg.Done()
@@ -200,7 +200,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-				s.progress.setError(err)
+				progress.setError(err)
 				return
 			}
 
@@ -212,7 +212,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
 				}
 				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
-				s.progress.setStatus(statusCode, statusMsg)
+				progress.setStatus(statusCode, statusMsg)
 				return
 			}
 
@@ -221,12 +221,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(resp.Body, results)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				s.progress.setError(err)
+				progress.setError(err)
 				return
 			}
 
 			// happy path
-			s.progress.addResponse(results)
+			progress.addResponse(results)
 		}(req)
 	}
 
@@ -234,7 +234,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg.Wait()
 
 	// print out request metrics
-	overallResponse := s.progress.result()
+	overallResponse := progress.result()
 
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
 	reqTime := time.Since(reqStart)
