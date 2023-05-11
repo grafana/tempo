@@ -70,6 +70,7 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 	return uint64(dur)
 }
 
+// Buckets returns the bucket counts for each power of 2.
 func (m *latencyHistogram) Buckets() [64]int {
 	return m.buckets
 }
