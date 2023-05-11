@@ -10,6 +10,7 @@
   query_frontend:
     tolerate_failed_blocks: <int>
   ```
+* [CHANGE] Upgrade memcached version in jsonnet microservices [#2466](https://github.com/grafana/tempo/pull/2466) (@zalegrala)
 * [ENHANCEMENT] Add support to filter using negated regex operator `!~` [#2410](https://github.com/grafana/tempo/pull/2410) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2386](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.s3` [#2362](https://github.com/grafana/tempo/pull/2362) (@kousikmitra)
