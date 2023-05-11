@@ -1,7 +1,9 @@
 package generator
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/api"
@@ -10,7 +12,10 @@ import (
 )
 
 func (g *Generator) SpanSummaryHandler(w http.ResponseWriter, r *http.Request) {
-	span, ctx := opentracing.StartSpanFromContext(r.Context(), "Generator.SpanSummaryHandler")
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(g.cfg.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Generator.SpanSummaryHandler")
 	defer span.Finish()
 
 	span.SetTag("requestURI", r.RequestURI)
