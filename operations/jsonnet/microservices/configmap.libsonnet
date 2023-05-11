@@ -157,7 +157,7 @@
       'tempo.yaml': $.util.manifestYaml($.tempo_query_frontend_config),
     }),
 
-  tempo_query_configmap:
+  tempo_query_configmap: if !$._config.tempo_query then null else
     configMap.new('tempo-query') +
     configMap.withData({
       'tempo-query.yaml': $.util.manifestYaml({

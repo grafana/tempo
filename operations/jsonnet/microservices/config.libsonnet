@@ -44,6 +44,8 @@
         },
       },
     },
+    // disable tempo-query by default
+    tempo_query: false,
     querier: {
       replicas: 2,
       resources: {
