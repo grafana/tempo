@@ -198,9 +198,10 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	}
 	span.SetTag("instanceID", instanceID)
 
-	instance, err := g.getOrCreateInstance(instanceID)
-	if err != nil {
-		return nil, err
+	// return empty if we don't have an instance
+	instance, ok := g.getInstanceByID(instanceID)
+	if !ok || instance == nil {
+		return &tempopb.PushResponse{}, nil
 	}
 
 	instance.pushSpans(ctx, req)
