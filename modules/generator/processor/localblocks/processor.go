@@ -265,9 +265,8 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	}
 
 	var rawHistorgram *tempopb.RawHistogram
+	var errCount int
 	for static, series := range m.Series {
-		toStaticProto(static)
-
 		h := []*tempopb.RawHistogram{}
 
 		for bucket, count := range series.Buckets() {
@@ -281,12 +280,16 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 			}
 		}
 
-		xxx := &tempopb.SpanMetrics{
-			LatencyHistogram: h,
-			Static:           toStaticProto(static),
+		errCount = 0
+		if errs, ok := m.Errors[static]; ok {
+			errCount = errs
 		}
 
-		resp.Metrics = append(resp.Metrics, xxx)
+		resp.Metrics = append(resp.Metrics, &tempopb.SpanMetrics{
+			LatencyHistogram: h,
+			Static:           toStaticProto(static),
+			Errors:           uint64(errCount),
+		})
 	}
 
 	return resp, nil
