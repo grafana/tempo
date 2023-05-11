@@ -27,9 +27,8 @@ type Storage interface {
 }
 
 type storageImpl struct {
-	walDir        string
-	wal           *agent.DB
-	remoteStorage *remote.Storage
+	walDir  string
+	storage storage.Storage
 
 	logger log.Logger
 }
@@ -75,24 +74,22 @@ func New(cfg *Config, tenant string, reg prometheus.Registerer, logger log.Logge
 	}
 
 	return &storageImpl{
-		walDir:        walDir,
-		wal:           wal,
-		remoteStorage: remoteStorage,
+		walDir:  walDir,
+		storage: storage.NewFanout(logger, wal, remoteStorage),
 
 		logger: logger,
 	}, nil
 }
 
 func (s *storageImpl) Appender(ctx context.Context) storage.Appender {
-	return s.wal.Appender(ctx)
+	return s.storage.Appender(ctx)
 }
 
 func (s *storageImpl) Close() error {
 	level.Info(s.logger).Log("msg", "closing WAL", "dir", s.walDir)
 
 	return tsdb_errors.NewMulti(
-		s.wal.Close(),
-		s.remoteStorage.Close(),
+		s.storage.Close(),
 		func() error {
 			// remove the WAL at shutdown since remote write starts at the end of the WAL anyways
 			// https://github.com/prometheus/prometheus/issues/8809
