@@ -1,8 +1,11 @@
 // Copyright (c) 2015 Klaus Post, released under MIT License. See LICENSE file.
 
-//+build arm64,!gccgo,!noasm,!appengine
+//go:build arm64 && !gccgo && !noasm && !appengine
+// +build arm64,!gccgo,!noasm,!appengine
 
 package cpuid
+
+import "runtime"
 
 func getMidr() (midr uint64)
 func getProcFeatures() (procFeatures uint64)
@@ -15,14 +18,19 @@ func initCPU() {
 	rdtscpAsm = func() (a, b, c, d uint32) { return 0, 0, 0, 0 }
 }
 
-func addInfo(c *CPUInfo) {
-	// ARM64 disabled for now.
-	if true {
+func addInfo(c *CPUInfo, safe bool) {
+	// Seems to be safe to assume on ARM64
+	c.CacheLine = 64
+	detectOS(c)
+
+	// ARM64 disabled since it may crash if interrupt is not intercepted by OS.
+	if safe && !c.Supports(ARMCPUID) && runtime.GOOS != "freebsd" {
 		return
 	}
-	// 	midr := getMidr()
+	midr := getMidr()
 
 	// MIDR_EL1 - Main ID Register
+	// https://developer.arm.com/docs/ddi0595/h/aarch64-system-registers/midr_el1
 	//  x--------------------------------------------------x
 	//  | Name                         |  bits   | visible |
 	//  |--------------------------------------------------|
@@ -37,11 +45,70 @@ func addInfo(c *CPUInfo) {
 	//  | Revision                     | [3-0]   |    y    |
 	//  x--------------------------------------------------x
 
-	// 	fmt.Printf(" implementer:  0x%02x\n", (midr>>24)&0xff)
-	// 	fmt.Printf("     variant:   0x%01x\n", (midr>>20)&0xf)
-	// 	fmt.Printf("architecture:   0x%01x\n", (midr>>16)&0xf)
-	// 	fmt.Printf("    part num: 0x%03x\n", (midr>>4)&0xfff)
-	// 	fmt.Printf("    revision:   0x%01x\n", (midr>>0)&0xf)
+	switch (midr >> 24) & 0xff {
+	case 0xC0:
+		c.VendorString = "Ampere Computing"
+		c.VendorID = Ampere
+	case 0x41:
+		c.VendorString = "Arm Limited"
+		c.VendorID = ARM
+	case 0x42:
+		c.VendorString = "Broadcom Corporation"
+		c.VendorID = Broadcom
+	case 0x43:
+		c.VendorString = "Cavium Inc"
+		c.VendorID = Cavium
+	case 0x44:
+		c.VendorString = "Digital Equipment Corporation"
+		c.VendorID = DEC
+	case 0x46:
+		c.VendorString = "Fujitsu Ltd"
+		c.VendorID = Fujitsu
+	case 0x49:
+		c.VendorString = "Infineon Technologies AG"
+		c.VendorID = Infineon
+	case 0x4D:
+		c.VendorString = "Motorola or Freescale Semiconductor Inc"
+		c.VendorID = Motorola
+	case 0x4E:
+		c.VendorString = "NVIDIA Corporation"
+		c.VendorID = NVIDIA
+	case 0x50:
+		c.VendorString = "Applied Micro Circuits Corporation"
+		c.VendorID = AMCC
+	case 0x51:
+		c.VendorString = "Qualcomm Inc"
+		c.VendorID = Qualcomm
+	case 0x56:
+		c.VendorString = "Marvell International Ltd"
+		c.VendorID = Marvell
+	case 0x69:
+		c.VendorString = "Intel Corporation"
+		c.VendorID = Intel
+	}
+
+	// Lower 4 bits: Architecture
+	// Architecture	Meaning
+	// 0b0001		Armv4.
+	// 0b0010		Armv4T.
+	// 0b0011		Armv5 (obsolete).
+	// 0b0100		Armv5T.
+	// 0b0101		Armv5TE.
+	// 0b0110		Armv5TEJ.
+	// 0b0111		Armv6.
+	// 0b1111		Architectural features are individually identified in the ID_* registers, see 'ID registers'.
+	// Upper 4 bit: Variant
+	// An IMPLEMENTATION DEFINED variant number.
+	// Typically, this field is used to distinguish between different product variants, or major revisions of a product.
+	c.Family = int(midr>>16) & 0xff
+
+	// PartNum, bits [15:4]
+	// An IMPLEMENTATION DEFINED primary part number for the device.
+	// On processors implemented by Arm, if the top four bits of the primary
+	// part number are 0x0 or 0x7, the variant and architecture are encoded differently.
+	// Revision, bits [3:0]
+	// An IMPLEMENTATION DEFINED revision number for the device.
+	c.Model = int(midr) & 0xffff
 
 	procFeatures := getProcFeatures()
 
@@ -68,25 +135,18 @@ func addInfo(c *CPUInfo) {
 	// | EL0                          | [3-0]   |    n    |
 	// x--------------------------------------------------x
 
-	var f ArmFlags
+	var f flagSet
 	// if procFeatures&(0xf<<48) != 0 {
 	// 	fmt.Println("DIT")
 	// }
-	if procFeatures&(0xf<<32) != 0 {
-		f |= SVE
-	}
+	f.setIf(procFeatures&(0xf<<32) != 0, SVE)
 	if procFeatures&(0xf<<20) != 15<<20 {
-		f |= ASIMD
-		if procFeatures&(0xf<<20) == 1<<20 {
-			// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64pfr0_el1
-			// 0b0001 --> As for 0b0000, and also includes support for half-precision floating-point arithmetic.
-			f |= FPHP
-			f |= ASIMDHP
-		}
+		f.set(ASIMD)
+		// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64pfr0_el1
+		// 0b0001 --> As for 0b0000, and also includes support for half-precision floating-point arithmetic.
+		f.setIf(procFeatures&(0xf<<20) == 1<<20, FPHP, ASIMDHP)
 	}
-	if procFeatures&(0xf<<16) != 0 {
-		f |= FP
-	}
+	f.setIf(procFeatures&(0xf<<16) != 0, FP)
 
 	instAttrReg0, instAttrReg1 := getInstAttributes()
 
@@ -127,46 +187,22 @@ func addInfo(c *CPUInfo) {
 	// if instAttrReg0&(0xf<<48) != 0 {
 	// 	fmt.Println("FHM")
 	// }
-	if instAttrReg0&(0xf<<44) != 0 {
-		f |= ASIMDDP
-	}
-	if instAttrReg0&(0xf<<40) != 0 {
-		f |= SM4
-	}
-	if instAttrReg0&(0xf<<36) != 0 {
-		f |= SM3
-	}
-	if instAttrReg0&(0xf<<32) != 0 {
-		f |= SHA3
-	}
-	if instAttrReg0&(0xf<<28) != 0 {
-		f |= ASIMDRDM
-	}
-	if instAttrReg0&(0xf<<20) != 0 {
-		f |= ATOMICS
-	}
-	if instAttrReg0&(0xf<<16) != 0 {
-		f |= CRC32
-	}
-	if instAttrReg0&(0xf<<12) != 0 {
-		f |= SHA2
-	}
-	if instAttrReg0&(0xf<<12) == 2<<12 {
-		// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64isar0_el1
-		// 0b0010 --> As 0b0001, plus SHA512H, SHA512H2, SHA512SU0, and SHA512SU1 instructions implemented.
-		f |= SHA512
-	}
-	if instAttrReg0&(0xf<<8) != 0 {
-		f |= SHA1
-	}
-	if instAttrReg0&(0xf<<4) != 0 {
-		f |= AES
-	}
-	if instAttrReg0&(0xf<<4) == 2<<4 {
-		// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64isar0_el1
-		// 0b0010 --> As for 0b0001, plus PMULL/PMULL2 instructions operating on 64-bit data quantities.
-		f |= PMULL
-	}
+	f.setIf(instAttrReg0&(0xf<<44) != 0, ASIMDDP)
+	f.setIf(instAttrReg0&(0xf<<40) != 0, SM4)
+	f.setIf(instAttrReg0&(0xf<<36) != 0, SM3)
+	f.setIf(instAttrReg0&(0xf<<32) != 0, SHA3)
+	f.setIf(instAttrReg0&(0xf<<28) != 0, ASIMDRDM)
+	f.setIf(instAttrReg0&(0xf<<20) != 0, ATOMICS)
+	f.setIf(instAttrReg0&(0xf<<16) != 0, CRC32)
+	f.setIf(instAttrReg0&(0xf<<12) != 0, SHA2)
+	// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64isar0_el1
+	// 0b0010 --> As 0b0001, plus SHA512H, SHA512H2, SHA512SU0, and SHA512SU1 instructions implemented.
+	f.setIf(instAttrReg0&(0xf<<12) == 2<<12, SHA512)
+	f.setIf(instAttrReg0&(0xf<<8) != 0, SHA1)
+	f.setIf(instAttrReg0&(0xf<<4) != 0, AESARM)
+	// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64isar0_el1
+	// 0b0010 --> As for 0b0001, plus PMULL/PMULL2 instructions operating on 64-bit data quantities.
+	f.setIf(instAttrReg0&(0xf<<4) == 2<<4, PMULL)
 
 	// https://developer.arm.com/docs/ddi0595/b/aarch64-system-registers/id_aa64isar1_el1
 	//
@@ -194,26 +230,18 @@ func addInfo(c *CPUInfo) {
 	// if instAttrReg1&(0xf<<28) != 0 {
 	// 	fmt.Println("GPI")
 	// }
-	if instAttrReg1&(0xf<<28) != 24 {
-		f |= GPA
-	}
-	if instAttrReg1&(0xf<<20) != 0 {
-		f |= LRCPC
-	}
-	if instAttrReg1&(0xf<<16) != 0 {
-		f |= FCMA
-	}
-	if instAttrReg1&(0xf<<12) != 0 {
-		f |= JSCVT
-	}
+	f.setIf(instAttrReg1&(0xf<<28) != 24, GPA)
+	f.setIf(instAttrReg1&(0xf<<20) != 0, LRCPC)
+	f.setIf(instAttrReg1&(0xf<<16) != 0, FCMA)
+	f.setIf(instAttrReg1&(0xf<<12) != 0, JSCVT)
 	// if instAttrReg1&(0xf<<8) != 0 {
 	// 	fmt.Println("API")
 	// }
 	// if instAttrReg1&(0xf<<4) != 0 {
 	// 	fmt.Println("APA")
 	// }
-	if instAttrReg1&(0xf<<0) != 0 {
-		f |= DCPOP
-	}
-	c.Arm = f
+	f.setIf(instAttrReg1&(0xf<<0) != 0, DCPOP)
+
+	// Store
+	c.featureSet.or(f)
 }

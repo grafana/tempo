@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -202,8 +201,8 @@ func (opts CopySrcOptions) validate() (err error) {
 
 // Low level implementation of CopyObject API, supports only upto 5GiB worth of copy.
 func (c *Client) copyObjectDo(ctx context.Context, srcBucket, srcObject, destBucket, destObject string,
-	metadata map[string]string, srcOpts CopySrcOptions, dstOpts PutObjectOptions) (ObjectInfo, error) {
-
+	metadata map[string]string, srcOpts CopySrcOptions, dstOpts PutObjectOptions,
+) (ObjectInfo, error) {
 	// Build headers.
 	headers := make(http.Header)
 
@@ -221,7 +220,7 @@ func (c *Client) copyObjectDo(ctx context.Context, srcBucket, srcObject, destBuc
 		headers.Set(minIOBucketSourceETag, dstOpts.Internal.SourceETag)
 	}
 	if dstOpts.Internal.ReplicationRequest {
-		headers.Set(minIOBucketReplicationRequest, "")
+		headers.Set(minIOBucketReplicationRequest, "true")
 	}
 	if !dstOpts.Internal.LegalholdTimestamp.IsZero() {
 		headers.Set(minIOBucketReplicationObjectLegalHoldTimestamp, dstOpts.Internal.LegalholdTimestamp.Format(time.RFC3339Nano))
@@ -285,8 +284,8 @@ func (c *Client) copyObjectDo(ctx context.Context, srcBucket, srcObject, destBuc
 }
 
 func (c *Client) copyObjectPartDo(ctx context.Context, srcBucket, srcObject, destBucket, destObject string, uploadID string,
-	partID int, startOffset int64, length int64, metadata map[string]string) (p CompletePart, err error) {
-
+	partID int, startOffset int64, length int64, metadata map[string]string,
+) (p CompletePart, err error) {
 	headers := make(http.Header)
 
 	// Set source
@@ -338,8 +337,8 @@ func (c *Client) copyObjectPartDo(ctx context.Context, srcBucket, srcObject, des
 // upload via an upload-part-copy request
 // https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPartCopy.html
 func (c *Client) uploadPartCopy(ctx context.Context, bucket, object, uploadID string, partNumber int,
-	headers http.Header) (p CompletePart, err error) {
-
+	headers http.Header,
+) (p CompletePart, err error) {
 	// Build query parameters
 	urlValues := make(url.Values)
 	urlValues.Set("partNumber", strconv.Itoa(partNumber))
@@ -492,7 +491,7 @@ func (c *Client) ComposeObject(ctx context.Context, dst CopyDestOptions, srcs ..
 	objParts := []CompletePart{}
 	partIndex := 1
 	for i, src := range srcs {
-		var h = make(http.Header)
+		h := make(http.Header)
 		src.Marshal(h)
 		if dst.Encryption != nil && dst.Encryption.Type() == encrypt.SSEC {
 			dst.Encryption.Marshal(h)
@@ -516,7 +515,7 @@ func (c *Client) ComposeObject(ctx context.Context, dst CopyDestOptions, srcs ..
 				return UploadInfo{}, err
 			}
 			if dst.Progress != nil {
-				io.CopyN(ioutil.Discard, dst.Progress, end-start+1)
+				io.CopyN(io.Discard, dst.Progress, end-start+1)
 			}
 			objParts = append(objParts, complPart)
 			partIndex++
@@ -525,7 +524,7 @@ func (c *Client) ComposeObject(ctx context.Context, dst CopyDestOptions, srcs ..
 
 	// 4. Make final complete-multipart request.
 	uploadInfo, err := c.completeMultipartUpload(ctx, dst.Bucket, dst.Object, uploadID,
-		completeMultipartUpload{Parts: objParts}, PutObjectOptions{})
+		completeMultipartUpload{Parts: objParts}, PutObjectOptions{ServerSideEncryption: dst.Encryption})
 	if err != nil {
 		return UploadInfo{}, err
 	}
