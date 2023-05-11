@@ -184,9 +184,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.partNum,
 		bytes.NewReader(buffer),
 		int64(len(buffer)),
-		"",
-		"",
-		nil,
+		minio.PutObjectPartOptions{},
 	)
 	if err != nil {
 		return a, errors.Wrap(err, "error in multipart upload")
