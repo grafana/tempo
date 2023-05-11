@@ -1,6 +1,6 @@
 // Copyright (c) 2015 Klaus Post, released under MIT License. See LICENSE file.
 
-//+build arm64,!gccgo
+//+build arm64,!gccgo,!noasm,!appengine
 
 // See https://www.kernel.org/doc/Documentation/arm64/cpu-feature-registers.txt
 

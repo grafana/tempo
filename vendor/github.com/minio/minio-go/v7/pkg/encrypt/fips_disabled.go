@@ -1,7 +1,9 @@
-//+build !noasm,!appengine
+//go:build !fips
+// +build !fips
 
 /*
- * Minio Cloud Storage, (C) 2016 Minio, Inc.
+ * MinIO Go Library for Amazon S3 Compatible Cloud Storage
+ * Copyright 2022 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +18,7 @@
  * limitations under the License.
  */
 
-package sha256
+package encrypt
 
-//go:noescape
-func blockAvx2(h []uint32, message []uint8)
+// FIPS is true if 'fips' build tag was specified.
+const FIPS = false
