@@ -210,8 +210,8 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 		}
 	}
 
-	// The results are estimated if we bailed early due to limit being reached.
-	series.Estimated = spanCount >= spanLimit
+	// The results are estimated if we bailed early due to limit being reached, but only if spanLimit has been set.
+	series.Estimated = spanCount >= spanLimit && spanLimit > 0
 	series.SpanCount = spanCount
 	return series, nil
 }
