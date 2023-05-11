@@ -129,6 +129,38 @@ func TestSpanIDToHexString(t *testing.T) {
 	}
 }
 
+func TestSpanIDToUint64(t *testing.T) {
+	tc := []struct {
+		spanID []byte
+		numID  uint64
+	}{
+		{
+			spanID: []byte{0xAA},
+			numID:  0xAA00000000000000,
+		},
+		{
+			spanID: []byte{0x00, 0xAA},
+			numID:  0x00AA000000000000,
+		},
+		{
+			spanID: []byte{0xAA, 0xBB, 0xCC},
+			numID:  0xAABBCC0000000000,
+		},
+		{
+			spanID: []byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11},
+			numID:  0xAABBCCDDEEFF0011,
+		},
+		{
+			spanID: []byte{0xA0, 0xA1, 0xA2, 0xA3, 0xB4, 0xB5, 0xB6, 0xB7, 0xC8},
+			numID:  0xA0A1A2A3B4B5B6B7,
+		},
+	}
+
+	for _, tt := range tc {
+		assert.Equalf(t, tt.numID, SpanIDToUint64(tt.spanID), "SpanIDToUint64(%+v)", tt.spanID)
+	}
+}
+
 func TestEqualHexStringTraceIDs(t *testing.T) {
 	a := "82f6471b46d25e23418a0a99d4c2cda"
 	b := "082f6471b46d25e23418a0a99d4c2cda"
