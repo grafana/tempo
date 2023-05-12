@@ -134,7 +134,7 @@ type Span struct {
 	SpanID                 []byte      `parquet:","`
 	ParentSpanID           []byte      `parquet:","`
 	ParentID               int32       `parquet:",delta"`
-	NestedSetLeft          int32       `parquet:",delta"`
+	NestedSetLeft          int32       `parquet:",delta"` // doubles as numeric ID and is used to fill ParentID of child spans
 	NestedSetRight         int32       `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dict"`
 	Kind                   int         `parquet:",delta"`
@@ -419,6 +419,8 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 			}
 		}
 	}
+
+	assignNestedSetModelBounds(ot)
 
 	return ot
 }
