@@ -200,7 +200,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 
 	instance, err := g.getOrCreateInstance(instanceID)
 	if err != nil {
-		return &tempopb.PushResponse{}, nil
+		return nil, err
 	}
 
 	instance.pushSpans(ctx, req)
@@ -332,7 +332,7 @@ func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	// return empty if we don't have an instance
 	instance, ok := g.getInstanceByID(instanceID)
 	if !ok || instance == nil {
-		return nil, err
+		return &tempopb.SpanMetricsResponse{}, nil
 	}
 
 	return instance.GetMetrics(ctx, req)
