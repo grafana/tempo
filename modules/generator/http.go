@@ -20,7 +20,7 @@ func (g *Generator) SpanMetricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	span.SetTag("requestURI", r.RequestURI)
 
-	req, err := api.ParseSummaryRequest(r)
+	req, err := api.ParseSpanMetricsRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

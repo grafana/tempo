@@ -318,7 +318,7 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	return req, nil
 }
 
-func ParseSummaryRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
+func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
 	req := &tempopb.SpanMetricsRequest{}
 
 	groupBy := r.URL.Query().Get(urlParamGroupBy)
