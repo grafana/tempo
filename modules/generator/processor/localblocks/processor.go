@@ -289,8 +289,6 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 		return nil
 	}
 
-	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
-
 	// Sort by ID
 	sort.Slice(tracesToCut, func(i, j int) bool {
 		return bytes.Compare(tracesToCut[i].id, tracesToCut[j].id) == -1
@@ -298,22 +296,11 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 
 	for _, t := range tracesToCut {
 
-		// TODO - This is dumb because the wal block will immediately
-		// unmarshal the bytes, fix this.
-
-		buf, err := segmentDecoder.PrepareForWrite(&tempopb.Trace{
+		tr := &tempopb.Trace{
 			Batches: t.Batches,
-		}, 0, 0)
-		if err != nil {
-			return err
 		}
 
-		out, err := segmentDecoder.ToObject([][]byte{buf})
-		if err != nil {
-			return err
-		}
-
-		err = p.writeHeadBlock(t.id, out)
+		err := p.writeHeadBlock(t.id, tr)
 		if err != nil {
 			return err
 		}
@@ -325,7 +312,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	return p.headBlock.Flush()
 }
 
-func (p *Processor) writeHeadBlock(id common.ID, b []byte) error {
+func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
@@ -338,7 +325,7 @@ func (p *Processor) writeHeadBlock(id common.ID, b []byte) error {
 
 	now := uint32(time.Now().Unix())
 
-	err := p.headBlock.Append(id, b, now, now)
+	err := p.headBlock.AppendTrace(id, tr, now, now)
 	if err != nil {
 		return err
 	}

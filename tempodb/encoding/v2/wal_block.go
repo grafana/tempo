@@ -36,6 +36,7 @@ type walBlock struct {
 
 	appendFile *os.File
 	appender   Appender
+	encoder    model.SegmentDecoder
 
 	filepath string
 	readFile *os.File
@@ -48,10 +49,16 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
 
+	enc, err := model.NewSegmentDecoder(dataEncoding)
+	if err != nil {
+		return nil, err
+	}
+
 	h := &walBlock{
 		meta:           backend.NewBlockMeta(tenantID, id, VersionString, e, dataEncoding),
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
+		encoder:        enc,
 	}
 
 	name := h.fullFilename()
@@ -157,6 +164,20 @@ func (a *walBlock) Append(id common.ID, b []byte, start, end uint32) error {
 	start, end = a.adjustTimeRangeForSlack(start, end, 0)
 	a.meta.ObjectAdded(id, start, end)
 	return nil
+}
+
+func (a *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+	buff, err := a.encoder.PrepareForWrite(trace, start, end)
+	if err != nil {
+		return err
+	}
+
+	buff2, err := a.encoder.ToObject([][]byte{buff})
+	if err != nil {
+		return err
+	}
+
+	return a.Append(id, buff2, start, end)
 }
 
 func (a *walBlock) Flush() error {
