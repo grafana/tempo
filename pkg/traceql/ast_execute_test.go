@@ -306,7 +306,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 				{
 					// TODO - Type handling of aggregate output could use some improvement. jpe
 					// avg(duration) should probably return a Duration instead of a float.
-					Scalar: NewStaticFloat(10.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(10.0 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -317,7 +317,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
-					Attributes: map[string]Static{"avg(duration)": NewStaticFloat(1e7)}, // jpe - make duration
+					Attributes: map[string]Static{"avg(duration)": NewStaticDuration(10 * time.Millisecond)}, // jpe - make duration
 				},
 			},
 		},
@@ -350,7 +350,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(15.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(15 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -361,7 +361,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
-					Attributes: map[string]Static{"max(duration)": NewStaticFloat(1.5e7)},
+					Attributes: map[string]Static{"max(duration)": NewStaticDuration(15 * time.Millisecond)},
 				},
 			},
 		},
@@ -394,7 +394,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(2.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(2 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -405,7 +405,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
-					Attributes: map[string]Static{"min(duration)": NewStaticFloat(2e6)},
+					Attributes: map[string]Static{"min(duration)": NewStaticDuration(2 * time.Millisecond)},
 				},
 			},
 		},
@@ -438,7 +438,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(10 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(10 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -449,7 +449,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
-					Attributes: map[string]Static{"sum(duration)": NewStaticFloat(1e7)},
+					Attributes: map[string]Static{"sum(duration)": NewStaticDuration(10 * time.Millisecond)},
 				},
 			},
 		},

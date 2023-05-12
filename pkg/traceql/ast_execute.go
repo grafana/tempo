@@ -91,7 +91,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			output = append(output, copy)
 
 		case aggregateAvg:
-			sum := 0.0
+			var sum *Static
 			count := 0
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
@@ -99,58 +99,68 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					return nil, err
 				}
 
-				sum += val.asFloat()
+				if sum == nil {
+					sum = &val
+				} else {
+					val = sum.sum(val)
+					sum = &val
+				}
 				count++
 			}
 
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(sum / float64(count))
+			copy.Scalar = sum.divideBy(float64(count))
 			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMax:
-			max := math.Inf(-1)
+			var max *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if val.asFloat() > max {
-					max = val.asFloat() // jpe - need to preserve the underlying data type here (duration, float, int) so we can pass it to the attributes
+				if max == nil || val.greaterThan(*max) {
+					max = &val
 				}
 			}
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(max)
+			copy.Scalar = *max
 			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMin:
-			min := math.Inf(1)
+			var min *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if val.asFloat() < min {
-					min = val.asFloat()
+				if min == nil || val.lessThan(*min) {
+					min = &val
 				}
 			}
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(min)
+			copy.Scalar = *min
 			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateSum:
-			sum := 0.0
+			var sum *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				sum += val.asFloat()
+				if sum == nil {
+					sum = &val
+				} else {
+					val = sum.sum(val)
+					sum = &val
+				}
 			}
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(sum)
+			copy.Scalar = *sum
 			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
