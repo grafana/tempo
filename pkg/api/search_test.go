@@ -27,3 +27,19 @@ func TestIsSearchBlock(t *testing.T) {
 	assert.True(t, IsSearchBlock(httptest.NewRequest("GET", "/querier/api/search?blockID=blerg", nil)))
 	assert.True(t, IsSearchBlock(httptest.NewRequest("GET", "/querier/api/search/?blockID=blerg", nil)))
 }
+
+func TestIsMissingStartOrEnd(t *testing.T) {
+	assert.True(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search", nil)))
+	assert.True(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search/?start=1", nil)))
+
+	assert.False(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search/?start=1&end=2", nil)))
+	assert.False(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search?start=1&end=2&tags=test", nil)))
+	assert.False(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search/?start=1&end=2&tags=test", nil)))
+	assert.False(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/querier/api/search?start=1&end=2&tags=test", nil)))
+	assert.False(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/querier/api/search/?start=1&end=2&tags=test", nil)))
+
+	assert.True(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search?blockID=blerg", nil)))
+	assert.True(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/api/search/?blockID=blerg", nil)))
+	assert.True(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/querier/api/search?blockID=blerg", nil)))
+	assert.True(t, IsMissingStartOrEnd(httptest.NewRequest("GET", "/querier/api/search/?blockID=blerg", nil)))
+}

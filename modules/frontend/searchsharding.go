@@ -88,7 +88,7 @@ func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSh
 	})
 }
 
-// Roundtrip implements http.RoundTripper
+// RoundTrip implements http.RoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
 // keeping things simple. current query params are only:

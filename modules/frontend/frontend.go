@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -34,9 +35,9 @@ const (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler http.Handler
-	streamingSearch                                            streamingSearchHandler
-	logger                                                     log.Logger
+	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler http.Handler
+	streamingSearch                                                               streamingSearchHandler
+	logger                                                                        log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -70,6 +71,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
+	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(), retryWare)
+
 	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(cfg, o, reader, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
@@ -78,10 +81,13 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
+	searchTags := searchTagsMiddleware.Wrap(next)
+
 	metrics := spanMetricsMiddleware.Wrap(next)
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDCounter, logger),
 		SearchHandler:             newHandler(search, searchCounter, logger),
+		SearchTagsHandler:         newHandler(searchTags, searchCounter, logger),
 		SpanMetricsSummaryHandler: newHandler(metrics, spanMetricsCounter, logger),
 		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
 		logger:                    logger,
@@ -184,22 +190,35 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
 func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		ingesterSearchRT := next
 		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// backend search queries require sharding so we pass through a special roundtripper
-			if api.IsBackendSearch(r) {
-				return backendSearchRT.RoundTrip(r)
+			if api.IsMissingStartOrEnd(r) {
+				// if search request came with no start and end params, only search recent data
+				now := time.Now()
+				startTime := uint64(now.Add(-cfg.Search.Sharder.QueryIngestersUntil).Unix())
+				endTime := uint64(now.Unix())
+				// set start and end to only search in Ingesters (recent data)
+				api.SetStartAndEnd(r, startTime, endTime)
 			}
 
-			// ingester search queries only need to be proxied to a single querier
+			// backend search queries require sharding, so we pass through a special roundtripper
+			return backendSearchRT.RoundTrip(r)
+		})
+	})
+}
+
+// newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
+func newSearchTagsMiddleware() Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// ingester search tags queries only need to be proxied to a single querier
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)
 			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
 
-			return ingesterSearchRT.RoundTrip(r)
+			return next.RoundTrip(r)
 		})
 	})
 }

@@ -307,7 +307,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
 	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
+<<<<<<< HEAD
 	spanMetricsSummaryHandler := middleware.Wrap(queryFrontend.SpanMetricsSummaryHandler)
+=======
+	searchTagsHandler := middleware.Wrap(queryFrontend.SearchTagsHandler)
+>>>>>>> a5897366f (Split Search and SearchTags Handler)
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
@@ -321,15 +325,19 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// http search endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchTagsHandler)
 
+<<<<<<< HEAD
 	// http metrics endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
+=======
+	// the query frontend needs to have knowledge of the blocks, so it can shard search jobs
+>>>>>>> a5897366f (Split Search and SearchTags Handler)
 	t.store.EnablePolling(nil)
 
 	// http query echo endpoint
