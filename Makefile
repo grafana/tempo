@@ -17,6 +17,7 @@ DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
+								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
 								-not -path './cmd/tempo-serverless/*' \
@@ -24,6 +25,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 
 # ALL_SRC but without pkg and tempodb packages
 OTHERS_SRC := $(shell find . -name '*.go' \
+								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
 								-not -path './cmd/tempo-serverless/*' \
