@@ -24,7 +24,7 @@ By default, gRPC traffic uses port 9095, but this can be changed by customizing 
 
 ```yaml
 server:
-	grpc_listen_port: 12345
+  grpc_listen_port: 12345
 ```
 
 The ring contents reflect the new port:
