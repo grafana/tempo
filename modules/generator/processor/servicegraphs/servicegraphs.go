@@ -53,7 +53,7 @@ const (
 )
 
 var defaultPeerAttributes = []attribute.Key{
-	semconv.NetSockPeerAddrKey, semconv.NetSockPeerNameKey, semconv.RPCServiceKey, semconv.NetPeerNameKey, semconv.HTTPURLKey, semconv.HTTPTargetKey,
+	semconv.PeerServiceKey, semconv.NetPeerNameKey, semconv.NetSockPeerNameKey, semconv.RPCServiceKey, semconv.NetSockPeerAddrKey, semconv.HTTPURLKey, semconv.HTTPTargetKey,
 }
 
 type tooManySpansError struct {
@@ -280,13 +280,21 @@ func (p *Processor) onComplete(e *store.Edge) {
 func (p *Processor) onExpire(e *store.Edge) {
 	p.metricExpiredEdges.Inc()
 
+	// If an edge is expired, we check if there are signs that the missing span is belongs to a "virtual node".
+	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
+	// or that are not instrumented (eg. a frontend application).
 	e.ConnectionType = store.VirtualNode
 	if len(e.ClientService) == 0 {
-		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 { // Only collect if it's the root span
+		// If the client service is not set, it means that the span could have been initiated by an external system,
+		// like a frontend application or an engineer via `curl`.
+		// We check if the span we have is the root span, and if so, we set the client service to "user".
+		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
 			e.ClientService = "user"
 			p.onComplete(e)
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
+		// If client span does not have its matching server span, but has a peer attribute present,
+		// we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
 		e.ServerService = e.PeerNode
 		p.onComplete(e)
 	}
