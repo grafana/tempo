@@ -27,7 +27,7 @@ func (g *Generator) SpanMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp *tempopb.SpanMetricsResponse
-	resp, err = g.SpanMetrics(ctx, req)
+	resp, err = g.GetMetrics(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
