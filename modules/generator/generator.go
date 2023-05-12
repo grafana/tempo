@@ -198,9 +198,8 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	}
 	span.SetTag("instanceID", instanceID)
 
-	// return empty if we don't have an instance
-	instance, ok := g.getInstanceByID(instanceID)
-	if !ok || instance == nil {
+	instance, err := g.getOrCreateInstance(instanceID)
+	if err != nil {
 		return &tempopb.PushResponse{}, nil
 	}
 
@@ -330,8 +329,9 @@ func (g *Generator) SpanMetrics(ctx context.Context, req *tempopb.SpanMetricsReq
 		return nil, err
 	}
 
-	instance, err := g.getOrCreateInstance(instanceID)
-	if err != nil {
+	// return empty if we don't have an instance
+	instance, ok := g.getInstanceByID(instanceID)
+	if !ok || instance == nil {
 		return nil, err
 	}
 
