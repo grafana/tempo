@@ -151,8 +151,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		totalDroppedSpans int
 	)
 
-	fmt.Println(resourceSpans)
-
 	for _, rs := range resourceSpans {
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
 		if !ok {
