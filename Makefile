@@ -134,7 +134,7 @@ test-e2e-serverless: tools docker-tempo docker-serverless
 test-all: test-with-cover test-e2e test-e2e-serverless
 
 .PHONY: test-bench
-test-bench: docker-tempo
+test-bench: tools docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
