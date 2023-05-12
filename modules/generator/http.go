@@ -11,11 +11,11 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-func (g *Generator) SpanSummaryHandler(w http.ResponseWriter, r *http.Request) {
+func (g *Generator) SpanMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(g.cfg.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Generator.SpanSummaryHandler")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Generator.SpanMetricsHandler")
 	defer span.Finish()
 
 	span.SetTag("requestURI", r.RequestURI)

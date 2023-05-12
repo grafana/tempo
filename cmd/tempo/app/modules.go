@@ -212,7 +212,7 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = genSvc
 
-	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanSummaryHandler))
+	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
 	t.Server.HTTP.Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
 
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
