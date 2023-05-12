@@ -82,12 +82,12 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 }
 
 func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
 			copy := ss.clone()
 			copy.Scalar = NewStaticInt(len(ss.Spans))
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateAvg:
@@ -105,6 +105,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(sum / float64(count))
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMax:
@@ -115,11 +116,12 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					return nil, err
 				}
 				if val.asFloat() > max {
-					max = val.asFloat()
+					max = val.asFloat() // jpe - need to preserve the underlying data type here (duration, float, int) so we can pass it to the attributes
 				}
 			}
 			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(max)
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMin:
@@ -135,6 +137,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			}
 			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(min)
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateSum:
@@ -148,6 +151,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			}
 			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(sum)
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		default:

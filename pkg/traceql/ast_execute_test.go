@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -30,8 +31,13 @@ func testEvaluator(t *testing.T, tc evalTC) {
 
 		actual, err := ast.Pipeline.evaluate(tc.input)
 		require.NoError(t, err)
-		require.Equal(t, tc.output, actual)
-		require.Equal(t, cloneIn, tc.input)
+
+		if eq := reflect.DeepEqual(actual, tc.output); !eq {
+			require.Equal(t, tc.output, actual) // jpe this is dumb but this may print incorrect failures due to map iteration.
+		}
+		if eq := reflect.DeepEqual(cloneIn, tc.input); !eq {
+			require.Equal(t, tc.input, cloneIn)
+		}
 	})
 }
 
@@ -266,6 +272,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 						&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 						&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					},
+					Attributes: map[string]Static{"count()": NewStaticInt(2)},
 				},
 			},
 		},
@@ -297,7 +304,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					// TODO - Type handling of aggregate output could use some improvement.
+					// TODO - Type handling of aggregate output could use some improvement. jpe
 					// avg(duration) should probably return a Duration instead of a float.
 					Scalar: NewStaticFloat(10.0 * float64(time.Millisecond)),
 					Spans: []Span{
@@ -310,6 +317,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"avg(duration)": NewStaticFloat(1e7)}, // jpe - make duration
 				},
 			},
 		},
@@ -353,6 +361,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"max(duration)": NewStaticFloat(1.5e7)},
 				},
 			},
 		},
@@ -396,6 +405,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"min(duration)": NewStaticFloat(2e6)},
 				},
 			},
 		},
@@ -439,6 +449,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"sum(duration)": NewStaticFloat(1e7)},
 				},
 			},
 		},
