@@ -43,6 +43,18 @@ Each emitted metrics series have the `client` and `server` label corresponding w
   tempo_service_graph_request_total{client="app", server="db", connection_type="database"} 20
 ```
 
+#### Virtual nodes
+
+Virtual nodes are nodes that form part of the lifecycle of a trace,
+but spans for them are not being collected because they're outside the user's reach (for example, an external service for payment processing) or are not instrumented (for example, a frontend application).
+
+Virtual nodes can be detected in two different ways:
+
+- The root span has `span.kind` set to `server`. This indicates that the request has initiated by an external system that's not instrumented, like a frontend application or an engineer via `curl`.
+- A `client` span does not have its matching `server` span, but has a peer attribute present. In this case, we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
+   - The default peer attributes are `peer.service`, `net.peer.name`, `net.sock.peer.name`, `rpc.service.key`, `net.sock.peer.addr`, `http.url`, `http.target`.
+   - The order of the attributes is important, as the first one that is present will be used as the virtual node name.
+
 ### Metrics
 
 The following metrics are exported:

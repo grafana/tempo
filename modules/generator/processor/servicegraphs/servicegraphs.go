@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -13,6 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -48,6 +51,10 @@ const (
 	metricRequestServerSeconds = "traces_service_graph_request_server_seconds"
 	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
 )
+
+var defaultPeerAttributes = []attribute.Key{
+	semconv.PeerServiceKey, semconv.NetPeerNameKey, semconv.NetSockPeerNameKey, semconv.RPCServiceKey, semconv.NetSockPeerAddrKey, semconv.HTTPURLKey, semconv.HTTPTargetKey,
+}
 
 type tooManySpansError struct {
 	droppedSpans int
@@ -169,6 +176,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
+						p.upsertPeerNode(e, span.Attributes)
 
 						// A database request will only have one span, we don't wait for the server
 						// span but just copy details from the client span
@@ -193,6 +201,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
+						p.upsertPeerNode(e, span.Attributes)
 					})
 				default:
 					// this span is not part of an edge
@@ -234,6 +243,15 @@ func (p *Processor) upsertDimensions(m map[string]string, resourceAttr []*v1_com
 	}
 }
 
+func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue) {
+	for _, peerKey := range p.Cfg.PeerAttributes {
+		if v, ok := processor_util.FindAttributeValue(peerKey, spanAttr); ok {
+			e.PeerNode = v
+			return
+		}
+	}
+}
+
 func (p *Processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
 }
@@ -259,6 +277,25 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 func (p *Processor) onExpire(e *store.Edge) {
 	p.metricExpiredEdges.Inc()
+
+	// If an edge is expired, we check if there are signs that the missing span is belongs to a "virtual node".
+	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
+	// or that are not instrumented (eg. a frontend application).
+	e.ConnectionType = store.VirtualNode
+	if len(e.ClientService) == 0 {
+		// If the client service is not set, it means that the span could have been initiated by an external system,
+		// like a frontend application or an engineer via `curl`.
+		// We check if the span we have is the root span, and if so, we set the client service to "user".
+		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
+			e.ClientService = "user"
+			p.onComplete(e)
+		}
+	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
+		// If client span does not have its matching server span, but has a peer attribute present,
+		// we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
+		e.ServerService = e.PeerNode
+		p.onComplete(e)
+	}
 }
 
 func (p *Processor) spanFailed(span *v1_trace.Span) bool {
@@ -271,4 +308,9 @@ func spanDurationSec(span *v1_trace.Span) float64 {
 
 func buildKey(k1, k2 string) string {
 	return fmt.Sprintf("%s-%s", k1, k2)
+}
+
+func parseKey(key string) (string, string) {
+	parts := strings.Split(key, "-")
+	return parts[0], parts[1]
 }

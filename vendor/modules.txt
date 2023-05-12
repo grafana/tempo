@@ -1213,7 +1213,7 @@ go.opentelemetry.io/collector/receiver/otlpreceiver
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace
-# go.opentelemetry.io/collector/semconv v0.74.0
+# go.opentelemetry.io/collector/semconv v0.75.0
 ## explicit; go 1.19
 go.opentelemetry.io/collector/semconv/v1.5.0
 go.opentelemetry.io/collector/semconv/v1.6.1
@@ -1241,10 +1241,10 @@ go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/propagation
 go.opentelemetry.io/otel/semconv/internal
 go.opentelemetry.io/otel/semconv/internal/v2
-go.opentelemetry.io/otel/semconv/v1.10.0
 go.opentelemetry.io/otel/semconv/v1.12.0
 go.opentelemetry.io/otel/semconv/v1.17.0
 go.opentelemetry.io/otel/semconv/v1.17.0/httpconv
+go.opentelemetry.io/otel/semconv/v1.18.0
 # go.opentelemetry.io/otel/bridge/opencensus v0.37.0
 ## explicit; go 1.18
 go.opentelemetry.io/otel/bridge/opencensus

@@ -11,6 +11,7 @@ type mockOverrides struct {
 	processors                      map[string]struct{}
 	serviceGraphsHistogramBuckets   []float64
 	serviceGraphsDimensions         []string
+	serviceGraphsPeerAttributes     []string
 	spanMetricsHistogramBuckets     []float64
 	spanMetricsDimensions           []string
 	spanMetricsIntrinsicDimensions  map[string]bool
@@ -49,6 +50,10 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(u
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
 	return m.serviceGraphsDimensions
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
+	return m.serviceGraphsPeerAttributes
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {

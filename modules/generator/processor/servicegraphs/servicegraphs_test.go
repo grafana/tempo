@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
@@ -148,6 +149,47 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 
 	err = p.(*Processor).consume(request.Batches)
 	assert.True(t, errors.As(err, &tooManySpansError{}))
+}
+
+func TestServiceGraphs_virtualNodes(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Wait = time.Nanosecond
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	p.(*Processor).store.Expire()
+
+	userToServerLabels := labels.FromMap(map[string]string{
+		"client":          "user",
+		"server":          "mythical-server",
+		"connection_type": "virtual_node",
+	})
+
+	clientToVirtualPeerLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "external-payments-platform",
+		"connection_type": "virtual_node",
+	})
+
+	fmt.Println(testRegistry)
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, userToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, userToServerLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
 }
 
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {

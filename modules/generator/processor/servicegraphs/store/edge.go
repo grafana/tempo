@@ -8,6 +8,7 @@ const (
 	Unknown         ConnectionType = ""
 	MessagingSystem ConnectionType = "messaging_system"
 	Database        ConnectionType = "database"
+	VirtualNode     ConnectionType = "virtual_node"
 )
 
 // Edge is an Edge between two nodes in the graph
@@ -25,6 +26,9 @@ type Edge struct {
 
 	// Additional dimension to add to the metrics
 	Dimensions map[string]string
+
+	// PeerNode is the attribute that will be used to create a peer edge
+	PeerNode string
 
 	// expiration is the time at which the Edge expires, expressed as Unix time
 	expiration int64
@@ -49,4 +53,8 @@ func (e *Edge) isComplete() bool {
 
 func (e *Edge) isExpired() bool {
 	return time.Now().Unix() >= e.expiration
+}
+
+func (e *Edge) Key() string {
+	return e.key
 }

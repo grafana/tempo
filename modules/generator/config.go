@@ -69,6 +69,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if dimensions := o.MetricsGeneratorProcessorServiceGraphsDimensions(userID); dimensions != nil {
 		copyCfg.ServiceGraphs.Dimensions = dimensions
 	}
+	if peerAttrs := o.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID); peerAttrs != nil {
+		copyCfg.ServiceGraphs.PeerAttributes = peerAttrs
+	}
 	if buckets := o.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID); buckets != nil {
 		copyCfg.SpanMetrics.HistogramBuckets = buckets
 	}
