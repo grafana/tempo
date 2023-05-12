@@ -53,4 +53,4 @@ Now, the ingester is listening for regular traffic on port 9095, but the distrib
 
 ## Metrics-generator proxy
 
-It is not possible to customize the lifecycler port in the metrics-generator in the Tempo 2.1, but the setting is added in this PR: https://github.com/grafana/tempo/pull/2399.
+It is not possible to customize the lifecycler port in the metrics-generator in Tempo 2.1, but the setting is added in this PR: https://github.com/grafana/tempo/pull/2399.
