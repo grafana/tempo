@@ -16,7 +16,7 @@ keywords:
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following:
 
 - Span and resource attributes, timing, and duration
-- Basic aggregates: `count()` and `avg()`
+- Basic aggregates: `count()`, `avg()`, `min()`, `max()`, and `sum()`
 
 Read the blog post, "[Get to know TraceQL](https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
 
