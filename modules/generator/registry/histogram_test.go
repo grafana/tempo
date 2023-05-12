@@ -19,10 +19,10 @@ func Test_histogram(t *testing.T) {
 		return true
 	}
 
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, onAdd, nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil)
 
-	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "trace-1", 1.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 1.5, "trace-2", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "trace-1", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "trace-2", 1.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -53,8 +53,8 @@ func Test_histogram(t *testing.T) {
 	}
 	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples, expectedExemplars)
 
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 2.5, "trace-2.2", 1.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-3"}), 3.0, "trace-3", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "trace-2.2", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0, "trace-3", 1.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -90,9 +90,9 @@ func Test_histogram(t *testing.T) {
 	}
 	collectMetricAndAssert(t, h, collectionTimeMs, nil, 15, expectedSamples, expectedExemplars)
 
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 2.5, "trace-2.2", 20.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-3"}), 3.0, "trace-3", 13.5)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-3"}), 1.0, "trace-3", 7.5)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "trace-2.2", 20.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0, "trace-3", 13.5)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 1.0, "trace-3", 7.5)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -134,17 +134,6 @@ func Test_histogram(t *testing.T) {
 	collectMetricAndAssert(t, h, collectionTimeMs, nil, 15, expectedSamples, expectedExemplars)
 }
 
-func Test_histogram_invalidLabelValues(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
-
-	assert.Panics(t, func() {
-		h.ObserveWithExemplar(nil, 1.0, "", 1.0)
-	})
-	assert.Panics(t, func() {
-		h.ObserveWithExemplar(newLabelValues([]string{"value-1", "value-2"}), 1.0, "", 1.0)
-	})
-}
-
 func Test_histogram_cantAdd(t *testing.T) {
 	canAdd := false
 	onAdd := func(count uint32) bool {
@@ -152,13 +141,13 @@ func Test_histogram_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, onAdd, nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, onAdd, nil)
 
 	// allow adding new series
 	canAdd = true
 
-	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 1.5, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -178,8 +167,8 @@ func Test_histogram_cantAdd(t *testing.T) {
 	// block new series - existing series can still be updated
 	canAdd = false
 
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 2.5, "", 1.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-3"}), 3.0, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0, "", 1.0)
 
 	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
@@ -204,11 +193,11 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, onRemove)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, onRemove)
 
 	timeMs := time.Now().UnixMilli()
-	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 1.5, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
 	h.removeStaleSeries(timeMs)
 
@@ -233,7 +222,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	timeMs = time.Now().UnixMilli()
 
 	// update value-2 series
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 2.5, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
 
 	h.removeStaleSeries(timeMs)
 
@@ -251,10 +240,10 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 }
 
 func Test_histogram_externalLabels(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil)
 
-	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.0)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 1.5, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -273,7 +262,7 @@ func Test_histogram_externalLabels(t *testing.T) {
 }
 
 func Test_histogram_concurrencyDataRace(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil)
 
 	end := make(chan struct{})
 
@@ -290,8 +279,8 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		go accessor(func() {
-			h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.0)
-			h.ObserveWithExemplar(newLabelValues([]string{"value-2"}), 1.5, "", 1.0)
+			h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+			h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 		})
 	}
 
@@ -302,7 +291,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		h.ObserveWithExemplar(newLabelValues([]string{string(s)}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{string(s)}), 1.0, "", 1.0)
 	})
 
 	go accessor(func() {
@@ -319,7 +308,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_histogram_concurrencyCorrectness(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -335,7 +324,7 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 				case <-end:
 					return
 				default:
-					h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 2.0, "", 1.0)
+					h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 1.0)
 					totalCount.Inc()
 				}
 			}
@@ -359,9 +348,9 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 }
 
 func Test_histogram_span_multiplier(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.5)
-	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 2.0, "", 5)
+	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.5)
+	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 5)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{

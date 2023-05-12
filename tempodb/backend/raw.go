@@ -225,6 +225,15 @@ func ObjectFileName(keypath KeyPath, name string) string {
 	return path.Join(path.Join(keypath...), name)
 }
 
+// KeyPathWithPrefix returns a keypath with a prefix
+func KeyPathWithPrefix(keypath KeyPath, prefix string) KeyPath {
+	if len(prefix) == 0 {
+		return keypath
+	}
+
+	return append([]string{prefix}, keypath...)
+}
+
 // MetaFileName returns the object name for the block meta given a block id and tenantid
 func MetaFileName(blockID uuid.UUID, tenantID string) string {
 	return path.Join(RootPath(blockID, tenantID), MetaName)

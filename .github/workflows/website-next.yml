@@ -7,6 +7,7 @@ on:
     paths:
       - "docs/sources/helm-charts/**"
       - 'docs/sources/tempo/**'
+  workflow_dispatch:
 
 jobs:
   test:

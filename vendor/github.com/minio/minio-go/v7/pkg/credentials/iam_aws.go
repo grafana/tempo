@@ -19,9 +19,10 @@ package credentials
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -105,7 +106,7 @@ func (m *IAM) Retrieve() (Value, error) {
 			Client:      m.Client,
 			STSEndpoint: endpoint,
 			GetWebIDTokenExpiry: func() (*WebIdentityToken, error) {
-				token, err := ioutil.ReadFile(os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE"))
+				token, err := os.ReadFile(os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE"))
 				if err != nil {
 					return nil, err
 				}
@@ -254,7 +255,10 @@ func getEcsTaskCredentials(client *http.Client, endpoint string, token string) (
 }
 
 func fetchIMDSToken(client *http.Client, endpoint string) (string, error) {
-	req, err := http.NewRequest(http.MethodPut, endpoint+tokenPath, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint+tokenPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -264,7 +268,7 @@ func fetchIMDSToken(client *http.Client, endpoint string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +289,10 @@ func getCredentials(client *http.Client, endpoint string) (ec2RoleCredRespBody, 
 	}
 
 	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
-	token, _ := fetchIMDSToken(client, endpoint)
+	token, err := fetchIMDSToken(client, endpoint)
+	if err != nil {
+		return ec2RoleCredRespBody{}, err
+	}
 
 	// http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
 	u, err := getIAMRoleURL(endpoint)

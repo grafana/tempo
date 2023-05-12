@@ -9,9 +9,12 @@ import (
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -349,6 +352,45 @@ func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string
 // span_name that are activated or deactivated on the span metrics processor.
 func (o *Overrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions
+}
+
+// MetricsGeneratorProcessorSpanMetricsFilterPolicies controls the filter policies that are added to the spanmetrics processor.
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsFilterPolicies
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxLiveTraces
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxBlockDuration
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksMaxBlockBytes
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod
+}
+
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsEnableTargetInfo
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

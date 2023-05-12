@@ -1,15 +1,29 @@
 package generator
 
-import "time"
+import (
+	"time"
+
+	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+)
 
 type mockOverrides struct {
-	processors                     map[string]struct{}
-	serviceGraphsHistogramBuckets  []float64
-	serviceGraphsDimensions        []string
-	serviceGraphsPeerAttributes    []string
-	spanMetricsHistogramBuckets    []float64
-	spanMetricsDimensions          []string
-	spanMetricsIntrinsicDimensions map[string]bool
+	processors                      map[string]struct{}
+	serviceGraphsHistogramBuckets   []float64
+	serviceGraphsDimensions         []string
+	serviceGraphsPeerAttributes     []string
+	spanMetricsHistogramBuckets     []float64
+	spanMetricsDimensions           []string
+	spanMetricsIntrinsicDimensions  map[string]bool
+	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings    []sharedconfig.DimensionMappings
+	spanMetricsEnableTargetInfo     bool
+	localBlocksMaxLiveTraces        uint64
+	localBlocksMaxBlockDuration     time.Duration
+	localBlocksMaxBlockBytes        uint64
+	localBlocksFlushCheckPeriod     time.Duration
+	localBlocksTraceIdlePeriod      time.Duration
+	localBlocksCompleteBlockTimeout time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -52,4 +66,42 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID st
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
 	return m.spanMetricsIntrinsicDimensions
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	return m.spanMetricsFilterPolicies
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+	return m.localBlocksMaxLiveTraces
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
+	return m.localBlocksMaxBlockDuration
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
+	return m.localBlocksMaxBlockBytes
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
+	return m.localBlocksTraceIdlePeriod
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
+	return m.localBlocksFlushCheckPeriod
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
+	return m.localBlocksCompleteBlockTimeout
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+	return m.spanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	return m.spanMetricsEnableTargetInfo
 }

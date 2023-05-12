@@ -1309,9 +1309,27 @@ func (c *writerColumn) recordPageStats(headerSize int32, header *format.PageHead
 	if page != nil {
 		numNulls := page.NumNulls()
 		numValues := page.NumValues()
-		minValue, maxValue, _ := page.Bounds()
+		minValue, maxValue, pageHasBounds := page.Bounds()
 		c.columnIndex.IndexPage(numValues, numNulls, minValue, maxValue)
 		c.columnChunk.MetaData.NumValues += numValues
+		c.columnChunk.MetaData.Statistics.NullCount += numNulls
+
+		if pageHasBounds {
+			var existingMaxValue, existingMinValue Value
+
+			if c.columnChunk.MetaData.Statistics.MaxValue != nil && c.columnChunk.MetaData.Statistics.MinValue != nil {
+				existingMaxValue = c.columnType.Kind().Value(c.columnChunk.MetaData.Statistics.MaxValue)
+				existingMinValue = c.columnType.Kind().Value(c.columnChunk.MetaData.Statistics.MinValue)
+			}
+
+			if existingMaxValue.isNull() || c.columnType.Compare(maxValue, existingMaxValue) > 0 {
+				c.columnChunk.MetaData.Statistics.MaxValue = maxValue.Bytes()
+			}
+
+			if existingMinValue.isNull() || c.columnType.Compare(minValue, existingMinValue) < 0 {
+				c.columnChunk.MetaData.Statistics.MinValue = minValue.Bytes()
+			}
+		}
 
 		c.offsetIndex.PageLocations = append(c.offsetIndex.PageLocations, format.PageLocation{
 			Offset:             c.columnChunk.MetaData.TotalCompressedSize,

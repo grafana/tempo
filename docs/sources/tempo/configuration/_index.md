@@ -64,6 +64,11 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
+  
+# Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
+# If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
+# and returns only tag values that match the query.
+[autocomplete_filtering_enabled: <bool> | default = false]
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
@@ -297,6 +302,14 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
+            # Custom labeling of dimensions is possible via a list of maps consisting of 
+            # "name" <string>, "source_labels" <list of string>, "join" <string> 
+            # "name" appears in the metrics, "source_labels" are the actual
+            # attributes that will make up the value of the label and "join" is the
+            # separator if multiple source_labels are provided
+            [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+            # Enable target_info metrics
+            [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -357,11 +370,6 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
-    # number of block queries that are tolerated to error before considering the entire query as failed
-    # numbers greater than 0 make possible for a read to return partial results
-    # (default: 0)
-    [tolerate_failed_blocks: <int>]
-
     search:
         # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
         # (default: 2000)
@@ -416,6 +424,10 @@ query_frontend:
         # The number of shards to split a trace by id query into.
         # (default: 50)
         [query_shards: <int>]
+
+        # The maximum number of shards to execute at once. If set to 0 query_shards is used.
+        # (default: 0)
+        [concurrent_shards: <int>]
 
         # If set to a non-zero value, a second request will be issued at the provided duration.
         # Recommended to be set to p99 of search requests to reduce long-tail latency.
@@ -598,10 +610,14 @@ storage:
         gcs:
 
             # Bucket name in gcs
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires a bucket to maintain a top-level object structure. You can use prefix option with this to nest all objects within a shared bucket.
             # Example: "bucket_name: tempo"
             [bucket_name: <string>]
+
+            # optional.
+            # Prefix name in gcs
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # Buffer size for reads. Default is 10MB
             # Example: "chunk_buffer_size: 5_000_000"
@@ -647,9 +663,13 @@ storage:
         s3:
 
             # Bucket name in s3
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires a bucket to maintain a top-level object structure. You can use prefix option with this to nest all objects within a shared bucket.
             [bucket: <string>]
+
+            # optional.
+            # Prefix name in s3
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
             # Example: "endpoint: s3.dualstack.us-east-2.amazonaws.com"
@@ -678,8 +698,32 @@ storage:
             [insecure: <bool>]
 
             # optional.
-            # Set to true to disable verification of an TLS endpoint.  The default value is false.
-            [insecure_skip_verify: <bool>]
+            # Path to the client certificate file.
+            [tls_cert_path: <string>]
+
+            # optional.
+            # Path to the private client key file.
+            [tls_key_path: <string>]
+
+            # optional.
+            # Path to the CA certificate file.
+            [tls_ca_path: <string>]
+
+            # optional.
+            # Path to the CA certificate file.
+            [tls_server_name: <string>]
+
+            # optional.
+            # Set to true to disable verification of a TLS endpoint.  The default value is false.
+            [tls_insecure_skip_verify: <bool>]
+
+            # optional.
+            # Override the default cipher suite list, separated by commas.
+            [tls_cipher_suites: <string>]
+
+            # optional.
+            # Override the default minimum TLS version. The default value is VersionTLS12.  Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
+            [tls_min_version: <string>]
 
             # optional.
             # enable to use path-style requests.
@@ -716,9 +760,13 @@ storage:
         azure:
 
             # store traces in this container.
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires bucket to  maintain a top-level object structure. You can use prefix option to nest all objects within a shared bucket
             [container_name: <string>]
+
+            # optional.
+            # Prefix for azure.
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # optional.
             # Azure endpoint to use, defaults to Azure global(core.windows.net) for other
@@ -1189,6 +1237,11 @@ overrides:
     #   metrics_generator_ring_size * metrics_generator_max_active_series
     [metrics_generator_ring_size: <int>]
 
+    # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
+    # The length of the queue and the amount of workers pulling from the queue can be configured.
+    [metrics_generator_forwarder_queue_size: <int> | default = 100]
+    [metrics_generator_forwarder_workers: <int> | default = 2]
+
     # Per-user configuration of the metrics-generator processors. The following processors are
     # supported:
     #  - service-graphs
@@ -1204,6 +1257,9 @@ overrides:
     # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
+    [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+    # Enable target_info metrics
+    [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.

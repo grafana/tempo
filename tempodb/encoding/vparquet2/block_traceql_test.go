@@ -139,6 +139,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{.foo = "def"}`),         // String ==
 		traceql.MustExtractFetchSpansRequest(`{.foo != "deg"}`),        // String !=
 		traceql.MustExtractFetchSpansRequest(`{.foo =~ "d.*"}`),        // String Regex
+		traceql.MustExtractFetchSpansRequest(`{.foo !~ "x.*"}`),        // String Not Regex
 		traceql.MustExtractFetchSpansRequest(`{resource.foo = "abc"}`), // Resource-level only
 		traceql.MustExtractFetchSpansRequest(`{span.foo = "def"}`),     // Span-level only
 		traceql.MustExtractFetchSpansRequest(`{.foo}`),                 // Projection only
@@ -223,6 +224,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		// TODO - Should the below query return data or not?  It does match the resource
 		// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
 		traceql.MustExtractFetchSpansRequest(`{.foo =~ "xyz.*"}`),                                     // Regex IN
+		traceql.MustExtractFetchSpansRequest(`{.foo !~ ".*"}`),                                        // String Not Regex
 		traceql.MustExtractFetchSpansRequest(`{span.bool = true}`),                                    // Bool not match
 		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = ok}`),                            // Intrinsic: status

@@ -74,6 +74,10 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	if cfg == nil {
+		return nil, nil, nil, fmt.Errorf("config is nil")
+	}
+
 	l := log.Logger
 
 	core, err := createCore(cfg, false)
@@ -88,7 +92,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 	// try listing objects
 	if confirm {
-		_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
+		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 0)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
@@ -119,6 +123,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 	span.SetTag("object", name)
 
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objName := backend.ObjectFileName(keypath, name)
 
 	putObjectOptions := getPutObjectOptions(rw)
@@ -148,6 +153,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	defer span.Finish()
 
 	var a appendTracker
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objectName := backend.ObjectFileName(keypath, name)
 
 	options := getPutObjectOptions(rw)
@@ -178,9 +184,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.partNum,
 		bytes.NewReader(buffer),
 		int64(len(buffer)),
-		"",
-		"",
-		nil,
+		minio.PutObjectPartOptions{},
 	)
 	if err != nil {
 		return a, errors.Wrap(err, "error in multipart upload")
@@ -205,7 +209,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		})
 	}
 
-	etag, err := rw.core.CompleteMultipartUpload(
+	uploadInfo, err := rw.core.CompleteMultipartUpload(
 		ctx,
 		rw.cfg.Bucket,
 		a.objectName,
@@ -214,7 +218,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		minio.PutObjectOptions{},
 	)
 	if err != nil {
-		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, etag)
+		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, uploadInfo.ETag)
 	}
 
 	return nil
@@ -222,6 +226,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	var objects []string
 
@@ -256,6 +261,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")
 	defer span.Finish()
 
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	b, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return nil, 0, readError(err)
@@ -272,6 +278,7 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 	})
 	defer span.Finish()
 
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	return readError(rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer))
 }
 
@@ -367,8 +374,13 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return nil, errors.Wrap(err, "create minio.DefaultTransport")
 	}
 
-	if cfg.InsecureSkipVerify {
-		customTransport.TLSClientConfig.InsecureSkipVerify = true
+	tlsConfig, err := cfg.GetTLSConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create TLS config")
+	}
+
+	if tlsConfig != nil {
+		customTransport.TLSClientConfig = tlsConfig
 	}
 
 	// add instrumentation

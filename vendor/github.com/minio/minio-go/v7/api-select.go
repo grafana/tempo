@@ -41,8 +41,8 @@ type CSVFileHeaderInfo string
 // Constants for file header info.
 const (
 	CSVFileHeaderInfoNone   CSVFileHeaderInfo = "NONE"
-	CSVFileHeaderInfoIgnore                   = "IGNORE"
-	CSVFileHeaderInfoUse                      = "USE"
+	CSVFileHeaderInfoIgnore CSVFileHeaderInfo = "IGNORE"
+	CSVFileHeaderInfoUse    CSVFileHeaderInfo = "USE"
 )
 
 // SelectCompressionType - is the parameter for what type of compression is
@@ -52,15 +52,15 @@ type SelectCompressionType string
 // Constants for compression types under select API.
 const (
 	SelectCompressionNONE SelectCompressionType = "NONE"
-	SelectCompressionGZIP                       = "GZIP"
-	SelectCompressionBZIP                       = "BZIP2"
+	SelectCompressionGZIP SelectCompressionType = "GZIP"
+	SelectCompressionBZIP SelectCompressionType = "BZIP2"
 
 	// Non-standard compression schemes, supported by MinIO hosts:
 
-	SelectCompressionZSTD   = "ZSTD"   // Zstandard compression.
-	SelectCompressionLZ4    = "LZ4"    // LZ4 Stream
-	SelectCompressionS2     = "S2"     // S2 Stream
-	SelectCompressionSNAPPY = "SNAPPY" // Snappy stream
+	SelectCompressionZSTD   SelectCompressionType = "ZSTD"   // Zstandard compression.
+	SelectCompressionLZ4    SelectCompressionType = "LZ4"    // LZ4 Stream
+	SelectCompressionS2     SelectCompressionType = "S2"     // S2 Stream
+	SelectCompressionSNAPPY SelectCompressionType = "SNAPPY" // Snappy stream
 )
 
 // CSVQuoteFields - is the parameter for how CSV fields are quoted.
@@ -69,7 +69,7 @@ type CSVQuoteFields string
 // Constants for csv quote styles.
 const (
 	CSVQuoteFieldsAlways   CSVQuoteFields = "Always"
-	CSVQuoteFieldsAsNeeded                = "AsNeeded"
+	CSVQuoteFieldsAsNeeded CSVQuoteFields = "AsNeeded"
 )
 
 // QueryExpressionType - is of what syntax the expression is, this should only
@@ -87,7 +87,7 @@ type JSONType string
 // Constants for JSONTypes.
 const (
 	JSONDocumentType JSONType = "DOCUMENT"
-	JSONLinesType             = "LINES"
+	JSONLinesType    JSONType = "LINES"
 )
 
 // ParquetInputOptions parquet input specific options
@@ -378,8 +378,8 @@ type SelectObjectType string
 // Constants for input data types.
 const (
 	SelectObjectTypeCSV     SelectObjectType = "CSV"
-	SelectObjectTypeJSON                     = "JSON"
-	SelectObjectTypeParquet                  = "Parquet"
+	SelectObjectTypeJSON    SelectObjectType = "JSON"
+	SelectObjectTypeParquet SelectObjectType = "Parquet"
 )
 
 // preludeInfo is used for keeping track of necessary information from the
@@ -416,7 +416,7 @@ type messageType string
 
 const (
 	errorMsg  messageType = "error"
-	commonMsg             = "event"
+	commonMsg messageType = "event"
 )
 
 // eventType represents the type of event.
@@ -425,9 +425,9 @@ type eventType string
 // list of event-types returned by Select API.
 const (
 	endEvent      eventType = "End"
-	recordsEvent            = "Records"
-	progressEvent           = "Progress"
-	statsEvent              = "Stats"
+	recordsEvent  eventType = "Records"
+	progressEvent eventType = "Progress"
+	statsEvent    eventType = "Stats"
 )
 
 // contentType represents content type of event.
@@ -519,7 +519,7 @@ func (s *SelectResults) start(pipeWriter *io.PipeWriter) {
 	go func() {
 		for {
 			var prelude preludeInfo
-			var headers = make(http.Header)
+			headers := make(http.Header)
 			var err error
 
 			// Create CRC code
@@ -624,7 +624,7 @@ func (p preludeInfo) PayloadLen() int64 {
 // the struct,
 func processPrelude(prelude io.Reader, crc hash.Hash32) (preludeInfo, error) {
 	var err error
-	var pInfo = preludeInfo{}
+	pInfo := preludeInfo{}
 
 	// reads total length of the message (first 4 bytes)
 	pInfo.totalLen, err = extractUint32(prelude)
@@ -752,7 +752,6 @@ func checkCRC(r io.Reader, expect uint32) error {
 
 	if msgCRC != expect {
 		return fmt.Errorf("Checksum Mismatch, MessageCRC of 0x%X does not equal expected CRC of 0x%X", msgCRC, expect)
-
 	}
 	return nil
 }

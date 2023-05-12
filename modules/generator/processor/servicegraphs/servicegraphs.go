@@ -68,6 +68,7 @@ type Processor struct {
 	Cfg Config
 
 	registry registry.Registry
+	labels   []string
 	store    store.Store
 
 	closeCh chan struct{}
@@ -92,13 +93,13 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	p := &Processor{
 		Cfg:      cfg,
 		registry: registry,
+		labels:   labels,
+		closeCh:  make(chan struct{}, 1),
 
-		closeCh: make(chan struct{}, 1),
-
-		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal, labels),
-		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal, labels),
-		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, labels, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, labels, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal),
+		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal),
+		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
@@ -265,7 +266,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 		labelValues = append(labelValues, e.Dimensions[dimension])
 	}
 
-	registryLabelValues := p.registry.NewLabelValues(labelValues)
+	registryLabelValues := p.registry.NewLabelValueCombo(p.labels, labelValues)
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {

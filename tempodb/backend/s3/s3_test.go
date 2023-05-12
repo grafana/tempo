@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const getMethod = "GET"
+const putMethod = "PUT"
 const tagHeader = "X-Amz-Tagging"
 const storageClassHeader = "X-Amz-Storage-Class"
 
@@ -94,6 +96,14 @@ func TestHedge(t *testing.T) {
 	}
 }
 
+func TestNilConfig(t *testing.T) {
+	_, _, _, err := New(nil)
+	require.Error(t, err)
+
+	_, _, _, err = NewNoConfirm(nil)
+	require.Error(t, err)
+}
+
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(returnIn)
@@ -126,16 +136,17 @@ func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch method := r.Method; method {
-		case "PUT":
+		case putMethod:
 			// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
 			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
 			case "":
 			default:
+
 				value, err := url.ParseQuery(testedHeaderValue)
 				require.NoError(t, err)
 				*obj = value
 			}
-		case "GET":
+		case getMethod:
 			// return fake list response b/c it's the only call that has to succeed
 			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 		<ListBucketResult>
@@ -189,6 +200,78 @@ func TestObjectBlockTags(t *testing.T) {
 	}
 }
 
+func TestObjectWithPrefix(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+
+					assert.Equal(t, "/blerg/test_storage/test/object", r.URL.String())
+				}
+			},
+		},
+		{
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, r.URL.Query().Get("prefix"), "")
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+						</ListBucketResult>`))
+						return
+					}
+
+					assert.Equal(t, "/blerg/test/object", r.URL.String())
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Prefix:    tc.prefix,
+				Insecure:  true,
+				Endpoint:  server.URL[7:],
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, false)
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestObjectStorageClass(t *testing.T) {
 
 	tests := []struct {
@@ -223,4 +306,12 @@ func TestObjectStorageClass(t *testing.T) {
 			require.Equal(t, obj.Has(tc.StorageClass), true)
 		})
 	}
+}
+
+func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	assert.NotNil(t, httpHandler)
+	server := httptest.NewServer(httpHandler)
+	t.Cleanup(server.Close)
+	return server
 }

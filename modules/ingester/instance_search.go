@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
+
+	"regexp"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
@@ -93,8 +96,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: sr.TracesInspected(),
 			InspectedBytes:  sr.BytesInspected(),
-			InspectedBlocks: sr.BlocksInspected(),
-			SkippedBlocks:   sr.BlocksSkipped(),
 		},
 	}, nil
 }
@@ -434,20 +435,42 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		maxBlocks = int32(limit)
 	}
 
-	searchBlock := func(s common.Searcher) error {
-		if anyErr.Load() != nil {
-			return nil // Early exit if any error has occurred
-		}
+	tag, err := traceql.ParseIdentifier(req.TagName)
+	if err != nil {
+		return nil, err
+	}
 
-		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
-			return nil
-		}
+	query := extractMatchers(req.Query)
 
-		inspectedBlocks.Inc()
-		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return s.Fetch(ctx, req, common.DefaultSearchOptions())
-		})
-		return engine.ExecuteTagValues(ctx, req, cb, fetcher)
+	var searchBlock func(common.Searcher) error
+	if i.autocompleteFilteringEnabled && len(query) > 0 {
+		searchBlock = func(s common.Searcher) error {
+			if anyErr.Load() != nil {
+				return nil // Early exit if any error has occurred
+			}
+
+			if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+				return nil
+			}
+
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return s.Fetch(ctx, req, common.DefaultSearchOptions())
+			})
+
+			return engine.ExecuteTagValues(ctx, tag, query, cb, fetcher)
+		}
+	} else {
+		searchBlock = func(s common.Searcher) error {
+			if anyErr.Load() != nil {
+				return nil // Early exit if any error has occurred
+			}
+
+			if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+				return nil
+			}
+
+			return s.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+		}
 	}
 
 	i.blocksMtx.RLock()
@@ -504,4 +527,57 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	return resp, nil
+}
+
+// Regex to extract matchers from a query string
+// This regular expression matches a string that contains three groups separated by operators.
+// The first group is a string of alphabetical characters, dots, and underscores.
+// The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
+// The third group is one of several possible values: a string enclosed in double quotes,
+// a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
+// a plain number, or the boolean values "true" or "false".
+// Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
+var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false)`)
+
+// TODO: Merge into a single regular expression
+
+// Regex to extract selectors from a query string
+// This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
+// Examples
+//
+//	Query                        |  Match
+//
+// { .bar = "foo" }                          |   Yes
+// { .bar = "foo" && .foo = "bar" }          |   Yes
+// { .bar = "foo" || .foo = "bar" }          |   No
+// { .bar = "foo" } && { .foo = "bar" }      |   No
+// { .bar = "foo" } || { .foo = "bar" }      |   No
+var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()/&=<>~!0-9"]*}$`)
+
+// extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
+func extractMatchers(query string) string {
+	query = strings.TrimSpace(query)
+
+	if len(query) == 0 {
+		return "{}"
+	}
+
+	selector := singleFilterRegexp.FindString(query)
+	if len(selector) == 0 {
+		return "{}"
+	}
+
+	matchers := matchersRegexp.FindAllString(query, -1)
+
+	var q strings.Builder
+	q.WriteString("{")
+	for i, m := range matchers {
+		if i > 0 {
+			q.WriteString(" && ")
+		}
+		q.WriteString(m)
+	}
+	q.WriteString("}")
+
+	return q.String()
 }

@@ -54,6 +54,7 @@ type searchSharder struct {
 	next      http.RoundTripper
 	reader    tempodb.Reader
 	overrides *overrides.Overrides
+	progress  searchProgressFactory
 
 	cfg    SearchSharderConfig
 	sloCfg SLOConfig
@@ -71,7 +72,7 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgressFactory, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
@@ -80,6 +81,8 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 			cfg:       cfg,
 			sloCfg:    sloCfg,
 			logger:    logger,
+
+			progress: progress,
 		}
 	})
 }
@@ -161,19 +164,17 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-	overallResponse := newSearchResponse(ctx, int(searchReq.Limit), subCancel)
-	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
 	totalBlockBytes := uint64(0)
 	for _, b := range blocks {
 		totalBlockBytes += b.Size
 	}
-	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
+	progress := s.progress(ctx, int(searchReq.Limit), len(reqs), len(blocks), int(totalBlockBytes))
 
 	startedReqs := 0
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
-		if overallResponse.shouldQuit() {
+		if progress.shouldQuit() {
 			break
 		}
 
@@ -182,7 +183,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		startedReqs++
 
 		go func(innerR *http.Request) {
-			defer wg.Done()
+			defer func() {
+				if progress.shouldQuit() {
+					subCancel()
+				}
+				wg.Done()
+			}()
 
 			resp, err := s.next.RoundTrip(innerR)
 			if err != nil {
@@ -194,7 +200,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-				overallResponse.setError(err)
+				progress.setError(err)
 				return
 			}
 
@@ -206,21 +212,21 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
 				}
 				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
-				overallResponse.setStatus(statusCode, statusMsg)
+				progress.setStatus(statusCode, statusMsg)
 				return
 			}
 
 			// successful query, read the body
 			results := &tempopb.SearchResponse{}
-			err = jsonpb.Unmarshal(resp.Body, results)
+			err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(resp.Body, results)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				overallResponse.setError(err)
+				progress.setError(err)
 				return
 			}
 
 			// happy path
-			overallResponse.addResponse(results)
+			progress.addResponse(results)
 		}(req)
 	}
 
@@ -228,9 +234,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg.Wait()
 
 	// print out request metrics
+	overallResponse := progress.result()
+
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
 	reqTime := time.Since(reqStart)
-	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime.Seconds()
+	throughput := float64(overallResponse.response.Metrics.InspectedBytes) / reqTime.Seconds()
 	searchThroughput.WithLabelValues(tenantID).Observe(throughput)
 
 	query, _ := url.PathUnescape(r.URL.RawQuery)
@@ -244,20 +252,16 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"started_requests", startedReqs,
 		"cancelled_requests", cancelledReqs,
 		"finished_requests", overallResponse.finishedRequests,
-		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
-		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
-		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
-		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
-		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
-		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+		"totalBlocks", overallResponse.response.Metrics.TotalBlocks,
+		"inspectedBytes", overallResponse.response.Metrics.InspectedBytes,
+		"inspectedTraces", overallResponse.response.Metrics.InspectedTraces,
+		"totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
-	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
-	span.SetTag("skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks)
-	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
-	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
-	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
-	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+	span.SetTag("totalBlocks", overallResponse.response.Metrics.TotalBlocks)
+	span.SetTag("inspectedBytes", overallResponse.response.Metrics.InspectedBytes)
+	span.SetTag("inspectedTraces", overallResponse.response.Metrics.InspectedTraces)
+	span.SetTag("totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
@@ -275,7 +279,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	m := &jsonpb.Marshaler{}
-	bodyString, err := m.MarshalToString(overallResponse.result())
+	bodyString, err := m.MarshalToString(overallResponse.response)
 	if err != nil {
 		return nil, err
 	}

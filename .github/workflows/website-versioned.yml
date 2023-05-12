@@ -9,6 +9,7 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
     paths:
       - 'docs/sources/tempo/**'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -64,7 +65,7 @@ jobs:
         id: target
         with:
           ref_name: ${{ github.ref_name }}
-      
+
       # ----------------------------------------
       # Clone and run the website sync action
       # ----------------------------------------
@@ -91,7 +92,8 @@ jobs:
           source_folder: docs/sources/tempo
           # target is v1.2.x
           target_folder: content/docs/tempo/${{ steps.target.outputs.target }}.x
-      
+          allow_no_changes: true
+
       - shell: bash
         run: |
           test -n "${{ steps.publish.outputs.commit_hash }}"
