@@ -507,7 +507,7 @@ func (s *Static) accumulate(other Static) {
 func (s Static) divideBy(f float64) Static {
 	switch s.Type {
 	case TypeInt:
-		return NewStaticInt(s.N / int(f))
+		return NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
 	case TypeFloat:
 		return NewStaticFloat(s.F / f)
 	case TypeDuration:
