@@ -184,9 +184,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		a.partNum,
 		bytes.NewReader(buffer),
 		int64(len(buffer)),
-		"",
-		"",
-		nil,
+		minio.PutObjectPartOptions{},
 	)
 	if err != nil {
 		return a, errors.Wrap(err, "error in multipart upload")
@@ -211,7 +209,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		})
 	}
 
-	etag, err := rw.core.CompleteMultipartUpload(
+	uploadInfo, err := rw.core.CompleteMultipartUpload(
 		ctx,
 		rw.cfg.Bucket,
 		a.objectName,
@@ -220,7 +218,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		minio.PutObjectOptions{},
 	)
 	if err != nil {
-		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, etag)
+		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, uploadInfo.ETag)
 	}
 
 	return nil

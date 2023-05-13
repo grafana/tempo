@@ -364,6 +364,18 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
 }
 
+func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (resp *tempopb.SpanMetricsResponse, err error) {
+	for _, processor := range i.processors {
+		switch p := processor.(type) {
+		case *localblocks.Processor:
+			return p.GetMetrics(ctx, req)
+		default:
+		}
+	}
+
+	return nil, fmt.Errorf("localblocks processor not found")
+}
+
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
 	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(bytesIngested))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))

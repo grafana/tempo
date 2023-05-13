@@ -50,12 +50,16 @@ const (
 	// search tags
 	urlParamScope = "scope"
 
+	// generator summary
+	urlParamGroupBy = "groupBy"
+
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 
-	PathPrefixQuerier = "/querier"
+	PathPrefixQuerier   = "/querier"
+	PathPrefixGenerator = "/generator"
 
 	PathTraces          = "/api/traces/{traceID}"
 	PathSearch          = "/api/search"
@@ -63,6 +67,7 @@ const (
 	PathSearchTagValues = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho            = "/api/echo"
 	PathUsageStats      = "/status/usage-stats"
+	PathSpanMetrics     = "/api/metrics"
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
@@ -323,6 +328,27 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
+
+	return req, nil
+}
+
+func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
+	req := &tempopb.SpanMetricsRequest{}
+
+	groupBy := r.URL.Query().Get(urlParamGroupBy)
+	req.GroupBy = groupBy
+
+	query := r.URL.Query().Get(urlParamQuery)
+	req.Query = query
+
+	l := r.URL.Query().Get(urlParamLimit)
+	if l != "" {
+		limit, err := strconv.Atoi(l)
+		if err != nil {
+			return nil, fmt.Errorf("invalid limit: %w", err)
+		}
+		req.Limit = uint64(limit)
+	}
 
 	return req, nil
 }

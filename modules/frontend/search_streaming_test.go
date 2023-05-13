@@ -235,9 +235,8 @@ func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 }
 
 func TestDiffSearchProgress(t *testing.T) {
-	diffProgress := newDiffSearchProgress()
 	ctx := context.Background()
-	diffProgress.init(ctx, 0, 0, 0, 0)
+	diffProgress := newDiffSearchProgress(ctx, 0, 0, 0, 0)
 
 	// first request should be empty
 	require.Equal(t, &tempopb.SearchResponse{

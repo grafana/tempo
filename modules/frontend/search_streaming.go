@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 )
 
 // diffSearchProgress only returns new and updated traces when result() is called
@@ -30,19 +31,11 @@ type diffSearchProgress struct {
 	mtx        sync.Mutex
 }
 
-func newDiffSearchProgress() *diffSearchProgress {
+func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) *diffSearchProgress {
 	return &diffSearchProgress{
 		seenTraces: map[string]struct{}{},
-		progress:   newSearchProgress(),
+		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
 	}
-}
-
-func (p *diffSearchProgress) init(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	p.seenTraces = map[string]struct{}{}
-	p.progress.init(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
 }
 
 func (p *diffSearchProgress) setStatus(statusCode int, statusMsg string) {
@@ -124,9 +117,14 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			return errors.New("request must contain a start/end date for streaming search")
 		}
 
-		progress := newDiffSearchProgress()
+		progress := atomic.NewPointer[*diffSearchProgress](nil)
+		fn := func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+			p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
+			progress.Store(&p)
+			return p
+		}
 		// build roundtripper
-		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, progress, logger))
+		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, fn, logger))
 
 		type roundTripResult struct {
 			resp *http.Response
@@ -149,7 +147,12 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				return ctx.Err()
 			// stream results as they come in
 			case <-time.After(500 * time.Millisecond):
-				result := progress.result()
+				p := progress.Load()
+				if p == nil {
+					continue
+				}
+
+				result := (*p).result()
 				if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
 					continue
 				}
@@ -173,7 +176,8 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				}
 
 				// overall pipeline returned successfully, now grab the final results and send them
-				result := progress.finalResult()
+				p := *progress.Load()
+				result := p.finalResult()
 				if result.err != nil || result.statusCode != http.StatusOK {
 					level.Error(logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 					return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)

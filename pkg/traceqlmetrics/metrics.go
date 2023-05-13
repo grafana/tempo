@@ -70,6 +70,11 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 	return uint64(dur)
 }
 
+// Buckets returns the bucket counts for each power of 2.
+func (m *latencyHistogram) Buckets() [64]int {
+	return m.buckets
+}
+
 type MetricsResults struct {
 	Estimated bool
 	SpanCount int
@@ -177,7 +182,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 				series.Record(group, s.DurationNanos(), err)
 
 				spanCount++
-				if spanCount >= spanLimit {
+				if spanLimit > 0 && spanCount >= spanLimit {
 					return nil, io.EOF
 				}
 			}
@@ -206,8 +211,8 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 		}
 	}
 
-	// The results are estimated if we bailed early due to limit being reached.
-	series.Estimated = spanCount >= spanLimit
+	// The results are estimated if we bailed early due to limit being reached, but only if spanLimit has been set.
+	series.Estimated = spanCount >= spanLimit && spanLimit > 0
 	series.SpanCount = spanCount
 	return series, nil
 }
