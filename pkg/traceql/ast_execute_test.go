@@ -868,3 +868,16 @@ func BenchmarkUniqueSpans(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkAggregate(b *testing.B) {
+	agg := newAggregate(aggregateAvg, NewStaticInt(3))
+	ss := make([]*Spanset, 1)
+	ss[0] = &Spanset{
+		Spans: make([]Span, 1000),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = agg.evaluate(ss)
+	}
+}
