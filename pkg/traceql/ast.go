@@ -493,21 +493,15 @@ func (s Static) lessThan(other Static) bool {
 	}
 }
 
-func (s Static) sum(other Static) Static {
-	if s.Type != other.Type {
-		return NewStaticFloat(s.asFloat() + other.asFloat())
-	}
-
+func (s *Static) accumulate(other Static) {
 	switch s.Type {
 	case TypeInt:
-		return NewStaticInt(s.N + other.N)
+		s.N += other.N
 	case TypeFloat:
-		return NewStaticFloat(s.F + other.F)
+		s.F += other.F
 	case TypeDuration:
-		return NewStaticDuration(s.D + other.D)
+		s.D += other.D
 	}
-
-	return s
 }
 
 func (s Static) divideBy(f float64) Static {

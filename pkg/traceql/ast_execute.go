@@ -102,8 +102,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					val = sum.sum(val)
-					sum = &val
+					sum.accumulate(val)
 				}
 				count++
 			}
@@ -155,8 +154,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					val = sum.sum(val)
-					sum = &val
+					sum.accumulate(val)
 				}
 			}
 			copy := ss.clone()
