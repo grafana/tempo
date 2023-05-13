@@ -56,6 +56,8 @@ type Span interface {
 	DurationNanos() uint64
 }
 
+const attributeMatched = "__matched"
+
 type Spanset struct {
 	// these fields are actually used by the engine to evaluate queries
 	Scalar Static

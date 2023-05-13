@@ -50,6 +50,7 @@ func TestEngine_Execute(t *testing.T) {
 							},
 						},
 					},
+					Attributes: map[string]Static{attributeMatched: NewStaticInt(1)},
 				},
 				{
 					TraceID:         []byte{2},
@@ -173,6 +174,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				attributes:         map[Attribute]Static{},
 			},
 		},
+		Attributes: map[string]Static{attributeMatched: NewStaticInt(2)},
 	}
 
 	e := NewEngine()

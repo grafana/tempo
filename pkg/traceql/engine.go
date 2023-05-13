@@ -72,7 +72,9 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 		// reduce all evalSS to their max length to reduce meta data lookups
 		for i := range evalSS {
-			if len(evalSS[i].Spans) > e.spansPerSpanSet {
+			l := len(evalSS[i].Spans)
+			evalSS[i].AddAttribute(attributeMatched, NewStaticInt(l))
+			if l > e.spansPerSpanSet {
 				evalSS[i].Spans = evalSS[i].Spans[:e.spansPerSpanSet]
 			}
 		}
@@ -277,7 +279,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
 		SpanSet: &tempopb.SpanSet{
-			Matched: uint32(len(spanset.Spans)),
+			Matched: uint32(spanset.Attributes[attributeMatched].N),
 		},
 	}
 
