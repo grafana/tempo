@@ -6,7 +6,6 @@ import (
 	"math"
 	"regexp"
 	"strings"
-	"time"
 )
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
@@ -92,8 +91,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			output = append(output, copy)
 
 		case aggregateAvg:
-			var sum Static
-			opSum := newBinaryOperation(OpAdd, nil, nil)
+			var sum *Static
 			count := 0
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
@@ -101,45 +99,28 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					return nil, err
 				}
 
-				sum.Type = val.Type
-				opSum.LHS = sum
-				opSum.RHS = val
-				sum, _ = opSum.execute(nil)
+				if sum == nil {
+					sum = &val
+				} else {
+					val = sum.sum(val)
+					sum = &val
+				}
 				count++
 			}
 
 			copy := ss.clone()
-			var denom Static
-			switch sum.Type {
-			case TypeInt:
-				denom = NewStaticInt(count)
-			case TypeDuration:
-				denom = NewStaticDuration(time.Duration(count))
-			default:
-				denom = NewStaticFloat(float64(count))
-			}
-			opDiv := newBinaryOperation(OpDiv, sum, denom)
-			s, _ := opDiv.execute(nil)
-			copy.Scalar = s
+			copy.Scalar = sum.divideBy(float64(count))
 			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMax:
 			var max *Static
-			op := newBinaryOperation(OpGreater, nil, nil)
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if max == nil {
-					max = &val
-					continue
-				}
-				op.LHS = val
-				op.RHS = max
-				res, _ := op.execute(nil)
-				if res.B {
+				if max == nil || val.greaterThan(*max) {
 					max = &val
 				}
 			}
@@ -150,20 +131,12 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 		case aggregateMin:
 			var min *Static
-			op := newBinaryOperation(OpLess, nil, nil)
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if min == nil {
-					min = &val
-					continue
-				}
-				op.LHS = val
-				op.RHS = min
-				res, _ := op.execute(nil)
-				if res.B {
+				if min == nil || val.lessThan(*min) {
 					min = &val
 				}
 			}
@@ -173,21 +146,21 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			output = append(output, copy)
 
 		case aggregateSum:
-			var sum Static
-			op := newBinaryOperation(OpAdd, nil, nil)
+			var sum *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-
-				sum.Type = val.Type
-				op.LHS = sum
-				op.RHS = val
-				sum, _ = op.execute(nil)
+				if sum == nil {
+					sum = &val
+				} else {
+					val = sum.sum(val)
+					sum = &val
+				}
 			}
 			copy := ss.clone()
-			copy.Scalar = sum
+			copy.Scalar = *sum
 			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
@@ -232,33 +205,6 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 		case OpLessEqual:
 			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
 		default:
-		}
-	}
-
-	if lhsT == TypeDuration && rhsT == TypeDuration {
-		switch o.Op {
-		case OpAdd:
-			return NewStaticDuration(lhs.D + rhs.D), nil
-		case OpSub:
-			return NewStaticDuration(lhs.D - rhs.D), nil
-		case OpDiv:
-			return NewStaticDuration(lhs.D / rhs.D), nil
-		case OpMult:
-			return NewStaticDuration(lhs.D * rhs.D), nil
-		}
-	}
-
-	if lhsT == TypeInt && rhsT == TypeInt {
-		// skipping / on purpose. there is no integer division in traceql. drop to floats
-		switch o.Op {
-		case OpAdd:
-			return NewStaticInt(lhs.N + rhs.N), nil
-		case OpSub:
-			return NewStaticInt(lhs.N - rhs.N), nil
-		case OpMod:
-			return NewStaticInt(lhs.N % rhs.N), nil
-		case OpMult:
-			return NewStaticInt(lhs.N * rhs.N), nil
 		}
 	}
 
