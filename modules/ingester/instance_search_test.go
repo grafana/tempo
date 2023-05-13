@@ -97,7 +97,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			// `service.name = "test-service"` and duration >= 1s
 			_, ids := pushTracesToInstance(t, i, 10)
 
-			req := &tempopb.SearchRequest{Query: query, Limit: 20}
+			req := &tempopb.SearchRequest{Query: query, Limit: 20, SpansPerSpanSet: 10}
 
 			// Test live traces
 			sr, err := i.Search(context.Background(), req)

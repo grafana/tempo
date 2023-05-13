@@ -14,14 +14,15 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+const (
+	DefaultSpansPerSpanSet int = 3
+)
+
 type Engine struct {
-	spansPerSpanSet int
 }
 
 func NewEngine() *Engine {
-	return &Engine{
-		spansPerSpanSet: 3, // TODO make configurable
-	}
+	return &Engine{}
 }
 
 func (e *Engine) Compile(query string) (func(input []*Spanset) (result []*Spanset, err error), *FetchSpansRequest, error) {
@@ -72,8 +73,12 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 		// reduce all evalSS to their max length to reduce meta data lookups
 		for i := range evalSS {
-			if len(evalSS[i].Spans) > e.spansPerSpanSet {
-				evalSS[i].Spans = evalSS[i].Spans[:e.spansPerSpanSet]
+			spansPerSpanSet := int(searchReq.SpansPerSpanSet)
+			if spansPerSpanSet == 0 {
+				spansPerSpanSet = DefaultSpansPerSpanSet
+			}
+			if len(evalSS[i].Spans) > spansPerSpanSet {
+				evalSS[i].Spans = evalSS[i].Spans[:spansPerSpanSet]
 			}
 		}
 

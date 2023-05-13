@@ -31,16 +31,18 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name: "empty query",
 			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: defaultLimit,
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
 			name:     "limit set",
 			urlQuery: "limit=10",
 			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: 10,
+				Tags:            map[string]string{},
+				Limit:           10,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -62,10 +64,11 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			name:     "minDuration and maxDuration",
 			urlQuery: "minDuration=10s&maxDuration=20s",
 			expected: &tempopb.SearchRequest{
-				Tags:          map[string]string{},
-				MinDurationMs: 10000,
-				MaxDurationMs: 20000,
-				Limit:         defaultLimit,
+				Tags:            map[string]string{},
+				MinDurationMs:   10000,
+				MaxDurationMs:   20000,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -87,9 +90,10 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			name:     "traceql query",
 			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`),
 			expected: &tempopb.SearchRequest{
-				Query: `{ .foo="bar" }`,
-				Tags:  map[string]string{},
-				Limit: defaultLimit,
+				Query:           `{ .foo="bar" }`,
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -109,7 +113,8 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"limit": "five",
 				},
-				Limit: 5,
+				Limit:           5,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -124,7 +129,8 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "foo",
 				},
-				Limit: defaultLimit,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -134,9 +140,10 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "foo",
 				},
-				Start: 10,
-				End:   20,
-				Limit: defaultLimit,
+				Start:           10,
+				End:             20,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -151,17 +158,54 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "bar",
 				},
-				Limit: defaultLimit,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
 			name:     "top-level tags with range specified are ignored",
 			urlQuery: "service.name=bar&start=10&end=20",
 			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Start: 10,
-				End:   20,
-				Limit: defaultLimit,
+				Tags:            map[string]string{},
+				Start:           10,
+				End:             20,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
+			},
+		},
+		{
+			name:     "zero spss",
+			urlQuery: "spss=0",
+			err:      "invalid spss: must be a positive number",
+		},
+		{
+			name:     "negative spss",
+			urlQuery: "spss=-2",
+			err:      "invalid spss: must be a positive number",
+		},
+		{
+			name:     "non-numeric spss",
+			urlQuery: "spss=four",
+			err:      "invalid spss: strconv.Atoi: parsing \"four\": invalid syntax",
+		},
+		{
+			name:     "only spss",
+			urlQuery: "spss=2",
+			expected: &tempopb.SearchRequest{
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: 2,
+			},
+		},
+		{
+			name:     "tags with spss",
+			urlQuery: "tags=" + url.QueryEscape("service.name=foo") + "&spss=7",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "foo",
+				},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: 7,
 			},
 		},
 	}
@@ -296,9 +340,10 @@ func TestParseSearchBlockRequest(t *testing.T) {
 					Tags: map[string]string{
 						"foo": "bar",
 					},
-					Start: 10,
-					End:   20,
-					Limit: defaultLimit,
+					Start:           10,
+					End:             20,
+					Limit:           defaultLimit,
+					SpansPerSpanSet: defaultSpansPerSpanSet,
 				},
 				StartPage:     0,
 				PagesToSearch: 10,

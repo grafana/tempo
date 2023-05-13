@@ -21,10 +21,11 @@ import (
 
 func TestEngine_Execute(t *testing.T) {
 	now := time.Now()
-	e := Engine{}
+	e := NewEngine()
 
 	req := &tempopb.SearchRequest{
-		Query: `{ .foo = .bar }`,
+		Query:           `{ .foo = .bar }`,
+		SpansPerSpanSet: 2,
 	}
 	spanSetFetcher := MockSpanSetFetcher{
 		iterator: &MockSpanSetIterator{
@@ -42,6 +43,33 @@ func TestEngine_Execute(t *testing.T) {
 						},
 						&mockSpan{
 							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{3},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((200 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{4},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("diff"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{5},
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
@@ -111,8 +139,31 @@ func TestEngine_Execute(t *testing.T) {
 							},
 						},
 					},
+					{
+						SpanID:            "0000000000000003",
+						StartTimeUnixNano: uint64(now.UnixNano()),
+						DurationNanos:     200_000_000,
+						Attributes: []*v1.KeyValue{
+							{
+								Key: "foo",
+								Value: &v1.AnyValue{
+									Value: &v1.AnyValue_StringValue{
+										StringValue: "value",
+									},
+								},
+							},
+							{
+								Key: "bar",
+								Value: &v1.AnyValue{
+									Value: &v1.AnyValue_StringValue{
+										StringValue: "value",
+									},
+								},
+							},
+						},
+					},
 				},
-				Matched: 1,
+				Matched: 2,
 			},
 		},
 	}
@@ -301,9 +352,10 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 			continue
 		}
 
-		r.Spans = r.Spans[len(ss):]
+		r.Spans = ss[0].Spans
 		return r, nil
 	}
+
 }
 
 func (m *MockSpanSetIterator) Close() {}
