@@ -32,8 +32,9 @@ func testEvaluator(t *testing.T, tc evalTC) {
 		actual, err := ast.Pipeline.evaluate(tc.input)
 		require.NoError(t, err)
 
+		// reflect.DeepEqual() used b/c it correctly compares maps
 		if eq := reflect.DeepEqual(actual, tc.output); !eq {
-			require.Equal(t, tc.output, actual) // jpe this is dumb but this may print incorrect failures due to map iteration.
+			require.Equal(t, tc.output, actual) // this is will nicely print diffs but some diffs may be red herrings due to map iteration.
 		}
 		if eq := reflect.DeepEqual(cloneIn, tc.input); !eq {
 			require.Equal(t, tc.input, cloneIn)
@@ -304,8 +305,6 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					// TODO - Type handling of aggregate output could use some improvement. jpe
-					// avg(duration) should probably return a Duration instead of a float.
 					Scalar: NewStaticDuration(10.0 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
@@ -317,7 +316,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
-					Attributes: map[string]Static{"avg(duration)": NewStaticDuration(10 * time.Millisecond)}, // jpe - make duration
+					Attributes: map[string]Static{"avg(duration)": NewStaticDuration(10 * time.Millisecond)},
 				},
 			},
 		},

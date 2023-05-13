@@ -68,7 +68,7 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Attributes         map[string]Static // jpe ?
+	Attributes         map[string]Static
 }
 
 func (s *Spanset) AddAttribute(key string, value Static) {
