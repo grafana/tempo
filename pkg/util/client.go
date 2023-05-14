@@ -141,7 +141,9 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags)+"&start="+strconv.FormatInt(start, 10)+"&end="+strconv.FormatInt(end, 10), m)
+	query := c.BaseURL+"/api/search?tags="+url.QueryEscape(tags)+"&start="+strconv.FormatInt(start, 10)+"&end="+strconv.FormatInt(end, 10)
+	fmt.Println(query)
+	_, err := c.getFor(query, m)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +166,9 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?q="+url.QueryEscape(query), m)
+	queryURL := c.BaseURL+"/api/search?q="+url.QueryEscape(query)
+	fmt.Println(queryURL)
+	_, err := c.getFor(queryURL, m)
 	if err != nil {
 		return nil, err
 	}

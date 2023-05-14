@@ -197,7 +197,7 @@ func main() {
 				searchMetrics, err := searchTag(client, seed)
 				if err != nil {
 					metricErrorTotal.Inc()
-					log.Error("search for metrics failed",
+					log.Error("search tag for metrics failed",
 						zap.Error(err),
 					)
 				}
@@ -364,13 +364,15 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 		zap.String("key", attr.Key),
 		zap.String("value", util.StringifyAnyValue(attr.Value)),
 	)
-	logger.Info("searching Tempo")
+	logger.Info("searching Tempo via search tag")
 
 	// Use the search API to find details about the expected trace. give an hour range
 	//  around the seed.
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
 	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	fmt.Println("search tag results: ")
+	fmt.Println(resp.Traces)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -429,9 +431,11 @@ func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
 		zap.String("key", attr.Key),
 		zap.String("value", util.StringifyAnyValue(attr.Value)),
 	)
-	logger.Info("searching Tempo")
+	logger.Info("searching Tempo via traceql")
 
 	resp, err := client.SearchTraceQL(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)))
+	fmt.Println("traceql results: ")
+	fmt.Println(resp.Traces)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
