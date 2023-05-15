@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -245,17 +246,44 @@ func (p *Processor) completeBlock() error {
 }
 
 func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
 
-	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		if p.headBlock == nil {
-			return traceql.FetchSpansResponse{}, fmt.Errorf("head block is nil")
+	// Blocks to check
+	blocks := make([]common.Searcher, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
+	if p.headBlock != nil {
+		blocks = append(blocks, p.headBlock)
+	}
+	for _, b := range p.walBlocks {
+		blocks = append(blocks, b)
+	}
+	for _, b := range p.completeBlocks {
+		blocks = append(blocks, b)
+	}
+
+	limit := int(req.Limit)
+	if limit == 0 {
+		limit = math.MaxInt64
+	}
+
+	m := traceqlmetrics.NewMetricsResults()
+	for _, b := range blocks {
+		f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		})
+
+		start := time.Now()
+		r, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, limit, f)
+		if err != nil {
+			return nil, err
 		}
-		return p.headBlock.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
+		fmt.Println("Searched block", b, "duration", time.Since(start), "spans", r.SpanCount)
 
-	m, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, int(req.Limit), fetcher)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get metrics")
+		m.Combine(r)
+		limit -= r.SpanCount
+		if limit <= 0 {
+			break
+		}
 	}
 
 	resp := &tempopb.SpanMetricsResponse{
