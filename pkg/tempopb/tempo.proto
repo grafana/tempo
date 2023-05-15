@@ -59,6 +59,7 @@ message SearchRequest {
   uint32 end = 6;
   // TraceQL query
   string Query = 8;
+  uint32 SpansPerSpanSet = 9;
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information necessary
