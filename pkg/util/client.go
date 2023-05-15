@@ -141,8 +141,6 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	query := c.BaseURL + "/api/search?tags=" + url.QueryEscape(tags) + "&start=" + strconv.FormatInt(start, 10) + "&end=" + strconv.FormatInt(end, 10)
-	fmt.Println(query)
 	_, err := c.getFor(c.buildQueryURL("tags", tags, start, end), m)
 	if err != nil {
 		return nil, err
@@ -176,8 +174,6 @@ func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	queryURL := c.BaseURL + "/api/search?q=" + url.QueryEscape(query) + "&start=" + strconv.FormatInt(start, 10) + "&end=" + strconv.FormatInt(end, 10)
-	fmt.Println(queryURL)
 	_, err := c.getFor(c.buildQueryURL("q", query, start, end), m)
 	if err != nil {
 		return nil, err
@@ -196,6 +192,5 @@ func (c *Client) buildQueryURL(queryType string, query string, start int64, end 
 	q.Set(queryType, query)
 	joinURL.RawQuery = q.Encode()
 
-	fmt.Println(joinURL)
 	return fmt.Sprint(joinURL)
 }
