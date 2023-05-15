@@ -443,57 +443,66 @@ func (s Static) Equals(other Static) bool {
 	return s == other
 }
 
-func (s Static) greaterThan(other Static) bool { // jpe - perf? use pointers? this and 2 below // jpe - test this and 3 below
+func (s Static) compare(other *Static) int {
 	if s.Type != other.Type {
-		return s.asFloat() > other.asFloat()
+		if s.asFloat() > other.asFloat() {
+			return 1
+		} else if s.asFloat() < other.asFloat() {
+			return -1
+		}
+
+		return 0
 	}
 
 	switch s.Type {
 	case TypeInt:
-		return s.N > other.N
+		if s.N > other.N {
+			return 1
+		} else if s.N < other.N {
+			return -1
+		}
 	case TypeFloat:
-		return s.F > other.F
+		if s.F > other.F {
+			return 1
+		} else if s.F < other.F {
+			return -1
+		}
 	case TypeDuration:
-		return s.D > other.D
+		if s.D > other.D {
+			return 1
+		} else if s.D < other.D {
+			return -1
+		}
 	case TypeString:
-		return s.S > other.S
+		if s.S > other.S {
+			return 1
+		} else if s.S < other.S {
+			return -1
+		}
 	case TypeBoolean:
-		return s.B && !other.B
+		if s.B && !other.B {
+			return 1
+		} else if !s.B && other.B {
+			return -1
+		}
 	case TypeStatus:
-		return s.Status > other.Status
+		if s.Status > other.Status {
+			return 1
+		} else if s.Status < other.Status {
+			return -1
+		}
 	case TypeKind:
-		return s.Kind > other.Kind
-	default:
-		return false
+		if s.Kind > other.Kind {
+			return 1
+		} else if s.Kind < other.Kind {
+			return -1
+		}
 	}
+
+	return 0
 }
 
-func (s Static) lessThan(other Static) bool {
-	if s.Type != other.Type {
-		return s.asFloat() < other.asFloat()
-	}
-
-	switch s.Type {
-	case TypeInt:
-		return s.N < other.N
-	case TypeFloat:
-		return s.F < other.F
-	case TypeDuration:
-		return s.D < other.D
-	case TypeString:
-		return s.S < other.S
-	case TypeBoolean:
-		return !s.B && other.B
-	case TypeStatus:
-		return s.Status < other.Status
-	case TypeKind:
-		return s.Kind < other.Kind
-	default:
-		return false
-	}
-}
-
-func (s *Static) accumulate(other Static) {
+func (s *Static) sumInto(other Static) {
 	switch s.Type {
 	case TypeInt:
 		s.N += other.N

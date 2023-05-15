@@ -102,7 +102,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum.accumulate(val)
+					sum.sumInto(val)
 				}
 				count++
 			}
@@ -119,7 +119,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if err != nil {
 					return nil, err
 				}
-				if max == nil || val.greaterThan(*max) {
+				if max == nil || val.compare(max) == 1 {
 					max = &val
 				}
 			}
@@ -135,7 +135,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if err != nil {
 					return nil, err
 				}
-				if min == nil || val.lessThan(*min) {
+				if min == nil || val.compare(min) == -1 {
 					min = &val
 				}
 			}
@@ -154,7 +154,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum.accumulate(val)
+					sum.sumInto(val)
 				}
 			}
 			copy := ss.clone()
