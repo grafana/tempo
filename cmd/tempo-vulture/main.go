@@ -263,7 +263,7 @@ func pushMetrics(metrics traceMetrics) {
 	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
 	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundSearch))
-	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundTraceQL))
+	metricTracesErrors.WithLabelValues("notfound_traceql").Add(float64(metrics.notFoundTraceQL))
 	metricTracesErrors.WithLabelValues("notfound_byid").Add(float64(metrics.notFoundByID))
 	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
