@@ -16,7 +16,7 @@ type Condition struct {
 // b/c there is no way to request things like root span name. todo: once trace scope is done remove this
 // and use trace scope attributes tor request trace metadata
 // span id/duration/name, trace id/root span name/root service name/start/duration
-var TraceMetaCondition = Condition{
+var TraceMetaCondition = Condition{ // jpe SearchMetaCondition?
 	Attribute: Attribute{
 		Name:      "__trace_meta",
 		Scope:     -1,
@@ -25,8 +25,8 @@ var TraceMetaCondition = Condition{
 	Op: OpNone,
 }
 
-func (c *Condition) isTraceMetadata() bool {
-	return c.Attribute.Scope == -1 && c.Attribute.Intrinsic == -1 && c.Attribute.Name != "__trace_meta"
+func (c *Condition) IsTraceMetadata() bool { // jpe test
+	return c.Attribute.Scope == -1 && c.Attribute.Intrinsic == -1 && c.Attribute.Name == "__trace_meta"
 }
 
 // FilterSpans is a hint that allows the calling code to filter down spans to only
