@@ -104,7 +104,8 @@ func TestEngine_Execute(t *testing.T) {
 			newCondition(NewAttribute("foo"), OpNone),
 			newCondition(NewAttribute("bar"), OpNone),
 		},
-		AllConditions: true,
+		AllConditions:        true,
+		SecondPassConditions: []Condition{SearchmetaCondition},
 	}
 	spanSetFetcher.capturedRequest.SecondPass = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
@@ -343,6 +344,10 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 		}
 		r := m.results[0]
 		m.results = m.results[1:]
+
+		if m.filter == nil {
+			return r, nil
+		}
 
 		ss, err := m.filter(r)
 		if err != nil {

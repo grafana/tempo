@@ -159,13 +159,28 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	addConditionIfNotPresent(status)
 	addConditionIfNotPresent(groupByAttr)
 
-	// This filter callback processes the matching spans into the
-	// bucketed metrics.  It returns nil because we don't need any
-	// results after this.
-	req.SecondPass = func(in *traceql.Spanset) ([]*traceql.Spanset, error) { // jpe can be removed in favor of just not pulling metadata
+	// Perform the fetch and process the results inside the Filter
+	// callback.  No actual results will be returned from this fetch call,
+	// But we still need to call Next() at least once.
+	res, err := fetcher.Fetch(ctx, *req)
+	if err == util.ErrUnsupported {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		ss, err := res.Results.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if ss == nil {
+			break
+		}
 
 		// Run engine to assert final query conditions
-		out, err := eval([]*traceql.Spanset{in})
+		out, err := eval([]*traceql.Spanset{ss})
 		if err != nil {
 			return nil, err
 		}
@@ -186,28 +201,6 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 					return nil, io.EOF
 				}
 			}
-		}
-		return nil, nil
-	}
-
-	// Perform the fetch and process the results inside the Filter
-	// callback.  No actual results will be returned from this fetch call,
-	// But we still need to call Next() at least once.
-	res, err := fetcher.Fetch(ctx, *req)
-	if err == util.ErrUnsupported {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		ss, err := res.Results.Next(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if ss == nil {
-			break
 		}
 	}
 

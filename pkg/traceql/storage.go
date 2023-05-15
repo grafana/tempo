@@ -12,11 +12,11 @@ type Condition struct {
 	Operands  Operands
 }
 
-// TraceMetaCondition is a special condition which tells the fetch layer to grab metadata. it exists
+// SearchmetaCondition is a special condition which tells the fetch layer to grab metadata. it exists
 // b/c there is no way to request things like root span name. todo: once trace scope is done remove this
-// and use trace scope attributes tor request trace metadata
+// and use trace scope attributes to request trace metadata and span metadata.
 // span id/duration/name, trace id/root span name/root service name/start/duration
-var TraceMetaCondition = Condition{ // jpe SearchMetaCondition?
+var SearchmetaCondition = Condition{
 	Attribute: Attribute{
 		Name:      "__trace_meta",
 		Scope:     -1,
@@ -25,7 +25,7 @@ var TraceMetaCondition = Condition{ // jpe SearchMetaCondition?
 	Op: OpNone,
 }
 
-func (c *Condition) IsTraceMetadata() bool { // jpe test
+func (c *Condition) IsTraceMetadata() bool {
 	return c.Attribute.Scope == -1 && c.Attribute.Intrinsic == -1 && c.Attribute.Name == "__trace_meta"
 }
 

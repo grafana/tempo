@@ -55,7 +55,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.SecondPassConditions = []Condition{TraceMetaCondition}
+	fetchSpansRequest.SecondPassConditions = []Condition{SearchmetaCondition}
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
@@ -203,33 +203,6 @@ func (e *Engine) ExecuteTagValues(
 		return fmt.Errorf("unknown attribute scope: %s", tag)
 	}
 
-	// set up the expression evaluation as a filter to reduce data pulled - jpe can drop all of this and just use 1 iterator
-	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
-		if len(inSS.Spans) == 0 {
-			return nil, nil
-		}
-
-		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
-		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
-			return nil, err
-		}
-
-		if len(evalSS) == 0 {
-			return nil, nil
-		}
-
-		for _, ss := range evalSS {
-			for _, s := range ss.Spans {
-				if collectAttributeValue(s) {
-					return nil, io.EOF // Exit if we have exceeded max bytes
-				}
-			}
-		}
-
-		return nil, nil // We don't want to fetch metadata
-	}
-
 	fetchSpansResponse, err := fetcher.Fetch(ctx, fetchSpansRequest)
 	if err != nil {
 		return err
@@ -246,6 +219,28 @@ func (e *Engine) ExecuteTagValues(
 		if spanset == nil {
 			break
 		}
+		if len(spanset.Spans) == 0 {
+			continue
+		}
+
+		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{spanset})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return err
+		}
+
+		if len(evalSS) == 0 {
+			continue
+		}
+
+		for _, ss := range evalSS {
+			for _, s := range ss.Spans {
+				if collectAttributeValue(s) {
+					return nil // exit early if we've exceed max bytes
+				}
+			}
+		}
+
 	}
 
 	return nil
