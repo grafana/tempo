@@ -69,12 +69,12 @@ var (
 type Querier struct {
 	services.Service
 
-	cfg    Config
-	ring   ring.ReadRing
-	pool   *ring_client.Pool
-	engine *traceql.Engine
-	store  storage.Store
-	limits overrides.Interface
+	cfg          Config
+	ingesterRing ring.ReadRing
+	pool         *ring_client.Pool
+	engine       *traceql.Engine
+	store        storage.Store
+	limits       overrides.Interface
 
 	searchClient     *http.Client
 	searchPreferSelf *semaphore.Weighted
@@ -89,7 +89,7 @@ type responseFromIngesters struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits overrides.Interface) (*Querier, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingesterRing ring.ReadRing, store storage.Store, limits overrides.Interface) (*Querier, error) {
 	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
 
 	factory := func(addr string) (ring_client.PoolClient, error) {
@@ -97,11 +97,11 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	}
 
 	q := &Querier{
-		cfg:  cfg,
-		ring: ring,
+		cfg:          cfg,
+		ingesterRing: ingesterRing,
 		pool: ring_client.NewPool("querier_pool",
 			clientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(ring),
+			ring_client.NewRingServiceDiscovery(ingesterRing),
 			factory,
 			metricIngesterClients,
 			log.Logger),
@@ -205,9 +205,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		var err error
 		if q.cfg.QueryRelevantIngesters {
 			traceKey := util.TokenFor(userID, req.TraceID)
-			replicationSet, err = q.ring.Get(traceKey, ring.Read, nil, nil, nil)
+			replicationSet, err = q.ingesterRing.Get(traceKey, ring.Read, nil, nil, nil)
 		} else {
-			replicationSet, err = q.ring.GetReplicationSetForOperation(ring.Read)
+			replicationSet, err = q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 		}
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
@@ -321,7 +321,7 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
 	}
 
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
 	}
@@ -346,7 +346,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	distinctValues := util.NewDistinctStringCollector(limit)
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
 	}
@@ -380,7 +380,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
 	}
@@ -440,7 +440,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
 	}
@@ -488,7 +488,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
 	}
