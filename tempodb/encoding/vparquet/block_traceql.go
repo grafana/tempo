@@ -15,6 +15,7 @@ import (
 	"github.com/segmentio/parquet-go"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	pq "github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -226,7 +227,9 @@ func operandType(operands traceql.Operands) traceql.StaticType {
 	return traceql.TypeNil
 }
 
-// bridgeIterator creates a bridge between one iterator and the next
+var _ pq.Iterator = (*bridgeIterator)(nil)
+
+// bridgeIterator creates a bridge between one iterator pass and the next
 type bridgeIterator struct {
 	iter parquetquery.Iterator
 	cb   traceql.SecondPassFn
@@ -242,15 +245,15 @@ func newBridgeIterator(iter parquetquery.Iterator, cb traceql.SecondPassFn) *bri
 }
 
 func (i *bridgeIterator) String() string {
-	return fmt.Sprintf("spansetIterator: \n\t%s", util.TabOut(i.iter))
+	return fmt.Sprintf("bridgeIterator: \n\t%s", util.TabOut(i.iter))
 }
 
-func (i *bridgeIterator) Next() (*span, error) {
+func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 	// drain current buffer
 	if len(i.currentSpans) > 0 {
 		ret := i.currentSpans[0]
 		i.currentSpans = i.currentSpans[1:]
-		return ret, nil
+		return spanToIteratorResult(ret), nil
 	}
 
 	for {
@@ -310,12 +313,69 @@ func (i *bridgeIterator) Next() (*span, error) {
 		if len(i.currentSpans) > 0 {
 			ret := i.currentSpans[0]
 			i.currentSpans = i.currentSpans[1:]
-			return ret, nil
+			return spanToIteratorResult(ret), nil
 		}
 	}
 }
 
+func spanToIteratorResult(s *span) *pq.IteratorResult {
+	res := &pq.IteratorResult{RowNumber: s.rowNum}
+	res.AppendOtherValue(otherEntrySpanKey, s)
+
+	return res
+}
+
+func (i *bridgeIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
+	var at *pq.IteratorResult
+
+	for at, _ = i.Next(); i != nil && at != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
+		at, _ = i.Next()
+	}
+
+	return at, nil
+}
+
 func (i *bridgeIterator) Close() {
+	i.iter.Close()
+}
+
+// spansetIterator turns the parquet iterator into the final
+// traceql iterator.  Every row it receives is one spanset.
+type spansetIterator struct {
+	iter parquetquery.Iterator
+}
+
+var _ traceql.SpansetIterator = (*spansetIterator)(nil)
+
+func newSpansetMetadataIterator(iter parquetquery.Iterator) *spansetIterator {
+	return &spansetIterator{
+		iter: iter,
+	}
+}
+
+func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+	res, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, nil
+	}
+
+	// The spanset is in the OtherEntries
+	iface := res.OtherValueFromKey(otherEntrySpansetKey)
+	if iface == nil {
+		return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries")
+	}
+	ss, ok := iface.(*traceql.Spanset)
+	if !ok {
+		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
+	}
+
+	return ss, nil
+}
+
+func (i *spansetIterator) Close() {
 	i.iter.Close()
 }
 
@@ -420,14 +480,14 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetMetadataIterator, error) {
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetIterator, error) {
 	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, pf, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
 
 	if req.SecondPass != nil {
-		iter = &spansToMetaIterator{newBridgeIterator(iter, req.SecondPass)} // bridge iterator
+		iter = newBridgeIterator(iter, req.SecondPass)
 
 		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts) // jpe slice of requests?
 		if err != nil {

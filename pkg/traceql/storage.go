@@ -12,11 +12,11 @@ type Condition struct {
 	Operands  Operands
 }
 
-// SearchmetaCondition is a special condition which tells the fetch layer to grab metadata. it exists
+// SearchMetaCondition is a special condition which tells the fetch layer to grab metadata. it exists
 // b/c there is no way to request things like root span name. todo: once trace scope is done remove this
 // and use trace scope attributes to request trace metadata and span metadata.
 // span id/duration/name, trace id/root span name/root service name/start/duration
-var SearchmetaCondition = Condition{
+var SearchMetaCondition = Condition{
 	Attribute: Attribute{
 		Name:      "__trace_meta",
 		Scope:     -1,
@@ -113,13 +113,15 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// MustExtractFetchSpansRequest parses the given traceql query and returns
+// MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns
 // the storage layer conditions. Panics if the query fails to parse.
-func MustExtractFetchSpansRequest(query string) FetchSpansRequest {
+func MustExtractFetchSpansRequestWithMetadata(query string) FetchSpansRequest {
 	c, err := ExtractFetchSpansRequest(query)
 	if err != nil {
 		panic(err)
 	}
+	c.SecondPass = func(s *Spanset) ([]*Spanset, error) { return []*Spanset{s}, nil }
+	c.SecondPassConditions = []Condition{SearchMetaCondition}
 	return c
 }
 

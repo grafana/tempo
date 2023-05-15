@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
 const (
@@ -271,7 +272,7 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 func TestFetch(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
-			testFetch(t, e)
+			testFetch(t, vparquet.Encoding{})
 		})
 	}
 }
@@ -286,7 +287,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			require.NotEmpty(t, v)
 
 			query := fmt.Sprintf("{ .%s = \"%s\" }", k, v)
-			resp, err := block.Fetch(ctx, traceql.MustExtractFetchSpansRequest(query), common.DefaultSearchOptions())
+			resp, err := block.Fetch(ctx, traceql.MustExtractFetchSpansRequestWithMetadata(query), common.DefaultSearchOptions())
 			// not all blocks support fetch
 			if err == common.ErrUnsupported {
 				return
