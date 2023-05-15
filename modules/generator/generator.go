@@ -322,3 +322,18 @@ func (g *Generator) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {
 // OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
 func (g *Generator) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
+
+func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// return empty if we don't have an instance
+	instance, ok := g.getInstanceByID(instanceID)
+	if !ok || instance == nil {
+		return &tempopb.SpanMetricsResponse{}, nil
+	}
+
+	return instance.GetMetrics(ctx, req)
+}

@@ -14,6 +14,8 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -240,6 +242,57 @@ func (p *Processor) completeBlock() error {
 	}
 
 	return nil
+}
+
+func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+
+	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		if p.headBlock == nil {
+			return traceql.FetchSpansResponse{}, fmt.Errorf("head block is nil")
+		}
+		return p.headBlock.Fetch(ctx, req, common.DefaultSearchOptions())
+	})
+
+	m, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, int(req.Limit), fetcher)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get metrics")
+	}
+
+	resp := &tempopb.SpanMetricsResponse{
+		SpanCount: uint64(m.SpanCount),
+		Estimated: m.Estimated,
+		Metrics:   make([]*tempopb.SpanMetrics, 0, len(m.Series)),
+	}
+
+	var rawHistorgram *tempopb.RawHistogram
+	var errCount int
+	for static, series := range m.Series {
+		h := []*tempopb.RawHistogram{}
+
+		for bucket, count := range series.Buckets() {
+			if count != 0 {
+				rawHistorgram = &tempopb.RawHistogram{
+					Bucket: uint64(bucket),
+					Count:  uint64(count),
+				}
+
+				h = append(h, rawHistorgram)
+			}
+		}
+
+		errCount = 0
+		if errs, ok := m.Errors[static]; ok {
+			errCount = errs
+		}
+
+		resp.Metrics = append(resp.Metrics, &tempopb.SpanMetrics{
+			LatencyHistogram: h,
+			Static:           toStaticProto(static),
+			Errors:           uint64(errCount),
+		})
+	}
+
+	return resp, nil
 }
 
 func (p *Processor) deleteOldBlocks() (err error) {
@@ -489,4 +542,17 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 	}
 
 	return nil
+}
+
+func toStaticProto(static traceql.Static) *tempopb.TraceQLStatic {
+	return &tempopb.TraceQLStatic{
+		Type:   int32(static.Type),
+		N:      int64(static.N),
+		F:      static.F,
+		S:      static.S,
+		B:      static.B,
+		D:      uint64(static.D),
+		Status: int32(static.Status),
+		Kind:   int32(static.Kind),
+	}
 }

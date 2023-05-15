@@ -33,6 +33,7 @@ type Config struct {
 	// MetricsIngestionSlack is the max amount of time passed since a span's start time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
+	QueryTimeout          time.Duration `yaml:"query_timeout"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -45,6 +46,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
+	cfg.QueryTimeout = 30 * time.Second
 }
 
 type ProcessorConfig struct {

@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
 * [CHANGE] Change log level of two compactor messages from `debug` to `info`. [#2443](https://github.com/grafana/tempo/pull/2443) (@dylanguedes)
 * [CHANGE] Remove `tenant_header_key` option from `tempo-query` config [#2414](https://github.com/grafana/tempo/pull/2414) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2362](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
@@ -42,6 +43,7 @@ storage:
 
 ```
 * [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
+* [CHANGE] Start flush queue worker after wal replay and block rediscovery [#2456](https://github.com/grafana/tempo/pull/2456) (@ie-pham)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)

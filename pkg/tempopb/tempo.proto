@@ -14,6 +14,7 @@ service Pusher {
 
 service MetricsGenerator {
   rpc PushSpans(PushSpansRequest) returns (PushResponse) {};
+  rpc GetMetrics(SpanMetricsRequest) returns (SpanMetricsResponse) {};
 }
 
 service Querier {
@@ -24,6 +25,7 @@ service Querier {
   rpc SearchTagsV2(SearchTagsRequest) returns (SearchTagsV2Response) {};
   rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {};
+  // rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {};
 }
 
 service StreamingQuerier {
@@ -57,6 +59,7 @@ message SearchRequest {
   uint32 end = 6;
   // TraceQL query
   string Query = 8;
+  uint32 SpansPerSpanSet = 9;
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information necessary
@@ -181,3 +184,52 @@ message TraceBytes {
 message LinkSlice {
   repeated tempopb.trace.v1.Span.Link links = 1;
 }
+
+message SpanMetricsRequest {
+  string query = 1;
+  string groupBy = 2;
+  uint64 limit = 3;
+}
+
+message SpanMetricsResponse {
+  bool estimated = 1;
+  uint64 spanCount = 2;
+  repeated SpanMetrics metrics = 3;
+}
+
+message RawHistogram {
+  uint64 bucket = 1;
+  uint64 count = 2;
+}
+
+message SpanMetrics {
+  repeated RawHistogram latency_histogram = 1;
+  TraceQLStatic static = 2;
+  uint64 errors = 3;
+}
+
+message SpanMetricsSummaryRequest {
+  string query = 1;
+  string groupBy = 2;
+}
+
+message SpanMetricsSummaryResponse {
+  int64 spanCount = 2;
+  int64 errorSpanCount = 3;
+  uint64 p99 = 4;
+  uint64 p95 = 5;
+  uint64 p90 = 6;
+  uint64 p50 = 7;
+}
+
+message TraceQLStatic {
+  int32 type = 1;
+  int64 n = 2;
+  double f = 3;
+  string s = 4;
+  bool b = 5;
+  uint64 d = 6;
+  int32 status = 7;
+  int32 kind = 8;
+}
+
