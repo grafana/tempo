@@ -321,6 +321,20 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
 	}
 
+	// add attributes
+	for key, static := range spanset.Attributes {
+		if key == attributeMatched {
+			continue
+		}
+
+		staticAnyValue := static.asAnyValue()
+		keyValue := &common_v1.KeyValue{
+			Key:   key,
+			Value: staticAnyValue,
+		}
+		metadata.SpanSet.Attributes = append(metadata.SpanSet.Attributes, keyValue)
+	}
+
 	return metadata
 }
 

@@ -95,6 +95,7 @@ message TraceSearchMetadata {
 message SpanSet {
   repeated Span spans = 1;
   uint32 matched = 2;
+  repeated tempopb.common.v1.KeyValue attributes = 3;
 }
 
 message Span {

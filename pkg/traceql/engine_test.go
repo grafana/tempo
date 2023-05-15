@@ -164,7 +164,7 @@ func TestEngine_Execute(t *testing.T) {
 						},
 					},
 				},
-				Matched: 2,
+				Matched: 3,
 			},
 		},
 	}
@@ -225,7 +225,10 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				attributes:         map[Attribute]Static{},
 			},
 		},
-		Attributes: map[string]Static{attributeMatched: NewStaticInt(2)},
+		Attributes: map[string]Static{
+			attributeMatched: NewStaticInt(2),
+			"avg(duration)":  NewStaticFloat(15.0),
+		},
 	}
 
 	e := NewEngine()
@@ -302,6 +305,16 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
 					DurationNanos:     20_000_000_000,
 					Attributes:        nil,
+				},
+			},
+			Attributes: []*v1.KeyValue{
+				{
+					Key: "avg(duration)",
+					Value: &v1.AnyValue{
+						Value: &v1.AnyValue_DoubleValue{
+							DoubleValue: 15.0,
+						},
+					},
 				},
 			},
 		},
