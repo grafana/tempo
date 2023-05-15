@@ -55,7 +55,8 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
+	fetchSpansRequest.SecondPassConditions = []Condition{TraceMetaCondition}
+	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
 		}
@@ -202,8 +203,8 @@ func (e *Engine) ExecuteTagValues(
 		return fmt.Errorf("unknown attribute scope: %s", tag)
 	}
 
-	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
+	// set up the expression evaluation as a filter to reduce data pulled - jpe can drop all of this and just use 1 iterator
+	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
 		}

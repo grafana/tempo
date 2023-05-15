@@ -226,27 +226,26 @@ func operandType(operands traceql.Operands) traceql.StaticType {
 	return traceql.TypeNil
 }
 
-// spansetIterator turns the parquet iterator into the final
-// traceql iterator.  Every row it receives is one spanset.
-type spansetIterator struct {
-	iter   parquetquery.Iterator
-	filter traceql.FilterSpans
+// bridgeIterator creates a bridge between one iterator and the next
+type bridgeIterator struct {
+	iter parquetquery.Iterator
+	cb   traceql.SecondPassFn
 
 	currentSpans []*span
 }
 
-func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) *spansetIterator {
-	return &spansetIterator{
-		iter:   iter,
-		filter: filter,
+func newBridgeIterator(iter parquetquery.Iterator, cb traceql.SecondPassFn) *bridgeIterator {
+	return &bridgeIterator{
+		iter: iter,
+		cb:   cb,
 	}
 }
 
-func (i *spansetIterator) String() string {
+func (i *bridgeIterator) String() string {
 	return fmt.Sprintf("spansetIterator: \n\t%s", util.TabOut(i.iter))
 }
 
-func (i *spansetIterator) Next() (*span, error) {
+func (i *bridgeIterator) Next() (*span, error) {
 	// drain current buffer
 	if len(i.currentSpans) > 0 {
 		ret := i.currentSpans[0]
@@ -274,8 +273,8 @@ func (i *spansetIterator) Next() (*span, error) {
 		}
 
 		var filteredSpansets []*traceql.Spanset
-		if i.filter != nil {
-			filteredSpansets, err = i.filter(spanset)
+		if i.cb != nil {
+			filteredSpansets, err = i.cb(spanset)
 			if err == io.EOF {
 				return nil, nil
 			}
@@ -293,7 +292,7 @@ func (i *spansetIterator) Next() (*span, error) {
 			filteredSpansets = []*traceql.Spanset{spanset}
 		}
 
-		// flatten spans into i.currentSpans
+		// flatten spans into i.currentSpans - jpe -pass spansets through and rebuild?
 		for _, ss := range filteredSpansets {
 			for _, s := range ss.Spans {
 				span := s.(*span)
@@ -316,7 +315,7 @@ func (i *spansetIterator) Next() (*span, error) {
 	}
 }
 
-func (i *spansetIterator) Close() {
+func (i *bridgeIterator) Close() {
 	i.iter.Close()
 }
 
@@ -422,6 +421,21 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            V
 
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetMetadataIterator, error) {
+	iter, err := createAllIterator(ctx, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, pf, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.SecondPass != nil {
+		iter = &spansToMetaIterator{newBridgeIterator(iter, req.SecondPass)} // bridge iterator
+
+		iter, err = createAllIterator(ctx, req.SecondPassConditions, false, 0, 0, pf, opts) // jpe slice of requests?
+	}
+
+	return newSpansetMetadataIterator(iter), nil // jpe ?
+}
+
+func createAllIterator(ctx context.Context, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
 
 	// Categorize conditions into span-level or resource-level
 	var (
@@ -429,9 +443,9 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		spanConditions     []traceql.Condition
 		resourceConditions []traceql.Condition
 	)
-	for _, cond := range req.Conditions {
+	for _, cond := range conds {
 
-		// If no-scoped intrinsic then assign default scope
+		// If no-scoped intrinsic then assign default scope jpe - search metadata cond
 		scope := cond.Attribute.Scope
 		if cond.Attribute.Scope == traceql.AttributeScopeNone {
 			if lookup, ok := intrinsicColumnLookups[cond.Attribute.Intrinsic]; ok {
@@ -483,15 +497,15 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 
 		// Don't return the final spanset upstream unless it matched at least 1 condition
 		// anywhere, except in the case of the empty query: {}
-		batchRequireAtLeastOneMatchOverall = len(req.Conditions) > 0
-
-		// Optimization for queries like {resource.x... && span.y ...}
-		// Requires no mingled scopes like .foo=x, which could be satisfied
-		// one either resource or span.
-		allConditions = req.AllConditions && !mingledConditions
+		batchRequireAtLeastOneMatchOverall = len(conds) > 0
 	)
 
-	spanIter, spanStartEndRetrieved, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
+	// Optimization for queries like {resource.x... && span.y ...}
+	// Requires no mingled scopes like .foo=x, which could be satisfied
+	// one either resource or span.
+	allConditions = allConditions && !mingledConditions
+
+	spanIter, _, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch, allConditions) // jpe - restore spanStartEndRetrieved
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
@@ -501,11 +515,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
 
-	traceIter := createTraceIterator(makeIter, resourceIter, req.StartTimeUnixNanos, req.EndTimeUnixNanos)
-
-	spansetIter := newSpansetIterator(traceIter, req.Filter)
-
-	return createSpansetMetaIterator(makeIter, spansetIter, spanStartEndRetrieved)
+	return createTraceIterator(makeIter, resourceIter, start, end), nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -782,6 +792,8 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, startFilter, columnPathStartTimeUnixNano))
 		traceIters = append(traceIters, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
 	}
+
+	// jpe - needs to pull trace search metadata
 
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found

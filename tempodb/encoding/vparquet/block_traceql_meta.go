@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-func createSpansetMetaIterator(makeIter makeIterFn, ss *spansetIterator, spanStartEndRetreived bool) (*spansetMetadataIterator, error) {
+func createSpansetMetaIterator(makeIter makeIterFn, ss *bridgeIterator, spanStartEndRetreived bool) (*spansetMetadataIterator, error) {
 	// span level iterator
 	iters := make([]parquetquery.Iterator, 0, 4)
 	iters = append(iters, &spansToMetaIterator{ss})
@@ -38,8 +38,8 @@ func createSpansetMetaIterator(makeIter makeIterFn, ss *spansetIterator, spanSta
 
 // spansToMetaIterator operates similarly to the rowNumberIterator except it takes a spanIterator
 // and drains it. It is the bridge between the "data" iterators and "metadata" iterators
-type spansToMetaIterator struct {
-	iter *spansetIterator
+type spansToMetaIterator struct { // jpe - combine with bridgeIterator?
+	iter *bridgeIterator
 }
 
 var _ pq.Iterator = (*spansToMetaIterator)(nil)
@@ -164,7 +164,7 @@ func (c *traceMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 // spansetMetadataIterator turns the parquet iterator into the final
 // traceql iterator.  Every row it receives is one spanset.
-type spansetMetadataIterator struct {
+type spansetMetadataIterator struct { // jpe: rename this "spansetIterator" and rename spansetIterator "bridgeIterator"
 	iter parquetquery.Iterator
 }
 

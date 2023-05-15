@@ -1,5 +1,7 @@
 package vparquet2
 
+// jpe - make all changes in vparquet2
+
 import (
 	"context"
 	"fmt"
@@ -230,16 +232,16 @@ func operandType(operands traceql.Operands) traceql.StaticType {
 // spansetIterator turns the parquet iterator into the final
 // traceql iterator.  Every row it receives is one spanset.
 type spansetIterator struct {
-	iter   parquetquery.Iterator
-	filter traceql.FilterSpans
+	iter parquetquery.Iterator
+	cb   traceql.SecondPassFn
 
 	currentSpans []*span
 }
 
-func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) *spansetIterator {
+func newSpansetIterator(iter parquetquery.Iterator, cb traceql.SecondPassFn) *spansetIterator {
 	return &spansetIterator{
-		iter:   iter,
-		filter: filter,
+		iter: iter,
+		cb:   cb,
 	}
 }
 
@@ -275,8 +277,8 @@ func (i *spansetIterator) Next() (*span, error) {
 		}
 
 		var filteredSpansets []*traceql.Spanset
-		if i.filter != nil {
-			filteredSpansets, err = i.filter(spanset)
+		if i.cb != nil {
+			filteredSpansets, err = i.cb(spanset)
 			if err == io.EOF {
 				return nil, nil
 			}
@@ -498,7 +500,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 
 	traceIter := createTraceIterator(makeIter, resourceIter, req.StartTimeUnixNanos, req.EndTimeUnixNanos)
 
-	spansetIter := newSpansetIterator(traceIter, req.Filter)
+	spansetIter := newSpansetIterator(traceIter, req.SecondPass)
 
 	return createSpansetMetaIterator(makeIter, spansetIter, spanDurationRetrieved)
 }

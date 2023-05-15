@@ -12,12 +12,29 @@ type Condition struct {
 	Operands  Operands
 }
 
+// TraceMetaCondition is a special condition which tells the fetch layer to grab metadata. it exists
+// b/c there is no way to request things like root span name. todo: once trace scope is done remove this
+// and use trace scope attributes tor request trace metadata
+// span id/duration/name, trace id/root span name/root service name/start/duration
+var TraceMetaCondition = Condition{
+	Attribute: Attribute{
+		Name:      "__trace_meta",
+		Scope:     -1,
+		Intrinsic: -1,
+	},
+	Op: OpNone,
+}
+
+func (c *Condition) isTraceMetadata() bool {
+	return c.Attribute.Scope == -1 && c.Attribute.Intrinsic == -1 && c.Attribute.Name != "__trace_meta"
+}
+
 // FilterSpans is a hint that allows the calling code to filter down spans to only
 // those that metadata needs to be retrieved for. If the returned Spanset has no
 // spans it is discarded and will not appear in FetchSpansResponse. The bool
 // return value is used to indicate if the Fetcher should continue iterating or if
 // it can bail out.
-type FilterSpans func(*Spanset) ([]*Spanset, error)
+type SecondPassFn func(*Spanset) ([]*Spanset, error)
 
 type FetchSpansRequest struct {
 	StartTimeUnixNanos uint64
@@ -39,7 +56,8 @@ type FetchSpansRequest struct {
 	// for all matching spansets is returned.
 	// If this is set it must be called by the storage layer even if there is
 	// no opportunity to pull metadata independently of span data.
-	Filter FilterSpans
+	SecondPass           SecondPassFn
+	SecondPassConditions []Condition
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {

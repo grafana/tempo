@@ -162,7 +162,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	// This filter callback processes the matching spans into the
 	// bucketed metrics.  It returns nil because we don't need any
 	// results after this.
-	req.Filter = func(in *traceql.Spanset) ([]*traceql.Spanset, error) {
+	req.SecondPass = func(in *traceql.Spanset) ([]*traceql.Spanset, error) { // jpe can be removed in favor of just not pulling metadata
 
 		// Run engine to assert final query conditions
 		out, err := eval([]*traceql.Spanset{in})
