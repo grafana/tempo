@@ -105,7 +105,7 @@ func TestEngine_Execute(t *testing.T) {
 			newCondition(NewAttribute("bar"), OpNone),
 		},
 		AllConditions:        true,
-		SecondPassConditions: []Condition{SearchMetaCondition},
+		SecondPassConditions: SearchMetaConditions(),
 	}
 	spanSetFetcher.capturedRequest.SecondPass = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)

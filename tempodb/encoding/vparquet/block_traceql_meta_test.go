@@ -33,13 +33,15 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		}
 	}
 
+	// jpe -add a test for one condition at the span level that asks for span id
+
 	testCases := []struct {
 		req             traceql.FetchSpansRequest
 		expectedResults []*traceql.Spanset
 	}{
 		{
 			// Empty request returns 1 spanset with all spans
-			traceql.FetchSpansRequest{},
+			makeReq(),
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
@@ -51,13 +53,17 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						attributes:         map[traceql.Attribute]traceql.Static{},
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+						},
 					},
 					&span{
 						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
-						attributes:         map[traceql.Attribute]traceql.Static{},
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
+						},
 					},
 				),
 			),
@@ -83,6 +89,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						attributes: map[traceql.Attribute]traceql.Static{
 							// foo not returned because the span didn't match it
 							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): traceql.NewStaticInt(123),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):                      traceql.NewStaticDuration(100 * time.Second),
 						},
 					},
 				),
@@ -110,6 +117,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							// TODO - This seems misleading since the span has foo=<something else>
 							//        but for this query we never even looked at span attribute columns.
 							newResAttr("foo"): traceql.NewStaticString("abc"),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
 						},
 					},
 				),
@@ -134,7 +142,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500), // This is the only attribute that matched anything
+							newSpanAttr(LabelHTTPStatusCode):                traceql.NewStaticInt(500), // This is the only attribute that matched anything
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
 						},
 					},
 				),
@@ -144,7 +153,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			// Project attributes of all types
 			makeReq(
-				parse(t, `{.foo }`),                    // String
+				parse(t, `{.foo }`),                    // String   (jpe - this is being parsed wrong. should be .foo = true)
 				parse(t, `{.`+LabelHTTPStatusCode+`}`), // Int
 				parse(t, `{.float }`),                  // Float
 				parse(t, `{.bool }`),                   // bool
@@ -161,11 +170,12 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							newResAttr("foo"):                traceql.NewStaticString("abc"), // Both are returned
-							newSpanAttr("foo"):               traceql.NewStaticString("def"), // Both are returned
-							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500),
-							newSpanAttr("float"):             traceql.NewStaticFloat(456.78),
-							newSpanAttr("bool"):              traceql.NewStaticBool(false),
+							newResAttr("foo"):                               traceql.NewStaticString("abc"), // Both are returned
+							newSpanAttr("foo"):                              traceql.NewStaticString("def"), // Both are returned
+							newSpanAttr(LabelHTTPStatusCode):                traceql.NewStaticInt(500),
+							newSpanAttr("float"):                            traceql.NewStaticFloat(456.78),
+							newSpanAttr("bool"):                             traceql.NewStaticBool(false),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
 						},
 					},
 				),
@@ -196,8 +206,9 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicName):   traceql.NewStaticString("world"),
-							traceql.NewIntrinsic(traceql.IntrinsicStatus): traceql.NewStaticStatus(traceql.StatusUnset),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicName):     traceql.NewStaticString("world"),
+							traceql.NewIntrinsic(traceql.IntrinsicStatus):   traceql.NewStaticStatus(traceql.StatusUnset),
 						},
 					},
 				),
@@ -205,7 +216,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		},
 		{
 			// Intrinsic duration with no filtering
-			traceql.FetchSpansRequest{Conditions: []traceql.Condition{{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}}},
+			makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}),
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
@@ -226,7 +237,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
 						},
 					},
 				),

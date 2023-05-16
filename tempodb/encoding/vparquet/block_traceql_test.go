@@ -319,6 +319,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	return traceql.FetchSpansRequest{
 		Conditions: conditions,
+		SecondPass: func(s *traceql.Spanset) ([]*traceql.Spanset, error) {
+			return []*traceql.Spanset{s}, nil
+		},
+		SecondPassConditions: traceql.SearchMetaConditions(),
 	}
 }
 
