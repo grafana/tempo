@@ -488,7 +488,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("149e41d2-cc4d-4f71-b355-3377eabc94c8")
+	blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/home/joe/testblock/"),
