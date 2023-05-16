@@ -53,11 +53,24 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
-	// jpe - don't double pull span duration
+	// calculate search meta conditions. the only choice is whether or not to include duration
+	// if we request duration as part of the normal span fetch then we can ignore it
+	durationRequested := false
+	for _, c := range fetchSpansRequest.Conditions {
+		if c.Attribute.Intrinsic == IntrinsicDuration {
+			durationRequested = true
+			break
+		}
+	}
+
+	metaConditions := SearchMetaConditions()
+	if durationRequested {
+		metaConditions = SearchMetaConditionsWithoutDuration()
+	}
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.SecondPassConditions = SearchMetaConditions()
+	fetchSpansRequest.SecondPassConditions = metaConditions
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil

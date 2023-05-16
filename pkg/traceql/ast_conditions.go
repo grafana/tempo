@@ -1,7 +1,5 @@
 package traceql
 
-// jpe - { .a } should extract as .a = true
-
 func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	f.Expression.extractConditions(request)
 }

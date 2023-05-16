@@ -25,6 +25,18 @@ func SearchMetaConditions() []Condition {
 	}
 }
 
+func SearchMetaConditionsWithoutDuration() []Condition {
+	return []Condition{
+		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+	}
+}
+
 // FilterSpans is a hint that allows the calling code to filter down spans to only
 // those that metadata needs to be retrieved for. If the returned Spanset has no
 // spans it is discarded and will not appear in FetchSpansResponse. The bool
