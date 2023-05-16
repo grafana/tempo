@@ -30,6 +30,9 @@ const (
 	traceByIDOp = "traces"
 	searchOp    = "search"
 	metricsOp   = "metrics"
+
+	// if start and end time is same in search query, offset start
+	queryStartTimeOffset = 30 * time.Minute
 )
 
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
@@ -71,7 +74,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
-	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(), retryWare)
+	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(cfg, o, reader, logger), retryWare)
 
 	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(cfg, o, reader, logger), retryWare)
 
@@ -193,24 +196,39 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			if api.IsMissingStartOrEnd(r) {
-				// if search request came with no start and end params, only search recent data
+			if !api.IsBackendSearch(r) {
+				// level.Info(logger).Log("msg", "=== search request came in with no start and end")
+				// search request came with no start or end params, only search recent data
 				now := time.Now()
-				startTime := uint64(now.Add(-cfg.Search.Sharder.QueryIngestersUntil).Unix())
-				endTime := uint64(now.Unix())
-				// set start and end to only search in Ingesters (recent data)
-				api.SetStartAndEnd(r, startTime, endTime)
+				startTime := now.Add(-cfg.Search.Sharder.QueryIngestersUntil)
+				endTime := now
+
+				// can happen when QueryIngestersUntil is set to 0
+				if startTime.Equal(endTime) {
+					// if both are same, offsets startTime by `queryStartTimeOffset`
+					// level.Info(logger).Log("msg", "=== same start and end time... changing it...")
+					startTime = startTime.Add(-queryStartTimeOffset)
+				}
+
+				// level.Info(logger).Log("msg", "=== newSearchMiddleware start and end added", "start", startTime, "end", endTime)
+				// set start and end to only search recent data
+				api.SetStartAndEnd(r, startTime.Unix(), endTime.Unix())
+				level.Info(logger).Log("msg", "=== updated query:", "query", r.URL.RawQuery)
 			}
 
 			// backend search queries require sharding, so we pass through a special roundtripper
-			return backendSearchRT.RoundTrip(r)
+			resp, err := backendSearchRT.RoundTrip(r)
+			// level.Info(logger).Log("msg", fmt.Sprintf("=== newSearchMiddleware respo: %v and err: %v added", resp.Body, err.Error()))
+			return resp, err
 		})
 	})
 }
 
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware() Middleware {
+func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		ingesterSearchRT := next
+
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// ingester search tags queries only need to be proxied to a single querier
 			orgID, _ := user.ExtractOrgID(r.Context())
@@ -218,7 +236,12 @@ func newSearchTagsMiddleware() Middleware {
 			r.Header.Set(user.OrgIDHeaderName, orgID)
 			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
 
-			return next.RoundTrip(r)
+			// level.Info(logger).Log("msg", "=== OrgID: , r.RequestURI: ", "orgID", orgID, "r.RequestURI", r.RequestURI)
+
+			resp, err := ingesterSearchRT.RoundTrip(r)
+
+			// level.Info(logger).Log("msg", "=== newSearchMiddleware resp: and err: added", "resp", resp.Body, "err", err.Error())
+			return resp, err
 		})
 	})
 }

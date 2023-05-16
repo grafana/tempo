@@ -104,6 +104,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
+	s.logger.Log("msg", "=== searchReq: %v", searchReq)
+
 	// adjust limit based on config
 	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
 
@@ -242,10 +244,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	throughput := float64(overallResponse.response.Metrics.InspectedBytes) / reqTime.Seconds()
 	searchThroughput.WithLabelValues(tenantID).Observe(throughput)
 
+	// also this is being called?? we log here??
 	query, _ := url.PathUnescape(r.URL.RawQuery)
 	span.SetTag("query", query)
 	level.Info(s.logger).Log(
-		"msg", "sharded search query request stats and SearchMetrics",
+		"msg", "=== sharded search query request stats and SearchMetrics",
 		"query", query,
 		"duration_seconds", reqTime,
 		"request_throughput", throughput,
