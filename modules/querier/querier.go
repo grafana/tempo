@@ -511,6 +511,94 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	return valuesToV2Response(distinctValues), nil
 }
 
+func (q *Querier) SpanMetricsSummary(
+	ctx context.Context,
+	req *tempopb.SpanMetricsSummaryRequest,
+) (*tempopb.SpanMetricsSummaryResponse, error) {
+	// userID, err := user.ExtractOrgID(ctx)
+	// if err != nil {
+	// 	return nil, errors.Wrap(err, "error extracting org id in Querier.SpanMetricsSummary")
+	// }
+
+	// limit := q.limits.MaxBytesPerTagValuesQuery(userID)
+
+	genReq := &tempopb.SpanMetricsRequest{
+		Query:   req.Query,
+		GroupBy: req.GroupBy,
+		Limit:   0,
+	}
+
+	// Get results from all generators
+	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding generators in Querier.SpanMetricsSummary")
+	}
+	lookupResults, err := q.forGivenGenerators(
+		ctx,
+		replicationSet,
+		func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error) {
+			return client.GetMetrics(ctx, genReq)
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying generators in Querier.SpanMetricsSummary")
+	}
+
+	// Assemble the results from the generators in the pool
+	results := make([]*tempopb.SpanMetricsResponse, 0, len(lookupResults))
+	for _, result := range lookupResults {
+		results = append(results, result.response.(*tempopb.SpanMetricsResponse))
+	}
+
+	// Combine the results
+	yyy := make(map[traceql.Static]*traceqlmetrics.LatencyHistogram)
+	xxx := make(map[traceql.Static]*tempopb.SpanMetricsSummary)
+
+	var h *traceqlmetrics.LatencyHistogram
+	var s traceql.Static
+	for _, r := range results {
+		for _, m := range r.Metrics {
+			s = protoToTraceQLStatic(m.Static)
+
+			if _, ok := xxx[s]; !ok {
+				xxx[s] = &tempopb.SpanMetricsSummary{Static: m.Static}
+			}
+
+			xxx[s].ErrorSpanCount += m.Errors
+
+			var b [64]int
+			for _, l := range m.GetLatencyHistogram() {
+				// Reconstitude the bucket
+				b[l.Bucket] += int(l.Count)
+				// Add to the total
+				xxx[s].SpanCount += l.Count
+			}
+
+			// Combine the histogram
+			h = traceqlmetrics.New(b)
+			if _, ok := yyy[s]; !ok {
+				yyy[s] = h
+			} else {
+				yyy[s].Combine(*h)
+			}
+		}
+	}
+
+	for s, h := range yyy {
+		xxx[s].P50 = h.Percentile(0.5)
+		xxx[s].P90 = h.Percentile(0.9)
+		xxx[s].P95 = h.Percentile(0.95)
+		xxx[s].P99 = h.Percentile(0.99)
+	}
+
+	resp := &tempopb.SpanMetricsSummaryResponse{}
+	for _, x := range xxx {
+		resp.Summaries = append(resp.Summaries, x)
+	}
+
+	return resp, nil
+}
+
 func valuesToV2Response(distinctValues *util.DistinctValueCollector[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
 	resp := &tempopb.SearchTagValuesV2Response{}
 	for _, v := range distinctValues.Values() {
