@@ -463,29 +463,29 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
-		name string
-		req  traceql.FetchSpansRequest
+		name  string
+		query string
 	}{
 		// span
-		{"spanAttNameNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ span.foo = `bar` }")},
-		{"spanAttValNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ span.bloom = `bar` }")},
-		{"spanAttValMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ span.bloom > 0 }")},
-		{"spanAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ name = `asdfasdf` }")},
-		{"spanAttIntrinsicMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ name = `gcs.ReadRange` }")},
+		{"spanAttNameNoMatch", "{ span.foo = `bar` }"},
+		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
+		{"spanAttValMatch", "{ span.bloom > 0 }"},
+		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
+		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
 
 		// resource
-		{"resourceAttNameNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.foo = `bar` }")},
-		{"resourceAttValNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.module.path = `bar` }")},
-		{"resourceAttValMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.os.type = `linux` }")},
-		{"resourceAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.service.name = `a` }")},
-		{"resourceAttIntrinsicMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.service.name = `tempo-query-frontend` }")},
+		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
+		{"resourceAttValNoMatch", "{ resource.module.path = `bar` }"},
+		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
+		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
+		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
 
 		// mixed
-		{"mixedNameNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ .foo = `bar` }")},
-		{"mixedValNoMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ .bloom = `bar` }")},
-		{"mixedValMixedMatchAnd", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.foo = `bar` && name = `gcs.ReadRange` }")},
-		{"mixedValMixedMatchOr", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.foo = `bar` || name = `gcs.ReadRange` }")},
-		{"mixedValBothMatch", traceql.MustExtractFetchSpansRequestWithMetadata("{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }")},
+		{"mixedNameNoMatch", "{ .foo = `bar` }"},
+		{"mixedValNoMatch", "{ .bloom = `bar` }"},
+		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
+		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
+		{"mixedValBothMatch", "{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }"},
 	}
 
 	ctx := context.TODO()
@@ -516,19 +516,16 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			bytesRead := 0
 
 			for i := 0; i < b.N; i++ {
-				resp, err := block.Fetch(ctx, tc.req, opts)
+				e := traceql.NewEngine()
+
+				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+					return block.Fetch(ctx, req, opts)
+				}))
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
 				// Read first 20 results (if any)
-				for i := 0; i < 20; i++ {
-					ss, err := resp.Results.Next(ctx)
-					require.NoError(b, err)
-					if ss == nil {
-						break
-					}
-				}
-				bytesRead += int(resp.Bytes())
+				bytesRead += int(resp.Metrics.InspectedBytes)
 			}
 			b.SetBytes(int64(bytesRead) / int64(b.N))
 			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
