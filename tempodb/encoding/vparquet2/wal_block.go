@@ -255,7 +255,7 @@ func (b *pageFile) Close() error {
 }
 
 type pageFileClosingIterator struct {
-	iter     *spansetMetadataIterator
+	iter     *spansetIterator
 	pageFile *pageFile
 }
 
