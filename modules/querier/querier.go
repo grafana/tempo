@@ -69,12 +69,17 @@ var (
 type Querier struct {
 	services.Service
 
-	cfg          Config
+	cfg Config
+
+	ingesterPool *ring_client.Pool
 	ingesterRing ring.ReadRing
-	pool         *ring_client.Pool
-	engine       *traceql.Engine
-	store        storage.Store
-	limits       overrides.Interface
+
+	generatorPool *ring_client.Pool
+	generatorRing ring.ReadRing
+
+	engine *traceql.Engine
+	store  storage.Store
+	limits overrides.Interface
 
 	searchClient     *http.Client
 	searchPreferSelf *semaphore.Weighted
@@ -88,22 +93,46 @@ type responseFromIngesters struct {
 	response interface{}
 }
 
+type responseFromGenerators struct {
+	addr     string
+	response interface{}
+}
+
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ingesterRing ring.ReadRing, store storage.Store, limits overrides.Interface) (*Querier, error) {
+func New(
+	cfg Config,
+	ingesterClientConfig ingester_client.Config,
+	ingesterRing ring.ReadRing,
+	generatorClientConfig generator_client.Config,
+	generatorRing ring.ReadRing,
+	store storage.Store,
+	limits overrides.Interface,
+) (*Querier, error) {
 	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
 
-	factory := func(addr string) (ring_client.PoolClient, error) {
-		return ingester_client.New(addr, clientCfg)
+	ingesterClientFactory := func(addr string) (ring_client.PoolClient, error) {
+		return ingester_client.New(addr, ingesterClientConfig)
+	}
+
+	generatorClientFactory := func(addr string) (ring_client.PoolClient, error) {
+		return generator_client.New(addr, generatorClientConfig)
 	}
 
 	q := &Querier{
 		cfg:          cfg,
 		ingesterRing: ingesterRing,
-		pool: ring_client.NewPool("querier_pool",
-			clientCfg.PoolConfig,
+		ingesterPool: ring_client.NewPool("querier_pool",
+			ingesterClientConfig.PoolConfig,
 			ring_client.NewRingServiceDiscovery(ingesterRing),
-			factory,
+			ingesterClientFactory,
 			metricIngesterClients,
+			log.Logger),
+		generatorRing: generatorRing,
+		generatorPool: ring_client.NewPool("querier_to_generator_pool",
+			generatorClientConfig.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorRing),
+			generatorClientFactory,
+			metricMetricsGeneratorClients,
 			log.Logger),
 		engine:           traceql.NewEngine(),
 		store:            store,
@@ -116,7 +145,11 @@ func New(cfg Config, clientCfg ingester_client.Config, ingesterRing ring.ReadRin
 	if cfg.Search.HedgeRequestsAt != 0 {
 		var err error
 		var stats *hedgedhttp.Stats
-		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(
+			cfg.Search.HedgeRequestsAt,
+			cfg.Search.HedgeRequestsUpTo,
+			http.DefaultClient,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +172,12 @@ func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 		return fmt.Errorf("failed to create frontend worker: %w", err)
 	}
 
-	return q.RegisterSubservices(worker, q.pool)
+	err = q.RegisterSubservices(worker, q.generatorPool)
+	if err != nil {
+		return fmt.Errorf("failed to register generator pool sub-service: %w", err)
+	}
+
+	return q.RegisterSubservices(worker, q.ingesterPool)
 }
 
 func (q *Querier) RegisterSubservices(s ...services.Service) error {
@@ -310,6 +348,52 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	responses := make([]responseFromIngesters, 0, len(results))
 	for _, result := range results {
 		responses = append(responses, result.(responseFromIngesters))
+	}
+
+	return responses, nil
+}
+
+// forGivenGenerators runs f, in parallel, for given generators
+func (q *Querier) forGivenGenerators(
+	ctx context.Context,
+	replicationSet ring.ReplicationSet,
+	f func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error),
+) ([]responseFromGenerators, error) {
+	if ctx.Err() != nil {
+		_ = level.Debug(log.Logger).Log("foreGivenGenerators context error", "ctx.Err()", ctx.Err().Error())
+		return nil, ctx.Err()
+	}
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forGivenGenerators")
+	defer span.Finish()
+
+	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
+		if funcCtx.Err() != nil {
+			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
+			return nil, funcCtx.Err()
+		}
+
+		client, err := q.generatorPool.GetClientFor(generator.Addr)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", generator.Addr))
+		}
+
+		resp, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to execute f() for %s", generator.Addr))
+		}
+
+		return responseFromGenerators{generator.Addr, resp}, nil
+	}
+
+	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get response from generators")
+	}
+
+	responses := make([]responseFromGenerators, 0, len(results))
+	for _, result := range results {
+		responses = append(responses, result.(responseFromGenerators))
 	}
 
 	return responses, nil
