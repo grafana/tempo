@@ -32,6 +32,10 @@ service StreamingQuerier {
   rpc Search(SearchRequest) returns (stream SearchResponse);
 }
 
+service Metrics {
+  rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {}
+}
+
 // Read
 message TraceByIDRequest {
   bytes traceID = 1;
@@ -192,6 +196,11 @@ message SpanMetricsRequest {
   uint64 limit = 3;
 }
 
+message SpanMetricsSummaryRequest {
+  string query = 1;
+  string groupBy = 2;
+}
+
 message SpanMetricsResponse {
   bool estimated = 1;
   uint64 spanCount = 2;
@@ -209,18 +218,18 @@ message SpanMetrics {
   uint64 errors = 3;
 }
 
-message SpanMetricsSummaryRequest {
-  string query = 1;
-  string groupBy = 2;
-}
-
-message SpanMetricsSummaryResponse {
-  int64 spanCount = 2;
-  int64 errorSpanCount = 3;
+message SpanMetricsSummary {
+  uint64 spanCount = 1;
+  uint64 errorSpanCount = 2;
+  TraceQLStatic static = 3;
   uint64 p99 = 4;
   uint64 p95 = 5;
   uint64 p90 = 6;
   uint64 p50 = 7;
+}
+
+message SpanMetricsSummaryResponse {
+  repeated SpanMetricsSummary summaries = 1;
 }
 
 message TraceQLStatic {
@@ -233,4 +242,3 @@ message TraceQLStatic {
   int32 status = 7;
   int32 kind = 8;
 }
-
