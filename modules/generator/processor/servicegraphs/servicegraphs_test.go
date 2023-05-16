@@ -41,22 +41,22 @@ func TestServiceGraphs(t *testing.T) {
 		"client":          "mythical-requester",
 		"server":          "mythical-server",
 		"connection_type": "",
-		"beast":    "manticore",
-		"god":      "zeus",
+		"beast":           "manticore",
+		"god":             "zeus",
 	})
 	serverToDatabaseLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
 		"server":          "postgres",
 		"connection_type": "database",
-		"beast":    "",
-		"god":      "",
+		"beast":           "",
+		"god":             "",
 	})
 	requesterToRecorderLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-requester",
 		"server":          "mythical-recorder",
 		"connection_type": "messaging_system",
-		"beast":    "",
-		"god": "",
+		"beast":           "",
+		"god":             "",
 	})
 
 	fmt.Println(testRegistry)
@@ -126,7 +126,7 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 		"server":          "mythical-server",
 		"connection_type": "",
 		"client_beast":    "manticore",
-		"server_beast": "manticore",
+		"server_beast":    "manticore",
 		"client_god":      "ares",
 		"server_god":      "zeus",
 	})

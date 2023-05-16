@@ -87,7 +87,7 @@ type Processor struct {
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
 	for _, d := range cfg.Dimensions {
-		if (cfg.EnableClientServerPrefix) {
+		if cfg.EnableClientServerPrefix {
 			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
 		} else {
 			labels = append(labels, strutil.SanitizeLabelName(d))
@@ -242,7 +242,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
 	for _, dim := range p.Cfg.Dimensions {
 		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
-			if (p.Cfg.EnableClientServerPrefix) {
+			if p.Cfg.EnableClientServerPrefix {
 				m[prefix+dim] = v
 			} else {
 				m[dim] = v
@@ -269,7 +269,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
 
 	for _, dimension := range p.Cfg.Dimensions {
-		if (p.Cfg.EnableClientServerPrefix) {
+		if p.Cfg.EnableClientServerPrefix {
 			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
 		} else {
 			labelValues = append(labelValues, e.Dimensions[dimension])
