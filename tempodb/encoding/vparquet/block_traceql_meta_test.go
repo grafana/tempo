@@ -33,8 +33,6 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		}
 	}
 
-	// jpe -add a test for one condition at the span level that asks for span id
-
 	testCases := []struct {
 		req             traceql.FetchSpansRequest
 		expectedResults []*traceql.Spanset
@@ -243,35 +241,35 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				),
 			),
 		},
-		// {
-		// 	// Intrinsic span id with no filtering
-		// 	makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicSpanID)}),
-		// 	makeSpansets(
-		// 		makeSpanset(
-		// 			wantTr.TraceID,
-		// 			wantTr.RootSpanName,
-		// 			wantTr.RootServiceName,
-		// 			wantTr.StartTimeUnixNano,
-		// 			wantTr.DurationNanos,
-		// 			&span{
-		// 				id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-		// 				startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-		// 				endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-		// 				attributes: map[traceql.Attribute]traceql.Static{
-		// 					traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
-		// 				},
-		// 			},
-		// 			&span{
-		// 				id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-		// 				startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-		// 				endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
-		// 				attributes: map[traceql.Attribute]traceql.Static{
-		// 					traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
-		// 				},
-		// 			},
-		// 		),
-		// 	),
-		// },
+		{
+			// Intrinsic span id with no filtering
+			makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicSpanID)}),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
+						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+						},
+					},
+					&span{
+						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
+						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
+						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
+						},
+					},
+				),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
