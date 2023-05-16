@@ -64,6 +64,11 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
+  
+# Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
+# If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
+# and returns only tag values that match the query.
+[autocomplete_filtering_enabled: <bool> | default = false]
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
@@ -297,6 +302,14 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
+            # Custom labeling of dimensions is possible via a list of maps consisting of 
+            # "name" <string>, "source_labels" <list of string>, "join" <string> 
+            # "name" appears in the metrics, "source_labels" are the actual
+            # attributes that will make up the value of the label and "join" is the
+            # separator if multiple source_labels are provided
+            [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+            # Enable target_info metrics
+            [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -1239,10 +1252,14 @@ overrides:
     # overrides settings in the global configuration.
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
+    [metrics_generator_processor_service_graphs_peer_attributes: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
     # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
+    [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+    # Enable target_info metrics
+    [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.

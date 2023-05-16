@@ -432,7 +432,6 @@ func (c *Config) RemoveRule(opts Options) error {
 	}
 	c.Rules = newRules
 	return nil
-
 }
 
 // Rule - a rule for replication configuration.
@@ -701,6 +700,10 @@ type TargetMetrics struct {
 	PendingCount uint64 `json:"pendingReplicationCount"`
 	// Total number of failed operations including metadata updates
 	FailedCount uint64 `json:"failedReplicationCount"`
+	// Bandwidth limit in bytes/sec for this target
+	BandWidthLimitInBytesPerSecond int64 `json:"limitInBits"`
+	// Current bandwidth used in bytes/sec for this target
+	CurrentBandwidthInBytesPerSecond float64 `json:"currentBandwidth"`
 }
 
 // Metrics represents inline replication metrics for a bucket.

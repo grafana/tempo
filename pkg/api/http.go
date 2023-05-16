@@ -23,13 +23,14 @@ import (
 const (
 	URLParamTraceID = "traceID"
 	// search
-	urlParamQuery       = "q"
-	urlParamTags        = "tags"
-	urlParamMinDuration = "minDuration"
-	urlParamMaxDuration = "maxDuration"
-	urlParamLimit       = "limit"
-	urlParamStart       = "start"
-	urlParamEnd         = "end"
+	urlParamQuery           = "q"
+	urlParamTags            = "tags"
+	urlParamMinDuration     = "minDuration"
+	urlParamMaxDuration     = "maxDuration"
+	urlParamLimit           = "limit"
+	urlParamStart           = "start"
+	urlParamEnd             = "end"
+	urlParamSpansPerSpanSet = "spss"
 
 	// backend search (querier/serverless)
 	urlParamStartPage     = "startPage"
@@ -49,12 +50,16 @@ const (
 	// search tags
 	urlParamScope = "scope"
 
+	// generator summary
+	urlParamGroupBy = "groupBy"
+
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 
-	PathPrefixQuerier = "/querier"
+	PathPrefixQuerier   = "/querier"
+	PathPrefixGenerator = "/generator"
 
 	PathTraces          = "/api/traces/{traceID}"
 	PathSearch          = "/api/search"
@@ -62,6 +67,7 @@ const (
 	PathSearchTagValues = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho            = "/api/echo"
 	PathUsageStats      = "/status/usage-stats"
+	PathSpanMetrics     = "/api/metrics"
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
@@ -73,7 +79,8 @@ const (
 	BlockStartKey      = "blockStart"
 	BlockEndKey        = "blockEnd"
 
-	defaultLimit = 20
+	defaultLimit           = 20
+	defaultSpansPerSpanSet = 3
 )
 
 func ParseTraceID(r *http.Request) ([]byte, error) {
@@ -94,8 +101,9 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 // ParseSearchRequest takes an http.Request and decodes query params to create a tempopb.SearchRequest
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
-		Tags:  map[string]string{},
-		Limit: defaultLimit,
+		Tags:            map[string]string{},
+		Limit:           defaultLimit,
+		SpansPerSpanSet: defaultSpansPerSpanSet,
 	}
 
 	if s, ok := extractQueryParam(r, urlParamStart); ok {
@@ -162,7 +170,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		// As Grafana gets updated and/or versions using this get old we can remove this section.
 		for k, v := range r.URL.Query() {
 			// Skip reserved keywords
-			if k == urlParamQuery || k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
+			if k == urlParamQuery || k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit || k == urlParamSpansPerSpanSet {
 				continue
 			}
 
@@ -201,6 +209,17 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 			return nil, errors.New("invalid limit: must be a positive number")
 		}
 		req.Limit = uint32(limit)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamSpansPerSpanSet); ok {
+		spansPerSpanSet, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid spss: %w", err)
+		}
+		if spansPerSpanSet <= 0 {
+			return nil, errors.New("invalid spss: must be a positive number")
+		}
+		req.SpansPerSpanSet = uint32(spansPerSpanSet)
 	}
 
 	// start and end == 0 is fine
@@ -309,6 +328,27 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
+
+	return req, nil
+}
+
+func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
+	req := &tempopb.SpanMetricsRequest{}
+
+	groupBy := r.URL.Query().Get(urlParamGroupBy)
+	req.GroupBy = groupBy
+
+	query := r.URL.Query().Get(urlParamQuery)
+	req.Query = query
+
+	l := r.URL.Query().Get(urlParamLimit)
+	if l != "" {
+		limit, err := strconv.Atoi(l)
+		if err != nil {
+			return nil, fmt.Errorf("invalid limit: %w", err)
+		}
+		req.Limit = uint64(limit)
+	}
 
 	return req, nil
 }

@@ -81,11 +81,6 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 
 	i.local = store.WAL().LocalBackend()
 
-	i.flushQueuesDone.Add(cfg.ConcurrentFlushes)
-	for j := 0; j < cfg.ConcurrentFlushes; j++ {
-		go i.flushLoop(j)
-	}
-
 	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
@@ -112,6 +107,11 @@ func (i *Ingester) starting(ctx context.Context) error {
 	err = i.rediscoverLocalBlocks()
 	if err != nil {
 		return fmt.Errorf("failed to rediscover local blocks: %w", err)
+	}
+
+	i.flushQueuesDone.Add(i.cfg.ConcurrentFlushes)
+	for j := 0; j < i.cfg.ConcurrentFlushes; j++ {
+		go i.flushLoop(j)
 	}
 
 	// Now that user states have been created, we can start the lifecycler.
@@ -282,7 +282,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.store, i.local)
+		inst, err = newInstance(instanceID, i.limiter, i.store, i.local, i.cfg.AutocompleteFilteringEnabled)
 		if err != nil {
 			return nil, err
 		}

@@ -6,10 +6,13 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
@@ -26,9 +29,11 @@ type Config struct {
 	Processor ProcessorConfig `yaml:"processor"`
 	Registry  registry.Config `yaml:"registry"`
 	Storage   storage.Config  `yaml:"storage"`
+	TracesWAL wal.Config      `yaml:"traces_storage"`
 	// MetricsIngestionSlack is the max amount of time passed since a span's start time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
+	QueryTimeout          time.Duration `yaml:"query_timeout"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -37,18 +42,23 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
+
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
+	cfg.QueryTimeout = 30 * time.Second
 }
 
 type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
+	LocalBlocks   localblocks.Config   `yaml:"local_blocks"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
@@ -60,6 +70,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 	if dimensions := o.MetricsGeneratorProcessorServiceGraphsDimensions(userID); dimensions != nil {
 		copyCfg.ServiceGraphs.Dimensions = dimensions
+	}
+	if peerAttrs := o.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID); peerAttrs != nil {
+		copyCfg.ServiceGraphs.PeerAttributes = peerAttrs
 	}
 	if buckets := o.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID); buckets != nil {
 		copyCfg.SpanMetrics.HistogramBuckets = buckets
@@ -76,6 +89,34 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {
 		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
 	}
+
+	if max := o.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID); max > 0 {
+		copyCfg.LocalBlocks.MaxLiveTraces = max
+	}
+
+	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID); max > 0 {
+		copyCfg.LocalBlocks.MaxBlockDuration = max
+	}
+
+	if max := o.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID); max > 0 {
+		copyCfg.LocalBlocks.MaxBlockBytes = max
+	}
+
+	if period := o.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID); period > 0 {
+		copyCfg.LocalBlocks.FlushCheckPeriod = period
+	}
+
+	if period := o.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID); period > 0 {
+		copyCfg.LocalBlocks.TraceIdlePeriod = period
+	}
+
+	if timeout := o.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID); timeout > 0 {
+		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
+	}
+
+	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
+
+	copyCfg.SpanMetrics.EnableTargetInfo = o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 
 	return copyCfg, nil
 }

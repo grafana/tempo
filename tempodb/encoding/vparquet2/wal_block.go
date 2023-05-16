@@ -316,12 +316,16 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
+	return b.AppendTrace(id, trace, start, end)
+}
+
+func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
 	b.buffer = traceToParquet(id, trace, b.buffer)
 
 	start, end = b.adjustTimeRangeForSlack(start, end, 0)
 
 	// add to current
-	_, err = b.writer.Write([]*Trace{b.buffer})
+	_, err := b.writer.Write([]*Trace{b.buffer})
 	if err != nil {
 		return fmt.Errorf("error writing row: %w", err)
 	}
@@ -329,9 +333,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	b.meta.ObjectAdded(id, start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
-	// This is actually the protobuf size but close enough
-	// for this purpose and only temporary until next flush.
-	b.unflushedSize += int64(len(buff))
+	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
 
 	return nil
 }
@@ -595,10 +597,10 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 		return false
 	}
 
-	return b.searchTagValuesV2(ctx, att, cb2, opts)
+	return b.SearchTagValuesV2(ctx, att, cb2, opts)
 }
 
-func (b *walBlock) searchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, _ common.SearchOptions) error {
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file()
 		if err != nil {

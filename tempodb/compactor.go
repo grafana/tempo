@@ -68,6 +68,7 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 	}
 
 	ticker := time.NewTicker(compactionCycle)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -119,7 +120,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 
 	start := time.Now()
 
-	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
+	level.Debug(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
 		select {
 		case <-ctx.Done():

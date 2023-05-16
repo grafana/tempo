@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
@@ -60,6 +59,7 @@ type SnowballObject struct {
 	Size int64
 
 	// Modtime to apply to the object.
+	// If Modtime is the zero value current time will be used.
 	ModTime time.Time
 
 	// Content of the object.
@@ -107,7 +107,7 @@ func (c Client) PutObjectsSnowball(ctx context.Context, bucketName string, opts 
 			return nopReadSeekCloser{bytes.NewReader(b.Bytes())}, int64(b.Len()), nil
 		}
 	} else {
-		f, err := ioutil.TempFile("", "s3-putsnowballobjects-*")
+		f, err := os.CreateTemp("", "s3-putsnowballobjects-*")
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func (c Client) PutObjectsSnowball(ctx context.Context, bucketName string, opts 
 			return f, st.Size(), nil
 		}
 	}
-	var flush = func() error { return nil }
+	flush := func() error { return nil }
 	if !opts.Compress {
 		if !opts.InMemory {
 			// Insert buffer for writes.
@@ -173,6 +173,10 @@ objectLoop:
 				ModTime:  obj.ModTime,
 				Format:   tar.FormatPAX,
 			}
+			if header.ModTime.IsZero() {
+				header.ModTime = time.Now().UTC()
+			}
+
 			if err := t.WriteHeader(&header); err != nil {
 				closeObj()
 				return err

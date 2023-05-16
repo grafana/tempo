@@ -186,6 +186,7 @@ func (t *App) initDistributor() (services.Service, error) {
 
 func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
+	t.cfg.Ingester.AutocompleteFilteringEnabled = t.cfg.AutocompleteFilteringEnabled
 	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ingester: %w", err)
@@ -210,6 +211,9 @@ func (t *App) initGenerator() (services.Service, error) {
 		return nil, fmt.Errorf("failed to create metrics-generator %w", err)
 	}
 	t.generator = genSvc
+
+	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
 
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
 

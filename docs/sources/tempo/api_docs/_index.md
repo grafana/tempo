@@ -172,6 +172,8 @@ The URL query parameters support the following values:
 - `end = (unix epoch seconds)`
  Optional.  Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` will change the way that Tempo searches.
  If the parameters are not provided, then Tempo will search the recent trace data stored in the ingesters. If the parameters are provided, it will search the backend as well.
+ - `spss = (integer)`
+  Optional. Limit the number of spans per span-set. Default value is 3.
 
 #### Example of TraceQL search
 

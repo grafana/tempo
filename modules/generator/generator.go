@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/go-kit/log"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
@@ -237,12 +239,49 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 }
 
 func (g *Generator) createInstance(id string) (*instance, error) {
-	wal, err := storage.New(&g.cfg.Storage, id, g.reg, g.logger)
+	// Duplicate metrics generation errors occur when creating
+	// the wal for a tenant twice. This happens if the wal is
+	// create successfully, but the instance is not. On the
+	// next push it will panic.
+	// We prevent the panic by using a temporary registry
+	// for wal and instance creation, and merge it with the
+	// main registry only if successful.
+	reg := prometheus.NewRegistry()
+
+	wal, err := storage.New(&g.cfg.Storage, id, reg, g.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return newInstance(g.cfg, id, g.overrides, wal, g.reg, g.logger)
+	// Create traces wal if configured
+	var tracesWAL *tempodb_wal.WAL
+
+	if g.cfg.TracesWAL.Filepath != "" {
+		// Create separate wals per tenant by prefixing path with tenant ID
+
+		tracesWALCfg := g.cfg.TracesWAL
+		tracesWALCfg.Filepath = path.Join(tracesWALCfg.Filepath, id)
+
+		tracesWAL, err = tempodb_wal.New(&tracesWALCfg)
+		if err != nil {
+			wal.Close()
+			return nil, err
+		}
+	}
+
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL)
+	if err != nil {
+		wal.Close()
+		return nil, err
+	}
+
+	err = g.reg.Register(reg)
+	if err != nil {
+		wal.Close()
+		return nil, err
+	}
+
+	return inst, nil
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {
@@ -282,4 +321,19 @@ func (g *Generator) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {
 
 // OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
 func (g *Generator) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
+}
+
+func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// return empty if we don't have an instance
+	instance, ok := g.getInstanceByID(instanceID)
+	if !ok || instance == nil {
+		return &tempopb.SpanMetricsResponse{}, nil
+	}
+
+	return instance.GetMetrics(ctx, req)
 }

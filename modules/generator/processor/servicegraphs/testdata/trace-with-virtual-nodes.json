@@ -1,0 +1,84 @@
+{
+  "batches": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "mythical-server"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "1gZXnld4dYc=",
+              "name": "requester",
+              "kind": "SPAN_KIND_SERVER",
+              "startTimeUnixNano": "1658320854877522688",
+              "endTimeUnixNano": "1658320854923357184",
+              "attributes": [
+                {
+                  "key": "beast",
+                  "value": {
+                    "stringValue": "manticore"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-net",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "U/Mym4Y9qV0=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "HTTP GET /ready",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854877839616",
+              "endTimeUnixNano": "1658320854878545408",
+              "attributes": [
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "external-payments-platform"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
