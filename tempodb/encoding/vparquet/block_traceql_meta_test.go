@@ -153,7 +153,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			// Project attributes of all types
 			makeReq(
-				parse(t, `{.foo }`),                    // String   (jpe - this is being parsed wrong. should be .foo = true)
+				parse(t, `{.foo }`),                    // String
 				parse(t, `{.`+LabelHTTPStatusCode+`}`), // Int
 				parse(t, `{.float }`),                  // Float
 				parse(t, `{.bool }`),                   // bool

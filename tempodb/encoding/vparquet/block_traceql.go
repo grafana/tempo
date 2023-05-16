@@ -307,7 +307,7 @@ func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 			filteredSpansets = []*traceql.Spanset{spanset}
 		}
 
-		// flatten spans into i.currentSpans - jpe -pass spansets through and rebuild?
+		// flatten spans into i.currentSpans
 		for _, ss := range filteredSpansets {
 			for _, s := range ss.Spans {
 				span := s.(*span)
@@ -501,13 +501,13 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(iter, req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts) // jpe slice of requests?
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
 	}
 
-	return newSpansetMetadataIterator(iter), nil // jpe ?
+	return newSpansetMetadataIterator(iter), nil
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
@@ -586,7 +586,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, _, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions) // jpe - restore spanStartEndRetrieved
+	spanIter, _, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
@@ -851,9 +851,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	batchCol := &batchCollector{
 		requireAtLeastOneMatchOverall: requireAtLeastOneMatchOverall,
 		minAttributes:                 minCount,
-		pass:                          pass,
 	}
-	pass++
 
 	var required []parquetquery.Iterator
 
@@ -883,9 +881,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
 		required, iters, batchCol), nil
 }
-
-// jpe remove
-var pass = 0
 
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64) parquetquery.Iterator {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
@@ -1385,8 +1380,6 @@ type batchCollector struct {
 	// shared static spans used in KeepGroup. done for memory savings, but won't
 	// work if the batchCollector is accessed concurrently
 	buffer []*span
-
-	pass int
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)

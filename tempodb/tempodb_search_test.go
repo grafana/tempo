@@ -63,13 +63,12 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 // TestTraceQLCompleteBlock tests basic traceql tag matching conditions and
 // aligns with the feature set and testing of the tags search
 func TestTraceQLCompleteBlock(t *testing.T) {
-	// jpe
-	// for _, v := range encoding.AllEncodings() {
-	// 	vers := v.Version()
-	// 	t.Run(vers, func(t *testing.T) {
-	testTraceQLCompleteBlock(t, "vParquet")
-	// 	})
-	// }
+	for _, v := range encoding.AllEncodings() {
+		vers := v.Version()
+		t.Run(vers, func(t *testing.T) {
+			testTraceQLCompleteBlock(t, "vParquet")
+		})
+	}
 }
 
 func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
