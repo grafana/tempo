@@ -27,6 +27,7 @@ import (
 	"go.uber.org/multierr"
 	"golang.org/x/sync/semaphore"
 
+	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier/worker"
@@ -37,6 +38,7 @@ import (
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
@@ -49,6 +51,11 @@ var (
 		Namespace: "tempo",
 		Name:      "querier_ingester_clients",
 		Help:      "The current number of ingester clients.",
+	})
+	metricMetricsGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "querier_metrics_generator_clients",
+		Help:      "The current number of generator clients.",
 	})
 	metricEndpointDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
@@ -834,4 +841,17 @@ func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint s
 		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s, %w", string(body), err)
 	}
 	return &searchResp, nil
+}
+
+func protoToTraceQLStatic(proto *tempopb.TraceQLStatic) traceql.Static {
+	return traceql.Static{
+		Type:   traceql.StaticType(proto.Type),
+		N:      int(proto.N),
+		F:      proto.F,
+		S:      proto.S,
+		B:      proto.B,
+		D:      time.Duration(proto.D),
+		Status: traceql.Status(proto.Status),
+		Kind:   traceql.Kind(proto.Kind),
+	}
 }
