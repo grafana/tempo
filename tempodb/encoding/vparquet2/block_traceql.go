@@ -54,9 +54,10 @@ func (s *span) attributesMatched() int {
 	if s.startTimeUnixNanos != 0 {
 		count++
 	}
-	if s.durationNanos != 0 {
-		count++
-	}
+	// don't count duration nanos b/c it is added to the attributes as well as the span struct
+	// if s.durationNanos != 0 {
+	// 	count++
+	// }
 	if len(s.id) > 0 {
 		count++
 	}
@@ -1434,7 +1435,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {
 		for _, span := range c.buffer {
-			if len(span.attributes) > 0 {
+			if span.attributesMatched() > 0 {
 				filteredSpans = append(filteredSpans, span)
 				continue
 			}

@@ -214,7 +214,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		},
 		{
 			// Intrinsic duration with no filtering
-			traceql.FetchSpansRequest{Conditions: []traceql.Condition{{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}}},
+			makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}),
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
