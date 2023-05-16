@@ -123,7 +123,8 @@ const (
 	otherEntrySpanKey    = "span"
 
 	// a fake intrinsic scope at the trace lvl
-	attributeScopeTrace = -1
+	intrinsicScopeTrace = -1
+	intrinsicScopeSpan  = -2
 )
 
 var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
@@ -131,18 +132,18 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	typ        traceql.StaticType
 	columnPath string
 }{
-	traceql.IntrinsicName:          {traceql.AttributeScopeSpan, traceql.TypeString, columnPathSpanName},
-	traceql.IntrinsicStatus:        {traceql.AttributeScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
-	traceql.IntrinsicDuration:      {traceql.AttributeScopeSpan, traceql.TypeDuration, ""},
-	traceql.IntrinsicKind:          {traceql.AttributeScopeSpan, traceql.TypeKind, columnPathSpanKind},
-	traceql.IntrinsicSpanID:        {traceql.AttributeScopeSpan, traceql.TypeString, columnPathSpanID},
-	traceql.IntrinsicSpanStartTime: {traceql.AttributeScopeSpan, traceql.TypeString, columnPathSpanStartTime},
+	traceql.IntrinsicName:          {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
+	traceql.IntrinsicStatus:        {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
+	traceql.IntrinsicDuration:      {intrinsicScopeSpan, traceql.TypeDuration, ""},
+	traceql.IntrinsicKind:          {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
+	traceql.IntrinsicSpanID:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
+	traceql.IntrinsicSpanStartTime: {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
 
-	traceql.IntrinsicTraceRootService: {attributeScopeTrace, traceql.TypeString, columnPathRootServiceName},
-	traceql.IntrinsicTraceRootSpan:    {attributeScopeTrace, traceql.TypeString, columnPathRootSpanName},
-	traceql.IntrinsicTraceDuration:    {attributeScopeTrace, traceql.TypeString, columnPathDurationNanos},
-	traceql.IntrinsicTraceID:          {attributeScopeTrace, traceql.TypeDuration, columnPathTraceID},
-	traceql.IntrinsicTraceStartTime:   {attributeScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
+	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
+	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
+	traceql.IntrinsicTraceDuration:    {intrinsicScopeTrace, traceql.TypeString, columnPathDurationNanos},
+	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeDuration, columnPathTraceID},
+	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -537,6 +538,8 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 			continue
 
 		case traceql.AttributeScopeSpan:
+			fallthrough
+		case intrinsicScopeSpan:
 			spanConditions = append(spanConditions, cond)
 			continue
 
@@ -544,7 +547,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case attributeScopeTrace:
+		case intrinsicScopeTrace:
 			traceConditions = append(traceConditions, cond)
 			continue
 
