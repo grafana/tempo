@@ -205,20 +205,20 @@ func (p *Processor) metricLoop() {
 
 func (p *Processor) completeBlock() error {
 
-	// Get a wal block and lock it.
+	// Get a wal block
 	var firstWalBlock common.WALBlock
-	p.blocksMtx.Lock()
+	p.blocksMtx.RLock()
 	for _, e := range p.walBlocks {
 		firstWalBlock = e
 		break
 	}
-	p.blocksMtx.Unlock()
+	p.blocksMtx.RUnlock()
 
 	if firstWalBlock == nil {
 		return nil
 	}
 
-	// Now create a new block just under read-lock
+	// Now create a new block
 
 	var (
 		ctx    = context.Background()
@@ -245,7 +245,7 @@ func (p *Processor) completeBlock() error {
 		return err
 	}
 
-	// Exchange read-lock for write lock
+	// Add new block and delete old block
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
