@@ -226,11 +226,13 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
 		// TODO - Should the below query return data or not?  It does match the resource
-		// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
-		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo =~ "xyz.*"}`),                                     // Regex IN
-		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo !~ ".*"}`),                                        // Regex IN
-		traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true}`),                                    // Bool not match
-		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
+		// makeReq(parse(t, `{.foo = "abc"}`)), // This should not return results because the span has overridden this attribute to "def".
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo =~ "xyz.*"}`),  // Regex IN
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo !~ ".*"}`),     // Regex IN
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true}`), // Bool not match
+		// this will actually return from the fetch layer (and be rejected by the engine) due to the way we pull start/end time
+		//  for duration. the spanCollector cannot differentiate between metadata pulled and actual duration pulled
+		// traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = ok}`),                            // Intrinsic: status
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = "nothello"}`),                      // Intrinsic: name
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = producer }`),                       // Intrinsic: kind

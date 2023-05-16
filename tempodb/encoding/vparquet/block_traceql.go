@@ -44,6 +44,27 @@ func (s *span) DurationNanos() uint64 {
 	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
 
+// attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
+func (s *span) attributesMatched() int {
+	count := 0
+	for _, v := range s.attributes {
+		if v.Type != traceql.TypeNil {
+			count++
+		}
+	}
+	if s.endtimeUnixNanos != 0 {
+		count++
+	}
+	if s.startTimeUnixNanos != 0 {
+		count++
+	}
+	if len(s.id) > 0 {
+		count++
+	}
+
+	return count
+}
+
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
 // it currently catches spans discarded:
 // - in the span collector
@@ -559,8 +580,6 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
-	// jpe -get rid of this
-	isMetaQuery := len(traceConditions) > 0
 	// Global state
 	// Span-filtering behavior changes depending on the resource-filtering in effect,
 	// and vice-versa.  For example consider the query { span.a=1 }.  If no spans have a=1
@@ -573,15 +592,15 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	var (
 		// If there are only span conditions, then don't return a span upstream
 		// unless it matches at least 1 span-level condition.
-		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0 && !isMetaQuery
+		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0
 
 		// If there are only resource conditions, then don't return a resource upstream
 		// unless it matches at least 1 resource-level condition.
-		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0 && !isMetaQuery
+		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0
 
 		// Don't return the final spanset upstream unless it matched at least 1 condition
 		// anywhere, except in the case of the empty query: {}
-		batchRequireAtLeastOneMatchOverall = len(conds) > 0 && !isMetaQuery
+		batchRequireAtLeastOneMatchOverall = len(conds) > 0
 	)
 
 	// Optimization for queries like {resource.x... && span.y ...}
@@ -777,6 +796,8 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
 	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
 	//  this spaniterator code could be tightened up
+	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
+	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
 	}
@@ -1355,12 +1376,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	if c.minAttributes > 0 {
-		count := 0
-		for _, v := range sp.attributes {
-			if v.Type != traceql.TypeNil {
-				count++
-			}
-		}
+		count := sp.attributesMatched()
 		if count < c.minAttributes {
 			putSpan(sp)
 			return false
@@ -1454,7 +1470,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {
 		for _, span := range c.buffer {
-			if len(span.attributes) > 0 {
+			if span.attributesMatched() > 0 {
 				filteredSpans = append(filteredSpans, span)
 				continue
 			}
