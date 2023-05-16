@@ -101,7 +101,6 @@ func (t *App) initServer() (services.Service, error) {
 }
 
 func (t *App) initInternalServer() (services.Service, error) {
-
 	if !t.cfg.InternalServer.Enable {
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -239,7 +238,15 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 
 	// todo: make ingester client a module instead of passing config everywhere
-	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.Overrides)
+	querier, err := querier.New(
+		t.cfg.Querier,
+		t.cfg.IngesterClient,
+		t.ring,
+		t.cfg.GeneratorClient,
+		t.generatorRing,
+		t.store,
+		t.Overrides,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier %w", err)
 	}
@@ -266,6 +273,9 @@ func (t *App) initQuerier() (services.Service, error) {
 
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
 	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
+
+	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
 }
@@ -452,7 +462,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:          {Ring, Server, Overrides, UsageReport, MetricsGeneratorRing},
 		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
 		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
-		Querier:              {Store, Ring, Overrides, UsageReport},
+		Querier:              {Store, Ring, MetricsGeneratorRing, Overrides, UsageReport},
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
