@@ -32,9 +32,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search = &tempodb.SearchConfig{}
 	cfg.Search.RegisterFlagsAndApplyDefaults(prefix, f)
 
-	cfg.FlushCheckPeriod = 5 * time.Second
-	cfg.TraceIdlePeriod = 5 * time.Second
+	cfg.FlushCheckPeriod = 10 * time.Second
+	cfg.TraceIdlePeriod = 10 * time.Second
 	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 500_000_000
-	cfg.CompleteBlockTimeout = 5 * time.Minute
+	cfg.CompleteBlockTimeout = time.Hour
 }
