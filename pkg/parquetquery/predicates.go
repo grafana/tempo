@@ -62,6 +62,21 @@ func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 		}
 		return false
 	}
+
+	// Check the row group dictionary (accessible through the first page)
+	// If present then use it to skip row group or not.
+	pgs := cc.Pages()
+	defer pgs.Close()
+
+	firstPage, _ := pgs.ReadPage()
+	if firstPage != nil {
+		defer pq.Release(firstPage)
+
+		if firstPage.Dictionary() != nil {
+			return p.helper.keepPage(firstPage, p.KeepValue)
+		}
+	}
+
 	return true
 }
 
@@ -133,20 +148,23 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 		return false
 	}
 
-	s := v.String()
-	if matched, ok := p.matches[s]; ok {
+	// Check uses zero alloc optimization of map[string([]byte)]
+	b := v.ByteArray()
+	if matched, ok := p.matches[string(b)]; ok {
 		return matched
 	}
 
 	matched := false
 	for _, r := range p.regs {
-		if r.MatchString(s) == p.shouldMatch {
+		if r.Match(b) == p.shouldMatch {
 			matched = true
 			break
 		}
 	}
 
-	p.matches[s] = matched
+	// Only alloc the string when updating the map
+	p.matches[v.String()] = matched
+
 	return matched
 }
 
@@ -155,6 +173,20 @@ func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
+
+	// Check the row group dictionary (accessible through the first page)
+	// If present then use it to skip row group or not.
+	pgs := cc.Pages()
+	defer pgs.Close()
+
+	firstPage, _ := pgs.ReadPage()
+	if firstPage != nil {
+		defer pq.Release(firstPage)
+
+		if firstPage.Dictionary() != nil {
+			return p.helper.keepPage(firstPage, p.KeepValue)
+		}
+	}
 
 	// Can we do any filtering here?
 	return true
