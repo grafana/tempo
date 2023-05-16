@@ -201,6 +201,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	for _, req := range searchesThatMatch {
+		if req.SecondPass == nil {
+			req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+			req.SecondPassConditions = traceql.SearchMetaConditions()
+		}
+
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:%v", req)
 
@@ -302,6 +307,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	for _, req := range searchesThatDontMatch {
+		if req.SecondPass == nil {
+			req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+			req.SecondPassConditions = traceql.SearchMetaConditions()
+		}
+
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
