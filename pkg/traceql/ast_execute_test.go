@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -30,8 +31,14 @@ func testEvaluator(t *testing.T, tc evalTC) {
 
 		actual, err := ast.Pipeline.evaluate(tc.input)
 		require.NoError(t, err)
-		require.Equal(t, tc.output, actual)
-		require.Equal(t, cloneIn, tc.input)
+
+		// reflect.DeepEqual() used b/c it correctly compares maps
+		if eq := reflect.DeepEqual(actual, tc.output); !eq {
+			require.Equal(t, tc.output, actual) // this is will nicely print diffs but some diffs may be red herrings due to map iteration.
+		}
+		if eq := reflect.DeepEqual(cloneIn, tc.input); !eq {
+			require.Equal(t, tc.input, cloneIn)
+		}
 	})
 }
 
@@ -266,6 +273,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 						&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 						&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					},
+					Attributes: map[string]Static{"count()": NewStaticInt(2)},
 				},
 			},
 		},
@@ -297,9 +305,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					// TODO - Type handling of aggregate output could use some improvement.
-					// avg(duration) should probably return a Duration instead of a float.
-					Scalar: NewStaticFloat(10.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(10.0 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -310,6 +316,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"avg(duration)": NewStaticDuration(10 * time.Millisecond)},
 				},
 			},
 		},
@@ -342,7 +349,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(15.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(15 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -353,6 +360,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"max(duration)": NewStaticDuration(15 * time.Millisecond)},
 				},
 			},
 		},
@@ -385,7 +393,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(2.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(2 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -396,6 +404,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"min(duration)": NewStaticDuration(2 * time.Millisecond)},
 				},
 			},
 		},
@@ -428,7 +437,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(10 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(10 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -439,6 +448,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
+					Attributes: map[string]Static{"sum(duration)": NewStaticDuration(10 * time.Millisecond)},
 				},
 			},
 		},
@@ -856,5 +866,18 @@ func BenchmarkUniqueSpans(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+func BenchmarkAggregate(b *testing.B) {
+	agg := newAggregate(aggregateAvg, NewStaticInt(3))
+	ss := make([]*Spanset, 1)
+	ss[0] = &Spanset{
+		Spans: make([]Span, 1000),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = agg.evaluate(ss)
 	}
 }

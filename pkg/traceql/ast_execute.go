@@ -82,16 +82,16 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 }
 
 func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
 			copy := ss.clone()
 			copy.Scalar = NewStaticInt(len(ss.Spans))
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateAvg:
-			sum := 0.0
+			var sum *Static
 			count := 0
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
@@ -99,55 +99,67 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					return nil, err
 				}
 
-				sum += val.asFloat()
+				if sum == nil {
+					sum = &val
+				} else {
+					sum.sumInto(val)
+				}
 				count++
 			}
 
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(sum / float64(count))
+			copy.Scalar = sum.divideBy(float64(count))
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMax:
-			max := math.Inf(-1)
+			var max *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if val.asFloat() > max {
-					max = val.asFloat()
+				if max == nil || val.compare(max) == 1 {
+					max = &val
 				}
 			}
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(max)
+			copy.Scalar = *max
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateMin:
-			min := math.Inf(1)
+			var min *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if val.asFloat() < min {
-					min = val.asFloat()
+				if min == nil || val.compare(min) == -1 {
+					min = &val
 				}
 			}
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(min)
+			copy.Scalar = *min
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		case aggregateSum:
-			sum := 0.0
+			var sum *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				sum += val.asFloat()
+				if sum == nil {
+					sum = &val
+				} else {
+					sum.sumInto(val)
+				}
 			}
 			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(sum)
+			copy.Scalar = *sum
+			copy.AddAttribute(a.String(), copy.Scalar)
 			output = append(output, copy)
 
 		default:
