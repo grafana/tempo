@@ -152,7 +152,7 @@ multitenancyEnabled: true
 enterprise:
   enabled: true
   image:
-    tag: v2.0.1
+    tag: v2.1.0
 enterpriseGateway:
   enabled: true
 gateway:
@@ -384,7 +384,7 @@ NOTES:
 ***********************************************************************
  Welcome to Grafana Tempo
  Chart version: 1.0.1
- Tempo version: 2.0.0
+ Tempo version: 2.1.0
 ***********************************************************************
 
 Installed components:
