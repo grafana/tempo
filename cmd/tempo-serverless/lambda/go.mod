@@ -157,7 +157,3 @@ replace (
 	k8s.io/api => k8s.io/api v0.20.4
 	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
-
-// Remove grpc override when the following is merged.
-// https://github.com/weaveworks/common/issues/239
-replace google.golang.org/grpc => google.golang.org/grpc v1.45.0
