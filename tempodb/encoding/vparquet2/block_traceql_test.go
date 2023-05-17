@@ -456,6 +456,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"spanAttValMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom > 0 }")},
 		{"spanAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ name = `asdfasdf` }")},
 		{"spanAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ name = `gcs.ReadRange` }")},
+		{"spanAttIntrinsicRegexNoMatch", traceql.MustExtractFetchSpansRequest("{ name =~ `asdfasdf` }")},
+		{"spanAttIntrinsicRegexMatch", traceql.MustExtractFetchSpansRequest("{ name =~ `gcs.ReadRange` }")},
 
 		// resource
 		{"resourceAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` }")},
@@ -474,10 +476,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("149e41d2-cc4d-4f71-b355-3377eabc94c8")
+	blockID := uuid.MustParse("2968a567-5873-4e4c-b3cb-21c106c6714b")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/home/joe/testblock/"),
+		Path: path.Join("/Users/marty/src/tmp/"),
 	})
 	require.NoError(b, err)
 
