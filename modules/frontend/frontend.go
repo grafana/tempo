@@ -205,7 +205,7 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSpanMetricsMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Reader, logger log.Logger) Middleware {
+func newSpanMetricsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		generatorRT := next
 
