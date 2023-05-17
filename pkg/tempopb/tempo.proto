@@ -205,7 +205,8 @@ message SpanMetricsSummaryRequest {
 message SpanMetricsResponse {
   bool estimated = 1;
   uint64 spanCount = 2;
-  repeated SpanMetrics metrics = 3;
+  uint64 errorSpanCount = 3;
+  repeated SpanMetrics metrics = 4;
 }
 
 message RawHistogram {
