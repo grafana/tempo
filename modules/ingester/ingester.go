@@ -70,7 +70,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prometheus.Registerer) (*Ingester, error) {
+func New(cfg Config, store storage.Store, limits overrides.Interface, reg prometheus.Registerer) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},

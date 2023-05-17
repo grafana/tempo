@@ -39,7 +39,7 @@ type QueryFrontend struct {
 }
 
 // New returns a new QueryFrontend
-func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, reader tempodb.Reader, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempodb.Reader, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -177,7 +177,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 }
 
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSearchMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Reader, logger log.Logger) Middleware {
+func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
 		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
