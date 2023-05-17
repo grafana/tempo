@@ -78,6 +78,10 @@ func (t *App) initServer() (services.Service, error) {
 
 	DisableSignalHandling(&t.cfg.Server)
 
+	// this allows us to server http and grpc over the primary http server.
+	//  to use this register services with GRPCOnHTTPServer
+	t.cfg.Server.RouteHTTPToGRPC = true
+
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server %w", err)
@@ -296,7 +300,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
+	// we register the streaming querier service on both the http and grpc servers. Grafana expects
+	// this GRPC service to be available on the HTTP server.
 	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC, queryFrontend)
+	tempopb.RegisterStreamingQuerierServer(t.Server.GRPCOnHTTPServer, queryFrontend)
 
 	// http trace by id endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), traceByIDHandler)
