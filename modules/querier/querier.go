@@ -334,7 +334,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 			return nil, funcCtx.Err()
 		}
 
-		client, err := q.pool.GetClientFor(ingester.Addr)
+		client, err := q.ingesterPool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", ingester.Addr))
 		}
