@@ -119,7 +119,7 @@ type Distributor struct {
 	ingestersRing   ring.ReadRing
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
-	overrides       *overrides.Overrides
+	overrides       overrides.Interface
 	traceEncoder    model.SegmentDecoder
 
 	// metrics-generator
@@ -142,7 +142,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, reg prometheus.Registerer) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o overrides.Interface, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {

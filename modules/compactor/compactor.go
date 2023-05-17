@@ -10,13 +10,13 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -43,7 +43,7 @@ type Compactor struct {
 
 	cfg       *Config
 	store     storage.Store
-	overrides *overrides.Overrides
+	overrides overrides.Interface
 
 	// Ring used for sharding compactions.
 	ringLifecycler *ring.BasicLifecycler
@@ -54,7 +54,7 @@ type Compactor struct {
 }
 
 // New makes a new Compactor.
-func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg prometheus.Registerer) (*Compactor, error) {
+func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Compactor, error) {
 	c := &Compactor{
 		cfg:       &cfg,
 		store:     store,
