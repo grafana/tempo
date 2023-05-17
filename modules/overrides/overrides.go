@@ -216,20 +216,6 @@ func (o *overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 	return nil
 }
 
-func (o *overrides) TenantIDs() []string {
-	tenantOverrides := o.tenantOverrides()
-	if tenantOverrides == nil {
-		return nil
-	}
-
-	result := make([]string, 0, len(tenantOverrides.TenantLimits))
-	for userID := range tenantOverrides.TenantLimits {
-		result = append(result, userID)
-	}
-
-	return result
-}
-
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
 // to each distributor instance (local) or evenly shared across the cluster (global).
 func (o *overrides) IngestionRateStrategy() string {
