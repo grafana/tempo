@@ -1,7 +1,7 @@
 name: "doc-validator"
 on:
   pull_request:
-    paths: ["docs/tempo/website/**"]
+    paths: ["docs/sources/**"]
   workflow_dispatch:
 jobs:
   doc-validator:
@@ -11,5 +11,7 @@ jobs:
     steps:
       - name: "Checkout code"
         uses: "actions/checkout@v3"
-      - name: "Run doc-validator tool"
-        run: "doc-validator --skip-image-validation ./docs/tempo/website /docs/tempo/latest"
+      - name: "Run doc-validator tool on Tempo docs"
+        run: "doc-validator --skip-image-validation ./docs/sources/tempo /docs/tempo/latest"
+      - name: "Run doc-validator tool on Helm chart docs"
+        run: "doc-validator --skip-image-validation ./docs/sources/helm-charts/tempo-distributed /docs/helm-charts/tempo-distributed/next"
