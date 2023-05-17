@@ -67,7 +67,7 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	github.com/weaveworks/common v0.0.0-20230315122012-918bab8e5f88
+	github.com/weaveworks/common v0.0.0-20230511094633-334485600903
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.74.0
@@ -233,6 +233,7 @@ require (
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/segmentio/encoding v0.3.5 // indirect
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
+	github.com/sercand/kuberesolver/v4 v4.0.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.2 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect

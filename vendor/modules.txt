@@ -927,7 +927,9 @@ github.com/segmentio/parquet-go/internal/unsafecast
 github.com/segmentio/parquet-go/sparse
 # github.com/sercand/kuberesolver v2.4.0+incompatible
 ## explicit
-github.com/sercand/kuberesolver
+# github.com/sercand/kuberesolver/v4 v4.0.0
+## explicit; go 1.14
+github.com/sercand/kuberesolver/v4
 # github.com/shirou/gopsutil/v3 v3.23.2
 ## explicit; go 1.15
 github.com/shirou/gopsutil/v3/cpu
@@ -1019,7 +1021,7 @@ github.com/uber/jaeger-client-go/utils
 ## explicit
 github.com/uber/jaeger-lib/metrics
 github.com/uber/jaeger-lib/metrics/prometheus
-# github.com/weaveworks/common v0.0.0-20230315122012-918bab8e5f88
+# github.com/weaveworks/common v0.0.0-20230511094633-334485600903
 ## explicit; go 1.14
 github.com/weaveworks/common/errors
 github.com/weaveworks/common/grpc
