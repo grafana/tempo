@@ -384,7 +384,7 @@ NOTES:
 ***********************************************************************
  Welcome to Grafana Tempo
  Chart version: 1.0.1
- Tempo version: 2.1.0
+ Tempo version: 2.1.1
 ***********************************************************************
 
 Installed components:
