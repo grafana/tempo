@@ -363,14 +363,14 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 	query := r.URL.Query().Get(urlParamQuery)
 	req.Query = query
 
-	// if l != "" {
-	// l := r.URL.Query().Get(urlParamLimit)
-	// 	limit, err := strconv.Atoi(l)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("invalid limit: %w", err)
-	// 	}
-	// 	req.Limit = uint64(limit)
-	// }
+	l := r.URL.Query().Get(urlParamLimit)
+	if l != "" {
+		limit, err := strconv.Atoi(l)
+		if err != nil {
+			return nil, fmt.Errorf("invalid limit: %w", err)
+		}
+		req.Limit = uint64(limit)
+	}
 
 	return req, nil
 }

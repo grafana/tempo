@@ -199,6 +199,7 @@ message SpanMetricsRequest {
 message SpanMetricsSummaryRequest {
   string query = 1;
   string groupBy = 2;
+  uint64 limit = 3;
 }
 
 message SpanMetricsResponse {
