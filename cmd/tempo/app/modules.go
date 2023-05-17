@@ -303,6 +303,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
 	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
+	spanMetricsSummaryHandler := middleware.Wrap(queryFrontend.SpanMetricsSummaryHandler)
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
@@ -317,6 +318,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchHandler)
+
+	// http metrics endpoints
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(nil)
