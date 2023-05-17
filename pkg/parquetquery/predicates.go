@@ -133,28 +133,29 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 		return false
 	}
 
-	s := v.String()
-	if matched, ok := p.matches[s]; ok {
+	b := v.ByteArray()
+
+	// Check uses zero alloc optimization of map[string([]byte)]
+	if matched, ok := p.matches[string(b)]; ok {
 		return matched
 	}
 
 	matched := false
 	for _, r := range p.regs {
-		if r.MatchString(s) == p.shouldMatch {
+		if r.Match(b) == p.shouldMatch {
 			matched = true
 			break
 		}
 	}
 
-	p.matches[s] = matched
+	// Only alloc the string when updating the map
+	p.matches[string(b)] = matched
+
 	return matched
 }
 
 func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	p.helper.setNewRowGroup()
-
-	// Reset match cache on each row group change
-	p.matches = make(map[string]bool, len(p.matches))
 
 	// Can we do any filtering here?
 	return true
@@ -165,6 +166,20 @@ func (p *regexPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *regexPredicate) KeepPage(page pq.Page) bool {
+	if p.helper.newRowGroup {
+		// Reset match cache on each row group change
+		// We delay until the first page is received
+		// so we can get an accurate count of the number
+		// of distinct values for dictionary columns.
+		count := len(p.matches)
+		if d := page.Dictionary(); d != nil {
+			if d.Len() > count {
+				count = d.Len()
+			}
+		}
+		p.matches = make(map[string]bool, count)
+	}
+
 	return p.helper.keepPage(page, p.KeepValue)
 }
 

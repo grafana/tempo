@@ -89,11 +89,14 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 		// reduce all evalSS to their max length to reduce meta data lookups
 		for i := range evalSS {
+			l := len(evalSS[i].Spans)
+			evalSS[i].AddAttribute(attributeMatched, NewStaticInt(l))
+
 			spansPerSpanSet := int(searchReq.SpansPerSpanSet)
 			if spansPerSpanSet == 0 {
 				spansPerSpanSet = DefaultSpansPerSpanSet
 			}
-			if len(evalSS[i].Spans) > spansPerSpanSet {
+			if l > spansPerSpanSet {
 				evalSS[i].Spans = evalSS[i].Spans[:spansPerSpanSet]
 			}
 		}
@@ -293,7 +296,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
 		SpanSet: &tempopb.SpanSet{
-			Matched: uint32(len(spanset.Spans)),
+			Matched: uint32(spanset.Attributes[attributeMatched].N),
 		},
 	}
 
@@ -327,6 +330,20 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		}
 
 		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
+	}
+
+	// add attributes
+	for key, static := range spanset.Attributes {
+		if key == attributeMatched {
+			continue
+		}
+
+		staticAnyValue := static.asAnyValue()
+		keyValue := &common_v1.KeyValue{
+			Key:   key,
+			Value: staticAnyValue,
+		}
+		metadata.SpanSet.Attributes = append(metadata.SpanSet.Attributes, keyValue)
 	}
 
 	return metadata

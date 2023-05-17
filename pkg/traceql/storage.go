@@ -82,6 +82,8 @@ type Span interface {
 	DurationNanos() uint64
 }
 
+const attributeMatched = "__matched"
+
 type Spanset struct {
 	// these fields are actually used by the engine to evaluate queries
 	Scalar Static
@@ -92,9 +94,25 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
+	Attributes         map[string]Static
+}
+
+func (s *Spanset) AddAttribute(key string, value Static) {
+	if s.Attributes == nil {
+		s.Attributes = make(map[string]Static)
+	}
+	s.Attributes[key] = value
 }
 
 func (s *Spanset) clone() *Spanset {
+	var atts map[string]Static
+	if s.Attributes != nil {
+		atts = make(map[string]Static, len(s.Attributes)) // jpe test
+		for k, v := range s.Attributes {
+			atts[k] = v
+		}
+	}
+
 	return &Spanset{
 		TraceID:            s.TraceID,
 		Scalar:             s.Scalar,
@@ -103,6 +121,7 @@ func (s *Spanset) clone() *Spanset {
 		StartTimeUnixNanos: s.StartTimeUnixNanos,
 		DurationNanos:      s.DurationNanos,
 		Spans:              s.Spans, // we're not deep cloning into the spans themselves
+		Attributes:         atts,
 	}
 }
 
