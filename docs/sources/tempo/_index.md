@@ -12,7 +12,7 @@ Grafana Tempo is an open source, easy-to-use, and high-volume distributed tracin
 
 Tempo integrates well with a number of existing open source tools:
 
-- **Grafana** ships with native support for Tempo using the built-in [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/).
+- **Grafana** ships with native support for Tempo using the built-in [Tempo data source](/docs/grafana/latest/datasources/tempo/).
 - **Grafana Loki**, with its powerful query language [LogQL v2](https://grafana.com/blog/2020/10/28/loki-2.0-released-transform-logs-as-youre-querying-them-and-set-up-alerts-within-loki/) allows you to filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](https://grafana.com/docs/grafana/latest/datasources/loki/#derived-fields).
 - **Prometheus exemplars** let you jump from Prometheus metrics to Tempo traces by clicking on recorded exemplars. Read more about this integration in the blog post [Intro to exemplars, which enable Grafana Tempo’s distributed tracing at massive scale](https://grafana.com/blog/2021/03/31/intro-to-exemplars-which-enable-grafana-tempos-distributed-tracing-at-massive-scale/).
 
