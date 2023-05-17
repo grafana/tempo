@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+// jpe - do these and test
+func (GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	return ss, nil
+}
+
+func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	return ss, nil
+}
+
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
