@@ -243,6 +243,34 @@ func TestGroup(t *testing.T) {
 	}
 }
 
+func TestCoalesce(t *testing.T) {
+	testCases := []evalTC{
+		{
+			"{ } | coalesce()",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+				{Spans: []Span{
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
 func TestSpansetOperationEvaluate(t *testing.T) {
 	testCases := []evalTC{
 		{

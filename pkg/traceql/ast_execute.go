@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// jpe - do these and test
 func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	result := make([]*Spanset, 0, len(ss))
 	groups := make(map[Static]*Spanset) // todo: don't recreate this map for every eval (jpe)
@@ -54,9 +53,22 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	return result, nil
 }
 
-// jpe me next
+// CoalesceOperation undoes grouping. It takes spansets and recombines them into
+// one by trace id. Since all spansets are guaranteed to be from the same traceid
+// due to the structure of the engine we can cheat and just recombine all spansets
+// in ss into one without checking.
 func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
-	return ss, nil
+	l := 0
+	for _, spanset := range ss {
+		l += len(spanset.Spans)
+	}
+	result := &Spanset{
+		Spans: make([]Span, 0, l),
+	}
+	for _, spanset := range ss {
+		result.Spans = append(result.Spans, spanset.Spans...)
+	}
+	return []*Spanset{result}, nil
 }
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
