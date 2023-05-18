@@ -9,10 +9,52 @@ import (
 )
 
 // jpe - do these and test
-func (GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
-	return ss, nil
+func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	result := make([]*Spanset, 0, len(ss))
+	groups := make(map[Static]*Spanset) // todo: don't recreate this map for every eval (jpe)
+
+	// Iterate over each spanset in the input slice
+	for _, spanset := range ss {
+		// clear out the groups
+		for k := range groups {
+			delete(groups, k)
+		}
+
+		// Iterate over each span in the spanset
+		for _, span := range spanset.Spans {
+			// Execute the FieldExpression for the span
+			result, err := g.Expression.execute(span)
+			if err != nil {
+				return nil, err
+			}
+
+			// Check if the result already has a group in the map
+			group, ok := groups[result]
+			if !ok {
+				// If not, create a new group and add it to the map
+				group = &Spanset{}
+				// copy all existing attributes forward - jpe - does avg() clobber existing attributes?
+				for k, att := range spanset.Attributes {
+					group.AddAttribute(k, att)
+				}
+				group.AddAttribute(g.String(), result)
+				groups[result] = group
+			}
+
+			// Add the current spanset to the group
+			group.Spans = append(group.Spans, span)
+		}
+
+		// add all groups created by this spanset to the result
+		for _, group := range groups {
+			result = append(result, group)
+		}
+	}
+
+	return result, nil
 }
 
+// jpe me next
 func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	return ss, nil
 }
