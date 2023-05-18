@@ -46,8 +46,8 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 	return output, nil
 }
 
+// SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes
 func (o SelectOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
-	// jpe todo
 	return input, nil
 }
 

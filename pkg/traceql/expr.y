@@ -137,7 +137,7 @@ coalesceOperation:
   ;
 
 selectOperation:
-    SELECT OPEN_PARENS selectArgs CLOSE_PARENS { $$ = newSelectOperation($3) } // TODO: jpe make take slice of field expressions
+    SELECT OPEN_PARENS selectArgs CLOSE_PARENS { $$ = newSelectOperation($3) }
   ;
 
 selectArgs:
