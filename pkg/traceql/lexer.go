@@ -11,6 +11,7 @@ import (
 )
 
 var tokens = map[string]int{
+	",":           COMMA,
 	".":           DOT,
 	"{":           OPEN_BRACE,
 	"}":           CLOSE_BRACE,
@@ -64,6 +65,7 @@ var tokens = map[string]int{
 	"sum":         SUM,
 	"by":          BY,
 	"coalesce":    COALESCE,
+	"select":      SELECT,
 }
 
 type lexer struct {
