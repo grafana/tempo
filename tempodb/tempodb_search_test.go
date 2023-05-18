@@ -66,7 +66,7 @@ func TestTraceQLCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
-			testTraceQLCompleteBlock(t, "vParquet")
+			testTraceQLCompleteBlock(t, vers)
 		})
 	}
 }
