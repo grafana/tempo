@@ -12,6 +12,7 @@ type mockOverrides struct {
 	serviceGraphsHistogramBuckets   []float64
 	serviceGraphsDimensions         []string
 	serviceGraphsPeerAttributes     []string
+	serviceGraphsEnableClientServerPrefix bool
 	spanMetricsHistogramBuckets     []float64
 	spanMetricsDimensions           []string
 	spanMetricsIntrinsicDimensions  map[string]bool
@@ -24,6 +25,7 @@ type mockOverrides struct {
 	localBlocksFlushCheckPeriod     time.Duration
 	localBlocksTraceIdlePeriod      time.Duration
 	localBlocksCompleteBlockTimeout time.Duration
+	
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -104,4 +106,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(us
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
 	return m.spanMetricsEnableTargetInfo
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
+	return m.serviceGraphsEnableClientServerPrefix
 }
