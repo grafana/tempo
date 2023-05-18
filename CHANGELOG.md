@@ -22,6 +22,7 @@
   ```
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
 To make use of filtering, configure `autocomplete_filtering_enabled`.
+* [FEATURE] Add support for `by()` and `coalesce()` to TraceQL. [#2490](https://github.com/grafana/tempo/pull/2490) 
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
   Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
@@ -36,6 +37,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [ENHANCEMENT] Introduce `overrides.Interface` to decouple implementation from usage [#2482](https://github.com/grafana/tempo/pull/2482) (@kvrhdn)
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
 * [BUGFIX] metrics-generator: ensure Prometheus will scale up shards when remote write is lagging behind [#2463](https://github.com/grafana/tempo/issues/2463) (@kvrhdn)
+* [BUGFIX] Fixes issue where matches and other spanset level attributes were not persisted to the TraceQL results. [#2490](https://github.com/grafana/tempo/pull/2490) 
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
