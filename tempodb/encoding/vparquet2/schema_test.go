@@ -2,7 +2,6 @@ package vparquet2
 
 import (
 	"fmt"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"io"
 	"math/rand"
 	"os"
@@ -18,6 +17,7 @@ import (
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {

@@ -1,10 +1,11 @@
 package vparquet2
 
 import (
+	"testing"
+
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestAssignNestedSetModelBounds(t *testing.T) {
@@ -154,10 +155,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 	makeTrace := func(traceSpans [][]Span) *Trace {
 		var resourceSpans ResourceSpans
 		for _, spans := range traceSpans {
-			var scopeSpans ScopeSpans
-			for _, s := range spans {
-				scopeSpans.Spans = append(scopeSpans.Spans, s)
-			}
+			scopeSpans := ScopeSpans{Spans: append([]Span{}, spans...)}
 			resourceSpans.ScopeSpans = append(resourceSpans.ScopeSpans, scopeSpans)
 		}
 		return &Trace{ResourceSpans: []ResourceSpans{resourceSpans}}
