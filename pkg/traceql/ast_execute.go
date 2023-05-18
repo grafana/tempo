@@ -46,6 +46,11 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 	return output, nil
 }
 
+func (o SelectOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
+	// jpe todo
+	return input, nil
+}
+
 func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	// TODO we solve this gap where pipeline elements and scalar binary

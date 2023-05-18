@@ -13,6 +13,7 @@ import (
     groupOperation GroupOperation
     coalesceOperation CoalesceOperation
     selectOperation SelectOperation
+    selectArgs []FieldExpression
 
     spansetExpression SpansetExpression
     spansetPipelineExpression SpansetExpression
@@ -45,6 +46,7 @@ import (
 %type <groupOperation> groupOperation
 %type <coalesceOperation> coalesceOperation
 %type <selectOperation> selectOperation
+%type <selectArgs> selectArgs
 
 %type <spansetExpression> spansetExpression
 %type <spansetPipelineExpression> spansetPipelineExpression
@@ -70,7 +72,7 @@ import (
 %token <staticInt>      INTEGER
 %token <staticFloat>    FLOAT
 %token <staticDuration> DURATION
-%token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
+%token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
                         IDURATION CHILDCOUNT NAME STATUS PARENT KIND
@@ -138,9 +140,9 @@ selectOperation:
     SELECT OPEN_PARENS selectArgs CLOSE_PARENS { $$ = newSelectOperation($3) } // TODO: jpe make take slice of field expressions
   ;
 
-selectArgs: // jpe make slice of fieldExpressions
-    fieldExpression                  { $$ = $1 }
-    fieldExpression COMMA selectArgs { $$ = append($3, $1) }
+selectArgs:
+    fieldExpression                  { $$ = []FieldExpression{$1} }
+  | selectArgs COMMA fieldExpression { $$ = append($1, $3) }
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability

@@ -134,6 +134,22 @@ func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	return ss, nil
 }
 
+type SelectOperation struct {
+	exprs []FieldExpression
+}
+
+func newSelectOperation(exprs []FieldExpression) SelectOperation {
+	return SelectOperation{
+		exprs: exprs,
+	}
+}
+
+func (o SelectOperation) extractConditions(request *FetchSpansRequest) {
+	for _, expr := range o.exprs {
+		expr.extractConditions(request)
+	}
+}
+
 // **********************
 // Scalars
 // **********************
