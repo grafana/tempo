@@ -197,6 +197,9 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 				rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
 				durationBySpan[0]+durationBySpan[1])},
+			// groupin' (.foo is a known attribute that is the same on both spans)
+			{Query: "{} | by(span.foo) | count() = 2"},
+			{Query: "{} | by(resource.service.name) | count() = 1"},
 		}
 		searchesThatDontMatch := []*tempopb.SearchRequest{
 			// conditions
@@ -225,6 +228,9 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			{Query: "{ } | min(duration) < 0"},
 			{Query: "{ } | max(duration) < 0"},
 			{Query: "{ } | sum(duration) < 0"},
+			// groupin' (.foo is a known attribute that is the same on both spans)
+			{Query: "{} | by(span.foo) | count() = 1"},
+			{Query: "{} | by(resource.service.name) | count() = 2"},
 		}
 
 		for _, req := range searchesThatMatch {
@@ -522,6 +528,9 @@ func searchTestSuite() (
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1002 * time.Second),
 								Status:            &v1.Status{},
+								Attributes: []*v1_common.KeyValue{
+									stringKV("foo", "Bar"),
+								},
 							},
 						},
 					},
