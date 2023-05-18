@@ -2,12 +2,11 @@ package vparquet2
 
 import "github.com/grafana/tempo/pkg/util"
 
-// TODO should root spans and children be sorted before traversal to make the outcome more predictable
 func assignNestedSetModelBounds(trace *Trace) {
 	var (
 		assignmentNeeded bool
-		rootSpans        []wrappedSpan
-		spanChildren     = map[uint64][]*Span{}
+		rootSpans        []*wrappedSpan
+		spanChildren     = map[[8]byte][]*Span{}
 	)
 
 	// find root spans and map span IDs to child spans
@@ -19,9 +18,9 @@ func assignNestedSetModelBounds(trace *Trace) {
 				}
 
 				if len(s.ParentSpanID) == 0 {
-					rootSpans = append(rootSpans, wrappedSpan{span: &ss.Spans[i], id: util.SpanIDToUint64(s.SpanID)})
+					rootSpans = append(rootSpans, &wrappedSpan{span: &ss.Spans[i], id: util.SpanIDToArray(s.SpanID)})
 				} else {
-					parentID := util.SpanIDToUint64(s.ParentSpanID)
+					parentID := util.SpanIDToArray(s.ParentSpanID)
 					spanChildren[parentID] = append(spanChildren[parentID], &ss.Spans[i])
 				}
 			}
@@ -38,12 +37,12 @@ func assignNestedSetModelBounds(trace *Trace) {
 		nestedSetBound int32 = 1
 	)
 
-	for i, root := range rootSpans {
+	for _, root := range rootSpans {
 		root.span.NestedSetLeft = nestedSetBound
 		nestedSetBound++
 
 		ancestors.reset()
-		ancestors.push(&rootSpans[i])
+		ancestors.push(root)
 
 		for !ancestors.isEmpty() {
 			parent := ancestors.peek()
@@ -57,7 +56,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 				child.NestedSetLeft = nestedSetBound
 				nestedSetBound++
 
-				ancestors.push(&wrappedSpan{span: child, id: util.SpanIDToUint64(child.SpanID)})
+				ancestors.push(&wrappedSpan{span: child, id: util.SpanIDToArray(child.SpanID)})
 			} else {
 				parent.span.NestedSetRight = nestedSetBound
 				nestedSetBound++
@@ -70,7 +69,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 
 type wrappedSpan struct {
 	span      *Span
-	id        uint64
+	id        [8]byte
 	nextChild int
 }
 

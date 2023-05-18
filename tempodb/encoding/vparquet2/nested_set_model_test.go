@@ -174,12 +174,12 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 func assertEqualNestedSetModelBounds(t testing.TB, actual, expected *Trace) {
 	t.Helper()
 
-	actualSpans := map[uint64]*Span{}
+	actualSpans := map[[8]byte]*Span{}
 	actualCount := 0
 	for _, rs := range actual.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			for i, s := range ss.Spans {
-				actualSpans[util.SpanIDToUint64(s.SpanID)] = &ss.Spans[i]
+				actualSpans[util.SpanIDToArray(s.SpanID)] = &ss.Spans[i]
 				actualCount++
 			}
 		}
@@ -190,7 +190,7 @@ func assertEqualNestedSetModelBounds(t testing.TB, actual, expected *Trace) {
 		for _, ss := range rs.ScopeSpans {
 			for _, exp := range ss.Spans {
 				expectedCount++
-				act, ok := actualSpans[util.SpanIDToUint64(exp.SpanID)]
+				act, ok := actualSpans[util.SpanIDToArray(exp.SpanID)]
 				require.Truef(t, ok, "span '%v' expected but was missing", string(exp.SpanID))
 				assert.Equalf(t, exp.NestedSetLeft, act.NestedSetLeft, "span '%v' NestedSetLeft is expected %d but was %d", string(exp.SpanID), exp.NestedSetLeft, act.NestedSetLeft)
 				assert.Equalf(t, exp.NestedSetRight, act.NestedSetRight, "span '%v' NestedSetRight is expected %d but was %d", string(exp.SpanID), exp.NestedSetRight, act.NestedSetRight)

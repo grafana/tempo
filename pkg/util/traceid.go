@@ -59,17 +59,15 @@ func SpanIDToHexString(byteID []byte) string {
 	return fmt.Sprintf("%016s", id)
 }
 
-// SpanIDToUint64 converts a span ID into a uint64 representation. If the span ID is longer than
+// SpanIDToArray converts a span ID into a [8]byte array representation. If the span ID is longer than
 // 8 bytes, only the first 8 bytes are evaluated for the conversion.
-func SpanIDToUint64(spanID []byte) uint64 {
-	var id uint64
-
-	for i, s := 0, uint64(56); i < 8 && i < len(spanID); i, s = i+1, s-8 {
-		mask := uint64(spanID[i]) << s
-		id |= mask
+func SpanIDToArray(id []byte) [8]byte {
+	if len(id) < 8 {
+		var b [8]byte
+		copy(b[:], id[:])
+		return b
 	}
-
-	return id
+	return *(*[8]byte)(id)
 }
 
 // EqualHexStringTraceIDs compares two trace ID strings and compares the
