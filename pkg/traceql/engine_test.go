@@ -105,9 +105,10 @@ func TestEngine_Execute(t *testing.T) {
 			newCondition(NewAttribute("foo"), OpNone),
 			newCondition(NewAttribute("bar"), OpNone),
 		},
-		AllConditions: true,
+		AllConditions:        true,
+		SecondPassConditions: SearchMetaConditions(),
 	}
-	spanSetFetcher.capturedRequest.Filter = nil // have to set this to nil b/c assert.Equal does not handle function pointers
+	spanSetFetcher.capturedRequest.SecondPass = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
@@ -337,7 +338,7 @@ var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
 func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
-	m.iterator.(*MockSpanSetIterator).filter = request.Filter
+	m.iterator.(*MockSpanSetIterator).filter = request.SecondPass
 	return FetchSpansResponse{
 		Results: m.iterator,
 		Bytes: func() uint64 {
@@ -348,7 +349,7 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 
 type MockSpanSetIterator struct {
 	results []*Spanset
-	filter  FilterSpans
+	filter  SecondPassFn
 }
 
 func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
@@ -358,6 +359,10 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 		}
 		r := m.results[0]
 		m.results = m.results[1:]
+
+		if m.filter == nil {
+			return r, nil
+		}
 
 		ss, err := m.filter(r)
 		if err != nil {
