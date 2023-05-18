@@ -104,11 +104,14 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 
 type GroupOperation struct {
 	Expression FieldExpression
+
+	groupBuffer map[Static]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
-		Expression: e,
+		Expression:  e,
+		groupBuffer: make(map[Static]*Spanset),
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 
 func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	result := make([]*Spanset, 0, len(ss))
-	groups := make(map[Static]*Spanset) // todo: don't recreate this map for every eval (jpe)
+	groups := g.groupBuffer
 
 	// Iterate over each spanset in the input slice
 	for _, spanset := range ss {
@@ -32,7 +32,7 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 			if !ok {
 				// If not, create a new group and add it to the map
 				group = &Spanset{}
-				// copy all existing attributes forward - jpe - does avg() clobber existing attributes?
+				// copy all existing attributes forward
 				for k, att := range spanset.Attributes {
 					group.AddAttribute(k, att)
 				}
