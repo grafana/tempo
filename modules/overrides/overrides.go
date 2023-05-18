@@ -380,7 +380,7 @@ func (o *overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID 
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prrefix
-// for custom service graph dimensions 
+// for custom service graph dimensions
 func (o *Overrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix
 }
