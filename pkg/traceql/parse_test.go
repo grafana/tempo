@@ -299,6 +299,42 @@ func TestGroupCoalesceOperation(t *testing.T) {
 	}
 }
 
+func TestSelectErrors(t *testing.T) {
+	tests := []struct {
+		in  string
+		err error
+	}{
+		{in: "select(.a) && { .b }", err: newParseError("syntax error: unexpected &&", 0, 12)},
+		{in: "select()", err: newParseError("syntax error: unexpected )", 1, 8)}}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			_, err := Parse(tc.in)
+
+			require.Equal(t, tc.err, err)
+		})
+	}
+}
+
+func TestSelectOperation(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected Pipeline
+	}{
+		{in: "select(.a)", expected: newPipeline(newSelectOperation([]FieldExpression{NewAttribute("a")}))},
+		{in: "select(.a,.b)", expected: newPipeline(newSelectOperation([]FieldExpression{NewAttribute("a"), NewAttribute("b")}))},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, &RootExpr{tc.expected}, actual)
+		})
+	}
+}
+
 func TestSpansetExpressionErrors(t *testing.T) {
 	tests := []struct {
 		in  string

@@ -247,7 +247,7 @@ func isAttributeRune(r rune) bool {
 	}
 
 	switch r {
-	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^':
+	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^', ',':
 		return false
 	default:
 		return true

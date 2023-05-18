@@ -4,6 +4,8 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	f.Expression.extractConditions(request)
 }
 
+// jpe select
+
 func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO we can further optimise this by attempting to execute every FieldExpression, if they only contain statics it should resolve
 	switch o.LHS.(type) {
