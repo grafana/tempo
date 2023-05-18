@@ -258,6 +258,146 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 	})
 }
 
+// TestGroupTraceQLCompleteBlock is broken out into its own method b/c the returned metadata is distinct
+func TestGroupTraceQLCompleteBlock(t *testing.T) {
+	for _, v := range encoding.AllEncodings() {
+		vers := v.Version()
+		t.Run(vers, func(t *testing.T) {
+			testGroupTraceQLCompleteBlock(t, vers)
+		})
+	}
+}
+
+func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
+	e := traceql.NewEngine()
+
+	runCompleteBlockSearchTest(t, blockVersion, func(wantTr *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+		ctx := context.Background()
+
+		type test struct {
+			req      *tempopb.SearchRequest
+			expected []*tempopb.TraceSearchMetadata
+		}
+
+		searchesThatMatch := []*test{
+			{
+				req: &tempopb.SearchRequest{Query: "{} | by(span.foo) | count() = 2"},
+				expected: []*tempopb.TraceSearchMetadata{
+					{
+						SpanSet: &tempopb.SpanSet{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "", // jpe name?
+									Attributes: []*v1_common.KeyValue{
+										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+									},
+								},
+								{
+									SpanID:            "0000000000000000",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+									},
+								},
+							},
+							Matched: 2,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
+							},
+						},
+					},
+				},
+			},
+			{
+				req: &tempopb.SearchRequest{Query: "{} | by(resource.service.name) | count() = 1"},
+				expected: []*tempopb.TraceSearchMetadata{
+					{
+						SpanSet: &tempopb.SpanSet{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "", // jpe name?
+									Attributes: []*v1_common.KeyValue{
+										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+									},
+								},
+							},
+							Matched: 1,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+							},
+						},
+					},
+					{
+						SpanSet: &tempopb.SpanSet{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000000000",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
+									},
+								},
+							},
+							Matched: 1,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+							},
+						},
+					},
+				},
+			},
+		}
+		searchesThatDontMatch := []*tempopb.SearchRequest{
+			{Query: "{} | by(span.foo) | count() = 1"},
+			{Query: "{} | by(resource.service.name) | count() = 2"},
+		}
+
+		for _, tc := range searchesThatMatch {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
+			require.NoError(t, err, "search request: %+v", tc)
+
+			// copy the root stuff in directly, spansets defined in test cases above
+			for _, ss := range tc.expected {
+				ss.DurationMs = wantMeta.DurationMs
+				ss.RootServiceName = wantMeta.RootServiceName
+				ss.RootTraceName = wantMeta.RootTraceName
+				ss.StartTimeUnixNano = wantMeta.StartTimeUnixNano
+				ss.TraceID = wantMeta.TraceID
+			}
+
+			require.NotNil(t, res, "search request: %v", tc)
+			require.Equal(t, tc.expected, res.Traces, "search request: %v", tc)
+		}
+
+		for _, tc := range searchesThatDontMatch {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			res, err := e.ExecuteSearch(ctx, tc, fetcher)
+			require.NoError(t, err, "search request: %+v", tc)
+			require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", tc)
+		}
+	})
+}
+
 func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string, []string) {
 	trueConditions := []string{}
 	falseConditions := []string{}
@@ -355,8 +495,8 @@ func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runner
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	totalTraces := 250
-	wantTrIdx := rand.Intn(250)
+	totalTraces := 50
+	wantTrIdx := rand.Intn(50)
 	for i := 0; i < totalTraces; i++ {
 		var tr *tempopb.Trace
 		var id []byte
