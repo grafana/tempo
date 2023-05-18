@@ -103,7 +103,7 @@ func (s *Spanset) AddAttribute(key string, value Static) {
 func (s *Spanset) clone() *Spanset {
 	var atts map[string]Static
 	if s.Attributes != nil {
-		atts = make(map[string]Static, len(s.Attributes)) // jpe test
+		atts = make(map[string]Static, len(s.Attributes))
 		for k, v := range s.Attributes {
 			atts[k] = v
 		}

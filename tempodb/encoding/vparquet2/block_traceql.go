@@ -147,6 +147,7 @@ const (
 	intrinsicScopeSpan  = -2
 )
 
+// todo: scope is the only field used here. either remove the other fields or use them.
 var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	scope      traceql.AttributeScope
 	typ        traceql.StaticType
@@ -154,7 +155,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 }{
 	traceql.IntrinsicName:          {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
 	traceql.IntrinsicStatus:        {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
-	traceql.IntrinsicDuration:      {intrinsicScopeSpan, traceql.TypeDuration, ""}, // jpe , should have a column name here?
+	traceql.IntrinsicDuration:      {intrinsicScopeSpan, traceql.TypeDuration, columnPathDurationNanos},
 	traceql.IntrinsicKind:          {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
 	traceql.IntrinsicSpanID:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
 	traceql.IntrinsicSpanStartTime: {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
@@ -376,7 +377,7 @@ type spansetIterator struct {
 
 var _ traceql.SpansetIterator = (*spansetIterator)(nil)
 
-func newSpansetMetadataIterator(iter parquetquery.Iterator) *spansetIterator { // jpe, why is this newSpansetMetadataIterator?
+func newSpansetIterator(iter parquetquery.Iterator) *spansetIterator {
 	return &spansetIterator{
 		iter: iter,
 	}
@@ -524,7 +525,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		}
 	}
 
-	return newSpansetMetadataIterator(iter), nil
+	return newSpansetIterator(iter), nil
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
@@ -600,7 +601,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, _, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions) // jpe get rid of second ret val
+	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
@@ -615,14 +616,13 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, bool, error) {
+func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
 
 	var (
-		columnSelectAs        = map[string]string{}
-		columnPredicates      = map[string][]parquetquery.Predicate{}
-		iters                 []parquetquery.Iterator
-		genericConditions     []traceql.Condition
-		spanDurationRetrieved bool
+		columnSelectAs    = map[string]string{}
+		columnPredicates  = map[string][]parquetquery.Predicate{}
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -635,7 +635,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicSpanID:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 			addPredicate(columnPathSpanID, pred)
 			columnSelectAs[columnPathSpanID] = columnPathSpanID
@@ -644,7 +644,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicSpanStartTime:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 			addPredicate(columnPathSpanStartTime, pred)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
@@ -653,7 +653,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 			addPredicate(columnPathSpanName, pred)
 			columnSelectAs[columnPathSpanName] = columnPathSpanName
@@ -662,17 +662,16 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicKind:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 			addPredicate(columnPathSpanKind, pred)
 			columnSelectAs[columnPathSpanKind] = columnPathSpanKind
 			continue
 
 		case traceql.IntrinsicDuration:
-			spanDurationRetrieved = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 			addPredicate(columnPathSpanDuration, pred)
 			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
@@ -681,7 +680,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicStatus:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
@@ -700,7 +699,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, false, errors.Wrap(err, "creating predicate")
+					return nil, errors.Wrap(err, "creating predicate")
 				}
 				addPredicate(entry.columnPath, pred)
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
@@ -715,7 +714,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "creating span attribute iterator")
+		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
@@ -777,7 +776,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), spanDurationRetrieved, nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -1285,7 +1284,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos
-			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(durationNanos)) // jpe - double counted for opts?
+			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(durationNanos))
 		case columnPathSpanName:
 			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
 		case columnPathSpanStatusCode:
