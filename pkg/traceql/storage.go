@@ -37,11 +37,8 @@ func SearchMetaConditionsWithoutDuration() []Condition {
 	}
 }
 
-// FilterSpans is a hint that allows the calling code to filter down spans to only
-// those that metadata needs to be retrieved for. If the returned Spanset has no
-// spans it is discarded and will not appear in FetchSpansResponse. The bool
-// return value is used to indicate if the Fetcher should continue iterating or if
-// it can bail out.
+// SecondPassFn is a method that is called in between the first and second
+// pass of a fetch spans request. See below.
 type SecondPassFn func(*Spanset) ([]*Spanset, error)
 
 type FetchSpansRequest struct {
@@ -57,13 +54,12 @@ type FetchSpansRequest struct {
 	// all criteria.
 	AllConditions bool
 
-	// For some implementations retrieving all of the metadata for the spans
-	// can be quite costly. This hint allows the calling code to filter down
-	// spans before the span metadata is fetched, but after the data requested
-	// in the Conditions is fetched. If this is unset then all metadata
-	// for all matching spansets is returned.
-	// If this is set it must be called by the storage layer even if there is
-	// no opportunity to pull metadata independently of span data.
+	// SecondPassFn and Conditions allow a caller to retrieve one set of data
+	// in the first pass, filter using the SecondPassFn callback and then
+	// request a different set of data in the second pass. This is particularly
+	// useful for retrieving data required to resolve a TraceQL query in the first
+	// pass and only selecting metadata in the second pass.
+	// TODO: extend this to an arbitrary number of passes
 	SecondPass           SecondPassFn
 	SecondPassConditions []Condition
 }

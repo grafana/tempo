@@ -552,9 +552,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case traceql.AttributeScopeSpan:
-			fallthrough
-		case intrinsicScopeSpan:
+		case traceql.AttributeScopeSpan, intrinsicScopeSpan:
 			spanConditions = append(spanConditions, cond)
 			continue
 
