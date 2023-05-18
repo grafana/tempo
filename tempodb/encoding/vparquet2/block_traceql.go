@@ -369,6 +369,38 @@ func (i *bridgeIterator) Close() {
 	i.iter.Close()
 }
 
+// confirm rebatchIterator implements pq.Iterator
+var _ pq.Iterator = (*rebatchIterator)(nil)
+
+// rebatchIterator either passes spansets through directly OR rebatches them based on metadata
+// in OtherEntries
+type rebatchIterator struct {
+	iter parquetquery.Iterator
+}
+
+func newRebatchIterator(iter parquetquery.Iterator) *rebatchIterator {
+	return &rebatchIterator{
+		iter: iter,
+	}
+}
+
+func (i *rebatchIterator) String() string {
+	return fmt.Sprintf("rebatchIterator: \n\t%s", util.TabOut(i.iter))
+}
+
+func (i *rebatchIterator) Next() (*pq.IteratorResult, error) {
+	// jpe do something worth doing
+	return i.iter.Next()
+}
+
+func (i *rebatchIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
+	return i.iter.SeekTo(to, definitionLevel)
+}
+
+func (i *rebatchIterator) Close() {
+	i.iter.Close()
+}
+
 // spansetIterator turns the parquet iterator into the final
 // traceql iterator.  Every row it receives is one spanset.
 type spansetIterator struct {
@@ -517,7 +549,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	}
 
 	if req.SecondPass != nil {
-		iter = newBridgeIterator(iter, req.SecondPass)
+		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
 		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts)
 		if err != nil {
@@ -525,7 +557,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		}
 	}
 
-	return newSpansetIterator(iter), nil
+	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
