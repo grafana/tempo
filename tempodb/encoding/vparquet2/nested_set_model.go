@@ -6,7 +6,7 @@ import "github.com/grafana/tempo/pkg/util"
 func assignNestedSetModelBounds(trace *Trace) {
 	var (
 		assignmentNeeded bool
-		rootSpans        []*Span
+		rootSpans        []wrappedSpan
 		spanChildren     = map[uint64][]*Span{}
 	)
 
@@ -19,7 +19,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 				}
 
 				if len(s.ParentSpanID) == 0 {
-					rootSpans = append(rootSpans, &ss.Spans[i])
+					rootSpans = append(rootSpans, wrappedSpan{span: &ss.Spans[i], id: util.SpanIDToUint64(s.SpanID)})
 				} else {
 					parentID := util.SpanIDToUint64(s.ParentSpanID)
 					spanChildren[parentID] = append(spanChildren[parentID], &ss.Spans[i])
@@ -38,12 +38,12 @@ func assignNestedSetModelBounds(trace *Trace) {
 		nestedSetBound int32 = 1
 	)
 
-	for _, root := range rootSpans {
-		root.NestedSetLeft = nestedSetBound
+	for i, root := range rootSpans {
+		root.span.NestedSetLeft = nestedSetBound
 		nestedSetBound++
 
 		ancestors.reset()
-		ancestors.push(&wrappedSpan{span: root, id: util.SpanIDToUint64(root.SpanID)})
+		ancestors.push(&rootSpans[i])
 
 		for !ancestors.isEmpty() {
 			parent := ancestors.peek()

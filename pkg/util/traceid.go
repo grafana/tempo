@@ -64,8 +64,8 @@ func SpanIDToHexString(byteID []byte) string {
 func SpanIDToUint64(spanID []byte) uint64 {
 	var id uint64
 
-	for i := 0; i < 8 && i < len(spanID); i++ {
-		mask := uint64(spanID[i]) << (64 - (i+1)*8)
+	for i, s := 0, uint64(56); i < 8 && i < len(spanID); i, s = i+1, s-8 {
+		mask := uint64(spanID[i]) << s
 		id |= mask
 	}
 
