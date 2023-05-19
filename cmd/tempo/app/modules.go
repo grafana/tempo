@@ -158,20 +158,20 @@ func (t *App) initOverrides() (services.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
-	t.overrides = overrides
+	t.Overrides = overrides
 
 	prometheus.MustRegister(&t.cfg.LimitsConfig)
 
 	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
-		prometheus.MustRegister(t.overrides)
+		prometheus.MustRegister(t.Overrides)
 	}
 
-	return t.overrides, nil
+	return t.Overrides, nil
 }
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.Overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -187,7 +187,7 @@ func (t *App) initDistributor() (services.Service, error) {
 func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	t.cfg.Ingester.AutocompleteFilteringEnabled = t.cfg.AutocompleteFilteringEnabled
-	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
+	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ingester: %w", err)
 	}
@@ -202,7 +202,7 @@ func (t *App) initIngester() (services.Service, error) {
 
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	genSvc, err := generator.New(&t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
 	if err == generator.ErrUnconfigured && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -239,7 +239,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 
 	// todo: make ingester client a module instead of passing config everywhere
-	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
+	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.Overrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier %w", err)
 	}
@@ -280,7 +280,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.overrides, t.store, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides, prometheus.DefaultRegisterer)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
 	}

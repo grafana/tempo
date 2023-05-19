@@ -20,13 +20,13 @@ type RingCount interface {
 // Limiter implements primitives to get the maximum number of traces
 // an ingester can handle for a specific tenant
 type Limiter struct {
-	limits            *overrides.Overrides
+	limits            overrides.Interface
 	ring              RingCount
 	replicationFactor int
 }
 
 // NewLimiter makes a new limiter
-func NewLimiter(limits *overrides.Overrides, ring RingCount, replicationFactor int) *Limiter {
+func NewLimiter(limits overrides.Interface, ring RingCount, replicationFactor int) *Limiter {
 	return &Limiter{
 		limits:            limits,
 		ring:              ring,

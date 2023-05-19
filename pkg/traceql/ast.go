@@ -443,6 +443,89 @@ func (s Static) Equals(other Static) bool {
 	return s == other
 }
 
+func (s Static) compare(other *Static) int {
+	if s.Type != other.Type {
+		if s.asFloat() > other.asFloat() {
+			return 1
+		} else if s.asFloat() < other.asFloat() {
+			return -1
+		}
+
+		return 0
+	}
+
+	switch s.Type {
+	case TypeInt:
+		if s.N > other.N {
+			return 1
+		} else if s.N < other.N {
+			return -1
+		}
+	case TypeFloat:
+		if s.F > other.F {
+			return 1
+		} else if s.F < other.F {
+			return -1
+		}
+	case TypeDuration:
+		if s.D > other.D {
+			return 1
+		} else if s.D < other.D {
+			return -1
+		}
+	case TypeString:
+		if s.S > other.S {
+			return 1
+		} else if s.S < other.S {
+			return -1
+		}
+	case TypeBoolean:
+		if s.B && !other.B {
+			return 1
+		} else if !s.B && other.B {
+			return -1
+		}
+	case TypeStatus:
+		if s.Status > other.Status {
+			return 1
+		} else if s.Status < other.Status {
+			return -1
+		}
+	case TypeKind:
+		if s.Kind > other.Kind {
+			return 1
+		} else if s.Kind < other.Kind {
+			return -1
+		}
+	}
+
+	return 0
+}
+
+func (s *Static) sumInto(other Static) {
+	switch s.Type {
+	case TypeInt:
+		s.N += other.N
+	case TypeFloat:
+		s.F += other.F
+	case TypeDuration:
+		s.D += other.D
+	}
+}
+
+func (s Static) divideBy(f float64) Static {
+	switch s.Type {
+	case TypeInt:
+		return NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
+	case TypeFloat:
+		return NewStaticFloat(s.F / f)
+	case TypeDuration:
+		return NewStaticDuration(s.D / time.Duration(f))
+	}
+
+	return s
+}
+
 func (s Static) asFloat() float64 {
 	switch s.Type {
 	case TypeInt:

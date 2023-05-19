@@ -78,6 +78,7 @@ func TestEngine_Execute(t *testing.T) {
 							},
 						},
 					},
+					Attributes: map[string]Static{attributeMatched: NewStaticInt(1)},
 				},
 				{
 					TraceID:         []byte{2},
@@ -104,9 +105,10 @@ func TestEngine_Execute(t *testing.T) {
 			newCondition(NewAttribute("foo"), OpNone),
 			newCondition(NewAttribute("bar"), OpNone),
 		},
-		AllConditions: true,
+		AllConditions:        true,
+		SecondPassConditions: SearchMetaConditions(),
 	}
-	spanSetFetcher.capturedRequest.Filter = nil // have to set this to nil b/c assert.Equal does not handle function pointers
+	spanSetFetcher.capturedRequest.SecondPass = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
@@ -163,7 +165,7 @@ func TestEngine_Execute(t *testing.T) {
 						},
 					},
 				},
-				Matched: 2,
+				Matched: 3,
 			},
 		},
 	}
@@ -223,6 +225,10 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				durationNanos:      uint64((20 * time.Second).Nanoseconds()),
 				attributes:         map[Attribute]Static{},
 			},
+		},
+		Attributes: map[string]Static{
+			attributeMatched: NewStaticInt(2),
+			"avg(duration)":  NewStaticFloat(15.0),
 		},
 	}
 
@@ -302,6 +308,16 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 					Attributes:        nil,
 				},
 			},
+			Attributes: []*v1.KeyValue{
+				{
+					Key: "avg(duration)",
+					Value: &v1.AnyValue{
+						Value: &v1.AnyValue_DoubleValue{
+							DoubleValue: 15.0,
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -322,7 +338,7 @@ var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
 func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
-	m.iterator.(*MockSpanSetIterator).filter = request.Filter
+	m.iterator.(*MockSpanSetIterator).filter = request.SecondPass
 	return FetchSpansResponse{
 		Results: m.iterator,
 		Bytes: func() uint64 {
@@ -333,7 +349,7 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 
 type MockSpanSetIterator struct {
 	results []*Spanset
-	filter  FilterSpans
+	filter  SecondPassFn
 }
 
 func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
@@ -343,6 +359,10 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 		}
 		r := m.results[0]
 		m.results = m.results[1:]
+
+		if m.filter == nil {
+			return r, nil
+		}
 
 		ss, err := m.filter(r)
 		if err != nil {

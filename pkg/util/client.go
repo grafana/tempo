@@ -129,7 +129,7 @@ func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, 
 // Search Tempo. tags must be in logfmt format, that is "key1=value1 key2=value2"
 func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags), m)
+	_, err := c.getFor(c.buildQueryURL("tags", tags, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags)+"&start="+strconv.FormatInt(start, 10)+"&end="+strconv.FormatInt(end, 10), m)
+	_, err := c.getFor(c.buildQueryURL("tags", tags, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -164,10 +164,33 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?q="+url.QueryEscape(query), m)
+	_, err := c.getFor(c.buildQueryURL("q", query, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
 
 	return m, nil
+}
+
+func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
+	m := &tempopb.SearchResponse{}
+	_, err := c.getFor(c.buildQueryURL("q", query, start, end), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) buildQueryURL(queryType string, query string, start int64, end int64) string {
+	joinURL, _ := url.Parse(c.BaseURL + "/api/search?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	q.Set(queryType, query)
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
 }

@@ -13,6 +13,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/modules/distributor/queue"
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 const (
@@ -21,9 +22,10 @@ const (
 )
 
 type Overrides interface {
-	TenantIDs() []string
 	Forwarders(tenantID string) []string
 }
+
+var _ Overrides = (overrides.Interface)(nil)
 
 type Manager struct {
 	services.Service

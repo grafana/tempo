@@ -39,7 +39,7 @@ func (m *mockSpan) StartTimeUnixNanos() uint64                       { return 0 
 func (m *mockSpan) DurationNanos() uint64                            { return m.duration }
 
 type mockFetcher struct {
-	filter   traceql.FilterSpans
+	filter   traceql.SecondPassFn
 	Spansets []*traceql.Spanset
 }
 
@@ -47,7 +47,7 @@ var _ traceql.SpansetFetcher = (*mockFetcher)(nil)
 var _ traceql.SpansetIterator = (*mockFetcher)(nil)
 
 func (m *mockFetcher) Fetch(_ context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-	m.filter = req.Filter
+	m.filter = req.SecondPass
 	return traceql.FetchSpansResponse{
 		Results: m,
 	}, nil

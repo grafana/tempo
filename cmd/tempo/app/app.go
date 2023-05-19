@@ -64,7 +64,7 @@ type App struct {
 	InternalServer *server.Server
 	ring           *ring.Ring
 	generatorRing  *ring.Ring
-	overrides      *overrides.Overrides
+	Overrides      overrides.Service
 	distributor    *distributor.Distributor
 	querier        *querier.Querier
 	frontend       *frontend_v1.Frontend
@@ -338,11 +338,11 @@ func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
 
 func (t *App) writeRuntimeConfig(w io.Writer, r *http.Request) error {
 	// Querier and query-frontend services do not run the overrides module
-	if t.overrides == nil {
+	if t.Overrides == nil {
 		_, err := w.Write([]byte(fmt.Sprintf("overrides module not loaded in %s\n", t.cfg.Target)))
 		return err
 	}
-	return t.overrides.WriteStatusRuntimeConfig(w, r)
+	return t.Overrides.WriteStatusRuntimeConfig(w, r)
 }
 
 func (t *App) statusHandler() http.HandlerFunc {

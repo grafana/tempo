@@ -74,7 +74,7 @@ type Querier struct {
 	pool   *ring_client.Pool
 	engine *traceql.Engine
 	store  storage.Store
-	limits *overrides.Overrides
+	limits overrides.Interface
 
 	searchClient     *http.Client
 	searchPreferSelf *semaphore.Weighted
@@ -89,7 +89,7 @@ type responseFromIngesters struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits overrides.Interface) (*Querier, error) {
 	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
 
 	factory := func(addr string) (ring_client.PoolClient, error) {
