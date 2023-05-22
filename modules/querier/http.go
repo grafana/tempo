@@ -266,6 +266,35 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
+func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SpanMetricsSummaryHandler")
+	defer span.Finish()
+
+	req, err := api.ParseSpanMetricsSummaryRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	resp, err := q.SpanMetricsSummary(ctx, req)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+}
+
 func handleError(w http.ResponseWriter, err error) {
 	if errors.Is(err, context.Canceled) {
 		// ignore this error. we regularly cancel context once queries are complete

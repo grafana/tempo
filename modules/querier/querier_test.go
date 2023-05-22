@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/modules/ingester/client"
+	generator_client "github.com/grafana/tempo/modules/generator/client"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
@@ -66,7 +67,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 		o, err := overrides.NewOverrides(overrides.Limits{})
 		require.NoError(t, err)
 
-		q, err := New(tc.cfg, client.Config{}, nil, nil, o)
+		q, err := New(tc.cfg, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)
 		require.NoError(t, err)
 
 		for i := 0; i < tc.queriesToExecute; i++ {
