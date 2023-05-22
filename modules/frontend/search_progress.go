@@ -6,8 +6,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // searchProgressFactory is used to provide a way to construct a shardedSearchProgress to the searchSharder. It exists
@@ -92,7 +92,7 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 			// combine into the incoming trace and then set in the map. this prevents
 			// race conditions on pointers to traces that we've already returned from
 			// .result()
-			search.CombineSearchResults(t, r.resultsMap[t.TraceID])
+			traceql.CombineSearchResults(t, r.resultsMap[t.TraceID])
 			r.resultsMap[t.TraceID] = t
 		}
 	}

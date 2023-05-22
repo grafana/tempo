@@ -89,7 +89,8 @@ message TraceSearchMetadata {
   string rootTraceName = 3;
   uint64 startTimeUnixNano = 4;
   uint32 durationMs = 5;
-  SpanSet spanSet = 6; // only returned from TraceQL queries
+  SpanSet spanSet = 6; // deprecated. use SpanSets field below
+  repeated SpanSet spanSets = 7;
 }
 
 message SpanSet {

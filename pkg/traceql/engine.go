@@ -288,6 +288,21 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
+func addTraceSearchMetadata(existing []*tempopb.TraceSearchMetadata, new *tempopb.TraceSearchMetadata) []*tempopb.TraceSearchMetadata {
+	// search for an existing traceid first
+	for _, t := range existing {
+		if t.TraceID == new.TraceID {
+			// found a match, combine into th existing one
+			CombineSearchResults(t, new)
+			return existing
+		}
+	}
+
+	// otherwise append a new one
+	return append(existing, new)
+}
+
+// jpe - update this to use Spansets
 func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
@@ -329,6 +344,10 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 
 		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
 	}
+
+	// create a new slice and add the spanset to it. eventually we will deprecate
+	//  metadata.SpanSet
+	metadata.SpanSets = []*tempopb.SpanSet{metadata.SpanSet}
 
 	// add attributes
 	for _, att := range spanset.Attributes {

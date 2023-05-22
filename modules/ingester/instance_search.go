@@ -65,7 +65,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 		// Dedupe/combine results
 		if existing := resultsMap[result.TraceID]; existing != nil {
-			search.CombineSearchResults(existing, result)
+			traceql.CombineSearchResults(existing, result)
 		} else {
 			resultsMap[result.TraceID] = result
 		}
