@@ -31,7 +31,7 @@ type Processor struct {
 	wal      *wal.WAL
 	closeCh  chan struct{}
 	wg       sync.WaitGroup
-	cacheMtx sync.Mutex
+	cacheMtx sync.RWMutex
 	cache    *lru.Cache
 
 	blocksMtx      sync.RWMutex
@@ -343,8 +343,8 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 }
 
 func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {
-	p.cacheMtx.Lock()
-	defer p.cacheMtx.Unlock()
+	p.cacheMtx.RLock()
+	defer p.cacheMtx.RUnlock()
 
 	if r, ok := p.cache.Get(key); ok {
 		return r.(*traceqlmetrics.MetricsResults)
