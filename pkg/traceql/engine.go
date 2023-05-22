@@ -53,9 +53,25 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
+	// calculate search meta conditions. the only choice is whether or not to include duration
+	// if we request duration as part of the normal span fetch then we can ignore it
+	durationRequested := false
+	for _, c := range fetchSpansRequest.Conditions {
+		if c.Attribute.Intrinsic == IntrinsicDuration {
+			durationRequested = true
+			break
+		}
+	}
+
+	metaConditions := SearchMetaConditions()
+	if durationRequested {
+		metaConditions = SearchMetaConditionsWithoutDuration()
+	}
+
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
+	fetchSpansRequest.SecondPassConditions = metaConditions
+	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
 		}
@@ -205,33 +221,6 @@ func (e *Engine) ExecuteTagValues(
 		return fmt.Errorf("unknown attribute scope: %s", tag)
 	}
 
-	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
-		if len(inSS.Spans) == 0 {
-			return nil, nil
-		}
-
-		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
-		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
-			return nil, err
-		}
-
-		if len(evalSS) == 0 {
-			return nil, nil
-		}
-
-		for _, ss := range evalSS {
-			for _, s := range ss.Spans {
-				if collectAttributeValue(s) {
-					return nil, io.EOF // Exit if we have exceeded max bytes
-				}
-			}
-		}
-
-		return nil, nil // We don't want to fetch metadata
-	}
-
 	fetchSpansResponse, err := fetcher.Fetch(ctx, fetchSpansRequest)
 	if err != nil {
 		return err
@@ -248,6 +237,28 @@ func (e *Engine) ExecuteTagValues(
 		if spanset == nil {
 			break
 		}
+		if len(spanset.Spans) == 0 {
+			continue
+		}
+
+		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{spanset})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return err
+		}
+
+		if len(evalSS) == 0 {
+			continue
+		}
+
+		for _, ss := range evalSS {
+			for _, s := range ss.Spans {
+				if collectAttributeValue(s) {
+					return nil // exit early if we've exceed max bytes
+				}
+			}
+		}
+
 	}
 
 	return nil

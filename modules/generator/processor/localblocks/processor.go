@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/pkg/model"
@@ -25,13 +26,15 @@ import (
 )
 
 type Processor struct {
-	tenant  string
-	Cfg     Config
-	wal     *wal.WAL
-	closeCh chan struct{}
-	wg      sync.WaitGroup
+	tenant   string
+	Cfg      Config
+	wal      *wal.WAL
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
+	cacheMtx sync.RWMutex
+	cache    *lru.Cache
 
-	blocksMtx      sync.Mutex
+	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
 	completeBlocks map[uuid.UUID]common.BackendBlock
@@ -58,6 +61,7 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 		liveTraces:     newLiveTraces(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
+		cache:          lru.New(100),
 	}
 
 	err := p.reloadBlocks()
@@ -200,8 +204,21 @@ func (p *Processor) metricLoop() {
 }
 
 func (p *Processor) completeBlock() error {
-	p.blocksMtx.Lock()
-	defer p.blocksMtx.Unlock()
+
+	// Get a wal block
+	var firstWalBlock common.WALBlock
+	p.blocksMtx.RLock()
+	for _, e := range p.walBlocks {
+		firstWalBlock = e
+		break
+	}
+	p.blocksMtx.RUnlock()
+
+	if firstWalBlock == nil {
+		return nil
+	}
+
+	// Now create a new block
 
 	var (
 		ctx    = context.Background()
@@ -209,53 +226,83 @@ func (p *Processor) completeBlock() error {
 		reader = backend.NewReader(p.wal.LocalBackend())
 		writer = backend.NewWriter(p.wal.LocalBackend())
 		cfg    = p.Cfg.Block
+		b      = firstWalBlock
 	)
 
-	for id, b := range p.walBlocks {
-
-		iter, err := b.Iterator()
-		if err != nil {
-			return err
-		}
-		defer iter.Close()
-
-		newMeta, err := enc.CreateBlock(ctx, cfg, b.BlockMeta(), iter, reader, writer)
-		if err != nil {
-			return err
-		}
-
-		newBlock, err := enc.OpenBlock(newMeta, reader)
-		if err != nil {
-			return err
-		}
-
-		p.completeBlocks[newMeta.BlockID] = newBlock
-
-		err = b.Clear()
-		if err != nil {
-			return err
-		}
-		delete(p.walBlocks, id)
-
-		// Only do 1 block per call
-		return nil
+	iter, err := b.Iterator()
+	if err != nil {
+		return err
 	}
+	defer iter.Close()
+
+	newMeta, err := enc.CreateBlock(ctx, cfg, b.BlockMeta(), iter, reader, writer)
+	if err != nil {
+		return err
+	}
+
+	newBlock, err := enc.OpenBlock(newMeta, reader)
+	if err != nil {
+		return err
+	}
+
+	// Add new block and delete old block
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
+
+	p.completeBlocks[newMeta.BlockID] = newBlock
+
+	err = b.Clear()
+	if err != nil {
+		return err
+	}
+	delete(p.walBlocks, b.BlockMeta().BlockID)
 
 	return nil
 }
 
 func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {
+	p.blocksMtx.RLock()
+	defer p.blocksMtx.RUnlock()
 
-	fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		if p.headBlock == nil {
-			return traceql.FetchSpansResponse{}, fmt.Errorf("head block is nil")
+	// Blocks to check
+	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
+	if p.headBlock != nil {
+		blocks = append(blocks, p.headBlock)
+	}
+	for _, b := range p.walBlocks {
+		blocks = append(blocks, b)
+	}
+	for _, b := range p.completeBlocks {
+		blocks = append(blocks, b)
+	}
+
+	m := traceqlmetrics.NewMetricsResults()
+	for _, b := range blocks {
+
+		// Including the trace count in the cache key means we can safely
+		// cache results for a wal block
+		key := fmt.Sprintf("b:%s-c:%d-q:%s-g:%s", b.BlockMeta().BlockID.String(), b.BlockMeta().TotalObjects, req.Query, req.GroupBy)
+		if r := p.metricsCacheGet(key); r != nil {
+			m.Combine(r)
+			continue
 		}
-		return p.headBlock.Fetch(ctx, req, common.DefaultSearchOptions())
-	})
 
-	m, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, int(req.Limit), fetcher)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get metrics")
+		f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return b.Fetch(ctx, req, common.DefaultSearchOptions())
+		})
+
+		r, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, f)
+		if err != nil {
+			return nil, err
+		}
+
+		p.metricsCacheSet(key, r)
+
+		m.Combine(r)
+
+		if req.Limit > 0 && m.SpanCount >= int(req.Limit) {
+			break
+		}
 	}
 
 	resp := &tempopb.SpanMetricsResponse{
@@ -293,6 +340,24 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	}
 
 	return resp, nil
+}
+
+func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {
+	p.cacheMtx.RLock()
+	defer p.cacheMtx.RUnlock()
+
+	if r, ok := p.cache.Get(key); ok {
+		return r.(*traceqlmetrics.MetricsResults)
+	}
+
+	return nil
+}
+
+func (p *Processor) metricsCacheSet(key string, m *traceqlmetrics.MetricsResults) {
+	p.cacheMtx.Lock()
+	defer p.cacheMtx.Unlock()
+
+	p.cache.Add(key, m)
 }
 
 func (p *Processor) deleteOldBlocks() (err error) {
@@ -493,8 +558,8 @@ func (p *Processor) reloadBlocks() error {
 }
 
 func (p *Processor) recordBlockBytes() {
-	p.blocksMtx.Lock()
-	defer p.blocksMtx.Unlock()
+	p.blocksMtx.RLock()
+	defer p.blocksMtx.RUnlock()
 
 	sum := uint64(0)
 
