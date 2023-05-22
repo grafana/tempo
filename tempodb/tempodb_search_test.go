@@ -290,7 +290,7 @@ func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Name:              "", // jpe name?
+									Name:              "",
 									Attributes: []*v1_common.KeyValue{
 										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
 									},
@@ -324,7 +324,7 @@ func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 									SpanID:            "0000000000010203",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     1000000000,
-									Name:              "", // jpe name?
+									Name:              "",
 									Attributes: []*v1_common.KeyValue{
 										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
 									},

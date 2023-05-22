@@ -384,7 +384,7 @@ func (i *bridgeIterator) Close() {
 var _ pq.Iterator = (*rebatchIterator)(nil)
 
 // rebatchIterator either passes spansets through directly OR rebatches them based on metadata
-// in OtherEntries jpe - test
+// in OtherEntries
 type rebatchIterator struct {
 	iter parquetquery.Iterator
 
