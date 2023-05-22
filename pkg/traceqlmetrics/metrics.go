@@ -10,11 +10,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type latencyHistogram struct {
+type LatencyHistogram struct {
 	buckets [64]int // Exponential buckets, powers of 2
 }
 
-func (m *latencyHistogram) Record(durationNanos uint64) {
+func New(buckets [64]int) *LatencyHistogram {
+	return &LatencyHistogram{buckets: buckets}
+}
+
+func (m *LatencyHistogram) Record(durationNanos uint64) {
 	// Increment bucket that matches log2(duration)
 	var bucket int
 	if durationNanos >= 2 {
@@ -23,7 +27,7 @@ func (m *latencyHistogram) Record(durationNanos uint64) {
 	m.buckets[bucket]++
 }
 
-func (m *latencyHistogram) Count() int {
+func (m *LatencyHistogram) Count() int {
 	total := 0
 	for _, count := range m.buckets {
 		total += count
@@ -31,14 +35,14 @@ func (m *latencyHistogram) Count() int {
 	return total
 }
 
-func (m *latencyHistogram) Combine(other latencyHistogram) {
+func (m *LatencyHistogram) Combine(other LatencyHistogram) {
 	for i := range m.buckets {
 		m.buckets[i] += other.buckets[i]
 	}
 }
 
 // Percentile returns the estimated latency percentile in nanoseconds.
-func (m *latencyHistogram) Percentile(p float32) uint64 {
+func (m *LatencyHistogram) Percentile(p float32) uint64 {
 
 	// Maximum amount of samples to include. We round up to better handle
 	// percentiles on low sample counts (<100).
@@ -71,20 +75,20 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 }
 
 // Buckets returns the bucket counts for each power of 2.
-func (m *latencyHistogram) Buckets() [64]int {
+func (m *LatencyHistogram) Buckets() [64]int {
 	return m.buckets
 }
 
 type MetricsResults struct {
 	Estimated bool
 	SpanCount int
-	Series    map[traceql.Static]*latencyHistogram
+	Series    map[traceql.Static]*LatencyHistogram
 	Errors    map[traceql.Static]int
 }
 
 func NewMetricsResults() *MetricsResults {
 	return &MetricsResults{
-		Series: map[traceql.Static]*latencyHistogram{},
+		Series: map[traceql.Static]*LatencyHistogram{},
 		Errors: map[traceql.Static]int{},
 	}
 }
@@ -92,7 +96,7 @@ func NewMetricsResults() *MetricsResults {
 func (m *MetricsResults) Record(series traceql.Static, durationNanos uint64, err bool) {
 	s := m.Series[series]
 	if s == nil {
-		s = &latencyHistogram{}
+		s = &LatencyHistogram{}
 		m.Series[series] = s
 	}
 	s.Record(durationNanos)
@@ -112,7 +116,7 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 	for k, v := range other.Series {
 		s := m.Series[k]
 		if s == nil {
-			s = &latencyHistogram{}
+			s = &LatencyHistogram{}
 			m.Series[k] = s
 		}
 		s.Combine(*v)

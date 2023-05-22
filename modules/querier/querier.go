@@ -27,6 +27,7 @@ import (
 	"go.uber.org/multierr"
 	"golang.org/x/sync/semaphore"
 
+	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier/worker"
@@ -37,6 +38,7 @@ import (
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
@@ -49,6 +51,11 @@ var (
 		Namespace: "tempo",
 		Name:      "querier_ingester_clients",
 		Help:      "The current number of ingester clients.",
+	})
+	metricMetricsGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "querier_metrics_generator_clients",
+		Help:      "The current number of generator clients.",
 	})
 	metricEndpointDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
@@ -69,9 +76,14 @@ var (
 type Querier struct {
 	services.Service
 
-	cfg    Config
-	ring   ring.ReadRing
-	pool   *ring_client.Pool
+	cfg Config
+
+	ingesterPool *ring_client.Pool
+	ingesterRing ring.ReadRing
+
+	generatorPool *ring_client.Pool
+	generatorRing ring.ReadRing
+
 	engine *traceql.Engine
 	store  storage.Store
 	limits overrides.Interface
@@ -88,22 +100,46 @@ type responseFromIngesters struct {
 	response interface{}
 }
 
+type responseFromGenerators struct {
+	addr     string
+	response interface{}
+}
+
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits overrides.Interface) (*Querier, error) {
+func New(
+	cfg Config,
+	ingesterClientConfig ingester_client.Config,
+	ingesterRing ring.ReadRing,
+	generatorClientConfig generator_client.Config,
+	generatorRing ring.ReadRing,
+	store storage.Store,
+	limits overrides.Interface,
+) (*Querier, error) {
 	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
 
-	factory := func(addr string) (ring_client.PoolClient, error) {
-		return ingester_client.New(addr, clientCfg)
+	ingesterClientFactory := func(addr string) (ring_client.PoolClient, error) {
+		return ingester_client.New(addr, ingesterClientConfig)
+	}
+
+	generatorClientFactory := func(addr string) (ring_client.PoolClient, error) {
+		return generator_client.New(addr, generatorClientConfig)
 	}
 
 	q := &Querier{
-		cfg:  cfg,
-		ring: ring,
-		pool: ring_client.NewPool("querier_pool",
-			clientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(ring),
-			factory,
+		cfg:          cfg,
+		ingesterRing: ingesterRing,
+		ingesterPool: ring_client.NewPool("querier_pool",
+			ingesterClientConfig.PoolConfig,
+			ring_client.NewRingServiceDiscovery(ingesterRing),
+			ingesterClientFactory,
 			metricIngesterClients,
+			log.Logger),
+		generatorRing: generatorRing,
+		generatorPool: ring_client.NewPool("querier_to_generator_pool",
+			generatorClientConfig.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorRing),
+			generatorClientFactory,
+			metricMetricsGeneratorClients,
 			log.Logger),
 		engine:           traceql.NewEngine(),
 		store:            store,
@@ -116,7 +152,11 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	if cfg.Search.HedgeRequestsAt != 0 {
 		var err error
 		var stats *hedgedhttp.Stats
-		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(
+			cfg.Search.HedgeRequestsAt,
+			cfg.Search.HedgeRequestsUpTo,
+			http.DefaultClient,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +179,12 @@ func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 		return fmt.Errorf("failed to create frontend worker: %w", err)
 	}
 
-	return q.RegisterSubservices(worker, q.pool)
+	err = q.RegisterSubservices(worker, q.generatorPool)
+	if err != nil {
+		return fmt.Errorf("failed to register generator pool sub-service: %w", err)
+	}
+
+	return q.RegisterSubservices(worker, q.ingesterPool)
 }
 
 func (q *Querier) RegisterSubservices(s ...services.Service) error {
@@ -205,9 +250,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		var err error
 		if q.cfg.QueryRelevantIngesters {
 			traceKey := util.TokenFor(userID, req.TraceID)
-			replicationSet, err = q.ring.Get(traceKey, ring.Read, nil, nil, nil)
+			replicationSet, err = q.ingesterRing.Get(traceKey, ring.Read, nil, nil, nil)
 		} else {
-			replicationSet, err = q.ring.GetReplicationSetForOperation(ring.Read)
+			replicationSet, err = q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 		}
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
@@ -289,7 +334,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 			return nil, funcCtx.Err()
 		}
 
-		client, err := q.pool.GetClientFor(ingester.Addr)
+		client, err := q.ingesterPool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", ingester.Addr))
 		}
@@ -315,13 +360,59 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 	return responses, nil
 }
 
+// forGivenGenerators runs f, in parallel, for given generators
+func (q *Querier) forGivenGenerators(
+	ctx context.Context,
+	replicationSet ring.ReplicationSet,
+	f func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error),
+) ([]responseFromGenerators, error) {
+	if ctx.Err() != nil {
+		_ = level.Debug(log.Logger).Log("foreGivenGenerators context error", "ctx.Err()", ctx.Err().Error())
+		return nil, ctx.Err()
+	}
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forGivenGenerators")
+	defer span.Finish()
+
+	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
+		if funcCtx.Err() != nil {
+			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
+			return nil, funcCtx.Err()
+		}
+
+		client, err := q.generatorPool.GetClientFor(generator.Addr)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", generator.Addr))
+		}
+
+		resp, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to execute f() for %s", generator.Addr))
+		}
+
+		return responseFromGenerators{generator.Addr, resp}, nil
+	}
+
+	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get response from generators")
+	}
+
+	responses := make([]responseFromGenerators, 0, len(results))
+	for _, result := range results {
+		responses = append(responses, result.(responseFromGenerators))
+	}
+
+	return responses, nil
+}
+
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
 	}
 
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.Search")
 	}
@@ -346,7 +437,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	distinctValues := util.NewDistinctStringCollector(limit)
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
 	}
@@ -380,7 +471,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
 	}
@@ -440,7 +531,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
 	}
@@ -488,7 +579,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	// Get results from all ingesters
-	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	replicationSet, err := q.ingesterRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
 	}
@@ -509,6 +600,94 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	return valuesToV2Response(distinctValues), nil
+}
+
+func (q *Querier) SpanMetricsSummary(
+	ctx context.Context,
+	req *tempopb.SpanMetricsSummaryRequest,
+) (*tempopb.SpanMetricsSummaryResponse, error) {
+	// userID, err := user.ExtractOrgID(ctx)
+	// if err != nil {
+	// 	return nil, errors.Wrap(err, "error extracting org id in Querier.SpanMetricsSummary")
+	// }
+
+	// limit := q.limits.MaxBytesPerTagValuesQuery(userID)
+
+	genReq := &tempopb.SpanMetricsRequest{
+		Query:   req.Query,
+		GroupBy: req.GroupBy,
+		Limit:   0,
+	}
+
+	// Get results from all generators
+	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding generators in Querier.SpanMetricsSummary")
+	}
+	lookupResults, err := q.forGivenGenerators(
+		ctx,
+		replicationSet,
+		func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error) {
+			return client.GetMetrics(ctx, genReq)
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying generators in Querier.SpanMetricsSummary")
+	}
+
+	// Assemble the results from the generators in the pool
+	results := make([]*tempopb.SpanMetricsResponse, 0, len(lookupResults))
+	for _, result := range lookupResults {
+		results = append(results, result.response.(*tempopb.SpanMetricsResponse))
+	}
+
+	// Combine the results
+	yyy := make(map[traceql.Static]*traceqlmetrics.LatencyHistogram)
+	xxx := make(map[traceql.Static]*tempopb.SpanMetricsSummary)
+
+	var h *traceqlmetrics.LatencyHistogram
+	var s traceql.Static
+	for _, r := range results {
+		for _, m := range r.Metrics {
+			s = protoToTraceQLStatic(m.Static)
+
+			if _, ok := xxx[s]; !ok {
+				xxx[s] = &tempopb.SpanMetricsSummary{Static: m.Static}
+			}
+
+			xxx[s].ErrorSpanCount += m.Errors
+
+			var b [64]int
+			for _, l := range m.GetLatencyHistogram() {
+				// Reconstitude the bucket
+				b[l.Bucket] += int(l.Count)
+				// Add to the total
+				xxx[s].SpanCount += l.Count
+			}
+
+			// Combine the histogram
+			h = traceqlmetrics.New(b)
+			if _, ok := yyy[s]; !ok {
+				yyy[s] = h
+			} else {
+				yyy[s].Combine(*h)
+			}
+		}
+	}
+
+	for s, h := range yyy {
+		xxx[s].P50 = h.Percentile(0.5)
+		xxx[s].P90 = h.Percentile(0.9)
+		xxx[s].P95 = h.Percentile(0.95)
+		xxx[s].P99 = h.Percentile(0.99)
+	}
+
+	resp := &tempopb.SpanMetricsSummaryResponse{}
+	for _, x := range xxx {
+		resp.Summaries = append(resp.Summaries, x)
+	}
+
+	return resp, nil
 }
 
 func valuesToV2Response(distinctValues *util.DistinctValueCollector[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
@@ -662,4 +841,17 @@ func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint s
 		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s, %w", string(body), err)
 	}
 	return &searchResp, nil
+}
+
+func protoToTraceQLStatic(proto *tempopb.TraceQLStatic) traceql.Static {
+	return traceql.Static{
+		Type:   traceql.StaticType(proto.Type),
+		N:      int(proto.N),
+		F:      proto.F,
+		S:      proto.S,
+		B:      proto.B,
+		D:      time.Duration(proto.D),
+		Status: traceql.Status(proto.Status),
+		Kind:   traceql.Kind(proto.Kind),
+	}
 }

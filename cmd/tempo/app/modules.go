@@ -101,7 +101,6 @@ func (t *App) initServer() (services.Service, error) {
 }
 
 func (t *App) initInternalServer() (services.Service, error) {
-
 	if !t.cfg.InternalServer.Enable {
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -239,7 +238,15 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 
 	// todo: make ingester client a module instead of passing config everywhere
-	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.Overrides)
+	querier, err := querier.New(
+		t.cfg.Querier,
+		t.cfg.IngesterClient,
+		t.ring,
+		t.cfg.GeneratorClient,
+		t.generatorRing,
+		t.store,
+		t.Overrides,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier %w", err)
 	}
@@ -267,6 +274,9 @@ func (t *App) initQuerier() (services.Service, error) {
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
 	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
 
+	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
+
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
 }
 
@@ -293,6 +303,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
 	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
+	spanMetricsSummaryHandler := middleware.Wrap(queryFrontend.SpanMetricsSummaryHandler)
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
@@ -307,6 +318,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchHandler)
+
+	// http metrics endpoints
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(nil)
@@ -452,7 +466,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:          {Ring, Server, Overrides, UsageReport, MetricsGeneratorRing},
 		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
 		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
-		Querier:              {Store, Ring, Overrides, UsageReport},
+		Querier:              {Store, Ring, MetricsGeneratorRing, Overrides, UsageReport},
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
