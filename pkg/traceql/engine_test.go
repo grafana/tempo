@@ -78,7 +78,6 @@ func TestEngine_Execute(t *testing.T) {
 							},
 						},
 					},
-					Attributes: map[string]Static{attributeMatched: NewStaticInt(1)},
 				},
 				{
 					TraceID:         []byte{2},
@@ -165,7 +164,7 @@ func TestEngine_Execute(t *testing.T) {
 						},
 					},
 				},
-				Matched: 3,
+				Matched: 0,
 			},
 		},
 	}
@@ -226,9 +225,9 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				attributes:         map[Attribute]Static{},
 			},
 		},
-		Attributes: map[string]Static{
-			attributeMatched: NewStaticInt(2),
-			"avg(duration)":  NewStaticFloat(15.0),
+		Attributes: []*SpansetAttribute{
+			{Name: attributeMatched, Val: NewStaticInt(2)},
+			{Name: "avg(duration)", Val: NewStaticFloat(15.0)},
 		},
 	}
 

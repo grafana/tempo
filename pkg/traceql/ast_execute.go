@@ -33,9 +33,7 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 				// If not, create a new group and add it to the map
 				group = &Spanset{}
 				// copy all existing attributes forward
-				for k, att := range spanset.Attributes {
-					group.AddAttribute(k, att)
-				}
+				group.Attributes = append(group.Attributes, spanset.Attributes...)
 				group.AddAttribute(g.String(), result)
 				groups[result] = group
 			}

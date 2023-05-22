@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -374,18 +373,13 @@ func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
 			require.NoError(t, err, "search request: %+v", tc)
 
-			// copy the root stuff in directly, spansets defined in test cases above. sorting cause maps
+			// copy the root stuff in directly, spansets defined in test cases above.
 			for _, ss := range tc.expected {
 				ss.DurationMs = wantMeta.DurationMs
 				ss.RootServiceName = wantMeta.RootServiceName
 				ss.RootTraceName = wantMeta.RootTraceName
 				ss.StartTimeUnixNano = wantMeta.StartTimeUnixNano
 				ss.TraceID = wantMeta.TraceID
-				sort.Slice(ss.SpanSet.Attributes, func(i, j int) bool { return ss.SpanSet.Attributes[i].Key < ss.SpanSet.Attributes[j].Key })
-			}
-
-			for _, ss := range res.Traces {
-				sort.Slice(ss.SpanSet.Attributes, func(i, j int) bool { return ss.SpanSet.Attributes[i].Key < ss.SpanSet.Attributes[j].Key })
 			}
 
 			require.NotNil(t, res, "search request: %v", tc)

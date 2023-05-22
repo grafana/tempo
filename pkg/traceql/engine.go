@@ -295,9 +295,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		RootTraceName:     spanset.RootSpanName,
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
-		SpanSet: &tempopb.SpanSet{
-			Matched: uint32(spanset.Attributes[attributeMatched].N),
-		},
+		SpanSet:           &tempopb.SpanSet{},
 	}
 
 	for _, span := range spanset.Spans {
@@ -333,14 +331,15 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	}
 
 	// add attributes
-	for key, static := range spanset.Attributes {
-		if key == attributeMatched {
+	for _, att := range spanset.Attributes {
+		if att.Name == attributeMatched {
+			metadata.SpanSet.Matched = uint32(att.Val.N)
 			continue
 		}
 
-		staticAnyValue := static.asAnyValue()
+		staticAnyValue := att.Val.asAnyValue()
 		keyValue := &common_v1.KeyValue{
-			Key:   key,
+			Key:   att.Name,
 			Value: staticAnyValue,
 		}
 		metadata.SpanSet.Attributes = append(metadata.SpanSet.Attributes, keyValue)
