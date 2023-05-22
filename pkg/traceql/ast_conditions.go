@@ -4,7 +4,15 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	f.Expression.extractConditions(request)
 }
 
-// jpe select
+// extractConditions on Select puts its conditions into the SecondPassConditions
+func (o SelectOperation) extractConditions(request *FetchSpansRequest) {
+	selectR := &FetchSpansRequest{}
+	for _, expr := range o.exprs {
+		expr.extractConditions(selectR)
+	}
+	// copy any conditions to the normal request's SecondPassConditions
+	request.SecondPassConditions = append(request.SecondPassConditions, selectR.Conditions...)
+}
 
 func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO we can further optimise this by attempting to execute every FieldExpression, if they only contain statics it should resolve

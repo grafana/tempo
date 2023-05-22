@@ -144,12 +144,6 @@ func newSelectOperation(exprs []FieldExpression) SelectOperation {
 	}
 }
 
-func (o SelectOperation) extractConditions(request *FetchSpansRequest) {
-	for _, expr := range o.exprs {
-		expr.extractConditions(request)
-	}
-}
-
 // **********************
 // Scalars
 // **********************
