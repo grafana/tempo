@@ -24,6 +24,7 @@
 To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [FEATURE] Add new API to summarize span metrics from generators [#2481](https://github.com/grafana/tempo/pull/2481) (@zalegrala)
+* [FEATURE] Add `select()` to TraceQL [#2494](https://github.com/grafana/tempo/pull/2494) (@joe-elliott)
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
   Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
 * [ENHANCEMENT] Ability to toggle off latency or count metrics in metrics-generator [#2070](https://github.com/grafana/tempo/pull/2070) (@AlexDHoffer)
