@@ -1,5 +1,5 @@
 ---
-title: Resize ingester PVCs
+title: Resize ingester persistent volume operations
 menuTitle: Resize ingester PVCs
 weight: 50
 ---

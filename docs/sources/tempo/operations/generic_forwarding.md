@@ -21,4 +21,4 @@ Enabling generic forwarding requires the configuration of the `distributor` and 
 2.
 1. Second, reference these forwarders in the `overrides` section. This allows for fine-grained control over forwarding and makes it possible to enable this feature globally or on a per-tenant basis.
 
-For a detailed view of all the config options for the generic forwarding feature, please refer to [distributor]({{< relref "../configuration/#distributor" >}}) and [overrides]({{< relref "../configuration/#overrides" >}}) configuration pages.
+For a detailed view of all the config options for the generic forwarding feature, please refer to [distributor]({{< relref "../configuration#distributor" >}}) and [overrides]({{< relref "../configuration#overrides" >}}) configuration pages.

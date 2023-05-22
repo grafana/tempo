@@ -1,5 +1,5 @@
 ---
-title: Configure
+title: Configure Tempo
 menuTitle: Configure
 weight: 400
 aliases:
@@ -30,7 +30,7 @@ This document explains the configuration options for Tempo as well as the detail
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
 
-Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -589,10 +589,10 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "gcs" >}})
-* [S3]({{< relref "s3" >}})
-* [Azure]({{< relref "azure" >}})
-* [Parquet]({{< relref "parquet" >}})
+* [GCS]({{< relref "./gcs" >}})
+* [S3]({{< relref "./s3" >}})
+* [Azure]({{< relref "./azure" >}})
+* [Parquet]({{< relref "./parquet" >}})
 
 ```yaml
 # Storage configuration for traces

@@ -5,7 +5,7 @@ aliases:
 - /docs/tempo/troubleshooting/response-too-large
 ---
 
-# Response too large
+# Response larger than the max
 
 The error message will take a similar form to the following:
 

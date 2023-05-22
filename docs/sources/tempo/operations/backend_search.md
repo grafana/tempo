@@ -14,7 +14,7 @@ This document contains suggestions for tuning your backend to improve performanc
 General advice is to scale your compactors and queriers. Additional queriers can more effectively run jobs in parallel
 while additional compactors will more aggressively reduce the length of your blocklist and copies of data (if using RF=3).
 
->**Note:** All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks]({{< relref "../configuration/parquet#disable-parquet" >}})
+>**Note:** All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}})
 can only be used for trace by id lookup.
 
 ## Configuration
@@ -121,8 +121,8 @@ querier:
 
 See here for cloud-specific details:
 
-- [AWS Lambda]({{< relref "serverless_aws" >}})
-- [Google Cloud Run]({{< relref "serverless_gcp" >}})
+- [AWS Lambda]({{< relref "./serverless_aws" >}})
+- [Google Cloud Run]({{< relref "./serverless_gcp" >}})
 
 ## Caching
 

@@ -5,7 +5,7 @@ weight: 10
 
 # Google Cloud Storage permissions
 
-For configuration options, check the storage section on the [configuration]({{< relref "./#storage" >}}) page.
+For configuration options, check the storage section on the [configuration]({{< relref "../configuration#storage" >}}) page.
 
 ## Permissions
 The following authentication methods are supported:

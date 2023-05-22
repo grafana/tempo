@@ -1,5 +1,5 @@
 ---
-title: Tempo Architecture
+title: Tempo architecture
 aliases:
  - /docs/tempo/latest/architecture/architecture
  - /docs/tempo/latest/architecture
@@ -22,8 +22,7 @@ Tempo comprises of the following top-level components.
 
 ### Distributor
 
-The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent_hash_ring" >}}).
-
+The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "./consistent_hash_ring" >}}).
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
 For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto). For this reason
 the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/receiver to send spans to Tempo.

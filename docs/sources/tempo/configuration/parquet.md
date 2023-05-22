@@ -1,5 +1,5 @@
 ---
-title: Parquet
+title: Apache Parquet block format
 menuTitle: Apache Parquet
 weight: 75
 ---
@@ -47,7 +47,7 @@ To re-enable Parquet, set the block version option to `vParquet` in the Storage 
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.
-For more information, refer to the [storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/#storage).
+For more information, refer to the [storage configuration documentation]({{< relref "../configuration#storage" >}}).
 
 ### Trace search parameters
 
