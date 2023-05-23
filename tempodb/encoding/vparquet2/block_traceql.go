@@ -338,8 +338,7 @@ func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 			for idx, s := range ss.Spans {
 				span := s.(*span)
 
-				// use otherEntryCallbackSpansetKey to indicate to the rebatchIterator that either
-				// 1) this is the last span in the spanset, or 2) there are more spans in the spanset
+				// mark whether this is the last span in the spanset
 				span.cbSpansetFinal = idx == len(ss.Spans)-1
 				span.cbSpanset = ss
 				i.nextSpans = append(i.nextSpans, span)

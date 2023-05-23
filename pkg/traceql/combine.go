@@ -1,15 +1,52 @@
 package traceql
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// CombineSearchResults overlays the incoming search result with the existing result. This is required
+type MetadataCombiner struct {
+	trs map[string]*tempopb.TraceSearchMetadata
+}
+
+func NewMetadataCombiner() *MetadataCombiner {
+	return &MetadataCombiner{
+		trs: make(map[string]*tempopb.TraceSearchMetadata),
+	}
+}
+
+// AddMetadata adds the new metadata to the map. if it already exists
+// use CombineSearchResults to combine the two
+func (c *MetadataCombiner) AddMetadata(new *tempopb.TraceSearchMetadata) {
+	if existing, ok := c.trs[new.TraceID]; ok {
+		combineSearchResults(existing, new)
+		return
+	}
+
+	c.trs[new.TraceID] = new
+}
+
+func (c *MetadataCombiner) Count() int {
+	return len(c.trs)
+}
+
+func (c *MetadataCombiner) Metadata() []*tempopb.TraceSearchMetadata {
+	m := make([]*tempopb.TraceSearchMetadata, 0, len(c.trs))
+	for _, tr := range c.trs {
+		m = append(m, tr)
+	}
+	sort.Slice(m, func(i, j int) bool {
+		return m[i].StartTimeUnixNano > m[j].StartTimeUnixNano
+	})
+	return m
+}
+
+// combineSearchResults overlays the incoming search result with the existing result. This is required
 // for the following reason:  a trace may be present in multiple blocks, or in partial segments
 // in live traces.  The results should reflect elements of all segments.
-func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
+func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
 	if existing.TraceID == "" {
 		existing.TraceID = incoming.TraceID
 	}

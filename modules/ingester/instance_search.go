@@ -3,7 +3,6 @@ package ingester
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -53,7 +52,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	sr.AllWorkersStarted()
 
 	// read and combine search results
-	resultsMap := map[string]*tempopb.TraceSearchMetadata{}
+	combiner := traceql.NewMetadataCombiner()
 
 	// collect results from all the goroutines via sr.Results channel.
 	// range loop will exit when sr.Results channel is closed.
@@ -63,14 +62,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			return nil, sr.Error()
 		}
 
-		// Dedupe/combine results
-		if existing := resultsMap[result.TraceID]; existing != nil {
-			traceql.CombineSearchResults(existing, result)
-		} else {
-			resultsMap[result.TraceID] = result
-		}
-
-		if len(resultsMap) >= maxResults {
+		combiner.AddMetadata(result)
+		if combiner.Count() >= maxResults {
 			sr.Close() // signal pending workers to exit
 			break
 		}
@@ -81,18 +74,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		return nil, sr.Error()
 	}
 
-	results := make([]*tempopb.TraceSearchMetadata, 0, len(resultsMap))
-	for _, result := range resultsMap {
-		results = append(results, result)
-	}
-
-	// Sort
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
-	})
-
 	return &tempopb.SearchResponse{
-		Traces: results,
+		Traces: combiner.Metadata(),
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: sr.TracesInspected(),
 			InspectedBytes:  sr.BytesInspected(),

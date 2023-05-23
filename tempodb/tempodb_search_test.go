@@ -87,6 +87,7 @@ func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			actual := actualForExpectedMeta(wantMeta, res)
 			require.NotNil(t, actual, "search request: %v", req)
 			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+			actual.SpanSets = nil
 			require.Equal(t, wantMeta, actual, "search request: %v", req)
 		}
 
@@ -243,6 +244,7 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			actual := actualForExpectedMeta(wantMeta, res)
 			require.NotNil(t, actual, "search request: %v", req)
 			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+			actual.SpanSets = nil
 			require.Equal(t, wantMeta, actual, "search request: %v", req)
 		}
 
@@ -284,31 +286,33 @@ func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				req: &tempopb.SearchRequest{Query: "{} | by(span.foo) | count() = 2"},
 				expected: []*tempopb.TraceSearchMetadata{
 					{
-						SpanSet: &tempopb.SpanSet{
-							Spans: []*tempopb.Span{
-								{
-									SpanID:            "0000000000010203",
-									StartTimeUnixNano: 1000000000000,
-									DurationNanos:     1000000000,
-									Name:              "",
-									Attributes: []*v1_common.KeyValue{
-										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+						SpanSets: []*tempopb.SpanSet{
+							{
+								Spans: []*tempopb.Span{
+									{
+										SpanID:            "0000000000010203",
+										StartTimeUnixNano: 1000000000000,
+										DurationNanos:     1000000000,
+										Name:              "",
+										Attributes: []*v1_common.KeyValue{
+											{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+										},
+									},
+									{
+										SpanID:            "0000000000000000",
+										StartTimeUnixNano: 1000000000000,
+										DurationNanos:     2000000000,
+										Name:              "",
+										Attributes: []*v1_common.KeyValue{
+											{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+										},
 									},
 								},
-								{
-									SpanID:            "0000000000000000",
-									StartTimeUnixNano: 1000000000000,
-									DurationNanos:     2000000000,
-									Name:              "",
-									Attributes: []*v1_common.KeyValue{
-										{Key: "foo", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
-									},
+								Matched: 2,
+								Attributes: []*v1_common.KeyValue{
+									{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+									{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
 								},
-							},
-							Matched: 2,
-							Attributes: []*v1_common.KeyValue{
-								{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
-								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
 							},
 						},
 					},
@@ -318,42 +322,42 @@ func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				req: &tempopb.SearchRequest{Query: "{} | by(resource.service.name) | count() = 1"},
 				expected: []*tempopb.TraceSearchMetadata{
 					{
-						SpanSet: &tempopb.SpanSet{
-							Spans: []*tempopb.Span{
-								{
-									SpanID:            "0000000000010203",
-									StartTimeUnixNano: 1000000000000,
-									DurationNanos:     1000000000,
-									Name:              "",
-									Attributes: []*v1_common.KeyValue{
-										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+						SpanSets: []*tempopb.SpanSet{
+							{
+								Spans: []*tempopb.Span{
+									{
+										SpanID:            "0000000000010203",
+										StartTimeUnixNano: 1000000000000,
+										DurationNanos:     1000000000,
+										Name:              "",
+										Attributes: []*v1_common.KeyValue{
+											{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+										},
 									},
 								},
-							},
-							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
-								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
-								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
-							},
-						},
-					},
-					{
-						SpanSet: &tempopb.SpanSet{
-							Spans: []*tempopb.Span{
-								{
-									SpanID:            "0000000000000000",
-									StartTimeUnixNano: 1000000000000,
-									DurationNanos:     2000000000,
-									Name:              "",
-									Attributes: []*v1_common.KeyValue{
-										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
-									},
+								Matched: 1,
+								Attributes: []*v1_common.KeyValue{
+									{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+									{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 								},
 							},
-							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
-								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
-								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+							{
+								Spans: []*tempopb.Span{
+									{
+										SpanID:            "0000000000000000",
+										StartTimeUnixNano: 1000000000000,
+										DurationNanos:     2000000000,
+										Name:              "",
+										Attributes: []*v1_common.KeyValue{
+											{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
+										},
+									},
+								},
+								Matched: 1,
+								Attributes: []*v1_common.KeyValue{
+									{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
+									{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+								},
 							},
 						},
 					},
@@ -380,6 +384,12 @@ func testGroupTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				ss.RootTraceName = wantMeta.RootTraceName
 				ss.StartTimeUnixNano = wantMeta.StartTimeUnixNano
 				ss.TraceID = wantMeta.TraceID
+			}
+
+			// the actual spanset is impossible to predict since it's chosen randomly from the Spansets slice
+			// so set it to nil here and just test the slice using the testcases above
+			for _, tr := range res.Traces {
+				tr.SpanSet = nil
 			}
 
 			require.NotNil(t, res, "search request: %v", tc)

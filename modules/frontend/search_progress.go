@@ -3,7 +3,6 @@ package frontend
 import (
 	"context"
 	"net/http"
-	"sort"
 	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -43,7 +42,7 @@ type searchProgress struct {
 	statusMsg  string
 	ctx        context.Context
 
-	resultsMap       map[string]*tempopb.TraceSearchMetadata
+	resultsCombiner  *traceql.MetadataCombiner
 	resultsMetrics   *tempopb.SearchMetrics
 	finishedRequests int
 
@@ -62,7 +61,7 @@ func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, total
 			TotalBlockBytes: uint64(totalBlockBytes),
 			TotalJobs:       uint32(totalJobs),
 		},
-		resultsMap: map[string]*tempopb.TraceSearchMetadata{},
+		resultsCombiner: traceql.NewMetadataCombiner(),
 	}
 }
 
@@ -86,15 +85,7 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 	defer r.mtx.Unlock()
 
 	for _, t := range res.Traces {
-		if _, ok := r.resultsMap[t.TraceID]; !ok {
-			r.resultsMap[t.TraceID] = t
-		} else {
-			// combine into the incoming trace and then set in the map. this prevents
-			// race conditions on pointers to traces that we've already returned from
-			// .result()
-			traceql.CombineSearchResults(t, r.resultsMap[t.TraceID])
-			r.resultsMap[t.TraceID] = t
-		}
+		r.resultsCombiner.AddMetadata(t)
 	}
 
 	// purposefully ignoring TotalBlocks as that value is set by the sharder
@@ -126,7 +117,7 @@ func (r *searchProgress) internalShouldQuit() bool {
 	if r.statusCode/100 != 2 {
 		return true
 	}
-	if len(r.resultsMap) > r.limit {
+	if r.resultsCombiner.Count() > r.limit {
 		return true
 	}
 
@@ -154,14 +145,8 @@ func (r *searchProgress) result() *shardedSearchResults {
 			TotalJobs:       r.resultsMetrics.TotalJobs,
 			TotalBlockBytes: r.resultsMetrics.TotalBlockBytes,
 		},
+		Traces: r.resultsCombiner.Metadata(),
 	}
-
-	for _, t := range r.resultsMap {
-		searchRes.Traces = append(searchRes.Traces, t)
-	}
-	sort.Slice(searchRes.Traces, func(i, j int) bool {
-		return searchRes.Traces[i].StartTimeUnixNano > searchRes.Traces[j].StartTimeUnixNano
-	})
 
 	res.response = searchRes
 

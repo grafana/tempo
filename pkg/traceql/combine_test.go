@@ -197,7 +197,7 @@ func TestCombineResults(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			CombineSearchResults(tc.existing, tc.new)
+			combineSearchResults(tc.existing, tc.new)
 
 			// confirm that the SpanSet on tc.existing is contained in the slice of SpanSets
 			// then nil out. the actual spanset chosen is based on map iteration order
