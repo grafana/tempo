@@ -737,7 +737,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
 
-	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end), nil
+	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end)
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -1005,8 +1005,39 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required, iters, batchCol), nil
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64) parquetquery.Iterator {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64) (parquetquery.Iterator, error) {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
+
+	// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
+	// be sped up by searching for traceDuration first
+	for _, cond := range conds {
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicTraceID:
+			traceIters = append(traceIters, makeIter(columnPathTraceID, nil, columnPathTraceID))
+		case traceql.IntrinsicTraceDuration:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
+		case traceql.IntrinsicTraceStartTime:
+			if start == 0 && end == 0 {
+				traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
+			}
+		case traceql.IntrinsicTraceRootSpan:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
+		case traceql.IntrinsicTraceRootService:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
+		}
+	}
 
 	// order is interesting here. would it be more efficient to grab the span/resource conditions first
 	// or the time range filtering first?
@@ -1026,27 +1057,10 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		traceIters = append(traceIters, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
 	}
 
-	for _, cond := range conds {
-		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicTraceID:
-			traceIters = append(traceIters, makeIter(columnPathTraceID, nil, columnPathTraceID))
-		case traceql.IntrinsicTraceDuration:
-			traceIters = append(traceIters, makeIter(columnPathDurationNanos, nil, columnPathDurationNanos))
-		case traceql.IntrinsicTraceStartTime:
-			if start == 0 && end == 0 {
-				traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
-			}
-		case traceql.IntrinsicTraceRootSpan:
-			traceIters = append(traceIters, makeIter(columnPathRootSpanName, nil, columnPathRootSpanName))
-		case traceql.IntrinsicTraceRootService:
-			traceIters = append(traceIters, makeIter(columnPathRootServiceName, nil, columnPathRootServiceName))
-		}
-	}
-
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{})
+	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{}), nil
 }
 
 func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
