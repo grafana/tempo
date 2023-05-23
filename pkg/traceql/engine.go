@@ -333,7 +333,10 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	}
 
 	// create a new slice and add the spanset to it. eventually we will deprecate
-	//  metadata.SpanSet
+	//  metadata.SpanSet. populating both the SpanSet and the []SpanSets is for
+	//  backwards compatibility with Grafana. since this method only translates one
+	//  spanset into a TraceSearchMetadata Spansets[0] == Spanset. Higher up the chain
+	//  we will combine Spansets with the same trace id.
 	metadata.SpanSets = []*tempopb.SpanSet{metadata.SpanSet}
 
 	// add attributes
