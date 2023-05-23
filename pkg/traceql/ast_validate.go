@@ -30,18 +30,16 @@ func (p Pipeline) validate() error {
 }
 
 func (o GroupOperation) validate() error {
-	return newUnsupportedError("by()")
-
 	// todo: once grouping is supported the below validation will apply
-	// if !o.Expression.referencesSpan() {
-	// 	return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
-	// }
+	if !o.Expression.referencesSpan() {
+		return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
+	}
 
-	// return o.Expression.validate()
+	return o.Expression.validate()
 }
 
 func (o CoalesceOperation) validate() error {
-	return newUnsupportedError("coalesce()")
+	return nil
 }
 
 func (o SelectOperation) validate() error {

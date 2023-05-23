@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +28,11 @@ type span struct {
 	id                 []byte
 	startTimeUnixNanos uint64
 	durationNanos      uint64
-	rowNum             parquetquery.RowNumber
+
+	// metadata used to track the span in the parquet file
+	rowNum         parquetquery.RowNumber
+	cbSpansetFinal bool
+	cbSpanset      *traceql.Spanset
 }
 
 func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
@@ -85,6 +90,8 @@ func putSpan(s *span) {
 	s.startTimeUnixNanos = 0
 	s.durationNanos = 0
 	s.rowNum = parquetquery.EmptyRowNumber()
+	s.cbSpansetFinal = false
+	s.cbSpanset = nil
 
 	// clear attributes
 	for k := range s.attributes {
@@ -270,7 +277,7 @@ type bridgeIterator struct {
 	iter parquetquery.Iterator
 	cb   traceql.SecondPassFn
 
-	currentSpans []*span
+	nextSpans []*span
 }
 
 func newBridgeIterator(iter parquetquery.Iterator, cb traceql.SecondPassFn) *bridgeIterator {
@@ -286,9 +293,9 @@ func (i *bridgeIterator) String() string {
 
 func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 	// drain current buffer
-	if len(i.currentSpans) > 0 {
-		ret := i.currentSpans[0]
-		i.currentSpans = i.currentSpans[1:]
+	if len(i.nextSpans) > 0 {
+		ret := i.nextSpans[0]
+		i.nextSpans = i.nextSpans[1:]
 		return spanToIteratorResult(ret), nil
 	}
 
@@ -304,45 +311,48 @@ func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 		// The spanset is in the OtherEntries
 		iface := res.OtherValueFromKey(otherEntrySpansetKey)
 		if iface == nil {
-			return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries")
+			return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries in bridge")
 		}
 		spanset, ok := iface.(*traceql.Spanset)
 		if !ok {
-			return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
+			return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset in bridge")
 		}
 
-		var filteredSpansets []*traceql.Spanset
-		if i.cb != nil {
-			filteredSpansets, err = i.cb(spanset)
-			if err == io.EOF {
-				return nil, nil
+		filteredSpansets, err := i.cb(spanset)
+		if err == io.EOF {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		// if the filter removed all spansets then let's release all back to the pool
+		// no reason to try anything more nuanced than this. it will handle nearly all cases
+		if len(filteredSpansets) == 0 {
+			for _, s := range spanset.Spans {
+				putSpan(s.(*span))
 			}
-			if err != nil {
-				return nil, err
-			}
-			// if the filter removed all spansets then let's release all back to the pool
-			// no reason to try anything more nuanced than this. it will handle nearly all cases
-			if len(filteredSpansets) == 0 {
-				for _, s := range spanset.Spans {
-					putSpan(s.(*span))
-				}
-			}
-		} else {
-			filteredSpansets = []*traceql.Spanset{spanset}
 		}
 
 		// flatten spans into i.currentSpans
 		for _, ss := range filteredSpansets {
-			for _, s := range ss.Spans {
+			for idx, s := range ss.Spans {
 				span := s.(*span)
-				i.currentSpans = append(i.currentSpans, span)
+
+				// mark whether this is the last span in the spanset
+				span.cbSpansetFinal = idx == len(ss.Spans)-1
+				span.cbSpanset = ss
+				i.nextSpans = append(i.nextSpans, span)
 			}
 		}
 
+		sort.Slice(i.nextSpans, func(j, k int) bool {
+			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
+		})
+
 		// found something!
-		if len(i.currentSpans) > 0 {
-			ret := i.currentSpans[0]
-			i.currentSpans = i.currentSpans[1:]
+		if len(i.nextSpans) > 0 {
+			ret := i.nextSpans[0]
+			i.nextSpans = i.nextSpans[1:]
 			return spanToIteratorResult(ret), nil
 		}
 	}
@@ -366,6 +376,122 @@ func (i *bridgeIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.Itera
 }
 
 func (i *bridgeIterator) Close() {
+	i.iter.Close()
+}
+
+// confirm rebatchIterator implements pq.Iterator
+var _ pq.Iterator = (*rebatchIterator)(nil)
+
+// rebatchIterator either passes spansets through directly OR rebatches them based on metadata
+// in OtherEntries
+type rebatchIterator struct {
+	iter parquetquery.Iterator
+
+	nextSpans []*span
+}
+
+func newRebatchIterator(iter parquetquery.Iterator) *rebatchIterator {
+	return &rebatchIterator{
+		iter: iter,
+	}
+}
+
+func (i *rebatchIterator) String() string {
+	return fmt.Sprintf("rebatchIterator: \n\t%s", util.TabOut(i.iter))
+}
+
+// Next has to handle two different style results. First is an initial set of spans
+// that does not have a callback spanset. These can be passed directly through.
+// Second is a set of spans that have spansets imposed by the callback (i.e. for grouping)
+// these must be regrouped into the callback spansets
+func (i *rebatchIterator) Next() (*pq.IteratorResult, error) {
+	for {
+		// see if we have a queue
+		res := i.resultFromNextSpans()
+		if res != nil {
+			return res, nil
+		}
+
+		// check the iterator for anything
+		res, err := i.iter.Next()
+		if err != nil {
+			return nil, err
+		}
+		if res == nil {
+			return nil, nil
+		}
+
+		// get the spanset and see if we should pass it through or buffer for rebatching
+		iface := res.OtherValueFromKey(otherEntrySpansetKey)
+		if iface == nil {
+			return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries in rebatch")
+		}
+		ss, ok := iface.(*traceql.Spanset)
+		if !ok {
+			return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset in rebatch")
+		}
+
+		// if this has no call back spanset just pass it on
+		if len(ss.Spans) > 0 && ss.Spans[0].(*span).cbSpanset == nil {
+			return res, nil
+		}
+
+		// dump all spans into our buffer
+		for _, s := range ss.Spans {
+			sp := s.(*span)
+			if !sp.cbSpansetFinal {
+				continue
+			}
+
+			// copy trace level data from the current iteration spanset into the rebatch spanset. only do this if
+			// we don't have current data
+			if sp.cbSpanset.DurationNanos == 0 {
+				sp.cbSpanset.DurationNanos = ss.DurationNanos
+			}
+			if len(sp.cbSpanset.TraceID) == 0 {
+				sp.cbSpanset.TraceID = ss.TraceID
+			}
+			if len(sp.cbSpanset.RootSpanName) == 0 {
+				sp.cbSpanset.RootSpanName = ss.RootSpanName
+			}
+			if len(sp.cbSpanset.RootServiceName) == 0 {
+				sp.cbSpanset.RootServiceName = ss.RootServiceName
+			}
+			if sp.cbSpanset.StartTimeUnixNanos == 0 {
+				sp.cbSpanset.StartTimeUnixNanos = ss.StartTimeUnixNanos
+			}
+
+			i.nextSpans = append(i.nextSpans, sp)
+		}
+
+		res = i.resultFromNextSpans()
+		if res != nil {
+			return res, nil
+		}
+		// if we don't find anything in that spanset, start over
+	}
+}
+
+func (i *rebatchIterator) resultFromNextSpans() *pq.IteratorResult {
+	for len(i.nextSpans) > 0 {
+		ret := i.nextSpans[0]
+		i.nextSpans = i.nextSpans[1:]
+
+		if ret.cbSpansetFinal && ret.cbSpanset != nil {
+			res := &pq.IteratorResult{}
+			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
+			return res
+		}
+	}
+
+	return nil
+}
+
+func (i *rebatchIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
+	return i.iter.SeekTo(to, definitionLevel)
+}
+
+func (i *rebatchIterator) Close() {
 	i.iter.Close()
 }
 
@@ -395,11 +521,11 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)
 	if iface == nil {
-		return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries")
+		return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries in spansetIterator")
 	}
 	ss, ok := iface.(*traceql.Spanset)
 	if !ok {
-		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
+		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset in spansetIterator")
 	}
 
 	return ss, nil
@@ -517,7 +643,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	}
 
 	if req.SecondPass != nil {
-		iter = newBridgeIterator(iter, req.SecondPass)
+		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
 		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts)
 		if err != nil {
@@ -525,7 +651,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		}
 	}
 
-	return newSpansetIterator(iter), nil
+	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {

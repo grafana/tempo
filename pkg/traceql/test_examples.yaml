@@ -87,6 +87,16 @@ valid:
   # pipeline expressions
   - '({ true } | count() > 1 | { false }) && ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) || ({ true } | count() > 1 | { false })'
+  # coalesce - will be valid when supported
+  - '{ true } | coalesce()'
+  - '{ true } | by(1 + .a) | coalesce()'
+  # by - will be valid when supported
+  - '{ true } | by(.a)'
+  - '{ true } | by(1 + .a)'
+  - 'by(.a) | { true }'
+  - '{ true } | by(name) | count() > 2'
+  - '{ true } | by(.field) | avg(.b) = 2'
+  - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
   
 # parse_fails throw an error when parsing
 parse_fails:
@@ -197,21 +207,12 @@ validate_fails:
   - 'max(1h + 2h) > 1'
   # select
   - 'select(1 + "string")'
-
-# unsupported parse correctly and return an unsupported error when calling .validate()
-unsupported:
-  # coalesce - will be valid when supported
-  - '{ true } | coalesce()'
-  - '{ true } | by(1 + .a) | coalesce()'
-  # by - will be valid when supported
-  - '{ true } | by(.a)'
-  - '{ true } | by(1 + .a)'
-  - 'by(.a) | { true }'
-  - '{ true } | by(name) | count() > 2'
-  - '{ true } | by(.field) | avg(.b) = 2'
   # by - will *not* be valid when supported - group expressions must reference the span
   - '{ true } | by(1)'
   - '{ true } | by("foo")'
+
+# unsupported parse correctly and return an unsupported error when calling .validate()
+unsupported:
   # complex scalar filters - will be valid when supported
   - 'min(.field) < max(duration)'
   - 'sum(.field) = min(.field)'
@@ -222,7 +223,6 @@ unsupported:
   # aggregates - will be valid when supported
   - 'min(childCount) < 2'
   - '{ true } | max(parent.a) = 1'
-  - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
   # parent - will be valid when supported
   - '{ parent.a != 3 }'

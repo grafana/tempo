@@ -78,7 +78,6 @@ func TestEngine_Execute(t *testing.T) {
 							},
 						},
 					},
-					Attributes: map[string]Static{attributeMatched: NewStaticInt(1)},
 				},
 				{
 					TraceID:         []byte{2},
@@ -111,62 +110,64 @@ func TestEngine_Execute(t *testing.T) {
 	spanSetFetcher.capturedRequest.SecondPass = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
+	expectedSpanset := &tempopb.SpanSet{
+		Spans: []*tempopb.Span{
+			{
+				SpanID:            "0000000000000002",
+				StartTimeUnixNano: uint64(now.UnixNano()),
+				DurationNanos:     100_000_000,
+				Attributes: []*v1.KeyValue{
+					{
+						Key: "foo",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+					{
+						Key: "bar",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+				},
+			},
+			{
+				SpanID:            "0000000000000003",
+				StartTimeUnixNano: uint64(now.UnixNano()),
+				DurationNanos:     200_000_000,
+				Attributes: []*v1.KeyValue{
+					{
+						Key: "foo",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+					{
+						Key: "bar",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+				},
+			},
+		},
+		Matched: 0,
+	}
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
 		{
 			TraceID:         "1",
 			RootServiceName: "my-service",
 			RootTraceName:   "HTTP GET",
-			SpanSet: &tempopb.SpanSet{
-				Spans: []*tempopb.Span{
-					{
-						SpanID:            "0000000000000002",
-						StartTimeUnixNano: uint64(now.UnixNano()),
-						DurationNanos:     100_000_000,
-						Attributes: []*v1.KeyValue{
-							{
-								Key: "foo",
-								Value: &v1.AnyValue{
-									Value: &v1.AnyValue_StringValue{
-										StringValue: "value",
-									},
-								},
-							},
-							{
-								Key: "bar",
-								Value: &v1.AnyValue{
-									Value: &v1.AnyValue_StringValue{
-										StringValue: "value",
-									},
-								},
-							},
-						},
-					},
-					{
-						SpanID:            "0000000000000003",
-						StartTimeUnixNano: uint64(now.UnixNano()),
-						DurationNanos:     200_000_000,
-						Attributes: []*v1.KeyValue{
-							{
-								Key: "foo",
-								Value: &v1.AnyValue{
-									Value: &v1.AnyValue_StringValue{
-										StringValue: "value",
-									},
-								},
-							},
-							{
-								Key: "bar",
-								Value: &v1.AnyValue{
-									Value: &v1.AnyValue_StringValue{
-										StringValue: "value",
-									},
-								},
-							},
-						},
-					},
-				},
-				Matched: 3,
-			},
+			SpanSet:         expectedSpanset,
+			SpanSets:        []*tempopb.SpanSet{expectedSpanset},
 		},
 	}
 
@@ -226,9 +227,9 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				attributes:         map[Attribute]Static{},
 			},
 		},
-		Attributes: map[string]Static{
-			attributeMatched: NewStaticInt(2),
-			"avg(duration)":  NewStaticFloat(15.0),
+		Attributes: []*SpansetAttribute{
+			{Name: attributeMatched, Val: NewStaticInt(2)},
+			{Name: "avg(duration)", Val: NewStaticFloat(15.0)},
 		},
 	}
 
@@ -236,89 +237,91 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 
 	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
 
+	expectedSpanset := &tempopb.SpanSet{
+		Matched: 2,
+		Spans: []*tempopb.Span{
+			{
+				SpanID:            util.SpanIDToHexString(spanID1),
+				Name:              "HTTP GET",
+				StartTimeUnixNano: uint64(now.UnixNano()),
+				DurationNanos:     10_000_000_000,
+				Attributes: []*v1.KeyValue{
+					{
+						Key: "cluster",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "prod",
+							},
+						},
+					},
+					{
+						Key: "count",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_IntValue{
+								IntValue: 5,
+							},
+						},
+					},
+					{
+						Key: "count_but_float",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_DoubleValue{
+								DoubleValue: 5.0,
+							},
+						},
+					},
+					{
+						Key: "is_ok",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_BoolValue{
+								BoolValue: true,
+							},
+						},
+					},
+					{
+						Key: "kind",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: KindClient.String(),
+							},
+						},
+					},
+					{
+						Key: "status",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: StatusOk.String(),
+							},
+						},
+					},
+				},
+			},
+			{
+				SpanID:            util.SpanIDToHexString(spanID2),
+				StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
+				DurationNanos:     20_000_000_000,
+				Attributes:        nil,
+			},
+		},
+		Attributes: []*v1.KeyValue{
+			{
+				Key: "avg(duration)",
+				Value: &v1.AnyValue{
+					Value: &v1.AnyValue_DoubleValue{
+						DoubleValue: 15.0,
+					},
+				},
+			},
+		},
+	}
 	expectedTraceSearchMetadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(traceID),
 		RootServiceName:   "my-service",
 		RootTraceName:     "HTTP GET",
 		StartTimeUnixNano: 1000,
 		DurationMs:        uint32(time.Second.Milliseconds()),
-		SpanSet: &tempopb.SpanSet{
-			Matched: 2,
-			Spans: []*tempopb.Span{
-				{
-					SpanID:            util.SpanIDToHexString(spanID1),
-					Name:              "HTTP GET",
-					StartTimeUnixNano: uint64(now.UnixNano()),
-					DurationNanos:     10_000_000_000,
-					Attributes: []*v1.KeyValue{
-						{
-							Key: "cluster",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: "prod",
-								},
-							},
-						},
-						{
-							Key: "count",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_IntValue{
-									IntValue: 5,
-								},
-							},
-						},
-						{
-							Key: "count_but_float",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_DoubleValue{
-									DoubleValue: 5.0,
-								},
-							},
-						},
-						{
-							Key: "is_ok",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_BoolValue{
-									BoolValue: true,
-								},
-							},
-						},
-						{
-							Key: "kind",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: KindClient.String(),
-								},
-							},
-						},
-						{
-							Key: "status",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: StatusOk.String(),
-								},
-							},
-						},
-					},
-				},
-				{
-					SpanID:            util.SpanIDToHexString(spanID2),
-					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
-					DurationNanos:     20_000_000_000,
-					Attributes:        nil,
-				},
-			},
-			Attributes: []*v1.KeyValue{
-				{
-					Key: "avg(duration)",
-					Value: &v1.AnyValue{
-						Value: &v1.AnyValue_DoubleValue{
-							DoubleValue: 15.0,
-						},
-					},
-				},
-			},
-		},
+		SpanSet:           expectedSpanset,
+		SpanSets:          []*tempopb.SpanSet{expectedSpanset},
 	}
 
 	// Ensure attributes are sorted to avoid a flaky test
