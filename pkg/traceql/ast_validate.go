@@ -42,6 +42,16 @@ func (o CoalesceOperation) validate() error {
 	return nil
 }
 
+func (o SelectOperation) validate() error {
+	for _, e := range o.exprs {
+		if err := e.validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (o ScalarOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err

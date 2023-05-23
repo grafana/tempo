@@ -129,6 +129,16 @@ func newCoalesceOperation() CoalesceOperation {
 func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
 }
 
+type SelectOperation struct {
+	exprs []FieldExpression
+}
+
+func newSelectOperation(exprs []FieldExpression) SelectOperation {
+	return SelectOperation{
+		exprs: exprs,
+	}
+}
+
 // **********************
 // Scalars
 // **********************

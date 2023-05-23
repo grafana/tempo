@@ -11,6 +11,7 @@ import (
 )
 
 var tokens = map[string]int{
+	",":           COMMA,
 	".":           DOT,
 	"{":           OPEN_BRACE,
 	"}":           CLOSE_BRACE,
@@ -64,6 +65,7 @@ var tokens = map[string]int{
 	"sum":         SUM,
 	"by":          BY,
 	"coalesce":    COALESCE,
+	"select":      SELECT,
 }
 
 type lexer struct {
@@ -245,7 +247,7 @@ func isAttributeRune(r rune) bool {
 	}
 
 	switch r {
-	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^':
+	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^', ',':
 		return false
 	default:
 		return true
