@@ -637,6 +637,12 @@ func (a Attribute) impliedType() StaticType {
 		return TypeKind
 	case IntrinsicParent:
 		return TypeNil
+	case IntrinsicTraceDuration:
+		return TypeDuration
+	case IntrinsicTraceRootService:
+		return TypeString
+	case IntrinsicTraceRootSpan:
+		return TypeString
 	}
 
 	return TypeAttribute
