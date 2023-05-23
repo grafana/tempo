@@ -12,12 +12,34 @@ type Condition struct {
 	Operands  Operands
 }
 
-// FilterSpans is a hint that allows the calling code to filter down spans to only
-// those that metadata needs to be retrieved for. If the returned Spanset has no
-// spans it is discarded and will not appear in FetchSpansResponse. The bool
-// return value is used to indicate if the Fetcher should continue iterating or if
-// it can bail out.
-type FilterSpans func(*Spanset) ([]*Spanset, error)
+func SearchMetaConditions() []Condition {
+	return []Condition{
+		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+		{NewIntrinsic(IntrinsicDuration), OpNone, nil},
+	}
+}
+
+func SearchMetaConditionsWithoutDuration() []Condition {
+	return []Condition{
+		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+	}
+}
+
+// SecondPassFn is a method that is called in between the first and second
+// pass of a fetch spans request. See below.
+type SecondPassFn func(*Spanset) ([]*Spanset, error)
 
 type FetchSpansRequest struct {
 	StartTimeUnixNanos uint64
@@ -32,14 +54,14 @@ type FetchSpansRequest struct {
 	// all criteria.
 	AllConditions bool
 
-	// For some implementations retrieving all of the metadata for the spans
-	// can be quite costly. This hint allows the calling code to filter down
-	// spans before the span metadata is fetched, but after the data requested
-	// in the Conditions is fetched. If this is unset then all metadata
-	// for all matching spansets is returned.
-	// If this is set it must be called by the storage layer even if there is
-	// no opportunity to pull metadata independently of span data.
-	Filter FilterSpans
+	// SecondPassFn and Conditions allow a caller to retrieve one set of data
+	// in the first pass, filter using the SecondPassFn callback and then
+	// request a different set of data in the second pass. This is particularly
+	// useful for retrieving data required to resolve a TraceQL query in the first
+	// pass and only selecting metadata in the second pass.
+	// TODO: extend this to an arbitrary number of passes
+	SecondPass           SecondPassFn
+	SecondPassConditions []Condition
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {
@@ -56,7 +78,13 @@ type Span interface {
 	DurationNanos() uint64
 }
 
+// should we just make matched a field on the spanset instead of a special attribute?
 const attributeMatched = "__matched"
+
+type SpansetAttribute struct {
+	Name string
+	Val  Static
+}
 
 type Spanset struct {
 	// these fields are actually used by the engine to evaluate queries
@@ -68,25 +96,14 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Attributes         map[string]Static
+	Attributes         []*SpansetAttribute
 }
 
 func (s *Spanset) AddAttribute(key string, value Static) {
-	if s.Attributes == nil {
-		s.Attributes = make(map[string]Static)
-	}
-	s.Attributes[key] = value
+	s.Attributes = append(s.Attributes, &SpansetAttribute{Name: key, Val: value})
 }
 
 func (s *Spanset) clone() *Spanset {
-	var atts map[string]Static
-	if s.Attributes != nil {
-		atts = make(map[string]Static, len(s.Attributes)) // jpe test
-		for k, v := range s.Attributes {
-			atts[k] = v
-		}
-	}
-
 	return &Spanset{
 		TraceID:            s.TraceID,
 		Scalar:             s.Scalar,
@@ -94,8 +111,8 @@ func (s *Spanset) clone() *Spanset {
 		RootServiceName:    s.RootServiceName,
 		StartTimeUnixNanos: s.StartTimeUnixNanos,
 		DurationNanos:      s.DurationNanos,
-		Spans:              s.Spans, // we're not deep cloning into the spans themselves
-		Attributes:         atts,
+		Spans:              s.Spans, // we're not deep cloning into the spans or attributes
+		Attributes:         s.Attributes,
 	}
 }
 
@@ -114,13 +131,15 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// MustExtractFetchSpansRequest parses the given traceql query and returns
+// MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns
 // the storage layer conditions. Panics if the query fails to parse.
-func MustExtractFetchSpansRequest(query string) FetchSpansRequest {
+func MustExtractFetchSpansRequestWithMetadata(query string) FetchSpansRequest {
 	c, err := ExtractFetchSpansRequest(query)
 	if err != nil {
 		panic(err)
 	}
+	c.SecondPass = func(s *Spanset) ([]*Spanset, error) { return []*Spanset{s}, nil }
+	c.SecondPassConditions = SearchMetaConditions()
 	return c
 }
 

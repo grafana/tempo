@@ -17,6 +17,7 @@ DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
+								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
 								-not -path './cmd/tempo-serverless/*' \
@@ -24,6 +25,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 
 # ALL_SRC but without pkg and tempodb packages
 OTHERS_SRC := $(shell find . -name '*.go' \
+								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
 								-not -path './cmd/tempo-serverless/*' \
@@ -45,7 +47,7 @@ endif
 
 GOTEST_OPT?= -race -timeout 20m -count=1 -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
-GOTEST=go test
+GOTEST=gotestsum --format=testname --
 LINT=golangci-lint
 
 UNAME := $(shell uname -s)
@@ -89,42 +91,42 @@ test:
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
 
 .PHONY: benchmark
-benchmark:
+benchmark: tools
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover
-test-with-cover: test-serverless
+test-with-cover: tools test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 # tests in pkg
 .PHONY: test-with-cover-pkg
-test-with-cover-pkg:
+test-with-cover-pkg: tools
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
 # tests in tempodb (excluding tempodb/wal)
 .PHONY: test-with-cover-tempodb
-test-with-cover-tempodb:
+test-with-cover-tempodb: tools
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
-test-with-cover-tempodb-wal:
+test-with-cover-tempodb-wal: tools
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
 # all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
-test-with-cover-others: test-serverless
+test-with-cover-others: tools test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: docker-tempo
+test-e2e: tools docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
 
 # runs only serverless e2e tests
 .PHONY: test-e2e-serverless
-test-e2e-serverless: docker-tempo docker-serverless
+test-e2e-serverless: tools docker-tempo docker-serverless
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
@@ -132,7 +134,7 @@ test-e2e-serverless: docker-tempo docker-serverless
 test-all: test-with-cover test-e2e test-e2e-serverless
 
 .PHONY: test-bench
-test-bench: docker-tempo
+test-bench: tools docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
@@ -338,3 +340,7 @@ ifndef DRONE_TOKEN
 	$(error DRONE_TOKEN is not set, visit https://drone.grafana.net/account)
 endif
 	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml
+
+
+# Import fragments
+include build/tools.mk

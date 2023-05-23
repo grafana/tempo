@@ -37,7 +37,7 @@ func TestPercentile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		m := &latencyHistogram{}
+		m := &LatencyHistogram{}
 		for _, d := range tc.durations {
 			m.Record(d)
 		}

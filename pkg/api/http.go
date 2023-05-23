@@ -61,13 +61,14 @@ const (
 	PathPrefixQuerier   = "/querier"
 	PathPrefixGenerator = "/generator"
 
-	PathTraces          = "/api/traces/{traceID}"
-	PathSearch          = "/api/search"
-	PathSearchTags      = "/api/search/tags"
-	PathSearchTagValues = "/api/search/tag/{" + muxVarTagName + "}/values"
-	PathEcho            = "/api/echo"
-	PathUsageStats      = "/status/usage-stats"
-	PathSpanMetrics     = "/api/metrics"
+	PathTraces             = "/api/traces/{traceID}"
+	PathSearch             = "/api/search"
+	PathSearchTags         = "/api/search/tags"
+	PathSearchTagValues    = "/api/search/tag/{" + muxVarTagName + "}/values"
+	PathEcho               = "/api/echo"
+	PathUsageStats         = "/status/usage-stats"
+	PathSpanMetrics        = "/api/metrics"
+	PathSpanMetricsSummary = "/api/metrics/summary"
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
@@ -334,6 +335,27 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 
 func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
 	req := &tempopb.SpanMetricsRequest{}
+
+	groupBy := r.URL.Query().Get(urlParamGroupBy)
+	req.GroupBy = groupBy
+
+	query := r.URL.Query().Get(urlParamQuery)
+	req.Query = query
+
+	l := r.URL.Query().Get(urlParamLimit)
+	if l != "" {
+		limit, err := strconv.Atoi(l)
+		if err != nil {
+			return nil, fmt.Errorf("invalid limit: %w", err)
+		}
+		req.Limit = uint64(limit)
+	}
+
+	return req, nil
+}
+
+func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummaryRequest, error) {
+	req := &tempopb.SpanMetricsSummaryRequest{}
 
 	groupBy := r.URL.Query().Get(urlParamGroupBy)
 	req.GroupBy = groupBy

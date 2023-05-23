@@ -23,9 +23,7 @@ func TestSpansetClone(t *testing.T) {
 			RootServiceName:    "b",
 			StartTimeUnixNanos: 1,
 			DurationNanos:      5,
-			Attributes: map[string]Static{
-				"foo": NewStaticString("bar"),
-			},
+			Attributes:         []*SpansetAttribute{{Name: "foo", Val: NewStaticString("bar")}},
 		},
 		{
 			Spans: []Span{

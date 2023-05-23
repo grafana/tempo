@@ -35,8 +35,7 @@ For more information about TraceQL’s design, refer to the [TraceQL Concepts de
 
 ### Future work
 
-- Additional aggregates, such as `max()`, `min()`, and others.
-- Grouping
+- Increase OTEL support: Events, Lists, ILS Scope, etc.
 - Structural Queries
 - Metrics
 - Pipeline comparisons
