@@ -7,6 +7,10 @@ weight: 36
 
 # Run Tempo Distributed with sidecar proxies
 
+In some cases, you may wish to have inter-pod gRPC traffic run through a sidecar proxy.
+
+## How Tempo pods communicate
+
 Tempo pods communicate using gRPC.
 
 The different components like distributors and ingesters find each other by a shared ring with the list of pods, their roles, and their addresses.
@@ -31,10 +35,10 @@ The ring contents reflect the new port:
 
 ![Ring status with updated ports](/static/img/docs/tempo/sidecar-proxy/screenshot-tempo-sidecar-proxies.png)
 
-## Running with proxies
+## Run Tempo with proxies
 
 Some installations require that the inter-pod gRPC traffic runs through a sidecar proxy.
-This requires setting two ports for each pod: one for the Tempo process and one for the sidecar.
+Running Tempo with proxies requires setting two ports for each pod: one for the Tempo process and one for the sidecar.
 Additionally, the ring contents must reflect the proxy's port so that traffic from other pods goes through the proxy.
 
 The overall network looks like this:
@@ -53,4 +57,12 @@ Now, the ingester is listening for regular traffic on port 9095, but the distrib
 
 ## Metrics-generator proxy
 
-It is not possible to customize the lifecycler port in the metrics-generator in Tempo 2.1, but the setting is added in this PR: https://github.com/grafana/tempo/pull/2399.
+You can customize the lifecyler port in the metrics-generator. To set an instance port for the metrics-generator, use this configuration:
+
+```yaml
+metrics_generator:
+  ring:
+    instance_port: 12345
+```
+
+Replace `12345` with the correct port number.
