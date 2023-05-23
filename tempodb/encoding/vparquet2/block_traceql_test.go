@@ -535,6 +535,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 }
 
+// BenchmarkBackendBlockGetMetrics This doesn't really belong here but I can't think of
+// a better place that has access to all of the packages, especially the backend.
 func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	testCases := []struct {
 		query   string
