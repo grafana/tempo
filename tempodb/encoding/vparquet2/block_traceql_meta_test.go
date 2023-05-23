@@ -292,6 +292,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		// fetch layer. just wipe them out here
 		for _, s := range ss {
 			for _, sp := range s.Spans {
+				sp.(*span).cbSpanset = nil
+				sp.(*span).cbSpansetFinal = false
 				sp.(*span).rowNum = parquetquery.RowNumber{}
 			}
 		}

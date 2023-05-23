@@ -216,6 +216,15 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 { span.http.status_code = 200 } | count() > 3
 ```
 
+## Grouping
+
+TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to 
+find someting like a single service with more than 1 error:
+
+```
+{ error = true } | by(resource.service.name) | count() > 1
+```
+
 ## Arithmetic
 
 TraceQL supports arbitrary arithmetic in your queries. This can be useful to make queries more human readable:
