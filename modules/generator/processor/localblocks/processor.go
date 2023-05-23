@@ -264,6 +264,8 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	p.blocksMtx.RLock()
 	defer p.blocksMtx.RUnlock()
 
+	var err error
+
 	// Blocks to check
 	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
 	if p.headBlock != nil {
@@ -280,23 +282,23 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	for _, b := range blocks {
 
 		// Including the trace count in the cache key means we can safely
-		// cache results for a wal block
+		// cache results for a wal block which can receive new data
 		key := fmt.Sprintf("b:%s-c:%d-q:%s-g:%s", b.BlockMeta().BlockID.String(), b.BlockMeta().TotalObjects, req.Query, req.GroupBy)
-		if r := p.metricsCacheGet(key); r != nil {
-			m.Combine(r)
-			continue
+
+		r := p.metricsCacheGet(key)
+		if r == nil {
+
+			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, common.DefaultSearchOptions())
+			})
+
+			r, err = traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, f)
+			if err != nil {
+				return nil, err
+			}
+
+			p.metricsCacheSet(key, r)
 		}
-
-		f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return b.Fetch(ctx, req, common.DefaultSearchOptions())
-		})
-
-		r, err := traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, f)
-		if err != nil {
-			return nil, err
-		}
-
-		p.metricsCacheSet(key, r)
 
 		m.Combine(r)
 
