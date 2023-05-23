@@ -8,6 +8,67 @@ import (
 	"strings"
 )
 
+func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	result := make([]*Spanset, 0, len(ss))
+	groups := g.groupBuffer
+
+	// Iterate over each spanset in the input slice
+	for _, spanset := range ss {
+		// clear out the groups
+		for k := range groups {
+			delete(groups, k)
+		}
+
+		// Iterate over each span in the spanset
+		for _, span := range spanset.Spans {
+			// Execute the FieldExpression for the span
+			result, err := g.Expression.execute(span)
+			if err != nil {
+				return nil, err
+			}
+
+			// Check if the result already has a group in the map
+			group, ok := groups[result]
+			if !ok {
+				// If not, create a new group and add it to the map
+				group = &Spanset{}
+				// copy all existing attributes forward
+				group.Attributes = append(group.Attributes, spanset.Attributes...)
+				group.AddAttribute(g.String(), result)
+				groups[result] = group
+			}
+
+			// Add the current spanset to the group
+			group.Spans = append(group.Spans, span)
+		}
+
+		// add all groups created by this spanset to the result
+		for _, group := range groups {
+			result = append(result, group)
+		}
+	}
+
+	return result, nil
+}
+
+// CoalesceOperation undoes grouping. It takes spansets and recombines them into
+// one by trace id. Since all spansets are guaranteed to be from the same traceid
+// due to the structure of the engine we can cheat and just recombine all spansets
+// in ss into one without checking.
+func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	l := 0
+	for _, spanset := range ss {
+		l += len(spanset.Spans)
+	}
+	result := &Spanset{
+		Spans: make([]Span, 0, l),
+	}
+	for _, spanset := range ss {
+		result.Spans = append(result.Spans, spanset.Spans...)
+	}
+	return []*Spanset{result}, nil
+}
+
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
@@ -44,6 +105,11 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 	}
 
 	return output, nil
+}
+
+// SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes
+func (o SelectOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
+	return input, nil
 }
 
 func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {

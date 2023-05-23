@@ -52,12 +52,13 @@ func TestLexerAttributes(t *testing.T) {
 		{`parent.resource.foo3`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.resource.foo+bar`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.resource.foo-bar`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
-		// attribute enders: <space>, {, }, (, ) all force end an attribute
+		// attribute enders: <space>, {, }, (, ), <comma> all force end an attribute
 		{`.foo .bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo}.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, CLOSE_BRACE, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo{.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, OPEN_BRACE, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo).bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, CLOSE_PARENS, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo(.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, OPEN_PARENS, DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo,.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, COMMA, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`. foo`, []int{DOT, END_ATTRIBUTE, IDENTIFIER}},
 		// not attributes
 		{`.3`, []int{FLOAT}},
