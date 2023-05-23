@@ -19,7 +19,7 @@ import (
     spansetPipelineExpression SpansetExpression
     wrappedSpansetPipeline Pipeline
     spansetPipeline Pipeline
-    spansetFilter SpansetFilter
+    spansetFilter *SpansetFilter
     scalarFilter ScalarFilter
     scalarFilterOperation Operator
 

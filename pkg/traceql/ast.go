@@ -250,19 +250,20 @@ func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpressi
 func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
-	Expression FieldExpression
+	Expression          FieldExpression
+	matchingSpansBuffer []Span
 }
 
-func newSpansetFilter(e FieldExpression) SpansetFilter {
-	return SpansetFilter{
+func newSpansetFilter(e FieldExpression) *SpansetFilter {
+	return &SpansetFilter{
 		Expression: e,
 	}
 }
 
 // nolint: revive
-func (SpansetFilter) __spansetExpression() {}
+func (_ *SpansetFilter) __spansetExpression() {}
 
-func (f SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
+func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 	var output []*Spanset
 
 	for _, ss := range input {
@@ -270,7 +271,8 @@ func (f SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 			continue
 		}
 
-		var matchingSpans []Span
+		f.matchingSpansBuffer = f.matchingSpansBuffer[:0]
+
 		for _, s := range ss.Spans {
 			result, err := f.Expression.execute(s)
 			if err != nil {
@@ -285,15 +287,22 @@ func (f SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 				continue
 			}
 
-			matchingSpans = append(matchingSpans, s)
+			f.matchingSpansBuffer = append(f.matchingSpansBuffer, s)
 		}
 
-		if len(matchingSpans) == 0 {
+		if len(f.matchingSpansBuffer) == 0 {
+			continue
+		}
+
+		if len(f.matchingSpansBuffer) == len(ss.Spans) {
+			// All matched, so we return the input as-is
+			// and preserve the local buffer.
+			output = append(output, ss)
 			continue
 		}
 
 		matchingSpanset := *ss
-		matchingSpanset.Spans = matchingSpans
+		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
 		output = append(output, &matchingSpanset)
 	}
 
