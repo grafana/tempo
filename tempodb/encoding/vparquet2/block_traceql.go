@@ -105,6 +105,30 @@ func getSpan() *span {
 	return spanPool.Get().(*span)
 }
 
+var spansetPool = sync.Pool{
+	New: func() interface{} {
+		return &traceql.Spanset{}
+	},
+}
+
+func getSpanset() *traceql.Spanset {
+	return spansetPool.Get().(*traceql.Spanset)
+}
+
+// putSpanset back into the pool.  Does not repool the spans.
+func putSpanset(ss *traceql.Spanset) {
+	ss.Attributes = ss.Attributes[:0]
+	ss.DurationNanos = 0
+	ss.RootServiceName = ""
+	ss.RootSpanName = ""
+	ss.Scalar = traceql.Static{}
+	ss.StartTimeUnixNanos = 0
+	ss.TraceID = nil
+	ss.Spans = ss.Spans[:0]
+
+	spansetPool.Put(ss)
+}
+
 // Helper function to create an iterator, that abstracts away
 // context like file and rowgroups.
 type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
@@ -331,6 +355,7 @@ func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 			for _, s := range spanset.Spans {
 				putSpan(s.(*span))
 			}
+			putSpanset(spanset)
 		}
 
 		// flatten spans into i.currentSpans
@@ -1553,31 +1578,27 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	var filteredSpans []traceql.Span
+	sp := getSpanset()
 
 	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {
 		for _, span := range c.buffer {
 			if span.attributesMatched() > 0 {
-				filteredSpans = append(filteredSpans, span)
+				sp.Spans = append(sp.Spans, span)
 				continue
 			}
 			putSpan(span)
 		}
 	} else {
-		filteredSpans = make([]traceql.Span, 0, len(c.buffer))
 		for _, span := range c.buffer {
-			filteredSpans = append(filteredSpans, span)
+			sp.Spans = append(sp.Spans, span)
 		}
 	}
 
 	// Throw out batches without any spans
-	if len(filteredSpans) == 0 {
+	if len(sp.Spans) == 0 {
+		putSpanset(sp)
 		return false
-	}
-
-	sp := &traceql.Spanset{
-		Spans: filteredSpans,
 	}
 
 	res.Entries = res.Entries[:0]
@@ -1600,7 +1621,7 @@ func (c *traceCollector) String() string {
 }
 
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	finalSpanset := &traceql.Spanset{}
+	finalSpanset := getSpanset()
 
 	for _, e := range res.Entries {
 		switch e.Key {
@@ -1617,9 +1638,21 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	// Pre-allocate the final number of spans
+	numSpans := 0
+	for _, e := range res.OtherEntries {
+		if spanset, ok := e.Value.(*traceql.Spanset); ok {
+			numSpans += len(spanset.Spans)
+		}
+	}
+	if cap(finalSpanset.Spans) < numSpans {
+		finalSpanset.Spans = make([]traceql.Span, 0, numSpans)
+	}
+
 	for _, e := range res.OtherEntries {
 		if spanset, ok := e.Value.(*traceql.Spanset); ok {
 			finalSpanset.Spans = append(finalSpanset.Spans, spanset.Spans...)
+			putSpanset(spanset)
 		}
 	}
 
