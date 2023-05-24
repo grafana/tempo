@@ -39,7 +39,3 @@ For more information about TraceQL’s design, refer to the [TraceQL Concepts de
 - Structural Queries
 - Metrics
 - Pipeline comparisons
-
-### Request access
-
-Once TraceQL is available in Grafana Cloud as an experimental feature, you can open a ticket with Grafana Support to request access.
