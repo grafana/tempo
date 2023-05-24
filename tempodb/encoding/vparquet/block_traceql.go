@@ -1664,13 +1664,11 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.Spans = append(finalSpanset.Spans, spanset.Spans...)
 
 			// loop over all spans and add the trace-level attributes
-			if traceAttrs != nil {
-				for k, v := range traceAttrs {
-					for _, sp := range spanset.Spans {
-						s := sp.(*span)
-						if _, alreadyExists := s.attributes[k]; !alreadyExists {
-							s.attributes[k] = v
-						}
+			for k, v := range traceAttrs {
+				for _, sp := range spanset.Spans {
+					s := sp.(*span)
+					if _, alreadyExists := s.attributes[k]; !alreadyExists {
+						s.attributes[k] = v
 					}
 				}
 			}
