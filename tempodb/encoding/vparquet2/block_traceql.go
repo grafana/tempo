@@ -1617,6 +1617,8 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // It adds trace-level attributes into the spansets before
 // they are returned
 type traceCollector struct {
+	// traceAttrs is a map reused by KeepGroup to reduce allocations
+	traceAttrs map[traceql.Attribute]traceql.Static
 }
 
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
@@ -1627,11 +1629,12 @@ func (c *traceCollector) String() string {
 
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	finalSpanset := &traceql.Spanset{}
-	var traceAttrs map[traceql.Attribute]traceql.Static
-	initAttrs := func() {
-		if traceAttrs == nil {
-			traceAttrs = make(map[traceql.Attribute]traceql.Static)
-		}
+	// init the map and clear out if necessary
+	if c.traceAttrs == nil {
+		c.traceAttrs = make(map[traceql.Attribute]traceql.Static)
+	}
+	for k := range c.traceAttrs {
+		delete(c.traceAttrs, k)
 	}
 
 	for _, e := range res.Entries {
@@ -1642,16 +1645,13 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:
 			finalSpanset.DurationNanos = e.Value.Uint64()
-			initAttrs()
-			traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceDuration)] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
+			c.traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceDuration)] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
 		case columnPathRootSpanName:
 			finalSpanset.RootSpanName = e.Value.String()
-			initAttrs()
-			traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan)] = traceql.NewStaticString(finalSpanset.RootSpanName)
+			c.traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan)] = traceql.NewStaticString(finalSpanset.RootSpanName)
 		case columnPathRootServiceName:
 			finalSpanset.RootServiceName = e.Value.String()
-			initAttrs()
-			traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceRootService)] = traceql.NewStaticString(finalSpanset.RootServiceName)
+			c.traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceRootService)] = traceql.NewStaticString(finalSpanset.RootServiceName)
 		}
 	}
 
@@ -1660,7 +1660,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.Spans = append(finalSpanset.Spans, spanset.Spans...)
 
 			// loop over all spans and add the trace-level attributes
-			for k, v := range traceAttrs {
+			for k, v := range c.traceAttrs {
 				for _, sp := range spanset.Spans {
 					s := sp.(*span)
 					if _, alreadyExists := s.attributes[k]; !alreadyExists {
