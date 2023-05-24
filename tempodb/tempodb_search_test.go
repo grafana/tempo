@@ -164,7 +164,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: fmt.Sprintf("{} | count() != %d", totalSpans+1)},
 		{Query: fmt.Sprintf("{ true } && { true } | count() = %d", totalSpans)},
 		{Query: fmt.Sprintf("{ true } || { true } | count() = %d", totalSpans)},
-		{Query: fmt.Sprintf("{ %s && %s } | count() = 1", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
+		{Query: fmt.Sprintf("{ %s && %s && name=`MySpan` } | count() = 1", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
 		// avgs/min/max/sum
 		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | avg(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
@@ -379,29 +379,29 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 }
 
 // oneQueryRunner is a good place to place a single query for debugging
-func oneQueryRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
-	ctx := context.Background()
-	e := traceql.NewEngine()
+// func oneQueryRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+// 	ctx := context.Background()
+// 	e := traceql.NewEngine()
 
-	searchesThatMatch := []*tempopb.SearchRequest{
-		// conditions
-		{Query: "{rootServiceName=`fotlVYVqts`} || {.k8s.container.name=`k8sContainer`}"},
-	}
+// 	searchesThatMatch := []*tempopb.SearchRequest{
+// 		// conditions
+// 		{Query: "{rootServiceName=`fotlVYVqts`} || {.k8s.container.name=`k8sContainer`}"},
+// 	}
 
-	for _, req := range searchesThatMatch {
-		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
-		})
+// 	for _, req := range searchesThatMatch {
+// 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+// 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+// 		})
 
-		res, err := e.ExecuteSearch(ctx, req, fetcher)
-		require.NoError(t, err, "search request: %+v", req)
-		actual := actualForExpectedMeta(wantMeta, res)
-		require.NotNil(t, actual, "search request: %v", req)
-		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
-		actual.SpanSets = nil
-		require.Equal(t, wantMeta, actual, "search request: %v", req)
-	}
-}
+// 		res, err := e.ExecuteSearch(ctx, req, fetcher)
+// 		require.NoError(t, err, "search request: %+v", req)
+// 		actual := actualForExpectedMeta(wantMeta, res)
+// 		require.NotNil(t, actual, "search request: %v", req)
+// 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+// 		actual.SpanSets = nil
+// 		require.Equal(t, wantMeta, actual, "search request: %v", req)
+// 	}
+// }
 
 func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string, []string) {
 	trueConditions := []string{}
