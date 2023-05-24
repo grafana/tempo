@@ -16,12 +16,17 @@
  *
  */
 
-package googlecloud
+package grpcsync
 
-import "os"
+import (
+	"sync"
+)
 
-const linuxProductNameFile = "/sys/class/dmi/id/product_name"
-
-func manufacturer() ([]byte, error) {
-	return os.ReadFile(linuxProductNameFile)
+// OnceFunc returns a function wrapping f which ensures f is only executed
+// once even if the returned function is executed multiple times.
+func OnceFunc(f func()) func() {
+	var once sync.Once
+	return func() {
+		once.Do(f)
+	}
 }
