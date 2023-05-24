@@ -28,13 +28,15 @@ const (
 	LabelK8sPodName       = "k8s.pod.name"
 	LabelK8sContainerName = "k8s.container.name"
 
-	LabelName           = "name"
-	LabelHTTPMethod     = "http.method"
-	LabelHTTPUrl        = "http.url"
-	LabelHTTPStatusCode = "http.status_code"
-	LabelStatusCode     = "status.code"
-	LabelStatus         = "status"
-	LabelKind           = "kind"
+	LabelName                   = "name"
+	LabelHTTPMethod             = "http.method"
+	LabelHTTPUrl                = "http.url"
+	LabelHTTPStatusCode         = "http.status_code"
+	LabelStatusCode             = "status.code"
+	LabelStatus                 = "status"
+	LabelKind                   = "kind"
+	LabelTraceQLRootServiceName = "rootServiceName"
+	LabelTraceQLRootName        = "rootName"
 )
 
 // These definition levels match the schema below
