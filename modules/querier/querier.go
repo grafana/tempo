@@ -568,13 +568,14 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	distinctValues := util.NewDistinctValueCollector(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 	// Virtual tags values. Get these first.
-	for _, v := range search.GetVirtualTagValuesV2(req.TagName) {
+	virtualVals := search.GetVirtualTagValuesV2(req.TagName)
+	for _, v := range virtualVals {
 		distinctValues.Collect(v)
 	}
 
 	// with v2 search we can confidently bail if GetVirtualTagValuesV2 gives us any hits. this doesn't work
 	// in v1 search b/c intrinsic tags like "status" are conflated with attributes named "status"
-	if distinctValues.TotalDataSize() > 0 {
+	if virtualVals != nil {
 		return valuesToV2Response(distinctValues), nil
 	}
 

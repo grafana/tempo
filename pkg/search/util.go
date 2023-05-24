@@ -29,7 +29,6 @@ func GetVirtualTagValues(tagName string) []string {
 }
 
 func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
-
 	switch tagName {
 	case traceql.IntrinsicStatus.String():
 		return []tempopb.TagValue{
@@ -46,6 +45,10 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 			{Type: "keyword", Value: traceql.KindInternal.String()},
 			{Type: "keyword", Value: traceql.KindUnspecified.String()},
 		}
+	case traceql.IntrinsicDuration.String():
+		return []tempopb.TagValue{}
+	case traceql.IntrinsicTraceDuration.String():
+		return []tempopb.TagValue{}
 	}
 
 	return nil
