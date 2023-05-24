@@ -147,6 +147,7 @@ func TestValueAlloc(t *testing.T) {
 }
 
 func TestCountSpans(t *testing.T) {
+	// It causes high mem usage when batchSize and spansEach are too big (> 500)
 	batchSize := 300 + rand.Intn(25)
 	spansEach := 250 + rand.Intn(25)
 
