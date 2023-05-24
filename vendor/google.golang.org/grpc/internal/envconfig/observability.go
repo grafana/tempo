@@ -16,12 +16,21 @@
  *
  */
 
-package googlecloud
+package envconfig
 
 import "os"
 
-const linuxProductNameFile = "/sys/class/dmi/id/product_name"
+const (
+	envObservabilityConfig     = "GRPC_GCP_OBSERVABILITY_CONFIG"
+	envObservabilityConfigFile = "GRPC_GCP_OBSERVABILITY_CONFIG_FILE"
+)
 
-func manufacturer() ([]byte, error) {
-	return os.ReadFile(linuxProductNameFile)
-}
+var (
+	// ObservabilityConfig is the json configuration for the gcp/observability
+	// package specified directly in the envObservabilityConfig env var.
+	ObservabilityConfig = os.Getenv(envObservabilityConfig)
+	// ObservabilityConfigFile is the json configuration for the
+	// gcp/observability specified in a file with the location specified in
+	// envObservabilityConfigFile env var.
+	ObservabilityConfigFile = os.Getenv(envObservabilityConfigFile)
+)
