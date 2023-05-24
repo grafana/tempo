@@ -303,7 +303,11 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		}
 
 		for attribute, static := range atts {
-			if attribute.Intrinsic == IntrinsicName || attribute.Intrinsic == IntrinsicDuration {
+			if attribute.Intrinsic == IntrinsicName ||
+				attribute.Intrinsic == IntrinsicDuration ||
+				attribute.Intrinsic == IntrinsicTraceDuration ||
+				attribute.Intrinsic == IntrinsicTraceRootService ||
+				attribute.Intrinsic == IntrinsicTraceRootSpan {
 				continue
 			}
 

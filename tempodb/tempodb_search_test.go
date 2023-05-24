@@ -103,7 +103,13 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 	falseConditions := []string{
 		fmt.Sprintf("name=`%v`", test.RandomString()),
 		fmt.Sprintf("duration>%dh", rand.Intn(10)+1),
+		fmt.Sprintf("rootServiceName=`%v`", test.RandomString()),
 		// status? can't really construct a status condition that's false for all spans
+	}
+	trueTraceC := []string{
+		fmt.Sprintf("traceDuration=%dms", wantMeta.DurationMs),
+		fmt.Sprintf("rootServiceName=`%s`", wantMeta.RootServiceName),
+		fmt.Sprintf("rootName=`%s`", wantMeta.RootTraceName),
 	}
 	totalSpans := 0
 	for _, b := range wantTr.Batches {
@@ -122,6 +128,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 				trueC = append(trueC, fmt.Sprintf("status=%s", status))
 				trueC = append(trueC, fmt.Sprintf("kind=%s", kind))
 				trueC = append(trueC, trueResourceC...)
+				trueC = append(trueC, trueTraceC...)
 
 				trueConditionsBySpan = append(trueConditionsBySpan, trueC)
 				falseConditions = append(falseConditions, falseC...)
@@ -466,7 +473,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	totalTraces := 50
-	wantTrIdx := rand.Intn(50)
+	wantTrIdx := rand.Intn(totalTraces)
 	for i := 0; i < totalTraces; i++ {
 		var tr *tempopb.Trace
 		var id []byte

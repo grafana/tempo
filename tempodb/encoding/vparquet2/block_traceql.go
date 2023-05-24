@@ -711,15 +711,15 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	var (
 		// If there are only span conditions, then don't return a span upstream
 		// unless it matches at least 1 span-level condition.
-		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0
+		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0 && len(traceConditions) == 0
 
 		// If there are only resource conditions, then don't return a resource upstream
 		// unless it matches at least 1 resource-level condition.
-		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0
+		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0 && len(traceConditions) == 0
 
 		// Don't return the final spanset upstream unless it matched at least 1 condition
 		// anywhere, except in the case of the empty query: {}
-		batchRequireAtLeastOneMatchOverall = len(conds) > 0
+		batchRequireAtLeastOneMatchOverall = len(conds) > 0 && len(traceConditions) == 0 && len(traceConditions) == 0
 	)
 
 	// Optimization for queries like {resource.x... && span.y ...}
@@ -1615,6 +1615,12 @@ func (c *traceCollector) String() string {
 
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	finalSpanset := &traceql.Spanset{}
+	var traceAttrs map[traceql.Attribute]traceql.Static
+	initAttrs := func() {
+		if traceAttrs == nil {
+			traceAttrs = make(map[traceql.Attribute]traceql.Static)
+		}
+	}
 
 	for _, e := range res.Entries {
 		switch e.Key {
@@ -1624,16 +1630,34 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:
 			finalSpanset.DurationNanos = e.Value.Uint64()
+			initAttrs()
+			traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceDuration)] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
 		case columnPathRootSpanName:
 			finalSpanset.RootSpanName = e.Value.String()
+			initAttrs()
+			traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan)] = traceql.NewStaticString(finalSpanset.RootSpanName)
 		case columnPathRootServiceName:
 			finalSpanset.RootServiceName = e.Value.String()
+			initAttrs()
+			traceAttrs[traceql.NewIntrinsic(traceql.IntrinsicTraceRootService)] = traceql.NewStaticString(finalSpanset.RootServiceName)
 		}
 	}
 
 	for _, e := range res.OtherEntries {
 		if spanset, ok := e.Value.(*traceql.Spanset); ok {
 			finalSpanset.Spans = append(finalSpanset.Spans, spanset.Spans...)
+
+			// loop over all spans and add the trace-level attributes
+			if traceAttrs != nil {
+				for k, v := range traceAttrs {
+					for _, sp := range spanset.Spans {
+						s := sp.(*span)
+						if _, alreadyExists := s.attributes[k]; !alreadyExists {
+							s.attributes[k] = v
+						}
+					}
+				}
+			}
 		}
 	}
 
