@@ -104,8 +104,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	s.logger.Log("msg", "=== searchReq: %v", searchReq)
-
 	// adjust limit based on config
 	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
 
@@ -135,11 +133,15 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// build request to search ingester based on query_ingesters_until config and time range
-	// pass subCtx in requests so we can cancel and exit early
+	// pass subCtx in requests, so we can cancel and exit early
 	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
 	}
+
+	// FIXME(sura): can probably skip calling backendRange, blockMetas and building backendRequests
+	// when start and end is 0 (not set), as is it builds 0 backendRequests but can save on calls
+	// FIXME(suraj): maybe refactor logic of building backend backendRequests into a func
 
 	// calculate duration (start and end) to search the backend blocks
 	start, end := s.backendRange(searchReq)
@@ -151,7 +153,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	var reqs []*http.Request
 	// add backend requests if we need them
 	if start != end {
-		// pass subCtx in requests so we can cancel and exit early
+		// pass subCtx in requests, so we can cancel and exit early
 		reqs, err = s.backendRequests(subCtx, tenantID, r, blocks)
 		if err != nil {
 			return nil, err
@@ -248,7 +250,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	query, _ := url.PathUnescape(r.URL.RawQuery)
 	span.SetTag("query", query)
 	level.Info(s.logger).Log(
-		"msg", "=== sharded search query request stats and SearchMetrics",
+		"msg", "sharded search query request stats and SearchMetrics",
 		"query", query,
 		"duration_seconds", reqTime,
 		"request_throughput", throughput,
@@ -370,11 +372,16 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 	return reqs, nil
 }
 
-// queryIngesterWithin returns a new start and end time range for the backend as well as an http request
+// ingesterRequest returns a new start and end time range for the backend as well as an http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
 func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
+	// request without start or end, search only in ingester
+	if searchReq.Start == 0 || searchReq.End == 0 {
+		return buildIngesterRequest(ctx, tenantID, parent, searchReq)
+	}
+
 	now := time.Now()
 	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
 
@@ -396,17 +403,23 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 		return nil, nil
 	}
 
-	subR := parent.Clone(ctx)
-	subR.Header.Set(user.OrgIDHeaderName, tenantID)
-
 	searchReq.Start = ingesterStart
 	searchReq.End = ingesterEnd
+
+	// FIXME(suraj): looks like walSearch fails with start and end, write a test and verify it
+	return buildIngesterRequest(ctx, tenantID, parent, searchReq)
+}
+
+func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
+	subR := parent.Clone(ctx)
+
+	subR.Header.Set(user.OrgIDHeaderName, tenantID)
 	subR, err := api.BuildSearchRequest(subR, &searchReq)
 	if err != nil {
 		return nil, err
 	}
-	subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
 
+	subR.RequestURI = buildUpstreamRequestURI(subR.URL.Path, subR.URL.Query())
 	return subR, nil
 }
 

@@ -255,6 +255,11 @@ func TestIngesterRequest(t *testing.T) {
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
 		},
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
+			queryIngestersUntil: 15 * time.Minute,
+			expectedURI:         "/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&start=0&tags=foo%3Dbar",
+		},
 	}
 
 	for _, tc := range tests {
