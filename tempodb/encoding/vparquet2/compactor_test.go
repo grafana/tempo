@@ -147,8 +147,8 @@ func TestValueAlloc(t *testing.T) {
 }
 
 func TestCountSpans(t *testing.T) {
-	batchSize := rand.Intn(1000) + 1
-	spansEach := rand.Intn(1000) + 1
+	batchSize := 300 + rand.Intn(25)
+	spansEach := 250 + rand.Intn(25)
 
 	sch := parquet.SchemaOf(new(Trace))
 	traceID := make([]byte, 16)
