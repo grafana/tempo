@@ -2,7 +2,11 @@ package vparquet2
 
 import "github.com/grafana/tempo/pkg/util"
 
-func assignNestedSetModelBounds(trace *Trace) {
+// assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft,
+// Span.NestedSetRight, and Span.ParentID for all spans in a trace.
+// The assignment is skipped when all spans have non-zero left and right bounds. If
+// forceAssignment is true, the assignment is never skipped.
+func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 	var (
 		assignmentNeeded bool
 		rootSpans        []*wrappedSpan
@@ -27,7 +31,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 		}
 	}
 
-	if len(rootSpans) == 0 || !assignmentNeeded {
+	if (!assignmentNeeded && !forceAssignment) || len(rootSpans) == 0 {
 		return
 	}
 

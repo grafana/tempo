@@ -160,7 +160,7 @@ func (c *Combiner) Result() (*Trace, int) {
 	if c.result != nil && c.combined {
 		// Only if anything combined
 		SortTrace(c.result)
-		assignNestedSetModelBounds(c.result)
+		assignNestedSetModelBounds(c.result, true)
 		spanCount = len(c.spans)
 	}
 
