@@ -53,7 +53,7 @@ const (
 )
 
 var defaultPeerAttributes = []attribute.Key{
-	semconv.PeerServiceKey, semconv.NetPeerNameKey, semconv.NetSockPeerNameKey, semconv.RPCServiceKey, semconv.NetSockPeerAddrKey, semconv.HTTPURLKey, semconv.HTTPTargetKey,
+	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
 }
 
 type tooManySpansError struct {
