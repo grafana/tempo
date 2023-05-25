@@ -251,6 +251,7 @@ func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
 	Expression          FieldExpression
+	outputBuffer        []*Spanset
 	matchingSpansBuffer []Span
 }
 
@@ -264,7 +265,7 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	var output []*Spanset
+	f.outputBuffer = f.outputBuffer[:0]
 
 	for _, ss := range input {
 		if len(ss.Spans) == 0 {
@@ -297,16 +298,16 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 		if len(f.matchingSpansBuffer) == len(ss.Spans) {
 			// All matched, so we return the input as-is
 			// and preserve the local buffer.
-			output = append(output, ss)
+			f.outputBuffer = append(f.outputBuffer, ss)
 			continue
 		}
 
 		matchingSpanset := ss.clone()
 		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
-		output = append(output, matchingSpanset)
+		f.outputBuffer = append(f.outputBuffer, matchingSpanset)
 	}
 
-	return output, nil
+	return f.outputBuffer, nil
 }
 
 type ScalarFilter struct {
