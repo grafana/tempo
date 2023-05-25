@@ -28,8 +28,8 @@ import (
 const (
 	traceByIDOp  = "traces"
 	searchOp     = "search"
-	metricsOp    = "metrics"
 	searchTagsOp = "searchtags"
+	metricsOp    = "metrics"
 )
 
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
@@ -77,14 +77,14 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
-	spanMetricsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 	searchTagsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchTagsOp})
+	spanMetricsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	searchTags := searchTagsMiddleware.Wrap(next)
-
 	metrics := spanMetricsMiddleware.Wrap(next)
+
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDCounter, logger),
 		SearchHandler:             newHandler(search, searchCounter, logger),

@@ -135,7 +135,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	reqs, blocks, err := s.backendRequest(subCtx, tenantID, r, *searchReq)
+	reqs, blocks, err := s.backendRequests(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 }
 
 // backendRequest builds backend requests to search backend blocks
-func (s *searchSharder) backendRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) ([]*http.Request, []*backend.BlockMeta, error) {
+func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) ([]*http.Request, []*backend.BlockMeta, error) {
 	var err error
 	var reqs []*http.Request
 	var blocks []*backend.BlockMeta

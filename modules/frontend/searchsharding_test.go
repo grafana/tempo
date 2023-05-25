@@ -202,6 +202,98 @@ func TestBuildBackendRequests(t *testing.T) {
 	}
 }
 
+func TestBackendRequests(t *testing.T) {
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm.StartTime = time.Unix(100, 0)
+	bm.EndTime = time.Unix(200, 0)
+	bm.Size = defaultTargetBytesPerRequest * 2
+	bm.TotalRecords = 2
+
+	s := &searchSharder{
+		cfg:    SearchSharderConfig{},
+		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
+	}
+
+	tests := []struct {
+		name             string
+		request          string
+		expectedReqsURIs []string
+		expectedBlockIDs []string
+		expectedError    error
+	}{
+		{
+			name:    "start and end same as block",
+			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=100&end=200",
+			expectedReqsURIs: []string{
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+			},
+			expectedBlockIDs: []string{bm.BlockID.String()},
+			expectedError:    nil,
+		},
+		{
+			name:    "start and end in block",
+			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=110&end=150",
+			expectedReqsURIs: []string{
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+			},
+			expectedBlockIDs: []string{bm.BlockID.String()},
+			expectedError:    nil,
+		},
+		{
+			name:             "start and end out of block",
+			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
+			expectedReqsURIs: make([]string, 0),
+			expectedBlockIDs: make([]string, 0),
+			expectedError:    nil,
+		},
+		{
+			name:             "no start and end",
+			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
+			expectedReqsURIs: make([]string, 0),
+			expectedBlockIDs: make([]string, 0),
+			expectedError:    nil,
+		},
+		{
+			name:             "only tags",
+			request:          "/?tags=foo%3Dbar",
+			expectedReqsURIs: make([]string, 0),
+			expectedBlockIDs: make([]string, 0),
+			expectedError:    nil,
+		},
+		{
+			name:             "no params",
+			request:          "/",
+			expectedReqsURIs: make([]string, 0),
+			expectedBlockIDs: make([]string, 0),
+			expectedError:    nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", tc.request, nil)
+			searchReq, err := api.ParseSearchRequest(r)
+			require.NoError(t, err)
+
+			reqs, blocks, err := s.backendRequests(context.TODO(), "test", r, *searchReq)
+			assert.Equal(t, tc.expectedError, err)
+
+			reqURIs := make([]string, 0)
+			for _, req := range reqs {
+				reqURIs = append(reqURIs, req.RequestURI)
+			}
+			assert.Equal(t, tc.expectedReqsURIs, reqURIs)
+
+			blockIDs := make([]string, 0)
+			for _, block := range blocks {
+				blockIDs = append(blockIDs, block.BlockID.String())
+			}
+			assert.Equal(t, tc.expectedBlockIDs, blockIDs)
+		})
+	}
+}
+
 func TestIngesterRequest(t *testing.T) {
 	now := int(time.Now().Unix())
 	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
@@ -259,6 +351,11 @@ func TestIngesterRequest(t *testing.T) {
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&start=0&tags=foo%3Dbar",
+		},
+		{
+			request:             "/?limit=50",
+			queryIngestersUntil: 15 * time.Minute,
+			expectedURI:         "/querier?end=0&limit=50&start=0",
 		},
 	}
 
