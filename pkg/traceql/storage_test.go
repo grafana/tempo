@@ -46,3 +46,48 @@ func TestSpansetClone(t *testing.T) {
 		require.True(t, reflect.DeepEqual(s, s.clone()))
 	}
 }
+
+func TestMetaConditionsWithout(t *testing.T) {
+	conditionsFor := func(q string) []Condition {
+		req, err := ExtractFetchSpansRequest(q)
+		require.NoError(t, err)
+
+		return req.Conditions
+	}
+
+	tcs := []struct {
+		remove []Condition
+		expect []Condition
+	}{
+		{
+			remove: []Condition{},
+			expect: SearchMetaConditions(),
+		},
+		{
+			remove: conditionsFor("{ duration > 1s}"),
+			expect: []Condition{
+				{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+				{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+				{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+			},
+		},
+		{
+			remove: conditionsFor("{ rootServiceName = `foo` && rootName = `bar`} | avg(duration) > 1s"),
+			expect: []Condition{
+				{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+				{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+				{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		require.Equal(t, tc.expect, SearchMetaConditionsWithout(tc.remove))
+	}
+}

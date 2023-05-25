@@ -294,7 +294,7 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 
 	resp, err = i.SearchTags(userCtx, "intrinsic")
 	require.NoError(t, err)
-	require.Equal(t, []string{"duration", "kind", "name", "status"}, resp.TagNames)
+	require.Equal(t, []string{"duration", "kind", "name", "status", "traceDuration", "rootServiceName", "rootName"}, resp.TagNames)
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
