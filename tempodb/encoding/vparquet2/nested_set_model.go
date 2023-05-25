@@ -38,7 +38,7 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 	// Traverse the tree depth first. When traversing down into the tree, assign NestedSetLeft
 	// and assign NestedSetRight when going up.
 	var (
-		ancestors      stack[wrappedSpan]
+		ancestors      util.Stack[*wrappedSpan]
 		nestedSetBound int32 = 1
 	)
 
@@ -46,11 +46,11 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 		root.span.NestedSetLeft = nestedSetBound
 		nestedSetBound++
 
-		ancestors.reset()
-		ancestors.push(root)
+		ancestors.Reset()
+		ancestors.Push(root)
 
-		for !ancestors.isEmpty() {
-			parent := ancestors.peek()
+		for !ancestors.IsEmpty() {
+			parent, _ := ancestors.Peek()
 			children := spanChildren[parent.id]
 
 			if parent.nextChild < len(children) {
@@ -63,52 +63,23 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 				child.NestedSetLeft = nestedSetBound
 				nestedSetBound++
 
-				ancestors.push(&wrappedSpan{span: child, id: util.SpanIDToArray(child.SpanID)})
+				ancestors.Push(&wrappedSpan{span: child, id: util.SpanIDToArray(child.SpanID)})
 			} else {
 				// All children of the current node were visited: go up
 
 				parent.span.NestedSetRight = nestedSetBound
 				nestedSetBound++
 
-				ancestors.pop()
+				ancestors.Pop()
 			}
 		}
 	}
 }
 
+// wrappedSpan is used to remember the converted span ID and position of the child that
+// needs to be visited next
 type wrappedSpan struct {
 	span      *Span
 	id        [8]byte
 	nextChild int
-}
-
-type stack[T any] []*T
-
-func (ss *stack[T]) push(element *T) {
-	*ss = append(*ss, element)
-}
-
-func (ss *stack[T]) peek() *T {
-	if len(*ss) == 0 {
-		return nil
-	}
-	return (*ss)[len(*ss)-1]
-}
-
-func (ss *stack[T]) pop() *T {
-	if len(*ss) == 0 {
-		return nil
-	}
-	i := len(*ss) - 1
-	s := (*ss)[i]
-	*ss = (*ss)[:i]
-	return s
-}
-
-func (ss *stack[T]) isEmpty() bool {
-	return len(*ss) == 0
-}
-
-func (ss *stack[T]) reset() {
-	*ss = (*ss)[:0]
 }
