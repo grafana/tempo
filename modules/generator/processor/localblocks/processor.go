@@ -393,7 +393,6 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 func (p *Processor) cutIdleTraces(immediate bool) error {
 	p.liveTracesMtx.Lock()
-	defer p.liveTracesMtx.Unlock()
 
 	// Record live traces before flushing so we know the high water mark
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
@@ -404,6 +403,8 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	}
 
 	tracesToCut := p.liveTraces.CutIdle(since)
+
+	p.liveTracesMtx.Unlock()
 
 	if len(tracesToCut) == 0 {
 		return nil
