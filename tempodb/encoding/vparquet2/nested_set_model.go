@@ -13,7 +13,7 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 		spanChildren     = map[[8]byte][]*Span{}
 	)
 
-	// find root spans and map span IDs to child spans
+	// Find root spans and map span IDs to child spans
 	for _, rs := range trace.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			for i, s := range ss.Spans {
@@ -35,7 +35,8 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 		return
 	}
 
-	// traverse the tree
+	// Traverse the tree depth first. When traversing down into the tree, assign NestedSetLeft
+	// and assign NestedSetRight when going up.
 	var (
 		ancestors      stack[wrappedSpan]
 		nestedSetBound int32 = 1
@@ -53,6 +54,8 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 			children := spanChildren[parent.id]
 
 			if parent.nextChild < len(children) {
+				// The current node has children that were not visited: go down to next child
+
 				child := children[parent.nextChild]
 				child.ParentID = parent.span.NestedSetLeft // the left bound doubles as numeric span ID
 				parent.nextChild++
@@ -62,6 +65,8 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 
 				ancestors.push(&wrappedSpan{span: child, id: util.SpanIDToArray(child.SpanID)})
 			} else {
+				// All children of the current node were visited: go up
+
 				parent.span.NestedSetRight = nestedSetBound
 				nestedSetBound++
 
