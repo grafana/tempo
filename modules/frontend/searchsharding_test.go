@@ -179,14 +179,9 @@ func TestBuildBackendRequests(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		s := &searchSharder{
-			cfg: SearchSharderConfig{
-				TargetBytesPerRequest: tc.targetBytesPerRequest,
-			},
-		}
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
 
-		reqs, err := s.buildBackendRequests(context.Background(), "test", req, tc.metas)
+		reqs, err := buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue

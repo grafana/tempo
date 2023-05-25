@@ -39,7 +39,8 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 			Code:    1,
 			Message: "OK",
 		},
-		StartTimeUnixNano:      uint64(now.UnixNano()),
+		// build span with start time one min ago
+		StartTimeUnixNano:      uint64(now.Add(-time.Minute).UnixNano()),
 		EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
 		Attributes:             attributes,
 		DroppedLinksCount:      rand.Uint32(),

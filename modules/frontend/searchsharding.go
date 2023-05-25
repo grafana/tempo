@@ -135,6 +135,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	// pass subCtx in requests so we can cancel and exit early
 	reqs, blocks, err := s.backendRequests(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
@@ -320,14 +321,13 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 	// get block metadata of blocks in start, end duration
 	blocks = s.blockMetas(int64(start), int64(end), tenantID)
 
-	// pass subCtx in requests, so we can cancel and exit early
-	reqs, err = s.buildBackendRequests(ctx, tenantID, parent, blocks)
+	reqs, err = buildBackendRequests(ctx, tenantID, parent, blocks, s.cfg.TargetBytesPerRequest)
 	return reqs, blocks, err
 }
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func (s *searchSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta) ([]*http.Request, error) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int) ([]*http.Request, error) {
 	reqs := []*http.Request{}
 	for _, m := range metas {
 		if m.Size == 0 || m.TotalRecords == 0 {
@@ -338,7 +338,7 @@ func (s *searchSharder) buildBackendRequests(ctx context.Context, tenantID strin
 		if bytesPerPage == 0 {
 			return nil, fmt.Errorf("block %s has an invalid 0 bytes per page", m.BlockID)
 		}
-		pagesPerQuery := s.cfg.TargetBytesPerRequest / int(bytesPerPage)
+		pagesPerQuery := bytesPerRequest / int(bytesPerPage)
 		if pagesPerQuery == 0 {
 			pagesPerQuery = 1 // have to have at least 1 page per query
 		}
@@ -407,7 +407,6 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	searchReq.Start = ingesterStart
 	searchReq.End = ingesterEnd
 
-	// FIXME(suraj): looks like walSearch fails with start and end, write a test and verify it
 	return buildIngesterRequest(ctx, tenantID, parent, searchReq)
 }
 

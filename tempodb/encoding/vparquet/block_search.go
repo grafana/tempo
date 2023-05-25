@@ -291,7 +291,6 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 	}, nil
 }
 
-// FIXME(suraj): does this work with start and end?? I think there is a bug, add a test for it.
 func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) ([]pq.RowNumber, error) {
 	iter := makePipelineWithRowGroups(ctx, req, pf, rgs)
 	if iter == nil {
