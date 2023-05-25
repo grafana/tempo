@@ -1,6 +1,7 @@
 ---
 title: Instrument for distributed tracing
 menuTitle: Instrument for tracing
+description:
 aliases:
 - /docs/tempo/latest/guides/instrumentation/
 weight: 200

@@ -1,6 +1,7 @@
 ---
 title: Get started with Grafana Tempo
 menuTitle: Get started
+description: Learn about Tempo architecture, concepts, and first steps.
 weight: 200
 aliases:
 - /docs/tempo/getting-started

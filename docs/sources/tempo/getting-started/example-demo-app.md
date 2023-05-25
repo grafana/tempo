@@ -1,5 +1,6 @@
 ---
 title: Example setups
+description: This page provides setup examples of how Tempo can be configured for a sample environment.
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
 - /docs/tempo/latest/guides/loki-derived-fields/

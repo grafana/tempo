@@ -1,5 +1,6 @@
 ---
 title: Google Cloud Storage permissions
+description: Learn about Google Cloud Storage permissions for Tempo.
 weight: 10
 ---
 
@@ -8,7 +9,9 @@ weight: 10
 For configuration options, check the storage section on the [configuration]({{< relref "../configuration#storage" >}}) page.
 
 ## Permissions
+
 The following authentication methods are supported:
+
 - Google Cloud Platform environment variable `GOOGLE_APPLICATION_CREDENTIALS`
 - Google Cloud Platform Workload Identity
 

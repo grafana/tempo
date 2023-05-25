@@ -1,5 +1,6 @@
 ---
 title: Tempo documentation
+description: Grafana Tempo is an open source distributed tracing backend.
 aliases:
   - /docs/tempo/
 ---

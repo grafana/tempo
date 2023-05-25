@@ -1,6 +1,7 @@
 ---
 title: Configure Tempo
 menuTitle: Configure
+description: Learn about Tempo's available options and how to configure them.
 weight: 400
 aliases:
 - /docs/tempo/latest/configuration/
@@ -64,7 +65,7 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
-  
+
 # Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
 # If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
 # and returns only tag values that match the query.
@@ -302,8 +303,8 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling of dimensions is possible via a list of maps consisting of 
-            # "name" <string>, "source_labels" <list of string>, "join" <string> 
+            # Custom labeling of dimensions is possible via a list of maps consisting of
+            # "name" <string>, "source_labels" <list of string>, "join" <string>
             # "name" appears in the metrics, "source_labels" are the actual
             # attributes that will make up the value of the label and "join" is the
             # separator if multiple source_labels are provided

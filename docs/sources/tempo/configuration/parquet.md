@@ -1,6 +1,7 @@
 ---
 title: Apache Parquet block format
 menuTitle: Apache Parquet
+description: Learn about Tempo's Parquet block format.
 weight: 75
 ---
 

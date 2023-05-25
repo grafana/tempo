@@ -1,5 +1,6 @@
 ---
 title: Polling
+description: Learn about Tempo's polling cycle configuration options.
 weight: 80
 aliases:
 - /docs/tempo/configuration/polling
