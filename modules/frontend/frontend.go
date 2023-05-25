@@ -191,11 +191,11 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
 func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
+		searchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding, so we pass through a special roundtripper
-			return backendSearchRT.RoundTrip(r)
+			return searchRT.RoundTrip(r)
 		})
 	})
 }

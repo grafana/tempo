@@ -10,7 +10,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-// FIXME: flaky test
 func Test_counter(t *testing.T) {
 	var seriesAdded int
 	onAdd := func(count uint32) bool {
@@ -47,6 +46,7 @@ func Test_counter(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, collectionTimeMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, offsetCollectionTimeMs, 3),
 	}
+	// TODO: this test flakes here, need to find root cause and fix :)
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
 

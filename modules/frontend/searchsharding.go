@@ -91,10 +91,6 @@ func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSh
 // RoundTrip implements http.RoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-// keeping things simple. current query params are only:
-// limit=<number>
-// start=<unix epoch seconds>
-// end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
@@ -133,7 +129,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// build request to search ingester based on query_ingesters_until config and time range
-	// pass subCtx in requests, so we can cancel and exit early
+	// pass subCtx in requests so we can cancel and exit early
 	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err

@@ -330,7 +330,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http metrics endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
 
-	// the query frontend needs to have knowledge of the blocks, so it can shard search jobs
+	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(nil)
 
 	// http query echo endpoint
