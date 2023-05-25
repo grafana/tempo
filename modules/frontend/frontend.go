@@ -194,6 +194,7 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// backend search queries require sharding, so we pass through a special roundtripper
 			return backendSearchRT.RoundTrip(r)
 		})
 	})

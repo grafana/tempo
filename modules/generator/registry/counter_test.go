@@ -10,6 +10,7 @@ import (
 	"go.uber.org/atomic"
 )
 
+// FIXME: flaky test
 func Test_counter(t *testing.T) {
 	var seriesAdded int
 	onAdd := func(count uint32) bool {

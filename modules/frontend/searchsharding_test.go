@@ -62,7 +62,7 @@ func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req tra
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}
 
-func TestBackendRequests(t *testing.T) {
+func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {
 		targetBytesPerRequest int
 		metas                 []*backend.BlockMeta
@@ -186,7 +186,7 @@ func TestBackendRequests(t *testing.T) {
 		}
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
 
-		reqs, err := s.backendRequests(context.Background(), "test", req, tc.metas)
+		reqs, err := s.buildBackendRequests(context.Background(), "test", req, tc.metas)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -348,20 +348,22 @@ func TestBackendRange(t *testing.T) {
 			expectedStart:     uint32(twentyMinutesAgo),
 			expectedEnd:       uint32(fiveMinutesAgo),
 		},
+		// request without start and end should return start and end as 0
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
+			queryBackendAfter: 5 * time.Minute,
+			expectedStart:     0,
+			expectedEnd:       0,
+		},
 	}
 
 	for _, tc := range tests {
-		s := &searchSharder{
-			cfg: SearchSharderConfig{
-				QueryBackendAfter: tc.queryBackendAfter,
-			},
-		}
 		req := httptest.NewRequest("GET", tc.request, nil)
 
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualStart, actualEnd := s.backendRange(searchReq)
+		actualStart, actualEnd := backendRange(searchReq, tc.queryBackendAfter)
 		assert.Equal(t, int(tc.expectedStart), int(actualStart))
 		assert.Equal(t, int(tc.expectedEnd), int(actualEnd))
 	}
