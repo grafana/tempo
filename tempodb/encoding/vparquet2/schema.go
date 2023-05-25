@@ -133,7 +133,7 @@ type Span struct {
 	// friendly like trace ID, and []byte is half the size of string.
 	SpanID                 []byte      `parquet:","`
 	ParentSpanID           []byte      `parquet:","`
-	ParentID               int32       `parquet:",delta"`
+	ParentID               int32       `parquet:",delta"` // can be zero for non-root spans, use IsRoot to check for root spans
 	NestedSetLeft          int32       `parquet:",delta"` // doubles as numeric ID and is used to fill ParentID of child spans
 	NestedSetRight         int32       `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dict"`
@@ -154,6 +154,10 @@ type Span struct {
 	HttpMethod     *string `parquet:",snappy,optional,dict"`
 	HttpUrl        *string `parquet:",snappy,optional,dict"`
 	HttpStatusCode *int64  `parquet:",snappy,optional"`
+}
+
+func (s *Span) IsRoot() bool {
+	return len(s.ParentSpanID) == 0
 }
 
 type InstrumentationScope struct {

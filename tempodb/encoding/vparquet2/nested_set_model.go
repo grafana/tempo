@@ -21,7 +21,7 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 					assignmentNeeded = true
 				}
 
-				if len(s.ParentSpanID) == 0 {
+				if s.IsRoot() {
 					rootSpans = append(rootSpans, &wrappedSpan{span: &ss.Spans[i], id: util.SpanIDToArray(s.SpanID)})
 				} else {
 					parentID := util.SpanIDToArray(s.ParentSpanID)
