@@ -34,8 +34,7 @@ Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluste
 
 ## Use environment variables in the configuration
 
-You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
-To do this, use:
+You can use environment variable references in the configuration file to set values that need to be configurable during deployment. To do this, pass `-config.expand-env=true` and use:
 
 ```
 ${VAR}
