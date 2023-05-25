@@ -261,7 +261,7 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 }
 
 // nolint: revive
-func (_ *SpansetFilter) __spansetExpression() {}
+func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 	var output []*Spanset
@@ -301,9 +301,9 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 			continue
 		}
 
-		matchingSpanset := *ss
+		matchingSpanset := ss.clone()
 		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
-		output = append(output, &matchingSpanset)
+		output = append(output, matchingSpanset)
 	}
 
 	return output, nil

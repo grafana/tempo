@@ -104,16 +104,8 @@ func (s *Spanset) AddAttribute(key string, value Static) {
 }
 
 func (s *Spanset) clone() *Spanset {
-	return &Spanset{
-		TraceID:            s.TraceID,
-		Scalar:             s.Scalar,
-		RootSpanName:       s.RootSpanName,
-		RootServiceName:    s.RootServiceName,
-		StartTimeUnixNanos: s.StartTimeUnixNanos,
-		DurationNanos:      s.DurationNanos,
-		Spans:              s.Spans, // we're not deep cloning into the spans or attributes
-		Attributes:         s.Attributes,
-	}
+	ss := *s
+	return &ss
 }
 
 type SpansetIterator interface {
