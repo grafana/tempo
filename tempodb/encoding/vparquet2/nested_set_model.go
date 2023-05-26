@@ -1,19 +1,39 @@
 package vparquet2
 
-import "github.com/grafana/tempo/pkg/util"
+import (
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
+)
 
-// assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft,
-// Span.NestedSetRight, and Span.ParentID for all spans in a trace.
-// The assignment is skipped when all spans have non-zero left and right bounds. If
-// forceAssignment is true, the assignment is never skipped.
+// spanNode is a wrapper around a span that is used to build and travers spans as a tree.
+type spanNode struct {
+	parent    *spanNode
+	span      *Span
+	children  []*spanNode
+	nextChild int
+}
+
+// assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
+// and Span.ParentID for all spans in a trace. The assignment is skipped when all spans have non-zero
+// left and right bounds. If forceAssignment is true, the assignment is never skipped.
 func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
+	// count spans in order be able to pre-allocate tree nodes
+	var spanCount int
+	for _, rs := range trace.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			spanCount += len(ss.Spans)
+		}
+	}
+
+	// find root spans and map span IDs to tree nodes
 	var (
+		undoAssignment   bool
 		assignmentNeeded bool
-		rootSpans        []*wrappedSpan
-		spanChildren     = map[[8]byte][]*Span{}
+		allNodes         = make([]spanNode, 0, spanCount)
+		nodesByID        = make(map[uint64][]*spanNode, spanCount)
+		rootNodes        []*spanNode
 	)
 
-	// Find root spans and map span IDs to child spans
 	for _, rs := range trace.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			for i, s := range ss.Spans {
@@ -21,65 +41,112 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 					assignmentNeeded = true
 				}
 
+				allNodes = append(allNodes, spanNode{span: &ss.Spans[i]})
+				node := &allNodes[len(allNodes)-1]
+
 				if s.IsRoot() {
-					rootSpans = append(rootSpans, &wrappedSpan{span: &ss.Spans[i], id: util.SpanIDToArray(s.SpanID)})
+					rootNodes = append(rootNodes, node)
+				}
+
+				id := util.SpanIDToUint64(s.SpanID)
+				if nodes, ok := nodesByID[id]; ok {
+					// zipkin traces may contain client/server spans with the same IDs
+					nodesByID[id] = append(nodes, node)
+					if len(nodes) > 2 {
+						undoAssignment = true
+					}
 				} else {
-					parentID := util.SpanIDToArray(s.ParentSpanID)
-					spanChildren[parentID] = append(spanChildren[parentID], &ss.Spans[i])
+					nodesByID[id] = []*spanNode{node}
 				}
 			}
 		}
 	}
 
-	if (!assignmentNeeded && !forceAssignment) || len(rootSpans) == 0 {
+	// check preconditions before assignment
+	if undoAssignment {
+		for _, nodes := range nodesByID {
+			for _, n := range nodes {
+				n.span.NestedSetLeft = 0
+				n.span.NestedSetRight = 0
+				n.span.ParentID = 0
+			}
+		}
+		return
+	}
+	if (!assignmentNeeded && !forceAssignment) || len(rootNodes) == 0 {
 		return
 	}
 
-	// Traverse the tree depth first. When traversing down into the tree, assign NestedSetLeft
-	// and assign NestedSetRight when going up.
-	var (
-		ancestors      util.Stack[*wrappedSpan]
-		nestedSetBound int32 = 1
-	)
+	// build the tree
+	for i := range allNodes {
+		node := &allNodes[i]
+		parent := findParentNodeInMap(nodesByID, node)
+		if parent == nil {
+			continue
+		}
+		node.parent = parent
+		parent.children = append(parent.children, node)
+	}
 
-	for _, root := range rootSpans {
-		root.span.NestedSetLeft = nestedSetBound
+	// traverse the tree depth first. When going down the tree, assign NestedSetLeft
+	// and assign NestedSetRight when going up.
+	nestedSetBound := int32(1)
+	for _, root := range rootNodes {
+		node := root
+		node.span.NestedSetLeft = nestedSetBound
 		nestedSetBound++
 
-		ancestors.Reset()
-		ancestors.Push(root)
+		for node != nil {
+			if node.nextChild < len(node.children) {
+				// the current node has children that were not visited: go down to next child
 
-		for !ancestors.IsEmpty() {
-			parent, _ := ancestors.Peek()
-			children := spanChildren[parent.id]
+				next := node.children[node.nextChild]
+				node.nextChild++
 
-			if parent.nextChild < len(children) {
-				// The current node has children that were not visited: go down to next child
-
-				child := children[parent.nextChild]
-				child.ParentID = parent.span.NestedSetLeft // the left bound doubles as numeric span ID
-				parent.nextChild++
-
-				child.NestedSetLeft = nestedSetBound
+				next.span.NestedSetLeft = nestedSetBound
+				next.span.ParentID = node.span.NestedSetLeft
 				nestedSetBound++
-
-				ancestors.Push(&wrappedSpan{span: child, id: util.SpanIDToArray(child.SpanID)})
+				node = next
 			} else {
-				// All children of the current node were visited: go up
+				// all children of the current node were visited: go up
 
-				parent.span.NestedSetRight = nestedSetBound
+				node.span.NestedSetRight = nestedSetBound
 				nestedSetBound++
 
-				ancestors.Pop()
+				node = node.parent
 			}
 		}
 	}
 }
 
-// wrappedSpan is used to remember the converted span ID and position of the child that
-// needs to be visited next
-type wrappedSpan struct {
-	span      *Span
-	id        [8]byte
-	nextChild int
+// findParentNodeInMap finds the tree node containing the parent span for another node. zipkin traces can
+// contain client/server span pairs with identical span IDs. In those cases the span kind is used to find
+// the matching parent span.
+func findParentNodeInMap(nodesByID map[uint64][]*spanNode, node *spanNode) *spanNode {
+	if node.span.IsRoot() {
+		return nil
+	}
+
+	parentID := util.SpanIDToUint64(node.span.ParentSpanID)
+	nodes := nodesByID[parentID]
+
+	switch len(nodes) {
+	case 0:
+		return nil
+	case 1:
+		return nodes[0]
+	case 2:
+		// handle client/server spans with the same span ID
+		kindWant := int(v1.Span_SPAN_KIND_SERVER)
+		if node.span.Kind == int(v1.Span_SPAN_KIND_SERVER) {
+			kindWant = int(v1.Span_SPAN_KIND_CLIENT)
+		}
+
+		if nodes[0].span.Kind == kindWant {
+			return nodes[0]
+		}
+		return nodes[1]
+	}
+
+	return nil
 }

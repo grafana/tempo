@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -129,35 +130,115 @@ func TestSpanIDToHexString(t *testing.T) {
 	}
 }
 
-func TestSpanIDToByteArray(t *testing.T) {
+func TestSpanIDToUint64(t *testing.T) {
 	tc := []struct {
-		spanID []byte
-		numID  [8]byte
+		spanID   []byte
+		expected uint64
 	}{
 		{
-			spanID: []byte{0xAA},
-			numID:  [8]byte{0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			spanID:   []byte{0x60, 0xd8, 0xa9, 0xbd},
+			expected: 0xbd_a9_d8_60,
 		},
 		{
-			spanID: []byte{0x00, 0xAA},
-			numID:  [8]byte{0x00, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00},
+			spanID:   []byte{0x8e, 0xf6, 0x37, 0x90, 0x22, 0x57, 0xb7, 0x43},
+			expected: 0x43_b7_57_22_90_37_f6_8e,
 		},
 		{
-			spanID: []byte{0xAA, 0xBB, 0xCC},
-			numID:  [8]byte{0xAA, 0xBB, 0xCC, 0x00, 0x00, 0x00, 0x00},
+			spanID:   []byte{0x18, 0xcc, 0xd9, 0x6d, 0x70, 0xc1, 0xbd, 0xf9},
+			expected: 0xf9_bd_c1_70_6d_d9_cc_18,
 		},
 		{
-			spanID: []byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11},
-			numID:  [8]byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11},
-		},
-		{
-			spanID: []byte{0xA0, 0xA1, 0xA2, 0xA3, 0xB4, 0xB5, 0xB6, 0xB7, 0xC8},
-			numID:  [8]byte{0xA0, 0xA1, 0xA2, 0xA3, 0xB4, 0xB5, 0xB6, 0xB7},
+			spanID:   []byte{0x8e, 0xf6, 0x37, 0x90, 0x22, 0x57, 0xb7, 0x43, 0xff},
+			expected: 0x43_b7_57_22_90_37_f6_8e,
 		},
 	}
 
 	for _, tt := range tc {
-		assert.Equalf(t, tt.numID, SpanIDToArray(tt.spanID), "SpanIDToUint64(%+v)", tt.spanID)
+		token := SpanIDToUint64(tt.spanID)
+		assert.Equalf(t, tt.expected, token, "SpanIDToToken(%v) reurned 0x%x but 0x%x was expected", tt.spanID, token, tt.expected)
+	}
+}
+
+func TestSpanIDAndKindToToken(t *testing.T) {
+	tc := []struct {
+		spanID   []byte
+		expected uint64
+	}{
+		{
+			spanID:   []byte{0x60, 0xd8, 0xa9, 0xbd},
+			expected: 0xbd_a9_d8_60,
+		},
+		{
+			spanID:   []byte{0x8e, 0xf6, 0x37, 0x90, 0x22, 0x57, 0xb7, 0x43},
+			expected: 0x43_b7_57_22_90_37_f6_8e,
+		},
+		{
+			spanID:   []byte{0x18, 0xcc, 0xd9, 0x6d, 0x70, 0xc1, 0xbd, 0xf9},
+			expected: 0xf9_bd_c1_70_6d_d9_cc_18,
+		},
+		{
+			spanID:   []byte{0x8e, 0xf6, 0x37, 0x90, 0x22, 0x57, 0xb7, 0x43, 0xff},
+			expected: 0x43_b7_57_22_90_37_f6_8e,
+		},
+	}
+
+	for _, tt := range tc {
+		tokenIDOnly := SpanIDToUint64(tt.spanID)
+		tokensForKind := map[uint64]struct{}{}
+
+		for kind := 0; kind < 8; kind++ {
+			token := SpanIDAndKindToToken(tt.spanID, kind)
+
+			_, exists := tokensForKind[token]
+			assert.False(t, exists, "token expected to be unique for different span kind")
+			assert.NotEqual(t, tokenIDOnly, token)
+			tokensForKind[token] = struct{}{}
+		}
+	}
+}
+
+var tokenToPreventOptimization uint64
+
+func BenchmarkSpanIDAndKindToToken(b *testing.B) {
+	type testDataSpanID struct {
+		SpanID []byte
+		Kind   int
+	}
+
+	randomTestCasesSpanID := func(n int, idLen int) []testDataSpanID {
+		testCases := make([]testDataSpanID, 0, n)
+		for i := 0; i < n; i++ {
+			id := make([]byte, idLen)
+			for j := range id {
+				id[j] = byte(rand.Intn(256))
+			}
+			testCases = append(testCases, testDataSpanID{SpanID: id, Kind: rand.Intn(6)})
+		}
+		return testCases
+	}
+
+	benchmarks := []struct {
+		name string
+		data []testDataSpanID
+	}{
+		{
+			name: "id length 4",
+			data: randomTestCasesSpanID(1_000, 4),
+		},
+		{
+			name: "id length 8",
+			data: randomTestCasesSpanID(1_000, 8),
+		},
+	}
+	for _, bc := range benchmarks {
+		b.Run(bc.name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				d := bc.data[i%len(bc.data)]
+				tokenToPreventOptimization = SpanIDAndKindToToken(d.SpanID, d.Kind)
+			}
+			b.ReportAllocs()
+		})
 	}
 }
 

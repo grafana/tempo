@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unsafe"
 )
 
 func HexStringToTraceID(id string) ([]byte, error) {
@@ -59,15 +60,42 @@ func SpanIDToHexString(byteID []byte) string {
 	return fmt.Sprintf("%016s", id)
 }
 
-// SpanIDToArray converts a span ID into a [8]byte array representation. If the span ID is longer than
-// 8 bytes, only the first 8 bytes are evaluated for the conversion.
-func SpanIDToArray(id []byte) [8]byte {
+// spanKindFNVHashes contains pre-calculated FNV hashes for all span kind values (and two spares)
+// defined in the OTEL spec.
+var spanKindFNVHashes = [...]uint64{
+	0xa8c7f832281a39c5, // unspecified
+	0xe3757ca7d64666ea, // internal
+	0x1e23011d8472940f, // server
+	0x58d08593329ec134, // client
+	0x937e0a08e0caee59, // producer
+	0xce2b8e7e8ef71b7e, // consumer
+	0x8d912f43d2348a3,  // spare 1
+	0x43869769eb4f75c8, // spare 2
+}
+
+// SpanIDAndKindToToken converts a span ID into a token for use as key in a hash map. The token is generated such
+// that it has a low collision probability. In zipkin traces the span id is not guaranteed to be unique as it
+// is shared between client and server spans. Therefore, it is required to take the span kind into account as
+// well.
+// The token generation is more efficient for span IDs with a length >= 8.
+func SpanIDAndKindToToken(id []byte, kind int) uint64 {
+	return SpanIDToUint64(id) ^ spanKindFNVHashes[kind]
+}
+
+// SpanIDToUint64 converts a span ID into an uint64 representation. This is useful when using a span ID as key
+// in a map. Don't make assumptions about the endianness of the result. The if the ID is longer than 8 bytes, the
+// bytes at larger positions are discarded.
+// The conversion is more efficient for span IDs with a length >= 8.
+//
+// Note: span IDs are not always unique within a trace (e.g. zipkin traces) SpanIDAndKindToToken could be more
+// appropriate in some cases.
+func SpanIDToUint64(id []byte) uint64 {
 	if len(id) < 8 {
-		var b [8]byte
-		copy(b[:], id[:])
-		return b
+		var idArray [8]byte
+		copy(idArray[:], id)
+		return *(*uint64)(unsafe.Pointer(&idArray[0]))
 	}
-	return *(*[8]byte)(id)
+	return *(*uint64)(unsafe.Pointer(&id[0]))
 }
 
 // EqualHexStringTraceIDs compares two trace ID strings and compares the
