@@ -28,14 +28,15 @@ import (
 const (
 	traceByIDOp = "traces"
 	searchOp    = "search"
+	metricsOp   = "metrics"
 )
 
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler http.Handler
-	streamingSearch                 streamingSearchHandler
-	logger                          log.Logger
+	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler http.Handler
+	streamingSearch                                            streamingSearchHandler
+	logger                                                     log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -69,17 +70,21 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
+	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(cfg, o, reader, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
+	spanMetricsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
+	metrics := spanMetricsMiddleware.Wrap(next)
 	return &QueryFrontend{
-		TraceByIDHandler: newHandler(traces, traceByIDCounter, logger),
-		SearchHandler:    newHandler(search, searchCounter, logger),
-		streamingSearch:  newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
-		logger:           logger,
+		TraceByIDHandler:          newHandler(traces, traceByIDCounter, logger),
+		SearchHandler:             newHandler(search, searchCounter, logger),
+		SpanMetricsSummaryHandler: newHandler(metrics, spanMetricsCounter, logger),
+		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
+		logger:                    logger,
 	}, nil
 }
 
@@ -195,6 +200,23 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
 
 			return ingesterSearchRT.RoundTrip(r)
+		})
+	})
+}
+
+// newSpanMetricsMiddleware creates a new frontend middleware to handle search and search tags requests.
+func newSpanMetricsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		generatorRT := next
+
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// ingester search queries only need to be proxied to a single querier
+			orgID, _ := user.ExtractOrgID(r.Context())
+
+			r.Header.Set(user.OrgIDHeaderName, orgID)
+			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
+
+			return generatorRT.RoundTrip(r)
 		})
 	})
 }

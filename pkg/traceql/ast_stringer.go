@@ -26,6 +26,14 @@ func (o CoalesceOperation) String() string {
 	return "coalesce()"
 }
 
+func (o SelectOperation) String() string {
+	s := make([]string, 0, len(o.exprs))
+	for _, e := range o.exprs {
+		s = append(s, e.String())
+	}
+	return "select(" + strings.Join(s, ", ") + ")"
+}
+
 func (o ScalarOperation) String() string {
 	return binaryOp(o.Op, o.LHS, o.RHS)
 }

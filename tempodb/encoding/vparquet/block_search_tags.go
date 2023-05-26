@@ -14,8 +14,10 @@ import (
 )
 
 var translateTagToAttribute = map[string]traceql.Attribute{
-	LabelName:       traceql.NewIntrinsic(traceql.IntrinsicName),
-	LabelStatusCode: traceql.NewIntrinsic(traceql.IntrinsicStatus),
+	LabelName:                   traceql.NewIntrinsic(traceql.IntrinsicName),
+	LabelStatusCode:             traceql.NewIntrinsic(traceql.IntrinsicStatus),
+	LabelTraceQLRootName:        traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan),
+	LabelTraceQLRootServiceName: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService),
 
 	// Preserve behavior of v1 tag lookups which directed some attributes
 	// to dedicated columns.

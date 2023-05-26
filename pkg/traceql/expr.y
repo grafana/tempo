@@ -12,6 +12,8 @@ import (
     root RootExpr
     groupOperation GroupOperation
     coalesceOperation CoalesceOperation
+    selectOperation SelectOperation
+    selectArgs []FieldExpression
 
     spansetExpression SpansetExpression
     spansetPipelineExpression SpansetExpression
@@ -43,6 +45,8 @@ import (
 %type <RootExpr> root
 %type <groupOperation> groupOperation
 %type <coalesceOperation> coalesceOperation
+%type <selectOperation> selectOperation
+%type <selectArgs> selectArgs
 
 %type <spansetExpression> spansetExpression
 %type <spansetPipelineExpression> spansetPipelineExpression
@@ -68,13 +72,13 @@ import (
 %token <staticInt>      INTEGER
 %token <staticFloat>    FLOAT
 %token <staticDuration> DURATION
-%token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
+%token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
-                        IDURATION CHILDCOUNT NAME STATUS PARENT KIND
+                        IDURATION CHILDCOUNT NAME STATUS PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION
                         PARENT_DOT RESOURCE_DOT SPAN_DOT
                         COUNT AVG MAX MIN SUM
-                        BY COALESCE
+                        BY COALESCE SELECT
                         END_ATTRIBUTE
 
 // Operators are listed with increasing precedence.
@@ -116,10 +120,12 @@ spansetPipeline:
     spansetExpression                          { $$ = newPipeline($1) }
   | scalarFilter                               { $$ = newPipeline($1) }
   | groupOperation                             { $$ = newPipeline($1) }
+  | selectOperation                            { $$ = newPipeline($1) }
   | spansetPipeline PIPE spansetExpression     { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE scalarFilter          { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE groupOperation        { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE coalesceOperation     { $$ = $1.addItem($3)  }
+  | spansetPipeline PIPE selectOperation       { $$ = $1.addItem($3)  }
   ;
 
 groupOperation:
@@ -128,6 +134,15 @@ groupOperation:
 
 coalesceOperation:
     COALESCE OPEN_PARENS CLOSE_PARENS           { $$ = newCoalesceOperation() }
+  ;
+
+selectOperation:
+    SELECT OPEN_PARENS selectArgs CLOSE_PARENS { $$ = newSelectOperation($3) }
+  ;
+
+selectArgs:
+    fieldExpression                  { $$ = []FieldExpression{$1} }
+  | selectArgs COMMA fieldExpression { $$ = append($1, $3) }
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -261,12 +276,15 @@ static:
   ;
 
 intrinsicField:
-    IDURATION      { $$ = NewIntrinsic(IntrinsicDuration)   }
-  | CHILDCOUNT     { $$ = NewIntrinsic(IntrinsicChildCount) }
-  | NAME           { $$ = NewIntrinsic(IntrinsicName)       }
-  | STATUS         { $$ = NewIntrinsic(IntrinsicStatus)     }
-  | KIND           { $$ = NewIntrinsic(IntrinsicKind)       }
-  | PARENT         { $$ = NewIntrinsic(IntrinsicParent)     }
+    IDURATION       { $$ = NewIntrinsic(IntrinsicDuration)         }
+  | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
+  | NAME            { $$ = NewIntrinsic(IntrinsicName)             }
+  | STATUS          { $$ = NewIntrinsic(IntrinsicStatus)           }
+  | KIND            { $$ = NewIntrinsic(IntrinsicKind)             }
+  | PARENT          { $$ = NewIntrinsic(IntrinsicParent)           }
+  | ROOTNAME        { $$ = NewIntrinsic(IntrinsicTraceRootSpan)    }
+  | ROOTSERVICENAME { $$ = NewIntrinsic(IntrinsicTraceRootService) }
+  | TRACEDURATION   { $$ = NewIntrinsic(IntrinsicTraceDuration)    }
   ;
 
 attributeField:

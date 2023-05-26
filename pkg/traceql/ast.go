@@ -104,20 +104,19 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 
 type GroupOperation struct {
 	Expression FieldExpression
+
+	groupBuffer map[Static]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
-		Expression: e,
+		Expression:  e,
+		groupBuffer: make(map[Static]*Spanset),
 	}
 }
 
 func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
-}
-
-func (GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
-	return ss, nil
 }
 
 type CoalesceOperation struct {
@@ -130,8 +129,14 @@ func newCoalesceOperation() CoalesceOperation {
 func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
 }
 
-func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
-	return ss, nil
+type SelectOperation struct {
+	exprs []FieldExpression
+}
+
+func newSelectOperation(exprs []FieldExpression) SelectOperation {
+	return SelectOperation{
+		exprs: exprs,
+	}
 }
 
 // **********************
@@ -632,6 +637,12 @@ func (a Attribute) impliedType() StaticType {
 		return TypeKind
 	case IntrinsicParent:
 		return TypeNil
+	case IntrinsicTraceDuration:
+		return TypeDuration
+	case IntrinsicTraceRootService:
+		return TypeString
+	case IntrinsicTraceRootSpan:
+		return TypeString
 	}
 
 	return TypeAttribute
