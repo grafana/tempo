@@ -212,7 +212,7 @@ ingester:
             # number of replicas of each span to make while pushing to the backend
             replication_factor: 3
             # set sidecar proxy port
-            port: 12345
+            [port: <int>]
 
     # amount of time a trace must be idle before flushing it to the wal.
     # (default: 10s)
