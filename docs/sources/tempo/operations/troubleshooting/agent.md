@@ -1,6 +1,7 @@
 ---
 title: Troubleshoot Grafana Agent
 menuTitle: Grafana Agent
+description: Gain visibility on how many traces are being pushed to the Agent and if they are making it to the Tempo backend.
 weight: 472
 aliases:
 - /docs/tempo/troubleshooting/agent

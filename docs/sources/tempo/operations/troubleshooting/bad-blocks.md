@@ -1,5 +1,6 @@
 ---
 title: Bad blocks
+description: Troubleshoot queries failing with an error message indicating bad blocks.
 weight: 475
 aliases:
 - /docs/tempo/troubleshooting/bad-blocks

@@ -1,6 +1,7 @@
 ---
 title: Tail-based sampling
 menuTItle: Tail-based sampling
+description: Use tail-based sampling to optimize sampling decisions
 weight:
 aliases:
 - /docs/tempo/grafana-agent/tail-based-sampling
