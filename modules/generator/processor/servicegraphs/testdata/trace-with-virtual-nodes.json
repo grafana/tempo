@@ -68,7 +68,7 @@
               "endTimeUnixNano": "1658320854878545408",
               "attributes": [
                 {
-                  "key": "net.peer.name",
+                  "key": "peer.service",
                   "value": {
                     "stringValue": "external-payments-platform"
                   }

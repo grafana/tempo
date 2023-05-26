@@ -52,7 +52,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 					&span{
@@ -60,7 +63,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -88,6 +94,9 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							// foo not returned because the span didn't match it
 							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): traceql.NewStaticInt(123),
 							traceql.NewIntrinsic(traceql.IntrinsicDuration):                      traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):                 traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService):              traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):                 traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -115,7 +124,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							// TODO - This seems misleading since the span has foo=<something else>
 							//        but for this query we never even looked at span attribute columns.
 							newResAttr("foo"): traceql.NewStaticString("abc"),
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -140,8 +152,11 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							newSpanAttr(LabelHTTPStatusCode):                traceql.NewStaticInt(500), // This is the only attribute that matched anything
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+							newSpanAttr(LabelHTTPStatusCode):                        traceql.NewStaticInt(500), // This is the only attribute that matched anything
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -168,12 +183,15 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							newResAttr("foo"):                               traceql.NewStaticString("abc"), // Both are returned
-							newSpanAttr("foo"):                              traceql.NewStaticString("def"), // Both are returned
-							newSpanAttr(LabelHTTPStatusCode):                traceql.NewStaticInt(500),
-							newSpanAttr("float"):                            traceql.NewStaticFloat(456.78),
-							newSpanAttr("bool"):                             traceql.NewStaticBool(false),
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+							newResAttr("foo"):                                       traceql.NewStaticString("abc"), // Both are returned
+							newSpanAttr("foo"):                                      traceql.NewStaticString("def"), // Both are returned
+							newSpanAttr(LabelHTTPStatusCode):                        traceql.NewStaticInt(500),
+							newSpanAttr("float"):                                    traceql.NewStaticFloat(456.78),
+							newSpanAttr("bool"):                                     traceql.NewStaticBool(false),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -204,9 +222,12 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
-							traceql.NewIntrinsic(traceql.IntrinsicName):     traceql.NewStaticString("world"),
-							traceql.NewIntrinsic(traceql.IntrinsicStatus):   traceql.NewStaticStatus(traceql.StatusUnset),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicName):             traceql.NewStaticString("world"),
+							traceql.NewIntrinsic(traceql.IntrinsicStatus):           traceql.NewStaticStatus(traceql.StatusUnset),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -227,7 +248,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 					&span{
@@ -235,7 +259,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -256,7 +283,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 					&span{
@@ -264,7 +294,10 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						endtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(0),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
 						},
 					},
 				),
@@ -292,6 +325,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		// fetch layer. just wipe them out here
 		for _, s := range ss {
 			for _, sp := range s.Spans {
+				sp.(*span).cbSpanset = nil
+				sp.(*span).cbSpansetFinal = false
 				sp.(*span).rowNum = parquetquery.RowNumber{}
 			}
 		}

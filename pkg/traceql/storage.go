@@ -25,16 +25,24 @@ func SearchMetaConditions() []Condition {
 	}
 }
 
-func SearchMetaConditionsWithoutDuration() []Condition {
-	return []Condition{
-		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+func SearchMetaConditionsWithout(remove []Condition) []Condition {
+	metaConds := SearchMetaConditions()
+	retConds := make([]Condition, 0, len(metaConds))
+	for _, c := range metaConds {
+		// if we can't find c in the remove conditions then add it to retConds
+		found := false
+		for _, e := range remove {
+			if e.Attribute == c.Attribute {
+				found = true
+				break
+			}
+		}
+		if !found {
+			retConds = append(retConds, c)
+		}
 	}
+
+	return retConds
 }
 
 // SecondPassFn is a method that is called in between the first and second
@@ -78,7 +86,13 @@ type Span interface {
 	DurationNanos() uint64
 }
 
+// should we just make matched a field on the spanset instead of a special attribute?
 const attributeMatched = "__matched"
+
+type SpansetAttribute struct {
+	Name string
+	Val  Static
+}
 
 type Spanset struct {
 	// these fields are actually used by the engine to evaluate queries
@@ -90,25 +104,14 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Attributes         map[string]Static
+	Attributes         []*SpansetAttribute
 }
 
 func (s *Spanset) AddAttribute(key string, value Static) {
-	if s.Attributes == nil {
-		s.Attributes = make(map[string]Static)
-	}
-	s.Attributes[key] = value
+	s.Attributes = append(s.Attributes, &SpansetAttribute{Name: key, Val: value})
 }
 
 func (s *Spanset) clone() *Spanset {
-	var atts map[string]Static
-	if s.Attributes != nil {
-		atts = make(map[string]Static, len(s.Attributes))
-		for k, v := range s.Attributes {
-			atts[k] = v
-		}
-	}
-
 	return &Spanset{
 		TraceID:            s.TraceID,
 		Scalar:             s.Scalar,
@@ -116,8 +119,8 @@ func (s *Spanset) clone() *Spanset {
 		RootServiceName:    s.RootServiceName,
 		StartTimeUnixNanos: s.StartTimeUnixNanos,
 		DurationNanos:      s.DurationNanos,
-		Spans:              s.Spans, // we're not deep cloning into the spans themselves
-		Attributes:         atts,
+		Spans:              s.Spans, // we're not deep cloning into the spans or attributes
+		Attributes:         s.Attributes,
 	}
 }
 

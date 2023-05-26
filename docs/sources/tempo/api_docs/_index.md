@@ -185,30 +185,31 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error
 {
   "traces": [
     {
-      "traceID": "169bdefcae1f19",
-      "rootServiceName": "gme-ruler",
-      "rootTraceName": "rule",
-      "startTimeUnixNano": "1675090379953800000",
-      "durationMs": 3,
-      "spanSet": {
-        "spans": [
-          {
-            "spanID": "45b795d0c4f9f6ae",
-            "startTimeUnixNano": "1675090379955688000",
-            "durationNanos": "525000",
-            "attributes": [
-              {
-                "key": "status",
-                "value": {
-                  "stringValue": "error"
+      "traceID": "2f3e0cee77ae5dc9c17ade3689eb2e54",
+      "rootServiceName": "shop-backend",
+      "rootTraceName": "update-billing",
+      "startTimeUnixNano": "1684778327699392724",
+      "durationMs": 557,
+      "spanSets": [
+        {
+          "spans": [
+            {
+              "spanID": "563d623c76514f8e",
+              "startTimeUnixNano": "1684778327735077898",
+              "durationNanos": "446979497",
+              "attributes": [
+                {
+                  "key": "status",
+                  "value": {
+                    "stringValue": "error"
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        "matched": 1
-      }
-    },
+              ]
+            }
+          ],
+          "matched": 1
+        }
+      ]
   ],
   "metrics": {
     "totalBlocks": 13
@@ -594,7 +595,8 @@ message TraceSearchMetadata {
   string rootTraceName = 3;
   uint64 startTimeUnixNano = 4;
   uint32 durationMs = 5;
-  SpanSet spanSet = 6;
+  SpanSet spanSet = 6; // deprecated. use SpanSets field below
+  repeated SpanSet spanSets = 7;
 }
 
 message SpanSet {

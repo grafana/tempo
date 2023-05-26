@@ -54,12 +54,12 @@ const (
 	IntrinsicStatus
 	IntrinsicKind
 	IntrinsicChildCount
-
-	// not yet implemented in traceql but will be
-	IntrinsicParent
 	IntrinsicTraceRootService
 	IntrinsicTraceRootSpan
 	IntrinsicTraceDuration
+
+	// not yet implemented in traceql but will be
+	IntrinsicParent
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
@@ -87,9 +87,9 @@ func (i Intrinsic) String() string {
 	case IntrinsicParent:
 		return "parent"
 	case IntrinsicTraceRootService:
-		return "traceRootService"
+		return "rootServiceName"
 	case IntrinsicTraceRootSpan:
-		return "traceRootSpan"
+		return "rootName"
 	case IntrinsicTraceDuration:
 		return "traceDuration"
 	case IntrinsicTraceID:
@@ -121,9 +121,9 @@ func intrinsicFromString(s string) Intrinsic {
 	// unimplemented
 	case "parent":
 		return IntrinsicParent
-	case "traceRootService":
+	case "rootServiceName":
 		return IntrinsicTraceRootService
-	case "traceRootSpan":
+	case "rootName":
 		return IntrinsicTraceRootSpan
 	case "traceDuration":
 		return IntrinsicTraceDuration

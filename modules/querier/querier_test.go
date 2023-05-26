@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/modules/ingester/client"
+	generator_client "github.com/grafana/tempo/modules/generator/client"
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
@@ -66,7 +68,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 		o, err := overrides.NewOverrides(overrides.Limits{})
 		require.NoError(t, err)
 
-		q, err := New(tc.cfg, client.Config{}, nil, nil, o)
+		q, err := New(tc.cfg, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)
 		require.NoError(t, err)
 
 		for i := 0; i < tc.queriesToExecute; i++ {
@@ -77,4 +79,94 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 
 		require.Equal(t, tc.externalExpected, numExternalRequests.Load())
 	}
+}
+
+func TestVirtualTagsDoesntHitBackend(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)
+	require.NoError(t, err)
+
+	ctx := user.InjectOrgID(context.Background(), "blerg")
+
+	// duration should return nothing
+	resp, err := q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: "duration",
+	})
+	require.NoError(t, err)
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{}, resp)
+
+	// traceDuration should return nothing
+	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: "traceDuration",
+	})
+	require.NoError(t, err)
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{}, resp)
+
+	// status should return a static list
+	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: "status",
+	})
+	require.NoError(t, err)
+	sort.Slice(resp.TagValues, func(i, j int) bool { return resp.TagValues[i].Value < resp.TagValues[j].Value })
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{
+		TagValues: []*tempopb.TagValue{
+			{
+				Type:  "keyword",
+				Value: "error",
+			},
+			{
+				Type:  "keyword",
+				Value: "ok",
+			},
+			{
+				Type:  "keyword",
+				Value: "unset",
+			},
+		},
+	}, resp)
+
+	// kind should return a static list
+	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: "kind",
+	})
+	require.NoError(t, err)
+	sort.Slice(resp.TagValues, func(i, j int) bool { return resp.TagValues[i].Value < resp.TagValues[j].Value })
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{
+		TagValues: []*tempopb.TagValue{
+			{
+				Type:  "keyword",
+				Value: "client",
+			},
+			{
+				Type:  "keyword",
+				Value: "consumer",
+			},
+			{
+				Type:  "keyword",
+				Value: "internal",
+			},
+			{
+				Type:  "keyword",
+				Value: "producer",
+			},
+			{
+				Type:  "keyword",
+				Value: "server",
+			},
+			{
+				Type:  "keyword",
+				Value: "unspecified",
+			},
+		},
+	}, resp)
+
+	// this should panic b/c we haven't actually set any of the fields on the querier necessary for it to forward requests
+	// to the ingesters.
+	require.Panics(t, func() {
+		_, _ = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+			TagName: ".foo",
+		})
+	})
 }
