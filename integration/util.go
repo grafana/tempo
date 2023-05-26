@@ -149,7 +149,7 @@ func NewTempoQuerier(extraArgs ...string) *e2e.HTTPService {
 
 	s := e2e.NewHTTPService(
 		"querier",
-		queryImage,
+		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,
