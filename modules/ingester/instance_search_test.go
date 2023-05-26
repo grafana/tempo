@@ -183,8 +183,8 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		checkEqual(t, ids, sr)
 
 		// writeTracesForSearch will build spans that end 1 second from now
-
-		sr = search(req, uint32(time.Now().Unix()), uint32(time.Now().Add(1*time.Second).Unix()))
+		// query 2 min range to have extra slack and always be within range
+		sr = search(req, uint32(time.Now().Add(-time.Minute).Unix()), uint32(time.Now().Add(time.Minute).Unix()))
 		assert.Len(t, sr.Traces, len(ids))
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 		checkEqual(t, ids, sr)
