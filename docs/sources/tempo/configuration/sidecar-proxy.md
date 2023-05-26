@@ -7,7 +7,7 @@ weight: 36
 
 # Run Tempo Distributed with sidecar proxies
 
-You can run inter-pod gRPC traffic run through a sidecar proxy. These proxies can be useful when using a service proxy, like Envoy, or a service mesh, like Istio. 
+You can route inter-pod gRPC traffic run through a sidecar proxy to meet requirements such as custom security, routing, or logging.  Common examples include Envoy, Nginx, Traefik, or service meshes like Istio and Linkerd. 
 
 ## How Tempo pods communicate
 
