@@ -1,6 +1,7 @@
 ---
 title: Server-side metrics architecture
 menuTitle: Server-side metrics architecture
+description: Server-side metrics is a feature that derive metrics from ingested traces.
 weight: 15
 ---
 
