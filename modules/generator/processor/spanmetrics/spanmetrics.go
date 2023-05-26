@@ -123,7 +123,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		resourceValues := make([]string, 0)
 
 		if p.Cfg.EnableTargetInfo {
-			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes)
+			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {

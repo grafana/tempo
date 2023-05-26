@@ -19,6 +19,7 @@ type mockOverrides struct {
 	spanMetricsFilterPolicies             []filterconfig.FilterPolicy
 	spanMetricsDimensionMappings          []sharedconfig.DimensionMappings
 	spanMetricsEnableTargetInfo           bool
+	spanMetricsTargetInfoExcludedDimensions []string
 	localBlocksMaxLiveTraces              uint64
 	localBlocksMaxBlockDuration           time.Duration
 	localBlocksMaxBlockBytes              uint64
@@ -109,4 +110,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(str
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(string) bool {
 	return m.serviceGraphsEnableClientServerPrefix
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
+	return m.spanMetricsTargetInfoExcludedDimensions
 }
