@@ -1,5 +1,6 @@
 ---
 title: Search with AWS Lambda
+description: Learn how to set up AWS Lambda for serverless backend search.
 alias:
 - /docs/tempo/latest/operations/backend_search/serverless_aws/
 - /docs/tempo/latest/operations/serverless_aws/

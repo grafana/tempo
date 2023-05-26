@@ -1,18 +1,19 @@
 ---
 title: Resize ingester persistent volume operations
 menuTitle: Resize ingester PVCs
+description: Learn how to resize ingester persistent volume operations.
 weight: 50
 ---
 
 # Resize ingester persistent volume operations
 
-Tempo ingesters make heavy use of local disks to store write-ahead logs and blocks before being flushed to the backend (GCS, S3, etc.).  It is important to monitor the free volume space as full disks can lead to data loss and other errors. The amount of disk space available affects how much volume a Tempo ingester can process and the length of time an outage to the backend can be tolerated.
+Tempo ingesters make heavy use of local disks to store write-ahead logs and blocks before being flushed to the backend (GCS, S3, etc.).
+It is important to monitor the free volume space as full disks can lead to data loss and other errors.
+The amount of disk space available affects how much volume a Tempo ingester can process and the length of time an outage to the backend can be tolerated.
 
 Therefore it may be necessary to increase the disk space for ingesters as usage increases.
 
 We recommend using SSDs for local storage.
-
-<!-- Wr -->
 
 ## Increase VCC size
 

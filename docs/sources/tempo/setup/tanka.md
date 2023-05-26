@@ -1,6 +1,7 @@
 ---
 title: Deploy on Kubernetes with Tanka
 menuTitle: Deploy on Kubernetes with Tanka
+description: Learn how to deploy Tempo using Kubernetes and Tanka
 weight: 500
 ---
 

@@ -1,6 +1,7 @@
 ---
 title: Tune search performance
 menutitle: Tune search performance
+description: How to tune Tempo to improve search performance.
 weight: 90
 ---
 

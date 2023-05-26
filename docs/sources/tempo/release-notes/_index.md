@@ -1,5 +1,6 @@
 ---
 title: Release notes
+description: Release notes for Grafana Tempo
 weight: 100
 ---
 
@@ -11,4 +12,3 @@ listed here by version number.
 Packages are linked in the [Assets section for each Tempo release](https://github.com/grafana/tempo/releases).
 
 {{< section >}}
-

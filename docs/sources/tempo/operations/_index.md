@@ -1,6 +1,7 @@
 ---
 title: Manage Tempo
 menuTitle: Manage
+description: Learn how to manage and tune Tempo.
 weight: 600
 ---
 

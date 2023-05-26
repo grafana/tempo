@@ -1,7 +1,7 @@
 ---
 title: Upgrade your Tempo installation
 menuTitle: Upgrade
-description: Upgrade your Tempo installation to the latest version.
+description: Upgrade your Grafana Tempo installation to the latest version.
 weight: 310
 ---
 

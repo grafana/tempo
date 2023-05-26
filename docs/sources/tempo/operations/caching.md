@@ -1,6 +1,7 @@
 ---
 title: Improve performance with caching
 menuTitle: Improve performance with caching
+description: Learn how to improve query performance by using caching.
 weight: 65
 ---
 

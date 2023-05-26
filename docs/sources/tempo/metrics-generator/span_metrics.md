@@ -3,6 +3,7 @@ aliases:
   - /docs/tempo/latest/server_side_metrics/span_metrics/
   - /docs/tempo/latest/metrics-generator/span_metrics/
 title: Generate metrics from spans
+description: he span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 weight: 400
 ---
 
