@@ -234,7 +234,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
-			p.spanMetricsTargetInfo.Set(targetInfoRegistryLabelValues, 1)
+			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
 	}
 }
