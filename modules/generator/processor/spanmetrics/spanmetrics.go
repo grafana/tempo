@@ -250,10 +250,5 @@ func sanitizeLabelNameWithCollisions(name string) string {
 }
 
 func isIntrinsicDimension(name string) bool {
-	return name == dimJob ||
-		name == dimSpanName ||
-		name == dimSpanKind ||
-		name == dimStatusCode ||
-		name == dimStatusMessage ||
-		name == dimInstance
+	return processor_util.Contains(name, []string{dimJob, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage, dimInstance})
 }

@@ -66,7 +66,7 @@ func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue, exclude []s
 		// ignoring job and instance
 		key := attrs.Key
 		value := tempo_util.StringifyAnyValue(attrs.Value)
-		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !isExcluded(key, exclude) {
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !Contains(key, exclude) {
 			keys = append(keys, key)
 			values = append(values, value)
 		}
@@ -75,8 +75,8 @@ func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue, exclude []s
 	return keys, values
 }
 
-func isExcluded(key string, excludeList []string) bool {
-	for _, exclude := range excludeList {
+func Contains(key string, list []string) bool {
+	for _, exclude := range list {
 		if key == exclude {
 			return true
 		}
