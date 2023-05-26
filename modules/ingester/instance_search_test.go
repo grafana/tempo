@@ -166,12 +166,6 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 	var tagKey = "foo"
 	var tagValue = "bar"
-	now := uint32(time.Now().Unix())
-	oneMinAgo := uint32(time.Now().Add(-time.Minute).Unix())
-	oneHourAgo := uint32(time.Now().Add(-time.Hour).Unix())
-	twoHourAgo := uint32(time.Now().Add(-2 * time.Hour).Unix())
-
-	// writeTracesForSearch will build spans that started 1 min before now
 	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
@@ -188,12 +182,15 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 		checkEqual(t, ids, sr)
 
-		sr = search(req, oneMinAgo, now)
+		// writeTracesForSearch will build spans that end 1 second from now
+
+		sr = search(req, uint32(time.Now().Unix()), uint32(time.Now().Add(1*time.Second).Unix()))
 		assert.Len(t, sr.Traces, len(ids))
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 		checkEqual(t, ids, sr)
 
-		sr = search(req, twoHourAgo, oneHourAgo)
+		// search with start=1m from now, end=2m from now
+		sr = search(req, uint32(time.Now().Add(time.Minute).Unix()), uint32(time.Now().Add(2*time.Minute).Unix()))
 		// no results and should inspect 100 traces in wal
 		assert.Len(t, sr.Traces, 0)
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
