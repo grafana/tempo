@@ -53,8 +53,10 @@
     deployment.new(
       target_name,
       $._config.query_frontend.replicas,
-      std.prune([$.tempo_query_frontend_container,
-      if $._config.tempo_query then $.tempo_query_container]),
+      std.prune([
+        $.tempo_query_frontend_container,
+        if $._config.tempo_query then $.tempo_query_container,
+      ]),
       {
         app: target_name,
       }
