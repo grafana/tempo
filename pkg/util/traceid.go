@@ -75,17 +75,14 @@ var spanKindFNVHashes = [...]uint64{
 
 // SpanIDAndKindToToken converts a span ID into a token for use as key in a hash map. The token is generated such
 // that it has a low collision probability. In zipkin traces the span id is not guaranteed to be unique as it
-// is shared between client and server spans. Therefore, it is required to take the span kind into account as
-// well.
-// The token generation is more efficient for span IDs with a length >= 8.
+// is shared between client and server spans. Therefore, it is sometimes required to take the span kind into account.
 func SpanIDAndKindToToken(id []byte, kind int) uint64 {
 	return SpanIDToUint64(id) ^ spanKindFNVHashes[kind]
 }
 
 // SpanIDToUint64 converts a span ID into an uint64 representation. This is useful when using a span ID as key
-// in a map. Don't make assumptions about the endianness of the result. The if the ID is longer than 8 bytes, the
-// bytes at larger positions are discarded.
-// The conversion is more efficient for span IDs with a length >= 8.
+// in a map. If the ID is longer than 8 bytes, the bytes at larger positions are discarded. The function does
+// not make any guarantees about the endianess or ordering of converted IDs.
 //
 // Note: span IDs are not always unique within a trace (e.g. zipkin traces) SpanIDAndKindToToken could be more
 // appropriate in some cases.

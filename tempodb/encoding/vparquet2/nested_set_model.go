@@ -104,7 +104,7 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 				node.nextChild++
 
 				next.span.NestedSetLeft = nestedSetBound
-				next.span.ParentID = node.span.NestedSetLeft
+				next.span.ParentID = node.span.NestedSetLeft // the left bound of the parent serves as numeric span ID
 				nestedSetBound++
 				node = next
 			} else {
