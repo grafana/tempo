@@ -53,8 +53,8 @@
     deployment.new(
       target_name,
       $._config.query_frontend.replicas,
-      [$.tempo_query_frontend_container,
-      if !$._config.tempo_query then null else $.tempo_query_container],
+      std.prune([$.tempo_query_frontend_container,
+      if $._config.tempo_query then $.tempo_query_container]),
       {
         app: target_name,
       }
@@ -64,11 +64,11 @@
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_query_frontend_configmap.data['tempo.yaml'])),
     }) +
-    deployment.mixin.spec.template.spec.withVolumes([
-      if !$._config.tempo_query then null else volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
+    deployment.mixin.spec.template.spec.withVolumes(std.prune([
+      if $._config.tempo_query then volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_query_frontend_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-    ]),
+    ])),
 
   tempo_query_frontend_service:
     k.util.serviceFor($.tempo_query_frontend_deployment)
