@@ -1,8 +1,9 @@
 package vparquet2
 
 import (
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"testing"
+
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/assert"
