@@ -11,6 +11,8 @@
       replicas: 1,
       headless_service_name: 'tempo-members',
     },
+    // disable tempo-query by default
+    tempo_query: false,
     pvc_size: error 'Must specify a pvc size',
     pvc_storage_class: error 'Must specify a pvc storage class',
     receivers: error 'Must specify receivers',
