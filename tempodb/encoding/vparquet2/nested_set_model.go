@@ -145,7 +145,9 @@ func findParentNodeInMap(nodesByID map[uint64][]*spanNode, node *spanNode) *span
 		if nodes[0].span.Kind == kindWant {
 			return nodes[0]
 		}
-		return nodes[1]
+		if nodes[1].span.Kind == kindWant {
+			return nodes[1]
+		}
 	}
 
 	return nil

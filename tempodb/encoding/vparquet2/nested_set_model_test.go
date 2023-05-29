@@ -1,6 +1,7 @@
 package vparquet2
 
 import (
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -182,6 +183,48 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "non unique IDs",
+			trace: [][]Span{
+				{
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), Kind: int(v1.Span_SPAN_KIND_CLIENT)},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_SERVER)},
+					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("aaaaaaaa")},
+				},
+			},
+			expected: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 10},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_SERVER), NestedSetLeft: 3, NestedSetRight: 8, ParentID: 2},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), Kind: int(v1.Span_SPAN_KIND_CLIENT), NestedSetLeft: 2, NestedSetRight: 9, ParentID: 1},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 4, NestedSetRight: 5, ParentID: 3},
+					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 6, NestedSetRight: 7, ParentID: 3},
+				},
+			},
+		},
+		{
+			name: "non unique IDs 2x",
+			trace: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), Kind: int(v1.Span_SPAN_KIND_CLIENT)},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_SERVER)},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("cccccccc"), Kind: int(v1.Span_SPAN_KIND_SERVER)},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_CLIENT)},
+				},
+			},
+			expected: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 10},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), Kind: int(v1.Span_SPAN_KIND_CLIENT), NestedSetLeft: 2, NestedSetRight: 9, ParentID: 1},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_CLIENT), NestedSetLeft: 4, NestedSetRight: 7, ParentID: 3},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_SERVER), NestedSetLeft: 3, NestedSetRight: 8, ParentID: 2},
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("cccccccc"), Kind: int(v1.Span_SPAN_KIND_SERVER), NestedSetLeft: 5, NestedSetRight: 6, ParentID: 4},
+				},
+			},
+		},
 	}
 
 	makeTrace := func(traceSpans [][]Span) *Trace {
@@ -228,6 +271,7 @@ func assertEqualNestedSetModelBounds(t testing.TB, actual, expected *Trace) {
 				assert.Equalf(t, exp.NestedSetRight, act.NestedSetRight, "span '%v' NestedSetRight is expected %d but was %d", string(exp.SpanID), exp.NestedSetRight, act.NestedSetRight)
 				assert.Equalf(t, exp.ParentID, act.ParentID, "span '%v' ParentID is expected %d but was %d", string(exp.SpanID), exp.ParentID, act.ParentID)
 				assert.Equalf(t, exp.ParentSpanID, act.ParentSpanID, "span '%v' ParentSpanID is expected %d but was %d", string(exp.SpanID), string(exp.ParentSpanID), string(act.ParentSpanID))
+				assert.Equalf(t, exp.Kind, act.Kind, "span '%v' Kind is expected %d but was %d", string(exp.SpanID), exp.Kind, act.Kind)
 			}
 		}
 	}
