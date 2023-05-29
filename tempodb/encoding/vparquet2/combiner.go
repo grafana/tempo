@@ -2,34 +2,10 @@ package vparquet2
 
 import (
 	"bytes"
-	"encoding/binary"
-	"hash"
-	"hash/fnv"
 	"sort"
+
+	"github.com/grafana/tempo/pkg/util"
 )
-
-// token is uint64 to reduce hash collision rates.  Experimentally, it was observed
-// that fnv32 could approach a collision rate of 1 in 10,000. fnv64 avoids collisions
-// when tested against traces with up to 1M spans (see matching test). A collision
-// results in a dropped span during combine.
-type token uint64
-
-func newHash() hash.Hash64 {
-	return fnv.New64()
-}
-
-// tokenForID returns a token for use in a hash map given a span id and span kind
-// buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
-// kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
-// as it is shared between client and server spans.
-func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
-	binary.LittleEndian.PutUint32(buffer, uint32(kind))
-
-	h.Reset()
-	_, _ = h.Write(b)
-	_, _ = h.Write(buffer)
-	return token(h.Sum64())
-}
 
 func CombineTraces(traces ...*Trace) *Trace {
 	if len(traces) == 1 {
@@ -52,7 +28,7 @@ func CombineTraces(traces ...*Trace) *Trace {
 // * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
 	result   *Trace
-	spans    map[token]struct{}
+	spans    map[uint64]struct{}
 	combined bool
 }
 
@@ -72,9 +48,6 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 		return
 	}
 
-	h := newHash()
-	buffer := make([]byte, 4)
-
 	// First call?
 	if c.result == nil {
 		c.result = tr
@@ -87,12 +60,12 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 				n += len(ils.Spans)
 			}
 		}
-		c.spans = make(map[token]struct{}, n)
+		c.spans = make(map[uint64]struct{}, n)
 
 		for _, b := range c.result.ResourceSpans {
 			for _, ils := range b.ScopeSpans {
 				for _, s := range ils.Spans {
-					c.spans[tokenForID(h, buffer, int32(s.Kind), s.SpanID)] = struct{}{}
+					c.spans[util.SpanIDAndKindToToken(s.SpanID, s.Kind)] = struct{}{}
 				}
 			}
 		}
@@ -122,7 +95,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 			notFoundSpans := ils.Spans[:0]
 			for _, s := range ils.Spans {
 				// if not already encountered, then keep
-				token := tokenForID(h, buffer, int32(s.Kind), s.SpanID)
+				token := util.SpanIDAndKindToToken(s.SpanID, s.Kind)
 				_, ok := c.spans[token]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, s)
