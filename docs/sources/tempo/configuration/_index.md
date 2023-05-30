@@ -211,6 +211,8 @@ ingester:
         ring:
             # number of replicas of each span to make while pushing to the backend
             replication_factor: 3
+            # set sidecar proxy port
+            [port: <int>]
 
     # amount of time a trace must be idle before flushing it to the wal.
     # (default: 10s)
@@ -234,6 +236,7 @@ ingester:
 ```
 
 ## Metrics-generator
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.

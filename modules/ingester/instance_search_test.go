@@ -161,6 +161,66 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 	}
 }
 
+func TestInstanceSearchWithStartAndEnd(t *testing.T) {
+	i, ingester, _ := defaultInstanceAndTmpDir(t)
+
+	var tagKey = "foo"
+	var tagValue = "bar"
+	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
+
+	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
+		req.Start = start
+		req.End = end
+		sr, err := i.Search(context.Background(), req)
+		assert.NoError(t, err)
+		return sr
+	}
+
+	searchAndAssert := func(req *tempopb.SearchRequest, inspectedTraces uint32) {
+		sr := search(req, 0, 0)
+		assert.Len(t, sr.Traces, len(ids))
+		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
+		checkEqual(t, ids, sr)
+
+		// writeTracesForSearch will build spans that end 1 second from now
+		// query 2 min range to have extra slack and always be within range
+		sr = search(req, uint32(time.Now().Add(-time.Minute).Unix()), uint32(time.Now().Add(time.Minute).Unix()))
+		assert.Len(t, sr.Traces, len(ids))
+		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
+		checkEqual(t, ids, sr)
+
+		// search with start=1m from now, end=2m from now
+		sr = search(req, uint32(time.Now().Add(time.Minute).Unix()), uint32(time.Now().Add(2*time.Minute).Unix()))
+		// no results and should inspect 100 traces in wal
+		assert.Len(t, sr.Traces, 0)
+		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
+	}
+
+	var req = &tempopb.SearchRequest{
+		Tags: map[string]string{},
+	}
+	req.Tags[tagKey] = tagValue
+	req.Limit = uint32(len(ids)) + 1
+
+	// Test after appending to WAL.
+	// writeTracesforSearch() makes sure all traces are in the wal
+	searchAndAssert(req, uint32(100))
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+	searchAndAssert(req, uint32(100))
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+	searchAndAssert(req, uint32(200))
+
+	err = ingester.stopping(nil)
+	require.NoError(t, err)
+}
+
 func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
 	for _, meta := range sr.Traces {
 		parsedTraceID, err := util.HexStringToTraceID(meta.TraceID)
