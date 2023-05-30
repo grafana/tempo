@@ -1,10 +1,11 @@
 package vparquet2
 
 import (
+	"testing"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {

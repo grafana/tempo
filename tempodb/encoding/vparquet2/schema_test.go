@@ -17,17 +17,19 @@ import (
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {
 	// This test round trips a proto trace and checks that the transformation works as expected
 	// Proto -> Parquet -> Proto
+	meta := &backend.BlockMeta{}
 
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	expectedTrace := parquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceIDA))
+	expectedTrace := parquetTraceToTempopbTrace(meta, fullyPopulatedTestTrace(traceIDA)) // TODO improve test
 
-	parquetTrace := traceToParquet(traceIDA, expectedTrace, nil)
-	actualTrace := parquetTraceToTempopbTrace(parquetTrace)
+	parquetTrace := traceToParquet(meta, traceIDA, expectedTrace, nil)
+	actualTrace := parquetTraceToTempopbTrace(meta, parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
@@ -37,7 +39,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 		ResourceSpans: nil,
 	}
 
-	got := traceToParquet(nil, &tempopb.Trace{}, nil)
+	got := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil) // TODO improve test
 	require.Equal(t, want, got)
 }
 
@@ -48,15 +50,15 @@ func TestProtoParquetRando(t *testing.T) {
 		id := test.ValidTraceID(nil)
 		expectedTrace := test.MakeTrace(batches, id)
 
-		parqTr := traceToParquet(id, expectedTrace, trp)
-		actualTrace := parquetTraceToTempopbTrace(parqTr)
+		parqTr := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
+		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr) // TODO improve test
 		require.Equal(t, expectedTrace, actualTrace)
 	}
 }
 
 func TestFieldsAreCleared(t *testing.T) {
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	complexTrace := parquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceID))
+	complexTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, fullyPopulatedTestTrace(traceID)) // TODO improve test
 	simpleTrace := &tempopb.Trace{
 		Batches: []*v1_trace.ResourceSpans{
 			{
@@ -100,9 +102,9 @@ func TestFieldsAreCleared(t *testing.T) {
 	// first convert a trace that sets all fields and then convert
 	// a minimal trace to make sure nothing bleeds through
 	tr := &Trace{}
-	_ = traceToParquet(traceID, complexTrace, tr)
-	parqTr := traceToParquet(traceID, simpleTrace, tr)
-	actualTrace := parquetTraceToTempopbTrace(parqTr)
+	_ = traceToParquet(&backend.BlockMeta{}, traceID, complexTrace, tr) // TODO improve test
+	parqTr := traceToParquet(&backend.BlockMeta{}, traceID, simpleTrace, tr)
+	actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
 	require.Equal(t, simpleTrace, actualTrace)
 }
 
@@ -122,7 +124,7 @@ func BenchmarkProtoToParquet(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = traceToParquet(id, tr, nil)
+				_ = traceToParquet(&backend.BlockMeta{}, id, tr, nil) // TODO improve test
 			}
 		})
 	}
@@ -185,7 +187,8 @@ func BenchmarkDeconstruct(b *testing.B) {
 			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
 
 				id := test.ValidTraceID(nil)
-				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
+				// TODO improve test
+				tr := traceToParquet(&backend.BlockMeta{}, id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 				sch := parquet.SchemaOf(tr)
 
 				b.ResetTimer()
