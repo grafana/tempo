@@ -148,6 +148,14 @@ func (i *Ingester) loop(ctx context.Context) error {
 func (i *Ingester) stopping(_ error) error {
 	i.markUnavailable()
 
+	if i.cfg.FlushAllOnShutdown {
+		i.lifecycler.SetUnregisterOnShutdown(true)
+		i.sweepAllInstances(true)
+		for !i.flushQueues.IsEmpty() {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
 	if i.flushQueues != nil {
 		i.flushQueues.Stop()
 		i.flushQueuesDone.Wait()
