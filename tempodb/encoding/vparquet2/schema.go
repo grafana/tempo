@@ -3,6 +3,8 @@ package vparquet2
 import (
 	"bytes"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -257,7 +259,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 	}
 }
 
-func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
+func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 	if ot == nil {
 		ot = &Trace{}
 	}
@@ -271,10 +273,14 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
 
+	// Dedicated attribute column assignments
+	dedicatedResourceAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeResource)
+	dedicatedSpanAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeSpan)
+
 	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
 	for ib, b := range tr.Batches {
 		ob := &ot.ResourceSpans[ib]
-		// clear out any existing fields in case they were set on the original
+		// Clear out any existing fields in case they were set on the original
 		ob.Resource.ServiceName = ""
 		ob.Resource.Cluster = nil
 		ob.Resource.Namespace = nil
@@ -284,13 +290,14 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 		ob.Resource.K8sNamespaceName = nil
 		ob.Resource.K8sPodName = nil
 		ob.Resource.K8sContainerName = nil
+		ob.Resource.DedicatedAttributes = DedicatedAttributes{}
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
 			attrCount := 0
 			for _, a := range b.Resource.Attributes {
 				strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-				special := ok
+				written := ok
 				if ok {
 					switch a.Key {
 					case LabelServiceName:
@@ -313,11 +320,18 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					case LabelK8sContainerName:
 						ob.Resource.K8sContainerName = &strVal.StringValue
 					default:
-						special = false
+						written = false
 					}
 				}
 
-				if !special {
+				if !written {
+					// Dynamically assigned dedicated resource attribute columns
+					if spareColumn, exists := dedicatedResourceAttributes[a.Key]; exists {
+						written = spareColumn.writeValue(&ob.Resource.DedicatedAttributes, a.Value)
+					}
+				}
+
+				if !written {
 					// Other attributes put in generic columns
 					attrToParquet(a, &ob.Resource.Attrs[attrCount])
 					attrCount++
@@ -378,6 +392,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.HttpMethod = nil
 				ss.HttpUrl = nil
 				ss.HttpStatusCode = nil
+				ss.DedicatedAttributes = DedicatedAttributes{}
 				if len(s.Links) > 0 {
 					links := tempopb.LinkSlice{
 						Links: s.Links,
@@ -392,30 +407,37 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
 				attrCount := 0
 				for _, a := range s.Attributes {
-					special := false
+					written := false
 
 					switch a.Key {
 					case LabelHTTPMethod:
 						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
 						if ok {
 							ss.HttpMethod = &strVal.StringValue
-							special = true
+							written = true
 						}
 					case LabelHTTPUrl:
 						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
 						if ok {
 							ss.HttpUrl = &strVal.StringValue
-							special = true
+							written = true
 						}
 					case LabelHTTPStatusCode:
 						intVal, ok := a.Value.Value.(*v1.AnyValue_IntValue)
 						if ok {
 							ss.HttpStatusCode = &intVal.IntValue
-							special = true
+							written = true
 						}
 					}
 
-					if !special {
+					if !written {
+						// Dynamically assigned dedicated span attribute columns
+						if spareColumn, exists := dedicatedSpanAttributes[a.Key]; exists {
+							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
+						}
+					}
+
+					if !written {
 						// Other attributes put in generic columns
 						attrToParquet(a, &ss.Attrs[attrCount])
 						attrCount++
@@ -521,7 +543,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 					}
 
 					// event attributes are currently encoded as proto, but were previously json.
-					//  this code attempts proto first and, if there was an error, falls back to json
+					// this code attempts proto first and, if there was an error, falls back to json
 					err := protoAttr.Value.Unmarshal(a.Value)
 					if err != nil {
 						_ = jsonpb.Unmarshal(bytes.NewBuffer(a.Value), protoAttr.Value)
@@ -538,9 +560,13 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
+func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
+
+	// dedicated attribute column assignments
+	dedicatedResourceAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeResource)
+	dedicatedSpanAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeSpan)
 
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
@@ -580,6 +606,17 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 							StringValue: *attr.Value,
 						},
 					},
+				})
+			}
+		}
+
+		// dynamically assigned dedicated resource attribute columns
+		for attr, c := range dedicatedResourceAttributes {
+			val := c.readValue(&rs.Resource.DedicatedAttributes)
+			if val != nil {
+				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
+					Key:   attr,
+					Value: val,
 				})
 			}
 		}
@@ -654,6 +691,17 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 							},
 						},
 					})
+				}
+
+				// dynamically assigned dedicated resource attribute columns
+				for attr, c := range dedicatedSpanAttributes {
+					val := c.readValue(&span.DedicatedAttributes)
+					if val != nil {
+						protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
+							Key:   attr,
+							Value: val,
+						})
+					}
 				}
 
 				protoSS.Spans = append(protoSS.Spans, protoSpan)
