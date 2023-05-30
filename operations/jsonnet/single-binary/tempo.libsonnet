@@ -72,7 +72,7 @@
                     $._config.tempo.replicas,
                     std.prune([
                       $.tempo_container,
-                      if $._config.tempo_query then $.tempo_query_container,
+                      if $._config.tempo_query.enabled then $.tempo_query_container,
                     ]),
                     self.tempo_pvc,
                     { app: 'tempo' }) +
@@ -84,7 +84,7 @@
     statefulset.mixin.spec.selector.withMatchLabels({ name: 'tempo' }) +
     statefulset.mixin.spec.template.metadata.withLabels({ name: 'tempo', app: $._config.tempo.headless_service_name }) +
     statefulset.mixin.spec.template.spec.withVolumes(std.prune([
-      if $._config.tempo_query then volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
+      if $._config.tempo_query.enabled then volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
     ])),
 

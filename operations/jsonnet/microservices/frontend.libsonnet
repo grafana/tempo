@@ -34,7 +34,7 @@
     $.util.readinessProbe +
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
-  tempo_query_container:: if !$._config.tempo_query then null else
+  tempo_query_container::
     container.new('tempo-query', $._images.tempo_query) +
     container.withPorts([
       containerPort.new('jaeger-ui', 16686),
@@ -55,7 +55,7 @@
       $._config.query_frontend.replicas,
       std.prune([
         $.tempo_query_frontend_container,
-        if $._config.tempo_query then $.tempo_query_container,
+        if $._config.tempo_query.enabled then $.tempo_query_container,
       ]),
       {
         app: target_name,
@@ -67,7 +67,7 @@
       config_hash: std.md5(std.toString($.tempo_query_frontend_configmap.data['tempo.yaml'])),
     }) +
     deployment.mixin.spec.template.spec.withVolumes(std.prune([
-      if $._config.tempo_query then volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
+      if $._config.tempo_query.enabled then volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_query_frontend_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ])),
