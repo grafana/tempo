@@ -1,5 +1,5 @@
 ---
-title: Configure sidecar proxies
+title: Run Tempo Distributed with sidecar proxies
 menuTitle: Configure sidecar proxies
 description: Configure Tempo Distributed to run with sidecar proxies
 weight: 36
