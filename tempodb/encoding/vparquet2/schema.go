@@ -192,9 +192,7 @@ type ResourceSpans struct {
 
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
-	TraceID       []byte          `parquet:""`
-	ResourceSpans []ResourceSpans `parquet:"rs,list"`
-
+	TraceID []byte `parquet:""`
 	// TraceIDText is for better usability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
 	TraceIDText string `parquet:",snappy"`
@@ -205,6 +203,8 @@ type Trace struct {
 	DurationNano      uint64 `parquet:",delta"`
 	RootServiceName   string `parquet:",dict"`
 	RootSpanName      string `parquet:",dict"`
+
+	ResourceSpans []ResourceSpans `parquet:"rs,list"`
 }
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {
