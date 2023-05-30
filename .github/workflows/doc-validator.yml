@@ -16,6 +16,6 @@ jobs:
           rm -rf /hugo/content/docs
           mkdir -p /hugo/content/docs/tempo
           mkdir -p /hugo/content/docs/helm-charts/tempo-distributed
-          ln -sn "$(pwd)/docs/sources/tempo" /hugo/content/docs/tempo/latest
-          ln -sn "$(pwd)/docs/sources/helm-charts/tempo-distributed" /hugo/content/docs/helm-charts/tempo-distributed/next
+          mv "$(pwd)/docs/sources/tempo" /hugo/content/docs/tempo/latest
+          mv "$(pwd)/docs/sources/helm-charts/tempo-distributed" /hugo/content/docs/helm-charts/tempo-distributed/next
           doc-validator --skip-checks='^image' /hugo/content/docs /docs/tempo/latest
