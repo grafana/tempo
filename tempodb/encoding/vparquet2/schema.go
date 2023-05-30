@@ -101,6 +101,31 @@ var (
 		LabelHTTPUrl:        "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
 		LabelHTTPStatusCode: "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 	}
+	// Column paths for spare dedicated attribute columns.
+	dedicatedResourceAttributesString = []string{
+		"rs.list.element.Resource.DedicatedAttributes.String01",
+		"rs.list.element.Resource.DedicatedAttributes.String02",
+		"rs.list.element.Resource.DedicatedAttributes.String03",
+		"rs.list.element.Resource.DedicatedAttributes.String04",
+		"rs.list.element.Resource.DedicatedAttributes.String05",
+		"rs.list.element.Resource.DedicatedAttributes.String06",
+		"rs.list.element.Resource.DedicatedAttributes.String07",
+		"rs.list.element.Resource.DedicatedAttributes.String08",
+		"rs.list.element.Resource.DedicatedAttributes.String09",
+		"rs.list.element.Resource.DedicatedAttributes.String10",
+	}
+	dedicatedSpanAttributesString = []string{
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
+		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+	}
 )
 
 type Attribute struct {
@@ -113,6 +138,20 @@ type Attribute struct {
 	ValueBool   *bool    `parquet:",snappy,optional"`
 	ValueKVList string   `parquet:",snappy,optional"`
 	ValueArray  string   `parquet:",snappy,optional"`
+}
+
+// DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
+type DedicatedAttributes struct {
+	String01 *string `parquet:",snappy,optional,dict"`
+	String02 *string `parquet:",snappy,optional,dict"`
+	String03 *string `parquet:",snappy,optional,dict"`
+	String04 *string `parquet:",snappy,optional,dict"`
+	String05 *string `parquet:",snappy,optional,dict"`
+	String06 *string `parquet:",snappy,optional,dict"`
+	String07 *string `parquet:",snappy,optional,dict"`
+	String08 *string `parquet:",snappy,optional,dict"`
+	String09 *string `parquet:",snappy,optional,dict"`
+	String10 *string `parquet:",snappy,optional,dict"`
 }
 
 type EventAttribute struct {
@@ -131,8 +170,8 @@ type Event struct {
 // nolint:revive
 // Ignore field naming warnings
 type Span struct {
-	// SpanID is []byte to save space. It doesn't need to be user
-	// friendly like trace ID, and []byte is half the size of string.
+	// SpanID is []byte to save space. It doesn't need to be user-friendly
+	// like trace ID, and []byte is half the size of string.
 	SpanID                 []byte      `parquet:","`
 	ParentSpanID           []byte      `parquet:","`
 	ParentID               int32       `parquet:",delta"`
@@ -152,10 +191,13 @@ type Span struct {
 	Links                  []byte      `parquet:",snappy"` // proto encoded []*v1_trace.Span_Link
 	DroppedLinksCount      int32       `parquet:",snappy"`
 
-	// Known attributes
+	// Static dedicated attribute columns
 	HttpMethod     *string `parquet:",snappy,optional,dict"`
 	HttpUrl        *string `parquet:",snappy,optional,dict"`
 	HttpStatusCode *int64  `parquet:",snappy,optional"`
+
+	// Dynamically assignable dedicated attribute columns
+	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
 type InstrumentationScope struct {
@@ -171,7 +213,10 @@ type ScopeSpans struct {
 type Resource struct {
 	Attrs []Attribute `parquet:",list"`
 
-	// Known attributes
+	// Always empty for testing
+	Test string `parquet:",snappy,dict,optional"`
+
+	// Static dedicated attribute columns
 	ServiceName      string  `parquet:",snappy,dict"`
 	Cluster          *string `parquet:",snappy,optional,dict"`
 	Namespace        *string `parquet:",snappy,optional,dict"`
@@ -182,7 +227,8 @@ type Resource struct {
 	K8sPodName       *string `parquet:",snappy,optional,dict"`
 	K8sContainerName *string `parquet:",snappy,optional,dict"`
 
-	Test string `parquet:",snappy,dict,optional"` // Always empty for testing
+	// Dynamically assignable dedicated attribute columns
+	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
 type ResourceSpans struct {
