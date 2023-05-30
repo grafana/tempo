@@ -101,31 +101,6 @@ var (
 		LabelHTTPUrl:        "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
 		LabelHTTPStatusCode: "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 	}
-	// Column paths for spare dedicated attribute columns.
-	dedicatedResourceAttributesString = []string{
-		"rs.list.element.Resource.DedicatedAttributes.String01",
-		"rs.list.element.Resource.DedicatedAttributes.String02",
-		"rs.list.element.Resource.DedicatedAttributes.String03",
-		"rs.list.element.Resource.DedicatedAttributes.String04",
-		"rs.list.element.Resource.DedicatedAttributes.String05",
-		"rs.list.element.Resource.DedicatedAttributes.String06",
-		"rs.list.element.Resource.DedicatedAttributes.String07",
-		"rs.list.element.Resource.DedicatedAttributes.String08",
-		"rs.list.element.Resource.DedicatedAttributes.String09",
-		"rs.list.element.Resource.DedicatedAttributes.String10",
-	}
-	dedicatedSpanAttributesString = []string{
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
-		"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
-	}
 )
 
 type Attribute struct {
