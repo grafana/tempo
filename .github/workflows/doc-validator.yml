@@ -11,7 +11,12 @@ jobs:
     steps:
       - name: "Checkout code"
         uses: "actions/checkout@v3"
-      - name: "Run doc-validator tool on Tempo docs"
-        run: "doc-validator --skip-checks='^image' ./docs/sources/tempo /docs/tempo/latest"
-      - name: "Run doc-validator tool on Helm chart docs"
-        run: "doc-validator --skip-checks='^image' ./docs/sources/helm-charts/tempo-distributed /docs/helm-charts/tempo-distributed/next"
+      - name: "Mount documentation"
+        run: |
+          rm -rf /hugo/content/docs
+          mkdir -p /hugo/content/docs/tempo
+          mkdir -p /hugo/content/docs/helm-charts/tempo-distributed
+          ln -sn "$$(pwd)/docs/sources/tempo" /hugo/content/docs/tempo/latest
+          ln -sn "$$(pwd)/docs/sources/helm-charts/tempo-distributed" /hugo/content/docs/helm-charts/tempo-distributed/next
+      - name: "Run doc-validator"
+        run: "doc-validator --skip-checks='^image' /hugo/content/docs /docs/tempo/latest"
