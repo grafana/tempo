@@ -397,6 +397,13 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						{Key: "foo", Value: strPtr("abc")},
 						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
 					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: strPtr("dedicated-resource-attr-value-1"),
+						String02: strPtr("dedicated-resource-attr-value-2"),
+						String03: strPtr("dedicated-resource-attr-value-3"),
+						String04: strPtr("dedicated-resource-attr-value-4"),
+						String05: strPtr("dedicated-resource-attr-value-5"),
+					},
 				},
 				ScopeSpans: []ScopeSpans{
 					{
@@ -435,6 +442,13 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
 								},
 								Links: linkBytes,
+								DedicatedAttributes: DedicatedAttributes{
+									String01: strPtr("dedicated-span-attr-value-1"),
+									String02: strPtr("dedicated-span-attr-value-2"),
+									String03: strPtr("dedicated-span-attr-value-3"),
+									String04: strPtr("dedicated-span-attr-value-4"),
+									String05: strPtr("dedicated-span-attr-value-5"),
+								},
 							},
 						},
 					},

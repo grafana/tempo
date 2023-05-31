@@ -23,13 +23,15 @@ import (
 func TestProtoParquetRoundTrip(t *testing.T) {
 	// This test round trips a proto trace and checks that the transformation works as expected
 	// Proto -> Parquet -> Proto
-	meta := &backend.BlockMeta{}
-
+	meta := backend.BlockMeta{
+		DedicatedColumns: test.MakeDedicatedColumns(),
+	}
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	expectedTrace := parquetTraceToTempopbTrace(meta, fullyPopulatedTestTrace(traceIDA)) // TODO improve test
 
-	parquetTrace := traceToParquet(meta, traceIDA, expectedTrace, nil)
-	actualTrace := parquetTraceToTempopbTrace(meta, parquetTrace)
+	expectedTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceIDA))
+
+	parquetTrace := traceToParquet(&meta, traceIDA, expectedTrace, nil)
+	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
@@ -39,7 +41,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 		ResourceSpans: nil,
 	}
 
-	got := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil) // TODO improve test
+	got := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil)
 	require.Equal(t, want, got)
 }
 
@@ -48,17 +50,21 @@ func TestProtoParquetRando(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		batches := rand.Intn(15)
 		id := test.ValidTraceID(nil)
-		expectedTrace := test.MakeTrace(batches, id)
+		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))
 
 		parqTr := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
-		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr) // TODO improve test
+		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
 		require.Equal(t, expectedTrace, actualTrace)
 	}
 }
 
 func TestFieldsAreCleared(t *testing.T) {
+	meta := backend.BlockMeta{
+		DedicatedColumns: test.MakeDedicatedColumns(),
+	}
+
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	complexTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, fullyPopulatedTestTrace(traceID)) // TODO improve test
+	complexTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceID))
 	simpleTrace := &tempopb.Trace{
 		Batches: []*v1_trace.ResourceSpans{
 			{
@@ -102,13 +108,17 @@ func TestFieldsAreCleared(t *testing.T) {
 	// first convert a trace that sets all fields and then convert
 	// a minimal trace to make sure nothing bleeds through
 	tr := &Trace{}
-	_ = traceToParquet(&backend.BlockMeta{}, traceID, complexTrace, tr) // TODO improve test
-	parqTr := traceToParquet(&backend.BlockMeta{}, traceID, simpleTrace, tr)
-	actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
+	_ = traceToParquet(&meta, traceID, complexTrace, tr)
+	parqTr := traceToParquet(&meta, traceID, simpleTrace, tr)
+	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr)
 	require.Equal(t, simpleTrace, actualTrace)
 }
 
 func BenchmarkProtoToParquet(b *testing.B) {
+	meta := backend.BlockMeta{
+		DedicatedColumns: test.MakeDedicatedColumns(),
+	}
+
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000,
@@ -119,12 +129,12 @@ func BenchmarkProtoToParquet(b *testing.B) {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 
 			id := test.ValidTraceID(nil)
-			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+			tr := test.AddDedicatedAttributes(test.MakeTraceWithSpanCount(batchCount, spanCount, id))
 
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = traceToParquet(&backend.BlockMeta{}, id, tr, nil) // TODO improve test
+				_ = traceToParquet(&meta, id, tr, nil)
 			}
 		})
 	}
@@ -168,6 +178,9 @@ func BenchmarkEventToParquet(b *testing.B) {
 }
 
 func BenchmarkDeconstruct(b *testing.B) {
+	meta := backend.BlockMeta{
+		DedicatedColumns: test.MakeDedicatedColumns(),
+	}
 
 	batchCount := 100
 	spanCounts := []int{
@@ -185,10 +198,11 @@ func BenchmarkDeconstruct(b *testing.B) {
 			ss := humanize.SI(float64(batchCount*spanCount), "")
 			ps := humanize.SI(float64(poolSize), "")
 			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
-
 				id := test.ValidTraceID(nil)
-				// TODO improve test
-				tr := traceToParquet(&backend.BlockMeta{}, id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
+				dbt := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+				test.AddDedicatedAttributes(dbt)
+
+				tr := traceToParquet(&meta, id, dbt, nil)
 				sch := parquet.SchemaOf(tr)
 
 				b.ResetTimer()
