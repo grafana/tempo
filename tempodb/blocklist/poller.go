@@ -122,7 +122,11 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 // Do does the doing of getting a blocklist
 func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
-	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
+	defer func() {
+		diff := time.Since(start).Seconds()
+		metricBlocklistPollDuration.Observe(diff)
+		p.logger.Log("msg", "blocklist poll complete", "seconds", diff)
+	}()
 
 	ctx := context.Background()
 	tenants, err := p.reader.Tenants(ctx)
