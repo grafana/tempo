@@ -62,12 +62,21 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 The following table shows the current intrinsic fields:
 
-| **Field**     | **Type**    | **Definition**                                                  | **Example**            |
-|---------------|-------------|-----------------------------------------------------------------|------------------------|
-| status        | status enum | status: error, ok, or unset                                     | { status = ok }        |
-| duration      | duration    | end - start time of the span                                    | { duration > 100ms }   |
-| name          | string      | operation or span name                                          | { name = "HTTP POST" } |
-| kind          | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }      |
+| **Field**       | **Type**    | **Definition**                                                  | **Example**                     |
+|-----------------|-------------|-----------------------------------------------------------------|---------------------------------|
+| status          | status enum | status: error, ok, or unset                                     | { status = ok }                 |
+| duration        | duration    | end - start time of the span                                    | { duration > 100ms }            |
+| name            | string      | operation or span name                                          | { name = "HTTP POST" }          |
+| kind            | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }               |
+| traceDuration   | duration    | max(end) - min(start) time of the spans in the trace            | { traceDuration > 100ms }       |
+| rootName        | string      | if it exists the name of the root span in the trace             | { rootName = "HTTP GET" }       |
+| rootServiceName | string      | if it exists the service name of the root span in the trace     | { rootServiceName = "gateway" } |
+
+{{% admonition type="note" %}}
+`traceDuration`, `rootName` and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
+these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
+possible to span-level intrinsics.
+{{% /admonition %}}
 
 ### Attribute fields
 

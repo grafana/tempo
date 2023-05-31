@@ -89,6 +89,12 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 			traceql.NewStaticString("hello"),
 			traceql.NewStaticString("world"),
 		}},
+		{traceql.MustParseIdentifier("rootName"), []traceql.Static{
+			traceql.NewStaticString("RootSpan"),
+		}},
+		{traceql.MustParseIdentifier("rootServiceName"), []traceql.Static{
+			traceql.NewStaticString("RootService"),
+		}},
 
 		// Attribute that conflicts with intrinsic
 		{traceql.MustParseIdentifier(".name"), []traceql.Static{

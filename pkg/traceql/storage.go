@@ -25,16 +25,24 @@ func SearchMetaConditions() []Condition {
 	}
 }
 
-func SearchMetaConditionsWithoutDuration() []Condition {
-	return []Condition{
-		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+func SearchMetaConditionsWithout(remove []Condition) []Condition {
+	metaConds := SearchMetaConditions()
+	retConds := make([]Condition, 0, len(metaConds))
+	for _, c := range metaConds {
+		// if we can't find c in the remove conditions then add it to retConds
+		found := false
+		for _, e := range remove {
+			if e.Attribute == c.Attribute {
+				found = true
+				break
+			}
+		}
+		if !found {
+			retConds = append(retConds, c)
+		}
 	}
+
+	return retConds
 }
 
 // SecondPassFn is a method that is called in between the first and second

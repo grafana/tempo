@@ -182,8 +182,6 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 		"connection_type": "virtual_node",
 	})
 
-	fmt.Println(testRegistry)
-
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, userToServerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, userToServerLabels))

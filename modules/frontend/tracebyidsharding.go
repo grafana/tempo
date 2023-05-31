@@ -182,14 +182,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	// only record metric when it's enabled and within slo
-	if s.cfg.SLO.DurationSLO != 0 {
-		if reqTime < s.cfg.SLO.DurationSLO {
-			// we are within SLO if query returned 200 within DurationSLO seconds
-			// TODO: we don't have throughput metrics for TraceByID.
-			sloTraceByIDCounter.WithLabelValues(tenantID).Inc()
-		}
-	}
+	recordTraceByIDSLO(s.cfg.SLO, tenantID, reqTime)
 
 	return &http.Response{
 		StatusCode: http.StatusOK,
@@ -280,4 +273,15 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	}
 
 	return false
+}
+
+func recordTraceByIDSLO(sloCfg SLOConfig, tenantID string, reqTime time.Duration) {
+	// only record metric when SLOs enabled and within slo
+	if sloCfg.DurationSLO != 0 {
+		if reqTime < sloCfg.DurationSLO {
+			// we are within SLO if query returned 200 within DurationSLO seconds
+			// TODO: we don't have throughput metrics for TraceByID.
+			sloTraceByIDCounter.WithLabelValues(tenantID).Inc()
+		}
+	}
 }

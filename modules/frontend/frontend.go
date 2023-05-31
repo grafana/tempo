@@ -26,17 +26,18 @@ import (
 )
 
 const (
-	traceByIDOp = "traces"
-	searchOp    = "search"
-	metricsOp   = "metrics"
+	traceByIDOp  = "traces"
+	searchOp     = "search"
+	searchTagsOp = "searchtags"
+	metricsOp    = "metrics"
 )
 
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler http.Handler
-	streamingSearch                                            streamingSearchHandler
-	logger                                                     log.Logger
+	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler http.Handler
+	streamingSearch                                                               streamingSearchHandler
+	logger                                                                        log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -70,18 +71,24 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
+	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(cfg, o, reader, logger), retryWare)
+
 	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(cfg, o, reader, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
+	searchTagsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchTagsOp})
 	spanMetricsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
+	searchTags := searchTagsMiddleware.Wrap(next)
 	metrics := spanMetricsMiddleware.Wrap(next)
+
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDCounter, logger),
 		SearchHandler:             newHandler(search, searchCounter, logger),
+		SearchTagsHandler:         newHandler(searchTags, searchTagsCounter, logger),
 		SpanMetricsSummaryHandler: newHandler(metrics, spanMetricsCounter, logger),
 		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
 		logger:                    logger,
@@ -184,16 +191,22 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
 func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
+		searchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// backend search queries require sharding so we pass through a special roundtripper
-			if api.IsBackendSearch(r) {
-				return backendSearchRT.RoundTrip(r)
-			}
+			// backend search queries require sharding, so we pass through a special roundtripper
+			return searchRT.RoundTrip(r)
+		})
+	})
+}
 
-			// ingester search queries only need to be proxied to a single querier
+// newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
+func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		ingesterSearchRT := next
+
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			// ingester search tags queries only need to be proxied to a single querier
 			orgID, _ := user.ExtractOrgID(r.Context())
 
 			r.Header.Set(user.OrgIDHeaderName, orgID)

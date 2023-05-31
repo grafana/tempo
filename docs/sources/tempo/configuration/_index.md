@@ -63,7 +63,7 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
-  
+
 # Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
 # If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
 # and returns only tag values that match the query.
@@ -210,6 +210,8 @@ ingester:
         ring:
             # number of replicas of each span to make while pushing to the backend
             replication_factor: 3
+            # set sidecar proxy port
+            [port: <int>]
 
     # amount of time a trace must be idle before flushing it to the wal.
     # (default: 10s)
@@ -233,6 +235,7 @@ ingester:
 ```
 
 ## Metrics-generator
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
@@ -301,8 +304,8 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling of dimensions is possible via a list of maps consisting of 
-            # "name" <string>, "source_labels" <list of string>, "join" <string> 
+            # Custom labeling of dimensions is possible via a list of maps consisting of
+            # "name" <string>, "source_labels" <list of string>, "join" <string>
             # "name" appears in the metrics, "source_labels" are the actual
             # attributes that will make up the value of the label and "join" is the
             # separator if multiple source_labels are provided
@@ -352,7 +355,7 @@ metrics_generator:
     # This option only allows spans with start time that occur within the configured duration to be
     # considered in metrics generation
     # This is to filter out spans that are outdated
-    [ingestion_time_range_slack: <duration> | default = 30s]
+    [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 ```
 
 ## Query-frontend
