@@ -37,6 +37,15 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			},
 		},
 		{
+			name:     "zero ranges",
+			urlQuery: "start=0&end=0",
+			expected: &tempopb.SearchRequest{
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
+			},
+		},
+		{
 			name:     "limit set",
 			urlQuery: "limit=10",
 			expected: &tempopb.SearchRequest{
