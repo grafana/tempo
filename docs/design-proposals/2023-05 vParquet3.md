@@ -1,7 +1,7 @@
 ---
 Authors: Adrian Stoewer (@stoewer), Mario Rodriguez (@mapno)
 Created: May 2023
-Last updated: 2022-02-07
+Last updated: 2023-05-31
 ---
 
 # vParquet3
