@@ -271,7 +271,7 @@ func TestBackendRequests(t *testing.T) {
 			searchReq, err := api.ParseSearchRequest(r)
 			require.NoError(t, err)
 
-			reqs, blocks, err := s.backendRequests(context.TODO(), "test", r, *searchReq)
+			reqs, blocks, err := s.backendRequests(context.TODO(), "test", r, searchReq)
 			assert.Equal(t, tc.expectedError, err)
 
 			reqURIs := make([]string, 0)
@@ -365,7 +365,7 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualReq, err := s.ingesterRequest(context.Background(), "test", req, *searchReq)
+		actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
