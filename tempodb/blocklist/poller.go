@@ -125,7 +125,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	defer func() {
 		diff := time.Since(start).Seconds()
 		metricBlocklistPollDuration.Observe(diff)
-		p.logger.Log("msg", "blocklist poll complete", "seconds", diff)
+		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 	}()
 
 	ctx := context.Background()
