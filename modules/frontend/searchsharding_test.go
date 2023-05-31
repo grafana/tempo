@@ -62,6 +62,7 @@ func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req tra
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}
 
+// jpe - add tests that expect error on this and one below
 func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {
 		targetBytesPerRequest int
@@ -181,18 +182,32 @@ func TestBuildBackendRequests(t *testing.T) {
 	for _, tc := range tests {
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
 
-		reqs, err := buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest)
-		if tc.expectedError != nil {
-			assert.Equal(t, tc.expectedError, err)
-			continue
-		}
-		assert.NoError(t, err)
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		reqCh := make(chan *backendReqMsg)
+
+		go func() {
+			buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest, reqCh, stopCh)
+		}()
 
 		actualURIs := []string{}
-		for _, r := range reqs {
-			actualURIs = append(actualURIs, r.RequestURI)
+		var actualErr error
+		for r := range reqCh {
+			if r.err != nil {
+				actualErr = r.err
+				break
+			}
+
+			if r.req != nil {
+				actualURIs = append(actualURIs, r.req.RequestURI)
+			}
 		}
 
+		if tc.expectedError != nil {
+			assert.Equal(t, tc.expectedError, actualErr)
+			continue
+		}
+		assert.NoError(t, actualErr)
 		assert.Equal(t, tc.expectedURIs, actualURIs)
 	}
 }
@@ -271,20 +286,29 @@ func TestBackendRequests(t *testing.T) {
 			searchReq, err := api.ParseSearchRequest(r)
 			require.NoError(t, err)
 
-			reqs, blocks, err := s.backendRequests(context.TODO(), "test", r, searchReq)
-			assert.Equal(t, tc.expectedError, err)
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			reqCh := make(chan *backendReqMsg)
 
-			reqURIs := make([]string, 0)
-			for _, req := range reqs {
-				reqURIs = append(reqURIs, req.RequestURI)
-			}
-			assert.Equal(t, tc.expectedReqsURIs, reqURIs)
+			s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
 
-			blockIDs := make([]string, 0)
-			for _, block := range blocks {
-				blockIDs = append(blockIDs, block.BlockID.String())
+			var actualErr error
+			actualBlockIDs := []string{}
+			actualReqURIs := []string{}
+			for r := range reqCh {
+				if r.err != nil {
+					actualErr = r.err
+				}
+				if r.req != nil {
+					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
+				}
+				if r.meta != nil {
+					actualBlockIDs = append(actualBlockIDs, r.meta.BlockID.String())
+				}
 			}
-			assert.Equal(t, tc.expectedBlockIDs, blockIDs)
+			assert.Equal(t, tc.expectedError, actualErr)
+			assert.Equal(t, tc.expectedReqsURIs, actualReqURIs)
+			assert.Equal(t, tc.expectedBlockIDs, actualBlockIDs)
 		})
 	}
 }
