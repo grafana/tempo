@@ -932,3 +932,74 @@ func TestSubRequestsCancelled(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkSearchSharderRoundTrip5(b *testing.B)     { benchmarkSearchSharderRoundTrip(b, 5) }
+func BenchmarkSearchSharderRoundTrip500(b *testing.B)   { benchmarkSearchSharderRoundTrip(b, 500) }
+func BenchmarkSearchSharderRoundTrip50000(b *testing.B) { benchmarkSearchSharderRoundTrip(b, 50000) } // max, forces all queries to run
+// jpe does something block if all requests are hit?
+
+func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
+	resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}})
+	require.NoError(b, err)
+
+	successResString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "1234",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{},
+	})
+	require.NoError(b, err)
+
+	succeedAfter := atomic.NewInt32(s)
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		val := succeedAfter.Dec()
+
+		s := resString
+		if val == 0 {
+			s = successResString
+		}
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(s)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(b, err)
+
+	totalMetas := 10000
+	jobsPerMeta := 2
+	metas := make([]*backend.BlockMeta, 0, totalMetas)
+	for i := 0; i < totalMetas; i++ {
+		metas = append(metas, &backend.BlockMeta{
+			StartTime:    time.Unix(1100, 0),
+			EndTime:      time.Unix(1200, 0),
+			Size:         defaultTargetBytesPerRequest * uint64(jobsPerMeta),
+			TotalRecords: uint32(jobsPerMeta),
+			BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		})
+	}
+
+	sharder := newSearchSharder(&mockReader{
+		metas: metas,
+	}, o, SearchSharderConfig{
+		ConcurrentRequests:    100,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		succeedAfter = atomic.NewInt32(s)
+		_, err = testRT.RoundTrip(req)
+		require.NoError(b, err)
+	}
+}

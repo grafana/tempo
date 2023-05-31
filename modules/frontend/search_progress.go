@@ -117,7 +117,7 @@ func (r *searchProgress) internalShouldQuit() bool {
 	if r.statusCode/100 != 2 {
 		return true
 	}
-	if r.resultsCombiner.Count() > r.limit {
+	if r.resultsCombiner.Count() >= r.limit {
 		return true
 	}
 
