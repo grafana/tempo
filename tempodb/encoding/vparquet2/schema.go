@@ -326,7 +326,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 				if !written {
 					// Dynamically assigned dedicated resource attribute columns
-					if spareColumn, exists := dedicatedResourceAttributes[a.Key]; exists {
+					if spareColumn, exists := dedicatedResourceAttributes.Get(a.Key); exists {
 						written = spareColumn.writeValue(&ob.Resource.DedicatedAttributes, a.Value)
 					}
 				}
@@ -432,7 +432,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 					if !written {
 						// Dynamically assigned dedicated span attribute columns
-						if spareColumn, exists := dedicatedSpanAttributes[a.Key]; exists {
+						if spareColumn, exists := dedicatedSpanAttributes.Get(a.Key); exists {
 							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
 						}
 					}
@@ -574,6 +574,17 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 			Attributes: parquetToProtoAttrs(rs.Resource.Attrs),
 		}
 
+		// dynamically assigned dedicated resource attribute columns
+		dedicatedResourceAttributes.ForEach(func(attr string, col dedicatedColumn) {
+			val := col.readValue(&rs.Resource.DedicatedAttributes)
+			if val != nil {
+				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
+					Key:   attr,
+					Value: val,
+				})
+			}
+		})
+
 		// known resource attributes
 		if rs.Resource.ServiceName != "" {
 			protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
@@ -606,17 +617,6 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 							StringValue: *attr.Value,
 						},
 					},
-				})
-			}
-		}
-
-		// dynamically assigned dedicated resource attribute columns
-		for attr, c := range dedicatedResourceAttributes {
-			val := c.readValue(&rs.Resource.DedicatedAttributes)
-			if val != nil {
-				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
-					Key:   attr,
-					Value: val,
 				})
 			}
 		}
@@ -661,6 +661,17 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 					protoSpan.Links = links.Links
 				}
 
+				// dynamically assigned dedicated resource attribute columns
+				dedicatedSpanAttributes.ForEach(func(attr string, col dedicatedColumn) {
+					val := col.readValue(&span.DedicatedAttributes)
+					if val != nil {
+						protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
+							Key:   attr,
+							Value: val,
+						})
+					}
+				})
+
 				// known span attributes
 				if span.HttpMethod != nil {
 					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
@@ -691,17 +702,6 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 							},
 						},
 					})
-				}
-
-				// dynamically assigned dedicated resource attribute columns
-				for attr, c := range dedicatedSpanAttributes {
-					val := c.readValue(&span.DedicatedAttributes)
-					if val != nil {
-						protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
-							Key:   attr,
-							Value: val,
-						})
-					}
 				}
 
 				protoSS.Spans = append(protoSS.Spans, protoSpan)

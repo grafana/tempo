@@ -121,10 +121,40 @@ func (sc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyV
 	return true
 }
 
+func newDedicatedColumnMapping(size int) dedicatedColumnMapping {
+	return dedicatedColumnMapping{
+		mapping: make(map[string]dedicatedColumn, size),
+		keys:    make([]string, 0, size),
+	}
+}
+
+// dedicatedColumnMapping maps the attribute names to dedicated columns while preserving the
+// order of dedicated columns
+type dedicatedColumnMapping struct {
+	mapping map[string]dedicatedColumn
+	keys    []string
+}
+
+func (dm *dedicatedColumnMapping) Put(attr string, col dedicatedColumn) {
+	dm.mapping[attr] = col
+	dm.keys = append(dm.keys, attr)
+}
+
+func (dm *dedicatedColumnMapping) Get(attr string) (dedicatedColumn, bool) {
+	col, ok := dm.mapping[attr]
+	return col, ok
+}
+
+func (dm *dedicatedColumnMapping) ForEach(callback func(attr string, column dedicatedColumn)) {
+	for _, k := range dm.keys {
+		callback(k, dm.mapping[k])
+	}
+}
+
 // blockMetaToDedicatedColumnMapping returns mapping from attribute names to spare columns for a give
 // block meta and scope.
-func blockMetaToDedicatedColumnMapping(meta *backend.BlockMeta, scope string) map[string]dedicatedColumn {
-	mapping := make(map[string]dedicatedColumn)
+func blockMetaToDedicatedColumnMapping(meta *backend.BlockMeta, scope string) dedicatedColumnMapping {
+	mapping := newDedicatedColumnMapping(len(meta.DedicatedColumns))
 
 	var spareColumnsByType map[string][]string
 	switch scope {
@@ -151,11 +181,11 @@ func blockMetaToDedicatedColumnMapping(meta *backend.BlockMeta, scope string) ma
 			continue // skip if there are not enough spare columns
 		}
 
-		mapping[c.Name] = dedicatedColumn{
+		mapping.Put(c.Name, dedicatedColumn{
 			Type:        c.Type,
 			ColumnPath:  spareColumnPaths[i],
 			ColumnIndex: i,
-		}
+		})
 		indexByType[c.Type]++
 	}
 

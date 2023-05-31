@@ -12,7 +12,7 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 		name            string
 		columns         []backend.DedicatedColumn
 		scope           string
-		expectedMapping map[string]dedicatedColumn
+		expectedMapping dedicatedColumnMapping
 	}{
 		{
 			name: "scope span",
@@ -22,9 +22,12 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "span", Name: "span.two", Type: "string"},
 			},
 			scope: "span",
-			expectedMapping: map[string]dedicatedColumn{
-				"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
-				"span.two": {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02"},
+			expectedMapping: dedicatedColumnMapping{
+				mapping: map[string]dedicatedColumn{
+					"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
+					"span.two": {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02"},
+				},
+				keys: []string{"span.one", "span.two"},
 			},
 		},
 		{
@@ -36,9 +39,12 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "resource", Name: "res.two", Type: "string"},
 			},
 			scope: "resource",
-			expectedMapping: map[string]dedicatedColumn{
-				"res.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String01"},
-				"res.two": {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String02"},
+			expectedMapping: dedicatedColumnMapping{
+				mapping: map[string]dedicatedColumn{
+					"res.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String01"},
+					"res.two": {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String02"},
+				},
+				keys: []string{"res.one", "res.two"},
 			},
 		},
 		{
@@ -49,8 +55,11 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "span", Name: "span.two", Type: "integer"}, // ignored
 			},
 			scope: "span",
-			expectedMapping: map[string]dedicatedColumn{
-				"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
+			expectedMapping: dedicatedColumnMapping{
+				mapping: map[string]dedicatedColumn{
+					"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
+				},
+				keys: []string{"span.one"},
 			},
 		},
 		{
@@ -69,17 +78,20 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "span", Name: "span.eleven", Type: "string"}, // ignored
 			},
 			scope: "span",
-			expectedMapping: map[string]dedicatedColumn{
-				"span.one":   {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
-				"span.two":   {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02"},
-				"span.three": {Type: "string", ColumnIndex: 2, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03"},
-				"span.four":  {Type: "string", ColumnIndex: 3, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04"},
-				"span.five":  {Type: "string", ColumnIndex: 4, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05"},
-				"span.six":   {Type: "string", ColumnIndex: 5, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06"},
-				"span.seven": {Type: "string", ColumnIndex: 6, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07"},
-				"span.eight": {Type: "string", ColumnIndex: 7, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08"},
-				"span.nine":  {Type: "string", ColumnIndex: 8, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09"},
-				"span.ten":   {Type: "string", ColumnIndex: 9, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10"},
+			expectedMapping: dedicatedColumnMapping{
+				mapping: map[string]dedicatedColumn{
+					"span.one":   {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
+					"span.two":   {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02"},
+					"span.three": {Type: "string", ColumnIndex: 2, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03"},
+					"span.four":  {Type: "string", ColumnIndex: 3, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04"},
+					"span.five":  {Type: "string", ColumnIndex: 4, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05"},
+					"span.six":   {Type: "string", ColumnIndex: 5, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06"},
+					"span.seven": {Type: "string", ColumnIndex: 6, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07"},
+					"span.eight": {Type: "string", ColumnIndex: 7, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08"},
+					"span.nine":  {Type: "string", ColumnIndex: 8, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09"},
+					"span.ten":   {Type: "string", ColumnIndex: 9, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10"},
+				},
+				keys: []string{"span.one", "span.two", "span.three", "span.four", "span.five", "span.six", "span.seven", "span.eight", "span.nine", "span.ten"},
 			},
 		},
 	}
