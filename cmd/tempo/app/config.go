@@ -50,6 +50,11 @@ type Config struct {
 	LimitsConfig    overrides.Limits        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
+
+	// This is used by applications hosting Tempo to disable the default behavior
+	// of routing grpc over the main http server. Specifically this is for
+	// Grafana Enterprise Traces gateway module which does its own protocol muxing.
+	DoNotRouteHTTPToGRPC bool `yaml:"-"`
 }
 
 func newDefaultConfig() *Config {

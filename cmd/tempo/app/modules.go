@@ -78,9 +78,11 @@ func (t *App) initServer() (services.Service, error) {
 
 	DisableSignalHandling(&t.cfg.Server)
 
-	// this allows us to server http and grpc over the primary http server.
-	//  to use this register services with GRPCOnHTTPServer
-	t.cfg.Server.RouteHTTPToGRPC = true
+	if !t.cfg.DoNotRouteHTTPToGRPC {
+		// this allows us to serve http and grpc over the primary http server.
+		//  to use this register services with GRPCOnHTTPServer
+		t.cfg.Server.RouteHTTPToGRPC = true
+	}
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
