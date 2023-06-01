@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
 * [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
