@@ -17,7 +17,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 ## Complete configuration
 
 {{% admonition type="note" %}}
-This manifest was generated on 2023-04-28.
+This manifest was generated on 2023-06-01.
 {{% /admonition %}}
 
 ```yaml
@@ -148,7 +148,7 @@ distributor:
                 mirror_timeout: 2s
         heartbeat_period: 5s
         heartbeat_timeout: 5m0s
-        instance_id: Martins-MacBook-Pro.local
+        instance_id: local-instance
         instance_interface_names:
             - eth0
             - en0
@@ -299,12 +299,13 @@ compactor:
         heartbeat_timeout: 1m0s
         wait_stability_min_duration: 1m0s
         wait_stability_max_duration: 5m0s
-        instance_id: Martins-MacBook-Pro.local
+        instance_id: local-instance
         instance_interface_names:
             - eth0
             - en0
         instance_port: 0
         instance_addr: ""
+        enable_inet6: false
         wait_active_instance_timeout: 10m0s
     compaction:
         v2_in_buffer_bytes: 5242880
@@ -364,6 +365,7 @@ ingester:
         min_ready_duration: 15s
         interface_names:
             - en0
+        enable_inet6: false
         final_sleep: 0s
         tokens_file_path: ""
         availability_zone: ""
@@ -371,7 +373,7 @@ ingester:
         readiness_check_ring_health: true
         address: 127.0.0.1
         port: 0
-        id: Martins-MacBook-Pro.local
+        id: local-instance
     concurrent_flushes: 4
     flush_check_period: 10s
     flush_op_timeout: 5m0s
@@ -414,12 +416,13 @@ metrics_generator:
                 mirror_timeout: 2s
         heartbeat_period: 5s
         heartbeat_timeout: 1m0s
-        instance_id: Martins-MacBook-Pro.local
+        instance_id: local-instance
         instance_interface_names:
             - eth0
             - en0
         instance_addr: 127.0.0.1
         instance_port: 0
+        enable_inet6: false
     processor:
         service_graphs:
             wait: 10s
@@ -435,6 +438,10 @@ metrics_generator:
                 - 6.4
                 - 12.8
             dimensions: []
+            peer_attributes:
+                - peer.service
+                - db.name
+                - db.system
             span_multiplier_key: ""
         span_metrics:
             histogram_buckets:
@@ -458,11 +465,40 @@ metrics_generator:
                 span_kind: true
                 status_code: true
             dimensions: []
+            dimension_mappings: []
+            enable_target_info: false
             span_multiplier_key: ""
             subprocessors:
                 0: true
                 1: true
                 2: true
+            filter_policies: []
+        local_blocks:
+            block:
+                bloom_filter_false_positive: 0.01
+                bloom_filter_shard_size_bytes: 102400
+                version: vParquet2
+                search_encoding: snappy
+                search_page_size_bytes: 1048576
+                v2_index_downsample_bytes: 1048576
+                v2_index_page_size_bytes: 256000
+                v2_encoding: zstd
+                parquet_row_group_size_bytes: 100000000
+            search:
+                chunk_size_bytes: 1000000
+                prefetch_trace_count: 1000
+                read_buffer_count: 32
+                read_buffer_size_bytes: 1048576
+                cache_control:
+                    footer: false
+                    column_index: false
+                    offset_index: false
+            flush_check_period: 10s
+            trace_idle_period: 10s
+            max_block_duration: 1m0s
+            max_block_bytes: 500000000
+            complete_block_timeout: 1h0m0s
+            max_live_traces: 0
     registry:
         collection_interval: 15s
         stale_duration: 15m0s
@@ -479,7 +515,16 @@ metrics_generator:
             max_wal_time: 14400000
             no_lockfile: false
         remote_write_flush_deadline: 1m0s
+    traces_storage:
+        path: ""
+        completedfilepath: ""
+        blocksfilepath: ""
+        v2_encoding: none
+        search_encoding: none
+        ingestion_time_range_slack: 0s
+        version: vParquet2
     metrics_ingestion_time_range_slack: 30s
+    query_timeout: 30s
 storage:
     trace:
         pool:
@@ -492,11 +537,11 @@ storage:
             v2_encoding: snappy
             search_encoding: none
             ingestion_time_range_slack: 2m0s
-            version: vParquet
+            version: vParquet2
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
-            version: vParquet
+            version: vParquet2
             search_encoding: snappy
             search_page_size_bytes: 1048576
             v2_index_downsample_bytes: 1048576
@@ -523,6 +568,7 @@ storage:
             path: /tmp/tempo/traces
         gcs:
             bucket_name: ""
+            prefix: ""
             chunk_buffer_size: 10485760
             endpoint: ""
             hedge_requests_at: 0s
@@ -531,6 +577,13 @@ storage:
             object_cache_control: ""
             object_metadata: {}
         s3:
+            tls_cert_path: ""
+            tls_key_path: ""
+            tls_ca_path: ""
+            tls_server_name: ""
+            tls_insecure_skip_verify: false
+            tls_cipher_suites: ""
+            tls_min_version: VersionTLS12
             bucket: ""
             prefix: ""
             endpoint: ""
@@ -539,7 +592,6 @@ storage:
             secret_key: ""
             session_token: ""
             insecure: false
-            tls_insecure_skip_verify: false
             part_size: 0
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
@@ -556,6 +608,7 @@ storage:
             use_federated_token: false
             user_assigned_id: ""
             container_name: ""
+            prefix: ""
             endpoint_suffix: blob.core.windows.net
             max_buffers: 4
             buffer_size: 3145728
@@ -585,9 +638,19 @@ overrides:
     metrics_generator_forwarder_workers: 0
     metrics_generator_processor_service_graphs_histogram_buckets: []
     metrics_generator_processor_service_graphs_dimensions: []
+    metrics_generator_processor_service_graphs_peer_attributes: []
     metrics_generator_processor_span_metrics_histogram_buckets: []
     metrics_generator_processor_span_metrics_dimensions: []
     metrics_generator_processor_span_metrics_intrinsic_dimensions: {}
+    metrics_generator_processor_span_metrics_filter_policies: []
+    metrics_generator_processor_span_metrics_dimension_mappings: []
+    metrics_generator_processor_span_metrics_enable_target_info: false
+    metrics_generator_processor_local_blocks_max_live_traces: 0
+    metrics_generator_processor_local_blocks_max_block_duration: 0s
+    metrics_generator_processor_local_blocks_max_block_bytes: 0
+    metrics_generator_processor_local_blocks_flush_check_period: 0s
+    metrics_generator_processor_local_blocks_trace_idle_period: 0s
+    metrics_generator_processor_local_blocks_complete_block_timeout: 0s
     block_retention: 0s
     max_bytes_per_tag_values_query: 5000000
     max_blocks_per_tag_values_query: 0
