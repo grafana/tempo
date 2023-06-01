@@ -212,6 +212,7 @@ func TestBuildBackendRequests(t *testing.T) {
 	}
 }
 
+// jpe add tests for return vals
 func TestBackendRequests(t *testing.T) {
 	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
@@ -228,7 +229,6 @@ func TestBackendRequests(t *testing.T) {
 		name             string
 		request          string
 		expectedReqsURIs []string
-		expectedBlockIDs []string
 		expectedError    error
 	}{
 		{
@@ -238,8 +238,7 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedBlockIDs: []string{bm.BlockID.String()},
-			expectedError:    nil,
+			expectedError: nil,
 		},
 		{
 			name:    "start and end in block",
@@ -248,35 +247,30 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedBlockIDs: []string{bm.BlockID.String()},
-			expectedError:    nil,
+			expectedError: nil,
 		},
 		{
 			name:             "start and end out of block",
 			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 		{
 			name:             "no start and end",
 			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 		{
 			name:             "only tags",
 			request:          "/?tags=foo%3Dbar",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 		{
 			name:             "no params",
 			request:          "/",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 	}
@@ -293,7 +287,6 @@ func TestBackendRequests(t *testing.T) {
 			s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
 
 			var actualErr error
-			actualBlockIDs := []string{}
 			actualReqURIs := []string{}
 			for r := range reqCh {
 				if r.err != nil {
@@ -302,13 +295,9 @@ func TestBackendRequests(t *testing.T) {
 				if r.req != nil {
 					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
 				}
-				if r.meta != nil {
-					actualBlockIDs = append(actualBlockIDs, r.meta.BlockID.String())
-				}
 			}
 			assert.Equal(t, tc.expectedError, actualErr)
 			assert.Equal(t, tc.expectedReqsURIs, actualReqURIs)
-			assert.Equal(t, tc.expectedBlockIDs, actualBlockIDs)
 		})
 	}
 }
