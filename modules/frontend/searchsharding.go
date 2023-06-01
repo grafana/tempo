@@ -72,7 +72,6 @@ type SearchSharderConfig struct {
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 }
 
-// jpe - pool me?
 type backendReqMsg struct {
 	req *http.Request
 	err error
@@ -149,7 +148,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// pass subCtx in requests so we can cancel and exit early
-	totalBlocks, totalBlockBytes, totalJobs := s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
+	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
@@ -301,7 +300,7 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) (totalBlocks, totalBlockBytes, estimatedJobs int) {
+func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
@@ -329,11 +328,11 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 	for _, b := range blocks {
 		p := pagesPerRequest(b, targetBytesPerRequest)
 
-		estimatedJobs += int(b.TotalRecords) / p
+		totalJobs += int(b.TotalRecords) / p
 		if int(b.TotalRecords)%p != 0 {
-			estimatedJobs++
+			totalJobs++
 		}
-		totalBlockBytes += int(b.Size)
+		totalBlockBytes += b.Size
 	}
 
 	go func() {

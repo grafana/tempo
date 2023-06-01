@@ -70,9 +70,6 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 			{
 				TraceID: "otherthing",
 			},
-			{
-				TraceID: "thingthatsdifferent",
-			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
 	})

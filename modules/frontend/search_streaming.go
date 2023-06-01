@@ -32,7 +32,7 @@ type diffSearchProgress struct {
 	mtx        sync.Mutex
 }
 
-func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) *diffSearchProgress {
+func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) *diffSearchProgress {
 	return &diffSearchProgress{
 		seenTraces: map[string]struct{}{},
 		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
@@ -119,7 +119,7 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 		}
 
 		progress := atomic.NewPointer[*diffSearchProgress](nil)
-		fn := func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+		fn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
 			p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
 			progress.Store(&p)
 			return p

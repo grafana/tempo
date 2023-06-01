@@ -130,7 +130,7 @@ func TestStreamingSearchHandlerStreams(t *testing.T) {
 						Traces: traceResp,
 						Metrics: &tempopb.SearchMetrics{
 							TotalBlocks:     1,
-							CompletedJobs:   r.Metrics.CompletedJobs, // jpe ?
+							CompletedJobs:   r.Metrics.CompletedJobs,
 							TotalJobs:       2,
 							TotalBlockBytes: 209715200,
 						}},

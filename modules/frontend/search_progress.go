@@ -11,7 +11,7 @@ import (
 
 // searchProgressFactory is used to provide a way to construct a shardedSearchProgress to the searchSharder. It exists
 // so that streaming search can inject and track it's own special progress object
-type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress
+type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress
 
 // shardedSearchProgress is an interface that allows us to get progress
 // events from the search sharding handler.
@@ -50,7 +50,7 @@ type searchProgress struct {
 	mtx   sync.Mutex
 }
 
-func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
 	return &searchProgress{
 		ctx:              ctx,
 		statusCode:       http.StatusOK,
@@ -58,7 +58,7 @@ func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, total
 		finishedRequests: 0,
 		resultsMetrics: &tempopb.SearchMetrics{
 			TotalBlocks:     uint32(totalBlocks),
-			TotalBlockBytes: uint64(totalBlockBytes),
+			TotalBlockBytes: totalBlockBytes,
 			TotalJobs:       uint32(totalJobs),
 		},
 		resultsCombiner: traceql.NewMetadataCombiner(),

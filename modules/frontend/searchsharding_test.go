@@ -62,7 +62,6 @@ func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req tra
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}
 
-// jpe - add tests that expect error on this and one below
 func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {
 		targetBytesPerRequest int
@@ -212,7 +211,6 @@ func TestBuildBackendRequests(t *testing.T) {
 	}
 }
 
-// jpe add tests for return vals
 func TestBackendRequests(t *testing.T) {
 	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
@@ -226,10 +224,13 @@ func TestBackendRequests(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		request          string
-		expectedReqsURIs []string
-		expectedError    error
+		name               string
+		request            string
+		expectedReqsURIs   []string
+		expectedError      error
+		expectedJobs       int
+		expectedBlocks     int
+		expectedBlockBytes uint64
 	}{
 		{
 			name:    "start and end same as block",
@@ -238,7 +239,10 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedError: nil,
+			expectedError:      nil,
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
 		},
 		{
 			name:    "start and end in block",
@@ -247,7 +251,10 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedError: nil,
+			expectedError:      nil,
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
 		},
 		{
 			name:             "start and end out of block",
@@ -284,7 +291,10 @@ func TestBackendRequests(t *testing.T) {
 			defer close(stopCh)
 			reqCh := make(chan *backendReqMsg)
 
-			s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
+			jobs, blocks, blockBytes := s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
+			require.Equal(t, tc.expectedJobs, jobs)
+			require.Equal(t, tc.expectedBlocks, blocks)
+			require.Equal(t, tc.expectedBlockBytes, blockBytes)
 
 			var actualErr error
 			actualReqURIs := []string{}
@@ -296,8 +306,8 @@ func TestBackendRequests(t *testing.T) {
 					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
 				}
 			}
-			assert.Equal(t, tc.expectedError, actualErr)
-			assert.Equal(t, tc.expectedReqsURIs, actualReqURIs)
+			require.Equal(t, tc.expectedError, actualErr)
+			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
 		})
 	}
 }
@@ -925,7 +935,6 @@ func TestSubRequestsCancelled(t *testing.T) {
 func BenchmarkSearchSharderRoundTrip5(b *testing.B)     { benchmarkSearchSharderRoundTrip(b, 5) }
 func BenchmarkSearchSharderRoundTrip500(b *testing.B)   { benchmarkSearchSharderRoundTrip(b, 500) }
 func BenchmarkSearchSharderRoundTrip50000(b *testing.B) { benchmarkSearchSharderRoundTrip(b, 50000) } // max, forces all queries to run
-// jpe does something block if all requests are hit?
 
 func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 	resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}})
