@@ -7,7 +7,7 @@ weight: 75
 # Apache Parquet block format
 
 
-Tempo has a default columnar block format based on Apache Parquet. Parquet is required for tags-based search as well as [TraceQL]({{< relref "../traceql" >}}), the query language for traces. The columnar block format results in improved search performance and also enables a large ecosystem of tools to access the underlying trace data.
+Tempo has a default columnar block format based on Apache Parquet. This format is required for tags-based search as well as [TraceQL]({{< relref "../traceql" >}}), the query language for traces. The columnar block format improves search performance and enables a large ecosystem of tools to access the underlying trace data.
 
 For more information, refer to the [Parquet schema]({{< relref "../operations/schema" >}}) and the [Parquet design document](https://github.com/mdisibio/tempo/blob/design-proposal-parquet/docs/design-proposals/2022-04%20Parquet.md).
 
@@ -21,7 +21,7 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 
 ## Choose a different block format
 
-The default block format is `vParquet2` which is the latest iteration of Tempo's Parquet based block format. It is still possible to use the previous format `vParquet`. To enable it, set the block version option to `vParquet` in the Storage section of the configuration file.
+The default block format is `vParquet2` which is the latest iteration of Tempo's Parquet based columnar block format. It is still possible to use the previous format `vParquet`. To enable it, set the block version option to `vParquet` in the Storage section of the configuration file.
 
 ```yaml
 # block format version. options: v2, vParquet, vParquet2
@@ -35,7 +35,7 @@ It is possible to disable Parquet and use the previous `v2` block format. This d
 [version: v2]
 ```
 
-To re-enable the default Parquet format, remove block version option from the Storage section of the configuration file.
+To re-enable the default `vParquet2` format, remove the block version option from the Storage section of the configuration file or set the option to `vParquet2`.
 
 ## Parquet configuration parameters
 
