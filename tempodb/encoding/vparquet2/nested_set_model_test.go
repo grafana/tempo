@@ -13,7 +13,6 @@ import (
 func TestAssignNestedSetModelBounds(t *testing.T) {
 	tests := []struct {
 		name     string
-		force    bool
 		trace    [][]Span
 		expected [][]Span
 	}{
@@ -169,22 +168,6 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 		},
 		{
-			name:  "force reassignment",
-			force: true,
-			trace: [][]Span{
-				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 2},
-					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 2},
-				},
-			},
-			expected: [][]Span{
-				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 4},
-					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 3, ParentID: 1},
-				},
-			},
-		},
-		{
 			name: "non unique IDs",
 			trace: [][]Span{
 				{
@@ -241,7 +224,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			trace := makeTrace(tt.trace)
 			expected := makeTrace(tt.expected)
-			assignNestedSetModelBounds(trace, tt.force)
+			assignNestedSetModelBounds(trace)
 			assertEqualNestedSetModelBounds(t, trace, expected)
 		})
 	}

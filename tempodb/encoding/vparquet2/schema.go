@@ -426,7 +426,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 		}
 	}
 
-	assignNestedSetModelBounds(ot, false)
+	assignNestedSetModelBounds(ot)
 
 	return ot
 }

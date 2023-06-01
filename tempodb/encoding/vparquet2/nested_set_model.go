@@ -14,9 +14,8 @@ type spanNode struct {
 }
 
 // assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
-// and Span.ParentID for all spans in a trace. The assignment is skipped when all spans have non-zero
-// left and right bounds. If forceAssignment is true, the assignment is never skipped.
-func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
+// and Span.ParentID for all spans in a trace.
+func assignNestedSetModelBounds(trace *Trace) {
 	// count spans in order be able to pre-allocate tree nodes
 	var spanCount int
 	for _, rs := range trace.ResourceSpans {
@@ -27,20 +26,15 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 
 	// find root spans and map span IDs to tree nodes
 	var (
-		undoAssignment   bool
-		assignmentNeeded bool
-		allNodes         = make([]spanNode, 0, spanCount)
-		nodesByID        = make(map[uint64][]*spanNode, spanCount)
-		rootNodes        []*spanNode
+		undoAssignment bool
+		allNodes       = make([]spanNode, 0, spanCount)
+		nodesByID      = make(map[uint64][]*spanNode, spanCount)
+		rootNodes      []*spanNode
 	)
 
 	for _, rs := range trace.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			for i, s := range ss.Spans {
-				if s.NestedSetLeft == 0 || s.NestedSetRight == 0 {
-					assignmentNeeded = true
-				}
-
 				allNodes = append(allNodes, spanNode{span: &ss.Spans[i]})
 				node := &allNodes[len(allNodes)-1]
 
@@ -63,6 +57,9 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 	}
 
 	// check preconditions before assignment
+	if len(rootNodes) == 0 {
+		return
+	}
 	if undoAssignment {
 		for _, nodes := range nodesByID {
 			for _, n := range nodes {
@@ -71,9 +68,6 @@ func assignNestedSetModelBounds(trace *Trace, forceAssignment bool) {
 				n.span.ParentID = 0
 			}
 		}
-		return
-	}
-	if (!assignmentNeeded && !forceAssignment) || len(rootNodes) == 0 {
 		return
 	}
 
