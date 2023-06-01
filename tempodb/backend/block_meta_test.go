@@ -118,11 +118,11 @@ func TestBlockMetaParsing(t *testing.T) {
     "totalRecords": 124356,
     "dataEncoding": "",
     "bloomShards": 244,
-	"dedicatedColumns": [
-		{"scope": "resource", "name": "namespace", "type": "string"},
-		{"scope": "span", "name": "http.method", "type": "string"},
-		{"scope": "span", "name": "namespace", "type": "string"}
-	]
+    "dedicatedColumns": [
+    	{"scope": "resource", "name": "namespace", "type": "string"},
+    	{"scope": "span", "name": "http.method", "type": "string"},
+    	{"scope": "span", "name": "namespace", "type": "string"}
+    ]
 }`,
 		},
 		{
