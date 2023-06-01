@@ -41,6 +41,9 @@ tempo {
     backend: 's3',
     bucket: 'tempo',
     tempo_query_url: 'http://query-frontend:3200',
+
+    overrides_configmap_name: 'tempo-overrides',
+    overrides+:: {},
   },
 
   // manually overriding to get tempo to talk to minio
@@ -125,4 +128,6 @@ tempo {
         + path.backend.service.port.withNumber(3000),
       ]),
     ),
+
+
 }
