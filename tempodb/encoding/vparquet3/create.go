@@ -54,7 +54,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			trp = traceToParquet(id, tr, trp)
+			trp = traceToParquet(meta, id, tr, trp)
 
 			row := sch.Deconstruct(completeBlockRowPool.Get(), trp)
 

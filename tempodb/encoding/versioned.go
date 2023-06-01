@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -15,6 +13,7 @@ import (
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 )
 
 // VersionedEncoding represents a backend block version, and the methods to
