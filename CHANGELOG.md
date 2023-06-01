@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
+* [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
 * [BUGFIX] Fix Search SLO by routing tags to a new handler. [#2468](https://github.com/grafana/tempo/issues/2468) (@electron0zero)
