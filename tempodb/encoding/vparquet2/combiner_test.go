@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/dustin/go-humanize"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestCombiner(t *testing.T) {
@@ -231,7 +233,6 @@ func TestCombiner(t *testing.T) {
 }
 
 func BenchmarkCombine(b *testing.B) {
-
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000, 10000,
@@ -240,10 +241,10 @@ func BenchmarkCombine(b *testing.B) {
 	for _, spanCount := range spanCounts {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 			id1 := test.ValidTraceID(nil)
-			tr1 := traceToParquet(id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1), nil)
+			tr1 := traceToParquet(&backend.BlockMeta{}, id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1), nil)
 
 			id2 := test.ValidTraceID(nil)
-			tr2 := traceToParquet(id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2), nil)
+			tr2 := traceToParquet(&backend.BlockMeta{}, id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2), nil)
 
 			b.ResetTimer()
 
@@ -258,7 +259,6 @@ func BenchmarkCombine(b *testing.B) {
 }
 
 func BenchmarkSortTrace(b *testing.B) {
-
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000, 10000,
@@ -268,7 +268,7 @@ func BenchmarkSortTrace(b *testing.B) {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 
 			id := test.ValidTraceID(nil)
-			tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
+			tr := traceToParquet(&backend.BlockMeta{}, id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 
 			b.ResetTimer()
 

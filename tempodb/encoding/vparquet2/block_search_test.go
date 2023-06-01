@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -16,7 +18,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBackendBlockSearch(t *testing.T) {
@@ -84,7 +85,7 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		id := test.ValidTraceID(nil)
 		pbTrace := test.MakeTrace(10, id)
-		pqTrace := traceToParquet(id, pbTrace, nil)
+		pqTrace := traceToParquet(&backend.BlockMeta{}, id, pbTrace, nil)
 		allTraces = append(allTraces, pqTrace)
 	}
 

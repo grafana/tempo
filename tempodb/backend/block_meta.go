@@ -13,23 +13,54 @@ type CompactedBlockMeta struct {
 	CompactedTime time.Time `json:"compactedTime"`
 }
 
+// The BlockMeta data that is stored for each individual block.
 type BlockMeta struct {
-	Version         string    `json:"format"`          // Version indicates the block format version. This includes specifics of how the indexes and data is stored
-	BlockID         uuid.UUID `json:"blockID"`         // Unique block id
-	MinID           []byte    `json:"minID"`           // Minimum object id stored in this block
-	MaxID           []byte    `json:"maxID"`           // Maximum object id stored in this block
-	TenantID        string    `json:"tenantID"`        // ID of tenant to which this block belongs
-	StartTime       time.Time `json:"startTime"`       // Roughly matches when the first obj was written to this block. Used to determine block age for different purposes (caching, etc)
-	EndTime         time.Time `json:"endTime"`         // Currently mostly meaningless but roughly matches to the time the last obj was written to this block
-	TotalObjects    int       `json:"totalObjects"`    // Total objects in this block
-	Size            uint64    `json:"size"`            // Total size in bytes of the data object
-	CompactionLevel uint8     `json:"compactionLevel"` // Kind of the number of times this block has been compacted
-	Encoding        Encoding  `json:"encoding"`        // Encoding/compression format
-	IndexPageSize   uint32    `json:"indexPageSize"`   // Size of each index page in bytes
-	TotalRecords    uint32    `json:"totalRecords"`    // Total Records stored in the index file
-	DataEncoding    string    `json:"dataEncoding"`    // DataEncoding is a string provided externally, but tracked by tempodb that indicates the way the bytes are encoded
-	BloomShardCount uint16    `json:"bloomShards"`     // Number of bloom filter shards
-	FooterSize      uint32    `json:"footerSize"`      // Size of data file footer (parquet)
+	// A Version that indicates the block format. This includes specifics of how the indexes and data is stored.
+	Version string `json:"format"`
+	// BlockID is a unique identifier of the block.
+	BlockID uuid.UUID `json:"blockID"`
+	// MinID is the smallest object id stored in this block.
+	MinID []byte `json:"minID"`
+	// MaxID is the largest object id stored in this block.
+	MaxID []byte `json:"maxID"`
+	// A TenantID that defines the tenant to which this block belongs.
+	TenantID string `json:"tenantID"`
+	// StartTime roughly matches when the first obj was written to this block. It is used to determine block.
+	// age for different purposes (caching, etc)
+	StartTime time.Time `json:"startTime"`
+	// EndTime roughly matches to the time the last obj was written to this block. Is currently mostly meaningless.
+	EndTime time.Time `json:"endTime"`
+	// TotalObjects counts the number of objects in this block.
+	TotalObjects int `json:"totalObjects"`
+	// The Size in bytes of the block.
+	Size uint64 `json:"size"`
+	// CompactionLevel defines the number of times this block has been compacted.
+	CompactionLevel uint8 `json:"compactionLevel"`
+	// Encoding and compression format (used only in v2)
+	Encoding Encoding `json:"encoding"`
+	// IndexPageSize holds the size of each index page in bytes (used only in v2)
+	IndexPageSize uint32 `json:"indexPageSize"`
+	// TotalRecords holds the total Records stored in the index file (used only in v2)
+	TotalRecords uint32 `json:"totalRecords"`
+	// DataEncoding is tracked by tempodb and indicates the way the bytes are encoded.
+	DataEncoding string `json:"dataEncoding"`
+	// BloomShardCount represents the number of bloom filter shards.
+	BloomShardCount uint16 `json:"bloomShards"`
+	// FooterSize contains the size of the footer in bytes (used by parquet)
+	FooterSize uint32 `json:"footerSize"`
+	// DedicatedColumns configuration for attributes (used by parquet)
+	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
+}
+
+// DedicatedColumn contains the configuration for a single attribute with the given name that should
+// be stored in a dedicated column instead of the generic attribute column.
+type DedicatedColumn struct {
+	// The Scope of the attribute: can be 'resource' or 'span'
+	Scope string `json:"scope"`
+	// The Name of the attribute stored in the dedicated column
+	Name string `json:"name"`
+	// The Type of attribute value: only 'string' supported
+	Type string `json:"type"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {

@@ -5,21 +5,20 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"math/rand"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/segmentio/parquet-go"
+	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkCompactor(b *testing.B) {
@@ -126,7 +125,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		binary.LittleEndian.PutUint64(id, uint64(i))
 
 		tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
-		trp := traceToParquet(id, tr, nil)
+		trp := traceToParquet(inMeta, id, tr, nil)
 
 		err := sb.Add(trp, 0, 0)
 		require.NoError(t, err)
@@ -158,7 +157,7 @@ func TestCountSpans(t *testing.T) {
 
 	// make Trace and convert to parquet.Row
 	tr := test.MakeTraceWithSpanCount(batchSize, spansEach, traceID)
-	trp := traceToParquet(traceID, tr, nil)
+	trp := traceToParquet(&backend.BlockMeta{}, traceID, tr, nil)
 	row := sch.Deconstruct(nil, trp)
 
 	// count spans for generated rows.

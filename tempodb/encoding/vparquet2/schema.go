@@ -3,6 +3,8 @@ package vparquet2
 import (
 	"bytes"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -115,6 +117,20 @@ type Attribute struct {
 	ValueArray  string   `parquet:",snappy,optional"`
 }
 
+// DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
+type DedicatedAttributes struct {
+	String01 *string `parquet:",snappy,optional,dict"`
+	String02 *string `parquet:",snappy,optional,dict"`
+	String03 *string `parquet:",snappy,optional,dict"`
+	String04 *string `parquet:",snappy,optional,dict"`
+	String05 *string `parquet:",snappy,optional,dict"`
+	String06 *string `parquet:",snappy,optional,dict"`
+	String07 *string `parquet:",snappy,optional,dict"`
+	String08 *string `parquet:",snappy,optional,dict"`
+	String09 *string `parquet:",snappy,optional,dict"`
+	String10 *string `parquet:",snappy,optional,dict"`
+}
+
 type EventAttribute struct {
 	Key   string `parquet:",snappy,dict"`
 	Value []byte `parquet:",snappy"` // Was json-encoded data, is now proto encoded data
@@ -131,8 +147,8 @@ type Event struct {
 // nolint:revive
 // Ignore field naming warnings
 type Span struct {
-	// SpanID is []byte to save space. It doesn't need to be user
-	// friendly like trace ID, and []byte is half the size of string.
+	// SpanID is []byte to save space. It doesn't need to be user-friendly
+	// like trace ID, and []byte is half the size of string.
 	SpanID                 []byte      `parquet:","`
 	ParentSpanID           []byte      `parquet:","`
 	ParentID               int32       `parquet:",delta"` // can be zero for non-root spans, use IsRoot to check for root spans
@@ -152,10 +168,13 @@ type Span struct {
 	Links                  []byte      `parquet:",snappy"` // proto encoded []*v1_trace.Span_Link
 	DroppedLinksCount      int32       `parquet:",snappy"`
 
-	// Known attributes
+	// Static dedicated attribute columns
 	HttpMethod     *string `parquet:",snappy,optional,dict"`
 	HttpUrl        *string `parquet:",snappy,optional,dict"`
 	HttpStatusCode *int64  `parquet:",snappy,optional"`
+
+	// Dynamically assignable dedicated attribute columns
+	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
 func (s *Span) IsRoot() bool {
@@ -175,7 +194,10 @@ type ScopeSpans struct {
 type Resource struct {
 	Attrs []Attribute `parquet:",list"`
 
-	// Known attributes
+	// Always empty for testing
+	Test string `parquet:",snappy,dict,optional"`
+
+	// Static dedicated attribute columns
 	ServiceName      string  `parquet:",snappy,dict"`
 	Cluster          *string `parquet:",snappy,optional,dict"`
 	Namespace        *string `parquet:",snappy,optional,dict"`
@@ -186,7 +208,8 @@ type Resource struct {
 	K8sPodName       *string `parquet:",snappy,optional,dict"`
 	K8sContainerName *string `parquet:",snappy,optional,dict"`
 
-	Test string `parquet:",snappy,dict,optional"` // Always empty for testing
+	// Dynamically assignable dedicated attribute columns
+	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
 type ResourceSpans struct {
@@ -196,9 +219,7 @@ type ResourceSpans struct {
 
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
-	TraceID       []byte          `parquet:""`
-	ResourceSpans []ResourceSpans `parquet:"rs,list"`
-
+	TraceID []byte `parquet:""`
 	// TraceIDText is for better usability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
 	TraceIDText string `parquet:",snappy"`
@@ -209,6 +230,8 @@ type Trace struct {
 	DurationNano      uint64 `parquet:",delta"`
 	RootServiceName   string `parquet:",dict"`
 	RootSpanName      string `parquet:",dict"`
+
+	ResourceSpans []ResourceSpans `parquet:"rs,list"`
 }
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {
@@ -240,7 +263,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 	}
 }
 
-func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
+func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 	if ot == nil {
 		ot = &Trace{}
 	}
@@ -254,10 +277,14 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
 
+	// Dedicated attribute column assignments
+	dedicatedResourceAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeResource)
+	dedicatedSpanAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeSpan)
+
 	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
 	for ib, b := range tr.Batches {
 		ob := &ot.ResourceSpans[ib]
-		// clear out any existing fields in case they were set on the original
+		// Clear out any existing fields in case they were set on the original
 		ob.Resource.ServiceName = ""
 		ob.Resource.Cluster = nil
 		ob.Resource.Namespace = nil
@@ -267,13 +294,14 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 		ob.Resource.K8sNamespaceName = nil
 		ob.Resource.K8sPodName = nil
 		ob.Resource.K8sContainerName = nil
+		ob.Resource.DedicatedAttributes = DedicatedAttributes{}
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
 			attrCount := 0
 			for _, a := range b.Resource.Attributes {
 				strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
-				special := ok
+				written := ok
 				if ok {
 					switch a.Key {
 					case LabelServiceName:
@@ -296,11 +324,18 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					case LabelK8sContainerName:
 						ob.Resource.K8sContainerName = &strVal.StringValue
 					default:
-						special = false
+						written = false
 					}
 				}
 
-				if !special {
+				if !written {
+					// Dynamically assigned dedicated resource attribute columns
+					if spareColumn, exists := dedicatedResourceAttributes.Get(a.Key); exists {
+						written = spareColumn.writeValue(&ob.Resource.DedicatedAttributes, a.Value)
+					}
+				}
+
+				if !written {
 					// Other attributes put in generic columns
 					attrToParquet(a, &ob.Resource.Attrs[attrCount])
 					attrCount++
@@ -361,6 +396,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.HttpMethod = nil
 				ss.HttpUrl = nil
 				ss.HttpStatusCode = nil
+				ss.DedicatedAttributes = DedicatedAttributes{}
 				if len(s.Links) > 0 {
 					links := tempopb.LinkSlice{
 						Links: s.Links,
@@ -375,30 +411,37 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
 				attrCount := 0
 				for _, a := range s.Attributes {
-					special := false
+					written := false
 
 					switch a.Key {
 					case LabelHTTPMethod:
 						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
 						if ok {
 							ss.HttpMethod = &strVal.StringValue
-							special = true
+							written = true
 						}
 					case LabelHTTPUrl:
 						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
 						if ok {
 							ss.HttpUrl = &strVal.StringValue
-							special = true
+							written = true
 						}
 					case LabelHTTPStatusCode:
 						intVal, ok := a.Value.Value.(*v1.AnyValue_IntValue)
 						if ok {
 							ss.HttpStatusCode = &intVal.IntValue
-							special = true
+							written = true
 						}
 					}
 
-					if !special {
+					if !written {
+						// Dynamically assigned dedicated span attribute columns
+						if spareColumn, exists := dedicatedSpanAttributes.Get(a.Key); exists {
+							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
+						}
+					}
+
+					if !written {
 						// Other attributes put in generic columns
 						attrToParquet(a, &ss.Attrs[attrCount])
 						attrCount++
@@ -506,7 +549,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 					}
 
 					// event attributes are currently encoded as proto, but were previously json.
-					//  this code attempts proto first and, if there was an error, falls back to json
+					// this code attempts proto first and, if there was an error, falls back to json
 					err := protoAttr.Value.Unmarshal(a.Value)
 					if err != nil {
 						_ = jsonpb.Unmarshal(bytes.NewBuffer(a.Value), protoAttr.Value)
@@ -523,15 +566,30 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
+func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
+
+	// dedicated attribute column assignments
+	dedicatedResourceAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeResource)
+	dedicatedSpanAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeSpan)
 
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
 		protoBatch.Resource = &v1_resource.Resource{
 			Attributes: parquetToProtoAttrs(rs.Resource.Attrs),
 		}
+
+		// dynamically assigned dedicated resource attribute columns
+		dedicatedResourceAttributes.ForEach(func(attr string, col dedicatedColumn) {
+			val := col.readValue(&rs.Resource.DedicatedAttributes)
+			if val != nil {
+				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
+					Key:   attr,
+					Value: val,
+				})
+			}
+		})
 
 		// known resource attributes
 		if rs.Resource.ServiceName != "" {
@@ -608,6 +666,17 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 					_ = links.Unmarshal(span.Links) // todo: bubble these errors up
 					protoSpan.Links = links.Links
 				}
+
+				// dynamically assigned dedicated resource attribute columns
+				dedicatedSpanAttributes.ForEach(func(attr string, col dedicatedColumn) {
+					val := col.readValue(&span.DedicatedAttributes)
+					if val != nil {
+						protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
+							Key:   attr,
+							Value: val,
+						})
+					}
+				})
 
 				// known span attributes
 				if span.HttpMethod != nil {
