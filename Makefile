@@ -297,13 +297,15 @@ docs-test:
 	docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
 
 ### jsonnet
-.PHONY: jsonnet jsonnet-check
+.PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet:
 	$(MAKE) -C operations/jsonnet-compiled/util gen
 
 jsonnet-check:
 	$(MAKE) -C operations/jsonnet-compiled/util check
 
+jsonnet-test:
+	$(MAKE) -C operations/jsonnet/microservices test
 
 ### serverless
 .PHONY: docker-serverless test-serverless
