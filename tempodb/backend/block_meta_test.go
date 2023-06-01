@@ -95,9 +95,41 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 }
 
 func TestBlockMetaParsing(t *testing.T) {
-	inputJSON := `
+	tests := []struct {
+		name string
+		json string
+	}{
+		{
+			name: "complete",
+			json: `
 {
-    "format": "v0",
+    "format": "vParquet2",
+    "blockID": "00000000-0000-0000-0000-000000000000",
+    "minID": "AAAAAAAAAAAAOO0z0LnnHg==",
+    "maxID": "AAAAAAAAAAD/o61w2bYIDg==",
+    "tenantID": "single-tenant",
+    "startTime": "2021-01-01T00:00:00.0000000Z",
+    "endTime": "2021-01-02T00:00:00.0000000Z",
+    "totalObjects": 10,
+    "size": 12345,
+    "compactionLevel": 0,
+    "encoding": "zstd",
+    "indexPageSize": 250000,
+    "totalRecords": 124356,
+    "dataEncoding": "",
+    "bloomShards": 244,
+    "dedicatedColumns": [
+    	{"scope": "resource", "name": "namespace", "type": "string"},
+    	{"scope": "span", "name": "http.method", "type": "string"},
+    	{"scope": "span", "name": "namespace", "type": "string"}
+    ]
+}`,
+		},
+		{
+			name: "no dedicated columns",
+			json: `
+{
+    "format": "v2",
     "blockID": "00000000-0000-0000-0000-000000000000",
     "minID": "AAAAAAAAAAAAOO0z0LnnHg==",
     "maxID": "AAAAAAAAAAD/o61w2bYIDg==",
@@ -112,10 +144,15 @@ func TestBlockMetaParsing(t *testing.T) {
     "totalRecords": 124356,
     "dataEncoding": "",
     "bloomShards": 244
-}
-`
+}`,
+		},
+	}
 
-	blockMeta := BlockMeta{}
-	err := json.Unmarshal([]byte(inputJSON), &blockMeta)
-	assert.NoError(t, err, "expected to be able to unmarshal from JSON")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			blockMeta := BlockMeta{}
+			err := json.Unmarshal([]byte(tc.json), &blockMeta)
+			assert.NoError(t, err, "expected to be able to unmarshal from JSON")
+		})
+	}
 }

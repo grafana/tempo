@@ -320,7 +320,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 }
 
 func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
-	b.buffer = traceToParquet(id, trace, b.buffer)
+	b.buffer = traceToParquet(b.meta, id, trace, b.buffer)
 
 	start, end = b.adjustTimeRangeForSlack(start, end, 0)
 
@@ -478,7 +478,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		return row, nil
 	})
 
-	return newCommonIterator(iter, sch), nil
+	return newCommonIterator(b.meta, iter, sch), nil
 }
 
 func (b *walBlock) Clear() error {
@@ -521,7 +521,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 				return nil, errors.Wrap(err, "error reading row from backend")
 			}
 
-			trp := parquetTraceToTempopbTrace(tr)
+			trp := parquetTraceToTempopbTrace(b.meta, tr)
 
 			trs = append(trs, trp)
 		}
@@ -766,12 +766,14 @@ var _ common.Iterator = (*commonIterator)(nil)
 // commonIterator implements common.Iterator. it is returned from the AppendFile and is meant
 // to be passed to a CreateBlock
 type commonIterator struct {
+	meta   *backend.BlockMeta
 	iter   *MultiBlockIterator[parquet.Row]
 	schema *parquet.Schema
 }
 
-func newCommonIterator(iter *MultiBlockIterator[parquet.Row], schema *parquet.Schema) *commonIterator {
+func newCommonIterator(meta *backend.BlockMeta, iter *MultiBlockIterator[parquet.Row], schema *parquet.Schema) *commonIterator {
 	return &commonIterator{
+		meta:   meta,
 		iter:   iter,
 		schema: schema,
 	}
@@ -793,7 +795,7 @@ func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 		return nil, nil, err
 	}
 
-	tr := parquetTraceToTempopbTrace(t)
+	tr := parquetTraceToTempopbTrace(i.meta, t)
 	return id, tr, nil
 }
 
