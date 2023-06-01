@@ -35,10 +35,10 @@ A benchmark with a schema that stores the 5 most frequently occurring attributes
 * The search speed for queries without matches improved by ~80% for attributes with dedicated columns and ~70% for generic attributes columns
 * The search speed for queries returning matches improved by ~50% for attributes with dedicated columns and ~30% for generic attribute columns
 
-The amount and kind of span attributes varies a lot between use cases and the above benchmark was conducted tracing data that captured a lot of span attributes.
+The amount and kind of span attributes varies a lot between use cases and the above benchmark was conducted with tracing data that captured a lot of span attributes.
 Therefore, the search speed improvements that can be achieved by storing span attributes in dedicated columns,
 can deviate from the above results.
-However, the data still shows that dedicated columns for span attributes that can be tuned to a specific use-case can improve Tempo’s search performance significantly.
+However, the data still shows that dedicated columns for span attributes that can be tuned to a specific use case can improve Tempo’s search performance significantly.
 This document describes how dedicated columns for span attributes will be implemented in Tempo.
 
 ## Goals and requirements
@@ -100,8 +100,8 @@ type Span struct {
 To execute TraceQL queries it is necessary to know which attribute is assigned to which spare column.
 Since the assignment of spare columns to specific attributes changes over time, it is necessary to store this information for each block.
 
-Tempo stores metadata about each Block in the meta.json file.
-The schema of this file can be extended such that it contains the assignment information:
+Tempo stores metadata about each Block in the `meta.json` file.
+The schema of this file will be extended such that it contains the assignment information:
 
 ```go
 {
