@@ -1,4 +1,4 @@
-local tempo = import '../tempo.libsonnet';
+local tempo = import '../../../tempo.libsonnet';
 
 tempo {
   _images+:: {

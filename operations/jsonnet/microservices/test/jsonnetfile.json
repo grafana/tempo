@@ -5,34 +5,7 @@
       "source": {
         "git": {
           "remote": "https://github.com/grafana/jsonnet-libs.git",
-          "subdir": "grafana"
-        }
-      },
-      "version": "master"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/grafana/jsonnet-libs.git",
-          "subdir": "grafana-builder"
-        }
-      },
-      "version": "master"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/grafana/jsonnet-libs.git",
           "subdir": "ksonnet-util"
-        }
-      },
-      "version": "master"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/grafana/jsonnet-libs.git",
-          "subdir": "kube-state-metrics/"
         }
       },
       "version": "master"
@@ -49,17 +22,8 @@
     {
       "source": {
         "git": {
-          "remote": "https://github.com/grafana/jsonnet-libs.git",
-          "subdir": "prometheus"
-        }
-      },
-      "version": "master"
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/grafana/jsonnet-libs.git",
-          "subdir": "tanka-util"
+          "remote": "https://github.com/jsonnet-libs/docsonnet.git",
+          "subdir": "doc-util"
         }
       },
       "version": "master"
@@ -68,7 +32,7 @@
       "source": {
         "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.21"
+          "subdir": "1.26"
         }
       },
       "version": "main"

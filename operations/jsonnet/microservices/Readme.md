@@ -25,7 +25,7 @@ go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
    
    # Initialise the Tanka.
    mkdir jsonnet-example && cd jsonnet-example
-   tk init --k8s=1.21
+   tk init --k8s=1.26
    
    # Install Tempo jsonnet.
    jb install github.com/grafana/tempo/operations/jsonnet/microservices@main
