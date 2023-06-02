@@ -171,7 +171,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		// As Grafana gets updated and/or versions using this get old we can remove this section.
 		for k, v := range r.URL.Query() {
 			// Skip reserved keywords
-			if k == urlParamQuery || k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit || k == urlParamSpansPerSpanSet {
+			if k == urlParamQuery || k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit || k == urlParamSpansPerSpanSet || k == urlParamStart || k == urlParamEnd {
 				continue
 			}
 

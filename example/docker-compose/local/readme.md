@@ -36,7 +36,12 @@ ls tempo-data/
 tab to find traces. Also notice that you can query Tempo metrics from the Prometheus data source setup in
 Grafana.
 
-4. To stop the setup use -
+4. Tail logs of a container (eg: tempo)
+```bash
+docker logs local_tempo_1 -f
+```
+
+5. To stop the setup use -
 
 ```console
 docker-compose down -v

@@ -78,9 +78,11 @@ func (t *App) initServer() (services.Service, error) {
 
 	DisableSignalHandling(&t.cfg.Server)
 
-	// this allows us to server http and grpc over the primary http server.
-	//  to use this register services with GRPCOnHTTPServer
-	t.cfg.Server.RouteHTTPToGRPC = true
+	if !t.cfg.DoNotRouteHTTPToGRPC {
+		// this allows us to serve http and grpc over the primary http server.
+		//  to use this register services with GRPCOnHTTPServer
+		t.cfg.Server.RouteHTTPToGRPC = true
+	}
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
@@ -308,6 +310,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
 	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
 	spanMetricsSummaryHandler := middleware.Wrap(queryFrontend.SpanMetricsSummaryHandler)
+	searchTagsHandler := middleware.Wrap(queryFrontend.SearchTagsHandler)
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
@@ -321,10 +324,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// http search endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchTagsHandler)
 
 	// http metrics endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)

@@ -98,12 +98,8 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 		// stop accepting new writes
 		i.markUnavailable()
 
-		// move all data into flushQueue
-		i.sweepAllInstances(true)
-
-		for !i.flushQueues.IsEmpty() {
-			time.Sleep(100 * time.Millisecond)
-		}
+		// flush any remaining traces
+		i.flushRemaining()
 
 		// stop ingester service
 		_ = services.StopAndAwaitTerminated(context.Background(), i)

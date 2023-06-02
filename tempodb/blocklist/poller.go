@@ -44,7 +44,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_duration_seconds",
 		Help:      "Records the amount of time to poll and update the blocklist.",
-		Buckets:   prometheus.LinearBuckets(0, 60, 5),
+		Buckets:   prometheus.LinearBuckets(0, 60, 10),
 	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
@@ -122,7 +122,11 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 // Do does the doing of getting a blocklist
 func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
-	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
+	defer func() {
+		diff := time.Since(start).Seconds()
+		metricBlocklistPollDuration.Observe(diff)
+		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+	}()
 
 	ctx := context.Background()
 	tenants, err := p.reader.Tenants(ctx)

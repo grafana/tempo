@@ -18,6 +18,10 @@
     node_selector: null,
     ingester_allow_multiple_replicas_on_same_node: false,
 
+    // disable tempo-query by default
+    tempo_query: {
+      enabled: false,
+    },
     compactor: {
       replicas: 1,
       resources: {
