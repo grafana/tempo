@@ -149,10 +149,13 @@ func (r *searchProgress) result() *shardedSearchResults {
 			DurationMs:        m.DurationMs,
 			SpanSet:           copySpanset(m.SpanSet),
 		}
+
 		// now copy spansets
-		mCopy.SpanSets = make([]*tempopb.SpanSet, 0, len(m.SpanSets))
-		for _, ss := range m.SpanSets {
-			mCopy.SpanSets = append(mCopy.SpanSets, copySpanset(ss))
+		if len(m.SpanSets) > 0 {
+			mCopy.SpanSets = make([]*tempopb.SpanSet, 0, len(m.SpanSets))
+			for _, ss := range m.SpanSets {
+				mCopy.SpanSets = append(mCopy.SpanSets, copySpanset(ss))
+			}
 		}
 
 		mdCopy = append(mdCopy, mCopy)
