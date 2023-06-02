@@ -148,8 +148,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	)
 
 	// Ensure that we select the span duration, status, and group-by attribute
-	// if they are not already included in the query. These are fetched
-	// without filtering.
+	// if they are not already included in the query.
 	addConditionIfNotPresent := func(a traceql.Attribute) {
 		for _, c := range req.Conditions {
 			if c.Attribute == a {
@@ -159,32 +158,17 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: a})
 	}
-	addConditionIfNotPresent(duration)
 	addConditionIfNotPresent(status)
+	addConditionIfNotPresent(duration)
 	addConditionIfNotPresent(groupByAttr)
 
-	// Perform the fetch and process the results inside the Filter
-	// callback.  No actual results will be returned from this fetch call,
-	// But we still need to call Next() at least once.
-	res, err := fetcher.Fetch(ctx, *req)
-	if err == util.ErrUnsupported {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		ss, err := res.Results.Next(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if ss == nil {
-			break
-		}
-
-		// Run engine to assert final query conditions
-		out, err := eval([]*traceql.Spanset{ss})
+	// Read the spans in the second pass callback and return nil to discard them.
+	// We do this because it lets the fetch layer repool the spans because it
+	// knows we discarded them.
+	// TODO - Add span.Release() or something that we could use in the loop
+	// at the bottom to repool the spans?
+	req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) {
+		out, err := eval([]*traceql.Spanset{s})
 		if err != nil {
 			return nil, err
 		}
@@ -205,6 +189,31 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 					return nil, io.EOF
 				}
 			}
+		}
+
+		return nil, err
+	}
+
+	// Perform the fetch and process the results inside the SecondPass
+	// callback.  No actual results will be returned from this fetch call,
+	// But we still need to call Next() at least once.
+	res, err := fetcher.Fetch(ctx, *req)
+	if err == util.ErrUnsupported {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Results.Close()
+
+	for {
+		ss, err := res.Results.Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if ss == nil {
+			break
 		}
 	}
 

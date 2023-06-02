@@ -288,7 +288,7 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			ast, err := Parse(tc.query)
 			require.NoError(t, err)
 
-			filt := ast.Pipeline.Elements[0].(SpansetFilter)
+			filt := ast.Pipeline.Elements[0].(*SpansetFilter)
 
 			actual, err := filt.evaluate(tc.input)
 			require.NoError(t, err)
