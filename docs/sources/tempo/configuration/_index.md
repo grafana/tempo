@@ -276,6 +276,10 @@ metrics_generator:
             # resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
 
+            # Prefix additional dimensions with "client_" and "_server". Adds two labels
+            # per additional dimension instead of one.
+            [enable_client_server_prefix: <bool> | default = false]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -1039,7 +1043,7 @@ storage:
         # block configuration
         block:
             # block format version. options: v2, vParquet, vParquet2
-            [version: <string> | default = vParquet]
+            [version: <string> | default = vParquet2]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
             [bloom_filter_false_positive: <float> | default = 0.01]

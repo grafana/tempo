@@ -1,6 +1,9 @@
 ## main / unreleased
 
+* [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
+* [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
+* [CHANGE] Prefix service graph extra dimensions labels with `server_` and `client_` if `enable_client_server_prefix` is enabled [#2335](https://github.com/grafana/tempo/pull/2335) (@domasx2)
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
 * [BUGFIX] Fix Search SLO by routing tags to a new handler. [#2468](https://github.com/grafana/tempo/issues/2468) (@electron0zero)
@@ -48,10 +51,9 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
-    trace:
-        s3:
-            insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
-
+  trace:
+    s3:
+      insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
 ```
 * [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
 * [CHANGE] Start flush queue worker after wal replay and block rediscovery [#2456](https://github.com/grafana/tempo/pull/2456) (@ie-pham)

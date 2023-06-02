@@ -54,6 +54,12 @@
                   "value": {
                     "stringValue": "manticore"
                   }
+                },
+                {
+                  "key": "god",
+                  "value": {
+                    "stringValue": "ares"
+                  }
                 }
               ],
               "status": {
@@ -249,6 +255,12 @@
                   "key": "net.transport",
                   "value": {
                     "stringValue": "ip_tcp"
+                  }
+                },
+                {
+                  "key": "god",
+                  "value": {
+                    "stringValue": "zeus"
                   }
                 },
                 {
