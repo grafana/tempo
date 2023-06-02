@@ -75,7 +75,7 @@ import (
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
-                        IDURATION CHILDCOUNT NAME STATUS PARENT KIND
+                        IDURATION CHILDCOUNT NAME STATUS PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION
                         PARENT_DOT RESOURCE_DOT SPAN_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
@@ -276,12 +276,15 @@ static:
   ;
 
 intrinsicField:
-    IDURATION      { $$ = NewIntrinsic(IntrinsicDuration)   }
-  | CHILDCOUNT     { $$ = NewIntrinsic(IntrinsicChildCount) }
-  | NAME           { $$ = NewIntrinsic(IntrinsicName)       }
-  | STATUS         { $$ = NewIntrinsic(IntrinsicStatus)     }
-  | KIND           { $$ = NewIntrinsic(IntrinsicKind)       }
-  | PARENT         { $$ = NewIntrinsic(IntrinsicParent)     }
+    IDURATION       { $$ = NewIntrinsic(IntrinsicDuration)         }
+  | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
+  | NAME            { $$ = NewIntrinsic(IntrinsicName)             }
+  | STATUS          { $$ = NewIntrinsic(IntrinsicStatus)           }
+  | KIND            { $$ = NewIntrinsic(IntrinsicKind)             }
+  | PARENT          { $$ = NewIntrinsic(IntrinsicParent)           }
+  | ROOTNAME        { $$ = NewIntrinsic(IntrinsicTraceRootSpan)    }
+  | ROOTSERVICENAME { $$ = NewIntrinsic(IntrinsicTraceRootService) }
+  | TRACEDURATION   { $$ = NewIntrinsic(IntrinsicTraceDuration)    }
   ;
 
 attributeField:

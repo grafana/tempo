@@ -15,7 +15,9 @@ keywords:
 
 You can use the TraceQL viewer and query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface.
 
->**NOTE**: To use the TraceQL query editor in Grafana, you need to enable the `traceqlEditor` feature flag. This feature is available starting in Grafana 9.3.2. The query editory is available automatically in Grafana Cloud. 
+{{% admonition type="note" %}}
+To use the TraceQL query editor in Grafana, you need to enable the `traceqlEditor` feature flag. This feature is available starting in Grafana 9.3.2. The query editory is available automatically in Grafana Cloud.
+{{% /admonition %}}
 
 ![Query editor showing request for http.method](/static/img/docs/tempo/query-editor-http-method.png)
 

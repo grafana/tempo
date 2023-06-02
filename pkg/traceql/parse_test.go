@@ -826,6 +826,9 @@ func TestIntrinsics(t *testing.T) {
 		{in: "status", expected: IntrinsicStatus},
 		{in: "kind", expected: IntrinsicKind},
 		{in: "parent", expected: IntrinsicParent},
+		{in: "traceDuration", expected: IntrinsicTraceDuration},
+		{in: "rootServiceName", expected: IntrinsicTraceRootService},
+		{in: "rootName", expected: IntrinsicTraceRootSpan},
 	}
 
 	for _, tc := range tests {

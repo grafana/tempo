@@ -6,7 +6,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// IsBackendSearch returns true if the request has a start, end and tags parameter and is the /api/search path
+// IsBackendSearch returns true if the request has a start, and end parameter and is the /api/search path
 func IsBackendSearch(r *http.Request) bool {
 	q := r.URL.Query()
 	return q.Get(urlParamStart) != "" && q.Get(urlParamEnd) != ""

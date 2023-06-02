@@ -87,7 +87,11 @@ type Processor struct {
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, strutil.SanitizeLabelName(d))
+		if cfg.EnableClientServerPrefix {
+			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
+		} else {
+			labels = append(labels, strutil.SanitizeLabelName(d))
+		}
 	}
 
 	p := &Processor{
@@ -174,7 +178,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
-						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
+						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 
@@ -199,7 +203,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
-						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
+						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
@@ -235,10 +239,14 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	return nil
 }
 
-func (p *Processor) upsertDimensions(m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
+func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
 	for _, dim := range p.Cfg.Dimensions {
 		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
-			m[dim] = v
+			if p.Cfg.EnableClientServerPrefix {
+				m[prefix+dim] = v
+			} else {
+				m[dim] = v
+			}
 		}
 	}
 }
@@ -261,7 +269,11 @@ func (p *Processor) onComplete(e *store.Edge) {
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
 
 	for _, dimension := range p.Cfg.Dimensions {
-		labelValues = append(labelValues, e.Dimensions[dimension])
+		if p.Cfg.EnableClientServerPrefix {
+			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
+		} else {
+			labelValues = append(labelValues, e.Dimensions[dimension])
+		}
 	}
 
 	registryLabelValues := p.registry.NewLabelValueCombo(p.labels, labelValues)

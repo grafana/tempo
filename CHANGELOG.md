@@ -1,7 +1,12 @@
 ## main / unreleased
 
+* [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
+* [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
+* [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
+* [CHANGE] Prefix service graph extra dimensions labels with `server_` and `client_` if `enable_client_server_prefix` is enabled [#2335](https://github.com/grafana/tempo/pull/2335) (@domasx2)
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
+* [BUGFIX] Fix Search SLO by routing tags to a new handler. [#2468](https://github.com/grafana/tempo/issues/2468) (@electron0zero)
 * [CHANGE] Change log level of two compactor messages from `debug` to `info`. [#2443](https://github.com/grafana/tempo/pull/2443) (@dylanguedes)
 * [CHANGE] Remove `tenant_header_key` option from `tempo-query` config [#2414](https://github.com/grafana/tempo/pull/2414) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2362](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
@@ -27,6 +32,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [FEATURE] Add new API to summarize span metrics from generators [#2481](https://github.com/grafana/tempo/pull/2481) (@zalegrala)
 * [FEATURE] Add `select()` to TraceQL [#2494](https://github.com/grafana/tempo/pull/2494) (@joe-elliott)
+* [FEATURE] Add `traceDuration`, `rootName` and `rootServiceName` intrinsics to TraceQL [#2503](https://github.com/grafana/tempo/pull/2503) (@joe-elliott)
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
   Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
 * [ENHANCEMENT] Ability to toggle off latency or count metrics in metrics-generator [#2070](https://github.com/grafana/tempo/pull/2070) (@AlexDHoffer)
@@ -44,10 +50,9 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
-    trace:
-        s3:
-            insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
-
+  trace:
+    s3:
+      insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
 ```
 * [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
 * [CHANGE] Start flush queue worker after wal replay and block rediscovery [#2456](https://github.com/grafana/tempo/pull/2456) (@ie-pham)
