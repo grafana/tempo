@@ -133,8 +133,7 @@ func TestStreamingSearchHandlerStreams(t *testing.T) {
 							CompletedJobs:   r.Metrics.CompletedJobs,
 							TotalJobs:       2,
 							TotalBlockBytes: 209715200,
-						},
-					},
+						}},
 				)
 			}
 		},
