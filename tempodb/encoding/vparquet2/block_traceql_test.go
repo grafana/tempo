@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"os"
 	"path"
 	"testing"
 	"time"
@@ -545,8 +544,6 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		//{"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
 		{"{}", "name"},
 	}
-
-	os.Setenv(EnvVarSyncIteratorName, EnvVarSyncIteratorValue)
 
 	ctx := context.TODO()
 	tenantID := "1"
