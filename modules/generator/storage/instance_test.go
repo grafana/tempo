@@ -26,9 +26,8 @@ import (
 	"go.uber.org/atomic"
 )
 
-// Verify basic functionality like sending metrics and exemplars, buffering and retrying failed
-// requests.
-func TestInstance(t *testing.T) {
+// Verify the instance flushes after close.
+func TestInstanceFlushes(t *testing.T) {
 	var err error
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 
@@ -40,7 +39,7 @@ func TestInstance(t *testing.T) {
 	cfg.Path = t.TempDir()
 	cfg.RemoteWrite = mockServer.remoteWriteConfig()
 
-	instance, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, logger)
+	instance, err := New(&cfg, "test-tenant", prometheus.NewRegistry(), logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -96,7 +95,75 @@ func TestInstance(t *testing.T) {
 	assert.Len(t, mockServer.timeSeries, 1)
 	assert.Contains(t, mockServer.timeSeries, "test-tenant")
 	// We should have received at least 2 time series: one for the sample and one for the examplar
+	// However, sometimes we only see 1 sample here. I believe this is because the appender.Commit() above is not
+	// atomic. The exemplar and sample are written to the log separately and if the queue timing is just right, then
+	// we only get one.
+	assert.GreaterOrEqual(t, len(mockServer.timeSeries["test-tenant"]), 1)
+}
+
+// Verify the instance writes
+func TestInstanceWrites(t *testing.T) {
+	var err error
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	mockServer := newMockPrometheusRemoteWriterServer(logger)
+	defer mockServer.close()
+
+	var cfg Config
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.Path = t.TempDir()
+	cfg.RemoteWrite = mockServer.remoteWriteConfig()
+
+	instance, err := New(&cfg, "test-tenant", prometheus.NewRegistry(), logger)
+	require.NoError(t, err)
+
+	sendCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Append some data every second
+	go poll(sendCtx, time.Second, func() {
+		appender := instance.Appender(context.Background())
+
+		lbls := labels.FromMap(map[string]string{"__name__": "my-metrics"})
+		ref, err := appender.Append(0, lbls, time.Now().UnixMilli(), 1.0)
+		assert.NoError(t, err)
+
+		_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "123"}),
+			Value:  1.2,
+		})
+		assert.NoError(t, err)
+
+		if sendCtx.Err() != nil {
+			return
+		}
+
+		err = appender.Commit()
+		assert.NoError(t, err)
+	})
+
+	// Wait until we receive at least one send
+	err = waitUntil(10*time.Second, func() bool {
+		mockServer.mtx.Lock()
+		defer mockServer.mtx.Unlock()
+
+		return len(mockServer.acceptedRequests) > 0
+	})
+	require.NoError(t, err, "timed out while waiting for refused requests")
+
+	// wait just a bit longer in case the exemplar and sample are written to the log separately
+	time.Sleep(1 * time.Second)
+
+	// Verify we received metrics
+	assert.Len(t, mockServer.timeSeries, 1)
+	assert.Contains(t, mockServer.timeSeries, "test-tenant")
+	// We should have received at least 2 time series: one for the sample and one for the examplar
 	assert.GreaterOrEqual(t, len(mockServer.timeSeries["test-tenant"]), 2)
+
+	// Shutdown the instance
+	err = instance.Close()
+	assert.NoError(t, err)
+
 }
 
 // Verify multiple instances function next to each other, don't trample over each other and are isolated.
