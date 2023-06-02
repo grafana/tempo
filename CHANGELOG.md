@@ -2,7 +2,10 @@
 
 * [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
+* [FEATURE] New experimental API to derive on-demand RED metrics grouped by any attribute, and new metrics generator processor [#2368](https://github.com/grafana/tempo/pull/2368) [#2418](https://github.com/grafana/tempo/pull/2418) [#2424](https://github.com/grafana/tempo/pull/2424) [#2442](https://github.com/grafana/tempo/pull/2442) [#2480](https://github.com/grafana/tempo/pull/2480) [#2481](https://github.com/grafana/tempo/pull/2481) [#2501](https://github.com/grafana/tempo/pull/2501) (@mdisibio @zalegrala)
 * [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
+* [ENHANCEMENT] Add metrics generator config option to allow customizable ring port [#2399](https://github.com/grafana/tempo/pull/2399) (@mdisibio)
+* [ENHANCEMENT] Improve performance of TraceQL regex [#2484](https://github.com/grafana/tempo/pull/2484) (@mdisibio)
 * [CHANGE] Prefix service graph extra dimensions labels with `server_` and `client_` if `enable_client_server_prefix` is enabled [#2335](https://github.com/grafana/tempo/pull/2335) (@domasx2)
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
@@ -38,7 +41,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [ENHANCEMENT] Ability to toggle off latency or count metrics in metrics-generator [#2070](https://github.com/grafana/tempo/pull/2070) (@AlexDHoffer)
 * [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
 * [ENHANCEMENT] Add override to limit number of blocks inspected in tag value search [#2358](https://github.com/grafana/tempo/pull/2358) (@mapno)
-* [ENHANCEMENT] Add synchronous read mode to vParquet and vParquet2 optionally enabled by env vars  [#2165](https://github.com/grafana/tempo/pull/2165) (@mdisibio)
+* [ENHANCEMENT] New synchronous read mode for vParquet and vParquet2 [#2165](https://github.com/grafana/tempo/pull/2165) [#2535](https://github.com/grafana/tempo/pull/2535) (@mdisibio)
 * [ENHANCEMENT] Add option to override metrics-generator ring port  [#2399](https://github.com/grafana/tempo/pull/2399) (@mdisibio)
 * [ENHANCEMENT] Add support for IPv6 [#1555](https://github.com/grafana/tempo/pull/1555) (@zalegrala)
 * [ENHANCEMENT] Add span filtering to spanmetrics processor [#2274](https://github.com/grafana/tempo/pull/2274) (@zalegrala)
