@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 )
 
 const (
@@ -26,7 +26,7 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Block = &common.BlockConfig{}
-	cfg.Block.Version = vparquet2.VersionString
+	cfg.Block.Version = encoding.DefaultEncoding().Version()
 	cfg.Block.RegisterFlagsAndApplyDefaults(prefix, f)
 
 	cfg.Search = &tempodb.SearchConfig{}
