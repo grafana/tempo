@@ -232,6 +232,9 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # Flush all traces to backend when ingester is stopped
+    [flush_all_on_shutdown: <bool> | default = false]
 ```
 
 ## Metrics-generator
