@@ -25,9 +25,9 @@
 
   tempo_metrics_generator_pvc::
     pvc.new(tempo_data_volume)
-    + pvc.mixin.spec.resources.withRequests({ storage: $._config.ingester.pvc_size })
+    + pvc.mixin.spec.resources.withRequests({ storage: $._config.metrics_generator.pvc_size })
     + pvc.mixin.spec.withAccessModes(['ReadWriteOnce'])
-    + pvc.mixin.spec.withStorageClassName($._config.ingester.pvc_storage_class)
+    + pvc.mixin.spec.withStorageClassName($._config.metrics_generator.pvc_storage_class)
     + pvc.mixin.metadata.withLabels({ app: target_name })
     + pvc.mixin.metadata.withNamespace($._config.namespace),
 
