@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	blockStatusLiveLabel      = "live"
-	blockStatusCompactedLabel = "compacted"
+	blockStatusLiveLabel       = "live"
+	blockStatusCompactedLabel  = "compacted"
+	defaultTolerablePollErrors = 10
 )
 
 var (
@@ -138,10 +139,21 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
 
+	errCount := 0
+	maxErrors := defaultTolerablePollErrors
+	if maxErrors > len(tenants) {
+		maxErrors = len(tenants)
+	}
+
 	for _, tenantID := range tenants {
 		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID)
 		if err != nil {
-			return nil, nil, err
+			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+			errCount++
+			if errCount >= maxErrors {
+				level.Error(p.logger).Log("msg", "exiting poll loop early because too many errors", "errCount", errCount)
+				return nil, nil, err
+			}
 		}
 
 		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
