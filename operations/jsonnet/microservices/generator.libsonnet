@@ -67,7 +67,7 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_metrics_generator_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-      volume.fromPVC(tempo_data_volume, $.tempo_metrics_generator_pvc.metadata.name),
+      volume.fromPersistentVolumeClaim(tempo_data_volume, $.tempo_metrics_generator_pvc.metadata.name),
       // volume.fromEmptyDir(tempo_generator_wal_volume),
     ]),
 
