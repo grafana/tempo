@@ -841,6 +841,12 @@ storage:
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
+        # Polling will tolerate this many consecutive errors before failing and exiting early for the
+        # current repoll. Can be set to 0 which means a single error is sufficient to fail and exit early
+        # (matches the original polling behavior).
+        # Default 1
+        [blocklist_poll_tolerate_consecutive_errors: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]
