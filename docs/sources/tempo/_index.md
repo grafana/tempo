@@ -20,7 +20,7 @@ Tempo integrates well with a number of existing open source tools:
 <p align="center"><img src="getting-started/assets/trace_custom_metrics_dash.png" alt="Trace visualization in Grafana "></p>
 
 Grafana Tempo builds an index from the high-cardinality trace-id field. Because Tempo uses an object store as a backend, Tempo can query many blocks simultaneously, so queries are highly parallelized.
-For more information, see [Architecture]({{< relref "./operations/architecture/" >}}).
+For more information, see [Architecture]({{< relref "./operations/architecture" >}}).
 
 ## Learn more about Tempo
 
