@@ -563,6 +563,7 @@ storage:
         blocklist_poll_tenant_index_builders: 2
         blocklist_poll_stale_tenant_index: 0s
         blocklist_poll_jitter_ms: 0
+        blocklist_poll_tolerate_consecutive_errors: 1
         backend: local
         local:
             path: /tmp/tempo/traces
