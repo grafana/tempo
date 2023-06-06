@@ -17,6 +17,8 @@ type Service interface {
 	prometheus.Collector
 	Interface
 
+	// TODO this should either include user-config overrides or we should have 2 endpoints
+	//   so either add WriteStatusUserConfig() or rename to more generic WriteStatusOverrides()?
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }
 

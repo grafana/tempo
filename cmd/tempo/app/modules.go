@@ -171,6 +171,8 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
+	// TODO register endpoints for user-config overrides
+
 	return t.Overrides, nil
 }
 

@@ -32,6 +32,10 @@ type RawWriter interface {
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// CloseAppend closes any resources associated with the AppendTracker.
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
+
+	// TODO add/expose a Delete function?
+	//   most backends already have some kind of delete function private
+	// Delete(ctx context.Context, name string, keypath KeyPath) error
 }
 
 // RawReader is a collection of methods to read data from tempodb backends
