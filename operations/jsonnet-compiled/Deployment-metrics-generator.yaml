@@ -4,9 +4,7 @@ metadata:
   name: metrics-generator
   namespace: tracing
 spec:
-  minReadySeconds: 10
   replicas: 0
-  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: metrics-generator
@@ -31,7 +29,6 @@ spec:
         - -mem-ballast-size-mbs=1024
         - -target=metrics-generator
         image: grafana/tempo:latest
-        imagePullPolicy: IfNotPresent
         name: metrics-generator
         ports:
         - containerPort: 3200
