@@ -50,7 +50,7 @@
   tempo_metrics_generator_deployment:
     deployment.new(
       target_name,
-      $._config.metrics_generator.replicas,
+      0,
       $.tempo_metrics_generator_container
       +
       container.withVolumeMounts([
