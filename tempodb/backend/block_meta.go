@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/google/uuid"
 )
 
@@ -49,7 +51,7 @@ type BlockMeta struct {
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by parquet)
-	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
+	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -63,15 +65,35 @@ type DedicatedColumn struct {
 	Type string `yaml:"type" json:"type"`
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
+type DedicatedColumns []DedicatedColumn
+
+// separatorByte is a byte that cannot occur in valid UTF-8 sequences
+var separatorByte = []byte{255}
+
+func (cs *DedicatedColumns) Hash() uint64 {
+	h := xxhash.New()
+
+	for _, c := range *cs {
+		_, _ = h.WriteString(c.Scope)
+		_, _ = h.Write(separatorByte)
+		_, _ = h.WriteString(c.Name)
+		_, _ = h.Write(separatorByte)
+		_, _ = h.WriteString(c.Type)
+	}
+
+	return h.Sum64()
+}
+
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns ...DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
-		Version:      version,
-		BlockID:      blockID,
-		MinID:        []byte{},
-		MaxID:        []byte{},
-		TenantID:     tenantID,
-		Encoding:     encoding,
-		DataEncoding: dataEncoding,
+		Version:          version,
+		BlockID:          blockID,
+		MinID:            []byte{},
+		MaxID:            []byte{},
+		TenantID:         tenantID,
+		Encoding:         encoding,
+		DataEncoding:     dataEncoding,
+		DedicatedColumns: dedicatedColumns,
 	}
 
 	return b

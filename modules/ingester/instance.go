@@ -113,6 +113,8 @@ type instance struct {
 	limiter            *Limiter
 	writer             tempodb.Writer
 
+	overrides ingesterOverrides
+
 	local       *local.Backend
 	localReader backend.Reader
 	localWriter backend.Writer
@@ -122,7 +124,7 @@ type instance struct {
 	autocompleteFilteringEnabled bool
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: map[uint32]uint32{},
@@ -132,6 +134,8 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		bytesReceivedTotal: metricBytesReceivedTotal,
 		limiter:            limiter,
 		writer:             writer,
+
+		overrides: overrides,
 
 		local:       l,
 		localReader: backend.NewReader(l),
@@ -480,7 +484,9 @@ func (i *instance) resetHeadBlock() error {
 	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
 	i.tracesMtx.Unlock()
 
-	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
+	dedicatedColumns := i.overrides.DedicatedColumns(i.instanceID)
+
+	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding, dedicatedColumns...)
 	if err != nil {
 		return err
 	}

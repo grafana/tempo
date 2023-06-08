@@ -154,16 +154,16 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.WALBlock, error) {
-	return w.newBlock(id, tenantID, dataEncoding, w.c.Version)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID, dataEncoding string, dedicatedColumns ...backend.DedicatedColumn) (common.WALBlock, error) {
+	return w.newBlock(id, tenantID, dataEncoding, w.c.Version, dedicatedColumns...)
 }
 
-func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string) (common.WALBlock, error) {
+func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string, dedicatedColumns ...backend.DedicatedColumn) (common.WALBlock, error) {
 	v, err := encoding.FromVersion(blockVersion)
 	if err != nil {
 		return nil, err
 	}
-	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
+	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack, dedicatedColumns...)
 }
 
 func (w *WAL) GetFilepath() string {
