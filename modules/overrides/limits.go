@@ -4,6 +4,8 @@ import (
 	"flag"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -96,6 +98,9 @@ type Limits struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+
+	// tempodb limits
+	DedicatedColumns []backend.DedicatedColumn `yaml:"dedicated_columns" json:"dedicated_columns"`
 
 	// Configuration for overrides, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
