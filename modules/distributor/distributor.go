@@ -309,8 +309,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	spanCount := 0
 	for _, b := range batches {
 		size += b.Size()
-		fmt.Println("distributor resource attributes")
-		fmt.Println(b.Resource.Attributes)
 		for _, ils := range b.ScopeSpans {
 			spanCount += len(ils.Spans)
 		}
