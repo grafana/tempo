@@ -2,6 +2,7 @@ package registry
 
 import (
 	"sync"
+	"fmt"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -118,31 +119,29 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 
 	activeSeries = len(g.series)
 
-	labelsCount := 0
-	if activeSeries > 0 && g.series[0] != nil {
-		labelsCount = len(g.series[0].labels.names)
-	}
-	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
-	lb := labels.NewBuilder(lbls)
-
-	// set metric name
-	lb.Set(labels.MetricName, g.metricName)
-	// set external labels
-	for name, value := range externalLabels {
-		lb.Set(name, value)
-	}
-
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
+		lbls := make(labels.Labels, 1+len(externalLabels)+len(s.labels.names))
+		lb := labels.NewBuilder(lbls)
+	
+		// set metric name
+		lb.Set(labels.MetricName, g.metricName)
+		// set external labels
+		for name, value := range externalLabels {
+			lb.Set(name, value)
+		}
+
 		// set series-specific labels
 		for i, name := range s.labels.names {
 			lb.Set(name, s.labels.values[i])
 		}
+
+		fmt.Println(lb)
+
 		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}
-
 		// TODO support exemplars
 	}
 
