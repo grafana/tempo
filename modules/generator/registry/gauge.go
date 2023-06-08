@@ -1,8 +1,8 @@
 package registry
 
 import (
-	"sync"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
@@ -123,7 +123,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 		t := time.UnixMilli(timeMs)
 		lbls := make(labels.Labels, 1+len(externalLabels)+len(s.labels.names))
 		lb := labels.NewBuilder(lbls)
-	
+
 		// set metric name
 		lb.Set(labels.MetricName, g.metricName)
 		// set external labels
