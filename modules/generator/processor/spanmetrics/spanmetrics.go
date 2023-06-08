@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -121,6 +122,8 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		resourceLabels := make([]string, 0)
 		resourceValues := make([]string, 0)
+		fmt.Println("spanmetrics resource attributes")
+		fmt.Println(rs.Resource.Attributes)
 		if p.Cfg.EnableTargetInfo {
 			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes)
 		}
@@ -230,6 +233,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		}
 
 		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
+		fmt.Println(targetInfoRegistryLabelValues)
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
