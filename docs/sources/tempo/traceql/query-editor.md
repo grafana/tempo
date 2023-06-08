@@ -30,3 +30,5 @@ Query results are returned in a table. Selecting the Trace ID or Span ID provide
 ![Query editor showing span results](/static/img/docs/tempo/query-editor-results-span.png)
 
 Selecting the trace ID from the returned results will open a trace diagram. Selecting a span from the returned results opens a trace diagram and reveals the relevant span in the trace diagram (above, the highlighted blue line).
+
+{{< docs/shared source="grafana" lookup="datasources/tempo-search-traceql.md" version="latest" leveloffset="+1" >}}
