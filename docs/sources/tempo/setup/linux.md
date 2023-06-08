@@ -17,7 +17,7 @@ These instructions focus on a [monolithic installation]({{< relref "./deployment
 
 To follow this guide, you need:
 
-- A running Grafana instance (see [installation instructions](https://grafana.com/docs/grafana/latest/setup-grafana/installation/))
+- A running Grafana instance (see [installation instructions](/docs/grafana/latest/setup-grafana/installation/))
 - An Amazon S3 compatible object store
 - Git, Docker, and docker-compose plugin installed to test Tempo
 
@@ -75,7 +75,7 @@ Refer to the [Tempo configuration documentation]({{< relref "../configuration" >
 
 In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
 By default, Tempo listens for all compatible protocols.
-The [extended instructions for installing the TNS application]({{< relref "set-up-test-app" >}}) and Grafana Agent to verify that Tempo is receiving traces, relies on the default Jaeger port being available. If Tempo were also attempting to listen on the same port as the Grafana Agent for Jaeger, then Tempo would not start due a port conflict, hence we disable listening on that port in Tempo for a single Linux node.
+The [extended instructions for installing the TNS application]({{< relref "./set-up-test-app" >}}) and Grafana Agent to verify that Tempo is receiving traces, relies on the default Jaeger port being available. If Tempo were also attempting to listen on the same port as the Grafana Agent for Jaeger, then Tempo would not start due a port conflict, hence we disable listening on that port in Tempo for a single Linux node.
 
 ```yaml
 server:

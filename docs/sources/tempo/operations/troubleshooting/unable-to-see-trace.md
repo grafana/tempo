@@ -1,5 +1,6 @@
 ---
 title: Unable to find traces
+description: Troubleshoot missing traces
 weight: 473
 aliases:
 - /docs/tempo/troubleshooting/missing-trace
@@ -73,7 +74,7 @@ This is likely because no ingester is joining the gossip ring, make sure the sam
 If you are able to query some traces in Tempo but not others, you have come to the right section!
 
 This could happen because of a number of reasons and some have been detailed in this blog post -
-[Where did all my spans go? A guide to diagnosing dropped spans in Jaeger distributed tracing](https://grafana.com/blog/2020/07/09/where-did-all-my-spans-go-a-guide-to-diagnosing-dropped-spans-in-jaeger-distributed-tracing/).
+[Where did all my spans go? A guide to diagnosing dropped spans in Jaeger distributed tracing](/blog/2020/07/09/where-did-all-my-spans-go-a-guide-to-diagnosing-dropped-spans-in-jaeger-distributed-tracing/).
 This is useful if you are using the Jaeger Agent.
 
 If you are using the Grafana Agent, continue reading the following section for metrics to monitor.
@@ -100,7 +101,7 @@ If the pipeline is not reporting any dropped spans, check whether application sp
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
 
 {{% admonition type="note" %}}
-Check the [ingestion limits page]({{< relref "../../configuration/#ingestion-limits" >}}) for further information on limits.
+Check the [ingestion limits page]({{< relref "../../configuration#ingestion-limits" >}}) for further information on limits.
 {{% /admonition %}}
 
 ## Section 3: Diagnose and fix issues with querying traces

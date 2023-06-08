@@ -3,6 +3,7 @@ aliases:
   - /docs/tempo/latest/server_side_metrics/span_metrics/
   - /docs/tempo/latest/metrics-generator/span_metrics/
 title: Generate metrics from spans
+description: he span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 weight: 400
 ---
 
@@ -23,14 +24,14 @@ Even if you already have metrics, span metrics can provide in-depth monitoring o
 The generated metrics will show application level insight into your monitoring,
 as far as tracing gets propagated through your applications.
 
-Last but not least, span metrics lower the entry barrier for using [exemplars](https://grafana.com/docs/grafana/latest/basics/exemplars/).
+Last but not least, span metrics lower the entry barrier for using [exemplars](/docs/grafana/latest/basics/exemplars/).
 An exemplar is a specific trace representative of measurement taken in a given time interval.
 Since traces and metrics co-exist in the metrics-generator,
 exemplars can be automatically added, providing additional value to these metrics.
 
 ## How to run
 
-To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. See [here for configuration details]({{< relref "../configuration/#metrics-generator" >}}).
+To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. See [here for configuration details]({{< relref "../configuration#metrics-generator" >}}).
 
 ## How it works
 
@@ -54,12 +55,12 @@ In Tempo 1.4 and 1.4.1, the histogram metric was called `traces_spanmetrics_dura
 {{% /admonition %}}
 
 By default, the metrics processor adds the following labels to each metric: `service`, `span_name`, `span_kind`, `status_code`, `status_message`, `job`, `instance`.
-Additional user defined labels can be created using the [`dimensions` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
+Additional user defined labels can be created using the [`dimensions` configuration option]({{< relref "../configuration#metrics-generator" >}}).
 When a configured dimension collides with one of the default labels (e.g. `status_code`), the label for the respective dimension is prefixed with double underscore (i.e. `__status_code`).
 
-Custom labeling of dimensions is also supported using the [`dimension_mapping` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
+Custom labeling of dimensions is also supported using the [`dimension_mapping` configuration option]({{< relref "../configuration#metrics-generator" >}}).
 
-An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
+An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration#metrics-generator" >}}).
 
 If you use ratio based sampler you can use custom sampler below to not lose metric information, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`
 
