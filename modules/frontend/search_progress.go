@@ -6,12 +6,13 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // searchProgressFactory is used to provide a way to construct a shardedSearchProgress to the searchSharder. It exists
 // so that streaming search can inject and track it's own special progress object
-type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress
+type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress
 
 // shardedSearchProgress is an interface that allows us to get progress
 // events from the search sharding handler.
@@ -50,7 +51,7 @@ type searchProgress struct {
 	mtx   sync.Mutex
 }
 
-func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
 	return &searchProgress{
 		ctx:              ctx,
 		statusCode:       http.StatusOK,
@@ -58,7 +59,7 @@ func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, total
 		finishedRequests: 0,
 		resultsMetrics: &tempopb.SearchMetrics{
 			TotalBlocks:     uint32(totalBlocks),
-			TotalBlockBytes: uint64(totalBlockBytes),
+			TotalBlockBytes: totalBlockBytes,
 			TotalJobs:       uint32(totalJobs),
 		},
 		resultsCombiner: traceql.NewMetadataCombiner(),
@@ -117,7 +118,7 @@ func (r *searchProgress) internalShouldQuit() bool {
 	if r.statusCode/100 != 2 {
 		return true
 	}
-	if r.resultsCombiner.Count() > r.limit {
+	if r.resultsCombiner.Count() >= r.limit {
 		return true
 	}
 
@@ -135,6 +136,31 @@ func (r *searchProgress) result() *shardedSearchResults {
 		finishedRequests: r.finishedRequests,
 	}
 
+	// copy metadata b/c the resultsCombiner holds a pointer to the data and continues
+	// to modify it. this may race with anything getting results
+	md := r.resultsCombiner.Metadata()
+	mdCopy := make([]*tempopb.TraceSearchMetadata, 0, len(md))
+	for _, m := range md {
+		mCopy := &tempopb.TraceSearchMetadata{
+			TraceID:           m.TraceID,
+			RootServiceName:   m.RootServiceName,
+			RootTraceName:     m.RootTraceName,
+			StartTimeUnixNano: m.StartTimeUnixNano,
+			DurationMs:        m.DurationMs,
+			SpanSet:           copySpanset(m.SpanSet),
+		}
+
+		// now copy spansets
+		if len(m.SpanSets) > 0 {
+			mCopy.SpanSets = make([]*tempopb.SpanSet, 0, len(m.SpanSets))
+			for _, ss := range m.SpanSets {
+				mCopy.SpanSets = append(mCopy.SpanSets, copySpanset(ss))
+			}
+		}
+
+		mdCopy = append(mdCopy, mCopy)
+	}
+
 	searchRes := &tempopb.SearchResponse{
 		// clone search metrics to avoid race conditions on the pointer
 		Metrics: &tempopb.SearchMetrics{
@@ -145,10 +171,24 @@ func (r *searchProgress) result() *shardedSearchResults {
 			TotalJobs:       r.resultsMetrics.TotalJobs,
 			TotalBlockBytes: r.resultsMetrics.TotalBlockBytes,
 		},
-		Traces: r.resultsCombiner.Metadata(),
+		Traces: mdCopy,
 	}
 
 	res.response = searchRes
 
 	return res
+}
+
+func copySpanset(ss *tempopb.SpanSet) *tempopb.SpanSet {
+	if ss == nil {
+		return nil
+	}
+
+	// the metadata results combiner considers the spans and attributes immutable. it does not attempt to change them
+	// so just copying the slices should be safe
+	return &tempopb.SpanSet{
+		Spans:      append([]*tempopb.Span(nil), ss.Spans...),
+		Matched:    ss.Matched,
+		Attributes: append([]*v1.KeyValue(nil), ss.Attributes...),
+	}
 }

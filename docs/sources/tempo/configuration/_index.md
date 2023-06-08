@@ -232,6 +232,9 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # Flush all traces to backend when ingester is stopped
+    [flush_all_on_shutdown: <bool> | default = false]
 ```
 
 ## Metrics-generator
@@ -275,6 +278,10 @@ metrics_generator:
             # Additional dimensions to add to the metrics. Dimensions are searched for in the
             # resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
+
+            # Prefix additional dimensions with "client_" and "_server". Adds two labels
+            # per additional dimension instead of one.
+            [enable_client_server_prefix: <bool> | default = false]
 
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
@@ -837,6 +844,12 @@ storage:
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
+        # Polling will tolerate this many consecutive errors before failing and exiting early for the
+        # current repoll. Can be set to 0 which means a single error is sufficient to fail and exit early
+        # (matches the original polling behavior).
+        # Default 1
+        [blocklist_poll_tolerate_consecutive_errors: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]
@@ -1039,7 +1052,7 @@ storage:
         # block configuration
         block:
             # block format version. options: v2, vParquet, vParquet2
-            [version: <string> | default = vParquet]
+            [version: <string> | default = vParquet2]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
             [bloom_filter_false_positive: <float> | default = 0.01]

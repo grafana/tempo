@@ -153,6 +153,20 @@
             },
           },
           {
+            alert: 'TempoBlockListRisingQuickly',
+            expr: |||
+              avg(tempodb_blocklist_length{namespace="%(namespace)s"}) / avg(tempodb_blocklist_length{namespace="%(namespace)s", job=~"$namespace/$component"} offset 7d) > 1.4
+            ||| % { namespace: $._config.namespace },
+            'for': '15m',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo block list length is up 40 percent over the last 7 days.  Consider scaling compactors.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly',
+            },
+          },
+          {
             alert: 'TempoBadOverrides',
             expr: |||
               sum(tempo_runtime_config_last_reload_successful{namespace=~"%s"} == 0) by (%s)
