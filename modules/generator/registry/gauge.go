@@ -118,17 +118,29 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 
 	activeSeries = len(g.series)
 
+	labelsCount := 0
+	if activeSeries > 0 && g.series[0] != nil {
+		labelsCount = len(g.series[0].labels.names)
+	}
+	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
+	lb := labels.NewBuilder(lbls)
+
+	// make base labels
+	baseLabels := make(labels.Labels, 1+len(externalLabels))
+
+	// add metric name
+	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: g.metricName})
+
+	// add external labels
+	for name, value := range externalLabels {
+		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
+	}
+
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
-		lbls := make(labels.Labels, 1+len(externalLabels)+len(s.labels.names))
-		lb := labels.NewBuilder(lbls)
 
-		// set metric name
-		lb.Set(labels.MetricName, g.metricName)
-		// set external labels
-		for name, value := range externalLabels {
-			lb.Set(name, value)
-		}
+		// reset labels for every series
+		lb.Reset(baseLabels)
 
 		// set series-specific labels
 		for i, name := range s.labels.names {
