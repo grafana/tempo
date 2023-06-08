@@ -18,10 +18,7 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-<<<<<<< HEAD
 	"github.com/grafana/tempo/tempodb/encoding/common"
-=======
->>>>>>> d240f3e96 (vParquet3: add dedicated columns to parquet schema and block meta (#2517))
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {
