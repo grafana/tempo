@@ -1,6 +1,7 @@
 ---
 title: Deploy Tempo with Helm
 menuTitle: Deploy with Helm
+description: Learn how to deploy Tempo with Helm
 weight: 350
 ---
 

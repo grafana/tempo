@@ -43,7 +43,7 @@ It also assumes that you have an understanding of what the `kubectl` command doe
 - Kubernetes 1.20 or later (see [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
 - The `kubectl` command for your version of Kubernetes
 - Helm 3 or later (see [Helm installation documentation](https://helm.sh/docs/intro/install/))
-- GET only: [An enterprise license](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license)
+- GET only: [An enterprise license](/docs/enterprise-traces/latest/setup/#obtain-a-get-license)
 
 Verify that you have:
 
@@ -197,7 +197,7 @@ license:
 If you are using GET, you need to configure a license, by adding the license to the `custom.yaml` file or by using a secret that contains the license.
 Only one of these options should be used.
 
-> **NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
+> **NOTE**: The [Set up GET instructions](/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 
 Using the first option, you can specify the license text in the `custom.yaml` values file created above, in the `license:` section.
 
@@ -273,7 +273,7 @@ However, you can use a other storage provides. Refer to the Optional storage sec
 ### Optional: Other storage options
 
 Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
-Refer to the [`storage` configuration block](https://grafana.com/docs/tempo/latest/configuration/#storage) for information on storage options.
+Refer to the [`storage` configuration block]({{< relref "/docs/tempo/latest/configuration#storage" >}}) for information on storage options.
 
 To use other storage options, set `minio.enabled: false` in the `values.yaml` file:
 
@@ -285,16 +285,16 @@ minio:
 
 Update the `storage` configuration options based upon your requirements:
 
-- [Amazon S3 configuration documentation](https://grafana.com/docs/tempo/latest/configuration/s3/). The Amazon S3 example is identical to the MinIO configuration. The two last options, `endpoint` and `insecure`, are dropped.
+- [Amazon S3 configuration documentation]({{< relref "/docs/tempo/latest/configuration/s3" >}}). The Amazon S3 example is identical to the MinIO configuration. The two last options, `endpoint` and `insecure`, are dropped.
 
-- [Azure Blob Storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/azure/)
+- [Azure Blob Storage configuration documentation]({{< relref "/docs/tempo/latest/configuration/azure" >}})
 
-- [Google Cloud Storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/gcs/)
+- [Google Cloud Storage configuration documentation]({{< relref "/docs/tempo/latest/configuration/gcs" >}})
 
 ### Set traces receivers
 
 Tempo can be configured to receive data from OTLP, Jaegar, Zipkin, Kafka, and OpenCensus.
-The following example enables OTLP on the distributor. For other options, refer to the [distributor documentation](https://grafana.com/docs/tempo/latest/configuration/#distributor)
+The following example enables OTLP on the distributor. For other options, refer to the [distributor documentation]({{< relref "/docs/tempo/latest/configuration#distributor" >}})
 
 The example used in this procedure has OTLP enabled.
 
@@ -456,9 +456,9 @@ kubectl logs tempo-tokengen-job-58jhs
 
 ## Next step
 
-The next step is to test your Tempo installation by sending trace data to Grafana. You can use the [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/) document for step-by-step instructions.
+The next step is to test your Tempo installation by sending trace data to Grafana. You can use the [Set up a test application for a Tempo cluster]({{< relref "/docs/tempo/latest/setup/set-up-test-app" >}}) document for step-by-step instructions.
 
 If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment. For example:
 `http://tempo-query-frontend.trace-test.svc.cluster.local:3100`
 
-Enterprise users may wish to [install the Enterprise Traces plugin](https://grafana.com/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies. Once a user, and access policy have been created using the plugin, a datasource can be configured to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
+Enterprise users may wish to [install the Enterprise Traces plugin](/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies. Once a user, and access policy have been created using the plugin, a datasource can be configured to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
