@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -135,8 +134,6 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 		for i, name := range s.labels.names {
 			lb.Set(name, s.labels.values[i])
 		}
-
-		fmt.Println(lb)
 
 		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
 		if err != nil {
