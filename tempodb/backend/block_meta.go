@@ -51,7 +51,7 @@ type BlockMeta struct {
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by parquet)
-	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
+	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -63,25 +63,6 @@ type DedicatedColumn struct {
 	Name string `yaml:"name" json:"name"`
 	// The Type of attribute value: only 'string' supported
 	Type string `yaml:"type" json:"type"`
-}
-
-type DedicatedColumns []DedicatedColumn
-
-// separatorByte is a byte that cannot occur in valid UTF-8 sequences
-var separatorByte = []byte{255}
-
-func (cs *DedicatedColumns) Hash() uint64 {
-	h := xxhash.New()
-
-	for _, c := range *cs {
-		_, _ = h.WriteString(c.Scope)
-		_, _ = h.Write(separatorByte)
-		_, _ = h.WriteString(c.Name)
-		_, _ = h.Write(separatorByte)
-		_, _ = h.WriteString(c.Type)
-	}
-
-	return h.Sum64()
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns ...DedicatedColumn) *BlockMeta {
@@ -125,4 +106,25 @@ func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
 	}
 
 	b.TotalObjects++
+}
+
+// separatorByte is a byte that cannot occur in valid UTF-8 sequences
+var separatorByte = []byte{255}
+
+// TODO: Find a better way of comparing dedicated columns config
+
+// DedicatedColumnsHash returns a hash of the dedicated columns' configuration.
+// Used for comparing the configuration of two blocks.
+func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+	h := xxhash.New()
+
+	for _, c := range b.DedicatedColumns {
+		_, _ = h.WriteString(c.Scope)
+		_, _ = h.Write(separatorByte)
+		_, _ = h.WriteString(c.Name)
+		_, _ = h.Write(separatorByte)
+		_, _ = h.WriteString(c.Type)
+	}
+
+	return h.Sum64()
 }
