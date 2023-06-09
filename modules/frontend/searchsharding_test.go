@@ -181,18 +181,32 @@ func TestBuildBackendRequests(t *testing.T) {
 	for _, tc := range tests {
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
 
-		reqs, err := buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest)
-		if tc.expectedError != nil {
-			assert.Equal(t, tc.expectedError, err)
-			continue
-		}
-		assert.NoError(t, err)
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		reqCh := make(chan *backendReqMsg)
+
+		go func() {
+			buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest, reqCh, stopCh)
+		}()
 
 		actualURIs := []string{}
-		for _, r := range reqs {
-			actualURIs = append(actualURIs, r.RequestURI)
+		var actualErr error
+		for r := range reqCh {
+			if r.err != nil {
+				actualErr = r.err
+				break
+			}
+
+			if r.req != nil {
+				actualURIs = append(actualURIs, r.req.RequestURI)
+			}
 		}
 
+		if tc.expectedError != nil {
+			assert.Equal(t, tc.expectedError, actualErr)
+			continue
+		}
+		assert.NoError(t, actualErr)
 		assert.Equal(t, tc.expectedURIs, actualURIs)
 	}
 }
@@ -210,11 +224,13 @@ func TestBackendRequests(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		request          string
-		expectedReqsURIs []string
-		expectedBlockIDs []string
-		expectedError    error
+		name               string
+		request            string
+		expectedReqsURIs   []string
+		expectedError      error
+		expectedJobs       int
+		expectedBlocks     int
+		expectedBlockBytes uint64
 	}{
 		{
 			name:    "start and end same as block",
@@ -223,8 +239,10 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedBlockIDs: []string{bm.BlockID.String()},
-			expectedError:    nil,
+			expectedError:      nil,
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
 		},
 		{
 			name:    "start and end in block",
@@ -233,35 +251,33 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedBlockIDs: []string{bm.BlockID.String()},
-			expectedError:    nil,
+			expectedError:      nil,
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
 		},
 		{
 			name:             "start and end out of block",
 			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 		{
 			name:             "no start and end",
 			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 		{
 			name:             "only tags",
 			request:          "/?tags=foo%3Dbar",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 		{
 			name:             "no params",
 			request:          "/",
 			expectedReqsURIs: make([]string, 0),
-			expectedBlockIDs: make([]string, 0),
 			expectedError:    nil,
 		},
 	}
@@ -271,20 +287,27 @@ func TestBackendRequests(t *testing.T) {
 			searchReq, err := api.ParseSearchRequest(r)
 			require.NoError(t, err)
 
-			reqs, blocks, err := s.backendRequests(context.TODO(), "test", r, *searchReq)
-			assert.Equal(t, tc.expectedError, err)
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			reqCh := make(chan *backendReqMsg)
 
-			reqURIs := make([]string, 0)
-			for _, req := range reqs {
-				reqURIs = append(reqURIs, req.RequestURI)
-			}
-			assert.Equal(t, tc.expectedReqsURIs, reqURIs)
+			jobs, blocks, blockBytes := s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
+			require.Equal(t, tc.expectedJobs, jobs)
+			require.Equal(t, tc.expectedBlocks, blocks)
+			require.Equal(t, tc.expectedBlockBytes, blockBytes)
 
-			blockIDs := make([]string, 0)
-			for _, block := range blocks {
-				blockIDs = append(blockIDs, block.BlockID.String())
+			var actualErr error
+			actualReqURIs := []string{}
+			for r := range reqCh {
+				if r.err != nil {
+					actualErr = r.err
+				}
+				if r.req != nil {
+					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
+				}
 			}
-			assert.Equal(t, tc.expectedBlockIDs, blockIDs)
+			require.Equal(t, tc.expectedError, actualErr)
+			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
 		})
 	}
 }
@@ -365,7 +388,7 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualReq, err := s.ingesterRequest(context.Background(), "test", req, *searchReq)
+		actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -906,5 +929,75 @@ func TestSubRequestsCancelled(t *testing.T) {
 
 			_, _ = testRT.RoundTrip(req)
 		})
+	}
+}
+
+func BenchmarkSearchSharderRoundTrip5(b *testing.B)     { benchmarkSearchSharderRoundTrip(b, 5) }
+func BenchmarkSearchSharderRoundTrip500(b *testing.B)   { benchmarkSearchSharderRoundTrip(b, 500) }
+func BenchmarkSearchSharderRoundTrip50000(b *testing.B) { benchmarkSearchSharderRoundTrip(b, 50000) } // max, forces all queries to run
+
+func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
+	resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}})
+	require.NoError(b, err)
+
+	successResString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "1234",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{},
+	})
+	require.NoError(b, err)
+
+	succeedAfter := atomic.NewInt32(s)
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		val := succeedAfter.Dec()
+
+		s := resString
+		if val == 0 {
+			s = successResString
+		}
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(s)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(b, err)
+
+	totalMetas := 10000
+	jobsPerMeta := 2
+	metas := make([]*backend.BlockMeta, 0, totalMetas)
+	for i := 0; i < totalMetas; i++ {
+		metas = append(metas, &backend.BlockMeta{
+			StartTime:    time.Unix(1100, 0),
+			EndTime:      time.Unix(1200, 0),
+			Size:         defaultTargetBytesPerRequest * uint64(jobsPerMeta),
+			TotalRecords: uint32(jobsPerMeta),
+			BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		})
+	}
+
+	sharder := newSearchSharder(&mockReader{
+		metas: metas,
+	}, o, SearchSharderConfig{
+		ConcurrentRequests:    100,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		succeedAfter = atomic.NewInt32(s)
+		_, err = testRT.RoundTrip(req)
+		require.NoError(b, err)
 	}
 }

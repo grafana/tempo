@@ -1,6 +1,7 @@
 ---
 title: Server-side metrics architecture
 menuTitle: Server-side metrics architecture
+description: Server-side metrics is a feature that derive metrics from ingested traces.
 weight: 15
 ---
 
@@ -53,4 +54,4 @@ This results in a clean division of responsibility and limits the blast radius f
 
 ## Configuration
 
-For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration/#metrics-generator" >}}).
+For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration#metrics-generator" >}}).

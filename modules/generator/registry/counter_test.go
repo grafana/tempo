@@ -40,13 +40,14 @@ func Test_counter(t *testing.T) {
 	assert.Equal(t, 3, seriesAdded)
 
 	collectionTimeMs = time.Now().UnixMilli()
+	offsetCollectionTimeMs = time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, collectionTimeMs, 0),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, offsetCollectionTimeMs, 3),
 	}
-	// TODO: this test flakes here, need to find root cause and fix :)
+
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
 

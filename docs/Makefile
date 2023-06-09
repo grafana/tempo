@@ -1,14 +1,8 @@
-IMAGE = grafana/docs-base:latest
+.ONESHELL:
+.DELETE_ON_ERROR:
+export SHELL     := bash
+export SHELLOPTS := pipefail:errexit
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rule
 
-.PHONY: pull
-pull:
-	docker pull ${IMAGE}
-
-.PHONY: docs
-docs: pull
-	docker pull ${IMAGE}
-	docker run  --rm -it -v ${PWD}/sources/tempo:/hugo/content/docs/tempo/latest -p 3002:3002 $(IMAGE)
-
-.PHONY: docs-test
-docs-test: pull
-	docker run --rm -it -v ${PWD}/sources/tempo:/hugo/content/docs/tempo/latest -p 3002:3002 $(IMAGE) /bin/bash -c 'make prod'
+include docs.mk

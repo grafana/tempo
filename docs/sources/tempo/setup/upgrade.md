@@ -1,11 +1,11 @@
 ---
 title: Upgrade your Tempo installation
 menuTitle: Upgrade
-description: Upgrade your Tempo installation to the latest version.
+description: Upgrade your Grafana Tempo installation to the latest version.
 weight: 310
 ---
 
-# Upgrade Tempo
+# Upgrade your Tempo installation
 
 You can upgrade an existing Tempo installation to the next version. However, any new release has the potential to have breaking changes that should be tested in a non-production environment prior to rolling these changes to production.
 
@@ -13,7 +13,7 @@ The upgrade process changes for each version, depending upon the changes made fo
 
 This upgrade guide applies to on-premise installations and not for Grafana Cloud.
 
->**TIP**: You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs/#status" >}}) in your Tempo installation.
+>**TIP**: You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 
 ## Upgrade to Tempo 2.1
 
@@ -76,7 +76,7 @@ Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
 Parquet provides faster search and is required to enable TraceQL. However, the Tempo installation will require additional CPU and memory resources to use Parquet efficiently. Parquet is more costly due to the extra work of building the columnar blocks, and operators should expect at least 1.5x increase in required resources to run a Tempo 2.0 cluster. Most users will find these extra resources are negligible compared to the benefits that come from the additional features of TraceQL and from storing traces in an open format.
 
-You can can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation]({{< relref "../configuration/parquet/" >}}). Tempo will continue to support trace by id lookup on the `v2` format for the foreseeable future.
+You can can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation]({{< relref "../configuration/parquet" >}}). Tempo will continue to support trace by id lookup on the `v2` format for the foreseeable future.
 
 ### Enable TraceQL in Grafana
 

@@ -381,6 +381,11 @@ func (o *overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID 
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsEnableTargetInfo
 }
 
+// MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
+func (o *overrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)

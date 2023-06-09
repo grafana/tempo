@@ -44,7 +44,7 @@ var (
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_duration_seconds",
 		Help:      "Records the amount of time to poll and update the blocklist.",
-		Buckets:   prometheus.LinearBuckets(0, 60, 5),
+		Buckets:   prometheus.LinearBuckets(0, 60, 10),
 	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
@@ -70,11 +70,12 @@ var (
 
 // Config is used to configure the poller
 type PollerConfig struct {
-	PollConcurrency     uint
-	PollFallback        bool
-	TenantIndexBuilders int
-	StaleTenantIndex    time.Duration
-	PollJitterMs        int
+	PollConcurrency           uint
+	PollFallback              bool
+	TenantIndexBuilders       int
+	StaleTenantIndex          time.Duration
+	PollJitterMs              int
+	TolerateConsecutiveErrors int
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -122,7 +123,11 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 // Do does the doing of getting a blocklist
 func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
-	defer func() { metricBlocklistPollDuration.Observe(time.Since(start).Seconds()) }()
+	defer func() {
+		diff := time.Since(start).Seconds()
+		metricBlocklistPollDuration.Observe(diff)
+		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+	}()
 
 	ctx := context.Background()
 	tenants, err := p.reader.Tenants(ctx)
@@ -134,12 +139,21 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
 
+	consecutiveErrors := 0
+
 	for _, tenantID := range tenants {
 		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID)
 		if err != nil {
-			return nil, nil, err
+			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+			consecutiveErrors++
+			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+				return nil, nil, err
+			}
+			continue
 		}
 
+		consecutiveErrors = 0
 		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
 		blocklist[tenantID] = newBlockList

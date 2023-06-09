@@ -1,6 +1,7 @@
 ---
 title: Tune the consistent hash rings
 menuTitle: Tune the consistent hash rings
+description: Optimize the consistent hash rings for Tempo.
 weight: 40
 ---
 

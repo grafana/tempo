@@ -95,7 +95,7 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			expr, err := Parse(tt.query)
 			require.NoError(t, err)
 
-			spansetFilter := expr.Pipeline.Elements[0].(SpansetFilter)
+			spansetFilter := expr.Pipeline.Elements[0].(*SpansetFilter)
 
 			req := &FetchSpansRequest{
 				Conditions:    []Condition{},
