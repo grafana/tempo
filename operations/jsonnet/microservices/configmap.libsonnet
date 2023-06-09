@@ -121,42 +121,6 @@
       }),
     }),
 
-  tempo_distributor_configmap:
-    configMap.new('tempo-distributor') +
-    configMap.withData({
-      'tempo.yaml': k.util.manifestYaml($.tempo_distributor_config),
-    }),
-
-  tempo_ingester_configmap:
-    configMap.new('tempo-ingester') +
-    configMap.withData({
-      'tempo.yaml': k.util.manifestYaml($.tempo_ingester_config),
-    }),
-
-  tempo_metrics_generator_configmap:
-    configMap.new('tempo-metrics-generator') +
-    configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_metrics_generator_config),
-    }),
-
-  tempo_compactor_configmap:
-    configMap.new('tempo-compactor') +
-    configMap.withData({
-      'tempo.yaml': k.util.manifestYaml($.tempo_compactor_config),
-    }),
-
-  tempo_querier_configmap:
-    configMap.new('tempo-querier') +
-    configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_querier_config),
-    }),
-
-  tempo_query_frontend_configmap:
-    configMap.new('tempo-query-frontend') +
-    configMap.withData({
-      'tempo.yaml': $.util.manifestYaml($.tempo_query_frontend_config),
-    }),
-
   tempo_query_configmap: if $._config.tempo_query.enabled then
     configMap.new('tempo-query') +
     configMap.withData({
