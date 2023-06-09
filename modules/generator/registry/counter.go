@@ -127,13 +127,13 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	// base labels
 	baseLabels := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 
-	// add metric name
-	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: c.metricName})
-
 	// add external labels
 	for name, value := range externalLabels {
 		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
 	}
+
+	// add metric name
+	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: c.metricName})
 
 	lb := labels.NewBuilder(baseLabels)
 
