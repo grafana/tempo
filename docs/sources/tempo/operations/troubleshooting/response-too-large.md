@@ -1,11 +1,12 @@
 ---
 title: Response larger than the max
+description: Troubleshoot response larger than the max error message
 weight: 477
 aliases:
 - /docs/tempo/troubleshooting/response-too-large
 ---
 
-# Response too large
+# Response larger than the max
 
 The error message will take a similar form to the following:
 

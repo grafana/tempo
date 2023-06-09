@@ -1,16 +1,17 @@
 ---
-title: Pushing spans with HTTP
+title: Push spans with HTTP
+description: Learn a basic technique for pushing spans with HTTP and JSON
 aliases:
 - /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
 
-# Pushing spans with HTTP
+# Push spans with HTTP
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
 or a span ingestion pipeline in order to push spans.  This guide aims to show an extremely basic technique for
-pushing spans with http/json from a Bash script using the [Zipkin](https://zipkin.io/) receiver.
+pushing spans with HTTP/JSON from a Bash script using the [Zipkin](https://zipkin.io/) receiver.
 
-## Starting Tempo
+## Start Tempo
 
 Let's first start Tempo with the Zipkin receiver configured.  In order to do this create a config file like so:
 
@@ -35,7 +36,7 @@ and run Tempo using it:
 docker run -p 9411:9411 -p 3200:3200 -v $(pwd)/config.yaml:/config.yaml grafana/tempo:latest -config.file /config.yaml
 ```
 
-## Pushing spans
+## Push spans
 
 Now that Tempo is running and listening on port 9411 for [Zipkin spans](https://zipkin.io/zipkin-api/#/default/post_spans), let's push a span to it using `curl`.
 
@@ -58,7 +59,7 @@ curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
 
 Note that the `timestamp` field is in microseconds and was obtained by running `date +%s%6N`.  The `duration` field is also in microseconds and so 100000 is 100 milliseconds.
 
-## Retrieving traces
+## Retrieve traces
 
 The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 

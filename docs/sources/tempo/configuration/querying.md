@@ -1,13 +1,13 @@
 ---
 title: Query Tempo with Grafana
 menuTitle: Query Tempo with Grafana
+description: Learn how to configure and query Tempo with Grafana.
 weight: 40
 ---
 
 <!-- Page is being deprecated because it describes versions of Grafana that are no longer supported. -->
 
 # Query Tempo with Grafana
-
 
 Grafana can query Tempo directly. This feature has been enabled since Grafana 7.5.x.
 

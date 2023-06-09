@@ -1,8 +1,16 @@
 ## main / unreleased
 
+* [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
+* [FEATURE] New experimental API to derive on-demand RED metrics grouped by any attribute, and new metrics generator processor [#2368](https://github.com/grafana/tempo/pull/2368) [#2418](https://github.com/grafana/tempo/pull/2418) [#2424](https://github.com/grafana/tempo/pull/2424) [#2442](https://github.com/grafana/tempo/pull/2442) [#2480](https://github.com/grafana/tempo/pull/2480) [#2481](https://github.com/grafana/tempo/pull/2481) [#2501](https://github.com/grafana/tempo/pull/2501) (@mdisibio @zalegrala)
+* [ENHANCEMENT] Add capability to flush all remaining traces to backend when ingester is stopped [#2538](https://github.com/grafana/tempo/pull/2538)
+* [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
+* [ENHANCEMENT] Add metrics generator config option to allow customizable ring port [#2399](https://github.com/grafana/tempo/pull/2399) (@mdisibio)
+* [ENHANCEMENT] Improve performance of TraceQL regex [#2484](https://github.com/grafana/tempo/pull/2484) (@mdisibio)
+* [CHANGE] Prefix service graph extra dimensions labels with `server_` and `client_` if `enable_client_server_prefix` is enabled [#2335](https://github.com/grafana/tempo/pull/2335) (@domasx2)
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
+* [ENHANCEMENT] Continue polling tenants on error with configurable threshold [#2540](https://github.com/grafana/tempo/pull/2540) (@mdisibio)
 * [BUGFIX] Fix Search SLO by routing tags to a new handler. [#2468](https://github.com/grafana/tempo/issues/2468) (@electron0zero)
 * [CHANGE] Change log level of two compactor messages from `debug` to `info`. [#2443](https://github.com/grafana/tempo/pull/2443) (@dylanguedes)
 * [CHANGE] Remove `tenant_header_key` option from `tempo-query` config [#2414](https://github.com/grafana/tempo/pull/2414) (@kousikmitra)
@@ -35,22 +43,22 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [ENHANCEMENT] Ability to toggle off latency or count metrics in metrics-generator [#2070](https://github.com/grafana/tempo/pull/2070) (@AlexDHoffer)
 * [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
 * [ENHANCEMENT] Add override to limit number of blocks inspected in tag value search [#2358](https://github.com/grafana/tempo/pull/2358) (@mapno)
-* [ENHANCEMENT] Add synchronous read mode to vParquet and vParquet2 optionally enabled by env vars  [#2165](https://github.com/grafana/tempo/pull/2165) (@mdisibio)
+* [ENHANCEMENT] New synchronous read mode for vParquet and vParquet2 [#2165](https://github.com/grafana/tempo/pull/2165) [#2535](https://github.com/grafana/tempo/pull/2535) (@mdisibio)
 * [ENHANCEMENT] Add option to override metrics-generator ring port  [#2399](https://github.com/grafana/tempo/pull/2399) (@mdisibio)
 * [ENHANCEMENT] Add support for IPv6 [#1555](https://github.com/grafana/tempo/pull/1555) (@zalegrala)
 * [ENHANCEMENT] Add span filtering to spanmetrics processor [#2274](https://github.com/grafana/tempo/pull/2274) (@zalegrala)
 * [ENHANCEMENT] Add ability to detect virtual nodes in the servicegraph processor [#2365](https://github.com/grafana/tempo/pull/2365) (@mapno)
 * [ENHANCEMENT] Introduce `overrides.Interface` to decouple implementation from usage [#2482](https://github.com/grafana/tempo/pull/2482) (@kvrhdn)
+* [ENHANCEMENT] Improve TraceQL throughput by asynchronously creating jobs [#2530](https://github.com/grafana/tempo/pull/2530) (@joe-elliott)
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
 * [BUGFIX] metrics-generator: ensure Prometheus will scale up shards when remote write is lagging behind [#2463](https://github.com/grafana/tempo/issues/2463) (@kvrhdn)
 * [BUGFIX] Fixes issue where matches and other spanset level attributes were not persisted to the TraceQL results. [#2490](https://github.com/grafana/tempo/pull/2490) 
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
-    trace:
-        s3:
-            insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
-
+  trace:
+    s3:
+      insecure_skip_verify: true   // renamed to tls_insecure_skip_verify
 ```
 * [CHANGE] Ignore context canceled errors in the queriers [#2440](https://github.com/grafana/tempo/pull/2440) (@joe-elliott)
 * [CHANGE] Start flush queue worker after wal replay and block rediscovery [#2456](https://github.com/grafana/tempo/pull/2456) (@ie-pham)

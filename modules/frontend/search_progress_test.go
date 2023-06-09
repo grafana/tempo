@@ -3,10 +3,12 @@ package frontend
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,9 +72,6 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 			{
 				TraceID: "otherthing",
 			},
-			{
-				TraceID: "thingthatsdifferent",
-			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
 	})
@@ -120,4 +119,62 @@ func TestSearchProgressCombineResults(t *testing.T) {
 
 	assert.Equal(t, expected, sr.result())
 
+}
+
+func TestInstanceDoesNotRace(t *testing.T) {
+
+	end := make(chan struct{})
+	concurrent := func(f func()) {
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+
+	traceID := "1234"
+
+	progress := newSearchProgress(context.Background(), 10, 0, 0, 0)
+	i := 0
+	go concurrent(func() {
+		i++
+		resp := &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{
+					TraceID:           traceID,
+					StartTimeUnixNano: math.MaxUint64 - uint64(i),
+					DurationMs:        uint32(i),
+					SpanSets: []*tempopb.SpanSet{{
+						Matched: uint32(i),
+					}},
+				},
+			},
+			Metrics: &tempopb.SearchMetrics{
+				InspectedTraces: 1,
+				InspectedBytes:  1,
+				TotalBlocks:     1,
+				TotalJobs:       1,
+				CompletedJobs:   1,
+			},
+		}
+		progress.addResponse(resp)
+	})
+
+	combiner := traceql.NewMetadataCombiner()
+	go concurrent(func() {
+		res := progress.result()
+		if len(res.response.Traces) > 0 {
+			// by using a combiner we are testing and changing the entire response
+			combiner.AddMetadata(res.response.Traces[0])
+		}
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	close(end)
+	// Wait for go funcs to quit before
+	// exiting and cleaning up
+	time.Sleep(2 * time.Second)
 }

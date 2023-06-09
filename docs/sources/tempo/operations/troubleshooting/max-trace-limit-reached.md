@@ -1,5 +1,6 @@
 ---
 title: Distributor refusing spans
+description: Troubleshoot distributor refusing spans
 weight: 471
 aliases:
 - /docs/tempo/troubleshooting/max-trace-limit-reached
@@ -38,4 +39,4 @@ You will also see the following metric incremented. The `reason` label on this m
 tempo_discarded_spans_total
 ```
 
-In this case use available configuration options to [increase limits]({{< relref "../../configuration/#ingestion-limits" >}}).
+In this case use available configuration options to [increase limits]({{< relref "../../configuration#ingestion-limits" >}}).

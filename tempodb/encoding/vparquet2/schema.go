@@ -151,8 +151,8 @@ type Span struct {
 	// like trace ID, and []byte is half the size of string.
 	SpanID                 []byte      `parquet:","`
 	ParentSpanID           []byte      `parquet:","`
-	ParentID               int32       `parquet:",delta"`
-	NestedSetLeft          int32       `parquet:",delta"`
+	ParentID               int32       `parquet:",delta"` // can be zero for non-root spans, use IsRoot to check for root spans
+	NestedSetLeft          int32       `parquet:",delta"` // doubles as numeric ID and is used to fill ParentID of child spans
 	NestedSetRight         int32       `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dict"`
 	Kind                   int         `parquet:",delta"`
@@ -175,6 +175,10 @@ type Span struct {
 
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
+}
+
+func (s *Span) IsRoot() bool {
+	return len(s.ParentSpanID) == 0
 }
 
 type InstrumentationScope struct {
@@ -464,6 +468,8 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 			}
 		}
 	}
+
+	assignNestedSetModelBounds(ot)
 
 	return ot
 }

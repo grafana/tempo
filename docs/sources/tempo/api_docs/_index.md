@@ -1,5 +1,5 @@
 ---
-title: API
+title: Tempo HTTP API
 description: Grafana Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 menuTitle: API
 weight: 800
@@ -91,7 +91,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "pushing-spans-with-http" >}}).
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "./pushing-spans-with-http" >}}).
 
 ### Query
 
@@ -139,7 +139,7 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 ### Search
 
 Tempo's Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
-[v2 blocks]({{< relref "../configuration/parquet#disable-parquet" >}}).
+[v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. TraceQL follows the same behavior.
 
@@ -155,7 +155,7 @@ GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
 The URL query parameters support the following values:
 
 **Parameters for TraceQL Search**
-- `q = (TraceQL query)`: Url encoded [TraceQL query](https://grafana.com/docs/tempo/latest/traceql/).
+- `q = (TraceQL query)`: Url encoded [TraceQL query]({{< relref "../traceql" >}}).
 
 **Parameters for Tag Based Search**
 - `tags = (logfmt)`: logfmt encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
@@ -369,18 +369,21 @@ $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 
 ### Search tag values V2
 
-This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. See [TraceQL](../traceql/) documention for more information. The following request returns all discovered service names.
+This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.
+The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. 
+See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
 
 The URL query parameters support the following values:
 
-- `q = (TraceQL query)`: Url encoded [TraceQL query](https://grafana.com/docs/tempo/latest/traceql/).
+- `q = (TraceQL query)`: Url encoded [TraceQL query]({{< relref "../traceql" >}}).
   - If a query is provided, results are filtered down to only those traces that match the query.
   - Queries can be incomplete (eg. `{ .cluster = }`).
     Tempo will extract only the valid matchers and build a valid query.
   - Only queries with a single selector `{}` and AND `&&` operators are supported.
     - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
     - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
+
+The following request returns all discovered service names.
 
 ```
 GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
@@ -461,7 +464,7 @@ This is usually used at the time of scaling down a cluster.
 ### Distributor ring status
 
 {{% admonition type="note" %}}
-This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration/#overrides" >}}).
+This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration#overrides" >}}).
 {{% /admonition %}}
 
 ```
@@ -491,7 +494,7 @@ GET /metrics-generator/ring
 
 Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
 
-This endpoint is only available when the metrics-generator is enabled. See [metrics-generator]({{< relref "../configuration/#metrics-generator" >}}).
+This endpoint is only available when the metrics-generator is enabled. See [metrics-generator]({{< relref "../configuration#metrics-generator" >}}).
 
 _For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
 

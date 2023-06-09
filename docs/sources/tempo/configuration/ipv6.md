@@ -1,5 +1,6 @@
 ---
 title: Configure IPv6
+description: Learn how to configure IPv6 for Tempo.
 weight: 37
 ---
 

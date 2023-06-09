@@ -72,6 +72,11 @@ type SearchSharderConfig struct {
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 }
 
+type backendReqMsg struct {
+	req *http.Request
+	err error
+}
+
 // newSearchSharder creates a sharding middleware for search
 func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgressFactory, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
@@ -130,37 +135,31 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// build request to search ingester based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, *searchReq)
+	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, searchReq)
 	if err != nil {
 		return nil, err
+	}
+
+	reqCh := make(chan *backendReqMsg, 1) // buffer of 1 allows us to insert ingestReq if it exists
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	if ingesterReq != nil {
+		reqCh <- &backendReqMsg{req: ingesterReq}
 	}
 
 	// pass subCtx in requests so we can cancel and exit early
-	reqs, blocks, err := s.backendRequests(subCtx, tenantID, r, *searchReq)
-	if err != nil {
-		return nil, err
-	}
-	span.SetTag("block-count", len(blocks))
-
-	// Add ingester request if we have one. it's important to add the ingester request to
-	// the beginning of the slice so that it is prioritized over the possibly enormous
-	// number of backend requests
-	if ingesterReq != nil {
-		reqs = append([]*http.Request{ingesterReq}, reqs...)
-	}
-	span.SetTag("request-count", len(reqs))
+	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-
-	totalBlockBytes := uint64(0)
-	for _, b := range blocks {
-		totalBlockBytes += b.Size
-	}
-	progress := s.progress(ctx, int(searchReq.Limit), len(reqs), len(blocks), int(totalBlockBytes))
+	progress := s.progress(ctx, int(searchReq.Limit), totalJobs, totalBlocks, totalBlockBytes)
 
 	startedReqs := 0
-	for _, req := range reqs {
+	for req := range reqCh {
+		if req.err != nil {
+			return nil, fmt.Errorf("unexpected err building reqs: %w", req.err)
+		}
+
 		// if shouldQuit is true, terminate and abandon requests
 		if progress.shouldQuit() {
 			break
@@ -215,7 +214,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			progress.addResponse(results)
-		}(req)
+		}(req.req)
 	}
 
 	// wait for all goroutines running in wg to finish or cancelled
@@ -236,7 +235,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"query", query,
 		"duration_seconds", reqTime,
 		"request_throughput", throughput,
-		"total_requests", len(reqs),
+		"total_requests", totalJobs,
 		"started_requests", startedReqs,
 		"cancelled_requests", cancelledReqs,
 		"finished_requests", overallResponse.finishedRequests,
@@ -287,8 +286,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 // blockMetas returns all relevant blockMetas given a start/end
 func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
 	// reduce metas to those in the requested range
-	metas := []*backend.BlockMeta{}
 	allMetas := s.reader.BlockMetas(tenantID)
+	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
 			m.EndTime.Unix() >= start {
@@ -299,59 +298,91 @@ func (s *searchSharder) blockMetas(start, end int64, tenantID string) []*backend
 	return metas
 }
 
-// backendRequest builds backend requests to search backend blocks
-func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) ([]*http.Request, []*backend.BlockMeta, error) {
-	var err error
-	var reqs []*http.Request
+// backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
+// it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
+func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
-		return reqs, blocks, nil
+		close(reqCh)
+		return
 	}
 
 	// calculate duration (start and end) to search the backend blocks
-	start, end := backendRange(&searchReq, s.cfg.QueryBackendAfter)
+	start, end := backendRange(searchReq, s.cfg.QueryBackendAfter)
 
 	// no need to search backend
 	if start == end {
-		return reqs, blocks, nil
+		close(reqCh)
+		return
 	}
 
 	// get block metadata of blocks in start, end duration
 	blocks = s.blockMetas(int64(start), int64(end), tenantID)
 
-	reqs, err = buildBackendRequests(ctx, tenantID, parent, blocks, s.cfg.TargetBytesPerRequest)
-	return reqs, blocks, err
+	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
+
+	// calculate metrics to return to the caller
+	totalBlocks = len(blocks)
+	for _, b := range blocks {
+		p := pagesPerRequest(b, targetBytesPerRequest)
+
+		totalJobs += int(b.TotalRecords) / p
+		if int(b.TotalRecords)%p != 0 {
+			totalJobs++
+		}
+		totalBlockBytes += b.Size
+	}
+
+	go func() {
+		buildBackendRequests(ctx, tenantID, parent, blocks, targetBytesPerRequest, reqCh, stopCh)
+	}()
+
+	return
+}
+
+// backendRange returns a new start/end range for the backend based on the config parameter
+// query_backend_after. If the returned start == the returned end then backend querying is not necessary.
+func backendRange(searchReq *tempopb.SearchRequest, queryBackendAfter time.Duration) (uint32, uint32) {
+	now := time.Now()
+	backendAfter := uint32(now.Add(-queryBackendAfter).Unix())
+
+	start := searchReq.Start
+	end := searchReq.End
+
+	// adjust start/end if necessary. if the entire query range was inside backendAfter then
+	// start will == end. This signals we don't need to query the backend.
+	if end > backendAfter {
+		end = backendAfter
+	}
+	if start > backendAfter {
+		start = backendAfter
+	}
+
+	return start, end
 }
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int) ([]*http.Request, error) {
-	reqs := []*http.Request{}
+func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) {
+	defer close(reqCh)
+
 	for _, m := range metas {
-		if m.Size == 0 || m.TotalRecords == 0 {
+		pages := pagesPerRequest(m, bytesPerRequest)
+		if pages == 0 {
 			continue
 		}
 
-		bytesPerPage := m.Size / uint64(m.TotalRecords)
-		if bytesPerPage == 0 {
-			return nil, fmt.Errorf("block %s has an invalid 0 bytes per page", m.BlockID)
-		}
-		pagesPerQuery := bytesPerRequest / int(bytesPerPage)
-		if pagesPerQuery == 0 {
-			pagesPerQuery = 1 // have to have at least 1 page per query
-		}
-
 		blockID := m.BlockID.String()
-		for startPage := 0; startPage < int(m.TotalRecords); startPage += pagesPerQuery {
+		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
 			subR, err := api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
 				BlockID:       blockID,
 				StartPage:     uint32(startPage),
-				PagesToSearch: uint32(pagesPerQuery),
+				PagesToSearch: uint32(pages),
 				Encoding:      m.Encoding.String(),
 				IndexPageSize: m.IndexPageSize,
 				TotalRecords:  m.TotalRecords,
@@ -362,22 +393,47 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			})
 
 			if err != nil {
-				return nil, err
+				reqCh <- &backendReqMsg{err: err}
+				return
 			}
 
 			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
-			reqs = append(reqs, subR)
+
+			select {
+			case reqCh <- &backendReqMsg{req: subR}:
+			case <-stopCh:
+				return
+			}
 		}
 	}
+}
 
-	return reqs, nil
+// pagesPerRequest returns an integer value that indicates the number of pages
+// that should be searched per query. This value is based on the target number of bytes
+// 0 is returned if there is no valid answer
+func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
+	if m.Size == 0 || m.TotalRecords == 0 {
+		return 0
+	}
+
+	bytesPerPage := m.Size / uint64(m.TotalRecords)
+	if bytesPerPage == 0 {
+		return 0
+	}
+
+	pagesPerQuery := bytesPerRequest / int(bytesPerPage)
+	if pagesPerQuery == 0 {
+		pagesPerQuery = 1 // have to have at least 1 page per query
+	}
+
+	return pagesPerQuery
 }
 
 // ingesterRequest returns a new start and end time range for the backend as well as an http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
+func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		return buildIngesterRequest(ctx, tenantID, parent, searchReq)
@@ -410,38 +466,17 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	return buildIngesterRequest(ctx, tenantID, parent, searchReq)
 }
 
-func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
+func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
 	subR := parent.Clone(ctx)
 
 	subR.Header.Set(user.OrgIDHeaderName, tenantID)
-	subR, err := api.BuildSearchRequest(subR, &searchReq)
+	subR, err := api.BuildSearchRequest(subR, searchReq)
 	if err != nil {
 		return nil, err
 	}
 
 	subR.RequestURI = buildUpstreamRequestURI(subR.URL.Path, subR.URL.Query())
 	return subR, nil
-}
-
-// backendRange returns a new start/end range for the backend based on the config parameter
-// query_backend_after. If the returned start == the returned end then backend querying is not necessary.
-func backendRange(searchReq *tempopb.SearchRequest, queryBackendAfter time.Duration) (uint32, uint32) {
-	now := time.Now()
-	backendAfter := uint32(now.Add(-queryBackendAfter).Unix())
-
-	start := searchReq.Start
-	end := searchReq.End
-
-	// adjust start/end if necessary. if the entire query range was inside backendAfter then
-	// start will == end. This signals we don't need to query the backend.
-	if end > backendAfter {
-		end = backendAfter
-	}
-	if start > backendAfter {
-		start = backendAfter
-	}
-
-	return start, end
 }
 
 // adjusts the limit based on provided config

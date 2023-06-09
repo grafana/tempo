@@ -1,5 +1,5 @@
 ---
-title: Set up a test app for a Tempo cluster
+title: Set up a test application for a Tempo cluster
 menuTitle: Set up a test application for a Tempo cluster
 description: Learn how to set up a test app for your Tempo cluster and visualize data.
 weight: 600
@@ -18,8 +18,8 @@ You'll need:
 * Grafana 9.0.0 or higher
 * Microservice deployments require the Tempo querier URL, for example: `http://query-frontend.tempo.svc.cluster.local:3200`
 
-Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
-Otherwise, refer to [Install Grafana](https://grafana.com/docs/grafana/latest/installation/) for more information.
+Refer to [Deploy Grafana on Kubernetes](/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
+Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for more information.
 
 ## Set up `remote_write` to your Tempo cluster
 
@@ -27,8 +27,8 @@ To enable writes to your cluster:
 
 1. Add a `remote_write` configuration snippet to the configuration file of an existing Grafana Agent.
 
-   If you do not have an existing traces collector, refer to [Set up with Grafana Agent](https://grafana.com/docs/agent/latest/set-up/).
-   For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](https://grafana.com/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).
+   If you do not have an existing traces collector, refer to [Set up with Grafana Agent](/docs/agent/latest/set-up/).
+   For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).
 
    The example agent Kubernetes ConfigMap configuration below opens many trace receivers (note that the remote write is onto the Tempo cluster using OTLP gRPC):
 
@@ -116,7 +116,7 @@ You should see a message that says `Data source is working`.
 
 If you see an error that says `Data source is not working: failed to get trace with id: 0`, check your Grafana version.
 
-To fix the error, [upgrade your Grafana to 9.0 or later](https://grafana.com/docs/grafana/latest/setup-grafana/upgrade-grafana/).
+To fix the error, [upgrade your Grafana to 9.0 or later](/docs/grafana/latest/setup-grafana/upgrade-grafana/).
 
 ## Visualize your data
 

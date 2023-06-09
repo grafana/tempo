@@ -230,6 +230,11 @@ to pull is to simply delete stale tenant indexes as all components will fallback
 /<tenant>/index.json.gz
 ```
 
+## TempoBlockListRisingQuickly
+
+The block list needs to remain under control to keep query performance acceptable.  If the block list is rising too quickly, this might indicate the compactors are under scaled.  Add more compactors until the block list is back under control and holding mostly steady.
+
+
 ### TempoBadOverrides
 
 Fix the overrides!  Overrides are loaded by the distributors so hopefully there is

@@ -137,8 +137,10 @@ func TestCombiner(t *testing.T) {
 							{
 								Spans: []Span{
 									{
-										SpanID:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-										StatusCode: 0,
+										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:     0,
+										NestedSetLeft:  1,
+										NestedSetRight: 2,
 									},
 								},
 							},
@@ -181,8 +183,10 @@ func TestCombiner(t *testing.T) {
 							{
 								Spans: []Span{
 									{
-										SpanID:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-										StatusCode: 0,
+										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:     0,
+										NestedSetLeft:  1,
+										NestedSetRight: 4,
 									},
 								},
 							},
@@ -196,9 +200,12 @@ func TestCombiner(t *testing.T) {
 							{
 								Spans: []Span{
 									{
-										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
-										ParentSpanID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-										StatusCode:   0,
+										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+										ParentSpanID:   []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:     0,
+										ParentID:       1,
+										NestedSetLeft:  2,
+										NestedSetRight: 3,
 									},
 								},
 							},

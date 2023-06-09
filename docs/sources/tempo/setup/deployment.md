@@ -1,6 +1,7 @@
 ---
 title: Plan your Tempo deployment
 menuTitle: Plan your deployment
+description: Plan your Grafana Tempo deployment
 aliases:
   - /docs/tempo/deployment
   - /docs/tempo/deployment/deployment

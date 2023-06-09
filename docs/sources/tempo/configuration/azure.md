@@ -1,5 +1,7 @@
 ---
 title: Azure blob storage permissions and management
+menuTitle: Azure blob storage
+description: Azure blog storage permissions and configuration options for Tempo.
 weight: 30
 ---
 
@@ -10,14 +12,14 @@ Tempo requires the following configuration to authenticate to and access Azure b
 - Storage Account name specified in the configuration file as `storage_account_name` or in the environment variable `AZURE_STORAGE_ACCOUNT`
 - Credentials for accessing the Storage Account; can be one of the following
   - Storage Account access key specified in the configuration file as `storage_account_key` or in the environment variable `AZURE_STORAGE_KEY`
-  - An Azure Managed Identity; either system or user assigned. To use Azure Managed Identities, you'll need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.  
+  - An Azure Managed Identity; either system or user assigned. To use Azure Managed Identities, you'll need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.
       - For a system-assigned managed identity, no additional configuration is required.
       - For a user-assigned managed identity, you'll need to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
   - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label.
 
 ## Azure blocklist polling
 
-If you are hosting Tempo on Azure, two values may need to be updated to ensure consistent successful blocklist polling. If you are 
+If you are hosting Tempo on Azure, two values may need to be updated to ensure consistent successful blocklist polling. If you are
 experiencing [this issue](https://stackoverflow.com/questions/12917857/the-specified-block-list-is-invalid-while-uploading-blobs-in-parallel/55902744#55902744), we recommend to set `blocklist_poll_tenant_index_builders` to 1.
 
 Additionally, if you are seeing DNS failures like the ones below, try increasing `blocklist_poll_jitter_ms`. Discussion [here](https://github.com/grafana/tempo/issues/1462).
