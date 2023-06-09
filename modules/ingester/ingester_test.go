@@ -372,7 +372,19 @@ func TestDedicatedColumns(t *testing.T) {
 
 	assert.Equal(t, limits.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumns)
 
-	// TODO: Search the ingested trace when the read path is supported
+	// TODO: This search should find a match once the read path is supported
+	ctx := user.InjectOrgID(context.Background(), "test")
+	searchReq := &tempopb.SearchRequest{Query: "{span.foo=\"bar\"}"}
+	results, err := inst.Search(ctx, searchReq)
+	require.NoError(t, err)
+	assert.Len(t, results.Traces, 0)
+
+	blockID, err := inst.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
+	// Complete block
+	err = inst.CompleteBlock(blockID)
+	require.NoError(t, err)
 }
 
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
