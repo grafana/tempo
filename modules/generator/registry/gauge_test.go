@@ -45,6 +45,28 @@ func Test_gaugeInc(t *testing.T) {
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
 
+func TestGaugeDifferentLabels(t *testing.T) {
+	var seriesAdded int
+	onAdd := func(count uint32) bool {
+		seriesAdded++
+		return true
+	}
+
+	c := newGauge("my_gauge", onAdd, nil)
+
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
+
+	assert.Equal(t, 2, seriesAdded)
+
+	collectionTimeMs := time.Now().UnixMilli()
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "another_label": "another_value"}, collectionTimeMs, 2),
+	}
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
+}
+
 func Test_gaugeSet(t *testing.T) {
 	var seriesAdded int
 	onAdd := func(count uint32) bool {
