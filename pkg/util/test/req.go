@@ -22,13 +22,17 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 }
 
 func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
-	attributes := make([]*v1_common.KeyValue, 0, count)
+	attributes := make([]*v1_common.KeyValue, 0, count+1)
 	for i := 0; i < count; i++ {
 		attributes = append(attributes, &v1_common.KeyValue{
 			Key:   RandomString(),
 			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
 		})
 	}
+	attributes = append(attributes, &v1_common.KeyValue{
+		Key:   "foo",
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "bar"}},
+	})
 
 	now := time.Now()
 	s := &v1_trace.Span{
@@ -154,27 +158,6 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	}
 
 	return trace
-}
-
-func MakeTraceBytes(requests int, traceID []byte) *tempopb.TraceBytes {
-	trace := &tempopb.Trace{
-		Batches: make([]*v1_trace.ResourceSpans, 0),
-	}
-
-	for i := 0; i < requests; i++ {
-		trace.Batches = append(trace.Batches, MakeBatch(rand.Int()%20+1, traceID))
-	}
-
-	bytes, err := proto.Marshal(trace)
-	if err != nil {
-		panic(err)
-	}
-
-	traceBytes := &tempopb.TraceBytes{
-		Traces: [][]byte{bytes},
-	}
-
-	return traceBytes
 }
 
 func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempopb.Trace {
