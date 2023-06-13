@@ -56,11 +56,11 @@ type BlockMeta struct {
 // be stored in a dedicated column instead of the generic attribute column.
 type DedicatedColumn struct {
 	// The Scope of the attribute: can be 'resource' or 'span'
-	Scope string `json:"scope"`
+	Scope string `yaml:"scope" json:"scope"`
 	// The Name of the attribute stored in the dedicated column
-	Name string `json:"name"`
+	Name string `yaml:"name" json:"name"`
 	// The Type of attribute value: only 'string' supported
-	Type string `json:"type"`
+	Type string `yaml:"type" json:"type"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {

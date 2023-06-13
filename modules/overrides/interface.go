@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type Service interface {
@@ -55,6 +56,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
+	DedicatedColumns(userID string) []backend.DedicatedColumn
 
 	// API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
