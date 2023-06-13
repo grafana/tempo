@@ -58,6 +58,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - refs/heads/r???
 ---
 depends_on: []
 kind: pipeline
@@ -118,6 +119,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - refs/heads/r???
 ---
 depends_on:
 - docker-amd64
@@ -167,6 +169,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - refs/heads/r???
 ---
 depends_on:
 - manifest
@@ -273,6 +276,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - refs/heads/r???
 ---
 depends_on: []
 kind: pipeline
@@ -422,6 +426,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: a21cc231bbdc856bdf15cc27e5d4e9006d1cb2f1f295dfb20156fe0726934861
+hmac: beb2593e403f909da214e906b27317f8df0ed24dea4d98d04ba27e985b1ea701
 
 ...
