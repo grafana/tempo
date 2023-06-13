@@ -19,6 +19,7 @@ local pipeline(name, arch='amd64') = {
       // weekly release branches
       'refs/heads/r?',
       'refs/heads/r??',
+      'refs/heads/r???',
     ],
   },
 };
