@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 
@@ -392,6 +394,10 @@ func (o *overrides) BlockRetention(userID string) time.Duration {
 // MaxSearchDuration is the duration of the max search duration for this tenant.
 func (o *overrides) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).MaxSearchDuration)
+}
+
+func (o *overrides) DedicatedColumns(userID string) []backend.DedicatedColumn {
+	return o.getOverridesForUser(userID).DedicatedColumns
 }
 
 func (o *overrides) getOverridesForUser(userID string) *Limits {
