@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -55,4 +57,5 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
+	DedicatedColumns(userID string) []backend.DedicatedColumn
 }

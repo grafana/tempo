@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/prometheus/client_golang/prometheus"
@@ -326,6 +328,76 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
 			//}
+		})
+	}
+}
+
+func TestTempoDBOverrides(t *testing.T) {
+
+	tests := []struct {
+		name                     string
+		limits                   Limits
+		overrides                *perTenantOverrides
+		expectedDedicatedColumns map[string][]backend.DedicatedColumn
+	}{
+		{
+			name: "limits",
+			limits: Limits{
+				DedicatedColumns: []backend.DedicatedColumn{
+					{Scope: "resource", Name: "namespace", Type: "string"},
+				},
+			},
+			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
+				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
+				"user2": {{Scope: "resource", Name: "namespace", Type: "string"}},
+			},
+		},
+		{
+			name: "basic overrides",
+			limits: Limits{
+				DedicatedColumns: []backend.DedicatedColumn{
+					{Scope: "resource", Name: "namespace", Type: "string"},
+				},
+			},
+			overrides: &perTenantOverrides{TenantLimits: map[string]*Limits{
+				"user2": {
+					DedicatedColumns: []backend.DedicatedColumn{{Scope: "span", Name: "http.status", Type: "int"}},
+				},
+			}},
+			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
+				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
+				"user2": {{Scope: "span", Name: "http.status", Type: "int"}},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.overrides != nil {
+				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
+
+				buff, err := yaml.Marshal(tc.overrides)
+				require.NoError(t, err)
+
+				err = os.WriteFile(overridesFile, buff, os.ModePerm)
+				require.NoError(t, err)
+
+				tc.limits.PerTenantOverrideConfig = overridesFile
+				tc.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
+			}
+
+			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
+			overrides, err := NewOverrides(tc.limits)
+			require.NoError(t, err)
+			err = services.StartAndAwaitRunning(context.TODO(), overrides)
+			require.NoError(t, err)
+
+			for user, expected := range tc.expectedDedicatedColumns {
+				assert.Equal(t, expected, overrides.DedicatedColumns(user))
+			}
+
+			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
 		})
 	}
 }
