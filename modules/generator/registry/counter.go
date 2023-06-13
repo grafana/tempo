@@ -123,18 +123,26 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	if activeSeries > 0 && c.series[0] != nil {
 		labelsCount = len(c.series[0].labels.names)
 	}
-	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
-	lb := labels.NewBuilder(lbls)
 
-	// set metric name
-	lb.Set(labels.MetricName, c.metricName)
-	// set external labels
+	// base labels
+	baseLabels := make(labels.Labels, 1+len(externalLabels)+labelsCount)
+
+	// add external labels
 	for name, value := range externalLabels {
-		lb.Set(name, value)
+		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
 	}
+
+	// add metric name
+	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: c.metricName})
+
+	lb := labels.NewBuilder(baseLabels)
 
 	for _, s := range c.series {
 		t := time.UnixMilli(timeMs)
+
+		// reset labels for every series
+		lb.Reset(baseLabels)
+
 		// set series-specific labels
 		for i, name := range s.labels.names {
 			lb.Set(name, s.labels.values[i])

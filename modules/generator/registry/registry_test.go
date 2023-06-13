@@ -134,7 +134,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 
 	cfg := &Config{
 		ExternalLabels: map[string]string{
-			"foo": "bar",
+			"__foo": "bar",
 		},
 	}
 	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
@@ -144,8 +144,8 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	counter.Inc(nil, 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "foo": "bar"}, 0, 0),
-		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "foo": "bar"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__foo": "bar"}, 0, 1),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
