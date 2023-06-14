@@ -40,7 +40,7 @@ However, the benefits of that approach are also too good to pass up, so we propo
 It is primarily a static schema but with some dynamic columns extracted from trace data based on some heuristics of frequently queried attributes.
 We plan to continue investing in this direction to implement a fully dynamic schema where trace attributes are blown out into independent Parquet columns at runtime.
 
-For more information, refer to the [Parquet design document](https://github.com/mdisibio/tempo/blob/design-proposal-parquet/docs/design-proposals/2022-04%20Parquet.md).
+For more information, refer to the [Parquet design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20Parquet.md)).
 
 ## Schema details
 
