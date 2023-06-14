@@ -47,7 +47,7 @@ The main goal for the next iteration of the block format `vParquet3` is to be ab
 To keep the scope small only the following features are implemented for now:
 
 * Only attributes with string values can be promoted to dedicated columns on resource and span level
-* Tenants can manually configure which attributes are promoted to dedicated columns
+* Attributes promoted to dedicated columns can be manually configured per tenant
 * Support for changing dedicated column configurations
   * Compactor treats different configs as different encodings
   * Queriers read blocks with different configured columns
