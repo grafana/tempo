@@ -382,9 +382,23 @@ func TestDedicatedColumns(t *testing.T) {
 	blockID, err := inst.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 
+	// TODO: This check should be included as part of the read path
+	inst.blocksMtx.RLock()
+	for _, b := range inst.completingBlocks {
+		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+	}
+	inst.blocksMtx.RUnlock()
+
 	// Complete block
 	err = inst.CompleteBlock(blockID)
 	require.NoError(t, err)
+
+	// TODO: This check should be included as part of the read path
+	inst.blocksMtx.RLock()
+	for _, b := range inst.completeBlocks {
+		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+	}
+	inst.blocksMtx.RUnlock()
 }
 
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
