@@ -43,7 +43,6 @@ This document describes how dedicated columns for span attributes will be implem
 
 ## Goals and requirements
 
-There are different ways dedicated columns for attributes can be added to Tempo's block format and how they are configured and tuned for the specific workload.
 The main goal for the next iteration of the block format `vParquet3` is to be able to manually configure dedicated attribute columns for very heavy workloads.
 To keep the scope small only the following features are implemented for now:
 
@@ -54,7 +53,7 @@ To keep the scope small only the following features are implemented for now:
   * Queriers read blocks with different configured columns
 * Provide tooling and documentation that enables tenants to find good attributes to promote to dedicated columns
   * Find attributes that contribute the most to block size
-  * (Stretch) Find attributes that are search the most by
+  * (Stretch) Find the most common used attributes in search
 
 Future iterations may support additional features:
 
@@ -167,7 +166,7 @@ What makes an attribute a good candidate will most likely vary from user to user
 From our analysis of Tempo blocks, we’ve found that attributes that occupy the most space in a block usually have the biggest impact on performance when promoted to dedicated columns.
 Even when queries don’t search by those attributes.
 
-A lot of work to help analyze parquet blocks has already been done in parquet-cli.
+A lot of work to help analyze parquet blocks has already been done in [parquet-cli](https://github.com/stoewer/parquet-cli).
 With this tool, we can inspect individual blocks and get aggregated data for the attributes present in a block,
 and the size that each represents in the generic `attr` columns.
 We can combine the capabilities of this tool with tempo-cli, which has better integration with Tempo backends.
