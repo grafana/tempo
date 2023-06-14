@@ -46,7 +46,7 @@ This document describes how dedicated columns for span attributes will be implem
 The main goal for the next iteration of the block format `vParquet3` is to be able to manually configure dedicated attribute columns for very heavy workloads.
 To keep the scope small only the following features are implemented for now:
 
-* Attributes with string values can be promoted to dedicated columns on resource and span level
+* Only attributes with string values can be promoted to dedicated columns on resource and span level
 * Tenants can manually configure which attributes are promoted to dedicated columns
 * Support for changing dedicated column configurations
   * Compactor treats different configs as different encodings
