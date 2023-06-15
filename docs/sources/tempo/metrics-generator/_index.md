@@ -21,10 +21,11 @@ Metrics-generator leverages the data available in Tempo's ingest path to provide
 
 The metrics-generator internally runs a set of **processors**.
 Each processor ingests spans and produces metrics.
-Every processor derives different metrics. Currently the following processors are available:
+Every processor derives different metrics. Currently, the following processors are available:
 
 - Service graphs
 - Span metrics
+- Remote writing metrics
 
 <p align="center"><img src="server-side-metrics-arch-overview.png" alt="Service metrics architecture"></p>
 
@@ -55,4 +56,4 @@ The `remote_write` endpoint is configurable and can be any [Prometheus-compatibl
 To learn more about the endpoint configuration, refer to the [Metrics-generator]({{< relref "../configuration#metrics-generator" >}}) section of the Tempo Configuration documentation.
 Writing interval can be controlled via `metrics_generator.registry.collection_interval`.
 
-When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the remote_write endpoint.
+When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the `remote_write` endpoint.
