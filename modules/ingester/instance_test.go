@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -722,4 +723,99 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 			Slice: buffer,
 		}},
 	}
+}
+
+func BenchmarkInstanceContention(t *testing.B) {
+	var (
+		ctx          = context.Background()
+		end          = make(chan struct{})
+		wg           = sync.WaitGroup{}
+		pushes       = 0
+		traceFlushes = 0
+		blockFlushes = 0
+		retentions   = 0
+		finds        = 0
+		searches     = 0
+		searchBytes  = 0
+	)
+
+	i, ingester := defaultInstance(t)
+
+	concurrent := func(f func()) {
+		wg.Add(1)
+		defer wg.Done()
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+	go concurrent(func() {
+		request := makeRequestWithByteLimit(10_000, nil)
+		err := i.PushBytesRequest(ctx, request)
+		require.NoError(t, err, "error pushing traces")
+		pushes++
+	})
+
+	go concurrent(func() {
+		err := i.CutCompleteTraces(0, true)
+		require.NoError(t, err, "error cutting complete traces")
+		traceFlushes++
+	})
+
+	go concurrent(func() {
+		blockID, _ := i.CutBlockIfReady(0, 0, false)
+		if blockID != uuid.Nil {
+			err := i.CompleteBlock(blockID)
+			require.NoError(t, err, "unexpected error completing block")
+			err = i.ClearCompletingBlock(blockID)
+			require.NoError(t, err, "unexpected error clearing wal block")
+			block := i.GetBlockToBeFlushed(blockID)
+			require.NotNil(t, block)
+			err = ingester.store.WriteBlock(ctx, block)
+			require.NoError(t, err, "error writing block")
+			//release()
+		}
+		blockFlushes++
+	})
+
+	go concurrent(func() {
+		err := i.ClearFlushedBlocks(0)
+		require.NoError(t, err, "error clearing flushed blocks")
+		retentions++
+	})
+
+	go concurrent(func() {
+		_, err := i.FindTraceByID(ctx, []byte{0x01})
+		require.NoError(t, err, "error finding trace by id")
+		finds++
+	})
+
+	go concurrent(func() {
+		x, err := i.Search(ctx, &tempopb.SearchRequest{
+			Query: "{ .foo=`bar` }",
+		})
+		require.NoError(t, err, "error searching traceql")
+		searchBytes += int(x.Metrics.InspectedBytes)
+		searches++
+	})
+
+	time.Sleep(2 * time.Second)
+	close(end)
+	wg.Wait()
+
+	report := func(n int, u string) {
+		t.ReportMetric(float64(n)/t.Elapsed().Seconds(), u+"/sec")
+	}
+
+	report(pushes, "pushes")
+	report(traceFlushes, "traceflushes")
+	report(blockFlushes, "blockflushes")
+	report(retentions, "retentions")
+	report(finds, "finds")
+	report(searches, "searches")
+	report(searchBytes, "searchedBytes")
 }

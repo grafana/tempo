@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/search"
@@ -41,13 +42,29 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	sr := search.NewResults()
 	defer sr.Close() // signal all running workers to quit
 
-	// Lock blocks mutex until all search tasks have been created. This avoids
+	// Lock headblock separately from other blocks and release it as soon as this
+	// subtask is finished.
+	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
+	// To avoid deadlocks this function and all others must acquire them in
+	// the ** same_order ** or else. i.e. another function can't acquire blocksMtx
+	// then headblockMtx. Even if the likelihood is low it is a statical certainly
+	// that eventually a deadlock will occur.
+	i.headBlockMtx.RLock()
+	i.searchBlock(ctx, req, sr, i.headBlock.BlockMeta().BlockID, i.headBlock, i.headBlockMtx.RUnlock)
+
+	// Lock blocks mutex until all search tasks are finished and this function exists. This avoids
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
-	i.searchWAL(ctx, req, sr)
-	i.searchLocalBlocks(ctx, req, sr)
-	i.blocksMtx.RUnlock()
+	defer i.blocksMtx.RUnlock()
+
+	for _, b := range i.completingBlocks {
+		i.searchBlock(ctx, req, sr, b.BlockMeta().BlockID, b, nil)
+	}
+
+	for _, b := range i.completeBlocks {
+		i.searchBlock(ctx, req, sr, b.BlockMeta().BlockID, b, nil)
+	}
 
 	sr.AllWorkersStarted()
 
@@ -83,15 +100,20 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}, nil
 }
 
-// searchWAL starts a search task for every WAL block. Must be called under lock.
-func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
-	searchWalBlock := func(b common.WALBlock) {
-		blockID := b.BlockMeta().BlockID.String()
-		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALBlock", opentracing.Tags{
-			"blockID": blockID,
-		})
-		defer span.Finish()
+// searchLocalBlocks starts a search task for every local block. Must be called under lock.
+func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results, blockID uuid.UUID, block common.Searcher, cleanup func()) {
+	sr.StartWorker()
+	go func(e common.Searcher, cleanup func()) {
+		if cleanup != nil {
+			defer cleanup()
+		}
 		defer sr.FinishWorker()
+
+		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
+		defer span.Finish()
+
+		span.LogFields(ot_log.Event("local block entry mtx acquired"))
+		span.SetTag("blockID", blockID)
 
 		var resp *tempopb.SearchResponse
 		var err error
@@ -101,92 +123,30 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return b.Fetch(ctx, req, opts)
+				return e.Fetch(ctx, req, opts)
 			}))
 		} else {
-			resp, err = b.Search(ctx, req, opts)
+			resp, err = e.Search(ctx, req, opts)
 		}
 
 		if err == common.ErrUnsupported {
-			level.Warn(log.Logger).Log("msg", "wal block does not support search", "blockID", b.BlockMeta().BlockID)
+			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockID)
 			return
 		}
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "block_version", b.BlockMeta().Version, "err", err)
+			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 			sr.SetError(err)
 			return
 		}
 
+		for _, t := range resp.Traces {
+			sr.AddResult(ctx, t)
+		}
 		sr.AddBlockInspected()
+
 		sr.AddBytesInspected(resp.Metrics.InspectedBytes)
 		sr.AddTraceInspected(resp.Metrics.InspectedTraces)
-		for _, r := range resp.Traces {
-			sr.AddResult(ctx, r)
-		}
-	}
-
-	// head block
-	if i.headBlock != nil {
-		sr.StartWorker()
-		go searchWalBlock(i.headBlock)
-	}
-
-	// completing blocks
-	for _, b := range i.completingBlocks {
-		sr.StartWorker()
-		go searchWalBlock(b)
-	}
-}
-
-// searchLocalBlocks starts a search task for every local block. Must be called under lock.
-func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
-	// next check all complete blocks to see if they were not searched, if they weren't then attempt to search them
-	for _, e := range i.completeBlocks {
-		sr.StartWorker()
-		go func(e *localBlock) {
-			defer sr.FinishWorker()
-
-			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
-			defer span.Finish()
-
-			blockID := e.BlockMeta().BlockID.String()
-
-			span.LogFields(ot_log.Event("local block entry mtx acquired"))
-			span.SetTag("blockID", blockID)
-
-			var resp *tempopb.SearchResponse
-			var err error
-
-			opts := common.DefaultSearchOptions()
-			if api.IsTraceQLQuery(req) {
-				// note: we are creating new engine for each wal block,
-				// and engine.ExecuteSearch is parsing the query for each block
-				resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-					return e.Fetch(ctx, req, opts)
-				}))
-			} else {
-				resp, err = e.Search(ctx, req, opts)
-			}
-
-			if err == common.ErrUnsupported {
-				level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", e.BlockMeta().BlockID)
-				return
-			}
-			if err != nil {
-				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
-				sr.SetError(err)
-				return
-			}
-
-			for _, t := range resp.Traces {
-				sr.AddResult(ctx, t)
-			}
-			sr.AddBlockInspected()
-
-			sr.AddBytesInspected(resp.Metrics.InspectedBytes)
-			sr.AddTraceInspected(resp.Metrics.InspectedTraces)
-		}(e)
-	}
+	}(block, cleanup)
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
@@ -226,13 +186,16 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 		return nil
 	}
 
+	i.headBlockMtx.RLock()
+	err = search(i.headBlock, distinctValues)
+	i.headBlockMtx.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+	}
+
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
-	// search parquet wal/completing blocks/completed blocks
-	if err = search(i.headBlock, distinctValues); err != nil {
-		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
-	}
 	for _, b := range i.completingBlocks {
 		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
@@ -340,13 +303,16 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil
 	}
 
+	i.headBlockMtx.RLock()
+	err = search(i.headBlock, distinctValues)
+	i.headBlockMtx.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+	}
+
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
-	// search parquet wal/completing blocks/completed blocks
-	if err = search(i.headBlock, distinctValues); err != nil {
-		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
-	}
 	for _, b := range i.completingBlocks {
 		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
@@ -456,6 +422,24 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 	}
 
+	// head block
+	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
+	// To avoid deadlocks this function and all others must acquire them in
+	// the ** same_order ** or else. i.e. another function can't acquire blocksMtx
+	// then headblockMtx. Even if the likelihood is low it is a statical certainly
+	// that eventually a deadlock will occur.
+	i.headBlockMtx.RLock()
+	if i.headBlock != nil {
+		wg.Add(1)
+		go func() {
+			defer i.headBlockMtx.RUnlock()
+			defer wg.Done()
+			if err := searchBlock(i.headBlock); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
+			}
+		}()
+	}
+
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
@@ -479,17 +463,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
-	}
-
-	// head block
-	if i.headBlock != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := searchBlock(i.headBlock); err != nil {
-				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
-			}
-		}()
 	}
 
 	wg.Wait()
