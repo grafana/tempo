@@ -3,7 +3,7 @@ aliases:
 - /docs/tempo/latest/metrics-generator/active-series
 title: Active series
 menuTitle: Active series
-description:
+description: Learn about active series and how they are calculated.
 weight: 100
 ---
 

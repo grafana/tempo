@@ -1,9 +1,9 @@
 ---
 aliases:
 - /docs/tempo/latest/metrics-generator/cardinality
-title: Metrics generation and cardinality
+title: Cardinality
 menuTitle: Cardinality
-description:
+description: What is cardinality and how it is impacted by metrics generation?
 weight: 100
 ---
 
@@ -16,7 +16,7 @@ Because writes are series, high cardinality does not make a big difference. Howe
 
 Cardinality can pose a problem when you have many services.
 There isn't a direct formula or solution to this issue.
-The following guide should help estimate the cardinality that the feature will generate.
+The following guide should help estimate the cardinality that metrics generator will create.
 
 ## Traces collection and metrics
 
@@ -29,14 +29,14 @@ Tempo’s server-side metrics generation adds functionality to the collection of
 The metrics generator also allows you to create metrics which define the relationship between services via edges and nodes.
 Each of these metrics are queryable via a set of Prometheus labels (key/value pairs).
 
-Each new value for a label increases the number of active series associated with a metric. (To learn more about active series, see the [Trace active series]({{< relref "active-series" >}}) documentation.)
+Each new value for a label increases the number of active series associated with a metric. (To learn more about active series, see the [Trace active series]({{< relref "./active-series" >}}) documentation.)
 
 This is also known as an increase in cardinality, and the number of active series generated for a metric is directly proportional to the number of labels that exist for that metrics alongside the number of values each label has added.
 
 In a non-modified instance of the metrics generator, there are a small number of labels that are added automatically.
 Because labels like `span_kind` and `status_code` only have a small number of valid values, the largest variable for the number of active series produced for each metric will depend on the number of service names and span names associated with trace spans.
 
-The metrics generator can also be configured to also add extra labels on metrics, using span attribute key/value pairs which are mapped directly to these labels see the [custom span attribute documentation]({{< relref "../configuration/#metrics-generator" >}}).
+The metrics generator can also be configured to also add extra labels on metrics, using span attribute key/value pairs which are mapped directly to these labels see the [custom span attribute documentation]({{< relref "../configuration#metrics-generator" >}}).
 
 Be careful when configuring custom attributes: the greater the number of values seen in a specific attribute, the greater the number of active series will be produced.
 
@@ -55,7 +55,7 @@ For example:
 We can’t calculate the amount of hops automatically based upon the nodes,
 but it should be a value between `#services - 1` and `#services!`.
 
-If we know the amount of hops in a system, we can calculate the cardinality of the generated service graphs:
+If we know the amount of hops in a system, we can calculate the cardinality of the generated [service graphs]({{< relref "./service-graphs" >}}):
 
 ```
   traces_service_graph_request_total: #hops

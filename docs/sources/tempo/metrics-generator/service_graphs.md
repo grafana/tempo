@@ -44,7 +44,7 @@ Each emitted metrics series have the `client` and `server` label corresponding w
   tempo_service_graph_request_total{client="app", server="db", connection_type="database"} 20
 ```
 
-#### Virtual nodes
+### Virtual nodes
 
 Virtual nodes are nodes that form part of the lifecycle of a trace,
 but spans for them are not being collected because they're outside the user's reach (for example, an external service for payment processing) or are not instrumented (for example, a frontend application).
@@ -85,11 +85,16 @@ Service graphs are generated in Tempo and pushed to a metrics storage.
 Then, they can be represented in Grafana as a graph.
 You will need those components to fully use service graphs.
 
-### Tempo
+{{ %admonition type="note" %}}
+Cardinality can pose a problem when you have lots of services.
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentaiton]({{< relref "./cardinality" >}}).
+{{% /admonition %}}
+
+### Enable service graphs in Tempo/GET
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `service-graphs` generator. See [here for configuration details]({{< relref "../configuration#metrics-generator" >}}).
 
-### Grafana
+### Enable service graphs in Grafana
 
 {{% admonition type="note" %}}
 Since Grafana 9.0.4, service graphs have been enabled by default. Prior to Grafana 9.0.4, service graphs were hidden
@@ -119,4 +124,3 @@ datasources:
         datasourceUid: 'prometheus'
     version: 1
 ```
-
