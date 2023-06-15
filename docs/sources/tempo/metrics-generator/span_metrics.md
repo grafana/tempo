@@ -40,6 +40,10 @@ Dimensions can be the service name, the operation, the span kind, the status cod
 
 This processor is designed with the goal to mirror the implementation from the OpenTelemetry Collector of the [processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor) with the same name.
 
+{{ %admonition type="note" %}}
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentaiton]({{< relref "./cardinality" >}}).
+{{% /admonition %}}
+
 ### Metrics
 
 The following metrics are exported:
@@ -79,7 +83,7 @@ Custom labeling of dimensions is also supported using the [`dimension_mapping` c
 
 An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration#metrics-generator" >}}).
 
-If you use ratio based sampler you can use custom sampler below to not lose metric information, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`
+If you use the ratio-based sampler, you can use custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
 
 ```go
 package tracer

@@ -87,7 +87,7 @@ You will need those components to fully use service graphs.
 
 {{ %admonition type="note" %}}
 Cardinality can pose a problem when you have lots of services.
-To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentaiton]({{< relref "./cardinality" >}}).
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "./cardinality" >}}).
 {{% /admonition %}}
 
 ### Enable service graphs in Tempo/GET
