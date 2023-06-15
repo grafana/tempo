@@ -41,7 +41,7 @@ Dimensions can be the service name, the operation, the span kind, the status cod
 This processor is designed with the goal to mirror the implementation from the OpenTelemetry Collector of the [processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor) with the same name.
 
 {{ %admonition type="note" %}}
-To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentaiton]({{< relref "./cardinality" >}}).
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "./cardinality" >}}).
 {{% /admonition %}}
 
 ### Metrics
