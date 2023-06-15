@@ -171,7 +171,15 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
+	if t.cfg.LimitsConfig.UserConfigurableOverridesConfig.Enabled {
+		// do whatever we want to do when user config overrides are enabled??
+		// FIXME: initUserConfigrableOverrides??
+
+	}
+
+	// FIXME: figure this out??
 	// TODO register endpoints for user-config overrides
+	// t.Server.HTTP.Handle("/overrides", overridesHandler)
 
 	return t.Overrides, nil
 }
@@ -333,6 +341,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// http metrics endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
+
+	// overrides endpoints
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathOverrides), overridesHandler(t.cfg.LimitsConfig, t.Overrides))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(nil)
@@ -552,5 +563,33 @@ func usageStatsHandler(urCfg usagestats.Config) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, reportStr)
+	}
+}
+
+func overridesHandler(lCfg overrides.Limits, overrides overrides.Service) http.HandlerFunc {
+	// check if user configurable overrides are enabled?
+	if !lCfg.UserConfigurableOverridesConfig.Enabled {
+		// do something related to user config overrides??
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "User Configurable Overrides are not enabled", http.StatusOK)
+		}
+	}
+
+	if overrides == nil {
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "overrides module not loaded in", http.StatusOK)
+		}
+	}
+
+	// FIXME: /status/runtime_config already exposes runtime config using WriteStatusRuntimeConfig method??
+	// should we UserConfigurableOverridesConfig via that endpoint as well??
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+
+		// FIXME: return UserConfigurableOverdies as well??
+		// FIXME: return json instead of yaml??
+		w.Header().Set("Content-Type", "text/plain")
+		overrides.WriteStatusRuntimeConfig(w, r)
 	}
 }

@@ -361,6 +361,7 @@ func (t *App) statusHandler() http.HandlerFunc {
 
 			switch endpoint {
 			case "runtime_config":
+				// FIXME: this should also include UserConfigurableOverridesConfig
 				err := t.writeRuntimeConfig(&msg, r)
 				if err != nil {
 					errs = append(errs, err)

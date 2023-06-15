@@ -59,7 +59,9 @@ type UserConfigOverridesConfig struct {
 func (cfg *UserConfigOverridesConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	cfg.ReloadPeriod = time.Minute
 
+	// FIXME:
 	// TODO should we configure a default backend?
+	// I think we should error out if no backend is configured??
 }
 
 // UserConfigOverridesManager can store user-configurable overrides on a bucket.
@@ -97,14 +99,14 @@ func NewUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service)
 		w:            writer,
 	}
 
-	service := services.NewBasicService(mgr.starting, mgr.loop, mgr.stopping)
-
-	mgr.subservices, err = services.NewManager(subOverrides, service)
+	mgr.subservices, err = services.NewManager(subOverrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subservices: %w", err)
 	}
 	mgr.subservicesWatcher = services.NewFailureWatcher()
 	mgr.subservicesWatcher.WatchManager(mgr.subservices)
+
+	mgr.Service = services.NewBasicService(mgr.starting, mgr.loop, mgr.stopping)
 
 	return &mgr, nil
 }
@@ -165,6 +167,9 @@ func (o *UserConfigOverridesManager) refreshAllTenantLimits(ctx context.Context)
 	// TODO to avoid polling the entire bucket, use a tenant list and keep it in a shared cache
 	tenants, err := o.r.List(ctx, []string{overridesKeyPath})
 	if err != nil {
+		// FIXME: we fail to boot tempo with this error when running with local backend??
+		// List call fails with no such file or directory when configured directory doesn't exists??
+		// can we check this before we get here? maybe in config validation??
 		return errors.Wrap(err, "failed to list tenants")
 	}
 
@@ -243,6 +248,7 @@ func (o *UserConfigOverridesManager) SetLimits(ctx context.Context, userID strin
 
 // DeleteLimits will clear all user configurable limits for the given tenant
 func (o *UserConfigOverridesManager) DeleteLimits(ctx context.Context, userID string) error {
+	// FIXME: add delete method in all backends??
 	// TODO properly delete from the bucket, hacky workaround to clear limits
 	//   we should implement and use a Delete function
 	// err = o.w.Delete(ctx, overridesFileName, []string{userID})
