@@ -77,6 +77,8 @@ type BlockMeta struct {
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by parquet)
 	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
+	// DedicatedColumnsHash is a hash of the dedicated columns configuration (used by vParquet3)
+	DedicatedColumnsHash uint64 // TODO: How to keep this in sync with the actual config?
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -96,14 +98,15 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 
 func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns []DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
-		Version:          version,
-		BlockID:          blockID,
-		MinID:            []byte{},
-		MaxID:            []byte{},
-		TenantID:         tenantID,
-		Encoding:         encoding,
-		DataEncoding:     dataEncoding,
-		DedicatedColumns: dedicatedColumns,
+		Version:              version,
+		BlockID:              blockID,
+		MinID:                []byte{},
+		MaxID:                []byte{},
+		TenantID:             tenantID,
+		Encoding:             encoding,
+		DataEncoding:         dataEncoding,
+		DedicatedColumns:     dedicatedColumns,
+		DedicatedColumnsHash: DedicatedColumns(dedicatedColumns).Hash(),
 	}
 
 	return b
@@ -137,23 +140,28 @@ func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
 	b.TotalObjects++
 }
 
+// TODO: Find a better way of comparing dedicated columns config
+
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
 
-// TODO: Find a better way of comparing dedicated columns config
+type DedicatedColumns []DedicatedColumn
 
-// DedicatedColumnsHash returns a hash of the dedicated columns' configuration.
-// Used for comparing the configuration of two blocks.
-func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+func (c DedicatedColumns) Hash() uint64 {
+	return hashColumns(c)
+}
+
+func hashColumns(d []DedicatedColumn) uint64 {
+	if len(d) == 0 {
+		return 0
+	}
 	h := xxhash.New()
-
-	for _, c := range b.DedicatedColumns {
+	for _, c := range d {
 		_, _ = h.WriteString(string(c.Scope))
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(c.Name)
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(string(c.Type))
 	}
-
 	return h.Sum64()
 }
