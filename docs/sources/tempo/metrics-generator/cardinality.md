@@ -55,7 +55,8 @@ For example:
 We can’t calculate the amount of hops automatically based upon the nodes,
 but it should be a value between `#services - 1` and `#services!`.
 
-If we know the amount of hops in a system, we can calculate the cardinality of the generated [service graphs]({{< relref "./service-graphs" >}}):
+If we know the amount of hops in a system, we can calculate the cardinality of the generated
+[service graphs]({{< relref "./service_graphs" >}}):
 
 ```
   traces_service_graph_request_total: #hops
