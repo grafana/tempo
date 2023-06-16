@@ -3,7 +3,7 @@ title: Service graph view
 menuTitle: Service graph view
 aliases:
 - /docs/tempo/latest/metrics-generator/app-performance-mgmt
-weight: 200
+weight: 400
 ---
 
 # Service graph view
