@@ -4,7 +4,7 @@ aliases:
 - /docs/tempo/latest/metrics-generator/service_graphs/
 title: Service graphs
 description: Service graphs help you understand the structure of a distributed system and the connections and dependencies between its components.
-weight: 500
+weight: 300
 ---
 
 # Service graphs
@@ -26,7 +26,7 @@ and the connections and dependencies between its components:
 
 ## How they work
 
-The metrics-generator processes traces and generates service graphs in the form of prometheus metrics.
+The metrics-generator processes traces and generates service graphs in the form of Prometheus metrics.
 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/README.md) to detect a myriad of requests.
@@ -44,7 +44,7 @@ Each emitted metrics series have the `client` and `server` label corresponding w
   tempo_service_graph_request_total{client="app", server="db", connection_type="database"} 20
 ```
 
-#### Virtual nodes
+### Virtual nodes
 
 Virtual nodes are nodes that form part of the lifecycle of a trace,
 but spans for them are not being collected because they're outside the user's reach (for example, an external service for payment processing) or are not instrumented (for example, a frontend application).
@@ -79,27 +79,28 @@ Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
 
-## Cardinality
+## Estimate cardinality from traces
 
 Cardinality can pose a problem when you have lots of services.
 There isn't a direct formula or solution to this issue.
-But the following guide should help estimate the cardinality that the feature will generate.
+The following guide should help estimate the cardinality that the feature will generate.
+
+For more information on cardinality, refer to the [Cardinality]({{< relref "./cardinality" >}}) documentation.
 
 ### How to estimate the cardinality
-
-#### Cardinality from traces
 
 The amount of edges depends on the number of nodes in the system and the direction of the requests between them.
 Let’s call this amount hops. Every hop will be a unique combination of client + server labels.
 
 For example:
 - A system with 3 nodes `(A, B, C)` of which A only calls B and B only calls C will have 2 hops `(A → B, B → C)`
-- A system with 3 nodes `(A, B, C)` that call each other (i.e. all bidirectional links somehow) will have 6 hops `(A → B, B → A, B → C, C → B, A → C, C → A)`
+- A system with 3 nodes `(A, B, C)` that call each other (i.e., all bidirectional link) will have 6 hops `(A → B, B → A, B → C, C → B, A → C, C → A)`
 
 We can’t calculate the amount of hops automatically based upon the nodes,
 but it should be a value between `#services - 1` and `#services!`.
 
-If we know the amount of hops in a system, we can calculate the cardinality of the generated service graphs:
+If we know the amount of hops in a system, we can calculate the cardinality of the generated
+[service graphs]({{< relref "./service_graphs" >}}):
 
 ```
   traces_service_graph_request_total: #hops
@@ -116,14 +117,9 @@ Finally, we get the following cardinality estimation:
   Sum: 8 * #hops + 2 * #services
 ```
 
-#### Dry-running the metrics-generator
-
-An often most reliable solution is by running the metrics-generator in a dry-run mode.
-That is generating metrics but not collecting them, thus not writing them to a metrics storage.
-The override `metrics_generator_disable_collection` is defined for this use-case.
-
-To get an estimate, run the metrics-generator normally and set the override to `true`.
-Then, check `tempo_metrics_generator_registry_active_series` to get an estimation of the active series for that set-up.
+{{% admonition type="note" %}}
+To estimate the number of metrics, refer to the [Dry run metrics generator]({{< relref "./cardinality" >}}) documentation.
+{{% /admonition %}}
 
 ## How to run
 
@@ -131,14 +127,21 @@ Service graphs are generated in Tempo and pushed to a metrics storage.
 Then, they can be represented in Grafana as a graph.
 You will need those components to fully use service graphs.
 
-### Tempo
+{{% admonition type="note" %}}
+Cardinality can pose a problem when you have lots of services.
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "./cardinality" >}}).
+{{% /admonition %}}
+
+### Enable service graphs in Tempo/GET
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `service-graphs` generator. See [here for configuration details]({{< relref "../configuration#metrics-generator" >}}).
 
-### Grafana
+### Enable service graphs in Grafana
 
-**Note** Since 9.0.4 service graphs have been enabled by default in Grafana. Prior to Grafana 9.0.4, service graphs were hidden
+{{% admonition type="note" %}}
+Since Grafana 9.0.4, service graphs have been enabled by default. Prior to Grafana 9.0.4, service graphs were hidden
 under the [feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana/#feature_toggles) `tempoServiceGraph`.
+{{% /admonition %}}
 
 Configure a Tempo data source's 'Service Graphs' by linking to the Prometheus backend where metrics are being sent:
 
@@ -163,4 +166,3 @@ datasources:
         datasourceUid: 'prometheus'
     version: 1
 ```
-

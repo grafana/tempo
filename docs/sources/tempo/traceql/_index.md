@@ -2,7 +2,7 @@
 title: TraceQL
 menuTitle: TraceQL
 description: Learn about TraceQL, Tempo's query language for traces
-weight: 450
+weight: 600
 aliases:
   - /docs/tempo/latest/traceql/
 keywords:
@@ -109,7 +109,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results. 
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -227,7 +227,7 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 
 ## Grouping
 
-TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to 
+TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to
 find someting like a single service with more than 1 error:
 
 ```
@@ -270,8 +270,8 @@ When using the same Grafana stack for multiple environments (e.g., `production` 
 ```
 {
   resource.service.namespace = "ecommerce" &&
-  resource.service.name = "frontend" &&  
-  resource.deployment.environment = "production" && 
+  resource.service.name = "frontend" &&
+  resource.deployment.environment = "production" &&
   name = "POST /api/orders"
 }
 ```
@@ -282,8 +282,8 @@ This example finds all traces on the operation `POST /api/orders` that have an e
 
 ```
 {
-  resource.service.name="frontend" && 
-  name = "POST /api/orders" && 
+  resource.service.name="frontend" &&
+  name = "POST /api/orders" &&
   status = error
 }
 ```
@@ -292,8 +292,8 @@ This example finds all traces on the operation `POST /api/orders` that return wi
 
 ```
 {
-  resource.service.name="frontend" && 
-  name = "POST /api/orders" && 
+  resource.service.name="frontend" &&
+  name = "POST /api/orders" &&
   span.http.status_code >= 500
 }
 ```
@@ -309,8 +309,8 @@ This example locates all the traces of the `GET /api/products/{id}` operation th
 
 ### Find traces going through `production` and `staging` instances
 
-This example finds traces that go through `production` and `staging` instances. 
-It's a convenient request to identify misconfigurations and leaks across production and non-production environments. 
+This example finds traces that go through `production` and `staging` instances.
+It's a convenient request to identify misconfigurations and leaks across production and non-production environments.
 
 ```
 { resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
