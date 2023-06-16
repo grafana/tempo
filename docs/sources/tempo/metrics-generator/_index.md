@@ -13,7 +13,9 @@ Metrics-generator is an optional Tempo component that derives metrics from inges
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
 
->**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
+{{% admonition type="note" %}}
+Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
+{{% /admonition %}}
 
 ## Overview
 
@@ -28,7 +30,7 @@ Every processor derives different metrics. Currently, the following processors a
 
 <p align="center"><img src="server-side-metrics-arch-overview.png" alt="Service metrics architecture"></p>
 
-### Service graphs
+## Service graphs
 
 Service graphs are the representations of the relationships between services within a distributed system.
 
@@ -38,7 +40,7 @@ The amount of request and their duration are recorded as metrics, which are used
 
 To learn more about this processor, read the [documentation]({{< relref "./service_graphs" >}}).
 
-### Span metrics
+## Span metrics
 
 The span metrics processor derives RED (Request, Error and Duration) metrics from spans.
 
@@ -48,7 +50,7 @@ The more dimensions are enabled, the higher the cardinality of the generated met
 
 To learn more about this processor, read the [documentation]({{< relref "./span_metrics" >}}).
 
-### Remote writing metrics
+## Remote writing metrics
 
 The metrics-generator runs a Prometheus Agent that periodically sends metrics to a `remote_write` endpoint.
 The `remote_write` endpoint is configurable and can be any [Prometheus-compatible endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write).
