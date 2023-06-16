@@ -25,7 +25,6 @@ Every processor derives different metrics. Currently, the following processors a
 
 - Service graphs
 - Span metrics
-- Remote writing metrics
 
 <p align="center"><img src="server-side-metrics-arch-overview.png" alt="Service metrics architecture"></p>
 
