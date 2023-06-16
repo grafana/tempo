@@ -83,7 +83,7 @@ Custom labeling of dimensions is also supported using the [`dimension_mapping` c
 
 An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration#metrics-generator" >}}).
 
-If you use the ratio-based sampler, you can use custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
+If you use a ratio-based sampler, you can use the custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
 
 ```go
 package tracer

@@ -16,13 +16,13 @@ These capabilities rely on a set of generated span metrics and service metrics.
 
 Any spans that are ingested by Tempo could potentially create up to 13 metrics. However, this doesn't mean that every time a span is ingested that a new active series is created.
 
-The number of active series generated depends on the label pairs generated from span data that are associated with the metrics (just as any other Prometheus format data).
+The number of active series generated depends on the label pairs generated from span data that are associated with the metrics, similar to other Prometheus-formated data.
 
 For additional information, refer to the [Active series](/docs/grafana-cloud/billing-and-usage/active-series-and-dpm/#active-series) documentation. 
 
 ## Active series calculation
 
-Active series for a metric grow whenever a new value for a label key is introduced. For example, the `span_kind` label has a total of 5 possible values, and the `status_code` label has a total of 3 possible values.
+Active series for a metric increase when a new value for a label key is introduced. For example, the `span_kind` label has a total of five possible values, and the `status_code` label has a total of three possible values.
 
 At first glance, you might make an assumption that this means that at least 15 (5*3) active series will be generated for each span. But this isn't the case.
 

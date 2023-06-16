@@ -16,7 +16,7 @@ Traces are built from spans. Spans are constructed primarily of span and resourc
 A **span attribute** is a key/value pair that exposes context for the span that it exists within. For example, if the span deals with calling another service via HTTP, it could include the HTTP URL (maybe as the span attribute key `http.url`) and the HTTP status code returned (as the span attribute `http.status_code`). Span attributes can consist of varying, non-null types.
 
 Unlike a span attribute, a **resource attribute** is a key/value pair that is concerned around the context of the manner in which the span was collected.
-For example, this could a set of resource attributes concerning a Kubenetes cluster, in which case you may see resource attributes such as `k8s.namespace`, `k8s.container_name`, `k8s.cluster`, etc.
+For example, this could a set of resource attributes concerning a Kubernetes cluster, in which case you may see resource attributes, for example: `k8s.namespace`, `k8s.container_name`, and `k8s.cluster`.
 These can also include information on the libraries that were used to instrument the spans for a trace, or any other infrastructure information.
 
 For more information, read the [Attribute and Resource](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md) sections in the OpenTelemetry specification.
@@ -31,7 +31,7 @@ These can also be nested, for example `http.url.protocol` might be `HTTP` or `HT
 
 There are more details around semantic naming conventions which should be followed at the following link: https://opentelemetry.io/docs/specs/otel/common/attribute-naming/#recommendations-for-opentelemetry-authors
 
-Some third-party libraries already provide auto instrumentation that generate span and span attributes when included in a source base.
+Some third-party libraries already provide auto-instrumentation that generate span and span attributes when included in a source base.
 This alleviates the need for you to add spans and attributes for calling those libraries.
 
 For more information about instrumenting your app for tracing, refer to the [Instrument for distributed tracing](/docs/tempo/latest/getting-started/instrumentation/) documentation.
@@ -55,7 +55,7 @@ However, adding a span for each method or function call in that loop might not, 
 ## Tracing versus profiling
 
 Tracing provides an overview of tasks performed by an operation or set of work.
-Profiling provides a code-level view of the minutiae of what was going on.
+Profiling provides a code-level view of what was going on.
 Generally, tracing is done at a much higher level specific to one transaction, and profiling is sampled over time, aggregated over many transactions.
 
 The superpower of tracing is seeing how a thing in one program invoked another program.

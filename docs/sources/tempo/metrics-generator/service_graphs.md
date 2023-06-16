@@ -90,7 +90,7 @@ For more information on cardinality, refer to the [Cardinality]({{< relref "./ca
 ### How to estimate the cardinality
 
 The amount of edges depends on the number of nodes in the system and the direction of the requests between them.
-Let’s call this amount hops. Every hope will be a unique combination of client + server labels.
+Let’s call this amount hops. Every hop will be a unique combination of client + server labels.
 
 For example:
 - A system with 3 nodes `(A, B, C)` of which A only calls B and B only calls C will have 2 hops `(A → B, B → C)`
