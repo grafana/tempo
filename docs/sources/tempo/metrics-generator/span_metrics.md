@@ -7,7 +7,7 @@ description: The span metrics processor generates metrics from ingested tracing 
 weight: 200
 ---
 
-# Span metris
+# Span metrics
 
 The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 
