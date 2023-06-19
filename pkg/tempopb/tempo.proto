@@ -176,6 +176,8 @@ message Trace {
 
 // Write
 message PushResponse {
+  repeated int32 maxLiveErrorTraces = 1;
+  repeated int32 traceTooLargeErrorTraces = 2;
 }
 
 // PushBytesRequest pushes slices of traces, ids and searchdata. Traces are encoded using the
@@ -187,6 +189,8 @@ message PushBytesRequest {
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // search data, length must match traces
   repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+    // span count per trace
+  repeated bytes spanCounts = 5 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
 }
 
 message PushSpansRequest {

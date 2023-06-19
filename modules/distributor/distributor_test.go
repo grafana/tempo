@@ -1025,6 +1025,156 @@ func TestRateLimitRespected(t *testing.T) {
 	assert.True(t, status.Code() == codes.ResourceExhausted, "Wrong status code")
 }
 
+func TestDiscardCountReplicationFactor(t *testing.T) {
+	tt := []struct {
+		name                                string
+		liveTracesErrors                    [][]int32
+		traceTooLargeErrors                 [][]int32
+		replicationFactor                   int
+		expectedLiveTracesDiscardedCount    int
+		expectedTraceTooLargeDiscardedCount int
+	}{
+		{
+			name:                                "no responses",
+			liveTracesErrors:                    [][]int32{},
+			traceTooLargeErrors:                 [][]int32{},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "no error, minimum responses",
+			liveTracesErrors:                    [][]int32{{}, {}},
+			traceTooLargeErrors:                 [][]int32{{}, {}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "no error, max responses",
+			liveTracesErrors:                    [][]int32{{}, {}, {}},
+			traceTooLargeErrors:                 [][]int32{{}, {}, {}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "one error, minimum responses",
+			liveTracesErrors:                    [][]int32{{0}, {}},
+			traceTooLargeErrors:                 [][]int32{{1}, {}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    1,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "one error, max responses",
+			liveTracesErrors:                    [][]int32{{0}, {}, {}},
+			traceTooLargeErrors:                 [][]int32{{1}, {}, {}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "two errors, minimum responses",
+			liveTracesErrors:                    [][]int32{{0}, {0}},
+			traceTooLargeErrors:                 [][]int32{{1}, {1}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    1,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "two errors, max responses",
+			liveTracesErrors:                    [][]int32{{0}, {0}, {}},
+			traceTooLargeErrors:                 [][]int32{{1}, {1}, {}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    1,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "three errors, max responses",
+			liveTracesErrors:                    [][]int32{{0}, {0}, {0}},
+			traceTooLargeErrors:                 [][]int32{{1}, {1}, {1}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    1,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "three mix errors, max responses",
+			liveTracesErrors:                    [][]int32{{0}, {}, {0}},
+			traceTooLargeErrors:                 [][]int32{{}, {0}, {1}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "three mix trace errors, max responses",
+			liveTracesErrors:                    [][]int32{{}, {1, 2}, {}},
+			traceTooLargeErrors:                 [][]int32{{1}, {}, {2}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    1,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "one error rep factor 5 min (3) response",
+			liveTracesErrors:                    [][]int32{{1}, {}, {}},
+			traceTooLargeErrors:                 [][]int32{{2}, {}, {}},
+			replicationFactor:                   5,
+			expectedLiveTracesDiscardedCount:    1,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+		{
+			name:                                "one error rep factor 5 with 4 responses",
+			liveTracesErrors:                    [][]int32{{1}, {}, {}, {}},
+			traceTooLargeErrors:                 [][]int32{{2}, {}, {}, {}},
+			replicationFactor:                   5,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "replication factor 1",
+			liveTracesErrors:                    [][]int32{{}},
+			traceTooLargeErrors:                 [][]int32{{2}},
+			replicationFactor:                   1,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 1,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			traceByID := make([]*rebatchedTrace, 3)
+			// batch with 3 traces
+			traceByID[0] = &rebatchedTrace{
+				spanCount: 1,
+			}
+
+			traceByID[1] = &rebatchedTrace{
+				spanCount: 1,
+			}
+
+			traceByID[2] = &rebatchedTrace{
+				spanCount: 1,
+			}
+
+			numResponses := len(tc.liveTracesErrors)
+			responses := make([]*tempopb.PushResponse, 0, numResponses)
+
+			for index, errors := range tc.liveTracesErrors {
+				response := &tempopb.PushResponse{
+					MaxLiveErrorTraces:       errors,
+					TraceTooLargeErrorTraces: tc.traceTooLargeErrors[index],
+				}
+				responses = append(responses, response)
+			}
+
+			liveTraceDiscardedCount, traceTooLongDiscardedCount, _ := countDiscaredSpans(responses, traceByID, tc.replicationFactor)
+
+			require.Equal(t, tc.expectedLiveTracesDiscardedCount, liveTraceDiscardedCount)
+			require.Equal(t, tc.expectedTraceTooLargeDiscardedCount, traceTooLongDiscardedCount)
+		})
+	}
+}
+
 type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`

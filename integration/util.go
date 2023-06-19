@@ -20,6 +20,13 @@ import (
 	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -265,6 +272,31 @@ func TempoBackoff() backoff.Config {
 		MaxBackoff: time.Second,
 		MaxRetries: 300, // Sometimes the CI is slow ¯\_(ツ)_/¯
 	}
+}
+
+func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+	factory := otlpexporter.NewFactory()
+	exporterCfg := factory.CreateDefaultConfig()
+	otlpCfg := exporterCfg.(*otlpexporter.Config)
+	otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
+		Endpoint: endpoint,
+		TLSSetting: configtls.TLSClientSetting{
+			Insecure: true,
+		},
+	}
+	logger, _ := zap.NewDevelopment()
+	return factory.CreateTracesExporter(
+		context.Background(),
+		exporter.CreateSettings{
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         logger,
+				TracerProvider: trace.NewNoopTracerProvider(),
+				MeterProvider:  metric.NewNoopMeterProvider(),
+			},
+			BuildInfo: component.NewDefaultBuildInfo(),
+		},
+		otlpCfg,
+	)
 }
 
 func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
