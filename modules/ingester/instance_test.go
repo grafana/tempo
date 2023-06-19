@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -37,7 +38,7 @@ func TestInstance(t *testing.T) {
 
 	i, ingester := defaultInstance(t)
 
-	err := i.PushBytesRequest(context.Background(), request)
+	_, err := i.PushBytesRequest(context.Background(), request)
 	require.NoError(t, err)
 	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -171,7 +172,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	}
 	go concurrent(func() {
 		request := makeRequest([]byte{})
-		err := i.PushBytesRequest(context.Background(), request)
+		_, err := i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err, "error pushing traces")
 	})
 
@@ -306,8 +307,7 @@ func TestInstanceLimits(t *testing.T) {
 			require.NoError(t, err, "unexpected error creating new instance")
 
 			for j, push := range tt.pushes {
-				err = i.PushBytesRequest(context.Background(), push.req)
-
+				_, err := i.PushBytesRequest(context.Background(), push.req)
 				require.Equalf(t, push.expectsError, err != nil, "push %d failed: %w", j, err)
 			}
 		})
@@ -497,7 +497,7 @@ func TestInstanceMetrics(t *testing.T) {
 	count := 100
 	for j := 0; j < count; j++ {
 		request := makeRequest([]byte{})
-		err := i.PushBytesRequest(context.Background(), request)
+		_, err := i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err)
 	}
 	cutAndVerify(count)
@@ -531,24 +531,87 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	}
 
 	// Fill up trace to max
-	err = i.PushBytesRequest(ctx, req)
+	_, err = i.PushBytesRequest(ctx, req)
 	require.NoError(t, err)
 
 	// Pushing again fails
-	err = i.PushBytesRequest(ctx, req)
+	_, err = i.PushBytesRequest(ctx, req)
 	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, reqSize)).Error())
 
 	// Pushing still fails after flush
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	err = i.PushBytesRequest(ctx, req)
+	_, err = i.PushBytesRequest(ctx, req)
 	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, reqSize)).Error())
 
 	// Cut block and then pushing works again
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
-	err = i.PushBytesRequest(ctx, req)
+	_, err = i.PushBytesRequest(ctx, req)
 	require.NoError(t, err)
+}
+
+func TestInstancePartialSuccess(t *testing.T) {
+	ctx := context.Background()
+	maxTraceBytes := 1000
+
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTrace:      maxTraceBytes,
+		MaxLocalTracesPerUser: 2,
+	})
+	require.NoError(t, err)
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
+
+	delete(ingester.instances, testTenantID) // force recreate instance to reset limits
+	i, err := ingester.getOrCreateInstance(testTenantID)
+	require.NoError(t, err, "unexpected error creating new instance")
+
+	count := 5
+	ids := make([][]byte, 0, count)
+	for j := 0; j < count; j++ {
+		id := make([]byte, 16)
+		_, err := crand.Read(id)
+		require.NoError(t, err)
+		ids = append(ids, id)
+	}
+
+	// one with no error [0], two with trace_too_large [1,2], one with no error [3], one should trigger live_traces_exceeded [4]
+	multiMaxBytes := []int{maxTraceBytes - 300, maxTraceBytes + 200, maxTraceBytes + 200, maxTraceBytes - 300, maxTraceBytes - 200}
+	req := makePushBytesRequestMultiTraces(ids, multiMaxBytes)
+
+	// Pushing fails
+	// response should contain errors for both LIVE_TRACES_EXCEEDED and TRACE_TOO_LARGE
+	_, err = i.PushBytesRequest(ctx, req)
+	require.Error(t, err, "push byte request should fail")
+
+	require.Contains(t, err.Error(), overrides.ErrorPrefixTraceTooLarge)
+	require.Contains(t, err.Error(), overrides.ErrorPrefixLiveTracesExceeded)
+
+	// check that the two good ones actually made it
+	result, err := i.FindTraceByID(ctx, ids[0])
+	require.NoError(t, err, "error finding trace by id")
+	assert.Equal(t, 1, len(result.Batches))
+
+	result, err = i.FindTraceByID(ctx, ids[3])
+	require.NoError(t, err, "error finding trace by id")
+	assert.Equal(t, 1, len(result.Batches))
+
+	// check that the three traces that had errors did not actually make it
+	var expected *tempopb.Trace
+	result, err = i.FindTraceByID(ctx, ids[1])
+	require.NoError(t, err, "error finding trace by id")
+	assert.Equal(t, expected, result)
+
+	result, err = i.FindTraceByID(ctx, ids[2])
+	require.NoError(t, err, "error finding trace by id")
+	assert.Equal(t, expected, result)
+
+	result, err = i.FindTraceByID(ctx, ids[4])
+	require.NoError(t, err, "error finding trace by id")
+	assert.Equal(t, expected, result)
 }
 
 func TestSortByteSlices(t *testing.T) {
@@ -610,7 +673,7 @@ func BenchmarkInstancePush(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Rotate trace ID
 		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
-		err := instance.PushBytesRequest(context.Background(), request)
+		_, err := instance.PushBytesRequest(context.Background(), request)
 		require.NoError(b, err)
 	}
 }
@@ -621,7 +684,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := instance.PushBytesRequest(context.Background(), request)
+		_, err := instance.PushBytesRequest(context.Background(), request)
 		require.NoError(b, err)
 	}
 }
@@ -630,7 +693,7 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	instance, _ := defaultInstance(b)
 	traceID := test.ValidTraceID([]byte{1, 2, 3, 4, 5, 6, 7, 8})
 	request := makeRequest(traceID)
-	err := instance.PushBytesRequest(context.Background(), request)
+	_, err := instance.PushBytesRequest(context.Background(), request)
 	require.NoError(b, err)
 
 	// force the trace to be in a complete block
@@ -663,7 +726,7 @@ func benchmarkInstanceSearch(b testing.TB) {
 	instance, _ := defaultInstance(b)
 	for i := 0; i < 1000; i++ {
 		request := makeRequest(nil)
-		err := instance.PushBytesRequest(context.Background(), request)
+		_, err := instance.PushBytesRequest(context.Background(), request)
 		require.NoError(b, err)
 
 		if i%100 == 0 {
@@ -710,11 +773,7 @@ func makeRequest(traceID []byte) *tempopb.PushBytesRequest {
 // Note that this fn will generate a request with size **close to** maxBytes
 func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRequest {
 	traceID = test.ValidTraceID(traceID)
-	batch := test.MakeBatch(1, traceID)
-
-	for batch.Size() < maxBytes {
-		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, test.MakeSpanWithAttributeCount(traceID, 0))
-	}
+	batch := makeBatchWithMaxBytes(maxBytes, traceID)
 
 	return makePushBytesRequest(traceID, batch)
 }
@@ -727,12 +786,17 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 		panic(err)
 	}
 
+	spanCount, _ := tempo_util.HexStringToTraceID("1")
+
 	return &tempopb.PushBytesRequest{
 		Ids: []tempopb.PreallocBytes{{
 			Slice: traceID,
 		}},
 		Traces: []tempopb.PreallocBytes{{
 			Slice: buffer,
+		}},
+		SpanCounts: []tempopb.PreallocBytes{{
+			Slice: spanCount,
 		}},
 	}
 }
@@ -768,7 +832,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 	}
 	go concurrent(func() {
 		request := makeRequestWithByteLimit(10_000, nil)
-		err := i.PushBytesRequest(ctx, request)
+		_, err := i.PushBytesRequest(ctx, request)
 		require.NoError(t, err, "error pushing traces")
 		pushes++
 	})
@@ -837,4 +901,62 @@ func BenchmarkInstanceContention(t *testing.B) {
 	report(searches, "searches")
 	report(searchBytes, "searchedBytes")
 	report(searchTags, "searchTags")
+}
+
+func makeBatchWithMaxBytes(maxBytes int, traceID []byte) *v1_trace.ResourceSpans {
+	traceID = test.ValidTraceID(traceID)
+	batch := test.MakeBatch(1, traceID)
+
+	for batch.Size() < maxBytes {
+		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, test.MakeSpanWithAttributeCount(traceID, 0))
+	}
+
+	return batch
+}
+
+func makeTraces(batches []*v1_trace.ResourceSpans) []*tempopb.Trace {
+	traces := make([]*tempopb.Trace, 0, len(batches))
+	for _, batch := range batches {
+		traces = append(traces, &tempopb.Trace{Batches: []*v1_trace.ResourceSpans{batch}})
+	}
+
+	return traces
+}
+
+func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb.PushBytesRequest {
+	batches := make([]*v1_trace.ResourceSpans, 0, len(traceIDs))
+	for index, id := range traceIDs {
+		batch := makeBatchWithMaxBytes(maxBytes[index], id)
+		batches = append(batches, batch)
+	}
+	traces := makeTraces(batches)
+
+	byteIDs := make([]tempopb.PreallocBytes, 0, len(traceIDs))
+	byteTraces := make([]tempopb.PreallocBytes, 0, len(traceIDs))
+	byteSpanCounts := make([]tempopb.PreallocBytes, 0, len(traceIDs))
+
+	for index, id := range traceIDs {
+		buffer, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[index], 0, 0)
+		if err != nil {
+			panic(err)
+		}
+
+		spanCount, _ := tempo_util.HexStringToTraceID("1")
+
+		byteIDs = append(byteIDs, tempopb.PreallocBytes{
+			Slice: id,
+		})
+		byteTraces = append(byteTraces, tempopb.PreallocBytes{
+			Slice: buffer,
+		})
+		byteSpanCounts = append(byteSpanCounts, tempopb.PreallocBytes{
+			Slice: spanCount,
+		})
+	}
+
+	return &tempopb.PushBytesRequest{
+		Ids:        byteIDs,
+		Traces:     byteTraces,
+		SpanCounts: byteSpanCounts,
+	}
 }

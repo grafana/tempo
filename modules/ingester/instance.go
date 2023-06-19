@@ -8,6 +8,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
@@ -40,6 +42,10 @@ type traceTooLargeError struct {
 	maxBytes, reqSize int
 }
 
+type pushError struct {
+	message string
+}
+
 func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) *traceTooLargeError {
 	return &traceTooLargeError{
 		traceID:    traceID,
@@ -53,6 +59,16 @@ func (e traceTooLargeError) Error() string {
 	return fmt.Sprintf(
 		"%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
 		overrides.ErrorPrefixTraceTooLarge, e.maxBytes, e.reqSize, hex.EncodeToString(e.traceID), e.instanceID)
+}
+
+func newPushError(format string, a ...interface{}) *pushError {
+	return &pushError{
+		message: fmt.Sprintf(format, a...),
+	}
+}
+
+func (p pushError) Error() string {
+	return fmt.Sprintf(p.message)
 }
 
 // Errors returned on Query.
@@ -154,14 +170,50 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 	return i, nil
 }
 
-func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
+func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	var errors util.MultiError
+
+	maxLiveErrorTraces := make([]int32, 0)
+	traceTooLargeErrorTraces := make([]int32, 0)
+	totalTracesDiscarded := 0
+
 	for j := range req.Traces {
+		index := int32(j)
+
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
-			return err
+			errorMessage := err.Error()
+			totalTracesDiscarded++
+
+			if strings.Contains(errorMessage, overrides.ErrorPrefixLiveTracesExceeded) {
+				maxLiveErrorTraces = append(maxLiveErrorTraces, index)
+				// only log one of each occurrence
+				if !strings.Contains(errors.Error(), overrides.ErrorPrefixLiveTracesExceeded) {
+					errors.Add(err)
+				}
+			}
+
+			if strings.Contains(errorMessage, overrides.ErrorPrefixTraceTooLarge) {
+				traceTooLargeErrorTraces = append(traceTooLargeErrorTraces, index)
+				// only log one of each occurrence
+				if !strings.Contains(errors.Error(), overrides.ErrorPrefixTraceTooLarge) {
+					errors.Add(err)
+				}
+			}
 		}
 	}
-	return nil
+
+	// at least one failure
+	if totalTracesDiscarded > 0 {
+		return &tempopb.PushResponse{
+			MaxLiveErrorTraces:       maxLiveErrorTraces,
+			TraceTooLargeErrorTraces: traceTooLargeErrorTraces,
+			Error:                    errors.Error(),
+		}, newPushError(errors.Error())
+	}
+
+	// no failure
+	return nil, nil
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -175,7 +227,7 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) 
 	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
 	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
+		return newPushError("%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
 	return i.push(ctx, id, traceBytes)
@@ -192,7 +244,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		prevSize := int(i.traceSizes[tkn])
 		reqSize := len(traceBytes)
 		if prevSize+reqSize > maxBytes {
-			return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error()))
+			return newPushError(newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error())
 		}
 	}
 
@@ -201,7 +253,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
 		if e, ok := err.(*traceTooLargeError); ok {
-			return status.Errorf(codes.FailedPrecondition, e.Error())
+			return newPushError(e.Error())
 		}
 		return err
 	}

@@ -241,12 +241,15 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 
 	instance, err := i.getOrCreateInstance(instanceID)
 	if err != nil {
+		level.Warn(log.Logger).Log(err.Error())
 		return nil, err
 	}
 
-	err = instance.PushBytesRequest(ctx, req)
-	if err != nil {
-		return nil, err
+	response, _ := instance.PushBytesRequest(ctx, req)
+	// distributor will determine if an error should be returned to the client
+	// for this step - so always return err = nil here
+	if response != nil {
+		return response, nil
 	}
 
 	return &tempopb.PushResponse{}, nil

@@ -8,6 +8,8 @@
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
+* [CHANGE] **Breaking Change** Fix issue where tempo drops the entire batch if one trace triggers an error [#2571](https://github.com/grafana/tempo/pull/2571) (@ie-pham)
+  Distributor now returns 200 for any batch containing only trace_too_large and max_live_traces errors
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
@@ -67,6 +69,8 @@ defaults:
 * [BUGFIX] Disable streaming over http by default. [#2803](https://github.com/grafana/tempo/pull/2803) (@joe-elliott)
 
 ## v2.2.0 / 2023-07-31
+
+## v2.2.0-rc0 / 2023-07-21
 
 * [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
