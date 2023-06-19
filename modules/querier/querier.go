@@ -1,19 +1,14 @@
 package querier
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"math/rand"
 	"net/http"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -31,10 +26,10 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/hedgedmetrics"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -58,19 +53,6 @@ var (
 		Name:      "querier_metrics_generator_clients",
 		Help:      "The current number of generator clients.",
 	})
-	metricEndpointDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "querier_external_endpoint_duration_seconds",
-		Help:      "The duration of the external endpoints.",
-		Buckets:   prometheus.DefBuckets,
-	}, []string{"endpoint"})
-	metricExternalHedgedRequests = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "tempo",
-			Name:      "querier_external_endpoint_hedged_roundtrips_total",
-			Help:      "Total number of hedged external requests. Registered as a gauge for code sanity. This is a counter.",
-		},
-	)
 )
 
 // Querier handlers queries.
@@ -89,7 +71,8 @@ type Querier struct {
 	store  storage.Store
 	limits overrides.Interface
 
-	searchClient     *http.Client
+	externalClient *external.Client
+
 	searchPreferSelf *semaphore.Weighted
 
 	subservices        *services.Manager
@@ -124,6 +107,16 @@ func New(
 		return generator_client.New(addr, generatorClientConfig)
 	}
 
+	externalClient, err := external.NewClient(external.Config{
+		HedgeRequestsAt:   cfg.Search.HedgeRequestsAt,
+		HedgeRequestsUpTo: cfg.Search.HedgeRequestsUpTo,
+		Backend:           cfg.Search.ExternalBackend,
+		Endpoints:         cfg.Search.ExternalEndpoints,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	ingesterPools := make([]*ring_client.Pool, 0, len(ingesterRings))
 	for i, ring := range ingesterRings {
 		pool := ring_client.NewPool(fmt.Sprintf("querier_pool_%d", i),
@@ -150,22 +143,7 @@ func New(
 		store:            store,
 		limits:           limits,
 		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
-		searchClient:     http.DefaultClient,
-	}
-
-	//
-	if cfg.Search.HedgeRequestsAt != 0 {
-		var err error
-		var stats *hedgedhttp.Stats
-		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(
-			cfg.Search.HedgeRequestsAt,
-			cfg.Search.HedgeRequestsUpTo,
-			http.DefaultClient,
-		)
-		if err != nil {
-			return nil, err
-		}
-		hedgedmetrics.Publish(stats, metricExternalHedgedRequests)
+		externalClient:   externalClient,
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -745,8 +723,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	}
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
-	endpoint := q.cfg.Search.ExternalEndpoints[rand.Intn(len(q.cfg.Search.ExternalEndpoints))]
-	return q.searchExternalEndpoint(ctx, endpoint, maxBytes, req)
+	return q.externalClient.Search(ctx, maxBytes, req)
 }
 
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
@@ -830,42 +807,6 @@ func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, r
 	}
 
 	return response
-}
-
-func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
-	}
-	req, err = api.BuildSearchBlockRequest(req, searchReq)
-	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
-	}
-	req = api.AddServerlessParams(req, maxBytes)
-	err = user.InjectOrgIDIntoHTTPRequest(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
-	}
-	start := time.Now()
-	resp, err := q.searchClient.Do(req)
-	metricEndpointDuration.WithLabelValues(externalEndpoint).Observe(time.Since(start).Seconds())
-	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to read body: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("external endpoint returned %d, %s", resp.StatusCode, string(body))
-	}
-	var searchResp tempopb.SearchResponse
-	err = jsonpb.Unmarshal(bytes.NewReader(body), &searchResp)
-	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s, %w", string(body), err)
-	}
-	return &searchResp, nil
 }
 
 func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries {

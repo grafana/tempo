@@ -24,6 +24,7 @@ type Config struct {
 type SearchConfig struct {
 	QueryTimeout      time.Duration `yaml:"query_timeout"`
 	PreferSelf        int           `yaml:"prefer_self"`
+	ExternalBackend   string        `yaml:"external_backend"`
 	ExternalEndpoints []string      `yaml:"external_endpoints"`
 	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
 	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
