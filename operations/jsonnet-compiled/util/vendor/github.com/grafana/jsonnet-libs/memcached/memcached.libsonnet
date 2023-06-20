@@ -33,6 +33,7 @@ k {
       std.max(self.memory_limit_mb * 1.5 * 1024 * 1024, self.memory_request_bytes),
     use_topology_spread:: false,
     topology_spread_max_skew:: 1,
+    extended_options:: [],
 
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
@@ -40,12 +41,15 @@ k {
     memcached_container::
       container.new('memcached', $._images.memcached) +
       container.withPorts([containerPort.new('client', 11211)]) +
-      container.withArgs([
-        '-m %(memory_limit_mb)s' % self,
-        '-I %(max_item_size)s' % self,
-        '-c %(connection_limit)s' % self,
-        '-v',
-      ]) +
+      container.withArgs(
+        [
+          '-m %(memory_limit_mb)s' % self,
+          '-I %(max_item_size)s' % self,
+          '-c %(connection_limit)s' % self,
+          '-v',
+        ] +
+        if std.length(self.extended_options) != 0 then ['--extended=' + std.join(',', self.extended_options)] else []
+      ) +
       $.util.resourcesRequests(self.cpu_requests, $.util.bytesToK8sQuantity(self.memory_request_bytes)) +
       $.util.resourcesLimits(self.cpu_limits, $.util.bytesToK8sQuantity(self.memory_limits_bytes)),
 
