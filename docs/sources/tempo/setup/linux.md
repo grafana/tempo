@@ -56,20 +56,20 @@ Consider adding a prefix for your organization to the bucket, for example, `myor
 For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
 
-1. Download the tempo binary, verify checksums, and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/tag/v1.5.0) for your OS and architecture:
+1. Download the Tempo binary, verify checksums (listed in `SHA256SUMS`), and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/) for your OS and architecture:
 
    ```bash
-   curl -Lo tempo_1.5.0_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v1.5.0/tempo_1.5.0_linux_amd64.deb
-   echo 967b06434252766e424eef997162ef89257fdb232c032369ad2e644920337a8c \
-     tempo_1.5.0_linux_amd64.deb | sha256sum -c
-   dpkg -i tempo_1.5.0_linux_amd64.deb
+   curl -Lo tempo_2.2.1_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.1.1/tempo_2.1.1_linux_amd64.deb
+   echo 6e031625b2046d360cf8c4897614523869f45b52286e4fb69e25811d2509b651 \
+     tempo_2.2.1_linux_amd64.deb | sha256sum -c
+   dpkg -i tempo_2.1.1_linux_amd64.deb
    ```
 
 ## Create a Tempo configuration file
 
 Copy the following YAML configuration to a file called `tempo.yaml`.
 
-Paste in your S3 credentials for admin_client and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name.
+Paste in your S3 credentials for `admin_client` and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name.
 
 Refer to the [Tempo configuration documentation]({{< relref "../configuration" >}}) for explanations of the available options.
 
