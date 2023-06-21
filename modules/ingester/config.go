@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // Config for an ingester.
@@ -27,7 +28,8 @@ type Config struct {
 	OverrideRingKey      string        `yaml:"override_ring_key"`
 	FlushAllOnShutdown   bool          `yaml:"flush_all_on_shutdown"`
 
-	AutocompleteFilteringEnabled bool `yaml:"-"`
+	DedicatedColumns             []backend.DedicatedColumn `yaml:"-"`
+	AutocompleteFilteringEnabled bool                      `yaml:"-"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
