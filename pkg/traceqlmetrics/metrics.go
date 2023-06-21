@@ -53,7 +53,7 @@ func (m *LatencyHistogram) Percentile(p float64) uint64 {
 
 	// Maximum amount of samples to include. We round up to better handle
 	// percentiles on low sample counts (<100).
-	maxSamples := int(math.Ceil(float64(p) * float64(m.Count())))
+	maxSamples := int(math.Ceil(p * float64(m.Count())))
 
 	// Find the bucket where the percentile falls in
 	// and the total sample count less than or equal
