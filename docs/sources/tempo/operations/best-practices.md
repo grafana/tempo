@@ -11,11 +11,8 @@ This page provides some general best practices for tracing.
 
 ## Span and resource attributes
 
-Traces are built from spans. Spans are constructed primarily of span and resource attributes. 
-Spans themselves denote units of work. This could be something that carries out some work within a service, or it could be a call from, or to, another service that is upstream or downstream.
+[Traces]({{< relref "../traces" >}}) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes. 
 Spans also have a hierarchy, where parent spans can have children or siblings.
-
-For more information about traces, refer to [What are traces?]({{< relref "../traces" >}}).
 
 <p align="center"><img src="getting-started/assets/trace-explore-spans.png" alt="Trace example"></p>
 
