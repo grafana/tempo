@@ -46,8 +46,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// subtask is finished.
 	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
 	// To avoid deadlocks this function and all others must acquire them in
-	// the ** same_order ** or else. i.e. another function can't acquire blocksMtx
-	// then headblockMtx. Even if the likelihood is low it is a statical certainly
+	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
+	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
 	i.searchBlock(ctx, req, sr, i.headBlock.BlockMeta().BlockID, i.headBlock, i.headBlockMtx.RUnlock)
@@ -100,7 +100,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}, nil
 }
 
-// searchLocalBlocks starts a search task for every local block. Must be called under lock.
+// searchBlock starts a search task for the given block. The block must already be under lock,
+// and this method calls cleanup to unlock the block when done.
 func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results, blockID uuid.UUID, block common.Searcher, cleanup func()) {
 	sr.StartWorker()
 	go func(e common.Searcher, cleanup func()) {
@@ -109,10 +110,10 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 		}
 		defer sr.FinishWorker()
 
-		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
+		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchBlock")
 		defer span.Finish()
 
-		span.LogFields(ot_log.Event("local block entry mtx acquired"))
+		span.LogFields(ot_log.Event("block entry mtx acquired"))
 		span.SetTag("blockID", blockID)
 
 		var resp *tempopb.SearchResponse
@@ -134,7 +135,7 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 			return
 		}
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
+			level.Error(log.Logger).Log("msg", "error searching block", "blockID", blockID, "err", err)
 			sr.SetError(err)
 			return
 		}
@@ -425,8 +426,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// head block
 	// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
 	// To avoid deadlocks this function and all others must acquire them in
-	// the ** same_order ** or else. i.e. another function can't acquire blocksMtx
-	// then headblockMtx. Even if the likelihood is low it is a statical certainly
+	// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
+	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
 	if i.headBlock != nil {

@@ -272,8 +272,8 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 		// Now that we are adding a new block take the blocks mutex.
 		// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
 		// To avoid deadlocks this function and all others must acquire them in
-		// the ** same_order ** or else. i.e. another function can't acquire blocksMtx
-		// then headblockMtx. Even if the likelihood is low it is a statical certainly
+		// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
+		// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 		// that eventually a deadlock will occur.
 		i.blocksMtx.Lock()
 		defer i.blocksMtx.Unlock()
