@@ -12,7 +12,9 @@ This page provides some general best practices for tracing.
 ## Span and resource attributes
 
 [Traces]({{< relref "../traces" >}}) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes. 
-Spans also have a hierarchy, where parent spans can have children or siblings.
+Spans also have a hierarchy, where parent spans can have children or siblings. 
+
+In the screenshot below, the left side of the screen (1) shows the list of results for the query. The right side (2) lists each span that makes up the selected trace. 
 
 <p align="center"><img src="getting-started/assets/trace-explore-spans.png" alt="Trace example"></p>
 
@@ -33,8 +35,7 @@ Attributes can also be nested, for example `http.url.protocol` might be `HTTP` o
 
 For more details around semantic naming conventions, refer to the [Recommendations for OpenTelemetry Authors](https://opentelemetry.io/docs/specs/otel/common/attribute-naming/#recommendations-for-opentelemetry-authors) documentation.
 
-Some third-party libraries already provide auto-instrumentation that generate span and span attributes when included in a source base.
-This alleviates the need for you to add spans and attributes for calling those libraries.
+Some third-party libraries provide auto-instrumentation that generate span and span attributes when included in a source base.
 
 For more information about instrumenting your app for tracing, refer to the [Instrument for distributed tracing](/docs/tempo/latest/getting-started/instrumentation/) documentation.
 
@@ -48,7 +49,7 @@ Creating a new span for any work that has a relatively significant duration allo
 For example, adding a span for a call to another services (either instrumented or not) may take an unknown amount of time to complete, and therefore being able to separate this work shows when services are taking longer than expected.
 
 Adding a span for a piece of work that might call many other functions in a loop is a good signal of how long that loop is taking (you might add a span attribute that counts how many time the loop runs to determine if the duration is acceptable).
-However, adding a span for each method or function call in that loop might not, as it might produce hundreds or thousands of spans that are essentially of no individual value.
+However, adding a span for each method or function call in that loop might not, as it might produce hundreds or thousands of worthless spans.
 
 ## Tracing versus profiling
 
