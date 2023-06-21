@@ -264,7 +264,11 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	p.blocksMtx.RLock()
 	defer p.blocksMtx.RUnlock()
 
-	var err error
+	var (
+		err       error
+		startNano = uint64(time.Unix(int64(req.Start), 0).UnixNano())
+		endNano   = uint64(time.Unix(int64(req.End), 0).UnixNano())
+	)
 
 	// Blocks to check
 	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
@@ -281,23 +285,39 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	m := traceqlmetrics.NewMetricsResults()
 	for _, b := range blocks {
 
-		// Including the trace count in the cache key means we can safely
-		// cache results for a wal block which can receive new data
-		key := fmt.Sprintf("b:%s-c:%d-q:%s-g:%s", b.BlockMeta().BlockID.String(), b.BlockMeta().TotalObjects, req.Query, req.GroupBy)
+		var (
+			meta       = b.BlockMeta()
+			blockStart = uint32(meta.StartTime.Unix())
+			blockEnd   = uint32(meta.EndTime.Unix())
+			// We can only cache the results of this query on this block
+			// if the time range fully covers this block (not partial).
+			cacheable = req.Start <= blockStart && req.End >= blockEnd
+			// Including the trace count in the cache key means we can safely
+			// cache results for a wal block which can receive new data
+			key = fmt.Sprintf("b:%s-c:%d-q:%s-g:%s", meta.BlockID.String(), meta.TotalObjects, req.Query, req.GroupBy)
+		)
 
-		r := p.metricsCacheGet(key)
+		var r *traceqlmetrics.MetricsResults
+
+		if cacheable {
+			r = p.metricsCacheGet(key)
+		}
+
+		// Uncacheable or not found in cache
 		if r == nil {
 
 			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, common.DefaultSearchOptions())
 			})
 
-			r, err = traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, f)
+			r, err = traceqlmetrics.GetMetrics(ctx, req.Query, req.GroupBy, 0, startNano, endNano, f)
 			if err != nil {
 				return nil, err
 			}
 
-			p.metricsCacheSet(key, r)
+			if cacheable {
+				p.metricsCacheSet(key, r)
+			}
 		}
 
 		m.Combine(r)
