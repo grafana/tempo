@@ -46,7 +46,7 @@ For more information about instrumenting your app for tracing, refer to the [Ins
 
 When instrumenting, determine the smallest piece of work that you need to observe in a trace to be of value to ensure that you don’t over (or under) instrument.
 
-When manually instrumenting, create a new span for any work that has a relatively significant duration. This allows the observation of a trace to immediately show where significant amounts of time are spent during the processing of a request into your application or system.
+Creating a new span for any work that has a relatively significant duration allows the observation of a trace to immediately show where significant amounts of time are spent during the processing of a request into your application or system.
 
 For example, adding a span for a call to another services (either instrumented or not) may take an unknown amount of time to complete, and therefore being able to separate this work shows when services are taking longer than expected.
 
