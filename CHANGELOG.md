@@ -53,6 +53,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
 * [BUGFIX] metrics-generator: ensure Prometheus will scale up shards when remote write is lagging behind [#2463](https://github.com/grafana/tempo/issues/2463) (@kvrhdn)
 * [BUGFIX] Fixes issue where matches and other spanset level attributes were not persisted to the TraceQL results. [#2490](https://github.com/grafana/tempo/pull/2490) 
+* [BUGFIX] Fixes issue where ingester search could occasionally fail with file does not exist error [#2534](https://github.com/grafana/tempo/issues/2534) (@mdisibio)
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
