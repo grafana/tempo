@@ -318,6 +318,8 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 		return
 	}
 
+	fmt.Println("start", start, "end", end)
+
 	// get block metadata of blocks in start, end duration
 	blocks = s.blockMetas(int64(start), int64(end), tenantID)
 
