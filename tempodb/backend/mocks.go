@@ -123,15 +123,15 @@ func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	return c.BlockMetaFn(blockID, tenantID)
 }
 
-func (m *MockCompactor) DeleteTenantIndex(ctx context.Context, tenantID string) error {
-	if m.DeleteTenantIndexCalls == nil {
-		m.DeleteTenantIndexCalls = make(map[string]int)
+func (c *MockCompactor) DeleteTenantIndex(ctx context.Context, tenantID string) error {
+	if c.DeleteTenantIndexCalls == nil {
+		c.DeleteTenantIndexCalls = make(map[string]int)
 	}
 
-	if _, ok := m.DeleteTenantIndexCalls[tenantID]; !ok {
-		m.DeleteTenantIndexCalls[tenantID] = 0
+	if _, ok := c.DeleteTenantIndexCalls[tenantID]; !ok {
+		c.DeleteTenantIndexCalls[tenantID] = 0
 	}
-	m.DeleteTenantIndexCalls[tenantID]++
+	c.DeleteTenantIndexCalls[tenantID]++
 	return nil
 }
 
