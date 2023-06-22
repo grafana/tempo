@@ -27,12 +27,13 @@ func (m *mockJobSharder) Owns(_ string) bool { return m.owns }
 
 func TestTenantIndexBuilder(t *testing.T) {
 	tests := []struct {
-		name                  string
-		list                  PerTenant
-		compactedList         PerTenantCompacted
-		expectedList          PerTenant
-		expectedCompactedList PerTenantCompacted
-		expectsError          bool
+		name                      string
+		list                      PerTenant
+		compactedList             PerTenantCompacted
+		expectedList              PerTenant
+		expectedCompactedList     PerTenantCompacted
+		expectedDeleteTenantIndex map[string]int
+		expectsError              bool
 	}{
 		{
 			name:                  "nothing!",
@@ -140,6 +141,47 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test2": []*backend.CompactedBlockMeta{},
 			},
 		},
+		{
+			name: "delete empty",
+			list: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+				"test2": []*backend.BlockMeta{},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+			},
+			expectedList: PerTenant{
+				"test2": []*backend.BlockMeta{},
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expectedCompactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						},
+					},
+				},
+				"test2": []*backend.CompactedBlockMeta{},
+			},
+			expectedDeleteTenantIndex: map[string]int{
+				"test2": 1,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -166,11 +208,20 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}
 			assert.NoError(t, err)
 
-			// confirm tenant index written as expected
+			assert.Equal(t, tc.expectedDeleteTenantIndex, c.(*backend.MockCompactor).DeleteTenantIndexCalls)
+
+			// Confirm tenant index written as expected.  If we have a delete tenant
+			// index call, we don't expect a write.
 			for tenant, list := range tc.expectedList {
+				if tc.expectedDeleteTenantIndex[tenant] > 0 {
+					continue
+				}
 				assert.Equal(t, list, w.IndexMeta[tenant])
 			}
 			for tenant, list := range tc.expectedCompactedList {
+				if tc.expectedDeleteTenantIndex[tenant] > 0 {
+					continue
+				}
 				assert.Equal(t, list, w.IndexCompactedMeta[tenant])
 			}
 		})
@@ -235,7 +286,11 @@ func TestTenantIndexFallback(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &backend.MockCompactor{}
 			r := newMockReader(PerTenant{
-				"test": []*backend.BlockMeta{},
+				"test": []*backend.BlockMeta{
+					{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
 			}, nil, false)
 			w := &backend.MockWriter{}
 
@@ -244,7 +299,9 @@ func TestTenantIndexFallback(t *testing.T) {
 					return nil, errors.New("err")
 				}
 				return &backend.TenantIndex{
-					CreatedAt: time.Now().Add(-5 * time.Minute), // always make the tenant index 5 minutes old so the above tests can use that for fallback testing
+					CreatedAt: time.Now().
+						Add(-5 * time.Minute),
+					// always make the tenant index 5 minutes old so the above tests can use that for fallback testing
 				}, nil
 			}
 
@@ -498,7 +555,6 @@ func TestBlockListBackendMetrics(t *testing.T) {
 }
 
 func TestPollTolerateConsecutiveErrors(t *testing.T) {
-
 	var (
 		c = newMockCompactor(PerTenantCompacted{}, false)
 		w = &backend.MockWriter{}
@@ -530,16 +586,21 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:          "too many errors",
-			tolerate:      2,
-			tenantErrors:  []error{nil, errors.New("tenant 1 err"), errors.New("tenant 2 err"), errors.New("tenant 3 err"), nil},
+			name:     "too many errors",
+			tolerate: 2,
+			tenantErrors: []error{
+				nil,
+				errors.New("tenant 1 err"),
+				errors.New("tenant 2 err"),
+				errors.New("tenant 3 err"),
+				nil,
+			},
 			expectedError: errors.New("tenant 3 err"),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
 				BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
