@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"encoding/json"
+	"path"
 
 	"github.com/minio/minio-go/v7"
 
@@ -90,4 +91,16 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	out.CompactedTime = info.LastModified
 
 	return out, nil
+}
+
+// DeleteTenantIndex implements backend.Compactor
+func (rw *readerWriter) DeleteTenantIndex(ctx context.Context, tenantID string) error {
+	if len(tenantID) == 0 {
+		return backend.ErrEmptyTenantID
+	}
+
+	tenantIndexFileName := path.Join(tenantID, backend.TenantIndexName)
+
+	// delete the old file
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, tenantIndexFileName, minio.RemoveObjectOptions{})
 }

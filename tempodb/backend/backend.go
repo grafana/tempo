@@ -27,7 +27,14 @@ type Writer interface {
 	// WriteBlockMeta writes a block meta to its blocks
 	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
-	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
+	Append(
+		ctx context.Context,
+		name string,
+		blockID uuid.UUID,
+		tenantID string,
+		tracker AppendTracker,
+		buffer []byte,
+	) (AppendTracker, error)
 	// CloseAppend closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
@@ -43,7 +50,15 @@ type Reader interface {
 	StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.
 	// There will be an attempt to retrieve this from cache if shouldCache is true. Cache key will be tenantID:blockID:offset:bufferLength
-	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error
+	ReadRange(
+		ctx context.Context,
+		name string,
+		blockID uuid.UUID,
+		tenantID string,
+		offset uint64,
+		buffer []byte,
+		shouldCache bool,
+	) error
 	// Tenants returns a list of all tenants in a backend
 	Tenants(ctx context.Context) ([]string, error)
 	// Blocks returns a list of block UUIDs given a tenant
@@ -64,4 +79,6 @@ type Compactor interface {
 	ClearBlock(blockID uuid.UUID, tenantID string) error
 	// CompactedBlockMeta returns the compacted blockmeta given a block and tenant id
 	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+	// DeleteTenantIndex deletes the tenant index.
+	DeleteTenantIndex(ctx context.Context, tenantID string) error
 }

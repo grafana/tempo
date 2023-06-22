@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,6 +59,20 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 	out.CompactedTime = fi.ModTime()
 
 	return out, nil
+}
+
+func (rw *Backend) DeleteTenantIndex(_ context.Context, tenantID string) error {
+	if len(tenantID) == 0 {
+		return errors.New("empty tenant id")
+	}
+
+	tenantIndexFileName := path.Join(tenantID, backend.TenantIndexName)
+	err := os.RemoveAll(tenantIndexFileName)
+	if err != nil {
+		return fmt.Errorf("failed to remove tenantIndex %s: %w", tenantIndexFileName, err)
+	}
+
+	return nil
 }
 
 func (rw *Backend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"time"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
@@ -112,6 +113,16 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	out.CompactedTime = modTime
 
 	return out, nil
+}
+
+// DeleteTenantIndex implements backend.Compactor
+func (rw *readerWriter) DeleteTenantIndex(ctx context.Context, tenantID string) error {
+	if len(tenantID) == 0 {
+		return backend.ErrEmptyTenantID
+	}
+
+	tenantIndexFileName := path.Join(tenantID, backend.TenantIndexName)
+	return rw.delete(ctx, tenantIndexFileName)
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {

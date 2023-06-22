@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
@@ -82,4 +83,15 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	out.CompactedTime = modTime
 
 	return out, nil
+}
+
+// DeleteTenantIndex implements backend.Compactor
+func (rw *readerWriter) DeleteTenantIndex(ctx context.Context, tenantID string) error {
+	if len(tenantID) == 0 {
+		return backend.ErrEmptyTenantID
+	}
+
+	tenantIndexFileName := path.Join(tenantID, backend.TenantIndexName)
+	o := rw.bucket.Object(tenantIndexFileName)
+	return o.Delete(ctx)
 }
