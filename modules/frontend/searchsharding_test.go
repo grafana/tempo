@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -388,7 +389,8 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
+		copyReq := searchReq
+		actualReq, err := s.ingesterRequest(context.Background(), "test", req, *searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -399,6 +401,10 @@ func TestIngesterRequest(t *testing.T) {
 		} else {
 			assert.Equal(t, tc.expectedURI, actualReq.RequestURI)
 		}
+
+		// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that
+		// occurs if the ingesterRequest method is changed to take a searchReq pointer
+		require.True(t, reflect.DeepEqual(copyReq, searchReq))
 	}
 }
 
