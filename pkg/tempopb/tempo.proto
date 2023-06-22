@@ -215,16 +215,21 @@ message RawHistogram {
   uint64 count = 2;
 }
 
+message KeyValue {
+  string key = 1;
+  TraceQLStatic value = 2;
+}
+
 message SpanMetrics {
   repeated RawHistogram latency_histogram = 1;
-  TraceQLStatic static = 2;
+  repeated KeyValue series = 2;
   uint64 errors = 3;
 }
 
 message SpanMetricsSummary {
   uint64 spanCount = 1;
   uint64 errorSpanCount = 2;
-  TraceQLStatic static = 3;
+  repeated KeyValue series = 3;
   uint64 p99 = 4;
   uint64 p95 = 5;
   uint64 p90 = 6;
