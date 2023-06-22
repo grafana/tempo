@@ -11,10 +11,10 @@ This page provides some general best practices for tracing.
 
 ## Span and resource attributes
 
-[Traces]({{< relref "../traces" >}}) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes. 
-Spans also have a hierarchy, where parent spans can have children or siblings. 
+[Traces]({{< relref "../traces" >}}) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes.
+Spans also have a hierarchy, where parent spans can have children or siblings.
 
-In the screenshot below, the left side of the screen (1) shows the list of results for the query. The right side (2) lists each span that makes up the selected trace. 
+In the screenshot below, the left side of the screen (1) shows the list of results for the query. The right side (2) lists each span that makes up the selected trace.
 
 <p align="center"><img src="getting-started/assets/trace-explore-spans.png" alt="Trace example"></p>
 
@@ -25,7 +25,6 @@ For example, this could be a set of resource attributes concerning a Kubernetes 
 These can also include information on the libraries that were used to instrument the spans for a trace, or any other infrastructure information.
 
 For more information, read the [Attribute and Resource](https://opentelemetry.io/docs/specs/otel/overview/) sections in the OpenTelemetry specification.
-
 
 ### Naming conventions for span and resource attributes
 
@@ -39,7 +38,6 @@ Some third-party libraries provide auto-instrumentation that generate span and s
 
 For more information about instrumenting your app for tracing, refer to the [Instrument for distributed tracing](/docs/tempo/latest/getting-started/instrumentation/) documentation.
 
-
 ## Determining where to add spans
 
 When instrumenting, determine the smallest piece of work that you need to observe in a trace to be of value to ensure that you don’t over (or under) instrument.
@@ -50,26 +48,3 @@ For example, adding a span for a call to another services (either instrumented o
 
 Adding a span for a piece of work that might call many other functions in a loop is a good signal of how long that loop is taking (you might add a span attribute that counts how many time the loop runs to determine if the duration is acceptable).
 However, adding a span for each method or function call in that loop might not, as it might produce hundreds or thousands of worthless spans.
-
-## Tracing versus profiling
-
-Tracing provides an overview of tasks performed by an operation or set of work.
-Profiling provides a code-level view of what was going on.
-Generally, tracing is done at a much higher level specific to one transaction, and profiling is sampled over time, aggregated over many transactions.
-
-The superpower of tracing is seeing how a thing in one program invoked another program.
-
-The superpower of profiling is seeing function-level or line-level detail.
-
-For example, let’s say you want to gather trace data on how long it takes to enter and start a car. The trace would contain multiple spans:
-
-- Walking from the resident to the car
-- Unlocking the car
-- Adjusting the seat
-- Starting the ignition
-
-This trace data is collected every time the car is entered and started.
-You can track variations between each operation that can help pinpoint when issues happen.
-If the driver forgot their keys, then that would show up as an outlying longer duration span.
-In this same example, profiling gives the code stack, in minute detail: get-to-car invoked step-forward, which invoked lift-foot, which invoked contract-muscle, etc.
-This extra detail provides the context that informs the data provided by a trace.
