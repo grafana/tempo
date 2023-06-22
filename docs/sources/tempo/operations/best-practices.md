@@ -20,7 +20,7 @@ In the screenshot below, the left side of the screen (1) shows the list of resul
 
 A **span attribute** is a key/value pair that provides context for its span. For example, if the span deals with calling another service via HTTP, an attribute could include the HTTP URL (maybe as the span attribute key `http.url`) and the HTTP status code returned (as the span attribute `http.status_code`). Span attributes can consist of varying, non-null types.
 
-Unlike a span attribute, a **resource attribute** is a key/value pair that describes the context of how the span was collected.
+Unlike a span attribute, a **resource attribute** is a key/value pair that describes the context of how the span was collected. Generally, these attributes describe the process that created the span.
 For example, this could be a set of resource attributes concerning a Kubernetes cluster, in which case you may see resource attributes, for example: `k8s.namespace`, `k8s.container_name`, and `k8s.cluster`.
 These can also include information on the libraries that were used to instrument the spans for a trace, or any other infrastructure information.
 
