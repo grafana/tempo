@@ -31,6 +31,7 @@ type Interface interface {
 	MaxBlocksPerTagValuesQuery(userID string) int
 	IngestionRateLimitBytes(userID string) float64
 	IngestionBurstSizeBytes(userID string) int
+	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorRingSize(userID string) int
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorMaxActiveSeries(userID string) uint32

@@ -12,6 +12,7 @@ import (
 type metricsGeneratorOverrides interface {
 	registry.Overrides
 
+	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string

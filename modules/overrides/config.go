@@ -115,6 +115,7 @@ type MetricsGeneratorOverrides struct {
 	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 
 	Processor ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
+	MetricsGeneratorIngestionSlack                                   time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 }
 
 type ReadOverrides struct {

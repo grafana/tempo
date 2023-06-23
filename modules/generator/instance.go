@@ -109,6 +109,11 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 	}
 	go i.watchOverrides()
 
+	// add ingestion slack overrides
+	if slack := overrides.MetricsGeneratorIngestionSlack(instanceID); slack > 0 {
+		i.cfg.MetricsIngestionSlack = slack
+	}
+
 	return i, nil
 }
 
