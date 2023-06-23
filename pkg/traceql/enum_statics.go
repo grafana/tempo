@@ -17,6 +17,31 @@ const (
 	TypeKind
 )
 
+func StaticTypeFromString(s string) StaticType {
+	switch s {
+	case "spanset":
+		return TypeSpanset
+	case "attribute":
+		return TypeAttribute
+	case "int":
+		return TypeInt
+	case "float":
+		return TypeFloat
+	case "string":
+		return TypeString
+	case "boolean":
+		return TypeBoolean
+	case "duration":
+		return TypeDuration
+	case "status":
+		return TypeStatus
+	case "kind":
+		return TypeKind
+	default:
+		return TypeNil
+	}
+}
+
 // isMatchingOperand returns whether two types can be combined with a binary operator. the kind of operator is
 // immaterial. see Operator.typesValid() for code that determines if the passed types are valid for the given
 // operator.
