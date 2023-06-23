@@ -243,8 +243,14 @@ ingester:
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
+For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{<> relref "../metrics-generator" >}}).
 
-Metrics-generator processors are disabled by default. To enable it for a specific tenant set `metrics_generator_processors` in the [overrides](#overrides) section.
+Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator_processors` in the [overrides](#overrides) section.
+
+You can limit spans with start times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
+In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
+
+
 
 ```yaml
 # Metrics-generator configuration block
@@ -361,8 +367,8 @@ metrics_generator:
             [- <Prometheus remote write config>]
 
     # This option only allows spans with start time that occur within the configured duration to be
-    # considered in metrics generation
-    # This is to filter out spans that are outdated
+    # considered in metrics generation.
+    # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 ```
 
