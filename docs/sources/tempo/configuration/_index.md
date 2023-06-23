@@ -243,7 +243,7 @@ ingester:
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
-For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{<> relref "../metrics-generator" >}}).
+For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{< relref "../metrics-generator" >}}).
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator_processors` in the [overrides](#overrides) section.
 
@@ -366,7 +366,7 @@ metrics_generator:
         remote_write:
             [- <Prometheus remote write config>]
 
-    # This option only allows spans with start time that occur within the configured duration to be
+    # This option only allows spans with end times that occur within the configured duration to be
     # considered in metrics generation.
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
