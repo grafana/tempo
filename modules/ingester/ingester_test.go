@@ -344,7 +344,7 @@ func TestFlush(t *testing.T) {
 func TestDedicatedColumns(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("/tmp", "")
 	require.NoError(t, err, "unexpected error getting tempdir")
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	limits := overrides.Limits{}
 	flagext.DefaultValues(&limits)
@@ -402,7 +402,7 @@ func TestDedicatedColumns(t *testing.T) {
 }
 
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
-	return defaultIngesterWithOverrides(t, tmpDir, defaultLimitsTestConfig())
+	return defaultIngesterWithOverrides(t, tmpDir, defaultOverrides())
 }
 
 func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Limits) *Ingester {
@@ -496,7 +496,7 @@ func defaultIngesterTestConfig() Config {
 	return cfg
 }
 
-func defaultLimitsTestConfig() overrides.Limits {
+func defaultOverrides() overrides.Limits {
 	limits := overrides.Limits{}
 	flagext.DefaultValues(&limits)
 	return limits

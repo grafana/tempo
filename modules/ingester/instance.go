@@ -488,7 +488,7 @@ func (i *instance) resetHeadBlock() error {
 
 	dedicatedColumns := i.getDedicatedColumns()
 
-	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding, dedicatedColumns...)
+	newHeadBlock, err := i.writer.WAL().NewBlockWithDedicatedColumns(uuid.New(), i.instanceID, model.CurrentEncoding, dedicatedColumns)
 	if err != nil {
 		return err
 	}

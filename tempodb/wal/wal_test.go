@@ -70,7 +70,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version())
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version(), nil)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -128,7 +128,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version())
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version(), nil)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -341,7 +341,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 
 	// create all valid blocks
 	for _, e := range encoding.AllEncodings() {
-		block, err := wal.newBlock(uuid.New(), testTenantID, model.CurrentEncoding, e.Version())
+		block, err := wal.newBlock(uuid.New(), testTenantID, model.CurrentEncoding, e.Version(), nil)
 		require.NoError(t, err)
 
 		id := make([]byte, 16)
@@ -395,7 +395,7 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 
 	blockID := uuid.New()
 
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding)
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding, nil)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -543,7 +543,7 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 
 	blockID := uuid.New()
 
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding)
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding, nil)
 	require.NoError(b, err, "unexpected error creating block")
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)

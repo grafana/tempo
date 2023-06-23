@@ -65,7 +65,11 @@ type DedicatedColumn struct {
 	Type string `yaml:"type" json:"type"`
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns ...DedicatedColumn) *BlockMeta {
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
+	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
+}
+
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns []DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          blockID,

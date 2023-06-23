@@ -40,7 +40,7 @@ func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, m
 	}
 
 	// Start with times from input metas.
-	newMeta := backend.NewBlockMeta(tenantID, id, VersionString, cfg.Encoding, dataEncoding, dedicatedColumns...)
+	newMeta := backend.NewBlockMetaWithDedicatedColumns(tenantID, id, VersionString, cfg.Encoding, dataEncoding, dedicatedColumns)
 	newMeta.StartTime = metas[0].StartTime
 	newMeta.EndTime = metas[0].EndTime
 	for _, m := range metas[1:] {

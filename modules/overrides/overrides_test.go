@@ -337,7 +337,7 @@ func TestTempoDBOverrides(t *testing.T) {
 	tests := []struct {
 		name                     string
 		limits                   Limits
-		overrides                *perTenantOverrides
+		overrides                string
 		expectedDedicatedColumns map[string][]backend.DedicatedColumn
 	}{
 		{
@@ -359,28 +359,45 @@ func TestTempoDBOverrides(t *testing.T) {
 					{Scope: "resource", Name: "namespace", Type: "string"},
 				},
 			},
-			overrides: &perTenantOverrides{TenantLimits: map[string]*Limits{
-				"user2": {
-					DedicatedColumns: []backend.DedicatedColumn{{Scope: "span", Name: "http.status", Type: "int"}},
-				},
-			}},
+			overrides: `
+overrides:
+  user2:
+    dedicated_columns:
+      - scope: "span"
+        name: "http.status"
+        type: "int"
+`,
 			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
 				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
 				"user2": {{Scope: "span", Name: "http.status", Type: "int"}},
+			},
+		},
+		{
+			name: "empty dedicated columns override global cfg",
+			limits: Limits{
+				DedicatedColumns: []backend.DedicatedColumn{
+					{Scope: "resource", Name: "namespace", Type: "string"},
+				},
+			},
+			overrides: `
+overrides:
+  user1:
+  user2:
+    dedicated_columns: []
+`,
+			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
+				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
+				"user2": {},
 			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.overrides != nil {
+			if len(tc.overrides) > 0 {
 				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
 
-				buff, err := yaml.Marshal(tc.overrides)
-				require.NoError(t, err)
-
-				err = os.WriteFile(overridesFile, buff, os.ModePerm)
-				require.NoError(t, err)
+				require.NoError(t, os.WriteFile(overridesFile, []byte(tc.overrides), os.ModePerm))
 
 				tc.limits.PerTenantOverrideConfig = overridesFile
 				tc.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
