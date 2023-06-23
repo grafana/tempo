@@ -51,6 +51,31 @@ func Test_counter(t *testing.T) {
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
 
+func TestCounterDifferentLabels(t *testing.T) {
+	var seriesAdded int
+	onAdd := func(count uint32) bool {
+		seriesAdded++
+		return true
+	}
+
+	c := newCounter("my_counter", onAdd, nil)
+
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
+
+	assert.Equal(t, 2, seriesAdded)
+
+	collectionTimeMs := time.Now().UnixMilli()
+	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, offsetCollectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "another_label": "another_value"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_counter", "another_label": "another_value"}, offsetCollectionTimeMs, 2),
+	}
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
+}
+
 func Test_counter_cantAdd(t *testing.T) {
 	canAdd := false
 	onAdd := func(count uint32) bool {

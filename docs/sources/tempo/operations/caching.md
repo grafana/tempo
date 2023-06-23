@@ -1,6 +1,7 @@
 ---
 title: Improve performance with caching
 menuTitle: Improve performance with caching
+description: Learn how to improve query performance by using caching.
 weight: 65
 ---
 
@@ -31,7 +32,7 @@ sum by (status_code) (
 )
 ```
 
-This metric is also shown in [the monitoring dashboards]({{< relref "monitoring" >}}) (the left panel):
+This metric is also shown in [the monitoring dashboards]({{< relref "./monitoring" >}}) (the left panel):
 
 <p align="center"><img src="../caching_memcached_connection_limit.png" alt="QPS and latency of requests to memcached"></p>
 
@@ -70,7 +71,7 @@ Tempo provides two config parameters in order to filter down on the items stored
 Using a combination of these config options, we can narrow down on which bloom filters are cached, thereby reducing our
 cache eviction rate, and increasing our cache hit rate. Nice!
 
-In order to decide the values of these config parameters, you can use a cache summary command in the [tempo-cli]({{< relref "tempo_cli" >}}) that
+In order to decide the values of these config parameters, you can use a cache summary command in the [tempo-cli]({{< relref "./tempo_cli" >}}) that
 prints a summary of bloom filter shards per day and per compaction level. The result looks something like this:
 
 <p align="center"><img src="../cache-summary.png" alt="Cache summary"></p>

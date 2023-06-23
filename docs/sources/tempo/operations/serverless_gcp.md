@@ -1,5 +1,6 @@
 ---
 title: Search with Google Cloud Run
+description: Learn how to set up Google Cloud Run for serverless backend search.
 weight: 93
 alias:
 - /docs/tempo/latest/operations/backend_search/serverless_gcp/
@@ -9,7 +10,7 @@ alias:
 # Search with Google Cloud Run
 
 This document walks you through setting up a Google Cloud Run for serverless backend search.
-For more guidance on configuration options for full backend search [check here]({{< relref "backend_search/" >}}).
+For more guidance on configuration options for full backend search [check here]({{< relref "./backend_search" >}}).
 
 1. Build the docker image:
 

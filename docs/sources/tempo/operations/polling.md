@@ -1,5 +1,5 @@
 ---
-title: Use polling to monitor backend status
+title: Use polling to monitor Tempo's backend status
 menuTitle: Use polling to monitor backend status
 description: Monitor Tempo's backend using polling
 weight: 30

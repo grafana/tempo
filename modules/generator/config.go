@@ -30,7 +30,7 @@ type Config struct {
 	Registry  registry.Config `yaml:"registry"`
 	Storage   storage.Config  `yaml:"storage"`
 	TracesWAL wal.Config      `yaml:"traces_storage"`
-	// MetricsIngestionSlack is the max amount of time passed since a span's start time
+	// MetricsIngestionSlack is the max amount of time passed since a span's end time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
