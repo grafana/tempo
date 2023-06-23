@@ -62,7 +62,7 @@ type App struct {
 
 	Server         *server.Server
 	InternalServer *server.Server
-	ring           *ring.Ring
+	ingesterRing   *ring.Ring
 	generatorRing  *ring.Ring
 	Overrides      overrides.Service
 	distributor    *distributor.Distributor

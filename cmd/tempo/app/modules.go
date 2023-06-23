@@ -43,7 +43,7 @@ import (
 
 // The various modules that make up tempo.
 const (
-	Ring                 string = "ring"
+	IngesterRing         string = "ring"
 	MetricsGeneratorRing string = "metrics-generator-ring"
 	Overrides            string = "overrides"
 	Server               string = "server"
@@ -134,16 +134,16 @@ func (t *App) initInternalServer() (services.Service, error) {
 	return s, nil
 }
 
-func (t *App) initRing() (services.Service, error) {
+func (t *App) initIngesterRing() (services.Service, error) {
 	ring, err := tempo_ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", t.cfg.Ingester.OverrideRingKey, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ring %w", err)
 	}
-	t.ring = ring
+	t.ingesterRing = ring
 
-	t.Server.HTTP.Handle("/ingester/ring", t.ring)
+	t.Server.HTTP.Handle("/ingester/ring", t.ingesterRing)
 
-	return t.ring, nil
+	return t.ingesterRing, nil
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
@@ -176,7 +176,7 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.Overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ingesterRing, t.cfg.GeneratorClient, t.generatorRing, t.Overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -247,7 +247,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	querier, err := querier.New(
 		t.cfg.Querier,
 		t.cfg.IngesterClient,
-		t.ring,
+		t.ingesterRing,
 		t.cfg.GeneratorClient,
 		t.generatorRing,
 		t.store,
@@ -451,7 +451,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
-	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
+	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
 	mm.RegisterModule(Distributor, t.initDistributor)
@@ -471,12 +471,12 @@ func (t *App) setupModuleManager() error {
 		Overrides:            {Server},
 		MemberlistKV:         {Server},
 		QueryFrontend:        {Store, Server, Overrides, UsageReport},
-		Ring:                 {Server, MemberlistKV},
+		IngesterRing:         {Server, MemberlistKV},
 		MetricsGeneratorRing: {Server, MemberlistKV},
-		Distributor:          {Ring, Server, Overrides, UsageReport, MetricsGeneratorRing},
+		Distributor:          {IngesterRing, Server, Overrides, UsageReport, MetricsGeneratorRing},
 		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
 		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
-		Querier:              {Store, Ring, MetricsGeneratorRing, Overrides, UsageReport},
+		Querier:              {Store, IngesterRing, MetricsGeneratorRing, Overrides, UsageReport},
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
