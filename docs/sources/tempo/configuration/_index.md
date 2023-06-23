@@ -247,7 +247,7 @@ For more information on the metrics-generator, refer to the [Metrics-generator d
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator_processors` in the [overrides](#overrides) section.
 
-You can limit spans with start times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
+You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
 
