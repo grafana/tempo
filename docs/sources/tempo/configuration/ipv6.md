@@ -14,7 +14,7 @@ Tempo can be configured to communicate between the components using Internet Pro
 
 This sample listen configuration will allow the gRPC and HTTP servers to listen on IPv6, and configure the various memberlist components to enable IPv6.
 
-NOTE: If using the Helm chart, set `http_listen_port: 3100` as the pod ports are hard-coded to 3100.
+NOTE: If using the Helm chart, set `http_listen_port: 3100` as the pod ports are hard-coded to 3100. The Jsonnet files are configured to use 3200 by default.
 
 ```yaml
 memberlist:
