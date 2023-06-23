@@ -151,10 +151,10 @@ func (dm *dedicatedColumnMapping) ForEach(callback func(attr string, column dedi
 	}
 }
 
-// blockMetaToDedicatedColumnMapping returns mapping from attribute names to spare columns for a give
+// dedicatedColumnsToColumnMapping returns mapping from attribute names to spare columns for a give
 // block meta and scope.
-func blockMetaToDedicatedColumnMapping(meta *backend.BlockMeta, scope string) dedicatedColumnMapping {
-	mapping := newDedicatedColumnMapping(len(meta.DedicatedColumns))
+func dedicatedColumnsToColumnMapping(dedicatedColumns []backend.DedicatedColumn, scope string) dedicatedColumnMapping {
+	mapping := newDedicatedColumnMapping(len(dedicatedColumns))
 
 	var spareColumnsByType map[string][]string
 	switch scope {
@@ -167,7 +167,7 @@ func blockMetaToDedicatedColumnMapping(meta *backend.BlockMeta, scope string) de
 	}
 
 	indexByType := map[string]int{}
-	for _, c := range meta.DedicatedColumns {
+	for _, c := range dedicatedColumns {
 		if c.Scope != scope {
 			continue
 		}

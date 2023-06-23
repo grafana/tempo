@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
+func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 	tests := []struct {
 		name            string
 		columns         []backend.DedicatedColumn
@@ -98,7 +98,7 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 	}
 	for _, tc := range tests {
 		meta := backend.BlockMeta{DedicatedColumns: tc.columns}
-		mapping := blockMetaToDedicatedColumnMapping(&meta, tc.scope)
+		mapping := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, tc.scope)
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expectedMapping, mapping)
 		})
