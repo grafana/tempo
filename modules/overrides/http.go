@@ -4,12 +4,11 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/grafana/tempo/pkg/api"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 )
-
-// Maybe move this handler method into Interface
 
 func (o *UserConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *http.Request) {
 	// FIXME: log the request??
@@ -32,18 +31,23 @@ func (o *UserConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *
 	}
 }
 
-func (o *UserConfigOverridesManager) handleGet(w http.ResponseWriter, r *http.Request, ctx context.Context, userID string) {
-	// FIXME: return json instead of yaml??
-	// only return UserConfigurableLimits??
-	// using WriteStatusRuntimeConfig at the moment??
-	err := o.WriteStatusRuntimeConfig(w, r)
+func (o *UserConfigOverridesManager) handleGet(w http.ResponseWriter, _ *http.Request, _ context.Context, userID string) {
+	ucl, err := o.getLimits(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	data, err := jsoniter.Marshal(ucl)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, _ = w.Write(data)
 	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-Type", "text/plain")
+	// FIXME: why is curl showing `Content-Type: text/plain` when we set json here??
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 
 	return
 }
