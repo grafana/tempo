@@ -16,13 +16,6 @@ type Service interface {
 	services.Service
 	prometheus.Collector
 	Interface
-
-	// FIXME: figure this out??
-	// TODO this should either include user-config overrides or we should have 2 endpoints
-	// so either add WriteStatusUserConfig() or rename to more generic WriteStatusOverrides()?
-	// also, this writes config as yaml to the writer,
-	// need a json func or a genetic func that returns a final struct??
-	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }
 
 type Interface interface {
@@ -60,4 +53,6 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
+	OverridesHandler(w http.ResponseWriter, r *http.Request)
+	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }

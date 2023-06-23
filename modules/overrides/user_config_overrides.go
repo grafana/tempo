@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -84,6 +85,13 @@ type UserConfigOverridesManager struct {
 	w backend.RawWriter
 }
 
+// statusUserConfigOverrides used to marshal UserConfigurableLimits for tenants
+type statusUserConfigOverrides struct {
+	TenantLimits tenantLimits `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
+}
+
+type tenantLimits map[string]*UserConfigurableLimits
+
 // NewUserConfigOverrides wraps the given overrides with user-configurable overrides.
 func NewUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service) (*UserConfigOverridesManager, error) {
 	reader, writer, err := initBackend(cfg)
@@ -94,7 +102,7 @@ func NewUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service)
 	mgr := UserConfigOverridesManager{
 		Interface:    subOverrides,
 		cfg:          cfg,
-		tenantLimits: make(map[string]*UserConfigurableLimits),
+		tenantLimits: make(tenantLimits),
 		r:            reader,
 		w:            writer,
 	}
@@ -219,8 +227,8 @@ func (o *UserConfigOverridesManager) downloadTenantLimits(ctx context.Context, u
 	return &tenantLimits, err
 }
 
-// SetLimits will store the given limits
-func (o *UserConfigOverridesManager) SetLimits(ctx context.Context, userID string, limits *UserConfigurableLimits) error {
+// setLimits will store the given limits
+func (o *UserConfigOverridesManager) setLimits(ctx context.Context, userID string, limits *UserConfigurableLimits) error {
 	// TODO perform validation
 
 	// TODO do this in a constructor or something?
@@ -244,6 +252,16 @@ func (o *UserConfigOverridesManager) SetLimits(ctx context.Context, userID strin
 
 	o.tenantLimits[userID] = limits
 	return nil
+}
+
+// getLimits will return the UserConfigurableLimits for a tenant
+func (o *UserConfigOverridesManager) getLimits(userID string) (*UserConfigurableLimits, error) {
+	ucl, ok := o.getTenantLimits(userID)
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("user configurable limits not found for: %s", userID))
+	}
+
+	return ucl, nil
 }
 
 // DeleteLimits will clear all user configurable limits for the given tenant
@@ -280,6 +298,13 @@ func (o *UserConfigOverridesManager) getTenantLimits(userID string) (*UserConfig
 	return tenantLimits, ok
 }
 
+func (o *UserConfigOverridesManager) getTenantLimitsAll() map[string]*UserConfigurableLimits {
+	o.mtx.RLock()
+	defer o.mtx.RUnlock()
+
+	return o.tenantLimits
+}
+
 func (o *UserConfigOverridesManager) Forwarders(userID string) []string {
 	tenantLimits, ok := o.getTenantLimits(userID)
 	if ok && tenantLimits.Forwarders != nil {
@@ -289,9 +314,27 @@ func (o *UserConfigOverridesManager) Forwarders(userID string) []string {
 }
 
 func (o *UserConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
-	// TODO this is hacky D:
-	//   should we make WriteStatusRuntimeConfig part of Interface instead of Service?
-	return o.Interface.(Service).WriteStatusRuntimeConfig(w, r)
+	// fetch runtimeConfig and Runtime per tenant Overrides
+	err := o.Interface.WriteStatusRuntimeConfig(w, r)
+	if err != nil {
+		return err
+	}
+
+	// now write per tenant user configured overrides
+	// wrap in userConfigOverrides struct to return correct yaml
+	l := o.getTenantLimitsAll()
+	ucl := statusUserConfigOverrides{TenantLimits: l}
+	out, err := yaml.Marshal(ucl)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (o *UserConfigOverridesManager) Describe(ch chan<- *prometheus.Desc) {

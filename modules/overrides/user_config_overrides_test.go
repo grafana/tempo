@@ -1,14 +1,15 @@
 package overrides
 
 import (
+	"bytes"
 	"context"
+	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 func TestNewUserConfigurableOverrides_priorityLogic(t *testing.T) {
@@ -93,7 +94,7 @@ func TestConfigurableOverrides_setAndDelete(t *testing.T) {
 
 	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-forwarder"})
 
-	err = configurableOverrides.SetLimits(context.Background(), "foo", &UserConfigurableLimits{
+	err = configurableOverrides.setLimits(context.Background(), "foo", &UserConfigurableLimits{
 		Version:    "",
 		Forwarders: &[]string{"my-other-forwarder"},
 	})
@@ -117,4 +118,51 @@ func TestConfigurableOverrides_setAndDelete(t *testing.T) {
 
 func TestNewUserConfigurableOverrides_backendDown(t *testing.T) {
 	// TODO test we can fall back when backend is not responsive
+}
+
+func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := UserConfigOverridesConfig{
+		Enabled: true,
+		Backend: "local",
+		Local: &local.Config{
+			Path: tempDir,
+		},
+	}
+	tempoOverrides, _ := NewOverrides(Limits{
+		Forwarders: []string{"my-forwarder"},
+	})
+
+	configurableOverrides, err := NewUserConfigOverrides(cfg, tempoOverrides)
+	assert.NoError(t, err)
+
+	// set user config limits
+	configurableOverrides.tenantLimits["test"] = &UserConfigurableLimits{
+		Version:    "v1",
+		Forwarders: &[]string{"my-other-forwarder"},
+	}
+
+	tests := []struct {
+		name      string
+		overrides Service
+	}{
+		{
+			name:      "UserConfigOverrides with ucl",
+			overrides: configurableOverrides,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			o := tc.overrides
+			w := &bytes.Buffer{}
+			r := httptest.NewRequest("GET", "/", nil)
+			err := o.WriteStatusRuntimeConfig(w, r)
+			assert.NoError(t, err)
+
+			data := w.String()
+			assert.Contains(t, data, "user_config_overrides")
+			assert.Contains(t, data, "my-other-forwarder")
+		})
+	}
 }
