@@ -7,6 +7,7 @@ import (
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -212,10 +213,10 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
 
-	return searchTagValues(derivedCtx, tag, cb, pf)
+	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dedicatedColumns []backend.DedicatedColumn) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]
@@ -237,10 +238,26 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 		return nil
 	}
 
-	// Search dedicated attribute column if one exists and is a compatible scope.
+	// Search well-known attribute column if one exists and is a compatible scope.
 	column := wellKnownColumnLookups[tag.Name]
 	if column.columnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
 		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching special tags: %w", err)
+		}
+	}
+
+	// Search dynamic dedicated attribute columns
+	columnMappingResource := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeResource)
+	if mapping, ok := columnMappingResource.Get(tag.Name); ok {
+		err := searchSpecialTagValues(ctx, mapping.ColumnPath, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching special tags: %w", err)
+		}
+	}
+	columnMappingSpan := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeSpan)
+	if mapping, ok := columnMappingSpan.Get(tag.Name); ok {
+		err := searchSpecialTagValues(ctx, mapping.ColumnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}

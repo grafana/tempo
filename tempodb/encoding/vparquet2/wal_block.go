@@ -611,7 +611,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTagValues(ctx, tag, cb, pf)
+		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
