@@ -107,3 +107,54 @@ func TestKeyPathForBlock(t *testing.T) {
 
 	assert.Equal(t, KeyPath([]string{tid, b.String()}), keypath)
 }
+
+func TestMetaFileName(t *testing.T) {
+
+	// WithoutPrefix
+	b := uuid.New()
+	tid := "test"
+	prefix := ""
+	metaFilename := MetaFileName(b, tid, prefix)
+
+	assert.Equal(t, tid+"/"+b.String()+"/"+MetaName, metaFilename)
+
+	// WithPrefix
+	prefix = "test/prefix"
+	metaFilename = MetaFileName(b, tid, prefix)
+
+	assert.Equal(t, prefix+"/"+tid+"/"+b.String()+"/"+MetaName, metaFilename)
+}
+
+func TestCompactedMetaFileName(t *testing.T) {
+
+	// WithoutPrefix
+	b := uuid.New()
+	tid := "test"
+	prefix := ""
+	compactedMetaFilename := CompactedMetaFileName(b, tid, prefix)
+
+	assert.Equal(t, tid+"/"+b.String()+"/"+CompactedMetaName, compactedMetaFilename)
+
+	// WithPrefix
+	prefix = "test/prefix"
+	compactedMetaFilename = CompactedMetaFileName(b, tid, prefix)
+
+	assert.Equal(t, prefix+"/"+tid+"/"+b.String()+"/"+CompactedMetaName, compactedMetaFilename)
+}
+
+func TestRootPath(t *testing.T) {
+
+	// WithoutPrefix
+	b := uuid.New()
+	tid := "test"
+	prefix := ""
+	rootPath := RootPath(b, tid, prefix)
+
+	assert.Equal(t, tid+"/"+b.String(), rootPath)
+
+	// WithPrefix
+	prefix = "test/prefix"
+	rootPath = RootPath(b, tid, prefix)
+
+	assert.Equal(t, prefix+"/"+tid+"/"+b.String(), rootPath)
+}
