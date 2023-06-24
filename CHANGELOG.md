@@ -1,6 +1,5 @@
 ## main / unreleased
 
-* [BUGFIX] Tempo failed to find meta.json path after adding prefix in S3 configuration. [#2585](https://github.com/grafana/tempo/issues/2585) (@WildCatFish)
 * [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
 * [FEATURE] New experimental API to derive on-demand RED metrics grouped by any attribute, and new metrics generator processor [#2368](https://github.com/grafana/tempo/pull/2368) [#2418](https://github.com/grafana/tempo/pull/2418) [#2424](https://github.com/grafana/tempo/pull/2424) [#2442](https://github.com/grafana/tempo/pull/2442) [#2480](https://github.com/grafana/tempo/pull/2480) [#2481](https://github.com/grafana/tempo/pull/2481) [#2501](https://github.com/grafana/tempo/pull/2501) (@mdisibio @zalegrala)
@@ -55,6 +54,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [BUGFIX] metrics-generator: ensure Prometheus will scale up shards when remote write is lagging behind [#2463](https://github.com/grafana/tempo/issues/2463) (@kvrhdn)
 * [BUGFIX] Fixes issue where matches and other spanset level attributes were not persisted to the TraceQL results. [#2490](https://github.com/grafana/tempo/pull/2490) 
 * [BUGFIX] Fixes issue where ingester search could occasionally fail with file does not exist error [#2534](https://github.com/grafana/tempo/issues/2534) (@mdisibio)
+* [BUGFIX] Tempo failed to find meta.json path after adding prefix in S3 configuration. [#2585](https://github.com/grafana/tempo/issues/2585) (@WildCatFish)
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
