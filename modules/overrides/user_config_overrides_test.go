@@ -8,9 +8,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 func TestNewUserConfigurableOverrides_priorityLogic(t *testing.T) {
@@ -160,7 +161,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 			assert.NoError(t, err)
 
 			data := w.String()
-			assert.Contains(t, data, "user_config_overrides")
+			assert.Contains(t, data, "user_configurable_overrides")
 			assert.Contains(t, data, "my-other-forwarder")
 		})
 	}
