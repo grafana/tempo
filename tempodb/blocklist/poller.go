@@ -223,6 +223,8 @@ func (p *Poller) pollTenantAndHandleIndex(
 
 	// If we have no blocks, and no compacted blocks, then we can delete the tenant index and return early.
 	if len(compactedBlocklist) == 0 && len(blocklist) == 0 {
+		level.Info(p.logger).
+			Log("msg", "tenant has no blocks, deleteing tenant index", "tenant", tenantID)
 		err = p.compactor.DeleteTenantIndex(derivedCtx, tenantID)
 		if err != nil {
 			return nil, nil, err
