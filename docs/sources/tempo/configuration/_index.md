@@ -495,6 +495,10 @@ querier:
         # The default value of "" disables this feature.
         [external_endpoints: <list of strings> | default = <empty list>]
 
+        # If external_backend is set, then authorization credentials will be provided when querying the external endpoints. "cloud-run" is the only value supported at this time.
+        # The default value of "" omits credentials when querying the external backend.
+        [external_backend: <string> | default = ""]
+
         # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
         # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
         # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
