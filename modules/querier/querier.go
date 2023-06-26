@@ -617,6 +617,8 @@ func (q *Querier) SpanMetricsSummary(
 	genReq := &tempopb.SpanMetricsRequest{
 		Query:   req.Query,
 		GroupBy: req.GroupBy,
+		Start:   req.Start,
+		End:     req.End,
 		Limit:   0,
 	}
 
