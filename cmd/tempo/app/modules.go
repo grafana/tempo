@@ -43,22 +43,28 @@ import (
 
 // The various modules that make up tempo.
 const (
+	// utilities
+	Server         string = "server"
+	InternalServer string = "internal-server"
+	Store          string = "store"
+	MemberlistKV   string = "memberlist-kv"
+	UsageReport    string = "usage-report"
+	Overrides      string = "overrides"
+	// rings
 	IngesterRing         string = "ring"
 	MetricsGeneratorRing string = "metrics-generator-ring"
-	Overrides            string = "overrides"
-	Server               string = "server"
-	InternalServer       string = "internal-server"
-	Distributor          string = "distributor"
-	Ingester             string = "ingester"
-	MetricsGenerator     string = "metrics-generator"
-	Querier              string = "querier"
-	QueryFrontend        string = "query-frontend"
-	Compactor            string = "compactor"
-	Store                string = "store"
-	MemberlistKV         string = "memberlist-kv"
+
+	// individual targets
+	Distributor      string = "distributor"
+	Ingester         string = "ingester"
+	MetricsGenerator string = "metrics-generator"
+	Querier          string = "querier"
+	QueryFrontend    string = "query-frontend"
+	Compactor        string = "compactor"
+
+	// composite targets
 	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
-	UsageReport          string = "usage-report"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -448,39 +454,52 @@ func (t *App) initUsageReport() (services.Service, error) {
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
+	// Common is a module that exists only to map dependencies
+	const Common = "common"
+
+	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
+	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
+	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
-	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
+
+	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
+
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
-	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
+
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
-	mm.RegisterModule(UsageReport, t.initUsageReport)
 
 	deps := map[string][]string{
-		Server: {InternalServer},
-		// Store:        nil,
+		// Store:          nil,
+		// InternalServer: nil,
+		Server:               {InternalServer},
 		Overrides:            {Server},
 		MemberlistKV:         {Server},
-		QueryFrontend:        {Store, Server, Overrides, UsageReport},
+		UsageReport:          {MemberlistKV},
 		IngesterRing:         {Server, MemberlistKV},
 		MetricsGeneratorRing: {Server, MemberlistKV},
-		Distributor:          {IngesterRing, Server, Overrides, UsageReport, MetricsGeneratorRing},
-		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
-		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
-		Querier:              {Store, IngesterRing, MetricsGeneratorRing, Overrides, UsageReport},
-		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
+
+		Common: {UsageReport, Server, Overrides},
+
+		// individual targets
+		QueryFrontend:    {Common, Store},
+		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
+		Ingester:         {Common, Store, MemberlistKV},
+		MetricsGenerator: {Common, MemberlistKV},
+		Querier:          {Common, IngesterRing, MetricsGeneratorRing},
+		Compactor:        {Common, Store, MemberlistKV},
+		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
-		UsageReport:          {MemberlistKV},
 	}
 
 	for mod, targets := range deps {
