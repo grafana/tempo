@@ -66,6 +66,9 @@ func (m *MockRawWriter) CloseAppend(ctx context.Context, tracker AppendTracker) 
 	m.closeAppendCalled = true
 	return nil
 }
+func (m *MockRawWriter) Delete(ctx context.Context, name string, keypath KeyPath) error {
+	return nil
+}
 
 // MockCompactor
 type MockCompactor struct {

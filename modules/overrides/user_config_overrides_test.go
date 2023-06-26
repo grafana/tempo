@@ -3,6 +3,7 @@ package overrides
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -43,16 +44,17 @@ func TestNewUserConfigurableOverrides_priorityLogic(t *testing.T) {
 	assert.Equal(t, userConfigOverridesMgr.Forwarders("tenant-2"), []string{"my-forwarder"})
 
 	// Tenant with user-configurable overrides
+	assert.Equal(t, userConfigOverridesMgr.MaxBytesPerTrace("tenant-1"), 1024)
 	assert.Equal(t, userConfigOverridesMgr.Forwarders("tenant-1"), []string{"other-forwarder"})
 }
 
 func TestNewUserConfigurableOverrides_readFromBackend(t *testing.T) {
 	tempDir := t.TempDir()
 
-	err := os.MkdirAll(tempDir+"/overrides/foo", 0777)
-	require.NoError(t, err)
-	err = os.WriteFile(tempDir+"/overrides/foo/overrides.json", []byte(`{"version":"v1","forwarders":["my-other-forwarder"]}`), 0644)
-	require.NoError(t, err)
+	limits := newUserConfigurableLimits()
+	limits.Forwarders = &[]string{"my-other-forwarder"}
+
+	writeUserConfigurableOverrides(t, tempDir, "foo", limits)
 
 	cfg := UserConfigOverridesConfig{
 		Enabled: true,
@@ -102,9 +104,7 @@ func TestConfigurableOverrides_setAndDelete(t *testing.T) {
 
 	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-other-forwarder"})
 
-	bytes, err := os.ReadFile(tempDir + "/overrides/foo/overrides.json")
-	assert.NoError(t, err)
-	assert.Equal(t, string(bytes), `{"version":"v1","forwarders":["my-other-forwarder"]}`)
+	assert.FileExists(t, tempDir+"/overrides/foo/overrides.json")
 
 	err = configurableOverrides.DeleteLimits(context.Background(), "foo")
 	assert.NoError(t, err)
@@ -112,8 +112,7 @@ func TestConfigurableOverrides_setAndDelete(t *testing.T) {
 	// back to original value
 	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-forwarder"})
 
-	// TODO we need to fix our delete function
-	// assert.NoFileExists(t, tempDir+"/overrides/foo/overrides.json")
+	assert.NoFileExists(t, tempDir+"/overrides/foo/overrides.json")
 }
 
 func TestNewUserConfigurableOverrides_backendDown(t *testing.T) {
@@ -165,4 +164,15 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 			assert.Contains(t, data, "my-other-forwarder")
 		})
 	}
+}
+
+func writeUserConfigurableOverrides(t *testing.T, dir string, tenant string, limits *UserConfigurableLimits) {
+	err := os.MkdirAll(dir+"/overrides/"+tenant, 0777)
+	require.NoError(t, err)
+
+	b, err := json.Marshal(limits)
+	require.NoError(t, err)
+
+	err = os.WriteFile(dir+"/overrides/"+tenant+"/overrides.json", b, 0644)
+	require.NoError(t, err)
 }

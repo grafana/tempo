@@ -266,26 +266,10 @@ func (o *UserConfigOverridesManager) getLimits(userID string) (*UserConfigurable
 
 // DeleteLimits will clear all user configurable limits for the given tenant
 func (o *UserConfigOverridesManager) DeleteLimits(ctx context.Context, userID string) error {
-	// FIXME: add delete method in all backends??
-	// TODO properly delete from the bucket, hacky workaround to clear limits
-	//   we should implement and use a Delete function
-	// err = o.w.Delete(ctx, overridesFileName, []string{userID})
-
-	emptyLimits := newUserConfigurableLimits()
-
-	data, err := jsoniter.Marshal(emptyLimits)
+	err := o.w.Delete(ctx, overridesFileName, []string{overridesKeyPath, userID})
 	if err != nil {
 		return err
 	}
-
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	err = o.w.Write(ctx, overridesFileName, []string{userID}, bytes.NewReader(data), -1, false)
-	if err != nil {
-		return err
-	}
-
 	delete(o.tenantLimits, userID)
 	return nil
 }

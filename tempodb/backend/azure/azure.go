@@ -113,6 +113,18 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+	blobURL, err := GetBlobURL(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
+	if err != nil {
+		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", backend.ObjectFileName(keypath, name))
+	}
+
+	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
+		return errors.Wrapf(err, "error deleting blob, name: %s", name)
+	}
+	return nil
+}
+
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
