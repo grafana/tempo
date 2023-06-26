@@ -269,11 +269,15 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.store.EnablePolling(nil)
 	}
 
-	// todo: make ingester client a module instead of passing config everywhere
+	ingesterRings := []ring.ReadRing{t.readRings[ringIngester]}
+	if ring := t.readRings[ringSecondaryIngester]; ring != nil {
+		ingesterRings = append(ingesterRings, ring)
+	}
+
 	querier, err := querier.New(
 		t.cfg.Querier,
 		t.cfg.IngesterClient,
-		t.readRings[ringIngester],
+		ingesterRings,
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
 		t.store,
