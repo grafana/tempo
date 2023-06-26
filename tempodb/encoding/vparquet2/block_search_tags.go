@@ -56,22 +56,22 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
 
-	return searchTags(derivedCtx, scope, cb, pf)
+	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dedicatedColumns []backend.DedicatedColumn) error {
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
 
-	addToIndexes := func(standardKeyPath string, specialMappings map[string]string) error {
-		// standard resource attributes
+	addToIndexes := func(standardKeyPath string, specialMappings map[string]string, dedicatedMappings dedicatedColumnMapping) error {
+		// standard attributes
 		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
 		if resourceKeyIdx == -1 {
 			return fmt.Errorf("resource attributes col not found (%d)", resourceKeyIdx)
 		}
 		standardAttrIdxs = append(standardAttrIdxs, resourceKeyIdx)
 
-		// special resource attributes
+		// special attributes
 		for lbl, col := range specialMappings {
 			idx, _ := pq.GetColumnIndexByPath(pf, col)
 			if idx == -1 {
@@ -80,19 +80,32 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 
 			specialAttrIdxs[idx] = lbl
 		}
+
+		// dedicated attributes
+		dedicatedMappings.ForEach(func(lbl string, c dedicatedColumn) {
+			idx, _ := pq.GetColumnIndexByPath(pf, c.ColumnPath)
+			if idx == -1 {
+				return
+			}
+
+			specialAttrIdxs[idx] = lbl
+		})
+
 		return nil
 	}
 
 	// resource
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
-		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings)
+		dedicatedMappings := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeResource)
+		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings, dedicatedMappings)
 		if err != nil {
 			return err
 		}
 	}
 	// span
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
-		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings)
+		dedicatedMappings := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeSpan)
+		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings, dedicatedMappings)
 		if err != nil {
 			return err
 		}
