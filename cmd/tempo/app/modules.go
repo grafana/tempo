@@ -141,27 +141,32 @@ func (t *App) initInternalServer() (services.Service, error) {
 }
 
 func (t *App) initIngesterRing() (services.Service, error) {
-	ring, err := tempo_ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", t.cfg.Ingester.OverrideRingKey, prometheus.DefaultRegisterer)
+	ring, err := t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", t.cfg.Ingester.OverrideRingKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ring %w", err)
+		return nil, err
 	}
 	t.ingesterRing = ring
-
-	t.Server.HTTP.Handle("/ingester/ring", t.ingesterRing)
-
 	return t.ingesterRing, nil
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
-	generatorRing, err := tempo_ring.New(t.cfg.Generator.Ring.ToRingConfig(), "metrics-generator", generator.RingKey, prometheus.DefaultRegisterer)
+	ring, err := t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), "metrics-generator", generator.RingKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics-generator ring %w", err)
+		return nil, err
 	}
-	t.generatorRing = generatorRing
-
-	t.Server.HTTP.Handle("/metrics-generator/ring", t.generatorRing)
-
+	t.generatorRing = ring
 	return t.generatorRing, nil
+}
+
+func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error) {
+	ring, err := tempo_ring.New(cfg, name, key, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ring %s: %w", name, err)
+	}
+
+	t.Server.HTTP.Handle("/"+name+"/ring", ring)
+
+	return ring, nil
 }
 
 func (t *App) initOverrides() (services.Service, error) {
