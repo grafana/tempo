@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	TenantID      = "test"
+	StoragePrefix = "test/prefix"
+)
+
 // todo: add tests that check the appropriate keypath is passed
 func TestWriter(t *testing.T) {
 	m := &MockRawWriter{}
@@ -102,7 +107,7 @@ func TestReader(t *testing.T) {
 
 func TestKeyPathForBlock(t *testing.T) {
 	b := uuid.New()
-	tid := "test"
+	tid := TenantID
 	keypath := KeyPathForBlock(b, tid)
 
 	assert.Equal(t, KeyPath([]string{tid, b.String()}), keypath)
@@ -112,14 +117,14 @@ func TestMetaFileName(t *testing.T) {
 
 	// WithoutPrefix
 	b := uuid.New()
-	tid := "test"
+	tid := TenantID
 	prefix := ""
 	metaFilename := MetaFileName(b, tid, prefix)
 
 	assert.Equal(t, tid+"/"+b.String()+"/"+MetaName, metaFilename)
 
 	// WithPrefix
-	prefix = "test/prefix"
+	prefix = StoragePrefix
 	metaFilename = MetaFileName(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String()+"/"+MetaName, metaFilename)
@@ -129,14 +134,14 @@ func TestCompactedMetaFileName(t *testing.T) {
 
 	// WithoutPrefix
 	b := uuid.New()
-	tid := "test"
+	tid := TenantID
 	prefix := ""
 	compactedMetaFilename := CompactedMetaFileName(b, tid, prefix)
 
 	assert.Equal(t, tid+"/"+b.String()+"/"+CompactedMetaName, compactedMetaFilename)
 
 	// WithPrefix
-	prefix = "test/prefix"
+	prefix = StoragePrefix
 	compactedMetaFilename = CompactedMetaFileName(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String()+"/"+CompactedMetaName, compactedMetaFilename)
@@ -146,14 +151,14 @@ func TestRootPath(t *testing.T) {
 
 	// WithoutPrefix
 	b := uuid.New()
-	tid := "test"
+	tid := TenantID
 	prefix := ""
 	rootPath := RootPath(b, tid, prefix)
 
 	assert.Equal(t, tid+"/"+b.String(), rootPath)
 
 	// WithPrefix
-	prefix = "test/prefix"
+	prefix = StoragePrefix
 	rootPath = RootPath(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String(), rootPath)
