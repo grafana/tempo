@@ -335,10 +335,10 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 
 	var rawHistorgram *tempopb.RawHistogram
 	var errCount int
-	for static, series := range m.Series {
+	for series, hist := range m.Series {
 		h := []*tempopb.RawHistogram{}
 
-		for bucket, count := range series.Buckets() {
+		for bucket, count := range hist.Buckets() {
 			if count != 0 {
 				rawHistorgram = &tempopb.RawHistogram{
 					Bucket: uint64(bucket),
@@ -350,13 +350,13 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		}
 
 		errCount = 0
-		if errs, ok := m.Errors[static]; ok {
+		if errs, ok := m.Errors[series]; ok {
 			errCount = errs
 		}
 
 		resp.Metrics = append(resp.Metrics, &tempopb.SpanMetrics{
 			LatencyHistogram: h,
-			Series:           toStaticProto(static),
+			Series:           metricSeriesToProto(series),
 			Errors:           uint64(errCount),
 		})
 	}
@@ -632,7 +632,7 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 	return nil
 }
 
-func toStaticProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue {
+func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue {
 	var r []*tempopb.KeyValue
 	for _, kv := range series {
 		if kv.Key != "" {
