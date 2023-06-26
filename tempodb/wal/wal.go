@@ -158,6 +158,14 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID, dataEncoding string) (common.WALB
 	return w.NewBlockWithDedicatedColumns(id, tenantID, dataEncoding, nil)
 }
 
+// TODO(mapno): NewBlock and NewBlockWithDedicatedColumns should be consolidated into a single method
+//  They're currently separate because the dedicated columns feature is vParquet3-only,
+//  and we prefer to avoid leaking vParquet3-specific code where possible.
+//  There are a couple of ways to do this:
+//  1. Add a dedicatedColumns parameter to NewBlock, and have it default to nil.
+//  2. Have encoding-specific config be part of the encoding itself
+//  3. Pass the meta file path to the WAL constructor
+
 func (w *WAL) NewBlockWithDedicatedColumns(id uuid.UUID, tenantID, dataEncoding string, dedicatedColumns []backend.DedicatedColumn) (common.WALBlock, error) {
 	return w.newBlock(id, tenantID, dataEncoding, w.c.Version, dedicatedColumns)
 }
