@@ -96,7 +96,6 @@
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
-    statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     $.util.podPriority('high') +
     (if with_anti_affinity then $.util.antiAffinity else {}),
 
