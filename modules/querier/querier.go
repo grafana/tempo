@@ -115,8 +115,6 @@ func New(
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
-	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
-
 	ingesterClientFactory := func(addr string) (ring_client.PoolClient, error) {
 		return ingester_client.New(addr, ingesterClientConfig)
 	}

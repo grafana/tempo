@@ -85,7 +85,8 @@ type App struct {
 // New makes a new app.
 func New(cfg Config) (*App, error) {
 	app := &App{
-		cfg: cfg,
+		cfg:       cfg,
+		readRings: map[string]*ring.Ring{},
 	}
 
 	usagestats.Edition("oss")
