@@ -195,12 +195,16 @@ message SpanMetricsRequest {
   string query = 1;
   string groupBy = 2;
   uint64 limit = 3;
+  uint32 start = 4;
+  uint32 end = 5;
 }
 
 message SpanMetricsSummaryRequest {
   string query = 1;
   string groupBy = 2;
   uint64 limit = 3;
+  uint32 start = 4;
+  uint32 end = 5;
 }
 
 message SpanMetricsResponse {

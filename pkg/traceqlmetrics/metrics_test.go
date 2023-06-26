@@ -13,13 +13,13 @@ func TestPercentile(t *testing.T) {
 	testCases := []struct {
 		name      string
 		durations []uint64
-		quartile  float32
+		p         float64
 		value     uint64
 	}{
 		{
 			name:      "easy mode",
 			durations: []uint64{2, 4, 6, 8},
-			quartile:  0.5,
+			p:         0.5,
 			value:     uint64(4),
 		},
 		{
@@ -31,8 +31,20 @@ func TestPercentile(t *testing.T) {
 			// = 2048 * 2^0.6 = 3104.1875...
 			name:      "interpolate between buckets",
 			durations: []uint64{2000, 2000, 2000, 2000, 2000, 4000, 4000, 4000, 4000, 4000},
-			quartile:  0.75,
+			p:         0.75,
 			value:     uint64(3104),
+		},
+		{
+			name:      "edge case bucket 0",
+			durations: []uint64{1},
+			p:         1.0,
+			value:     uint64(1),
+		},
+		{
+			name:      "edge case empty",
+			durations: []uint64{},
+			p:         1.0,
+			value:     uint64(0),
 		},
 	}
 
@@ -41,7 +53,7 @@ func TestPercentile(t *testing.T) {
 		for _, d := range tc.durations {
 			m.Record(d)
 		}
-		got := m.Percentile(tc.quartile)
+		got := m.Percentile(tc.p)
 		require.Equal(t, tc.value, got, tc.name)
 	}
 }
@@ -79,28 +91,32 @@ func TestMetricsResultsCombine(t *testing.T) {
 
 func TestGetMetrics(t *testing.T) {
 
-	ctx := context.TODO()
-	query := "{}"
-	groupBy := "span.foo"
+	var (
+		ctx     = context.TODO()
+		query   = "{}"
+		groupBy = "span.foo"
+		start   = uint64(0)
+		end     = uint64(0)
+	)
 
 	m := &mockFetcher{
 		Spansets: []*traceql.Spanset{
 			{
 				Spans: []traceql.Span{
-					newMockSpan(128, "span.foo", "1"),
-					newMockSpan(128, "span.foo", "1"), // p50 for foo=1
-					newMockSpan(256, "span.foo", "1"),
-					newMockSpan(256, "span.foo", "1"),
-					newMockSpan(256, "span.foo", "2"),
-					newMockSpan(256, "span.foo", "2"), // p50 for foo=2
-					newMockSpan(512, "span.foo", "2"),
-					newMockSpan(512, "span.foo", "2").WithErr(),
+					newMockSpan().WithDuration(128).WithAttributes("span.foo", "1"),
+					newMockSpan().WithDuration(128).WithAttributes("span.foo", "1"), // p50 for foo=1
+					newMockSpan().WithDuration(256).WithAttributes("span.foo", "1"),
+					newMockSpan().WithDuration(256).WithAttributes("span.foo", "1"),
+					newMockSpan().WithDuration(256).WithAttributes("span.foo", "2"),
+					newMockSpan().WithDuration(256).WithAttributes("span.foo", "2"), // p50 for foo=2
+					newMockSpan().WithDuration(512).WithAttributes("span.foo", "2"),
+					newMockSpan().WithDuration(512).WithAttributes("span.foo", "2").WithErr(),
 				},
 			},
 		},
 	}
 
-	res, err := GetMetrics(ctx, query, groupBy, 1000, m)
+	res, err := GetMetrics(ctx, query, groupBy, 1000, start, end, m)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
@@ -120,4 +136,38 @@ func TestGetMetrics(t *testing.T) {
 	require.Equal(t, uint64(256), res.Series[two].Percentile(0.5))  // p50
 	require.Equal(t, uint64(362), res.Series[two].Percentile(0.75)) // p75, 256 * 2^0.5 = 362
 	require.Equal(t, uint64(512), res.Series[two].Percentile(1.0))  // p100
+}
+
+func TestGetMetricsTimeRange(t *testing.T) {
+
+	var (
+		ctx     = context.TODO()
+		query   = "{}"
+		groupBy = "span.foo"
+		start   = uint64(100)
+		end     = uint64(200)
+	)
+
+	m := &mockFetcher{
+		Spansets: []*traceql.Spanset{
+			{
+				Spans: []traceql.Span{
+					newMockSpan().WithStart(100).WithDuration(128).WithAttributes("span.foo", "1"),  // Included
+					newMockSpan().WithStart(200).WithDuration(256).WithAttributes("span.foo", "1"),  // not included
+					newMockSpan().WithStart(100).WithDuration(512).WithAttributes("span.foo", "2"),  // Included
+					newMockSpan().WithStart(200).WithDuration(1024).WithAttributes("span.foo", "2"), // not included
+				},
+			},
+		},
+	}
+
+	res, err := GetMetrics(ctx, query, groupBy, 1000, start, end, m)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	one := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("1")}}
+	two := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("2")}}
+
+	require.Equal(t, uint64(128), res.Series[one].Percentile(1.0)) // Highest span
+	require.Equal(t, uint64(512), res.Series[two].Percentile(1.0)) // Highest span
 }

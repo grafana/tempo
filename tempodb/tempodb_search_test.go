@@ -18,6 +18,7 @@ import (
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/math"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -791,4 +792,87 @@ func searchTestSuite() (
 	}
 
 	return
+}
+
+func TestWALBlockGetMetrics(t *testing.T) {
+	var (
+		ctx     = context.Background()
+		tempDir = t.TempDir()
+	)
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    10000,
+		},
+		WAL: &wal.Config{
+			Filepath:       path.Join(tempDir, "wal"),
+			IngestionSlack: time.Since(time.Time{}),
+		},
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(t, err)
+
+	err = c.EnableCompaction(context.Background(), &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(&mockJobSharder{})
+
+	wal := w.WAL()
+	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	// Write to wal
+	err = head.AppendTrace(common.ID{0x01}, &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			{
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{Name: "1", StartTimeUnixNano: 1, EndTimeUnixNano: 2}, // Included
+							{Name: "2", StartTimeUnixNano: 2, EndTimeUnixNano: 4}, // Included
+							{Name: "3", StartTimeUnixNano: 100},                   // Excluded, endtime is exclusive
+							{Name: "4", StartTimeUnixNano: 101},                   // Excluded
+						},
+					},
+				},
+			},
+		},
+	}, 0, 0)
+	require.NoError(t, err)
+	require.NoError(t, head.Flush())
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return head.Fetch(ctx, req, common.DefaultSearchOptions())
+	})
+
+	res, err := traceqlmetrics.GetMetrics(ctx, "{}", "name", 0, 1, 100, f)
+	require.NoError(t, err)
+
+	one := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("1")}}
+	two := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("2")}}
+
+	require.Equal(t, 2, len(res.Series))
+	require.Equal(t, 2, res.SpanCount)
+	require.Equal(t, 1, res.Series[one].Count())
+	require.Equal(t, 1, res.Series[two].Count())
+	require.Equal(t, uint64(1), res.Series[one].Percentile(1.0)) // The only span was 1ns
+	require.Equal(t, uint64(2), res.Series[two].Percentile(1.0)) // The only span was 2ns
 }
