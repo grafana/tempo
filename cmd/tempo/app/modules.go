@@ -65,6 +65,11 @@ const (
 	// composite targets
 	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
+
+	// ring names
+	ringIngester          string = "ingester"
+	ringMetricsGenerator  string = "metrics-generator"
+	ringSecondaryIngester string = "secondary-ingester"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -141,21 +146,23 @@ func (t *App) initInternalServer() (services.Service, error) {
 }
 
 func (t *App) initIngesterRing() (services.Service, error) {
-	ring, err := t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", t.cfg.Ingester.OverrideRingKey)
-	if err != nil {
-		return nil, err
-	}
-	t.ingesterRing = ring
-	return t.ingesterRing, nil
+	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringIngester, t.cfg.Ingester.OverrideRingKey)
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
-	ring, err := t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), "metrics-generator", generator.RingKey)
-	if err != nil {
-		return nil, err
+	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, generator.RingKey)
+}
+
+// initSecondaryIngesterRing is an optional ring for the queriers. This secondary ring is useful in edge cases and should
+// not be used generally. Use this if you need one set of queries to query 2 different sets of ingesters.
+func (t *App) initSecondaryIngesterRing() (services.Service, error) {
+	// if no secondary ring is configured, then bail by returning a dummy service
+	if t.cfg.Querier.SecondaryIngesterRing == "" {
+		return services.NewIdleService(nil, nil), nil
 	}
-	t.generatorRing = ring
-	return t.generatorRing, nil
+
+	// note that this is using the same cnofig as above. both rings have to be configured the same
+	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringSecondaryIngester, t.cfg.Querier.SecondaryIngesterRing)
 }
 
 func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error) {
@@ -165,6 +172,7 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 	}
 
 	t.Server.HTTP.Handle("/"+name+"/ring", ring)
+	t.readRings[name] = ring
 
 	return ring, nil
 }
@@ -187,7 +195,14 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ingesterRing, t.cfg.GeneratorClient, t.generatorRing, t.Overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor,
+		t.cfg.IngesterClient,
+		t.readRings[ringIngester],
+		t.cfg.GeneratorClient,
+		t.readRings[ringMetricsGenerator],
+		t.Overrides,
+		t.TracesConsumerMiddleware,
+		log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -258,9 +273,9 @@ func (t *App) initQuerier() (services.Service, error) {
 	querier, err := querier.New(
 		t.cfg.Querier,
 		t.cfg.IngesterClient,
-		t.ingesterRing,
+		t.readRings[ringIngester],
 		t.cfg.GeneratorClient,
-		t.generatorRing,
+		t.readRings[ringMetricsGenerator],
 		t.store,
 		t.Overrides,
 	)
