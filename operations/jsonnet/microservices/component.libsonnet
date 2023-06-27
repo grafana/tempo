@@ -21,6 +21,7 @@
     configVolumeName:: 'tempo-conf',
     overridesVolumeName:: 'overrides',
     dataVolumeName:: '%s-data' % target,
+    ephemeralDataVolumeName:: '%s-ephemeral-data' % target,
 
     containerArgs:: {
       target: target,
@@ -233,6 +234,22 @@
     // + statefulset.spec.template.spec.withVolumesMixin([
     //   volume.fromPersistentVolumeClaim(this.dataVolumeName, this.dataPVC.metadata.name),
     // ]),
+  },
+
+  withEphemeralStorage(request, limit, mountpoint):: {
+    local this = self,
+
+    container+:
+      container.mixin.resources.withRequestsMixin({ 'ephemeral-storage': request })
+      + container.mixin.resources.withLimitsMixin({ 'ephemeral-storage': limit })
+      + container.withVolumeMountsMixin([
+        volumeMount.new(this.ephemeralDataVolumeName, mountpoint),
+      ]),
+
+    deployment+:
+      deployment.spec.template.spec.withVolumesMixin([
+        volume.fromEmptyDir(this.ephemeralDataVolumeName),
+      ]),
   },
 
   withPDB(max_unavailable=1):: {
