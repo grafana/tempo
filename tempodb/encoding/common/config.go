@@ -30,6 +30,9 @@ type BlockConfig struct {
 
 	// parquet fields
 	RowGroupSizeBytes int `yaml:"parquet_row_group_size_bytes"`
+
+	// vParquet3 fields
+	DedicatedColumns []backend.DedicatedColumn `yaml:"dedicated_columns"`
 }
 
 func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

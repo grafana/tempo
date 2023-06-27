@@ -28,15 +28,19 @@ func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, m
 		return nil, fmt.Errorf("empty block meta list")
 	}
 
-	dataEncoding := metas[0].DataEncoding
+	dataEncoding, dedicatedColumns := metas[0].DataEncoding, metas[0].DedicatedColumns
+	columnsHash := metas[0].DedicatedColumnsHash()
 	for _, meta := range metas {
 		if meta.DataEncoding != dataEncoding {
 			return nil, fmt.Errorf("two blocks of different data encodings can not be streamed together: %s: %s", dataEncoding, meta.DataEncoding)
 		}
+		if meta.DedicatedColumnsHash() != columnsHash {
+			return nil, fmt.Errorf("two blocks of different dedicated columns can not be streamed together: %s: %s", dedicatedColumns, meta.DedicatedColumns)
+		}
 	}
 
 	// Start with times from input metas.
-	newMeta := backend.NewBlockMeta(tenantID, id, VersionString, cfg.Encoding, dataEncoding)
+	newMeta := backend.NewBlockMetaWithDedicatedColumns(tenantID, id, VersionString, cfg.Encoding, dataEncoding, dedicatedColumns)
 	newMeta.StartTime = metas[0].StartTime
 	newMeta.EndTime = metas[0].EndTime
 	for _, m := range metas[1:] {
