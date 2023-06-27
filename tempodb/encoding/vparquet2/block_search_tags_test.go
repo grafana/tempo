@@ -134,6 +134,22 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 			traceql.NewStaticString("abc"),
 			traceql.NewStaticString("def"),
 		}},
+
+		// Dedicated resource attributes
+		{traceql.MustParseIdentifier(".dedicated.resource.3"), []traceql.Static{
+			traceql.NewStaticString("dedicated-resource-attr-value-3"),
+		}},
+		{traceql.MustParseIdentifier("resource.dedicated.resource.2"), []traceql.Static{
+			traceql.NewStaticString("dedicated-resource-attr-value-2"),
+		}},
+
+		// Dedicated span attributes
+		{traceql.MustParseIdentifier(".dedicated.span.1"), []traceql.Static{
+			traceql.NewStaticString("dedicated-span-attr-value-1"),
+		}},
+		{traceql.MustParseIdentifier("span.dedicated.span.2"), []traceql.Static{
+			traceql.NewStaticString("dedicated-span-attr-value-2"),
+		}},
 	}
 
 	ctx := context.Background()

@@ -50,6 +50,13 @@ func TestBackendBlockSearch(t *testing.T) {
 					Attrs: []Attribute{
 						{Key: "bat", Value: strPtr("baz")},
 					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: strPtr("dedicated-resource-attr-value-1"),
+						String02: strPtr("dedicated-resource-attr-value-2"),
+						String03: strPtr("dedicated-resource-attr-value-3"),
+						String04: strPtr("dedicated-resource-attr-value-4"),
+						String05: strPtr("dedicated-resource-attr-value-5"),
+					},
 				},
 				ScopeSpans: []ScopeSpans{
 					{
@@ -64,6 +71,13 @@ func TestBackendBlockSearch(t *testing.T) {
 								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{
 									{Key: "foo", Value: strPtr("bar")},
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: strPtr("dedicated-span-attr-value-1"),
+									String02: strPtr("dedicated-span-attr-value-2"),
+									String03: strPtr("dedicated-span-attr-value-3"),
+									String04: strPtr("dedicated-span-attr-value-4"),
+									String05: strPtr("dedicated-span-attr-value-5"),
 								},
 							},
 						},
@@ -136,12 +150,18 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelK8sPodName, "k8spod"),
 		makeReq(LabelK8sContainerName, "k8scontainer"),
 
+		// Dedicated resource attributes
+		makeReq("dedicated.resource.3", "dedicated-resource-attr-value-3"),
+
 		// Well-known span attributes
 		makeReq(LabelName, "ell"),
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
 		makeReq(LabelStatusCode, StatusCodeError),
+
+		// Dedicated span attributes
+		makeReq("dedicated.span.4", "dedicated-span-attr-value-4"),
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -203,11 +223,17 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelPod, "foo"),
 		makeReq(LabelContainer, "foo"),
 
+		// Dedicated resource attributes
+		makeReq("dedicated.resource.3", "dedicated-resource-attr-value-1"),
+
 		// Well-known span attributes
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
 		makeReq(LabelStatusCode, StatusCodeOK),
+
+		// Dedicated span attributes
+		makeReq("dedicated.span.4", "dedicated-span-attr-value-5"),
 
 		// Span attributes
 		makeReq("foo", "baz"),
@@ -245,6 +271,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	meta.TotalObjects = 1
+	meta.DedicatedColumns = test.MakeDedicatedColumns()
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
@@ -283,6 +310,19 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	resourceAttrVals[LabelK8sPodName] = "kpod"
 	resourceAttrVals[LabelK8sContainerName] = "k8scon"
 
+	dedicatedResourceAttrs := DedicatedAttributes{
+		String01: ptr("dedicated-resource-attr-value-1"),
+		String02: ptr("dedicated-resource-attr-value-2"),
+		String03: ptr("dedicated-resource-attr-value-3"),
+		String04: ptr("dedicated-resource-attr-value-4"),
+		String05: ptr("dedicated-resource-attr-value-5"),
+	}
+	resourceAttrVals["dedicated.resource.1"] = *dedicatedResourceAttrs.String01
+	resourceAttrVals["dedicated.resource.2"] = *dedicatedResourceAttrs.String02
+	resourceAttrVals["dedicated.resource.3"] = *dedicatedResourceAttrs.String03
+	resourceAttrVals["dedicated.resource.4"] = *dedicatedResourceAttrs.String04
+	resourceAttrVals["dedicated.resource.5"] = *dedicatedResourceAttrs.String05
+
 	intrinsicVals[LabelName] = "span"
 	// todo: the below 3 are not supported in traceql and should be removed when support for tags based search is removed
 	intrinsicVals[LabelRootServiceName] = "rootsvc"
@@ -292,6 +332,19 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	spanAttrVals[LabelHTTPMethod] = "method"
 	spanAttrVals[LabelHTTPUrl] = "url"
 	spanAttrVals[LabelHTTPStatusCode] = "404"
+
+	dedicatedSpanAttrs := DedicatedAttributes{
+		String01: ptr("dedicated-span-attr-value-1"),
+		String02: ptr("dedicated-span-attr-value-2"),
+		String03: ptr("dedicated-span-attr-value-3"),
+		String04: ptr("dedicated-span-attr-value-4"),
+		String05: ptr("dedicated-span-attr-value-5"),
+	}
+	spanAttrVals["dedicated.span.1"] = *dedicatedSpanAttrs.String01
+	spanAttrVals["dedicated.span.2"] = *dedicatedSpanAttrs.String02
+	spanAttrVals["dedicated.span.3"] = *dedicatedSpanAttrs.String03
+	spanAttrVals["dedicated.span.4"] = *dedicatedSpanAttrs.String04
+	spanAttrVals["dedicated.span.5"] = *dedicatedSpanAttrs.String05
 
 	for i := 0; i < 10; i++ {
 		tr := &Trace{
@@ -321,6 +374,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 							Value: &val,
 						},
 					},
+					DedicatedAttributes: dedicatedResourceAttrs,
 				},
 				ScopeSpans: []ScopeSpans{
 					{},
@@ -346,6 +400,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 							Value: &val,
 						},
 					},
+					DedicatedAttributes: dedicatedSpanAttrs,
 				}
 
 				rs.ScopeSpans[0].Spans = append(rs.ScopeSpans[0].Spans, span)
