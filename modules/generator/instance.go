@@ -109,11 +109,6 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 	}
 	go i.watchOverrides()
 
-	// add ingestion slack overrides
-	if slack := overrides.MetricsGeneratorIngestionSlack(instanceID); slack > 0 {
-		i.cfg.MetricsIngestionSlack = slack
-	}
-
 	return i, nil
 }
 
@@ -192,6 +187,11 @@ func (i *instance) updateProcessors() error {
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
+	}
+
+	// add ingestion slack overrides
+	if slack := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID); slack > 0 {
+		i.cfg.MetricsIngestionSlack = slack
 	}
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
@@ -352,6 +352,11 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0
+	// ingestionSlack := i.cfg.MetricsIngestionSlack
+	// if slack := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID); slack > 0 {
+	// 	ingestionSlack = slack
+	// }
+	fmt.Println("*** ingestion slack for " + i.instanceID + "is " + i.cfg.MetricsIngestionSlack.String())
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ss := range b.ScopeSpans {
