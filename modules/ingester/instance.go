@@ -500,7 +500,7 @@ func (i *instance) resetHeadBlock() error {
 }
 
 func (i *instance) getDedicatedColumns() []backend.DedicatedColumn {
-	if cols := i.overrides.DedicatedColumns(i.instanceID); len(cols) > 0 {
+	if cols := i.overrides.DedicatedColumns(i.instanceID); cols != nil {
 		return cols
 	}
 	return i.dedicatedColumns
