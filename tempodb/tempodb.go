@@ -232,12 +232,13 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 
 	inMeta := &backend.BlockMeta{
 		// From the wal block
-		TenantID:     walMeta.TenantID,
-		BlockID:      walMeta.BlockID,
-		TotalObjects: walMeta.TotalObjects,
-		StartTime:    walMeta.StartTime,
-		EndTime:      walMeta.EndTime,
-		DataEncoding: walMeta.DataEncoding,
+		TenantID:         walMeta.TenantID,
+		BlockID:          walMeta.BlockID,
+		TotalObjects:     walMeta.TotalObjects,
+		StartTime:        walMeta.StartTime,
+		EndTime:          walMeta.EndTime,
+		DataEncoding:     walMeta.DataEncoding,
+		DedicatedColumns: walMeta.DedicatedColumns,
 
 		// Other
 		Encoding: rw.cfg.Block.Encoding,

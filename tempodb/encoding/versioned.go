@@ -48,7 +48,7 @@ type VersionedEncoding interface {
 	OpenWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error)
 
 	// CreateWALBlock creates a new appendable block for the WAL
-	CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
+	CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns []backend.DedicatedColumn) (common.WALBlock, error)
 
 	// OwnsWALBlock indicates if this encoding owns the WAL block
 	OwnsWALBlock(entry fs.DirEntry) bool

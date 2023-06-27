@@ -66,17 +66,20 @@ type Ingester struct {
 
 	limiter *Limiter
 
+	overrides ingesterOverrides
+
 	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, limits overrides.Interface, reg prometheus.Registerer) (*Ingester, error) {
+func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},
 		store:        store,
 		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 		replayJitter: true,
+		overrides:    overrides,
 	}
 
 	i.local = store.WAL().LocalBackend()
@@ -89,7 +92,7 @@ func New(cfg Config, store storage.Store, limits overrides.Interface, reg promet
 
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.
-	i.limiter = NewLimiter(limits, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
+	i.limiter = NewLimiter(overrides, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
 	i.subservicesWatcher = services.NewFailureWatcher()
 	i.subservicesWatcher.WatchService(i.lifecycler)
@@ -300,7 +303,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.store, i.local, i.cfg.AutocompleteFilteringEnabled)
+		inst, err = newInstance(instanceID, i.limiter, i.overrides, i.store, i.local, i.cfg.AutocompleteFilteringEnabled, i.cfg.DedicatedColumns)
 		if err != nil {
 			return nil, err
 		}

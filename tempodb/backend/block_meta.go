@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/google/uuid"
 )
 
@@ -64,14 +66,19 @@ type DedicatedColumn struct {
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
+	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
+}
+
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns []DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
-		Version:      version,
-		BlockID:      blockID,
-		MinID:        []byte{},
-		MaxID:        []byte{},
-		TenantID:     tenantID,
-		Encoding:     encoding,
-		DataEncoding: dataEncoding,
+		Version:          version,
+		BlockID:          blockID,
+		MinID:            []byte{},
+		MaxID:            []byte{},
+		TenantID:         tenantID,
+		Encoding:         encoding,
+		DataEncoding:     dataEncoding,
+		DedicatedColumns: dedicatedColumns,
 	}
 
 	return b
@@ -103,4 +110,25 @@ func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
 	}
 
 	b.TotalObjects++
+}
+
+// separatorByte is a byte that cannot occur in valid UTF-8 sequences
+var separatorByte = []byte{255}
+
+// TODO: Find a better way of comparing dedicated columns config
+
+// DedicatedColumnsHash returns a hash of the dedicated columns' configuration.
+// Used for comparing the configuration of two blocks.
+func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+	h := xxhash.New()
+
+	for _, c := range b.DedicatedColumns {
+		_, _ = h.WriteString(c.Scope)
+		_, _ = h.Write(separatorByte)
+		_, _ = h.WriteString(c.Name)
+		_, _ = h.Write(separatorByte)
+		_, _ = h.WriteString(c.Type)
+	}
+
+	return h.Sum64()
 }

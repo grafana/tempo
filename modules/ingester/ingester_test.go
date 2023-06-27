@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/flagext"
@@ -339,9 +341,73 @@ func TestFlush(t *testing.T) {
 	}
 }
 
+func TestDedicatedColumns(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("/tmp", "")
+	require.NoError(t, err, "unexpected error getting tempdir")
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	limits := overrides.Limits{}
+	flagext.DefaultValues(&limits)
+	limits.DedicatedColumns = []backend.DedicatedColumn{{Scope: "span", Name: "foo", Type: "string"}}
+
+	i := defaultIngesterWithOverrides(t, tmpDir, limits)
+	inst, _ := i.getOrCreateInstance("test")
+	require.NotNil(t, inst)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// create some search data
+	id := make([]byte, 16)
+	_, err = rand.Read(id)
+	require.NoError(t, err)
+	trace := test.MakeTrace(10, id)
+	b1, err := dec.PrepareForWrite(trace, 0, 0)
+	require.NoError(t, err)
+
+	// push to instance
+	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
+
+	// Write wal
+	require.NoError(t, inst.CutCompleteTraces(0, true))
+
+	assert.Equal(t, limits.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumns)
+
+	// TODO: This search should find a match once the read path is supported
+	ctx := user.InjectOrgID(context.Background(), "test")
+	searchReq := &tempopb.SearchRequest{Query: "{span.foo=\"bar\"}"}
+	results, err := inst.Search(ctx, searchReq)
+	require.NoError(t, err)
+	assert.Len(t, results.Traces, 0)
+
+	blockID, err := inst.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
+	// TODO: This check should be included as part of the read path
+	inst.blocksMtx.RLock()
+	for _, b := range inst.completingBlocks {
+		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+	}
+	inst.blocksMtx.RUnlock()
+
+	// Complete block
+	err = inst.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	// TODO: This check should be included as part of the read path
+	inst.blocksMtx.RLock()
+	for _, b := range inst.completeBlocks {
+		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+	}
+	inst.blocksMtx.RUnlock()
+}
+
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
+	return defaultIngesterWithOverrides(t, tmpDir, defaultOverrides())
+}
+
+func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Limits) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
+	limits, err := overrides.NewOverrides(o)
 	require.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
@@ -430,7 +496,7 @@ func defaultIngesterTestConfig() Config {
 	return cfg
 }
 
-func defaultLimitsTestConfig() overrides.Limits {
+func defaultOverrides() overrides.Limits {
 	limits := overrides.Limits{}
 	flagext.DefaultValues(&limits)
 	return limits

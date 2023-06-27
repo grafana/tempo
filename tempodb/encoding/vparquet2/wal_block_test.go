@@ -64,7 +64,7 @@ func TestPartialReplay(t *testing.T) {
 	blockID := uuid.New()
 	basePath := t.TempDir()
 
-	w, err := createWALBlock(blockID, "fake", basePath, backend.EncNone, model.CurrentEncoding, 0)
+	w, err := createWALBlock(blockID, "fake", basePath, backend.EncNone, model.CurrentEncoding, 0, nil)
 	require.NoError(t, err)
 
 	// Flush a set of traces across 2 pages
@@ -292,7 +292,7 @@ func TestRowIterator(t *testing.T) {
 }
 
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
-	w, err := createWALBlock(uuid.New(), "fake", t.TempDir(), backend.EncNone, model.CurrentEncoding, 0)
+	w, err := createWALBlock(uuid.New(), "fake", t.TempDir(), backend.EncNone, model.CurrentEncoding, 0, nil)
 	require.NoError(t, err)
 
 	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)

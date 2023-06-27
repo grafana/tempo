@@ -113,6 +113,9 @@ type instance struct {
 	limiter            *Limiter
 	writer             tempodb.Writer
 
+	dedicatedColumns []backend.DedicatedColumn
+	overrides        ingesterOverrides
+
 	local       *local.Backend
 	localReader backend.Reader
 	localWriter backend.Writer
@@ -122,7 +125,7 @@ type instance struct {
 	autocompleteFilteringEnabled bool
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool, dedicatedColumns []backend.DedicatedColumn) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: map[uint32]uint32{},
@@ -132,6 +135,9 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		bytesReceivedTotal: metricBytesReceivedTotal,
 		limiter:            limiter,
 		writer:             writer,
+
+		dedicatedColumns: dedicatedColumns,
+		overrides:        overrides,
 
 		local:       l,
 		localReader: backend.NewReader(l),
@@ -480,7 +486,9 @@ func (i *instance) resetHeadBlock() error {
 	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
 	i.tracesMtx.Unlock()
 
-	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
+	dedicatedColumns := i.getDedicatedColumns()
+
+	newHeadBlock, err := i.writer.WAL().NewBlockWithDedicatedColumns(uuid.New(), i.instanceID, model.CurrentEncoding, dedicatedColumns)
 	if err != nil {
 		return err
 	}
@@ -489,6 +497,13 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	return nil
+}
+
+func (i *instance) getDedicatedColumns() []backend.DedicatedColumn {
+	if cols := i.overrides.DedicatedColumns(i.instanceID); cols != nil {
+		return cols
+	}
+	return i.dedicatedColumns
 }
 
 func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrace {

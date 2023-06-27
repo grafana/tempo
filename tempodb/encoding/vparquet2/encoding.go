@@ -45,8 +45,8 @@ func (v Encoding) OpenWALBlock(filename string, path string, ingestionSlack time
 }
 
 // CreateWALBlock creates a new appendable block
-func (v Encoding) CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	return createWALBlock(id, tenantID, filepath, e, dataEncoding, ingestionSlack)
+func (v Encoding) CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns []backend.DedicatedColumn) (common.WALBlock, error) {
+	return createWALBlock(id, tenantID, filepath, e, dataEncoding, ingestionSlack, dedicatedColumns)
 }
 
 func (v Encoding) OwnsWALBlock(entry fs.DirEntry) bool {

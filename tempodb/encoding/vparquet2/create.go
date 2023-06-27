@@ -105,7 +105,7 @@ type streamingBlock struct {
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
-	newMeta := backend.NewBlockMeta(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "")
+	newMeta := backend.NewBlockMetaWithDedicatedColumns(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "", meta.DedicatedColumns)
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 
