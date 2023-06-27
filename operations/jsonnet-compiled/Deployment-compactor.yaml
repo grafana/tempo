@@ -4,9 +4,7 @@ metadata:
   name: compactor
   namespace: tracing
 spec:
-  minReadySeconds: 10
   replicas: 5
-  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: compactor
@@ -32,7 +30,6 @@ spec:
         - name: GOMEMLIMIT
           value: 5GiB
         image: grafana/tempo:latest
-        imagePullPolicy: IfNotPresent
         name: compactor
         ports:
         - containerPort: 3200
@@ -55,6 +52,7 @@ spec:
           name: tempo-conf
         - mountPath: /overrides
           name: overrides
+      terminationGracePeriodSeconds: 30
       volumes:
       - configMap:
           name: tempo-compactor

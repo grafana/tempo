@@ -4,9 +4,7 @@ metadata:
   name: querier
   namespace: tracing
 spec:
-  minReadySeconds: 10
   replicas: 5
-  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: querier
@@ -31,7 +29,6 @@ spec:
         - -mem-ballast-size-mbs=1024
         - -target=querier
         image: grafana/tempo:latest
-        imagePullPolicy: IfNotPresent
         name: querier
         ports:
         - containerPort: 3200
@@ -54,6 +51,7 @@ spec:
           name: tempo-conf
         - mountPath: /overrides
           name: overrides
+      terminationGracePeriodSeconds: 30
       volumes:
       - configMap:
           name: tempo-querier

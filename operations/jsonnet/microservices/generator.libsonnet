@@ -41,5 +41,6 @@
 
   tempo_metrics_generator_container:: {},
   tempo_metrics_generator_deployment:: {},
+  tempo_metrics_generator_statefulset:: {},
   tempo_metrics_generator_service:: {},
 }

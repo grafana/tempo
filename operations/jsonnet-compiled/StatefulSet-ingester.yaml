@@ -54,10 +54,10 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
-        - mountPath: /var/tempo
-          name: ingester-data
         - mountPath: /overrides
           name: overrides
+        - mountPath: /var/tempo
+          name: ingester-data
       terminationGracePeriodSeconds: 1200
       volumes:
       - configMap:

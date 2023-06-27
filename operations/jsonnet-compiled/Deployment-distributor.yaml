@@ -4,9 +4,7 @@ metadata:
   name: distributor
   namespace: tracing
 spec:
-  minReadySeconds: 10
   replicas: 5
-  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: distributor
@@ -31,7 +29,6 @@ spec:
         - -mem-ballast-size-mbs=1024
         - -target=distributor
         image: grafana/tempo:latest
-        imagePullPolicy: IfNotPresent
         name: distributor
         ports:
         - containerPort: 3200
@@ -54,7 +51,7 @@ spec:
           name: tempo-conf
         - mountPath: /overrides
           name: overrides
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: 30
       volumes:
       - configMap:
           name: tempo-distributor

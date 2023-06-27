@@ -56,10 +56,11 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
-        - mountPath: /var/tempo
-          name: metrics-generator-data
         - mountPath: /overrides
           name: overrides
+        - mountPath: /var/tempo/generator_wal
+          name: metrics-generator-ephemeral-data
+      terminationGracePeriodSeconds: 1200
       volumes:
       - configMap:
           name: tempo-metrics-generator
@@ -78,7 +79,3 @@ spec:
     spec:
       accessModes:
       - ReadWriteOnce
-      resources:
-        requests:
-          storage: 10Gi
-      storageClassName: fast
