@@ -107,7 +107,7 @@ func TestReader(t *testing.T) {
 
 func TestKeyPathForBlock(t *testing.T) {
 	b := uuid.New()
-	tid := TenantID
+	tid := tenantID
 	keypath := KeyPathForBlock(b, tid)
 
 	assert.Equal(t, KeyPath([]string{tid, b.String()}), keypath)
@@ -117,14 +117,14 @@ func TestMetaFileName(t *testing.T) {
 
 	// WithoutPrefix
 	b := uuid.New()
-	tid := TenantID
+	tid := tenantID
 	prefix := ""
 	metaFilename := MetaFileName(b, tid, prefix)
 
 	assert.Equal(t, tid+"/"+b.String()+"/"+MetaName, metaFilename)
 
 	// WithPrefix
-	prefix = StoragePrefix
+	prefix = storagePrefix
 	metaFilename = MetaFileName(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String()+"/"+MetaName, metaFilename)
@@ -134,14 +134,14 @@ func TestCompactedMetaFileName(t *testing.T) {
 
 	// WithoutPrefix
 	b := uuid.New()
-	tid := TenantID
+	tid := tenantID
 	prefix := ""
 	compactedMetaFilename := CompactedMetaFileName(b, tid, prefix)
 
 	assert.Equal(t, tid+"/"+b.String()+"/"+CompactedMetaName, compactedMetaFilename)
 
 	// WithPrefix
-	prefix = StoragePrefix
+	prefix = storagePrefix
 	compactedMetaFilename = CompactedMetaFileName(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String()+"/"+CompactedMetaName, compactedMetaFilename)
@@ -151,14 +151,14 @@ func TestRootPath(t *testing.T) {
 
 	// WithoutPrefix
 	b := uuid.New()
-	tid := TenantID
+	tid := tenantID
 	prefix := ""
 	rootPath := RootPath(b, tid, prefix)
 
 	assert.Equal(t, tid+"/"+b.String(), rootPath)
 
 	// WithPrefix
-	prefix = StoragePrefix
+	prefix = storagePrefix
 	rootPath = RootPath(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String(), rootPath)
