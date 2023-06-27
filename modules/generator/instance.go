@@ -63,8 +63,9 @@ const (
 type instance struct {
 	cfg *Config
 
-	instanceID string
-	overrides  metricsGeneratorOverrides
+	instanceID              string
+	overrides               metricsGeneratorOverrides
+	ingestionSlackOverrides map[string]time.Duration
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -87,9 +88,10 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
-		cfg:        cfg,
-		instanceID: instanceID,
-		overrides:  overrides,
+		cfg:                     cfg,
+		instanceID:              instanceID,
+		overrides:               overrides,
+		ingestionSlackOverrides: make(map[string]time.Duration),
 
 		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
 		wal:      wal,
@@ -190,8 +192,10 @@ func (i *instance) updateProcessors() error {
 	}
 
 	// add ingestion slack overrides
-	if slack := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID); slack > 0 {
-		i.cfg.MetricsIngestionSlack = slack
+	ingestionSlackOverride := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID)
+	_, exist := i.ingestionSlackOverrides[i.instanceID]
+	if ingestionSlackOverride > 0 && !exist {
+		i.ingestionSlackOverrides[i.instanceID] = ingestionSlackOverride
 	}
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
@@ -352,11 +356,11 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0
-	// ingestionSlack := i.cfg.MetricsIngestionSlack
-	// if slack := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID); slack > 0 {
-	// 	ingestionSlack = slack
-	// }
-	fmt.Println("*** ingestion slack for " + i.instanceID + "is " + i.cfg.MetricsIngestionSlack.String())
+	ingestionSlack := i.cfg.MetricsIngestionSlack
+	if overrideSlack, found := i.ingestionSlackOverrides[i.instanceID]; found {
+		ingestionSlack = overrideSlack
+	}
+
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ss := range b.ScopeSpans {
@@ -366,7 +370,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			timeNow := time.Now()
 			index := 0
 			for _, span := range ss.Spans {
-				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.cfg.MetricsIngestionSlack).UnixNano()) {
+				if span.EndTimeUnixNano >= uint64(timeNow.Add(-ingestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(ingestionSlack).UnixNano()) {
 					newSpansArr[index] = span
 					index++
 				} else {
