@@ -414,7 +414,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					TotalObjects: 50,
 					EndTime:      now,
-				}},
+				},
+			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -449,7 +450,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					Size:    1,
 					EndTime: now,
-				}},
+				},
+			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -784,13 +786,13 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 
 			// Fill dedicated columns hash
 			for _, block := range tt.blocklist {
-				block.DedicatedColumnsHash = backend.DedicatedColumns(block.DedicatedColumns).Hash()
+				block.DedicatedColumnsHash = backend.dedicatedColumns(block.DedicatedColumns).hash()
 			}
 			for _, block := range tt.expected {
-				block.DedicatedColumnsHash = backend.DedicatedColumns(block.DedicatedColumns).Hash()
+				block.DedicatedColumnsHash = backend.dedicatedColumns(block.DedicatedColumns).hash()
 			}
 			for _, block := range tt.expectedSecond {
-				block.DedicatedColumnsHash = backend.DedicatedColumns(block.DedicatedColumns).Hash()
+				block.DedicatedColumnsHash = backend.dedicatedColumns(block.DedicatedColumns).hash()
 			}
 
 			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)

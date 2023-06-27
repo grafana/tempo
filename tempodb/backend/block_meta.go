@@ -77,8 +77,13 @@ type BlockMeta struct {
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by parquet)
 	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
+
+	// TODO: BlockMeta is theoretically immutable, so BlockMeta.DedicatedColumns shouldn't change after creation.
+	//   However, we're not enforcing immutability, so it's possible that the hash could change.
+	//   We should either enforce immutability or find another way to not compute the hash every time.
+
 	// DedicatedColumnsHash is a hash of the dedicated columns configuration (used by vParquet3)
-	DedicatedColumnsHash uint64 // TODO: How to keep this in sync with the actual config?
+	dedicatedColumnsHash uint64
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -96,7 +101,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns []DedicatedColumn) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc []DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
 		Version:              version,
 		BlockID:              blockID,
@@ -105,17 +110,20 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 		TenantID:             tenantID,
 		Encoding:             encoding,
 		DataEncoding:         dataEncoding,
-		DedicatedColumns:     dedicatedColumns,
-		DedicatedColumnsHash: DedicatedColumns(dedicatedColumns).Hash(),
+		DedicatedColumns:     dc,
+		dedicatedColumnsHash: dedicatedColumns(dc).hash(),
 	}
 
 	return b
 }
 
+func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+	return b.dedicatedColumnsHash
+}
+
 // ObjectAdded updates the block meta appropriately based on information about an added record
 // start/end are unix epoch seconds
-func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
-
+func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 	if start > 0 {
 		startTime := time.Unix(int64(start), 0)
 		if b.StartTime.IsZero() || startTime.Before(b.StartTime) {
@@ -140,14 +148,12 @@ func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
 	b.TotalObjects++
 }
 
-// TODO: Find a better way of comparing dedicated columns config
-
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
 
-type DedicatedColumns []DedicatedColumn
+type dedicatedColumns []DedicatedColumn
 
-func (c DedicatedColumns) Hash() uint64 {
+func (c dedicatedColumns) hash() uint64 {
 	return hashColumns(c)
 }
 
