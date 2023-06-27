@@ -193,8 +193,8 @@ func (i *instance) updateProcessors() error {
 
 	// add ingestion slack overrides
 	ingestionSlackOverride := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID)
-	_, exist := i.ingestionSlackOverrides[i.instanceID]
-	if ingestionSlackOverride > 0 && !exist {
+	slackDuration, exist := i.ingestionSlackOverrides[i.instanceID]
+	if ingestionSlackOverride > 0 && ( !exist || ingestionSlackOverride != slackDuration) {
 		i.ingestionSlackOverrides[i.instanceID] = ingestionSlackOverride
 	}
 
