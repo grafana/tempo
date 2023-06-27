@@ -13,7 +13,7 @@
   local target_name = 'metrics-generator',
 
   local component = import 'component.libsonnet',
-  local target = component.newTempoComponent(target_name)
+  local target = component.newTempoComponent(target_name, image=$._images.tempo, port=$._config.port)
                  + component.withConfigData($.tempo_metrics_generator_config)
                  + component.withStatefulset()
                  + component.withGlobalConfig($._config)

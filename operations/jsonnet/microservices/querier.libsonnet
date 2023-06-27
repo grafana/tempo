@@ -9,7 +9,7 @@
   local target_name = 'querier',
 
   local component = import 'component.libsonnet',
-  local target = component.newTempoComponent(target_name)
+  local target = component.newTempoComponent(target_name, image=$._images.tempo, port=$._config.port)
                  + component.withConfigData($.tempo_querier_config)
                  + component.withDeployment()
                  + component.withGlobalConfig($._config)

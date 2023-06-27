@@ -6,7 +6,7 @@
   local target_name = 'query-frontend',
 
   local component = import 'component.libsonnet',
-  local target = component.newTempoComponent(target_name)
+  local target = component.newTempoComponent(target_name, image=$._images.tempo, port=$._config.port)
                  + component.withConfigData($.tempo_query_frontend_config)
                  + component.withDeployment()
                  + component.withDiscoveryService()
