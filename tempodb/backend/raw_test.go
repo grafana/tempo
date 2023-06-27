@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	TenantID      = "test"
-	StoragePrefix = "test/prefix"
+	tenantID      = "test"
+	storagePrefix = "test/prefix"
 )
 
 // todo: add tests that check the appropriate keypath is passed
