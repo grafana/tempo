@@ -3,7 +3,6 @@ package vparquet2
 import (
 	"context"
 	"fmt"
-	"github.com/grafana/tempo/tempodb/backend"
 	"io"
 	"math"
 	"os"
@@ -20,6 +19,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
