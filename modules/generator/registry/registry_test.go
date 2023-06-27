@@ -4,7 +4,6 @@ import (
 	"context"
 	"math/rand"
 	"os"
-	"sort"
 	"testing"
 	"time"
 
@@ -247,9 +246,6 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 	for i := range appender.samples {
 		appender.samples[i].t = collectionTimeMs
 	}
-
-	sort.Slice(expectedSamples, func(i, j int) bool { return expectedSamples[i].String() < expectedSamples[j].String() })
-	sort.Slice(appender.samples, func(i, j int) bool { return appender.samples[i].String() < appender.samples[j].String() })
 
 	assert.Equal(t, true, appender.isCommitted)
 	assert.Equal(t, false, appender.isRolledback)
