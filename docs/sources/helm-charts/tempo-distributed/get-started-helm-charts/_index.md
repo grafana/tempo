@@ -118,13 +118,14 @@ storage:
       bucket: 'tempo-traces'
       endpoint: 'tempo-minio:9000'
       insecure: true
+#MinIO storage configuration
 minio:
   enabled: true
   mode: standalone
   rootUser: grafana-tempo
   rootPassword: supersecret
   buckets:
-    # Default Tempo storage bucket.
+    # Default Tempo storage bucket
     - name: tempo-traces
       policy: none
       purge: false
@@ -162,6 +163,7 @@ enterpriseGateway:
   enabled: true
 gateway:
   enabled: false
+# MinIO storage configuration
 minio:
   enabled: true
 storage:
