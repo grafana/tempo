@@ -162,10 +162,15 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		}
 
 		consecutiveErrors = 0
-		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
-		blocklist[tenantID] = newBlockList
-		compactedBlocklist[tenantID] = newCompactedBlockList
+		// Only record the tenant if we have a blocklist
+		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+			blocklist[tenantID] = newBlockList
+			compactedBlocklist[tenantID] = newCompactedBlockList
+		} else {
+			metricBlocklistLength.DeleteLabelValues(tenantID)
+		}
 
 		backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
 		metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).
