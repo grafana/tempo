@@ -59,11 +59,11 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dedicatedColumns []backend.DedicatedColumn) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dc []backend.DedicatedColumn) error {
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
 
-	addToIndexes := func(standardKeyPath string, specialMappings map[string]string, dedicatedMappings dedicatedColumnMapping) error {
+	addToIndexes := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping) error {
 		// standard attributes
 		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
 		if resourceKeyIdx == -1 {
@@ -82,7 +82,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 		}
 
 		// dedicated attributes
-		dedicatedMappings.ForEach(func(lbl string, c dedicatedColumn) {
+		columnMapping.ForEach(func(lbl string, c dedicatedColumn) {
 			idx, _ := pq.GetColumnIndexByPath(pf, c.ColumnPath)
 			if idx == -1 {
 				return
@@ -96,16 +96,16 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 
 	// resource
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
-		dedicatedMappings := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeResource)
-		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings, dedicatedMappings)
+		columnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeResource)
+		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings, columnMapping)
 		if err != nil {
 			return err
 		}
 	}
 	// span
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
-		dedicatedMappings := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeSpan)
-		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings, dedicatedMappings)
+		columnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeSpan)
+		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings, columnMapping)
 		if err != nil {
 			return err
 		}
@@ -229,7 +229,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dedicatedColumns []backend.DedicatedColumn) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dc []backend.DedicatedColumn) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]
@@ -261,16 +261,16 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 	}
 
 	// Search dynamic dedicated attribute columns
-	columnMappingResource := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeResource)
-	if mapping, ok := columnMappingResource.Get(tag.Name); ok {
-		err := searchSpecialTagValues(ctx, mapping.ColumnPath, pf, cb)
+	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeResource)
+	if c, ok := resourceColumnMapping.Get(tag.Name); ok {
+		err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}
 	}
-	columnMappingSpan := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeSpan)
-	if mapping, ok := columnMappingSpan.Get(tag.Name); ok {
-		err := searchSpecialTagValues(ctx, mapping.ColumnPath, pf, cb)
+	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeSpan)
+	if c, ok := spanColumnMapping.Get(tag.Name); ok {
+		err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}

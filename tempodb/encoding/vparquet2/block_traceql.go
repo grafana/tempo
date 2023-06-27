@@ -662,8 +662,8 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions, dedicatedColumns []backend.DedicatedColumn) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, pf, opts, dedicatedColumns)
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions, dc []backend.DedicatedColumn) (*spansetIterator, error) {
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -671,7 +671,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts, dedicatedColumns)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts, dc)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
@@ -680,7 +680,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions, dedicatedColumns []backend.DedicatedColumn) (parquetquery.Iterator, error) {
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions, dc []backend.DedicatedColumn) (parquetquery.Iterator, error) {
 	// Categorize conditions into span-level or resource-level
 	var (
 		mingledConditions  bool
@@ -753,12 +753,12 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dedicatedColumns)
+	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dc)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions, dedicatedColumns)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions, dc)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
@@ -861,22 +861,22 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 
 		// Attributes stored in dedicated columns
 		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeSpan)
-		if mapping, ok := columnMapping.Get(cond.Attribute.Name); ok {
+		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
-				addPredicate(mapping.ColumnPath, nil) // No filtering
-				columnSelectAs[mapping.ColumnPath] = cond.Attribute.Name
+				addPredicate(c.ColumnPath, nil) // No filtering
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
 				continue
 			}
 
 			// Compatible type?
-			typ := traceql.StaticTypeFromString(mapping.Type)
+			typ := traceql.StaticTypeFromString(c.Type)
 			if typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
-				addPredicate(mapping.ColumnPath, pred)
-				columnSelectAs[mapping.ColumnPath] = cond.Attribute.Name
+				addPredicate(c.ColumnPath, pred)
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
 				continue
 			}
 		}
@@ -992,22 +992,22 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 
 		// Attributes stored in dedicated columns
 		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeResource)
-		if mapping, ok := columnMapping.Get(cond.Attribute.Name); ok {
+		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
-				addPredicate(mapping.ColumnPath, nil) // No filtering
-				columnSelectAs[mapping.ColumnPath] = cond.Attribute.Name
+				addPredicate(c.ColumnPath, nil) // No filtering
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
 				continue
 			}
 
 			// Compatible type?
-			typ := traceql.StaticTypeFromString(mapping.Type)
+			typ := traceql.StaticTypeFromString(c.Type)
 			if typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
-				addPredicate(mapping.ColumnPath, pred)
-				columnSelectAs[mapping.ColumnPath] = cond.Attribute.Name
+				addPredicate(c.ColumnPath, pred)
+				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
 				continue
 			}
 		}
