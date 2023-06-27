@@ -209,7 +209,6 @@ func (rw *readerWriter) CompleteBlock(ctx context.Context, block common.WALBlock
 // CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
 // new block will have the same ID as the input block.
 func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
-
 	// The destination block format:
 	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
 	if err != nil {
@@ -454,7 +453,7 @@ func (rw *readerWriter) pollingLoop() {
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.PollBlockList()
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
 		return

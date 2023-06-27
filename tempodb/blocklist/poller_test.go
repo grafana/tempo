@@ -197,7 +197,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
-			actualList, actualCompactedList, err := poller.Do()
+			actualList, actualCompactedList, err := poller.PollBlockList()
 
 			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
@@ -313,7 +313,7 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
-			_, _, err := poller.Do()
+			_, _, err := poller.PollBlockList()
 
 			assert.Equal(t, tc.expectsError, err != nil)
 			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
@@ -620,7 +620,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				TolerateConsecutiveErrors: tc.tolerate,
 			}, s, r, c, w, log.NewNopLogger())
 
-			_, _, err := poller.Do()
+			_, _, err := poller.PollBlockList()
 
 			assert.Equal(t, tc.expectedError, err)
 		})

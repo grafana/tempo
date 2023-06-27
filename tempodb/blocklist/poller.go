@@ -127,8 +127,8 @@ func NewPoller(
 	}
 }
 
-// Do does the doing of getting a blocklist
-func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
+// PollBlockList polls the blocklist
+func (p *Poller) PollBlockList() (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
