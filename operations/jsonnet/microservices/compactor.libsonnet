@@ -8,6 +8,7 @@
                  + component.withGlobalConfig($._config)
                  + component.withReplicas($._config.compactor.replicas)
                  + component.withResources($._config.compactor.resources)
+                 + component.withGoMemLimit()
   ,
 
   compactor:

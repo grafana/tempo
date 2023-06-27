@@ -13,6 +13,7 @@
   local statefulset = k.apps.v1.statefulSet,
   local volume = k.core.v1.volume,
   local volumeMount = k.core.v1.volumeMount,
+  local envVar = k.core.v1.envVar,
 
   newTempoComponent(target, image='grafana/tempo:latest', port=3200):: {
     local this = self,
@@ -26,6 +27,9 @@
       'config.file': '/conf/tempo.yaml',
       'mem-ballast-size-mbs': this.config.ballast_size_mbs,
     },
+
+    // Use withResources()
+    containerResources:: {},
 
     workload: {},
 
@@ -172,6 +176,8 @@
   },
 
   withResources(resources):: {
+    containerResources: resources,
+
     container+:
       kausal.util.resourcesRequests(resources.requests.cpu, resources.requests.memory)
       + kausal.util.resourcesLimits(resources.limits.cpu, resources.limits.memory),
@@ -237,5 +243,15 @@
       podDisruptionBudget.mixin.spec.withMaxUnavailable(1),
 
     podDisruptionBudget: this.pdb,
+  },
+
+  withGoMemLimit():: {
+    local this = self,
+
+    container+:
+      if this.containerResources.limits.memory != null then
+        container.withEnvMixin([envVar.new('GOMEMLIMIT', this.containerResources.limits.memory + 'B')])
+      else
+        {},
   },
 }
