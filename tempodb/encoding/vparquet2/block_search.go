@@ -139,18 +139,13 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	var traceIters []pq.Iterator
 
 	// Dedicated column mappings
-	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
-	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
+	spanAndResourceColumnMapping := dedicatedColumnsToColumnMapping(dc)
 
 	otherAttrConditions := map[string]string{}
 
 	for k, v := range req.Tags {
 		// dedicated attribute columns
-		if c, ok := resourceColumnMapping.Get(k); ok {
-			resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewSubstringPredicate(v), ""))
-			continue
-		}
-		if c, ok := spanColumnMapping.Get(k); ok {
+		if c, ok := spanAndResourceColumnMapping.Get(k); ok {
 			resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewSubstringPredicate(v), ""))
 			continue
 		}

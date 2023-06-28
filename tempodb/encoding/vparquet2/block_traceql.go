@@ -775,6 +775,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
+		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -860,7 +861,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		}
 
 		// Attributes stored in dedicated columns
-		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
 		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
@@ -963,6 +963,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             = []parquetquery.Iterator{}
 		genericConditions []traceql.Condition
+		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -991,7 +992,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		}
 
 		// Attributes stored in dedicated columns
-		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering

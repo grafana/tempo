@@ -7,32 +7,34 @@ import (
 
 var (
 	// Column paths for spare dedicated attribute columns
-	dedicatedResourceColumnsByType = map[backend.DedicatedColumnType][]string{
-		backend.DedicatedColumnTypeString: {
-			"rs.list.element.Resource.DedicatedAttributes.String01",
-			"rs.list.element.Resource.DedicatedAttributes.String02",
-			"rs.list.element.Resource.DedicatedAttributes.String03",
-			"rs.list.element.Resource.DedicatedAttributes.String04",
-			"rs.list.element.Resource.DedicatedAttributes.String05",
-			"rs.list.element.Resource.DedicatedAttributes.String06",
-			"rs.list.element.Resource.DedicatedAttributes.String07",
-			"rs.list.element.Resource.DedicatedAttributes.String08",
-			"rs.list.element.Resource.DedicatedAttributes.String09",
-			"rs.list.element.Resource.DedicatedAttributes.String10",
+	dedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
+		backend.DedicatedColumnScopeResource: {
+			backend.DedicatedColumnTypeString: {
+				"rs.list.element.Resource.DedicatedAttributes.String01",
+				"rs.list.element.Resource.DedicatedAttributes.String02",
+				"rs.list.element.Resource.DedicatedAttributes.String03",
+				"rs.list.element.Resource.DedicatedAttributes.String04",
+				"rs.list.element.Resource.DedicatedAttributes.String05",
+				"rs.list.element.Resource.DedicatedAttributes.String06",
+				"rs.list.element.Resource.DedicatedAttributes.String07",
+				"rs.list.element.Resource.DedicatedAttributes.String08",
+				"rs.list.element.Resource.DedicatedAttributes.String09",
+				"rs.list.element.Resource.DedicatedAttributes.String10",
+			},
 		},
-	}
-	dedicatedSpanColumnsByType = map[backend.DedicatedColumnType][]string{
-		backend.DedicatedColumnTypeString: {
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
-			"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+		backend.DedicatedColumnScopeSpan: {
+			backend.DedicatedColumnTypeString: {
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String03",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String04",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String05",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String06",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String07",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String08",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String09",
+				"rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String10",
+			},
 		},
 	}
 )
@@ -43,11 +45,11 @@ type dedicatedColumn struct {
 	ColumnIndex int
 }
 
-func (sc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
-	switch sc.Type {
+func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
+	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
 		var strVal *string
-		switch sc.ColumnIndex {
+		switch dc.ColumnIndex {
 		case 0:
 			strVal = attrs.String01
 		case 1:
@@ -78,14 +80,14 @@ func (sc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 	}
 }
 
-func (sc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyValue) bool {
-	switch sc.Type {
+func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyValue) bool {
+	switch dc.Type {
 	case backend.DedicatedColumnTypeString:
 		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
 		if !ok {
 			return false
 		}
-		switch sc.ColumnIndex {
+		switch dc.ColumnIndex {
 		case 0:
 			attrs.String01 = &strVal.StringValue
 		case 1:
@@ -145,42 +147,45 @@ func (dm *dedicatedColumnMapping) ForEach(callback func(attr string, column dedi
 	}
 }
 
+var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeSpan}
+
 // dedicatedColumnsToColumnMapping returns mapping from attribute names to spare columns for a give
 // block meta and scope.
-func dedicatedColumnsToColumnMapping(dedicatedColumns []backend.DedicatedColumn, scope backend.DedicatedColumnScope) dedicatedColumnMapping {
-	mapping := newDedicatedColumnMapping(len(dedicatedColumns))
-
-	var spareColumnsByType map[backend.DedicatedColumnType][]string
-	switch scope {
-	case backend.DedicatedColumnScopeResource:
-		spareColumnsByType = dedicatedResourceColumnsByType
-	case backend.DedicatedColumnScopeSpan:
-		spareColumnsByType = dedicatedSpanColumnsByType
-	default:
-		return mapping
+func dedicatedColumnsToColumnMapping(dedicatedColumns []backend.DedicatedColumn, scopes ...backend.DedicatedColumnScope) dedicatedColumnMapping {
+	if len(scopes) == 0 {
+		scopes = allScopes
 	}
 
-	indexByType := map[backend.DedicatedColumnType]int{}
-	for _, c := range dedicatedColumns {
-		if c.Scope != scope {
-			continue
-		}
-		spareColumnPaths, exists := spareColumnsByType[c.Type]
-		if !exists {
+	mapping := newDedicatedColumnMapping(len(dedicatedColumns))
+
+	for _, scope := range scopes {
+		spareColumnsByType, ok := dedicatedResourceColumnPaths[scope]
+		if !ok {
 			continue
 		}
 
-		i := indexByType[c.Type]
-		if i >= len(spareColumnPaths) {
-			continue // skip if there are not enough spare columns
-		}
+		indexByType := map[backend.DedicatedColumnType]int{}
+		for _, c := range dedicatedColumns {
+			if c.Scope != scope {
+				continue
+			}
+			spareColumnPaths, exists := spareColumnsByType[c.Type]
+			if !exists {
+				continue
+			}
 
-		mapping.Put(c.Name, dedicatedColumn{
-			Type:        c.Type,
-			ColumnPath:  spareColumnPaths[i],
-			ColumnIndex: i,
-		})
-		indexByType[c.Type]++
+			i := indexByType[c.Type]
+			if i >= len(spareColumnPaths) {
+				continue // skip if there are not enough spare columns
+			}
+
+			mapping.Put(c.Name, dedicatedColumn{
+				Type:        c.Type,
+				ColumnPath:  spareColumnPaths[i],
+				ColumnIndex: i,
+			})
+			indexByType[c.Type]++
+		}
 	}
 
 	return mapping
