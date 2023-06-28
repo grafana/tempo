@@ -1,13 +1,14 @@
 package overrides
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,22 +58,11 @@ func TestNewUserConfigurableOverrides_readFromBackend(t *testing.T) {
 
 	writeUserConfigurableOverrides(t, tempDir, "foo", limits)
 
-	cfg := UserConfigOverridesConfig{
-		Enabled: true,
-		Backend: "local",
-		Local: &local.Config{
-			Path: tempDir,
-		},
-	}
-	tempoOverrides, _ := NewOverrides(Limits{
-		Forwarders: []string{"my-forwarder"},
-	})
-
-	configurableOverrides, err := NewUserConfigOverrides(cfg, tempoOverrides)
-	assert.NoError(t, err)
+	bl := Limits{Forwarders: []string{"my-forwarder"}}
+	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
 
 	// force a refresh
-	err = configurableOverrides.refreshAllTenantLimits(context.Background())
+	err := configurableOverrides.refreshAllTenantLimits(context.Background())
 	assert.NoError(t, err)
 
 	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-other-forwarder"})
@@ -80,24 +70,12 @@ func TestNewUserConfigurableOverrides_readFromBackend(t *testing.T) {
 
 func TestConfigurableOverrides_setAndDelete(t *testing.T) {
 	tempDir := t.TempDir()
-
-	cfg := UserConfigOverridesConfig{
-		Enabled: true,
-		Backend: "local",
-		Local: &local.Config{
-			Path: tempDir,
-		},
-	}
-	tempoOverrides, _ := NewOverrides(Limits{
-		Forwarders: []string{"my-forwarder"},
-	})
-
-	configurableOverrides, err := NewUserConfigOverrides(cfg, tempoOverrides)
-	assert.NoError(t, err)
+	bl := Limits{Forwarders: []string{"my-forwarder"}}
+	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
 
 	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-forwarder"})
 
-	err = configurableOverrides.setLimits(context.Background(), "foo", &UserConfigurableLimits{
+	err := configurableOverrides.setLimits(context.Background(), "foo", &UserConfigurableLimits{
 		Version:    "",
 		Forwarders: &[]string{"my-other-forwarder"},
 	})
@@ -122,20 +100,8 @@ func TestNewUserConfigurableOverrides_backendDown(t *testing.T) {
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	tempDir := t.TempDir()
-
-	cfg := UserConfigOverridesConfig{
-		Enabled: true,
-		Backend: "local",
-		Local: &local.Config{
-			Path: tempDir,
-		},
-	}
-	tempoOverrides, _ := NewOverrides(Limits{
-		Forwarders: []string{"my-forwarder"},
-	})
-
-	configurableOverrides, err := NewUserConfigOverrides(cfg, tempoOverrides)
-	assert.NoError(t, err)
+	bl := Limits{Forwarders: []string{"my-forwarder"}}
+	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
 
 	// set user config limits
 	configurableOverrides.tenantLimits["test"] = &UserConfigurableLimits{
@@ -146,23 +112,27 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	tests := []struct {
 		name      string
 		overrides Service
+		req       *http.Request
 	}{
 		{
 			name:      "UserConfigOverrides with ucl",
 			overrides: configurableOverrides,
+			req:       httptest.NewRequest("GET", "/", nil),
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			o := tc.overrides
-			w := &bytes.Buffer{}
-			r := httptest.NewRequest("GET", "/", nil)
-			err := o.WriteStatusRuntimeConfig(w, r)
-			assert.NoError(t, err)
+			w := httptest.NewRecorder()
+			err := tc.overrides.WriteStatusRuntimeConfig(w, tc.req)
+			require.NoError(t, err)
 
-			data := w.String()
-			assert.Contains(t, data, "user_configurable_overrides")
-			assert.Contains(t, data, "my-other-forwarder")
+			data := w.Body.String()
+			require.Contains(t, data, "user_configurable_overrides")
+			require.Contains(t, data, "my-other-forwarder")
+
+			res := w.Result()
+			require.Equal(t, "text/plain; charset=utf-8", res.Header.Get(api.HeaderContentType))
+			require.Equal(t, 200, res.StatusCode)
 		})
 	}
 }
@@ -176,4 +146,20 @@ func writeUserConfigurableOverrides(t *testing.T, dir string, tenant string, lim
 
 	err = os.WriteFile(dir+"/overrides/"+tenant+"/overrides.json", b, 0644)
 	require.NoError(t, err)
+}
+
+func localUserConfigOverrides(t *testing.T, tempDir string, baseLimits Limits) *userConfigOverridesManager {
+	cfg := UserConfigOverridesConfig{
+		Enabled: true,
+		Backend: "local",
+		Local:   &local.Config{Path: tempDir},
+	}
+
+	baseOverrides, err := NewOverrides(baseLimits)
+	assert.NoError(t, err)
+
+	configurableOverrides, err := NewUserConfigOverrides(cfg, baseOverrides)
+	assert.NoError(t, err)
+
+	return configurableOverrides
 }

@@ -171,8 +171,6 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
-	// TODO: maybe make this a roundtripper so we can use other middlewares when building handler??
-	// some other components use round trippers
 	overridesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.OverridesHandler))
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathOverrides), overridesHandler)
 

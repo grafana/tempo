@@ -65,8 +65,8 @@ func (cfg *UserConfigOverridesConfig) RegisterFlagsAndApplyDefaults(f *flag.Flag
 	// I think we should error out if no backend is configured??
 }
 
-// UserConfigOverridesManager can store user-configurable overrides on a bucket.
-type UserConfigOverridesManager struct {
+// userConfigOverridesManager can store user-configurable overrides on a bucket.
+type userConfigOverridesManager struct {
 	services.Service
 	// wrap Interface and only overrides select functions
 	Interface
@@ -93,13 +93,13 @@ type statusUserConfigOverrides struct {
 type tenantLimits map[string]*UserConfigurableLimits
 
 // NewUserConfigOverrides wraps the given overrides with user-configurable overrides.
-func NewUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service) (*UserConfigOverridesManager, error) {
+func NewUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service) (*userConfigOverridesManager, error) {
 	reader, writer, err := initBackend(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize user configurable overrides: %w", err)
 	}
 
-	mgr := UserConfigOverridesManager{
+	mgr := userConfigOverridesManager{
 		Interface:    subOverrides,
 		cfg:          cfg,
 		tenantLimits: make(tenantLimits),
@@ -136,7 +136,7 @@ func initBackend(cfg UserConfigOverridesConfig) (reader backend.RawReader, write
 	return
 }
 
-func (o *UserConfigOverridesManager) starting(ctx context.Context) error {
+func (o *userConfigOverridesManager) starting(ctx context.Context) error {
 	if err := services.StartManagerAndAwaitHealthy(ctx, o.subservices); err != nil {
 		return errors.Wrap(err, "unable to start overrides subservices")
 	}
@@ -144,7 +144,7 @@ func (o *UserConfigOverridesManager) starting(ctx context.Context) error {
 	return o.refreshAllTenantLimits(ctx)
 }
 
-func (o *UserConfigOverridesManager) loop(ctx context.Context) error {
+func (o *userConfigOverridesManager) loop(ctx context.Context) error {
 	ticker := time.NewTicker(o.cfg.ReloadPeriod)
 	defer ticker.Stop()
 
@@ -166,11 +166,11 @@ func (o *UserConfigOverridesManager) loop(ctx context.Context) error {
 	}
 }
 
-func (o *UserConfigOverridesManager) stopping(error) error {
+func (o *userConfigOverridesManager) stopping(error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
 }
 
-func (o *UserConfigOverridesManager) refreshAllTenantLimits(ctx context.Context) error {
+func (o *userConfigOverridesManager) refreshAllTenantLimits(ctx context.Context) error {
 	// List tenants with user-configurable overrides
 	// TODO to avoid polling the entire bucket, use a tenant list and keep it in a shared cache
 	tenants, err := o.r.List(ctx, []string{overridesKeyPath})
@@ -195,7 +195,7 @@ func (o *UserConfigOverridesManager) refreshAllTenantLimits(ctx context.Context)
 }
 
 // refreshTenantLimits reads the limits for a tenant fetching it from the backend and caching it in memory.
-func (o *UserConfigOverridesManager) refreshTenantLimits(ctx context.Context, userID string) error {
+func (o *userConfigOverridesManager) refreshTenantLimits(ctx context.Context, userID string) error {
 	tenantLimits, err := o.downloadTenantLimits(ctx, userID)
 
 	metricFetch.WithLabelValues(userID).Inc()
@@ -211,7 +211,7 @@ func (o *UserConfigOverridesManager) refreshTenantLimits(ctx context.Context, us
 	return nil
 }
 
-func (o *UserConfigOverridesManager) downloadTenantLimits(ctx context.Context, userID string) (*UserConfigurableLimits, error) {
+func (o *userConfigOverridesManager) downloadTenantLimits(ctx context.Context, userID string) (*UserConfigurableLimits, error) {
 	// TODO ensure tenant limit is read from shared cache
 
 	reader, _, err := o.r.Read(ctx, overridesFileName, []string{overridesKeyPath, userID}, false)
@@ -228,7 +228,7 @@ func (o *UserConfigOverridesManager) downloadTenantLimits(ctx context.Context, u
 }
 
 // setLimits will store the given limits
-func (o *UserConfigOverridesManager) setLimits(ctx context.Context, userID string, limits *UserConfigurableLimits) error {
+func (o *userConfigOverridesManager) setLimits(ctx context.Context, userID string, limits *UserConfigurableLimits) error {
 	// TODO perform validation
 
 	// TODO do this in a constructor or something?
@@ -255,17 +255,17 @@ func (o *UserConfigOverridesManager) setLimits(ctx context.Context, userID strin
 }
 
 // getLimits will return the UserConfigurableLimits for a tenant
-func (o *UserConfigOverridesManager) getLimits(userID string) (*UserConfigurableLimits, error) {
+func (o *userConfigOverridesManager) getLimits(userID string) (*UserConfigurableLimits, error) {
 	ucl, ok := o.getTenantLimits(userID)
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("user configurable limits not found for: %s", userID))
+		return nil, fmt.Errorf("user configurable limits not found for: %s", userID)
 	}
 
 	return ucl, nil
 }
 
 // DeleteLimits will clear all user configurable limits for the given tenant
-func (o *UserConfigOverridesManager) DeleteLimits(ctx context.Context, userID string) error {
+func (o *userConfigOverridesManager) DeleteLimits(ctx context.Context, userID string) error {
 	err := o.w.Delete(ctx, overridesFileName, []string{overridesKeyPath, userID})
 	if err != nil {
 		return err
@@ -274,7 +274,7 @@ func (o *UserConfigOverridesManager) DeleteLimits(ctx context.Context, userID st
 	return nil
 }
 
-func (o *UserConfigOverridesManager) getTenantLimits(userID string) (*UserConfigurableLimits, bool) {
+func (o *userConfigOverridesManager) getTenantLimits(userID string) (*UserConfigurableLimits, bool) {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
@@ -282,14 +282,14 @@ func (o *UserConfigOverridesManager) getTenantLimits(userID string) (*UserConfig
 	return tenantLimits, ok
 }
 
-func (o *UserConfigOverridesManager) getTenantLimitsAll() map[string]*UserConfigurableLimits {
+func (o *userConfigOverridesManager) getTenantLimitsAll() map[string]*UserConfigurableLimits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
 	return o.tenantLimits
 }
 
-func (o *UserConfigOverridesManager) Forwarders(userID string) []string {
+func (o *userConfigOverridesManager) Forwarders(userID string) []string {
 	tenantLimits, ok := o.getTenantLimits(userID)
 	if ok && tenantLimits.Forwarders != nil {
 		return *tenantLimits.Forwarders
@@ -297,7 +297,7 @@ func (o *UserConfigOverridesManager) Forwarders(userID string) []string {
 	return o.Interface.Forwarders(userID)
 }
 
-func (o *UserConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
+func (o *userConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
 	// fetch runtimeConfig and Runtime per tenant Overrides
 	err := o.Interface.WriteStatusRuntimeConfig(w, r)
 	if err != nil {
@@ -321,12 +321,12 @@ func (o *UserConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *ht
 	return nil
 }
 
-func (o *UserConfigOverridesManager) Describe(ch chan<- *prometheus.Desc) {
+func (o *userConfigOverridesManager) Describe(ch chan<- *prometheus.Desc) {
 	// TODO this is hacky D:
 	o.Interface.(Service).Describe(ch)
 }
 
-func (o *UserConfigOverridesManager) Collect(ch chan<- prometheus.Metric) {
+func (o *userConfigOverridesManager) Collect(ch chan<- prometheus.Metric) {
 	// TODO this is hacky D:
 	o.Interface.(Service).Collect(ch)
 }

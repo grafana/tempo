@@ -4,58 +4,61 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/util/log"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 )
 
-func (o *UserConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *http.Request) {
-	// FIXME: log the request??
-	// FIXME: maybe write a RoundTripper?? and follow the example of what we have done in other components??
-	// We implement RoundTripper in other components??
-
+// OverridesHandler is a http.HandlerFunc to return user configured overrides
+func (o *userConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesManager.OverridesHandler")
+	defer span.Finish()
+
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		http.Error(w, errors.Wrap(err, "failed to find org id in request").Error(), http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to find org id in request"))
+		return
 	}
+	level.Info(log.Logger).Log("tenant", userID, "method", r.Method, "url", r.URL.RequestURI())
 
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		o.handleGet(w, r, ctx, userID)
-	case "POST":
+	case http.MethodPost:
 		o.handlePost(w, r, ctx, userID)
 	default:
-		http.Error(w, "Only GET and POST methods are supported", http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, errors.New("Only GET and POST is allowed"))
+		return
 	}
 }
 
-func (o *UserConfigOverridesManager) handleGet(w http.ResponseWriter, _ *http.Request, _ context.Context, userID string) {
+func (o *userConfigOverridesManager) handleGet(w http.ResponseWriter, r *http.Request, _ context.Context, userID string) {
 	ucl, err := o.getLimits(userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, err)
 		return
 	}
 
 	data, err := jsoniter.Marshal(ucl)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, err)
 		return
 	}
 
-	_, _ = w.Write(data)
-	w.WriteHeader(http.StatusOK)
-	// FIXME: why is curl showing `Content-Type: text/plain` when we set json here??
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
-
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 	return
 }
 
 // handlePost accepts post requests with json payload and writes it to config backend
-func (o *UserConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.Request, ctx context.Context, userID string) {
+func (o *userConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.Request, ctx context.Context, userID string) {
 	d := jsoniter.NewDecoder(r.Body)
-	// TODO: do we want to this strict?? maybe we throw away extra fields??
 	// error in case of unwanted fields
 	d.DisallowUnknownFields()
 
@@ -64,31 +67,35 @@ func (o *UserConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.R
 	err := d.Decode(&ucl)
 	if err != nil {
 		// bad JSON or unrecognized json field
-		http.Error(w, errors.Wrap(err, "bad json or missing required fields in payload").Error(), http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "bad json or missing required fields in payload"))
 		return
 	}
 
 	// check for extra data
 	if d.More() {
-		http.Error(w, errors.Wrap(err, "extraneous data in payload").Error(), http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "extraneous data in payload"))
 		return
 	}
 
 	err = o.setLimits(ctx, userID, ucl)
 	if err != nil {
-		http.Error(w, "failed to set user config limits", http.StatusBadRequest)
+		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write([]byte("ok"))
-	if err != nil {
-		http.Error(w, "something went wrong", http.StatusBadRequest)
-		return
-	}
-
+	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte("ok"))
 	return
 }
 
-func (o *runtimeConfigOverridesManager) OverridesHandler(w http.ResponseWriter, _ *http.Request) {
+func (o *runtimeConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *http.Request) {
+	span, _ := opentracing.StartSpanFromContext(r.Context(), "runtimeConfigOverridesManager.OverridesHandler")
+	defer span.Finish()
+
 	http.Error(w, "user configured overrides are not enabled", http.StatusBadRequest)
+}
+
+func handleError(r *http.Request, w http.ResponseWriter, userID string, status int, err error) {
+	level.Error(log.Logger).Log("tenant", userID, "method", r.Method, "status", status, "url", r.URL.RequestURI(), "err", err.Error())
+	http.Error(w, err.Error(), status)
 }
