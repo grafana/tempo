@@ -51,8 +51,9 @@ const (
 	UsageReport    string = "usage-report"
 	Overrides      string = "overrides"
 	// rings
-	IngesterRing         string = "ring"
-	MetricsGeneratorRing string = "metrics-generator-ring"
+	IngesterRing          string = "ring"
+	SecondaryIngesterRing string = "secondary-ring"
+	MetricsGeneratorRing  string = "metrics-generator-ring"
 
 	// individual targets
 	Distributor      string = "distributor"
@@ -489,6 +490,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
+	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
@@ -505,12 +507,13 @@ func (t *App) setupModuleManager() error {
 	deps := map[string][]string{
 		// Store:          nil,
 		// InternalServer: nil,
-		Server:               {InternalServer},
-		Overrides:            {Server},
-		MemberlistKV:         {Server},
-		UsageReport:          {MemberlistKV},
-		IngesterRing:         {Server, MemberlistKV},
-		MetricsGeneratorRing: {Server, MemberlistKV},
+		Server:                {InternalServer},
+		Overrides:             {Server},
+		MemberlistKV:          {Server},
+		UsageReport:           {MemberlistKV},
+		IngesterRing:          {Server, MemberlistKV},
+		SecondaryIngesterRing: {Server, MemberlistKV},
+		MetricsGeneratorRing:  {Server, MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
@@ -519,7 +522,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
 		Ingester:         {Common, Store, MemberlistKV},
 		MetricsGenerator: {Common, MemberlistKV},
-		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing},
+		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
