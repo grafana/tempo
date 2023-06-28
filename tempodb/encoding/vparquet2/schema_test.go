@@ -119,7 +119,7 @@ func TestTraceToParquet(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
 
-	meta := backend.BlockMeta{}
+	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
 	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
 	tsc := []struct {
@@ -145,6 +145,11 @@ func TestTraceToParquet(t *testing.T) {
 							{Key: "k8s.namespace.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "k8s-namespace-a"}}},
 							{Key: "k8s.pod.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "k8s-pod-a"}}},
 							{Key: "k8s.container.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "k8s-container-a"}}},
+							{Key: "dedicated.resource.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-1"}}},
+							{Key: "dedicated.resource.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-2"}}},
+							{Key: "dedicated.resource.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-3"}}},
+							{Key: "dedicated.resource.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-4"}}},
+							{Key: "dedicated.resource.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-5"}}},
 						},
 					},
 					ScopeSpans: []*v1_trace.ScopeSpans{{
@@ -157,6 +162,11 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "http.method", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "POST"}}},
 								{Key: "http.url", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "https://example.com"}}},
 								{Key: "http.status_code", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 201}}},
+								{Key: "dedicated.span.1", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-1"}}},
+								{Key: "dedicated.span.2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-2"}}},
+								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
+								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
+								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-5"}}},
 							},
 						}},
 					}},
@@ -181,6 +191,13 @@ func TestTraceToParquet(t *testing.T) {
 						Attrs: []Attribute{
 							{Key: "res.attr", ValueInt: intPtr(int64(123))},
 						},
+						DedicatedAttributes: DedicatedAttributes{
+							String01: strPtr("dedicated-resource-attr-value-1"),
+							String02: strPtr("dedicated-resource-attr-value-2"),
+							String03: strPtr("dedicated-resource-attr-value-3"),
+							String04: strPtr("dedicated-resource-attr-value-4"),
+							String05: strPtr("dedicated-resource-attr-value-5"),
+						},
 					},
 					ScopeSpans: []ScopeSpans{{
 						Spans: []Span{{
@@ -193,6 +210,13 @@ func TestTraceToParquet(t *testing.T) {
 							HttpStatusCode: intPtr(201),
 							Attrs: []Attribute{
 								{Key: "span.attr", Value: strPtr("aaa")},
+							},
+							DedicatedAttributes: DedicatedAttributes{
+								String01: strPtr("dedicated-span-attr-value-1"),
+								String02: strPtr("dedicated-span-attr-value-2"),
+								String03: strPtr("dedicated-span-attr-value-3"),
+								String04: strPtr("dedicated-span-attr-value-4"),
+								String05: strPtr("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},

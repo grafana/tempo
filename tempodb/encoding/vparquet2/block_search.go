@@ -19,6 +19,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -120,7 +121,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	// here to keep only row groups that can potentially satisfy the request
 	// conditions, but don't have it figured out yet.
 	rgs := rowGroupsFromFile(pf, opts)
-	results, err := searchParquetFile(derivedCtx, pf, req, rgs)
+	results, err := searchParquetFile(derivedCtx, pf, req, rgs, b.meta.DedicatedColumns)
 	if err != nil {
 		return nil, err
 	}
@@ -130,18 +131,26 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	return results, nil
 }
 
-func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) pq.Iterator {
+func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup, dc []backend.DedicatedColumn) pq.Iterator {
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	// Wire up iterators
 	var resourceIters []pq.Iterator
 	var traceIters []pq.Iterator
 
+	// Dedicated column mappings
+	spanAndResourceColumnMapping := dedicatedColumnsToColumnMapping(dc)
+
 	otherAttrConditions := map[string]string{}
 
 	for k, v := range req.Tags {
-		column := labelMappings[k]
+		// dedicated attribute columns
+		if c, ok := spanAndResourceColumnMapping.Get(k); ok {
+			resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewSubstringPredicate(v), ""))
+			continue
+		}
 
+		column := labelMappings[k]
 		// if we don't have a column mapping then pass it forward to otherAttribute handling
 		if column == "" {
 			otherAttrConditions[k] = v
@@ -263,7 +272,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	}
 }
 
-func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) (*tempopb.SearchResponse, error) {
+func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup, dc []backend.DedicatedColumn) (*tempopb.SearchResponse, error) {
 
 	// Search happens in 2 phases for an optimization.
 	// Phase 1 is iterate all columns involved in the request.
@@ -271,7 +280,7 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 	// is to load the display-related columns.
 
 	// Find matches
-	matchingRows, err := searchRaw(ctx, pf, req, rgs)
+	matchingRows, err := searchRaw(ctx, pf, req, rgs, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -291,8 +300,8 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 	}, nil
 }
 
-func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) ([]pq.RowNumber, error) {
-	iter := makePipelineWithRowGroups(ctx, req, pf, rgs)
+func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup, dc []backend.DedicatedColumn) ([]pq.RowNumber, error) {
+	iter := makePipelineWithRowGroups(ctx, req, pf, rgs, dc)
 	if iter == nil {
 		return nil, errors.New("make pipeline returned a nil iterator")
 	}

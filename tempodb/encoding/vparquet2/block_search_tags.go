@@ -7,6 +7,7 @@ import (
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -55,22 +56,22 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
 
-	return searchTags(derivedCtx, scope, cb, pf)
+	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dc []backend.DedicatedColumn) error {
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
 
-	addToIndexes := func(standardKeyPath string, specialMappings map[string]string) error {
-		// standard resource attributes
+	addToIndexes := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping) error {
+		// standard attributes
 		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
 		if resourceKeyIdx == -1 {
 			return fmt.Errorf("resource attributes col not found (%d)", resourceKeyIdx)
 		}
 		standardAttrIdxs = append(standardAttrIdxs, resourceKeyIdx)
 
-		// special resource attributes
+		// special attributes
 		for lbl, col := range specialMappings {
 			idx, _ := pq.GetColumnIndexByPath(pf, col)
 			if idx == -1 {
@@ -79,19 +80,32 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 
 			specialAttrIdxs[idx] = lbl
 		}
+
+		// dedicated attributes
+		columnMapping.ForEach(func(lbl string, c dedicatedColumn) {
+			idx, _ := pq.GetColumnIndexByPath(pf, c.ColumnPath)
+			if idx == -1 {
+				return
+			}
+
+			specialAttrIdxs[idx] = lbl
+		})
+
 		return nil
 	}
 
 	// resource
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
-		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings)
+		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
+		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings, columnMapping)
 		if err != nil {
 			return err
 		}
 	}
 	// span
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
-		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings)
+		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
+		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings, columnMapping)
 		if err != nil {
 			return err
 		}
@@ -212,10 +226,10 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
 
-	return searchTagValues(derivedCtx, tag, cb, pf)
+	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dc []backend.DedicatedColumn) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]
@@ -237,10 +251,26 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 		return nil
 	}
 
-	// Search dedicated attribute column if one exists and is a compatible scope.
+	// Search well-known attribute column if one exists and is a compatible scope.
 	column := wellKnownColumnLookups[tag.Name]
 	if column.columnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
 		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching special tags: %w", err)
+		}
+	}
+
+	// Search dynamic dedicated attribute columns
+	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
+	if c, ok := resourceColumnMapping.Get(tag.Name); ok {
+		err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching special tags: %w", err)
+		}
+	}
+	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
+	if c, ok := spanColumnMapping.Get(tag.Name); ok {
+		err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}
