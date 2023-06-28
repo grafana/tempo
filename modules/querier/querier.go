@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
@@ -336,7 +337,11 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 		}
 	}
 
-	var results []interface{}
+	var mtx sync.Mutex
+	var wg sync.WaitGroup
+
+	var responses []responseFromIngesters
+	var responseErr error
 
 	for i, ring := range q.ingesterRings {
 		replicationSet, err := getReplicationSet(ring)
@@ -345,18 +350,26 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 		}
 		pool := q.ingesterPools[i]
 
-		res, err := forOneIngester(ctx, replicationSet, f, ring, pool, q.cfg.ExtraQueryDelay)
-		if err != nil {
-			return nil, fmt.Errorf("error querying ingester ring (%d): %w", i, err)
-		}
-		// jpe - copy directly into responses
-		results = append(results, res...)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := forOneIngester(ctx, replicationSet, f, ring, pool, q.cfg.ExtraQueryDelay)
+
+			mtx.Lock()
+			defer mtx.Unlock()
+
+			if err != nil {
+				responseErr = multierr.Combine(responseErr, err)
+				return
+			}
+
+			for _, r := range res {
+				responses = append(responses, r.(responseFromIngesters))
+			}
+		}()
 	}
 
-	responses := make([]responseFromIngesters, 0, len(results))
-	for _, result := range results {
-		responses = append(responses, result.(responseFromIngesters))
-	}
+	wg.Wait()
 
 	return responses, nil
 }
