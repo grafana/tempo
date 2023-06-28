@@ -60,7 +60,6 @@ spec:
           name: metrics-generator-data
         - mountPath: /overrides
           name: overrides
-      terminationGracePeriodSeconds: 1200
       volumes:
       - configMap:
           name: tempo-metrics-generator
