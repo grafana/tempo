@@ -151,7 +151,7 @@ func (t *App) initIngesterRing() (services.Service, error) {
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
-	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, generator.RingKey)
+	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
 
 // initSecondaryIngesterRing is an optional ring for the queriers. This secondary ring is useful in edge cases and should
