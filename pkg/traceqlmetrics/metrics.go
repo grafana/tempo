@@ -45,7 +45,6 @@ func (m *LatencyHistogram) Combine(other LatencyHistogram) {
 
 // Percentile returns the estimated latency percentile in nanoseconds.
 func (m *LatencyHistogram) Percentile(p float64) uint64 {
-
 	if math.IsNaN(p) ||
 		p < 0 ||
 		p > 1 ||
@@ -131,7 +130,6 @@ func (m *MetricsResults) Record(series MetricSeries, durationNanos uint64, err b
 }
 
 func (m *MetricsResults) Combine(other *MetricsResults) {
-
 	m.SpanCount += other.SpanCount
 	if other.Estimated {
 		m.Estimated = true
@@ -153,8 +151,8 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 
 // GetMetrics
 func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
-
 	identifiers := strings.Split(groupBy, ",")
+
 	if len(identifiers) > maxGroupBys {
 		return nil, fmt.Errorf("max group by %d attributes exceeded", maxGroupBys)
 	}
@@ -171,6 +169,9 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	// collection as efficient as possible.
 	groupBys := make([][]traceql.Attribute, 0, len(identifiers))
 	for _, id := range identifiers {
+
+		id = strings.TrimSpace(id)
+
 		attr, err := traceql.ParseIdentifier(id)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing groupby attribute")
