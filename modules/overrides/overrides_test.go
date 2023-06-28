@@ -17,7 +17,6 @@ import (
 )
 
 func TestOverrides(t *testing.T) {
-
 	tests := []struct {
 		name                        string
 		limits                      Limits
@@ -151,7 +150,7 @@ func TestOverrides(t *testing.T) {
 				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
 			}
 
-			//if srv != nil {
+			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
 			//}
@@ -160,17 +159,18 @@ func TestOverrides(t *testing.T) {
 }
 
 func TestMetricsGeneratorOverrides(t *testing.T) {
-
 	tests := []struct {
 		name                      string
 		limits                    Limits
 		overrides                 *perTenantOverrides
 		expectedEnableTargetInfo  map[string]bool
 		expectedDimensionMappings map[string][]sharedconfig.DimensionMappings
+		expectedProcessors        map[string]map[string]struct{}
 	}{
 		{
 			name: "limits only",
 			limits: Limits{
+				MetricsGeneratorProcessors:                           map[string]struct{}{"local-blocks": {}},
 				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
 				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
 					{
@@ -179,6 +179,10 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						Join:        "/",
 					},
 				},
+			},
+			expectedProcessors: map[string]map[string]struct{}{
+				"user1": {"local-blocks": {}},
+				"user2": {"local-blocks": {}},
 			},
 			expectedEnableTargetInfo: map[string]bool{"user1": true, "user2": true},
 			expectedDimensionMappings: map[string][]sharedconfig.DimensionMappings{
@@ -238,10 +242,15 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						Join:        "/",
 					},
 				},
+				MetricsGeneratorProcessors: map[string]struct{}{
+					"service-graphs": {},
+					"local-blocks":   {},
+				},
 			},
 			overrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
+						MetricsGeneratorProcessors:                           map[string]struct{}{"service-graphs": {}},
 						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
 						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
 							{
@@ -252,6 +261,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						},
 					},
 					"*": {
+						MetricsGeneratorProcessors:                           map[string]struct{}{},
 						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: false,
 						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
 							{
@@ -290,6 +300,15 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectedProcessors: map[string]map[string]struct{}{
+				"user1": {
+					"service-graphs": {},
+				},
+				"user2": {
+					"service-graphs": {},
+					"local-blocks":   {},
+				},
+			},
 		},
 	}
 
@@ -322,7 +341,11 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(user))
 			}
 
-			//if srv != nil {
+			for user, expectedVal := range tt.expectedProcessors {
+				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessors(user))
+			}
+
+			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
 			//}
