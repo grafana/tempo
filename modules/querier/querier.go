@@ -78,8 +78,8 @@ type Querier struct {
 
 	cfg Config
 
-	ingesterPool *ring_client.Pool
-	ingesterRing ring.ReadRing
+	ingesterPools []*ring_client.Pool
+	ingesterRings []ring.ReadRing
 
 	generatorPool *ring_client.Pool
 	generatorRing ring.ReadRing
@@ -136,8 +136,8 @@ func New(
 
 	q := &Querier{
 		cfg:           cfg,
-		ingesterRing:  ingesterRings[0], // jpe - save slice
-		ingesterPool:  ingesterPools[0], // jpe - save slice
+		ingesterRings: ingesterRings,
+		ingesterPools: ingesterPools,
 		generatorRing: generatorRing,
 		generatorPool: ring_client.NewPool("querier_to_generator_pool",
 			generatorClientConfig.PoolConfig,
@@ -183,12 +183,16 @@ func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 		return fmt.Errorf("failed to create frontend worker: %w", err)
 	}
 
-	err = q.RegisterSubservices(worker, q.generatorPool)
+	subservices := []services.Service{worker, q.generatorPool}
+	for _, pool := range q.ingesterPools {
+		subservices = append(subservices, pool)
+	}
+	err = q.RegisterSubservices(subservices...)
 	if err != nil {
 		return fmt.Errorf("failed to register generator pool sub-service: %w", err)
 	}
 
-	return q.RegisterSubservices(worker, q.ingesterPool)
+	return nil
 }
 
 func (q *Querier) RegisterSubservices(s ...services.Service) error {
@@ -332,12 +336,33 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 		}
 	}
 
-	replicationSet, err := getReplicationSet(q.ingesterRing)
-	if err != nil {
-		return nil, errors.Wrap(err, "error finding ingesters in Querier.forGivenIngesters")
+	var results []interface{}
+
+	for i, ring := range q.ingesterRings {
+		replicationSet, err := getReplicationSet(ring)
+		if err != nil {
+			return nil, fmt.Errorf("error getting replication set for ring (%d): %w", i, err)
+		}
+		pool := q.ingesterPools[i]
+
+		res, err := forOneIngester(ctx, replicationSet, f, ring, pool, q.cfg.ExtraQueryDelay)
+		if err != nil {
+			return nil, fmt.Errorf("error querying ingester ring (%d): %w", i, err)
+		}
+		// jpe - copy directly into responses
+		results = append(results, res...)
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forGivenIngesters")
+	responses := make([]responseFromIngesters, 0, len(results))
+	for _, result := range results {
+		responses = append(responses, result.(responseFromIngesters))
+	}
+
+	return responses, nil
+}
+
+func forOneIngester(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, r ring.ReadRing, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forOneIngester")
 	defer span.Finish()
 
 	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
@@ -346,7 +371,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 			return nil, funcCtx.Err()
 		}
 
-		client, err := q.ingesterPool.GetClientFor(ingester.Addr)
+		client, err := pool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", ingester.Addr))
 		}
@@ -359,17 +384,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 		return responseFromIngesters{ingester.Addr, resp}, nil
 	}
 
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get response from ingesters")
-	}
-
-	responses := make([]responseFromIngesters, 0, len(results))
-	for _, result := range results {
-		responses = append(responses, result.(responseFromIngesters))
-	}
-
-	return responses, nil
+	return replicationSet.Do(ctx, extraQueryDelay, doFunc)
 }
 
 // forGivenGenerators runs f, in parallel, for given generators
