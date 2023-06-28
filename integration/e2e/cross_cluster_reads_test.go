@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCrossClusterReads uses the secondary_ingester_ring querier configuration option. it writes a trace to
+// one cluster and reads it from another. the key elements of this test:
+// - use of the secondary_ingester_ring option in the querier
+// - renaming of the ingester rings using override_ring_key to avoid collisions
+// - using a common kv store by gossiping across both clusters
 func TestCrossClusterReads(t *testing.T) {
 	// start minio
 	s, err := e2e.NewScenario("tempo_active_active")
