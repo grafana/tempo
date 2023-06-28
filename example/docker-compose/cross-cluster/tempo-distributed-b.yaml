@@ -18,7 +18,7 @@ distributor:
 
 ingester:
   max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
-  override_ring_key: ring-a
+  override_ring_key: ring-b
 
 memberlist:
   abort_if_cluster_join_fails: false
@@ -37,10 +37,11 @@ compactor:
 
 querier:
   frontend_worker:
-    frontend_address: query-frontend-a:9095
-  secondary_ingester_ring: ring-b
+    frontend_address: query-frontend-b:9095
+  secondary_ingester_ring: ring-a
 
 metrics_generator:
+  override_ring_key: generator-b
   registry:
     external_labels:
       source: tempo
