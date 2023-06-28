@@ -18,7 +18,7 @@ type Config struct {
 	MaxConcurrentQueries   int           `yaml:"max_concurrent_queries"`
 	Worker                 worker.Config `yaml:"frontend_worker"`
 	QueryRelevantIngesters bool          `yaml:"query_relevant_ingesters"`
-	SecondaryIngesterRing  string        `yaml:"secondary_ingester_ring,omitempty"` // jpe - document
+	SecondaryIngesterRing  string        `yaml:"secondary_ingester_ring,omitempty"`
 }
 
 type SearchConfig struct {

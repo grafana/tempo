@@ -34,7 +34,7 @@ type Config struct {
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
-	OverrideRingKey       string        `yaml:"override_ring_key"` // jpe document
+	OverrideRingKey       string        `yaml:"override_ring_key"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
