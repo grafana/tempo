@@ -549,7 +549,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ com
 		defer file.Close()
 		pf := file.parquetFile
 
-		r, err := searchParquetFile(ctx, pf, req, pf.RowGroups())
+		r, err := searchParquetFile(ctx, pf, req, pf.RowGroups(), b.meta.DedicatedColumns)
 		if err != nil {
 			return nil, fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -575,7 +575,7 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTags(ctx, scope, cb, pf)
+		err = searchTags(ctx, scope, cb, pf, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -609,7 +609,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTagValues(ctx, tag, cb, pf)
+		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -637,7 +637,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		pf := file.parquetFile
 
-		iter, err := fetch(ctx, req, pf, opts)
+		iter, err := fetch(ctx, req, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 		}

@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
+func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 	tests := []struct {
 		name            string
 		columns         []backend.DedicatedColumn
-		scope           string
+		scopes          []backend.DedicatedColumnScope
 		expectedMapping dedicatedColumnMapping
 	}{
 		{
@@ -22,7 +22,7 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "string"},
 			},
-			scope: "span",
+			scopes: []backend.DedicatedColumnScope{"span"},
 			expectedMapping: dedicatedColumnMapping{
 				mapping: map[string]dedicatedColumn{
 					"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
@@ -39,7 +39,7 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "span", Name: "span.two", Type: "string"},
 				{Scope: "resource", Name: "res.two", Type: "string"},
 			},
-			scope: "resource",
+			scopes: []backend.DedicatedColumnScope{"resource"},
 			expectedMapping: dedicatedColumnMapping{
 				mapping: map[string]dedicatedColumn{
 					"res.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String01"},
@@ -49,13 +49,51 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 			},
 		},
 		{
+			name: "all scopes explicit",
+			columns: []backend.DedicatedColumn{
+				{Scope: "resource", Name: "res.one", Type: "string"},
+				{Scope: "span", Name: "span.one", Type: "string"},
+				{Scope: "span", Name: "span.two", Type: "string"},
+				{Scope: "resource", Name: "res.two", Type: "string"},
+			},
+			scopes: []backend.DedicatedColumnScope{"resource", "span"},
+			expectedMapping: dedicatedColumnMapping{
+				mapping: map[string]dedicatedColumn{
+					"res.one":  {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String01"},
+					"res.two":  {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String02"},
+					"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
+					"span.two": {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02"},
+				},
+				keys: []string{"res.one", "res.two", "span.one", "span.two"},
+			},
+		},
+		{
+			name: "all scopes implicit",
+			columns: []backend.DedicatedColumn{
+				{Scope: "resource", Name: "res.one", Type: "string"},
+				{Scope: "span", Name: "span.one", Type: "string"},
+				{Scope: "span", Name: "span.two", Type: "string"},
+				{Scope: "resource", Name: "res.two", Type: "string"},
+			},
+			scopes: []backend.DedicatedColumnScope{},
+			expectedMapping: dedicatedColumnMapping{
+				mapping: map[string]dedicatedColumn{
+					"res.one":  {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String01"},
+					"res.two":  {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.Resource.DedicatedAttributes.String02"},
+					"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
+					"span.two": {Type: "string", ColumnIndex: 1, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String02"},
+				},
+				keys: []string{"res.one", "res.two", "span.one", "span.two"},
+			},
+		},
+		{
 			name: "wrong type",
 			columns: []backend.DedicatedColumn{
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "integer"}, // ignored
 			},
-			scope: "span",
+			scopes: []backend.DedicatedColumnScope{"span"},
 			expectedMapping: dedicatedColumnMapping{
 				mapping: map[string]dedicatedColumn{
 					"span.one": {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
@@ -78,7 +116,7 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 				{Scope: "span", Name: "span.ten", Type: "string"},
 				{Scope: "span", Name: "span.eleven", Type: "string"}, // ignored
 			},
-			scope: "span",
+			scopes: []backend.DedicatedColumnScope{"span"},
 			expectedMapping: dedicatedColumnMapping{
 				mapping: map[string]dedicatedColumn{
 					"span.one":   {Type: "string", ColumnIndex: 0, ColumnPath: "rs.list.element.ss.list.element.Spans.list.element.DedicatedAttributes.String01"},
@@ -98,7 +136,7 @@ func TestBlockMetaToDedicatedColumnMapping(t *testing.T) {
 	}
 	for _, tc := range tests {
 		meta := backend.BlockMeta{DedicatedColumns: tc.columns}
-		mapping := blockMetaToDedicatedColumnMapping(&meta, tc.scope)
+		mapping := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, tc.scopes...)
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expectedMapping, mapping)
 		})

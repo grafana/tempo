@@ -278,8 +278,8 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	var rootBatch *v1_trace.ResourceSpans
 
 	// Dedicated attribute column assignments
-	dedicatedResourceAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeResource)
-	dedicatedSpanAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeSpan)
+	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 
 	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
 	for ib, b := range tr.Batches {
@@ -571,8 +571,8 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
 	// dedicated attribute column assignments
-	dedicatedResourceAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeResource)
-	dedicatedSpanAttributes := blockMetaToDedicatedColumnMapping(meta, dedicatedColumnScopeSpan)
+	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
