@@ -96,7 +96,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 
 	// resource
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
-		columnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeResource)
+		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
 		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings, columnMapping)
 		if err != nil {
 			return err
@@ -104,7 +104,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 	}
 	// span
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
-		columnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeSpan)
+		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
 		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings, columnMapping)
 		if err != nil {
 			return err
@@ -261,14 +261,14 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 	}
 
 	// Search dynamic dedicated attribute columns
-	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeResource)
+	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
 	if c, ok := resourceColumnMapping.Get(tag.Name); ok {
 		err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
 		}
 	}
-	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeSpan)
+	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
 	if c, ok := spanColumnMapping.Get(tag.Name); ok {
 		err := searchSpecialTagValues(ctx, c.ColumnPath, pf, cb)
 		if err != nil {

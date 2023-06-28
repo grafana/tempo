@@ -5,9 +5,34 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
+	"github.com/grafana/tempo/pkg/traceql"
 )
+
+// DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
+type DedicatedColumnType string
+
+// DedicatedColumnScope is the scope of the attribute that is stored in a dedicated column. Possible values are
+// 'resource' and 'span'.
+type DedicatedColumnScope string
+
+const (
+	DedicatedColumnTypeString DedicatedColumnType = "string"
+
+	DedicatedColumnScopeResource DedicatedColumnScope = "resource"
+	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
+)
+
+func (t DedicatedColumnType) ToStaticType() (traceql.StaticType, error) {
+	switch t {
+	case DedicatedColumnTypeString:
+		return traceql.TypeString, nil
+	default:
+		return traceql.TypeNil, errors.Errorf("unsupported dedicated column type '%s'", t)
+	}
+}
 
 type CompactedBlockMeta struct {
 	BlockMeta
@@ -57,12 +82,12 @@ type BlockMeta struct {
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
 // be stored in a dedicated column instead of the generic attribute column.
 type DedicatedColumn struct {
-	// The Scope of the attribute: can be 'resource' or 'span'
-	Scope string `yaml:"scope" json:"scope"`
+	// The Scope of the attribute
+	Scope DedicatedColumnScope `yaml:"scope" json:"scope"`
 	// The Name of the attribute stored in the dedicated column
 	Name string `yaml:"name" json:"name"`
-	// The Type of attribute value: only 'string' supported
-	Type string `yaml:"type" json:"type"`
+	// The Type of attribute value
+	Type DedicatedColumnType `yaml:"type" json:"type"`
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
@@ -123,11 +148,11 @@ func (b *BlockMeta) DedicatedColumnsHash() uint64 {
 	h := xxhash.New()
 
 	for _, c := range b.DedicatedColumns {
-		_, _ = h.WriteString(c.Scope)
+		_, _ = h.WriteString(string(c.Scope))
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(c.Name)
 		_, _ = h.Write(separatorByte)
-		_, _ = h.WriteString(c.Type)
+		_, _ = h.WriteString(string(c.Type))
 	}
 
 	return h.Sum64()

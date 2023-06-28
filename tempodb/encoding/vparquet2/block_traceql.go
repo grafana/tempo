@@ -860,7 +860,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		}
 
 		// Attributes stored in dedicated columns
-		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeSpan)
+		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
 		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
@@ -869,7 +869,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			}
 
 			// Compatible type?
-			typ := traceql.StaticTypeFromString(c.Type)
+			typ, _ := c.Type.ToStaticType()
 			if typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
@@ -991,7 +991,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		}
 
 		// Attributes stored in dedicated columns
-		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, dedicatedColumnScopeResource)
+		columnMapping := dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
 		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
@@ -1000,7 +1000,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 			}
 
 			// Compatible type?
-			typ := traceql.StaticTypeFromString(c.Type)
+			typ, _ := c.Type.ToStaticType()
 			if typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {

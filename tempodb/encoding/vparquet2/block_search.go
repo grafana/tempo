@@ -139,8 +139,8 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	var traceIters []pq.Iterator
 
 	// Dedicated column mappings
-	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeResource)
-	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, dedicatedColumnScopeSpan)
+	resourceColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
+	spanColumnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
 
 	otherAttrConditions := map[string]string{}
 

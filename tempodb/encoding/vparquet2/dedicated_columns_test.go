@@ -12,7 +12,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 	tests := []struct {
 		name            string
 		columns         []backend.DedicatedColumn
-		scope           string
+		scope           backend.DedicatedColumnScope
 		expectedMapping dedicatedColumnMapping
 	}{
 		{
