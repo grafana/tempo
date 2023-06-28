@@ -75,15 +75,8 @@ type BlockMeta struct {
 	BloomShardCount uint16 `json:"bloomShards"`
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
-	// DedicatedColumns configuration for attributes (used by parquet)
-	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
-
-	// TODO: BlockMeta is theoretically immutable, so BlockMeta.DedicatedColumns shouldn't change after creation.
-	//   However, we're not enforcing immutability, so it's possible that the hash could change.
-	//   We should either enforce immutability or find another way to not compute the hash every time.
-
-	// DedicatedColumnsHash is a hash of the dedicated columns configuration (used by vParquet3)
-	dedicatedColumnsHash uint64
+	// DedicatedColumns configuration for attributes (used by vParquet3)
+	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -103,23 +96,30 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 
 func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc []DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
-		Version:              version,
-		BlockID:              blockID,
-		MinID:                []byte{},
-		MaxID:                []byte{},
-		TenantID:             tenantID,
-		Encoding:             encoding,
-		DataEncoding:         dataEncoding,
-		DedicatedColumns:     dc,
-		dedicatedColumnsHash: dedicatedColumns(dc).hash(),
+		Version:          version,
+		BlockID:          blockID,
+		MinID:            []byte{},
+		MaxID:            []byte{},
+		TenantID:         tenantID,
+		Encoding:         encoding,
+		DataEncoding:     dataEncoding,
+		DedicatedColumns: dc,
 	}
 
 	return b
 }
 
-func (b *BlockMeta) DedicatedColumnsHash() uint64 {
-	return b.dedicatedColumnsHash
-}
+// TODO: Find a way to not compute the hash every time
+//  Storing it bring some issues:
+//    * It's not clear how to keep BlockMeta.DedicatedColumns and the hash in sync.
+//    * BlockMeta can be initialized directly, without going through NewBlockMetaWithDedicatedColumns
+//      (e.g. when loading from disk). We can do a lazy init, but we'd have little control over when
+//      the hash is computed and that the field is not accessed directly.
+//    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
+
+type DedicatedColumns []DedicatedColumn
+
+func (c DedicatedColumns) Hash() uint64 { return HashColumns(c) }
 
 // ObjectAdded updates the block meta appropriately based on information about an added record
 // start/end are unix epoch seconds
@@ -151,13 +151,8 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
 
-type dedicatedColumns []DedicatedColumn
-
-func (c dedicatedColumns) hash() uint64 {
-	return hashColumns(c)
-}
-
-func hashColumns(d []DedicatedColumn) uint64 {
+// HashColumns hashes the given dedicated columns configuration
+func HashColumns(d []DedicatedColumn) uint64 {
 	if len(d) == 0 {
 		return 0
 	}

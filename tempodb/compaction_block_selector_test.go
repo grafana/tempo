@@ -784,17 +784,6 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				maxSize = tt.maxBlockBytes
 			}
 
-			// Fill dedicated columns hash
-			for _, block := range tt.blocklist {
-				block.DedicatedColumnsHash = backend.dedicatedColumns(block.DedicatedColumns).hash()
-			}
-			for _, block := range tt.expected {
-				block.DedicatedColumnsHash = backend.dedicatedColumns(block.DedicatedColumns).hash()
-			}
-			for _, block := range tt.expectedSecond {
-				block.DedicatedColumnsHash = backend.dedicatedColumns(block.DedicatedColumns).hash()
-			}
-
 			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)
 
 			actual, hash := selector.BlocksToCompact()
