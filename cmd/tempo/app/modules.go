@@ -519,7 +519,7 @@ func (t *App) setupModuleManager() error {
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
 		Ingester:         {Common, Store, MemberlistKV},
 		MetricsGenerator: {Common, MemberlistKV},
-		Querier:          {Common, IngesterRing, MetricsGeneratorRing},
+		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
