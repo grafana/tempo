@@ -29,7 +29,7 @@ func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, m
 	}
 
 	dataEncoding, dedicatedColumns := metas[0].DataEncoding, metas[0].DedicatedColumns
-	dedicatedColumnsHash := dedicatedColumnsHash()
+	dedicatedColumnsHash := metas[0].DedicatedColumnsHash()
 	for _, meta := range metas {
 		if meta.DataEncoding != dataEncoding {
 			return nil, fmt.Errorf("two blocks of different data encodings can not be streamed together: %s: %s", dataEncoding, meta.DataEncoding)
