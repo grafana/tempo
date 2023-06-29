@@ -42,21 +42,31 @@ func (m *LatencyHistogram) Combine(other LatencyHistogram) {
 }
 
 // Percentile returns the estimated latency percentile in nanoseconds.
-func (m *LatencyHistogram) Percentile(p float32) uint64 {
+func (m *LatencyHistogram) Percentile(p float64) uint64 {
+
+	if math.IsNaN(p) ||
+		p < 0 ||
+		p > 1 ||
+		m.Count() == 0 {
+		return 0
+	}
 
 	// Maximum amount of samples to include. We round up to better handle
 	// percentiles on low sample counts (<100).
-	maxSamples := int(math.Ceil(float64(p) * float64(m.Count())))
+	maxSamples := int(math.Ceil(p * float64(m.Count())))
 
 	// Find the bucket where the percentile falls in
 	// and the total sample count less than or equal
 	// to that bucket.
 	var total, bucket int
 	for b, count := range m.buckets {
-		if total+count < maxSamples {
+		if total+count <= maxSamples {
 			bucket = b
 			total += count
-			continue
+
+			if total < maxSamples {
+				continue
+			}
 		}
 
 		// We have enough
@@ -65,7 +75,10 @@ func (m *LatencyHistogram) Percentile(p float32) uint64 {
 
 	// Fraction to interpolate between buckets, sample-count wise.
 	// 0.5 means halfway
-	interp := float64(maxSamples-total) / float64(m.buckets[bucket+1])
+	var interp float64
+	if maxSamples-total > 0 {
+		interp = float64(maxSamples-total) / float64(m.buckets[bucket+1])
+	}
 
 	// Exponential interpolation between buckets
 	minDur := math.Pow(2, float64(bucket))
@@ -128,7 +141,7 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 }
 
 // GetMetrics
-func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
+func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
 	groupByAttr, err := traceql.ParseIdentifier(groupBy)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing groupby")
@@ -140,12 +153,24 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	}
 
 	var (
-		duration  = traceql.NewIntrinsic(traceql.IntrinsicDuration)
-		status    = traceql.NewIntrinsic(traceql.IntrinsicStatus)
-		statusErr = traceql.NewStaticStatus(traceql.StatusError)
-		spanCount = 0
-		series    = NewMetricsResults()
+		duration   = traceql.NewIntrinsic(traceql.IntrinsicDuration)
+		startTime  = traceql.NewIntrinsic(traceql.IntrinsicSpanStartTime)
+		startValue = traceql.NewStaticInt(int(start))
+		status     = traceql.NewIntrinsic(traceql.IntrinsicStatus)
+		statusErr  = traceql.NewStaticStatus(traceql.StatusError)
+		spanCount  = 0
+		series     = NewMetricsResults()
 	)
+
+	if start > 0 {
+		req.StartTimeUnixNanos = start
+		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: startTime, Op: traceql.OpGreaterEqual, Operands: []traceql.Static{startValue}})
+	}
+	if end > 0 {
+		req.EndTimeUnixNanos = end
+		// There is only an intrinsic for the span start time, so use it as the cutoff.
+		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: startTime, Op: traceql.OpLess, Operands: []traceql.Static{startValue}})
+	}
 
 	// Ensure that we select the span duration, status, and group-by attribute
 	// if they are not already included in the query.
@@ -175,6 +200,13 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 		for _, ss := range out {
 			for _, s := range ss.Spans {
+
+				if start > 0 && s.StartTimeUnixNanos() < start {
+					continue
+				}
+				if end > 0 && s.StartTimeUnixNanos() >= end {
+					continue
+				}
 
 				var (
 					attr  = s.Attributes()

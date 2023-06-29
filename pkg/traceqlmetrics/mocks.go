@@ -7,17 +7,25 @@ import (
 )
 
 type mockSpan struct {
+	start    uint64
 	duration uint64
 	attrs    map[traceql.Attribute]traceql.Static
 }
 
 var _ traceql.Span = (*mockSpan)(nil)
 
-func newMockSpan(duration uint64, nameValuePairs ...string) *mockSpan {
-	m := &mockSpan{
-		duration: duration,
-		attrs:    map[traceql.Attribute]traceql.Static{},
+func newMockSpan() *mockSpan {
+	return &mockSpan{
+		attrs: map[traceql.Attribute]traceql.Static{},
 	}
+}
+
+func (m *mockSpan) WithDuration(d uint64) *mockSpan {
+	m.duration = d
+	return m
+}
+
+func (m *mockSpan) WithAttributes(nameValuePairs ...string) *mockSpan {
 
 	for i := 0; i < len(nameValuePairs); i += 2 {
 		attr := traceql.MustParseIdentifier(nameValuePairs[i])
@@ -28,6 +36,11 @@ func newMockSpan(duration uint64, nameValuePairs ...string) *mockSpan {
 	return m
 }
 
+func (m *mockSpan) WithStart(t uint64) *mockSpan {
+	m.start = t
+	return m
+}
+
 func (m *mockSpan) WithErr() *mockSpan {
 	m.attrs[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(traceql.StatusError)
 	return m
@@ -35,7 +48,7 @@ func (m *mockSpan) WithErr() *mockSpan {
 
 func (m *mockSpan) Attributes() map[traceql.Attribute]traceql.Static { return m.attrs }
 func (m *mockSpan) ID() []byte                                       { return nil }
-func (m *mockSpan) StartTimeUnixNanos() uint64                       { return 0 }
+func (m *mockSpan) StartTimeUnixNanos() uint64                       { return m.start }
 func (m *mockSpan) DurationNanos() uint64                            { return m.duration }
 
 type mockFetcher struct {

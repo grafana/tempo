@@ -149,6 +149,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// pass subCtx in requests so we can cancel and exit early
 	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
+	if ingesterReq != nil {
+		totalJobs++
+	}
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
@@ -249,6 +252,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedBytes", overallResponse.response.Metrics.InspectedBytes)
 	span.SetTag("inspectedTraces", overallResponse.response.Metrics.InspectedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
+	span.SetTag("totalJobs", totalJobs)
+	span.SetTag("finishedJobs", overallResponse.finishedRequests)
+	span.SetTag("requestThroughput", throughput)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err

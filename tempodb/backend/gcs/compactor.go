@@ -14,8 +14,8 @@ import (
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	// move meta file to a new location
-	metaFilename := backend.MetaFileName(blockID, tenantID)
-	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID)
+	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
+	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
 	src := rw.bucket.Object(metaFilename)
 	dst := rw.bucket.Object(compactedMetaFilename).Retryer(
@@ -43,7 +43,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	ctx := context.TODO()
 	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Prefix:   backend.RootPath(blockID, tenantID),
+		Prefix:   backend.RootPath(blockID, tenantID, rw.cfg.Prefix),
 		Versions: false,
 	})
 
@@ -67,7 +67,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 }
 
 func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	name := backend.CompactedMetaFileName(blockID, tenantID)
+	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
 	if err != nil {
