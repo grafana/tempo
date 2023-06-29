@@ -370,7 +370,7 @@ func TestDedicatedColumns(t *testing.T) {
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))
 
-	assert.Equal(t, limits.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumns)
+	assert.Equal(t, limits.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumnsHash())
 
 	// TODO: This search should find a match once the read path is supported
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -385,7 +385,7 @@ func TestDedicatedColumns(t *testing.T) {
 	// TODO: This check should be included as part of the read path
 	inst.blocksMtx.RLock()
 	for _, b := range inst.completingBlocks {
-		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumnsHash())
 	}
 	inst.blocksMtx.RUnlock()
 
@@ -396,7 +396,7 @@ func TestDedicatedColumns(t *testing.T) {
 	// TODO: This check should be included as part of the read path
 	inst.blocksMtx.RLock()
 	for _, b := range inst.completeBlocks {
-		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumnsHash())
 	}
 	inst.blocksMtx.RUnlock()
 }

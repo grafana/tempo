@@ -76,7 +76,7 @@ type BlockMeta struct {
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by vParquet3)
-	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
+	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -109,18 +109,6 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 	return b
 }
 
-// TODO: Find a way to not compute the hash every time
-//  Storing it bring some issues:
-//    * It's not clear how to keep BlockMeta.DedicatedColumns and the hash in sync.
-//    * BlockMeta can be initialized directly, without going through NewBlockMetaWithDedicatedColumns
-//      (e.g. when loading from disk). We can do a lazy init, but we'd have little control over when
-//      the hash is computed and that the field is not accessed directly.
-//    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
-
-type DedicatedColumns []DedicatedColumn
-
-func (c DedicatedColumns) Hash() uint64 { return HashColumns(c) }
-
 // ObjectAdded updates the block meta appropriately based on information about an added record
 // start/end are unix epoch seconds
 func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
@@ -147,6 +135,16 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 
 	b.TotalObjects++
 }
+
+// TODO: Find a way to not compute the hash every time
+//  Storing it bring some issues:
+//    * It's not clear how to keep BlockMeta.DedicatedColumns and the hash in sync.
+//    * BlockMeta can be initialized directly, without going through NewBlockMetaWithDedicatedColumns
+//      (e.g. when loading from disk). We can do a lazy init, but we'd have little control over when
+//      the hash is computed and that the field is not accessed directly.
+//    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
+
+func (b *BlockMeta) DedicatedColumnsHash() uint64 { return HashColumns(b.DedicatedColumns) }
 
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
