@@ -202,5 +202,5 @@ func TestCompact(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, newMeta, 1)
 	require.Equal(t, 20, newMeta[0].TotalObjects)
-	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumnsHash())
+	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
