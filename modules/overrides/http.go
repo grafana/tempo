@@ -5,12 +5,13 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/util/log"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 // OverridesHandler is a http.HandlerFunc to return user configured overrides
@@ -31,6 +32,8 @@ func (o *userConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *
 		o.handleGet(w, r, ctx, userID)
 	case http.MethodPost:
 		o.handlePost(w, r, ctx, userID)
+	case http.MethodDelete:
+		o.handleDelete(w, ctx, userID)
 	default:
 		handleError(r, w, userID, http.StatusBadRequest, errors.New("Only GET and POST is allowed"))
 		return
@@ -80,6 +83,18 @@ func (o *userConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.R
 	err = o.setLimits(ctx, userID, ucl)
 	if err != nil {
 		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte("ok"))
+	return
+}
+
+func (o *userConfigOverridesManager) handleDelete(w http.ResponseWriter, ctx context.Context, userID string) {
+	err := o.DeleteLimits(ctx, userID)
+	if err != nil {
+		handleError(nil, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)

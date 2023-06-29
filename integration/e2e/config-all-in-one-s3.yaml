@@ -40,3 +40,15 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 100
+
+overrides:
+  user_configurable_overrides_config:
+    enabled: true
+    backend: s3
+    s3:
+      # TODO use separate bucket?
+      bucket: tempo
+      endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true

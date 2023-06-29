@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -123,6 +124,11 @@ func initBackend(cfg UserConfigOverridesConfig) (reader backend.RawReader, write
 	switch cfg.Backend {
 	case "local":
 		reader, writer, _, err = local.New(cfg.Local)
+		if err != nil {
+			return
+		}
+		// Create overrides directory with necessary permissions
+		err = os.MkdirAll(cfg.Local.Path, os.ModePerm)
 	case "gcs":
 		reader, writer, _, err = gcs.New(cfg.GCS)
 	case "s3":
@@ -256,10 +262,11 @@ func (o *userConfigOverridesManager) setLimits(ctx context.Context, userID strin
 
 // getLimits will return the UserConfigurableLimits for a tenant
 func (o *userConfigOverridesManager) getLimits(userID string) (*UserConfigurableLimits, error) {
-	ucl, ok := o.getTenantLimits(userID)
-	if !ok {
-		return nil, fmt.Errorf("user configurable limits not found for: %s", userID)
-	}
+	ucl, _ := o.getTenantLimits(userID)
+	// TODO return 404 when not found or just empty json?
+	// if !ok {
+	// 	return nil, fmt.Errorf("user configurable limits not found for: %s", userID)
+	// }
 
 	return ucl, nil
 }

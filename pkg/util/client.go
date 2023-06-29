@@ -10,18 +10,19 @@ import (
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/klauspost/compress/gzhttp"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
-	orgIDHeader = "X-Scope-OrgID"
+	OrgIDHeader = "X-Scope-OrgID"
 
 	QueryTraceEndpoint = "/api/traces"
 
-	acceptHeader        = "Accept"
-	applicationProtobuf = "application/protobuf"
-	applicationJSON     = "application/json"
+	AcceptHeader        = "Accept"
+	ApplicationProtobuf = "application/protobuf"
+	ApplicationJSON     = "application/json"
 )
 
 // Client is client to the Tempo API.
@@ -60,17 +61,17 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}
 
 	if len(c.OrgID) > 0 {
-		req.Header.Set(orgIDHeader, c.OrgID)
+		req.Header.Set(OrgIDHeader, c.OrgID)
 	}
 
-	marshallingFormat := applicationJSON
+	marshallingFormat := ApplicationJSON
 	if strings.Contains(url, QueryTraceEndpoint) {
-		marshallingFormat = applicationProtobuf
+		marshallingFormat = ApplicationProtobuf
 	}
 	// Set 'Accept' header to 'application/protobuf'.
 	// This is required for the /api/traces endpoint to return a protobuf response.
 	// JSON lost backwards compatibility with the upgrade to `opentelemetry-proto` v0.18.0.
-	req.Header.Set(acceptHeader, marshallingFormat)
+	req.Header.Set(AcceptHeader, marshallingFormat)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -92,11 +93,11 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	switch marshallingFormat {
-	case applicationJSON:
+	case ApplicationJSON:
 		if err = jsonpb.UnmarshalString(string(body), m); err != nil {
 			return resp, fmt.Errorf("error decoding %T json, err: %v body: %s", m, err, string(body))
 		}
-	case applicationProtobuf:
+	case ApplicationProtobuf:
 
 		if err = proto.Unmarshal(body, m); err != nil {
 			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
