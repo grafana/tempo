@@ -330,6 +330,11 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 		return nil, ctx.Err()
 	}
 
+	// if we have no configured ingester rings this will fail silently. let's return an actual error instead
+	if len(q.ingesterRings) == 0 {
+		return nil, errors.New("forGivenIngesters: no ingester rings configured")
+	}
+
 	// if a nil replicationsetfn is passed, that means to just use a standard readring
 	if getReplicationSet == nil {
 		getReplicationSet = func(r ring.ReadRing) (ring.ReplicationSet, error) {
@@ -346,7 +351,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 	for i, ring := range q.ingesterRings {
 		replicationSet, err := getReplicationSet(ring)
 		if err != nil {
-			return nil, fmt.Errorf("error getting replication set for ring (%d): %w", i, err)
+			return nil, fmt.Errorf("forGivenIngesters: error getting replication set for ring (%d): %w", i, err)
 		}
 		pool := q.ingesterPools[i]
 
