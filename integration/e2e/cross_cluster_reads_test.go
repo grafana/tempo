@@ -20,6 +20,8 @@ import (
 func TestCrossClusterReads(t *testing.T) {
 	// start minio
 	s, err := e2e.NewScenario("tempo_active_active")
+	require.NoError(t, err)
+
 	minio := e2edb.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))

@@ -353,7 +353,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := forOneIngester(ctx, replicationSet, f, ring, pool, q.cfg.ExtraQueryDelay)
+			res, err := forOneIngester(ctx, replicationSet, f, pool, q.cfg.ExtraQueryDelay)
 
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -374,7 +374,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 	return responses, nil
 }
 
-func forOneIngester(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, r ring.ReadRing, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
+func forOneIngester(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forOneIngester")
 	defer span.Finish()
 
