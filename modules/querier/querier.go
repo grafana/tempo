@@ -265,7 +265,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		// get responses from all ingesters in parallel
 		span.LogFields(ot_log.String("msg", "searching ingesters"))
-		responses, err := q.forGivenIngesters(ctx, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+		responses, err := q.forIngesterRings(ctx, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 			return client.FindTraceByID(funcCtx, req)
 		})
 		if err != nil {
@@ -323,16 +323,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 type forEachFn func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error)
 type replicationSetFn func(r ring.ReadRing) (ring.ReplicationSet, error)
 
-// forGivenIngesters runs f, in parallel, for given ingesters
-func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet replicationSetFn, f forEachFn) ([]responseFromIngesters, error) {
+// forIngesterRings runs f, in parallel, for given ingesters
+func (q *Querier) forIngesterRings(ctx context.Context, getReplicationSet replicationSetFn, f forEachFn) ([]responseFromIngesters, error) {
 	if ctx.Err() != nil {
-		_ = level.Debug(log.Logger).Log("foreGivenIngesters context error", "ctx.Err()", ctx.Err().Error())
+		_ = level.Debug(log.Logger).Log("forIngesterRings context error", "ctx.Err()", ctx.Err().Error())
 		return nil, ctx.Err()
 	}
 
 	// if we have no configured ingester rings this will fail silently. let's return an actual error instead
 	if len(q.ingesterRings) == 0 {
-		return nil, errors.New("forGivenIngesters: no ingester rings configured")
+		return nil, errors.New("forIngesterRings: no ingester rings configured")
 	}
 
 	// if a nil replicationsetfn is passed, that means to just use a standard readring
@@ -351,14 +351,14 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 	for i, ring := range q.ingesterRings {
 		replicationSet, err := getReplicationSet(ring)
 		if err != nil {
-			return nil, fmt.Errorf("forGivenIngesters: error getting replication set for ring (%d): %w", i, err)
+			return nil, fmt.Errorf("forIngesterRings: error getting replication set for ring (%d): %w", i, err)
 		}
 		pool := q.ingesterPools[i]
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := forOneIngester(ctx, replicationSet, f, pool, q.cfg.ExtraQueryDelay)
+			res, err := forOneIngesterRing(ctx, replicationSet, f, pool, q.cfg.ExtraQueryDelay)
 
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -379,7 +379,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, getReplicationSet repli
 	return responses, nil
 }
 
-func forOneIngester(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
+func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forOneIngester")
 	defer span.Finish()
 
@@ -457,7 +457,7 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
 	}
 
-	responses, err := q.forGivenIngesters(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	responses, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchRecent(ctx, req)
 	})
 	if err != nil {
@@ -476,7 +476,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
-	lookupResults, err := q.forGivenIngesters(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTags(ctx, req)
 	})
 	if err != nil {
@@ -506,7 +506,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	// Get results from all ingesters
-	lookupResults, err := q.forGivenIngesters(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagsV2(ctx, req)
 	})
 	if err != nil {
@@ -561,7 +561,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		distinctValues.Collect(v)
 	}
 
-	lookupResults, err := q.forGivenIngesters(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagValues(ctx, req)
 	})
 	if err != nil {
@@ -606,7 +606,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	// Get results from all ingesters
-	lookupResults, err := q.forGivenIngesters(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagValuesV2(ctx, req)
 	})
 	if err != nil {
