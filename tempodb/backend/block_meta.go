@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
@@ -145,6 +146,30 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 //    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
 
 func (b *BlockMeta) DedicatedColumnsHash() uint64 { return HashColumns(b.DedicatedColumns) }
+
+func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) []DedicatedColumn {
+	cols := make([]DedicatedColumn, 0, len(tempopbCols))
+	for _, c := range tempopbCols {
+		cols = append(cols, DedicatedColumn{
+			Scope: DedicatedColumnScope(c.Scope),
+			Name:  c.Name,
+			Type:  DedicatedColumnType(c.Type),
+		})
+	}
+	return cols
+}
+
+func DedicateColumnsToTempopb(metaCols []DedicatedColumn) []*tempopb.DedicatedColumn {
+	tempopbCols := make([]*tempopb.DedicatedColumn, 0, len(metaCols))
+	for _, c := range metaCols {
+		tempopbCols = append(tempopbCols, &tempopb.DedicatedColumn{
+			Scope: string(c.Scope),
+			Name:  c.Name,
+			Type:  string(c.Type),
+		})
+	}
+	return tempopbCols
+}
 
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}

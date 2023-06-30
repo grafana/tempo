@@ -84,15 +84,16 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 
 	// /giphy so meta
 	meta := &backend.BlockMeta{
-		Version:       searchReq.Version,
-		TenantID:      tenant,
-		Encoding:      enc,
-		IndexPageSize: searchReq.IndexPageSize,
-		TotalRecords:  searchReq.TotalRecords,
-		BlockID:       blockID,
-		DataEncoding:  searchReq.DataEncoding,
-		Size:          searchReq.Size_,
-		FooterSize:    searchReq.FooterSize,
+		Version:          searchReq.Version,
+		TenantID:         tenant,
+		Encoding:         enc,
+		IndexPageSize:    searchReq.IndexPageSize,
+		TotalRecords:     searchReq.TotalRecords,
+		BlockID:          blockID,
+		DataEncoding:     searchReq.DataEncoding,
+		Size:             searchReq.Size_,
+		FooterSize:       searchReq.FooterSize,
+		DedicatedColumns: backend.DedicateColumnsFromTempopb(searchReq.DedicatedColumns),
 	}
 
 	block, err := encoding.OpenBlock(meta, reader)
