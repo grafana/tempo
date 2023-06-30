@@ -13,8 +13,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/modules/querier/stats"
-	querier_stats "github.com/grafana/tempo/modules/querier/stats"
 )
 
 var (
@@ -95,10 +93,9 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 			// and cancel the query.  We don't actually handle queries in parallel
 			// here, as we're running in lock step with the server - each Recv is
 			// paired with a Send.
-			go fp.runRequest(ctx, request.HttpRequest, request.StatsEnabled, func(response *httpgrpc.HTTPResponse, stats *stats.Stats) error {
+			go fp.runRequest(ctx, request.HttpRequest, func(response *httpgrpc.HTTPResponse) error {
 				return c.Send(&frontendv1pb.ClientToFrontend{
 					HttpResponse: response,
-					Stats:        stats,
 				})
 			})
 
@@ -114,12 +111,7 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 	}
 }
 
-func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.HTTPRequest, statsEnabled bool, sendHTTPResponse func(response *httpgrpc.HTTPResponse, stats *stats.Stats) error) {
-	var stats *querier_stats.Stats
-	if statsEnabled {
-		stats, ctx = querier_stats.ContextWithEmptyStats(ctx)
-	}
-
+func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.HTTPRequest, sendHTTPResponse func(response *httpgrpc.HTTPResponse) error) {
 	response, err := fp.handler.Handle(ctx, request)
 	if err != nil {
 		var ok bool
@@ -142,7 +134,7 @@ func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.H
 		level.Error(fp.log).Log("msg", "error processing query", "err", errMsg)
 	}
 
-	if err := sendHTTPResponse(response, stats); err != nil {
+	if err := sendHTTPResponse(response); err != nil {
 		level.Error(fp.log).Log("msg", "error processing requests", "err", err)
 	}
 }
