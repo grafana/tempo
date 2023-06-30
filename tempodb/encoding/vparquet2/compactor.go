@@ -148,10 +148,11 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:         uuid.New(),
-				TenantID:        inputs[0].TenantID,
-				CompactionLevel: nextCompactionLevel,
-				TotalObjects:    recordsPerBlock, // Just an estimate
+				BlockID:          uuid.New(),
+				TenantID:         inputs[0].TenantID,
+				CompactionLevel:  nextCompactionLevel,
+				TotalObjects:     recordsPerBlock, // Just an estimate
+				DedicatedColumns: inputs[0].DedicatedColumns,
 			}
 			w := writerCallback(newMeta, time.Now())
 

@@ -75,7 +75,7 @@ type BlockMeta struct {
 	BloomShardCount uint16 `json:"bloomShards"`
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
-	// DedicatedColumns configuration for attributes (used by parquet)
+	// DedicatedColumns configuration for attributes (used by vParquet3)
 	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
 }
 
@@ -94,7 +94,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dedicatedColumns []DedicatedColumn) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc []DedicatedColumn) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          blockID,
@@ -103,7 +103,7 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 		TenantID:         tenantID,
 		Encoding:         encoding,
 		DataEncoding:     dataEncoding,
-		DedicatedColumns: dedicatedColumns,
+		DedicatedColumns: dc,
 	}
 
 	return b
@@ -111,8 +111,7 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 
 // ObjectAdded updates the block meta appropriately based on information about an added record
 // start/end are unix epoch seconds
-func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
-
+func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 	if start > 0 {
 		startTime := time.Unix(int64(start), 0)
 		if b.StartTime.IsZero() || startTime.Before(b.StartTime) {
@@ -137,23 +136,31 @@ func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
 	b.TotalObjects++
 }
 
+// TODO: Find a way to not compute the hash every time
+//  Storing it bring some issues:
+//    * It's not clear how to keep BlockMeta.DedicatedColumns and the hash in sync.
+//    * BlockMeta can be initialized directly, without going through NewBlockMetaWithDedicatedColumns
+//      (e.g. when loading from disk). We can do a lazy init, but we'd have little control over when
+//      the hash is computed and that the field is not accessed directly.
+//    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
+
+func (b *BlockMeta) DedicatedColumnsHash() uint64 { return HashColumns(b.DedicatedColumns) }
+
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
 
-// TODO: Find a better way of comparing dedicated columns config
-
-// DedicatedColumnsHash returns a hash of the dedicated columns' configuration.
-// Used for comparing the configuration of two blocks.
-func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+// HashColumns hashes the given dedicated columns configuration
+func HashColumns(d []DedicatedColumn) uint64 {
+	if len(d) == 0 {
+		return 0
+	}
 	h := xxhash.New()
-
-	for _, c := range b.DedicatedColumns {
+	for _, c := range d {
 		_, _ = h.WriteString(string(c.Scope))
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(c.Name)
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(string(c.Type))
 	}
-
 	return h.Sum64()
 }

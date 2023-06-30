@@ -3,7 +3,7 @@ package vparquet2
 import (
 	"context"
 	crand "crypto/rand"
-	"encoding/binary"
+	"flag"
 	"math/rand"
 	"testing"
 	"time"
@@ -50,7 +50,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 		RowGroupSizeBytes:   20_000_000,
 	}
 
-	meta := createTestBlock(b, ctx, cfg, r, w, traceCount, batchCount, spanCount)
+	meta := createTestBlock(b, ctx, cfg, r, w, traceCount, batchCount, spanCount, nil)
 
 	inputs := []*backend.BlockMeta{meta}
 
@@ -87,7 +87,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 	}
 
 	// 1M span traces
-	meta := createTestBlock(b, ctx, cfg, r, w, 10, 1000, 1000)
+	meta := createTestBlock(b, ctx, cfg, r, w, 10, 1000, 1000, nil)
 	inputs := []*backend.BlockMeta{meta, meta}
 
 	b.ResetTimer()
@@ -111,24 +111,25 @@ func BenchmarkCompactorDupes(b *testing.B) {
 // Trace IDs are guaranteed to be monotonically increasing so that
 // the block will be iterated in order.
 // nolint: revive
-func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
+func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int, dc []backend.DedicatedColumn) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
-		TenantID:     tenantID,
-		BlockID:      uuid.New(),
-		TotalObjects: traceCount,
+		TenantID:         tenantID,
+		BlockID:          uuid.New(),
+		TotalObjects:     traceCount,
+		DedicatedColumns: dc,
 	}
 
 	sb := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
 
 	for i := 0; i < traceCount; i++ {
 		id := make([]byte, 16)
-		binary.LittleEndian.PutUint64(id, uint64(i))
+		_, err := crand.Read(id)
+		require.NoError(t, err)
 
-		tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+		tr := test.AddDedicatedAttributes(test.MakeTraceWithSpanCount(batchCount, spanCount, id))
 		trp := traceToParquet(inMeta, id, tr, nil)
 
-		err := sb.Add(trp, 0, 0)
-		require.NoError(t, err)
+		require.NoError(t, sb.Add(trp, 0, 0))
 		if sb.EstimatedBufferedBytes() > 20_000_000 {
 			_, err := sb.Flush()
 			require.NoError(t, err)
@@ -164,4 +165,42 @@ func TestCountSpans(t *testing.T) {
 	tID, spans := countSpans(sch, row)
 	require.Equal(t, tID, tempoUtil.TraceIDToHexString(traceID))
 	require.Equal(t, spans, batchSize*spansEach)
+}
+
+func TestCompact(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	c := NewCompactor(common.CompactionOptions{
+		BlockConfig:     blockConfig,
+		OutputBlocks:    1,
+		FlushSizeBytes:  30_000_000,
+		ObjectsCombined: func(compactionLevel, objects int) {},
+	})
+
+	dedicatedColumns := []backend.DedicatedColumn{
+		{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
+		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
+	}
+
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, dedicatedColumns)
+	meta2 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, dedicatedColumns)
+
+	inputs := []*backend.BlockMeta{meta1, meta2}
+
+	newMeta, err := c.Compact(context.Background(), log.NewNopLogger(), r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+	require.NoError(t, err)
+	require.Len(t, newMeta, 1)
+	require.Equal(t, 20, newMeta[0].TotalObjects)
+	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }

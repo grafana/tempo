@@ -88,6 +88,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
 			RowGroupSizeBytes:    30_000_000,
+			DedicatedColumns:     []backend.DedicatedColumn{{Scope: "span", Name: "key", Type: "string"}},
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

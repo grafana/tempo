@@ -414,7 +414,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					TotalObjects: 50,
 					EndTime:      now,
-				}},
+				},
+			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -449,7 +450,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					Size:    1,
 					EndTime: now,
-				}},
+				},
+			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -696,11 +698,77 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
 		},
+		{
+			name: "blocks with different dedicated columns are not selected together",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "int"},
+					},
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "string"},
+					},
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "int"},
+					},
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "string"},
+					},
+				},
+			},
+			expected: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "int"},
+					},
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "int"},
+					},
+				},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedSecond: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "string"},
+					},
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now,
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "foo", Type: "string"},
+					},
+				},
+			},
+			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			min := defaultMinInputBlocks
 			if tt.minInputBlocks > 0 {
 				min = tt.minInputBlocks
