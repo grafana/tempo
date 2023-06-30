@@ -1,11 +1,7 @@
 package e2e
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"testing"
 
@@ -18,7 +14,6 @@ import (
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
@@ -68,10 +63,7 @@ func TestOverrides(t *testing.T) {
 
 			// Get default overrides
 			limits, err := apiClient.GetOverrides()
-			fmt.Printf("* Overrides: %+v\n", limits)
-			if limits.Forwarders != nil {
-				fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
-			}
+			printLimits(limits)
 			require.NoError(t, err)
 
 			require.NotNil(t, limits)
@@ -85,10 +77,7 @@ func TestOverrides(t *testing.T) {
 			require.NoError(t, err)
 
 			limits, err = apiClient.GetOverrides()
-			fmt.Printf("* Overrides: %+v\n", limits)
-			if limits.Forwarders != nil {
-				fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
-			}
+			printLimits(limits)
 			require.NoError(t, err)
 
 			require.NotNil(t, limits)
@@ -101,10 +90,7 @@ func TestOverrides(t *testing.T) {
 			require.NoError(t, err)
 
 			limits, err = apiClient.GetOverrides()
-			fmt.Printf("* Overrides: %+v\n", limits)
-			if limits.Forwarders != nil {
-				fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
-			}
+			printLimits(limits)
 			require.NoError(t, err)
 
 			require.NotNil(t, limits)
@@ -113,94 +99,11 @@ func TestOverrides(t *testing.T) {
 	}
 }
 
-// Client wraps tempoUtil.Client and adds functions to work with the overrides files.
-// Adding this functions to tempoUtil would result in an import cycle.
-type Client struct {
-	*tempoUtil.Client
+func printLimits(limits *overrides.UserConfigurableLimits) {
+	fmt.Printf("* Overrides: %+v\n", limits)
+	if limits != nil && limits.Forwarders != nil {
+		fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
+	}
 }
 
-func (c *Client) GetOverrides() (*overrides.UserConfigurableLimits, error) {
-	req, err := http.NewRequest("GET", c.BaseURL+api.PathOverrides, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(c.OrgID) > 0 {
-		req.Header.Set(tempoUtil.OrgIDHeader, c.OrgID)
-	}
-	req.Header.Set(tempoUtil.AcceptHeader, tempoUtil.ApplicationJSON)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error querying Tempo %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	limits := &overrides.UserConfigurableLimits{}
-	if err = json.Unmarshal(body, limits); err != nil {
-		return nil, fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
-	}
-	return limits, err
-}
-
-func (c *Client) SetOverrides(limits *overrides.UserConfigurableLimits) error {
-	b, err := json.Marshal(limits)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", c.BaseURL+api.PathOverrides, bytes.NewBuffer(b))
-	if err != nil {
-		return err
-	}
-
-	if len(c.OrgID) > 0 {
-		req.Header.Set(tempoUtil.OrgIDHeader, c.OrgID)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error querying Tempo %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-	return nil
-}
-
-func (c *Client) DeleteOverrides() error {
-	req, err := http.NewRequest("DELETE", c.BaseURL+api.PathOverrides, nil)
-	if err != nil {
-		return err
-	}
-
-	if len(c.OrgID) > 0 {
-		req.Header.Set(tempoUtil.OrgIDHeader, c.OrgID)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error querying Tempo %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-	return nil
-}
+// TODO TestOverridesRefresh

@@ -6,13 +6,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/util"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"golang.org/x/net/context"
+
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func Test_runtimeConfigOverridesManager_OverridesHandler(t *testing.T) {
@@ -33,11 +34,10 @@ func Test_runtimeConfigOverridesManager_OverridesHandler(t *testing.T) {
 }
 
 func Test_userConfigOverridesManager_OverridesHandler(t *testing.T) {
-	tempDir := t.TempDir()
 	bl := Limits{Forwarders: []string{"my-forwarder"}}
-	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
+	_, configurableOverrides := localUserConfigOverrides(t, bl)
 
-	err := configurableOverrides.setLimits(context.Background(), "single-tenant", &UserConfigurableLimits{
+	err := configurableOverrides.setTenantLimits(context.Background(), "single-tenant", &UserConfigurableLimits{
 		Version:    "v1",
 		Forwarders: &[]string{"my-other-forwarder"},
 	})
@@ -77,7 +77,7 @@ func Test_userConfigOverridesManager_OverridesHandler(t *testing.T) {
 			name:           "test PUT",
 			overrides:      configurableOverrides,
 			req:            httptest.NewRequest("PUT", "/", nil),
-			expResp:        "Only GET and POST is allowed\n",
+			expResp:        "Only GET, POST and DELETE is allowed\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
@@ -85,9 +85,9 @@ func Test_userConfigOverridesManager_OverridesHandler(t *testing.T) {
 			name:           "test DELETE",
 			overrides:      configurableOverrides,
 			req:            httptest.NewRequest("DELETE", "/", nil),
-			expResp:        "Only GET and POST is allowed\n",
+			expResp:        "ok",
 			expContentType: "text/plain; charset=utf-8",
-			expStatusCode:  400,
+			expStatusCode:  200,
 		},
 	}
 	for _, tc := range tests {

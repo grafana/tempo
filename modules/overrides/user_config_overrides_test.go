@@ -3,105 +3,146 @@ package overrides
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/api"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/tempodb/backend"
 
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
-func TestNewUserConfigurableOverrides_priorityLogic(t *testing.T) {
-	tempDir := t.TempDir()
+func TestUserConfigOverridesManager(t *testing.T) {
+	tenant1 := "tenant-1"
+	tenant2 := "tenant-2"
 
-	cfg := UserConfigOverridesConfig{
-		Enabled: true,
-		Backend: "local",
-		Local: &local.Config{
-			Path: tempDir,
-		},
-	}
-
-	tempoOverrides, err := NewOverrides(Limits{
+	defaultLimits := Limits{
 		MaxBytesPerTrace: 1024,
 		Forwarders:       []string{"my-forwarder"},
-	})
-	assert.NoError(t, err)
-
-	userConfigOverridesMgr, err := NewUserConfigOverrides(cfg, tempoOverrides)
-	assert.NoError(t, err)
-
-	// Manually update tenantLimits for tenant-1
-	userConfigOverridesMgr.tenantLimits["tenant-1"] = &UserConfigurableLimits{
-		Version:    "v1",
-		Forwarders: &[]string{"other-forwarder"},
 	}
+	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	// Tenant without user-configurable overrides
-	assert.Equal(t, userConfigOverridesMgr.MaxBytesPerTrace("tenant-2"), 1024)
-	assert.Equal(t, userConfigOverridesMgr.Forwarders("tenant-2"), []string{"my-forwarder"})
+	// Verify default limits are returned
+	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
+	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant2))
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
 
-	// Tenant with user-configurable overrides
-	assert.Equal(t, userConfigOverridesMgr.MaxBytesPerTrace("tenant-1"), 1024)
-	assert.Equal(t, userConfigOverridesMgr.Forwarders("tenant-1"), []string{"other-forwarder"})
+	// Update limits for tenant-1
+	userConfigurableLimits := newUserConfigurableLimits()
+	userConfigurableLimits.Forwarders = &[]string{"my-other-forwarder"}
+	err := mgr.setTenantLimits(context.Background(), tenant2, userConfigurableLimits)
+	assert.NoError(t, err)
+
+	// Verify updated limits are returned
+	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
+	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant2))
+	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant2))
+
+	// Delete limits for tenant-1
+	err = mgr.deleteTenantLimits(context.Background(), tenant2)
+	assert.NoError(t, err)
+
+	// Verify default limits are returned
+	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
+	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant2))
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
 }
 
-func TestNewUserConfigurableOverrides_readFromBackend(t *testing.T) {
-	tempDir := t.TempDir()
+func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
+	tenant := "foo"
+
+	defaultLimits := Limits{
+		Forwarders: []string{"my-forwarder"},
+	}
+	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
+
+	assert.Equal(t, mgr.Forwarders(tenant), []string{"my-forwarder"})
+
+	// write directly to backend
+	limits := newUserConfigurableLimits()
+	limits.Forwarders = &[]string{"my-other-forwarder"}
+	writeUserConfigurableOverridesToDisk(t, tempDir, tenant, limits)
+
+	// reload from backend
+	err := mgr.reloadAllTenantLimits(context.Background())
+	assert.NoError(t, err)
+
+	assert.Equal(t, mgr.Forwarders("foo"), []string{"my-other-forwarder"})
+}
+
+func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
+	tenant := "foo"
+
+	defaultLimits := Limits{
+		Forwarders: []string{"my-forwarder"},
+	}
+	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
 
 	limits := newUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
-
-	writeUserConfigurableOverrides(t, tempDir, "foo", limits)
-
-	bl := Limits{Forwarders: []string{"my-forwarder"}}
-	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
-
-	// force a refresh
-	err := configurableOverrides.refreshAllTenantLimits(context.Background())
+	err := mgr.setTenantLimits(context.Background(), tenant, limits)
 	assert.NoError(t, err)
 
-	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-other-forwarder"})
+	assert.Equal(t, mgr.Forwarders(tenant), []string{"my-other-forwarder"})
+
+	// delete overrides.json directly from the backend
+	deleteUserConfigurableOverridesFromDisk(t, tempDir, tenant)
+
+	// reload from backend
+	err = mgr.reloadAllTenantLimits(context.Background())
+	assert.NoError(t, err)
+
+	assert.Equal(t, mgr.Forwarders("foo"), []string{"my-forwarder"})
 }
 
-func TestConfigurableOverrides_setAndDelete(t *testing.T) {
-	tempDir := t.TempDir()
-	bl := Limits{Forwarders: []string{"my-forwarder"}}
-	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
+func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
+	tenant := "foo"
 
-	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-forwarder"})
+	defaultLimits := Limits{
+		Forwarders: []string{"my-forwarder"},
+	}
+	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	err := configurableOverrides.setLimits(context.Background(), "foo", &UserConfigurableLimits{
-		Version:    "",
-		Forwarders: &[]string{"my-other-forwarder"},
-	})
+	limits := newUserConfigurableLimits()
+	limits.Forwarders = &[]string{"my-other-forwarder"}
+	err := mgr.setTenantLimits(context.Background(), tenant, limits)
 	assert.NoError(t, err)
 
-	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-other-forwarder"})
+	// replace reader by this uncooperative fella
+	mgr.r = &backend.MockRawReader{
+		ListFn: func(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+			return nil, errors.New("no")
+		},
+		ReadFn: func(ctx context.Context, name string, keypath backend.KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
+			return nil, 0, errors.New("no")
+		},
+	}
 
-	assert.FileExists(t, tempDir+"/overrides/foo/overrides.json")
+	// get requests fail
+	_, err = mgr.getTenantLimits(context.Background(), tenant)
+	assert.Error(t, err)
 
-	err = configurableOverrides.DeleteLimits(context.Background(), "foo")
-	assert.NoError(t, err)
+	// reloading fails
+	assert.Error(t, mgr.reloadAllTenantLimits(context.Background()))
 
-	// back to original value
-	assert.Equal(t, configurableOverrides.Forwarders("foo"), []string{"my-forwarder"})
-
-	assert.NoFileExists(t, tempDir+"/overrides/foo/overrides.json")
-}
-
-func TestNewUserConfigurableOverrides_backendDown(t *testing.T) {
-	// TODO test we can fall back when backend is not responsive
+	// but overrides should be cached
+	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant))
 }
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
-	tempDir := t.TempDir()
 	bl := Limits{Forwarders: []string{"my-forwarder"}}
-	configurableOverrides := localUserConfigOverrides(t, tempDir, bl)
+	_, configurableOverrides := localUserConfigOverrides(t, bl)
 
 	// set user config limits
 	configurableOverrides.tenantLimits["test"] = &UserConfigurableLimits{
@@ -137,29 +178,39 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	}
 }
 
-func writeUserConfigurableOverrides(t *testing.T, dir string, tenant string, limits *UserConfigurableLimits) {
-	err := os.MkdirAll(dir+"/overrides/"+tenant, 0777)
-	require.NoError(t, err)
+func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userConfigOverridesManager) {
+	path := t.TempDir()
 
-	b, err := json.Marshal(limits)
-	require.NoError(t, err)
-
-	err = os.WriteFile(dir+"/overrides/"+tenant+"/overrides.json", b, 0644)
-	require.NoError(t, err)
-}
-
-func localUserConfigOverrides(t *testing.T, tempDir string, baseLimits Limits) *userConfigOverridesManager {
 	cfg := UserConfigOverridesConfig{
 		Enabled: true,
 		Backend: "local",
-		Local:   &local.Config{Path: tempDir},
+		Local:   &local.Config{Path: path},
 	}
 
 	baseOverrides, err := NewOverrides(baseLimits)
 	assert.NoError(t, err)
 
-	configurableOverrides, err := NewUserConfigOverrides(cfg, baseOverrides)
+	configurableOverrides, err := newUserConfigOverrides(cfg, baseOverrides)
 	assert.NoError(t, err)
 
-	return configurableOverrides
+	return path, configurableOverrides
+}
+
+func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *UserConfigurableLimits) {
+	b, err := json.Marshal(limits)
+	assert.NoError(t, err)
+
+	err = os.MkdirAll(path.Join(dir, overridesKeyPath, tenant), os.ModePerm)
+	assert.NoError(t, err)
+
+	err = os.WriteFile(path.Join(dir, overridesKeyPath, tenant, overridesFileName), b, 0644)
+	assert.NoError(t, err)
+}
+
+func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant string) {
+	err := os.Remove(path.Join(dir, overridesKeyPath, tenant, overridesFileName))
+	assert.NoError(t, err)
+
+	err = os.Remove(path.Join(dir, overridesKeyPath, tenant))
+	assert.NoError(t, err)
 }

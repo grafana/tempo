@@ -29,23 +29,24 @@ func (o *userConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *
 
 	switch r.Method {
 	case http.MethodGet:
-		o.handleGet(w, r, ctx, userID)
+		o.handleGet(ctx, r, w, userID)
 	case http.MethodPost:
-		o.handlePost(w, r, ctx, userID)
+		o.handlePost(ctx, r, w, userID)
 	case http.MethodDelete:
-		o.handleDelete(w, ctx, userID)
+		o.handleDelete(ctx, r, w, userID)
 	default:
-		handleError(r, w, userID, http.StatusBadRequest, errors.New("Only GET and POST is allowed"))
-		return
+		handleError(r, w, userID, http.StatusBadRequest, errors.New("Only GET, POST and DELETE is allowed"))
 	}
 }
 
-func (o *userConfigOverridesManager) handleGet(w http.ResponseWriter, r *http.Request, _ context.Context, userID string) {
-	ucl, err := o.getLimits(userID)
+func (o *userConfigOverridesManager) handleGet(ctx context.Context, r *http.Request, w http.ResponseWriter, userID string) {
+	ucl, err := o.getTenantLimits(ctx, userID)
 	if err != nil {
 		handleError(r, w, userID, http.StatusBadRequest, err)
 		return
 	}
+
+	// TODO when not set, should we return 404 or just an empty json?
 
 	data, err := jsoniter.Marshal(ucl)
 	if err != nil {
@@ -60,7 +61,7 @@ func (o *userConfigOverridesManager) handleGet(w http.ResponseWriter, r *http.Re
 }
 
 // handlePost accepts post requests with json payload and writes it to config backend
-func (o *userConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.Request, ctx context.Context, userID string) {
+func (o *userConfigOverridesManager) handlePost(ctx context.Context, r *http.Request, w http.ResponseWriter, userID string) {
 	d := jsoniter.NewDecoder(r.Body)
 	// error in case of unwanted fields
 	d.DisallowUnknownFields()
@@ -80,7 +81,7 @@ func (o *userConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = o.setLimits(ctx, userID, ucl)
+	err = o.setTenantLimits(ctx, userID, ucl)
 	if err != nil {
 		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
 	}
@@ -91,8 +92,8 @@ func (o *userConfigOverridesManager) handlePost(w http.ResponseWriter, r *http.R
 	return
 }
 
-func (o *userConfigOverridesManager) handleDelete(w http.ResponseWriter, ctx context.Context, userID string) {
-	err := o.DeleteLimits(ctx, userID)
+func (o *userConfigOverridesManager) handleDelete(ctx context.Context, _ *http.Request, w http.ResponseWriter, userID string) {
+	err := o.deleteTenantLimits(ctx, userID)
 	if err != nil {
 		handleError(nil, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
 	}
