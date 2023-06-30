@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,16 +34,17 @@ const (
 	urlParamSpansPerSpanSet = "spss"
 
 	// backend search (querier/serverless)
-	urlParamStartPage     = "startPage"
-	urlParamPagesToSearch = "pagesToSearch"
-	urlParamBlockID       = "blockID"
-	urlParamEncoding      = "encoding"
-	urlParamIndexPageSize = "indexPageSize"
-	urlParamTotalRecords  = "totalRecords"
-	urlParamDataEncoding  = "dataEncoding"
-	urlParamVersion       = "version"
-	urlParamSize          = "size"
-	urlParamFooterSize    = "footerSize"
+	urlParamStartPage        = "startPage"
+	urlParamPagesToSearch    = "pagesToSearch"
+	urlParamBlockID          = "blockID"
+	urlParamEncoding         = "encoding"
+	urlParamIndexPageSize    = "indexPageSize"
+	urlParamTotalRecords     = "totalRecords"
+	urlParamDataEncoding     = "dataEncoding"
+	urlParamVersion          = "version"
+	urlParamSize             = "size"
+	urlParamFooterSize       = "footerSize"
+	urlParamDedicatedColumns = "dedicatedColumns"
 
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
@@ -330,6 +332,16 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.FooterSize = uint32(footerSize)
 
+	s = r.URL.Query().Get(urlParamDedicatedColumns)
+	if s != "" {
+		var dedicatedColumns []*tempopb.DedicatedColumn
+		err = json.Unmarshal([]byte(s), &dedicatedColumns)
+		if err != nil {
+			return nil, fmt.Errorf("invalid dedicatedColumns '%s': %w", s, err)
+		}
+		req.DedicatedColumns = dedicatedColumns
+	}
+
 	return req, nil
 }
 
@@ -437,6 +449,10 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	if err != nil {
 		return nil, err
 	}
+	columnsJSON, err := json.Marshal(searchReq.DedicatedColumns)
+	if err != nil {
+		return nil, err
+	}
 
 	q := req.URL.Query()
 	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
@@ -449,6 +465,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
 	q.Set(urlParamVersion, searchReq.Version)
 	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	q.Set(urlParamDedicatedColumns, string(columnsJSON))
 
 	req.URL.RawQuery = q.Encode()
 
