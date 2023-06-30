@@ -80,6 +80,14 @@ message SearchBlockRequest {
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
+  repeated DedicatedColumn dedicatedColumns = 12;
+}
+
+// Configuration for a single dedicated attribute column.
+message DedicatedColumn {
+  string type = 1;
+  string name = 2;
+  string scope = 3;
 }
 
 message SearchResponse {
