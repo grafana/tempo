@@ -20,9 +20,12 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
+const (
+	tenant1 = "tenant-1"
+	tenant2 = "tenant-2"
+)
+
 func TestUserConfigOverridesManager(t *testing.T) {
-	tenant1 := "tenant-1"
-	tenant2 := "tenant-2"
 
 	defaultLimits := Limits{
 		MaxBytesPerTrace: 1024,
@@ -60,30 +63,26 @@ func TestUserConfigOverridesManager(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
-	tenant := "foo"
-
 	defaultLimits := Limits{
 		Forwarders: []string{"my-forwarder"},
 	}
 	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	assert.Equal(t, mgr.Forwarders(tenant), []string{"my-forwarder"})
+	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-forwarder"})
 
 	// write directly to backend
 	limits := newUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
-	writeUserConfigurableOverridesToDisk(t, tempDir, tenant, limits)
+	writeUserConfigurableOverridesToDisk(t, tempDir, tenant1, limits)
 
 	// reload from backend
 	err := mgr.reloadAllTenantLimits(context.Background())
 	assert.NoError(t, err)
 
-	assert.Equal(t, mgr.Forwarders("foo"), []string{"my-other-forwarder"})
+	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-other-forwarder"})
 }
 
 func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
-	tenant := "foo"
-
 	defaultLimits := Limits{
 		Forwarders: []string{"my-forwarder"},
 	}
@@ -91,13 +90,13 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 
 	limits := newUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
-	err := mgr.setTenantLimits(context.Background(), tenant, limits)
+	err := mgr.setTenantLimits(context.Background(), tenant1, limits)
 	assert.NoError(t, err)
 
-	assert.Equal(t, mgr.Forwarders(tenant), []string{"my-other-forwarder"})
+	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-other-forwarder"})
 
 	// delete overrides.json directly from the backend
-	deleteUserConfigurableOverridesFromDisk(t, tempDir, tenant)
+	deleteUserConfigurableOverridesFromDisk(t, tempDir, tenant1)
 
 	// reload from backend
 	err = mgr.reloadAllTenantLimits(context.Background())
@@ -107,8 +106,6 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
-	tenant := "foo"
-
 	defaultLimits := Limits{
 		Forwarders: []string{"my-forwarder"},
 	}
@@ -116,7 +113,7 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 
 	limits := newUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
-	err := mgr.setTenantLimits(context.Background(), tenant, limits)
+	err := mgr.setTenantLimits(context.Background(), tenant1, limits)
 	assert.NoError(t, err)
 
 	// replace reader by this uncooperative fella
@@ -130,14 +127,14 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	}
 
 	// get requests fail
-	_, err = mgr.getTenantLimits(context.Background(), tenant)
+	_, err = mgr.getTenantLimits(context.Background(), tenant1)
 	assert.Error(t, err)
 
 	// reloading fails
 	assert.Error(t, mgr.reloadAllTenantLimits(context.Background()))
 
 	// but overrides should be cached
-	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant))
+	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant1))
 }
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {

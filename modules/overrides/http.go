@@ -57,7 +57,6 @@ func (o *userConfigOverridesManager) handleGet(ctx context.Context, r *http.Requ
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
-	return
 }
 
 // handlePost accepts post requests with json payload and writes it to config backend
@@ -89,7 +88,6 @@ func (o *userConfigOverridesManager) handlePost(ctx context.Context, r *http.Req
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("ok"))
-	return
 }
 
 func (o *userConfigOverridesManager) handleDelete(ctx context.Context, _ *http.Request, w http.ResponseWriter, userID string) {
@@ -101,7 +99,6 @@ func (o *userConfigOverridesManager) handleDelete(ctx context.Context, _ *http.R
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("ok"))
-	return
 }
 
 func (o *runtimeConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *http.Request) {
