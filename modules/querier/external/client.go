@@ -37,16 +37,28 @@ var (
 )
 
 type Config struct {
-	HedgeRequestsAt   time.Duration
-	HedgeRequestsUpTo int
-	Backend           string
-	Endpoints         []string
+	Backend string
+
+	HTTPConfig     *HTTPConfig
+	CloudRunConfig *CloudRunConfig
 }
 
 type Client struct {
 	httpClient    *http.Client
 	endpoints     []string
 	tokenProvider tokenProvider
+}
+
+type CloudRunConfig struct {
+	Endpoints         []string      `yaml:"external_endpoints"`
+	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
+	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
+}
+
+type HTTPConfig struct {
+	Endpoints         []string
+	HedgeRequestsAt   time.Duration
+	HedgeRequestsUpTo int
 }
 
 type tokenProvider interface {
@@ -66,22 +78,30 @@ func withTokenProvider(provider tokenProvider) option {
 	}
 }
 
-func NewClient(cfg Config) (*Client, error) {
+func NewClient(cfg *Config) (*Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	switch cfg.Backend {
 	case "":
 		// For backwards compatibility, use unauthenticated http as the default.
-		return newClientWithOpts(cfg)
-	case "cloud-run":
-		provider, err := newGoogleProvider(ctx, cfg.Endpoints)
+		return newClientWithOpts(&commonConfig{
+			endpoints:         cfg.HTTPConfig.Endpoints,
+			hedgeRequestsAt:   cfg.HTTPConfig.HedgeRequestsAt,
+			hedgeRequestsUpTo: cfg.HTTPConfig.HedgeRequestsUpTo,
+		})
+	case "google_cloud_run":
+		provider, err := newGoogleProvider(ctx, cfg.CloudRunConfig.Endpoints)
 		if err != nil {
 			return nil, err
 		}
-		return newClientWithOpts(cfg, withTokenProvider(provider))
+		return newClientWithOpts(&commonConfig{
+			endpoints:         cfg.CloudRunConfig.Endpoints,
+			hedgeRequestsAt:   cfg.CloudRunConfig.HedgeRequestsAt,
+			hedgeRequestsUpTo: cfg.CloudRunConfig.HedgeRequestsUpTo,
+		}, withTokenProvider(provider))
 
-	case "lambda":
+	case "aws_lambda":
 		// TODO: implement RBAC for lambda. Here's one approach using API
 		// gateway:
 		// https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-use-lambda-authorizer.html#api-gateway-lambda-authorizer-flow
@@ -91,14 +111,20 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 }
 
-func newClientWithOpts(cfg Config, opts ...option) (*Client, error) {
+type commonConfig struct {
+	hedgeRequestsAt   time.Duration
+	hedgeRequestsUpTo int
+	endpoints         []string
+}
+
+func newClientWithOpts(cfg *commonConfig, opts ...option) (*Client, error) {
 	httpClient := http.DefaultClient
-	if cfg.HedgeRequestsAt != 0 {
+	if cfg.hedgeRequestsAt != 0 {
 		var err error
 		var stats *hedgedhttp.Stats
 		httpClient, stats, err = hedgedhttp.NewClientAndStats(
-			cfg.HedgeRequestsAt,
-			cfg.HedgeRequestsUpTo,
+			cfg.hedgeRequestsAt,
+			cfg.hedgeRequestsUpTo,
 			http.DefaultClient,
 		)
 
@@ -110,7 +136,7 @@ func newClientWithOpts(cfg Config, opts ...option) (*Client, error) {
 
 	c := &Client{
 		httpClient:    httpClient,
-		endpoints:     cfg.Endpoints,
+		endpoints:     cfg.endpoints,
 		tokenProvider: &nilTokenProvider{},
 	}
 

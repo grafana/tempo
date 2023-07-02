@@ -47,19 +47,19 @@ func TestAuthHeader(t *testing.T) {
 	defer srv.Close()
 
 	tests := []struct {
-		cfg                Config
+		cfg                *commonConfig
 		authHeaderExpected string
 		options            []option
 	}{
 		{
-			cfg: Config{
-				Endpoints: []string{srv.URL},
+			cfg: &commonConfig{
+				endpoints: []string{srv.URL},
 			},
 			authHeaderExpected: "",
 		},
 		{
-			cfg: Config{
-				Endpoints: []string{srv.URL},
+			cfg: &commonConfig{
+				endpoints: []string{srv.URL},
 			},
 			options: []option{
 				withTokenProvider(getDummyTokenProvider("dummytoken")),

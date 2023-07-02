@@ -107,11 +107,15 @@ func New(
 		return generator_client.New(addr, generatorClientConfig)
 	}
 
-	externalClient, err := external.NewClient(external.Config{
-		HedgeRequestsAt:   cfg.Search.HedgeRequestsAt,
-		HedgeRequestsUpTo: cfg.Search.HedgeRequestsUpTo,
-		Backend:           cfg.Search.ExternalBackend,
-		Endpoints:         cfg.Search.ExternalEndpoints,
+	externalClient, err := external.NewClient(&external.Config{
+		Backend:        cfg.Search.ExternalBackend,
+		CloudRunConfig: cfg.Search.CloudRun,
+
+		HTTPConfig: &external.HTTPConfig{
+			Endpoints:         cfg.Search.ExternalEndpoints,
+			HedgeRequestsAt:   cfg.Search.HedgeRequestsAt,
+			HedgeRequestsUpTo: cfg.Search.HedgeRequestsUpTo,
+		},
 	})
 	if err != nil {
 		return nil, err

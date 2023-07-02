@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/grpcclient"
+	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/modules/querier/worker"
 )
 
@@ -22,9 +23,15 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	QueryTimeout      time.Duration `yaml:"query_timeout"`
-	PreferSelf        int           `yaml:"prefer_self"`
-	ExternalBackend   string        `yaml:"external_backend"`
+	QueryTimeout time.Duration `yaml:"query_timeout"`
+	PreferSelf   int           `yaml:"prefer_self"`
+
+	// backends
+	ExternalBackend string                   `yaml:"external_backend"`
+	CloudRun        *external.CloudRunConfig `yaml:"google_cloud_run"`
+
+	// TODO: Consolidate these configs under the external.HTTPConfig struct.
+	// Note that it will be a breaking change:
 	ExternalEndpoints []string      `yaml:"external_endpoints"`
 	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
 	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
