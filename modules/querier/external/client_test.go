@@ -62,12 +62,7 @@ func TestAuthHeader(t *testing.T) {
 				Endpoints: []string{srv.URL},
 			},
 			options: []option{
-				withTokenProvider(
-					func(ctx context.Context, endpoint string) (*oauth2.Token, error) {
-						return &oauth2.Token{
-							AccessToken: "dummytoken",
-						}, nil
-					}),
+				withTokenProvider(getDummyTokenProvider("dummytoken")),
 			},
 
 			authHeaderExpected: "Bearer dummytoken",
@@ -87,4 +82,17 @@ func TestAuthHeader(t *testing.T) {
 
 		require.Equal(t, tc.authHeaderExpected, authorizationHeader.Load())
 	}
+}
+
+type dummyProvider struct {
+	dummyToken string
+}
+
+func (t *dummyProvider) getToken(ctx context.Context, endpoint string) (*oauth2.Token, error) {
+	return &oauth2.Token{
+		AccessToken: t.dummyToken,
+	}, nil
+}
+func getDummyTokenProvider(dummyToken string) tokenProvider {
+	return &dummyProvider{dummyToken: dummyToken}
 }

@@ -49,11 +49,12 @@ type Client struct {
 	tokenProvider tokenProvider
 }
 
-type tokenProvider func(ctx context.Context, endpoint string) (*oauth2.Token, error)
-
-func noToken(ctx context.Context, endpoint string) (*oauth2.Token, error) {
-	// no-op
-	return nil, nil
+type tokenProvider interface {
+	// Returns an oauth2 token, leveraging a cache unless the token is expired.
+	// If expired, the token is renewed and added to the cache.
+	//
+	// If this returns nil, the request will be unauthenticated.
+	getToken(ctx context.Context, endpoint string) (*oauth2.Token, error)
 }
 
 type option func(client *Client) error
@@ -66,12 +67,20 @@ func withTokenProvider(provider tokenProvider) option {
 }
 
 func NewClient(cfg Config) (*Client, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	switch cfg.Backend {
 	case "":
 		// For backwards compatibility, use unauthenticated http as the default.
 		return newClientWithOpts(cfg)
 	case "cloud-run":
-		return newClientWithOpts(cfg, withTokenProvider(googleToken))
+		provider, err := newGoogleProvider(ctx, cfg.Endpoints)
+		if err != nil {
+			return nil, err
+		}
+		return newClientWithOpts(cfg, withTokenProvider(provider))
+
 	case "lambda":
 		// TODO: implement RBAC for lambda. Here's one approach using API
 		// gateway:
@@ -102,7 +111,7 @@ func newClientWithOpts(cfg Config, opts ...option) (*Client, error) {
 	c := &Client{
 		httpClient:    httpClient,
 		endpoints:     cfg.Endpoints,
-		tokenProvider: noToken,
+		tokenProvider: &nilTokenProvider{},
 	}
 
 	for _, opt := range opts {
@@ -130,7 +139,7 @@ func (s *Client) Search(ctx context.Context, maxBytes int, searchReq *tempopb.Se
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
 	}
-	token, err := s.tokenProvider(ctx, endpoint)
+	token, err := s.tokenProvider.getToken(ctx, endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to set auth header: %w", err)
 	}
