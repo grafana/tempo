@@ -69,11 +69,12 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	receivers   []receiver.Traces
-	pusher      TracesPusher
-	logger      *log.RateLimitedLogger
-	metricViews []*view.View
-	fatal       chan error
+	receivers      []receiver.Traces
+	pusher         TracesPusher
+	logger         *log.RateLimitedLogger
+	metricViews    []*view.View
+	fatal          chan error
+	gracefulPeriod time.Duration
 }
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
@@ -95,11 +96,12 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel logging.Level, gracefulPeriod time.Duration) (services.Service, error) {
 	shim := &receiversShim{
-		pusher: pusher,
-		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
-		fatal:  make(chan error),
+		pusher:         pusher,
+		logger:         log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		fatal:          make(chan error),
+		gracefulPeriod: gracefulPeriod,
 	}
 
 	// shim otel observability
@@ -254,9 +256,9 @@ func (r *receiversShim) starting(ctx context.Context) error {
 func (r *receiversShim) stopping(_ error) error {
 	// when shutdown is called on the receiver it immediately shuts down its connection
 	// which drops requests on the floor. at this point in the shutdown process
-	// the readiness handler is already down so we are not receiving any more requests.
-	// sleep for 30 seconds to here to all pending requests to finish.
-	time.Sleep(30 * time.Second)
+	// the readiness handler is already down, so we are not receiving any more requests.
+	// sleep for a certain duration (default 30s) to here to all pending requests to finish.
+	time.Sleep(r.gracefulPeriod)
 
 	ctx, cancelFn := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFn()
