@@ -1,0 +1,70 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
+    jaeger:                            # the receives all come from the OpenTelemetry collector.  more configuration information can
+      protocols:                       # be found there: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
+        thrift_http:                   #
+        grpc:                          # for a production deployment you should only enable the receivers you need!
+        thrift_binary:
+        thrift_compact:
+    zipkin:
+    otlp:
+      protocols:
+        http:
+        grpc:
+    opencensus:
+
+ingester:
+  max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
+  override_ring_key: ring-b
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+  - ingester-0-a:7946
+  - ingester-1-a:7946
+  - ingester-2-a:7946
+  - ingester-0-b:7946
+  - ingester-1-b:7946
+  - ingester-2-b:7946
+
+compactor:
+  compaction:
+    block_retention: 1h               # overall Tempo trace retention. set for demo purposes
+
+querier:
+  frontend_worker:
+    frontend_address: query-frontend-b:9095
+  secondary_ingester_ring: ring-a
+
+metrics_generator:
+  override_ring_key: generator-b
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+    wal:
+      path: /tmp/tempo/wal             # where to store the the wal locally
+    local:
+      path: /tmp/tempo/blocks
+
+overrides:
+  metrics_generator_processors: ['service-graphs', 'span-metrics']

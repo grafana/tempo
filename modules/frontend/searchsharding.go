@@ -135,7 +135,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// build request to search ingester based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, searchReq)
+	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +149,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// pass subCtx in requests so we can cancel and exit early
 	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
+	if ingesterReq != nil {
+		totalJobs++
+	}
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
@@ -249,6 +252,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedBytes", overallResponse.response.Metrics.InspectedBytes)
 	span.SetTag("inspectedTraces", overallResponse.response.Metrics.InspectedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
+	span.SetTag("totalJobs", totalJobs)
+	span.SetTag("finishedJobs", overallResponse.finishedRequests)
+	span.SetTag("requestThroughput", throughput)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
@@ -433,10 +439,10 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
+func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
-		return buildIngesterRequest(ctx, tenantID, parent, searchReq)
+		return buildIngesterRequest(ctx, tenantID, parent, &searchReq)
 	}
 
 	now := time.Now()
@@ -463,7 +469,7 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 	searchReq.Start = ingesterStart
 	searchReq.End = ingesterEnd
 
-	return buildIngesterRequest(ctx, tenantID, parent, searchReq)
+	return buildIngesterRequest(ctx, tenantID, parent, &searchReq)
 }
 
 func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {

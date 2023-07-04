@@ -354,6 +354,22 @@ func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, erro
 		req.Limit = uint64(limit)
 	}
 
+	if s, ok := extractQueryParam(r, urlParamStart); ok {
+		start, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start: %w", err)
+		}
+		req.Start = uint32(start)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+		end, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end: %w", err)
+		}
+		req.End = uint32(end)
+	}
+
 	return req, nil
 }
 
@@ -373,6 +389,22 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 			return nil, fmt.Errorf("invalid limit: %w", err)
 		}
 		req.Limit = uint64(limit)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamStart); ok {
+		start, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start: %w", err)
+		}
+		req.Start = uint32(start)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+		end, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end: %w", err)
+		}
+		req.End = uint32(end)
 	}
 
 	return req, nil

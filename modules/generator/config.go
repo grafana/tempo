@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	// RingKey is the key under which we store the metric-generator's ring in the KVStore.
-	RingKey = "metrics-generator"
+	// generatorRingKey is the default key under which we store the metric-generator's ring in the KVStore.
+	generatorRingKey = "metrics-generator"
 
 	// ringNameForServer is the name of the ring used by the metrics-generator server.
 	ringNameForServer = "metrics-generator"
@@ -30,10 +30,11 @@ type Config struct {
 	Registry  registry.Config `yaml:"registry"`
 	Storage   storage.Config  `yaml:"storage"`
 	TracesWAL wal.Config      `yaml:"traces_storage"`
-	// MetricsIngestionSlack is the max amount of time passed since a span's start time
+	// MetricsIngestionSlack is the max amount of time passed since a span's end time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
+	OverrideRingKey       string        `yaml:"override_ring_key"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -47,6 +48,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
+	cfg.OverrideRingKey = generatorRingKey
 }
 
 type ProcessorConfig struct {
