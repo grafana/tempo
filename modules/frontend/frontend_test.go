@@ -22,7 +22,6 @@ func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error)
 	}, nil
 }
 
-// TODO: replicate this test for overrides endpoints??
 func TestFrontendRoundTripsSearch(t *testing.T) {
 	next := &mockNextTripperware{}
 	f, err := New(Config{
