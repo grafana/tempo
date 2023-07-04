@@ -449,10 +449,6 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	if err != nil {
 		return nil, err
 	}
-	columnsJSON, err := json.Marshal(searchReq.DedicatedColumns)
-	if err != nil {
-		return nil, err
-	}
 
 	q := req.URL.Query()
 	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
@@ -465,7 +461,13 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
 	q.Set(urlParamVersion, searchReq.Version)
 	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
-	q.Set(urlParamDedicatedColumns, string(columnsJSON))
+	if len(searchReq.DedicatedColumns) > 0 {
+		columnsJSON, err := json.Marshal(searchReq.DedicatedColumns)
+		if err != nil {
+			return nil, err
+		}
+		q.Set(urlParamDedicatedColumns, string(columnsJSON))
+	}
 
 	req.URL.RawQuery = q.Encode()
 
