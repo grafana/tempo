@@ -52,7 +52,7 @@ type UserConfigOverridesConfig struct {
 	Enabled bool `yaml:"enabled"`
 
 	// PollInterval controls how often the overrides will be refreshed by polling the backend
-	PollInterval time.Duration `yaml:"reload_period"`
+	PollInterval time.Duration `yaml:"poll_interval"`
 
 	Backend string        `yaml:"backend"`
 	Local   *local.Config `yaml:"local"`
@@ -343,11 +343,13 @@ func (o *userConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *ht
 }
 
 func (o *userConfigOverridesManager) Describe(ch chan<- *prometheus.Desc) {
-	// TODO this is hacky D:
-	o.Interface.(Service).Describe(ch)
+	// TODO for now just pass along to the underlying overrides, in the future we should export
+	//  the user-config overrides as well
+	o.Interface.Describe(ch)
 }
 
 func (o *userConfigOverridesManager) Collect(ch chan<- prometheus.Metric) {
-	// TODO this is hacky D:
-	o.Interface.(Service).Collect(ch)
+	// TODO for now just pass along to the underlying overrides, in the future we should export
+	//  the user-config overrides as well
+	o.Interface.Collect(ch)
 }

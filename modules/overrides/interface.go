@@ -14,11 +14,12 @@ import (
 
 type Service interface {
 	services.Service
-	prometheus.Collector
 	Interface
 }
 
 type Interface interface {
+	prometheus.Collector
+
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
