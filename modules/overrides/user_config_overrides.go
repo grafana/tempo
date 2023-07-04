@@ -17,9 +17,11 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/weaveworks/common/tracing"
 	"gopkg.in/yaml.v2"
 
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
@@ -181,17 +183,20 @@ func (o *userConfigOverridesManager) stopping(error) error {
 }
 
 func (o *userConfigOverridesManager) reloadAllTenantLimits(ctx context.Context) error {
-	level.Info(o.logger).Log("msg", "reloading all tenant limits")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.reloadAllTenantLimits")
+	defer span.Finish()
+
+	traceID, _ := tracing.ExtractTraceID(ctx)
+	level.Info(o.logger).Log("msg", "reloading all tenant limits", "traceID", traceID)
 
 	// TODO can we make this lock smaller? this will block all operations that read from the overrides
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
 	// List tenants with user-configurable overrides
-	// TODO to avoid polling the entire bucket, use a tenant list and keep it in a shared cache
-	tenants, err := o.r.List(ctx, []string{overridesKeyPath})
+	tenants, err := o.listTenantsUnderLock(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to list tenants")
+		return err
 	}
 
 	// Clean up cached tenants that have been removed from the backend
@@ -214,6 +219,18 @@ func (o *userConfigOverridesManager) reloadAllTenantLimits(ctx context.Context) 
 	return nil
 }
 
+func (o *userConfigOverridesManager) listTenantsUnderLock(ctx context.Context) ([]string, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.listTenantsUnderLock")
+	defer span.Finish()
+
+	// TODO to avoid polling the entire bucket, use a tenant list and keep it in a shared cache
+	tenants, err := o.r.List(ctx, []string{overridesKeyPath})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list tenants")
+	}
+	return tenants, nil
+}
+
 // getTenantLimits will look up the UserConfigurableLimits for a tenant, it performs a backend request
 // and will update the entry in the local cache.
 func (o *userConfigOverridesManager) getTenantLimits(ctx context.Context, userID string) (tenantLimits *UserConfigurableLimits, err error) {
@@ -225,6 +242,10 @@ func (o *userConfigOverridesManager) getTenantLimits(ctx context.Context, userID
 
 // getTenantLimitsUnderLock does the same as getTenantLimits but requires a write lock.
 func (o *userConfigOverridesManager) getTenantLimitsUnderLock(ctx context.Context, userID string) (tenantLimits *UserConfigurableLimits, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.getTenantLimitsUnderLock")
+	defer span.Finish()
+	span.SetTag("tenant", userID)
+
 	// TODO save backend request by reading tenant limit from shared cache?
 
 	metricFetch.WithLabelValues(userID).Inc()
@@ -256,6 +277,10 @@ func (o *userConfigOverridesManager) getTenantLimitsUnderLock(ctx context.Contex
 
 // setTenantLimits will store the given limits
 func (o *userConfigOverridesManager) setTenantLimits(ctx context.Context, userID string, limits *UserConfigurableLimits) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.setTenantLimits")
+	defer span.Finish()
+	span.SetTag("tenant", userID)
+
 	// TODO perform validation
 
 	// TODO do this in a constructor or something?
@@ -283,6 +308,10 @@ func (o *userConfigOverridesManager) setTenantLimits(ctx context.Context, userID
 
 // deleteTenantLimits will clear all user configurable limits for the given tenant
 func (o *userConfigOverridesManager) deleteTenantLimits(ctx context.Context, userID string) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.deleteTenantLimits")
+	defer span.Finish()
+	span.SetTag("tenant", userID)
+
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
