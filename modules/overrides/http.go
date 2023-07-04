@@ -22,7 +22,7 @@ func (o *userConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to find org id in request"))
+		handleError(r, w, userID, errors.Wrap(err, "failed to find org id in request"))
 		return
 	}
 	level.Info(log.Logger).Log("tenant", userID, "method", r.Method, "url", r.URL.RequestURI())
@@ -35,14 +35,14 @@ func (o *userConfigOverridesManager) OverridesHandler(w http.ResponseWriter, r *
 	case http.MethodDelete:
 		o.handleDelete(ctx, r, w, userID)
 	default:
-		handleError(r, w, userID, http.StatusBadRequest, errors.New("Only GET, POST and DELETE is allowed"))
+		handleError(r, w, userID, errors.New("Only GET, POST and DELETE is allowed"))
 	}
 }
 
 func (o *userConfigOverridesManager) handleGet(ctx context.Context, r *http.Request, w http.ResponseWriter, userID string) {
 	ucl, err := o.getTenantLimits(ctx, userID)
 	if err != nil {
-		handleError(r, w, userID, http.StatusBadRequest, err)
+		handleError(r, w, userID, err)
 		return
 	}
 
@@ -50,7 +50,7 @@ func (o *userConfigOverridesManager) handleGet(ctx context.Context, r *http.Requ
 
 	data, err := jsoniter.Marshal(ucl)
 	if err != nil {
-		handleError(r, w, userID, http.StatusBadRequest, err)
+		handleError(r, w, userID, err)
 		return
 	}
 
@@ -70,19 +70,19 @@ func (o *userConfigOverridesManager) handlePost(ctx context.Context, r *http.Req
 	err := d.Decode(&ucl)
 	if err != nil {
 		// bad JSON or unrecognized json field
-		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "bad json or missing required fields in payload"))
+		handleError(r, w, userID, errors.Wrap(err, "bad json or missing required fields in payload"))
 		return
 	}
 
 	// check for extra data
 	if d.More() {
-		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "extraneous data in payload"))
+		handleError(r, w, userID, errors.Wrap(err, "extraneous data in payload"))
 		return
 	}
 
 	err = o.setTenantLimits(ctx, userID, ucl)
 	if err != nil {
-		handleError(r, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
+		handleError(r, w, userID, errors.Wrap(err, "failed to set user config limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -93,7 +93,7 @@ func (o *userConfigOverridesManager) handlePost(ctx context.Context, r *http.Req
 func (o *userConfigOverridesManager) handleDelete(ctx context.Context, _ *http.Request, w http.ResponseWriter, userID string) {
 	err := o.deleteTenantLimits(ctx, userID)
 	if err != nil {
-		handleError(nil, w, userID, http.StatusBadRequest, errors.Wrap(err, "failed to set user config limits"))
+		handleError(nil, w, userID, errors.Wrap(err, "failed to set user config limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -108,7 +108,8 @@ func (o *runtimeConfigOverridesManager) OverridesHandler(w http.ResponseWriter, 
 	http.Error(w, "user configured overrides are not enabled", http.StatusBadRequest)
 }
 
-func handleError(r *http.Request, w http.ResponseWriter, userID string, status int, err error) {
+func handleError(r *http.Request, w http.ResponseWriter, userID string, err error) {
+	status := http.StatusBadRequest
 	level.Error(log.Logger).Log("tenant", userID, "method", r.Method, "status", status, "url", r.URL.RequestURI(), "err", err.Error())
 	http.Error(w, err.Error(), status)
 }
