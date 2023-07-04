@@ -44,6 +44,7 @@ storage:
 overrides:
   user_configurable_overrides_config:
     enabled: true
+    poll_interval: 10s
     backend: s3
     s3:
       # TODO use separate bucket?

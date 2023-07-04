@@ -42,6 +42,7 @@ storage:
 overrides:
   user_configurable_overrides_config:
     enabled: true
+    poll_interval: 10s
     backend: gcs
     gcs:
       # TODO use separate bucket?
