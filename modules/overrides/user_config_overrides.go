@@ -303,7 +303,7 @@ func (o *userConfigOverridesManager) getCachedTenantLimits(userID string) (*User
 	return tenantLimits, ok
 }
 
-func (o *userConfigOverridesManager) getAllCachedTenantLimits() map[string]*UserConfigurableLimits {
+func (o *userConfigOverridesManager) getAllCachedTenantLimits() tenantLimits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
