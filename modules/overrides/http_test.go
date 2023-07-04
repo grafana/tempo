@@ -43,7 +43,7 @@ func Test_userConfigOverridesManager_OverridesHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	postJson, err := jsoniter.Marshal(&UserConfigurableLimits{
+	postJSON, err := jsoniter.Marshal(&UserConfigurableLimits{
 		Version:    "v1",
 		Forwarders: &[]string{"my-updated-forwarder"},
 	})
@@ -68,7 +68,7 @@ func Test_userConfigOverridesManager_OverridesHandler(t *testing.T) {
 		{
 			name:           "test POST",
 			overrides:      configurableOverrides,
-			req:            httptest.NewRequest("POST", "/", bytes.NewReader(postJson)),
+			req:            httptest.NewRequest("POST", "/", bytes.NewReader(postJSON)),
 			expResp:        "ok",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  200,
@@ -77,6 +77,14 @@ func Test_userConfigOverridesManager_OverridesHandler(t *testing.T) {
 			name:           "test PUT",
 			overrides:      configurableOverrides,
 			req:            httptest.NewRequest("PUT", "/", nil),
+			expResp:        "Only GET, POST and DELETE is allowed\n",
+			expContentType: "text/plain; charset=utf-8",
+			expStatusCode:  400,
+		},
+		{
+			name:           "test PATCH",
+			overrides:      configurableOverrides,
+			req:            httptest.NewRequest("PATCH", "/", nil),
 			expResp:        "Only GET, POST and DELETE is allowed\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
