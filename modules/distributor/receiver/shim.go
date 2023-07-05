@@ -69,12 +69,12 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	receivers      []receiver.Traces
-	pusher         TracesPusher
-	logger         *log.RateLimitedLogger
-	metricViews    []*view.View
-	fatal          chan error
-	gracefulPeriod time.Duration
+	receivers              []receiver.Traces
+	pusher                 TracesPusher
+	logger                 *log.RateLimitedLogger
+	metricViews            []*view.View
+	fatal                  chan error
+	gracefulShutdownPeriod time.Duration
 }
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
@@ -96,12 +96,12 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel logging.Level, gracefulPeriod time.Duration) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel logging.Level, gracefulShutdownPeriod time.Duration) (services.Service, error) {
 	shim := &receiversShim{
-		pusher:         pusher,
-		logger:         log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
-		fatal:          make(chan error),
-		gracefulPeriod: gracefulPeriod,
+		pusher:                 pusher,
+		logger:                 log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		fatal:                  make(chan error),
+		gracefulShutdownPeriod: gracefulShutdownPeriod,
 	}
 
 	// shim otel observability
@@ -258,7 +258,7 @@ func (r *receiversShim) stopping(_ error) error {
 	// which drops requests on the floor. at this point in the shutdown process
 	// the readiness handler is already down, so we are not receiving any more requests.
 	// sleep for a certain duration (default 30s) to here to all pending requests to finish.
-	time.Sleep(r.gracefulPeriod)
+	time.Sleep(r.gracefulShutdownPeriod)
 
 	ctx, cancelFn := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFn()
