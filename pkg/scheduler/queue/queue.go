@@ -69,7 +69,8 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 	}
 
 	q.cond = sync.NewCond(&q.mtx)
-	q.Service = services.NewTimerService(forgetCheckPeriod, nil, q.forgetDisconnectedQueriers, q.stopping).WithName("request queue")
+
+	q.Service = services.NewIdleService(func(ctx context.Context) (err error) { return nil }, q.stopping)
 
 	return q
 }
@@ -111,7 +112,7 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 // GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
 // By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
 // If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string) (Request, UserIndex, error) {
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex) (Request, UserIndex, error) {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -133,7 +134,7 @@ FindQueue:
 	}
 
 	for {
-		queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
+		queue, userID, idx := q.queues.getNextQueue(last.last)
 		last.last = idx
 		if queue == nil {
 			break
@@ -161,19 +162,6 @@ FindQueue:
 	goto FindQueue
 }
 
-func (q *RequestQueue) forgetDisconnectedQueriers(_ context.Context) error {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
-	if q.queues.forgetDisconnectedQueriers(time.Now()) > 0 {
-		// We need to notify goroutines cause having removed some queriers
-		// may have caused a resharding.
-		q.cond.Broadcast()
-	}
-
-	return nil
-}
-
 func (q *RequestQueue) stopping(_ error) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
@@ -193,24 +181,10 @@ func (q *RequestQueue) stopping(_ error) error {
 
 func (q *RequestQueue) RegisterQuerierConnection(querier string) {
 	q.connectedQuerierWorkers.Inc()
-
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-	q.queues.addQuerierConnection(querier)
 }
 
 func (q *RequestQueue) UnregisterQuerierConnection(querier string) {
 	q.connectedQuerierWorkers.Dec()
-
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-	q.queues.removeQuerierConnection(querier, time.Now())
-}
-
-func (q *RequestQueue) NotifyQuerierShutdown(querierID string) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-	q.queues.notifyQuerierShutdown(querierID)
 }
 
 // When querier is waiting for next request, this unblocks the method.
