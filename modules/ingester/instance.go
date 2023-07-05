@@ -186,7 +186,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		prevSize := int(i.traceSizes[tkn])
 		reqSize := len(traceBytes)
 		if prevSize+reqSize > maxBytes {
-			return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error()))
+			return status.Errorf(codes.InvalidArgument, (newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error()))
 		}
 	}
 
@@ -195,7 +195,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
 		if e, ok := err.(*traceTooLargeError); ok {
-			return status.Errorf(codes.FailedPrecondition, e.Error())
+			return status.Errorf(codes.InvalidArgument, e.Error())
 		}
 		return err
 	}
