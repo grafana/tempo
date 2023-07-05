@@ -75,11 +75,15 @@ func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoDistributor("distributor", extraArgs...)
+}
+
+func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"distributor",
+		name,
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -93,11 +97,15 @@ func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoIngester(replica int, extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoIngester("ingester", replica, extraArgs...)
+}
+
+func NewNamedTempoIngester(name string, replica int, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=ingester"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"ingester-"+strconv.Itoa(replica),
+		name+"-"+strconv.Itoa(replica),
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -127,11 +135,15 @@ func NewTempoMetricsGenerator(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoQueryFrontend(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoQueryFrontend("query-frontend", extraArgs...)
+}
+
+func NewNamedTempoQueryFrontend(name string, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=query-frontend"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"query-frontend",
+		name,
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -144,11 +156,15 @@ func NewTempoQueryFrontend(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoQuerier(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoQuerier("querier", extraArgs...)
+}
+
+func NewNamedTempoQuerier(name string, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"querier",
+		name,
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),

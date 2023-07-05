@@ -43,22 +43,34 @@ import (
 
 // The various modules that make up tempo.
 const (
-	Ring                 string = "ring"
-	MetricsGeneratorRing string = "metrics-generator-ring"
-	Overrides            string = "overrides"
-	Server               string = "server"
-	InternalServer       string = "internal-server"
-	Distributor          string = "distributor"
-	Ingester             string = "ingester"
-	MetricsGenerator     string = "metrics-generator"
-	Querier              string = "querier"
-	QueryFrontend        string = "query-frontend"
-	Compactor            string = "compactor"
-	Store                string = "store"
-	MemberlistKV         string = "memberlist-kv"
+	// utilities
+	Server         string = "server"
+	InternalServer string = "internal-server"
+	Store          string = "store"
+	MemberlistKV   string = "memberlist-kv"
+	UsageReport    string = "usage-report"
+	Overrides      string = "overrides"
+	// rings
+	IngesterRing          string = "ring"
+	SecondaryIngesterRing string = "secondary-ring"
+	MetricsGeneratorRing  string = "metrics-generator-ring"
+
+	// individual targets
+	Distributor      string = "distributor"
+	Ingester         string = "ingester"
+	MetricsGenerator string = "metrics-generator"
+	Querier          string = "querier"
+	QueryFrontend    string = "query-frontend"
+	Compactor        string = "compactor"
+
+	// composite targets
 	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
-	UsageReport          string = "usage-report"
+
+	// ring names
+	ringIngester          string = "ingester"
+	ringMetricsGenerator  string = "metrics-generator"
+	ringSecondaryIngester string = "secondary-ingester"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -134,28 +146,36 @@ func (t *App) initInternalServer() (services.Service, error) {
 	return s, nil
 }
 
-func (t *App) initRing() (services.Service, error) {
-	ring, err := tempo_ring.New(t.cfg.Ingester.LifecyclerConfig.RingConfig, "ingester", t.cfg.Ingester.OverrideRingKey, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ring %w", err)
-	}
-	t.ring = ring
-
-	t.Server.HTTP.Handle("/ingester/ring", t.ring)
-
-	return t.ring, nil
+func (t *App) initIngesterRing() (services.Service, error) {
+	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringIngester, t.cfg.Ingester.OverrideRingKey)
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
-	generatorRing, err := tempo_ring.New(t.cfg.Generator.Ring.ToRingConfig(), "metrics-generator", generator.RingKey, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics-generator ring %w", err)
+	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
+}
+
+// initSecondaryIngesterRing is an optional ring for the queriers. This secondary ring is useful in edge cases and should
+// not be used generally. Use this if you need one set of queries to query 2 different sets of ingesters.
+func (t *App) initSecondaryIngesterRing() (services.Service, error) {
+	// if no secondary ring is configured, then bail by returning a dummy service
+	if t.cfg.Querier.SecondaryIngesterRing == "" {
+		return services.NewIdleService(nil, nil), nil
 	}
-	t.generatorRing = generatorRing
 
-	t.Server.HTTP.Handle("/metrics-generator/ring", t.generatorRing)
+	// note that this is using the same cnofig as above. both rings have to be configured the same
+	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringSecondaryIngester, t.cfg.Querier.SecondaryIngesterRing)
+}
 
-	return t.generatorRing, nil
+func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error) {
+	ring, err := tempo_ring.New(cfg, name, key, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ring %s: %w", name, err)
+	}
+
+	t.Server.HTTP.Handle("/"+name+"/ring", ring)
+	t.readRings[name] = ring
+
+	return ring, nil
 }
 
 func (t *App) initOverrides() (services.Service, error) {
@@ -176,7 +196,14 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.Overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor,
+		t.cfg.IngesterClient,
+		t.readRings[ringIngester],
+		t.cfg.GeneratorClient,
+		t.readRings[ringMetricsGenerator],
+		t.Overrides,
+		t.TracesConsumerMiddleware,
+		log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -243,13 +270,17 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.store.EnablePolling(nil)
 	}
 
-	// todo: make ingester client a module instead of passing config everywhere
+	ingesterRings := []ring.ReadRing{t.readRings[ringIngester]}
+	if ring := t.readRings[ringSecondaryIngester]; ring != nil {
+		ingesterRings = append(ingesterRings, ring)
+	}
+
 	querier, err := querier.New(
 		t.cfg.Querier,
 		t.cfg.IngesterClient,
-		t.ring,
+		ingesterRings,
 		t.cfg.GeneratorClient,
-		t.generatorRing,
+		t.readRings[ringMetricsGenerator],
 		t.store,
 		t.Overrides,
 	)
@@ -448,39 +479,54 @@ func (t *App) initUsageReport() (services.Service, error) {
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
+	// Common is a module that exists only to map dependencies
+	const Common = "common"
+
+	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
-	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
-	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
+	mm.RegisterModule(UsageReport, t.initUsageReport)
+	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
+	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
+	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
+
+	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
+
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
-	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
+
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
-	mm.RegisterModule(UsageReport, t.initUsageReport)
 
 	deps := map[string][]string{
-		Server: {InternalServer},
-		// Store:        nil,
-		Overrides:            {Server},
-		MemberlistKV:         {Server},
-		QueryFrontend:        {Store, Server, Overrides, UsageReport},
-		Ring:                 {Server, MemberlistKV},
-		MetricsGeneratorRing: {Server, MemberlistKV},
-		Distributor:          {Ring, Server, Overrides, UsageReport, MetricsGeneratorRing},
-		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
-		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
-		Querier:              {Store, Ring, MetricsGeneratorRing, Overrides, UsageReport},
-		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
+		// Store:          nil,
+		// InternalServer: nil,
+		Server:                {InternalServer},
+		Overrides:             {Server},
+		MemberlistKV:          {Server},
+		UsageReport:           {MemberlistKV},
+		IngesterRing:          {Server, MemberlistKV},
+		SecondaryIngesterRing: {Server, MemberlistKV},
+		MetricsGeneratorRing:  {Server, MemberlistKV},
+
+		Common: {UsageReport, Server, Overrides},
+
+		// individual targets
+		QueryFrontend:    {Common, Store},
+		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
+		Ingester:         {Common, Store, MemberlistKV},
+		MetricsGenerator: {Common, MemberlistKV},
+		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
+		Compactor:        {Common, Store, MemberlistKV},
+		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
-		UsageReport:          {MemberlistKV},
 	}
 
 	for mod, targets := range deps {

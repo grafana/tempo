@@ -720,6 +720,61 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTotalJobsIncludesIngester(t *testing.T) {
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{},
+		})
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(resString)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	now := time.Now().Add(-10 * time.Minute).Unix()
+
+	sharder := newSearchSharder(&mockReader{
+		metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
+			{
+				StartTime:    time.Unix(now, 0),
+				EndTime:      time.Unix(now, 0),
+				Size:         defaultTargetBytesPerRequest * 2,
+				TotalRecords: 2,
+				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+			},
+		},
+	}, o, SearchSharderConfig{
+		QueryIngestersUntil:   15 * time.Minute,
+		ConcurrentRequests:    1, // 1 concurrent request to force order
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
+	req := httptest.NewRequest("GET", path, nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	resp, err := testRT.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	actualResp := &tempopb.SearchResponse{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// 2 jobs for the meta + 1 for th ingester
+	assert.Equal(t, uint32(3), actualResp.Metrics.TotalJobs)
+}
+
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		return nil, nil
