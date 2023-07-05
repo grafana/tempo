@@ -235,7 +235,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		  it's possible that it's own queue would perpetually contain only expired requests.
 		*/
 		if req.originalCtx.Err() != nil {
-			lastUserIndex = lastUserIndex.ReuseLastUser()
+			lastUserIndex = lastUserIndex.ReuseLastUser() // jpe needs to go somewhere
 			continue
 		}
 

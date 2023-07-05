@@ -56,6 +56,8 @@ type RequestQueue struct {
 	queues  *queues
 	stopped bool
 
+	outgoing chan Request
+
 	queueLength       *prometheus.GaugeVec   // Per user and reason.
 	discardedRequests *prometheus.CounterVec // Per user.
 }
@@ -66,12 +68,14 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 		connectedQuerierWorkers: atomic.NewInt32(0),
 		queueLength:             queueLength,
 		discardedRequests:       discardedRequests,
+		outgoing:                make(chan Request, 1),
 	}
 
 	q.cond = sync.NewCond(&q.mtx)
 
 	q.Service = services.NewIdleService(func(ctx context.Context) (err error) { return nil }, q.stopping)
 
+	go q.queueWorker()
 	return q
 }
 
@@ -109,57 +113,60 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 	}
 }
 
-// GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
-// By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
-// If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex) (Request, UserIndex, error) {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
-
-	querierWait := false
+func (q *RequestQueue) queueWorker() {
+	last := FirstUser()
 
 FindQueue:
+	q.mtx.Lock()
 	// We need to wait if there are no users, or no pending requests for given querier.
-	for (q.queues.len() == 0 || querierWait) && ctx.Err() == nil && !q.stopped {
-		querierWait = false
+	for q.queues.len() == 0 && !q.stopped {
 		q.cond.Wait()
 	}
 
 	if q.stopped {
-		return nil, last, ErrStopped
-	}
-
-	if err := ctx.Err(); err != nil {
-		return nil, last, err
+		q.mtx.Unlock()
+		return
 	}
 
 	for {
 		queue, userID, idx := q.queues.getNextQueue(last.last)
 		last.last = idx
+
 		if queue == nil {
 			break
 		}
 
 		// Pick next request from the queue.
-		for {
-			request := <-queue
-			if len(queue) == 0 {
-				q.queues.deleteQueue(userID)
-			}
-
-			q.queueLength.WithLabelValues(userID).Dec()
-
-			// Tell close() we've processed a request.
-			q.cond.Broadcast()
-
-			return request, last, nil
+		request := <-queue
+		if len(queue) == 0 {
+			q.queues.deleteQueue(userID)
 		}
+
+		q.queueLength.WithLabelValues(userID).Dec()
+
+		// Tell close() we've processed a request.
+		q.cond.Broadcast()
+
+		q.outgoing <- request
 	}
 
+	q.mtx.Unlock()
 	// There are no unexpired requests, so we can get back
 	// and wait for more requests.
-	querierWait = true
 	goto FindQueue
+}
+
+// GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
+// By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
+// If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex) (Request, UserIndex, error) { // jpe ditch last user index
+	// select ctx.Done against outgoing queue
+	select {
+	case <-ctx.Done():
+		return nil, last, ctx.Err()
+	case req := <-q.outgoing:
+		return req, last, nil
+	}
 }
 
 func (q *RequestQueue) stopping(_ error) error {
