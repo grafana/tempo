@@ -31,6 +31,13 @@
     trace_by_id:
       concurrent_shards: 3
   ```
+* [ENHANCEMENT] Enable cross cluster querying by adding two config options. [#2598](https://github.com/grafana/tempo/pull/2598) (@joe-elliott)
+  ```
+  querier:
+    secondary_ingester_ring: <string>
+  metrics_generator:
+    override_ring_key: <string>
+  ```
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
 To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add support for `by()` and `coalesce()` to TraceQL. [#2490](https://github.com/grafana/tempo/pull/2490) 

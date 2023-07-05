@@ -164,6 +164,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		// the bad request was due to a bug on our side, so return 500 instead.
 		if statusCode != http.StatusNotFound {
 			statusCode = 500
+		} else {
+			// 404 is valid response for TraceByID search, and should be recorded in SLOs
+			recordTraceByIDSLO(s.cfg.SLO, tenantID, reqTime)
 		}
 
 		return &http.Response{

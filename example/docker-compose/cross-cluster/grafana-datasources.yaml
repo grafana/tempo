@@ -1,0 +1,45 @@
+apiVersion: 1
+
+datasources:
+- name: Prometheus
+  type: prometheus
+  uid: prometheus
+  access: proxy
+  orgId: 1
+  url: http://prometheus:9090
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false
+  jsonData:
+    httpMethod: GET
+- name: Tempo-a
+  type: tempo
+  access: proxy
+  orgId: 1
+  url: http://query-frontend-a:3200
+  basicAuth: false
+  isDefault: true
+  version: 1
+  editable: false
+  apiVersion: 1
+  uid: tempo-a
+  jsonData:
+    httpMethod: GET
+    serviceMap:
+      datasourceUid: prometheus
+- name: Tempo-b
+  type: tempo
+  access: proxy
+  orgId: 1
+  url: http://query-frontend-b:3200
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false
+  apiVersion: 1
+  uid: tempo-b
+  jsonData:
+    httpMethod: GET
+    serviceMap:
+      datasourceUid: prometheus

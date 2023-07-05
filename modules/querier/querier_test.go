@@ -162,11 +162,9 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 		},
 	}, resp)
 
-	// this should panic b/c we haven't actually set any of the fields on the querier necessary for it to forward requests
-	// to the ingesters.
-	require.Panics(t, func() {
-		_, _ = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-			TagName: ".foo",
-		})
+	// this should error b/c it will attempt to hit the unconfigured backend
+	_, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: ".foo",
 	})
+	require.Error(t, err)
 }
