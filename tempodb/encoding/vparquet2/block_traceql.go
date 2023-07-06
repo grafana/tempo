@@ -62,11 +62,17 @@ func (s *span) DescendantOf(x traceql.Span) bool {
 	return false
 }
 
-func (m *span) SiblingOf(traceql.Span) bool {
+func (s *span) SiblingOf(x traceql.Span) bool {
+	if ss, ok := x.(*span); ok {
+		return ss.nestedSetParent == s.nestedSetParent
+	}
 	return false
 }
 
-func (m *span) ChildOf(traceql.Span) bool {
+func (s *span) ChildOf(x traceql.Span) bool {
+	if ss, ok := x.(*span); ok {
+		return ss.nestedSetLeft == s.nestedSetParent
+	}
 	return false
 }
 

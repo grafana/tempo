@@ -66,7 +66,11 @@ valid:
   - '{ true } && { true }'
   - '{ true } || { true }'
   - '{ true } >> { true }'
+  - '{ true } > { true }'
+  - '{ true } ~ { true }'
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
+  - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
+  - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
   # scalar filters
   - 'avg(.field) > 1'
   - 'max(duration) >= 1s'
@@ -251,11 +255,6 @@ unsupported:
   - '{ 1 = childCount }'
   # childCount - will be invalid when supported
   - '{ "foo" = childCount }'
-  # spanset operations - will be valid when supported
-  - '{ true } > { true }'
-  - '{ true } ~ { true }'
-  - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
   # spanset pipelines + scalar filters - will be valid when supported
   - '{ true } | count() + count() = 1' 
   - '({ true } | count()) + ({ true } | count()) = 1'

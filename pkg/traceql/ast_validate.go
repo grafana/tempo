@@ -102,20 +102,12 @@ func (a Aggregate) validate() error {
 }
 
 func (o SpansetOperation) validate() error {
-	// TODO validate operator is a SpanSetOperator
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
 	if err := o.RHS.validate(); err != nil {
 		return err
 	}
-
-	// supported spanset operations
-	switch o.Op {
-	case OpSpansetChild, OpSpansetSibling:
-		return newUnsupportedError(fmt.Sprintf("spanset operation (%v)", o.Op))
-	}
-
 	return nil
 }
 

@@ -191,7 +191,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 			durationBySpan[0]+durationBySpan[1])},
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 2"},
-		{Query: "{} | by(resource.service.name) | count() = 1"},
+		{Query: "{} | by(resource.service.name) | count() = 2"},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -222,7 +222,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: "{ } | sum(duration) < 0"},
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 1"},
-		{Query: "{} | by(resource.service.name) | count() = 2"},
+		{Query: "{} | by(resource.service.name) | count() = 3"},
 	}
 
 	for _, req := range searchesThatMatch {
@@ -304,24 +304,6 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 						{
 							Spans: []*tempopb.Span{
 								{
-									SpanID:            "0000000000010203",
-									StartTimeUnixNano: 1000000000000,
-									DurationNanos:     1000000000,
-									Name:              "",
-									Attributes: []*v1_common.KeyValue{
-										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
-									},
-								},
-							},
-							Matched: 1,
-							Attributes: []*v1_common.KeyValue{
-								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
-								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
-							},
-						},
-						{
-							Spans: []*tempopb.Span{
-								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
@@ -344,7 +326,7 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: "{} | by(span.foo) | count() = 1"},
-		{Query: "{} | by(resource.service.name) | count() = 2"},
+		{Query: "{} | by(resource.service.name) | count() = 3"},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -371,7 +353,7 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
-		require.Equal(t, tc.expected, res.Traces, "search request: %v", tc)
+		require.Equal(t, tc.expected, res.Traces, "search request", tc.req)
 	}
 
 	for _, tc := range searchesThatDontMatch {
@@ -418,8 +400,56 @@ func traceQLStructural(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.Tr
 				},
 			},
 		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } > { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } ~ { .child2 }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child2", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 	}
-	searchesThatDontMatch := []*tempopb.SearchRequest{}
+	searchesThatDontMatch := []*tempopb.SearchRequest{
+		{Query: "{ .child } >> { .parent }"},
+		{Query: "{ .child } > { .parent }"},
+		{Query: "{ .child } ~ { .parent }"},
+	}
 
 	for _, tc := range searchesThatMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -449,7 +479,7 @@ func traceQLStructural(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.Tr
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
-		require.Equal(t, tc.expected, res.Traces, "search request: %v", tc)
+		require.Equal(t, tc.expected, res.Traces, "search request:", tc.req)
 	}
 
 	for _, tc := range searchesThatDontMatch {
@@ -458,6 +488,9 @@ func traceQLStructural(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.Tr
 		})
 
 		res, err := e.ExecuteSearch(ctx, tc, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
 		require.NoError(t, err, "search request: %+v", tc)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", tc)
 	}
@@ -746,6 +779,18 @@ func searchTestSuite() (
 									boolKV("child", true),
 								},
 							},
+							{
+								TraceId:           id,
+								SpanId:            []byte{7, 8, 9},
+								ParentSpanId:      []byte{4, 5, 6},
+								StartTimeUnixNano: uint64(1000 * time.Second),
+								EndTimeUnixNano:   uint64(1001 * time.Second),
+								Kind:              v1.Span_SPAN_KIND_PRODUCER,
+								Status:            &v1.Status{},
+								Attributes: []*v1_common.KeyValue{
+									boolKV("child2", true),
+								},
+							},
 						},
 					},
 				},
@@ -766,6 +811,7 @@ func searchTestSuite() (
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1002 * time.Second),
 								Status:            &v1.Status{},
+								Kind:              v1.Span_SPAN_KIND_CLIENT,
 								Attributes: []*v1_common.KeyValue{
 									stringKV("foo", "Bar"),
 									boolKV("parent", true),
