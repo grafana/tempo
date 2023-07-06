@@ -112,7 +112,7 @@ func (o SpansetOperation) validate() error {
 
 	// supported spanset operations
 	switch o.Op {
-	case OpSpansetChild, OpSpansetDescendant, OpSpansetSibling:
+	case OpSpansetChild, OpSpansetSibling:
 		return newUnsupportedError(fmt.Sprintf("spanset operation (%v)", o.Op))
 	}
 
@@ -225,8 +225,7 @@ func (a Attribute) validate() error {
 		return newUnsupportedError("parent")
 	}
 	switch a.Intrinsic {
-	case IntrinsicParent,
-		IntrinsicChildCount:
+	case IntrinsicParent, IntrinsicChildCount:
 		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 

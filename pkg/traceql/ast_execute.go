@@ -70,7 +70,6 @@ func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 }
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	for i := range input {
 		curr := input[i : i+1]
 
@@ -99,6 +98,33 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				output = append(output, matchingSpanset)
 			}
 
+		case OpSpansetDescendant:
+			if len(lhs) > 0 && len(rhs) > 0 {
+
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = nil
+
+				// TODO: In what situations do lhs and rhs have more than one spanset,
+				// and what should the result be?
+				for _, l := range lhs[0].Spans {
+					for i, r := range rhs[0].Spans {
+						if r == nil {
+							continue
+						}
+
+						if r.DescendantOf(l) {
+							// Returns RHS
+							matchingSpanset.Spans = append(matchingSpanset.Spans, r)
+							rhs[0].Spans[i] = nil // No need to check this span again
+							continue
+						}
+					}
+				}
+
+				output = append(output, matchingSpanset)
+			}
+
 		default:
 			return nil, fmt.Errorf("spanset operation (%v) not supported", o.Op)
 		}
@@ -113,7 +139,6 @@ func (o SelectOperation) evaluate(input []*Spanset) (output []*Spanset, err erro
 }
 
 func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
 	// case: aggregate binop static

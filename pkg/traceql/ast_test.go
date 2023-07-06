@@ -135,7 +135,8 @@ func TestPipelineEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
+				}},
 			},
 		},
 	}
@@ -183,7 +184,8 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
 			},
 		},
 		{
@@ -274,7 +276,8 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}}}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				}},
 				{Spans: []Span{
 					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
 					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
@@ -345,17 +348,45 @@ type mockSpan struct {
 	startTimeUnixNanos uint64
 	durationNanos      uint64
 	attributes         map[Attribute]Static
+
+	nestedsetid, left, right int
+}
+
+func (m *mockSpan) WithNestedSetInfo(id, left, right int) *mockSpan {
+	m.nestedsetid = id
+	m.left = left
+	m.right = right
+	return m
 }
 
 func (m *mockSpan) Attributes() map[Attribute]Static {
 	return m.attributes
 }
+
 func (m *mockSpan) ID() []byte {
 	return m.id
 }
+
 func (m *mockSpan) StartTimeUnixNanos() uint64 {
 	return m.startTimeUnixNanos
 }
+
 func (m *mockSpan) DurationNanos() uint64 {
 	return m.durationNanos
+}
+
+func (m *mockSpan) DescendantOf(s Span) bool {
+	if ss, ok := s.(*mockSpan); ok {
+		return m.nestedsetid > ss.left && m.nestedsetid < ss.right
+	}
+
+	return false
+}
+
+func (m *mockSpan) SiblingOf(Span) bool {
+	return false
+}
+
+func (m *mockSpan) ChildOf(Span) bool {
+	return false
 }

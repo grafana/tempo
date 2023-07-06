@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"path"
@@ -41,7 +42,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 				searchRunner,
 				traceQLRunner,
 				advancedTraceQLRunner,
-				groupTraceQLRunner)
+				groupTraceQLRunner,
+				traceQLStructural)
 		})
 	}
 }
@@ -75,6 +77,10 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		})
 
 		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
 		require.NoError(t, err, "search request: %+v", req)
 		actual := actualForExpectedMeta(wantMeta, res)
 		require.NotNil(t, actual, "search request: %v", req)
@@ -271,7 +277,7 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 									},
 								},
 								{
-									SpanID:            "0000000000000000",
+									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
@@ -316,7 +322,7 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 						{
 							Spans: []*tempopb.Span{
 								{
-									SpanID:            "0000000000000000",
+									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
@@ -347,6 +353,84 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 		})
 
 		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
+		require.NoError(t, err, "search request: %+v", tc)
+
+		// copy the root stuff in directly, spansets defined in test cases above.
+		for _, ss := range tc.expected {
+			ss.DurationMs = wantMeta.DurationMs
+			ss.RootServiceName = wantMeta.RootServiceName
+			ss.RootTraceName = wantMeta.RootTraceName
+			ss.StartTimeUnixNano = wantMeta.StartTimeUnixNano
+			ss.TraceID = wantMeta.TraceID
+		}
+
+		// the actual spanset is impossible to predict since it's chosen randomly from the Spansets slice
+		// so set it to nil here and just test the slice using the testcases above
+		for _, tr := range res.Traces {
+			tr.SpanSet = nil
+		}
+
+		require.NotNil(t, res, "search request: %v", tc)
+		require.Equal(t, tc.expected, res.Traces, "search request: %v", tc)
+	}
+
+	for _, tc := range searchesThatDontMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, tc, fetcher)
+		require.NoError(t, err, "search request: %+v", tc)
+		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", tc)
+	}
+}
+
+func traceQLStructural(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+	ctx := context.Background()
+	e := traceql.NewEngine()
+
+	type test struct {
+		req      *tempopb.SearchRequest
+		expected []*tempopb.TraceSearchMetadata
+	}
+
+	searchesThatMatch := []*test{
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } >> { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+	}
+	searchesThatDontMatch := []*tempopb.SearchRequest{}
+
+	for _, tc := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
 		require.NoError(t, err, "search request: %+v", tc)
 
 		// copy the root stuff in directly, spansets defined in test cases above.
@@ -545,6 +629,13 @@ func intKV(k string, v int) *v1_common.KeyValue {
 	}
 }
 
+func boolKV(k string, v bool) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key:   k,
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: v}},
+	}
+}
+
 // Helper function to make a tag search
 func makeReq(k, v string) *tempopb.SearchRequest {
 	return &tempopb.SearchRequest{
@@ -652,6 +743,7 @@ func searchTestSuite() (
 									stringKV("http.url", "url/Hello/World"),
 									intKV("http.status_code", 500),
 									stringKV("foo", "Bar"),
+									boolKV("child", true),
 								},
 							},
 						},
@@ -670,11 +762,13 @@ func searchTestSuite() (
 							{
 								TraceId:           id,
 								Name:              "RootSpan",
+								SpanId:            []byte{4, 5, 6},
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1002 * time.Second),
 								Status:            &v1.Status{},
 								Attributes: []*v1_common.KeyValue{
 									stringKV("foo", "Bar"),
+									boolKV("parent", true),
 								},
 							},
 						},

@@ -38,15 +38,22 @@ type span struct {
 func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
 	return s.attributes
 }
+
 func (s *span) ID() []byte {
 	return s.id
 }
+
 func (s *span) StartTimeUnixNanos() uint64 {
 	return s.startTimeUnixNanos
 }
+
 func (s *span) DurationNanos() uint64 {
 	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
+
+func (m *span) DescendantOf(s traceql.Span) bool { return false }
+func (m *span) SiblingOf(traceql.Span) bool      { return false }
+func (m *span) ChildOf(traceql.Span) bool        { return false }
 
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {
@@ -200,7 +207,6 @@ var wellKnownColumnLookups = map[string]struct {
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
@@ -224,6 +230,10 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 func checkConditions(conditions []traceql.Condition) error {
 	for _, cond := range conditions {
+		if cond.Attribute.Intrinsic == traceql.IntrinsicStructural {
+			return common.ErrUnsupported
+		}
+
 		opCount := len(cond.Operands)
 
 		switch cond.Op {
@@ -655,7 +665,6 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
-
 	// Categorize conditions into span-level or resource-level
 	var (
 		mingledConditions  bool
@@ -744,7 +753,6 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
 func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
-
 	var (
 		columnSelectAs     = map[string]string{}
 		columnPredicates   = map[string][]parquetquery.Predicate{}
@@ -1171,7 +1179,6 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
 	}
-
 }
 
 func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -1685,8 +1692,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // attributeCollector receives rows from the individual key/string/int/etc
 // columns and joins them together into map[key]value entries with the
 // right type.
-type attributeCollector struct {
-}
+type attributeCollector struct{}
 
 var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
 
@@ -1695,7 +1701,6 @@ func (c *attributeCollector) String() string {
 }
 
 func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-
 	var key string
 	var val traceql.Static
 

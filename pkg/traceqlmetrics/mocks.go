@@ -26,7 +26,6 @@ func (m *mockSpan) WithDuration(d uint64) *mockSpan {
 }
 
 func (m *mockSpan) WithAttributes(nameValuePairs ...string) *mockSpan {
-
 	for i := 0; i < len(nameValuePairs); i += 2 {
 		attr := traceql.MustParseIdentifier(nameValuePairs[i])
 		value := traceql.NewStaticString(nameValuePairs[i+1])
@@ -50,14 +49,19 @@ func (m *mockSpan) Attributes() map[traceql.Attribute]traceql.Static { return m.
 func (m *mockSpan) ID() []byte                                       { return nil }
 func (m *mockSpan) StartTimeUnixNanos() uint64                       { return m.start }
 func (m *mockSpan) DurationNanos() uint64                            { return m.duration }
+func (m *mockSpan) DescendantOf(s traceql.Span) bool                 { return false }
+func (m *mockSpan) SiblingOf(traceql.Span) bool                      { return false }
+func (m *mockSpan) ChildOf(traceql.Span) bool                        { return false }
 
 type mockFetcher struct {
 	filter   traceql.SecondPassFn
 	Spansets []*traceql.Spanset
 }
 
-var _ traceql.SpansetFetcher = (*mockFetcher)(nil)
-var _ traceql.SpansetIterator = (*mockFetcher)(nil)
+var (
+	_ traceql.SpansetFetcher  = (*mockFetcher)(nil)
+	_ traceql.SpansetIterator = (*mockFetcher)(nil)
+)
 
 func (m *mockFetcher) Fetch(_ context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 	m.filter = req.SecondPass
