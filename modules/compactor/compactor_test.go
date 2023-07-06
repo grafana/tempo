@@ -126,7 +126,7 @@ func TestCountSpans(t *testing.T) {
 
 func TestDedicatedColumns(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Limits{
-		DedicatedColumns: []backend.DedicatedColumn{
+		DedicatedColumns: backend.DedicatedColumns{
 			{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
 			{Scope: "span", Name: "dedicated.span.1", Type: "string"},
 		},

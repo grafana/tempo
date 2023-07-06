@@ -113,7 +113,7 @@ type instance struct {
 	limiter            *Limiter
 	writer             tempodb.Writer
 
-	dedicatedColumns []backend.DedicatedColumn
+	dedicatedColumns backend.DedicatedColumns
 	overrides        ingesterOverrides
 
 	local       *local.Backend
@@ -125,7 +125,7 @@ type instance struct {
 	autocompleteFilteringEnabled bool
 }
 
-func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool, dedicatedColumns []backend.DedicatedColumn) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: map[uint32]uint32{},

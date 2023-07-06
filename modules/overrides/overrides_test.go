@@ -338,16 +338,16 @@ func TestTempoDBOverrides(t *testing.T) {
 		name                     string
 		limits                   Limits
 		overrides                string
-		expectedDedicatedColumns map[string][]backend.DedicatedColumn
+		expectedDedicatedColumns map[string]backend.DedicatedColumns
 	}{
 		{
 			name: "limits",
 			limits: Limits{
-				DedicatedColumns: []backend.DedicatedColumn{
+				DedicatedColumns: backend.DedicatedColumns{
 					{Scope: "resource", Name: "namespace", Type: "string"},
 				},
 			},
-			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
+			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
 				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
 				"user2": {{Scope: "resource", Name: "namespace", Type: "string"}},
 			},
@@ -355,7 +355,7 @@ func TestTempoDBOverrides(t *testing.T) {
 		{
 			name: "basic overrides",
 			limits: Limits{
-				DedicatedColumns: []backend.DedicatedColumn{
+				DedicatedColumns: backend.DedicatedColumns{
 					{Scope: "resource", Name: "namespace", Type: "string"},
 				},
 			},
@@ -367,7 +367,7 @@ overrides:
         name: "http.status"
         type: "int"
 `,
-			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
+			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
 				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
 				"user2": {{Scope: "span", Name: "http.status", Type: "int"}},
 			},
@@ -375,7 +375,7 @@ overrides:
 		{
 			name: "empty dedicated columns override global cfg",
 			limits: Limits{
-				DedicatedColumns: []backend.DedicatedColumn{
+				DedicatedColumns: backend.DedicatedColumns{
 					{Scope: "resource", Name: "namespace", Type: "string"},
 				},
 			},
@@ -385,7 +385,7 @@ overrides:
   user2:
     dedicated_columns: []
 `,
-			expectedDedicatedColumns: map[string][]backend.DedicatedColumn{
+			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
 				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
 				"user2": {},
 			},

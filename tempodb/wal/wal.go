@@ -166,11 +166,11 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID, dataEncoding string) (common.WALB
 //  2. Have encoding-specific config be part of the encoding itself
 //  3. Pass the meta file path to the WAL constructor
 
-func (w *WAL) NewBlockWithDedicatedColumns(id uuid.UUID, tenantID, dataEncoding string, dedicatedColumns []backend.DedicatedColumn) (common.WALBlock, error) {
+func (w *WAL) NewBlockWithDedicatedColumns(id uuid.UUID, tenantID, dataEncoding string, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error) {
 	return w.newBlock(id, tenantID, dataEncoding, w.c.Version, dedicatedColumns)
 }
 
-func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string, dedicatedColumns []backend.DedicatedColumn) (common.WALBlock, error) {
+func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error) {
 	v, err := encoding.FromVersion(blockVersion)
 	if err != nil {
 		return nil, err

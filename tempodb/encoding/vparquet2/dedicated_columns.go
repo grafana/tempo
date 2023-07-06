@@ -151,7 +151,7 @@ var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResou
 
 // dedicatedColumnsToColumnMapping returns mapping from attribute names to spare columns for a give
 // block meta and scope.
-func dedicatedColumnsToColumnMapping(dedicatedColumns []backend.DedicatedColumn, scopes ...backend.DedicatedColumnScope) dedicatedColumnMapping {
+func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, scopes ...backend.DedicatedColumnScope) dedicatedColumnMapping {
 	if len(scopes) == 0 {
 		scopes = allScopes
 	}

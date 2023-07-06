@@ -117,7 +117,7 @@ type BlockMeta struct {
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by vParquet3)
-	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
+	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -138,7 +138,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc []DedicatedColumn) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          blockID,
@@ -188,7 +188,9 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 //      the hash is computed and that the field is not accessed directly.
 //    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
 
-func (b *BlockMeta) DedicatedColumnsHash() uint64 { return HashColumns(b.DedicatedColumns) }
+func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+	return b.DedicatedColumns.Hash()
+}
 
 func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) ([]DedicatedColumn, error) {
 	cols := make([]DedicatedColumn, 0, len(tempopbCols))
@@ -214,10 +216,10 @@ func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) ([]Dedic
 	return cols, nil
 }
 
-func DedicateColumnsToTempopb(metaCols []DedicatedColumn) ([]*tempopb.DedicatedColumn, error) {
-	tempopbCols := make([]*tempopb.DedicatedColumn, 0, len(metaCols))
+func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
+	tempopbCols := make([]*tempopb.DedicatedColumn, 0, len(dcs))
 
-	for _, c := range metaCols {
+	for _, c := range dcs {
 		scope, err := c.Scope.ToTempopb()
 		if err != nil {
 			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
@@ -256,13 +258,13 @@ func (dcs DedicatedColumns) Validate() error {
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
 
-// HashColumns hashes the given dedicated columns configuration
-func HashColumns(d []DedicatedColumn) uint64 {
-	if len(d) == 0 {
+// Hash hashes the given dedicated columns configuration
+func (dcs DedicatedColumns) Hash() uint64 {
+	if len(dcs) == 0 {
 		return 0
 	}
 	h := xxhash.New()
-	for _, c := range d {
+	for _, c := range dcs {
 		_, _ = h.WriteString(string(c.Scope))
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(c.Name)

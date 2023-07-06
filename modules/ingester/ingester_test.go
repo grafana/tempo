@@ -348,7 +348,7 @@ func TestDedicatedColumns(t *testing.T) {
 
 	limits := overrides.Limits{}
 	flagext.DefaultValues(&limits)
-	limits.DedicatedColumns = []backend.DedicatedColumn{{Scope: "span", Name: "foo", Type: "string"}}
+	limits.DedicatedColumns = backend.DedicatedColumns{{Scope: "span", Name: "foo", Type: "string"}}
 
 	i := defaultIngesterWithOverrides(t, tmpDir, limits)
 	inst, _ := i.getOrCreateInstance("test")

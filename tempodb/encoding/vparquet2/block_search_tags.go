@@ -59,7 +59,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dc []backend.DedicatedColumn) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
 
@@ -229,7 +229,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dc []backend.DedicatedColumn) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dc backend.DedicatedColumns) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]

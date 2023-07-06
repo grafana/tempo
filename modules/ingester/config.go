@@ -28,8 +28,8 @@ type Config struct {
 	OverrideRingKey      string        `yaml:"override_ring_key"`
 	FlushAllOnShutdown   bool          `yaml:"flush_all_on_shutdown"`
 
-	DedicatedColumns             []backend.DedicatedColumn `yaml:"-"`
-	AutocompleteFilteringEnabled bool                      `yaml:"-"`
+	DedicatedColumns             backend.DedicatedColumns `yaml:"-"`
+	AutocompleteFilteringEnabled bool                     `yaml:"-"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
