@@ -495,10 +495,6 @@ querier:
         # The default value of "" disables this feature.
         [external_endpoints: <list of strings> | default = <empty list>]
 
-        # If external_backend is set, then authorization credentials will be provided when querying the external endpoints. "cloud-run" is the only value supported at this time.
-        # The default value of "" omits credentials when querying the external backend.
-        [external_backend: <string> | default = ""]
-
         # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
         # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
         # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
@@ -514,6 +510,28 @@ querier:
         # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
         # (default: 2)
         [external_hedge_requests_up_to: <int>]
+
+        # The serverless backend to use. If external_backend is set, then authorization credentials will be provided
+        # when querying the external endpoints. "google_cloud_run" is the only value supported at this time.
+        # The default value of "" omits credentials when querying the external backend.
+        [external_backend: <string> | default = ""]
+
+        # Google Cloud Run configuration. Will be used only if the value of external_backend is "google_cloud_run".
+        google_cloud_run:
+            # A list of external endpoints that the querier will use to offload backend search requests. They must
+            # take and return the same value as /api/search endpoint on the querier. This is intended to be
+            # used with serverless technologies for massive parrallelization of the search path.
+            # The default value of "" disables this feature.
+            [external_endpoints: <list of strings> | default = <empty list>]
+
+            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+            # be set to p99 of external search requests to reduce long tail latency.
+            # (default: 8s)
+            [external_hedge_requests_at: <list of strings> | default = <empty list>]
+
+            # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+            # (default: 2)
+            [external_hedge_requests_up_to: <list of strings> | default = <empty list>]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
