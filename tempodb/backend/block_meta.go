@@ -131,6 +131,9 @@ type DedicatedColumn struct {
 	Type DedicatedColumnType `yaml:"type" json:"type"`
 }
 
+// DedicatedColumns represents a set of configured dedicated columns.
+type DedicatedColumns []DedicatedColumn
+
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
@@ -233,6 +236,21 @@ func DedicateColumnsToTempopb(metaCols []DedicatedColumn) ([]*tempopb.DedicatedC
 	}
 
 	return tempopbCols, nil
+}
+
+func (dcs DedicatedColumns) Validate() error {
+	for _, dc := range dcs {
+		if dc.Name == "" {
+			return errors.New("dedicated column invalid: name must not be empty")
+		}
+		if dc.Type != DedicatedColumnTypeString {
+			return errors.Errorf("dedicated column '%s' invalid: type must be 'string' but was '%s'", dc.Name, dc.Type)
+		}
+		if dc.Scope != DedicatedColumnScopeSpan && dc.Scope != DedicatedColumnScopeResource {
+			return errors.Errorf("dedicated column '%s' invalid: scope must be 'span' or 'resource' but was '%s'", dc.Name, dc.Scope)
+		}
+	}
+	return nil
 }
 
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences

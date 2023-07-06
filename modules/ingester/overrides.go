@@ -9,7 +9,7 @@ import (
 type ingesterOverrides interface {
 	registry.Overrides
 
-	DedicatedColumns(userID string) []backend.DedicatedColumn
+	DedicatedColumns(userID string) backend.DedicatedColumns
 }
 
 var _ ingesterOverrides = (overrides.Interface)(nil)

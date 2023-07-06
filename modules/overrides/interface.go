@@ -57,5 +57,5 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
-	DedicatedColumns(userID string) []backend.DedicatedColumn
+	DedicatedColumns(userID string) backend.DedicatedColumns
 }

@@ -499,8 +499,14 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) getDedicatedColumns() []backend.DedicatedColumn {
+func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
 	if cols := i.overrides.DedicatedColumns(i.instanceID); cols != nil {
+		err := cols.Validate()
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "tenant", i.instanceID, "error", err)
+			return i.dedicatedColumns
+		}
+
 		return cols
 	}
 	return i.dedicatedColumns

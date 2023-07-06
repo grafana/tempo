@@ -396,7 +396,7 @@ func (o *overrides) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).MaxSearchDuration)
 }
 
-func (o *overrides) DedicatedColumns(userID string) []backend.DedicatedColumn {
+func (o *overrides) DedicatedColumns(userID string) backend.DedicatedColumns {
 	return o.getOverridesForUser(userID).DedicatedColumns
 }
 
