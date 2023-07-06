@@ -866,8 +866,8 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	res, err := traceqlmetrics.GetMetrics(ctx, "{}", "name", 0, 1, 100, f)
 	require.NoError(t, err)
 
-	one := traceql.NewStaticString("1")
-	two := traceql.NewStaticString("2")
+	one := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("1")}}
+	two := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("2")}}
 
 	require.Equal(t, 2, len(res.Series))
 	require.Equal(t, 2, res.SpanCount)
