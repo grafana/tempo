@@ -24,6 +24,30 @@ func (b bindings) add(values ...interface{}) bindings {
 	return b
 }
 
+func (b bindings) addTo(impl, iface interface{}) {
+	valueOf := reflect.ValueOf(impl)
+	b[reflect.TypeOf(iface).Elem()] = func() (reflect.Value, error) { return valueOf, nil }
+}
+
+func (b bindings) addProvider(provider interface{}) error {
+	pv := reflect.ValueOf(provider)
+	t := pv.Type()
+	if t.Kind() != reflect.Func || t.NumIn() != 0 || t.NumOut() != 2 || t.Out(1) != reflect.TypeOf((*error)(nil)).Elem() {
+		return fmt.Errorf("%T must be a function with the signature func()(T, error)", provider)
+	}
+	rt := pv.Type().Out(0)
+	b[rt] = func() (reflect.Value, error) {
+		out := pv.Call(nil)
+		errv := out[1]
+		var err error
+		if !errv.IsNil() {
+			err = errv.Interface().(error) // nolint
+		}
+		return out[0], err
+	}
+	return nil
+}
+
 // Clone and add values.
 func (b bindings) clone() bindings {
 	out := make(bindings, len(b))
@@ -53,8 +77,8 @@ func getMethod(value reflect.Value, name string) reflect.Value {
 func callMethod(name string, v, f reflect.Value, bindings bindings) error {
 	in := []reflect.Value{}
 	t := f.Type()
-	if t.NumOut() != 1 || t.Out(0) != callbackReturnSignature {
-		return fmt.Errorf("return value of %T.%s() must be exactly \"error\"", v.Type(), name)
+	if t.NumOut() != 1 || !t.Out(0).Implements(callbackReturnSignature) {
+		return fmt.Errorf("return value of %T.%s() must implement \"error\"", v.Type(), name)
 	}
 	for i := 0; i < t.NumIn(); i++ {
 		pt := t.In(i)
@@ -72,5 +96,5 @@ func callMethod(name string, v, f reflect.Value, bindings bindings) error {
 	if out[0].IsNil() {
 		return nil
 	}
-	return out[0].Interface().(error)
+	return out[0].Interface().(error) // nolint
 }

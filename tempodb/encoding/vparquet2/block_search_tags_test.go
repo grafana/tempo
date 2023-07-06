@@ -165,7 +165,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
 
-	block := newBackendBlock(meta, rr)
+	block := NewBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
 	d := util.NewDistinctStringCollector(1_000_000)
 
@@ -196,7 +196,7 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
 
-	block := newBackendBlock(meta, rr)
+	block := NewBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
