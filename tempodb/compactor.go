@@ -131,7 +131,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 			if len(toBeCompacted) == 0 {
 				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
-				level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
+				level.Debug(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 				return
 			}
 			if !rw.compactorSharder.Owns(hashString) {
