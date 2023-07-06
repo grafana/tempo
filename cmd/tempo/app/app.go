@@ -62,8 +62,7 @@ type App struct {
 
 	Server         *server.Server
 	InternalServer *server.Server
-	ring           *ring.Ring
-	generatorRing  *ring.Ring
+	readRings      map[string]*ring.Ring
 	Overrides      overrides.Service
 	distributor    *distributor.Distributor
 	querier        *querier.Querier
@@ -86,7 +85,8 @@ type App struct {
 // New makes a new app.
 func New(cfg Config) (*App, error) {
 	app := &App{
-		cfg: cfg,
+		cfg:       cfg,
+		readRings: map[string]*ring.Ring{},
 	}
 
 	usagestats.Edition("oss")
