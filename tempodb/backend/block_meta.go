@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
@@ -25,12 +26,52 @@ const (
 	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
 )
 
+func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedColumnType, error) {
+	switch t {
+	case tempopb.DedicatedColumn_STRING:
+		return DedicatedColumnTypeString, nil
+	default:
+		return "", errors.Errorf("invalid value for tempopb.DedicatedColumn_Type '%v'", t)
+	}
+}
+
+func (t DedicatedColumnType) ToTempopb() (tempopb.DedicatedColumn_Type, error) {
+	switch t {
+	case DedicatedColumnTypeString:
+		return tempopb.DedicatedColumn_STRING, nil
+	default:
+		return 0, errors.Errorf("invalid value for DedicatedColumnType '%v'", t)
+	}
+}
+
 func (t DedicatedColumnType) ToStaticType() (traceql.StaticType, error) {
 	switch t {
 	case DedicatedColumnTypeString:
 		return traceql.TypeString, nil
 	default:
 		return traceql.TypeNil, errors.Errorf("unsupported dedicated column type '%s'", t)
+	}
+}
+
+func DedicatedColumnScopeFromTempopb(s tempopb.DedicatedColumn_Scope) (DedicatedColumnScope, error) {
+	switch s {
+	case tempopb.DedicatedColumn_SPAN:
+		return DedicatedColumnScopeSpan, nil
+	case tempopb.DedicatedColumn_RESOURCE:
+		return DedicatedColumnScopeResource, nil
+	default:
+		return "", errors.Errorf("invalid value for tempopb.DedicatedColumn_Scope '%v'", s)
+	}
+}
+
+func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error) {
+	switch s {
+	case DedicatedColumnScopeSpan:
+		return tempopb.DedicatedColumn_SPAN, nil
+	case DedicatedColumnScopeResource:
+		return tempopb.DedicatedColumn_RESOURCE, nil
+	default:
+		return 0, errors.Errorf("invalid value for DedicatedColumnScope '%v'", s)
 	}
 }
 
@@ -145,6 +186,54 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 //    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
 
 func (b *BlockMeta) DedicatedColumnsHash() uint64 { return HashColumns(b.DedicatedColumns) }
+
+func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) ([]DedicatedColumn, error) {
+	cols := make([]DedicatedColumn, 0, len(tempopbCols))
+
+	for _, c := range tempopbCols {
+		scope, err := DedicatedColumnScopeFromTempopb(c.Scope)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+		}
+
+		typ, err := DedicatedColumnTypeFromTempopb(c.Type)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+		}
+
+		cols = append(cols, DedicatedColumn{
+			Scope: scope,
+			Name:  c.Name,
+			Type:  typ,
+		})
+	}
+
+	return cols, nil
+}
+
+func DedicateColumnsToTempopb(metaCols []DedicatedColumn) ([]*tempopb.DedicatedColumn, error) {
+	tempopbCols := make([]*tempopb.DedicatedColumn, 0, len(metaCols))
+
+	for _, c := range metaCols {
+		scope, err := c.Scope.ToTempopb()
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+		}
+
+		typ, err := c.Type.ToTempopb()
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+		}
+
+		tempopbCols = append(tempopbCols, &tempopb.DedicatedColumn{
+			Scope: scope,
+			Name:  c.Name,
+			Type:  typ,
+		})
+	}
+
+	return tempopbCols, nil
+}
 
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}

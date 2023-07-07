@@ -110,6 +110,26 @@ func TestBuildBackendRequests(t *testing.T) {
 				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=json&encoding=gzip&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
 			},
 		},
+		// meta.json with dedicated columns
+		{
+			targetBytesPerRequest: 1000,
+			metas: []*backend.BlockMeta{
+				{
+					Size:          1000,
+					TotalRecords:  10,
+					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					Encoding:      backend.EncNone,
+					IndexPageSize: 13,
+					Version:       "vParquet3",
+					DedicatedColumns: []backend.DedicatedColumn{
+						{Scope: "span", Name: "net.sock.host.addr", Type: "string"},
+					},
+				},
+			},
+			expectedURIs: []string{
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&dedicatedColumns=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
+			},
+		},
 		// bytes/per request is too small for the page size
 		{
 			targetBytesPerRequest: 1,
