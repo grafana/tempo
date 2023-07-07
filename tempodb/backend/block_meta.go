@@ -40,7 +40,7 @@ func (t DedicatedColumnType) ToTempopb() (tempopb.DedicatedColumn_Type, error) {
 	case DedicatedColumnTypeString:
 		return tempopb.DedicatedColumn_STRING, nil
 	default:
-		return 0, errors.Errorf("invalid value for DedicatedColumnType '%v'", t)
+		return 0, errors.Errorf("invalid value for dedicated column type '%v'", t)
 	}
 }
 
@@ -71,7 +71,7 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 	case DedicatedColumnScopeResource:
 		return tempopb.DedicatedColumn_RESOURCE, nil
 	default:
-		return 0, errors.Errorf("invalid value for DedicatedColumnScope '%v'", s)
+		return 0, errors.Errorf("invalid value for dedicated column scope '%v'", s)
 	}
 }
 
@@ -254,11 +254,13 @@ func (dc *DedicatedColumn) Validate() error {
 	if dc.Name == "" {
 		return errors.New("dedicated column invalid: name must not be empty")
 	}
-	if dc.Type != DedicatedColumnTypeString {
-		return errors.Errorf("dedicated column '%s' invalid: type must be 'string' but was '%s'", dc.Name, dc.Type)
+	_, err := dc.Type.ToTempopb()
+	if err != nil {
+		return errors.Wrapf(err, "dedicated column '%s' invalid", dc.Name)
 	}
-	if dc.Scope != DedicatedColumnScopeSpan && dc.Scope != DedicatedColumnScopeResource {
-		return errors.Errorf("dedicated column '%s' invalid: scope must be 'span' or 'resource' but was '%s'", dc.Name, dc.Scope)
+	_, err = dc.Scope.ToTempopb()
+	if err != nil {
+		return errors.Wrapf(err, "dedicated column '%s' invalid", dc.Name)
 	}
 	return nil
 }
