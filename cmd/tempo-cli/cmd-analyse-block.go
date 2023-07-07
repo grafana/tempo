@@ -27,16 +27,16 @@ var (
 	spanAttrValPaths = []string{
 		vparquet2.FieldSpanAttrVal,
 		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
-		//vparquet2.FieldSpanAttrValInt,
-		//vparquet2.FieldSpanAttrValDouble,
-		//vparquet2.FieldSpanAttrValBool,
+		// vparquet2.FieldSpanAttrValInt,
+		// vparquet2.FieldSpanAttrValDouble,
+		// vparquet2.FieldSpanAttrValBool,
 	}
 	resourceAttrValPaths = []string{
 		vparquet2.FieldResourceAttrVal,
 		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
-		//vparquet2.FieldResourceAttrValInt,
-		//vparquet2.FieldResourceAttrValDouble,
-		//vparquet2.FieldResourceAttrValBool,
+		// vparquet2.FieldResourceAttrValInt,
+		// vparquet2.FieldResourceAttrValDouble,
+		// vparquet2.FieldResourceAttrValBool,
 	}
 )
 
@@ -130,7 +130,7 @@ type attribute struct {
 
 func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) (genericAttrSummary, error) {
 	keyIdx, _ := pq.GetColumnIndexByPath(pf, keyPath)
-	var valueIdxs []int
+	valueIdxs := make([]int, 0, len(valuePaths))
 	for _, v := range valuePaths {
 		idx, _ := pq.GetColumnIndexByPath(pf, v)
 		valueIdxs = append(valueIdxs, idx)
@@ -145,18 +145,18 @@ func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) 
 		return genericAttrSummary{}, err
 	}
 
-	// Assert rowStats.Header() format is [Key <string> 49/Value: size values nulls]
+	// TODO: assert rowStats.Header() format
 
 	var (
 		attrList   []attribute
 		totalBytes uint64
 	)
-LOOP:
+
 	for {
 		row, err := rowStats.NextRow()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				break LOOP
+				break
 			}
 			return genericAttrSummary{}, err
 		}
@@ -173,8 +173,8 @@ LOOP:
 	sort.Slice(attrList, func(i, j int) bool { return attrList[i].bytes > attrList[j].bytes })
 
 	return genericAttrSummary{
-		totalBytes,
-		attrList,
+		totalBytes: totalBytes,
+		attributes: attrList,
 	}, nil
 }
 
