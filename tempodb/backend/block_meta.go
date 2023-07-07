@@ -242,15 +242,23 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 
 func (dcs DedicatedColumns) Validate() error {
 	for _, dc := range dcs {
-		if dc.Name == "" {
-			return errors.New("dedicated column invalid: name must not be empty")
+		err := dc.Validate()
+		if err != nil {
+			return err
 		}
-		if dc.Type != DedicatedColumnTypeString {
-			return errors.Errorf("dedicated column '%s' invalid: type must be 'string' but was '%s'", dc.Name, dc.Type)
-		}
-		if dc.Scope != DedicatedColumnScopeSpan && dc.Scope != DedicatedColumnScopeResource {
-			return errors.Errorf("dedicated column '%s' invalid: scope must be 'span' or 'resource' but was '%s'", dc.Name, dc.Scope)
-		}
+	}
+	return nil
+}
+
+func (dc *DedicatedColumn) Validate() error {
+	if dc.Name == "" {
+		return errors.New("dedicated column invalid: name must not be empty")
+	}
+	if dc.Type != DedicatedColumnTypeString {
+		return errors.Errorf("dedicated column '%s' invalid: type must be 'string' but was '%s'", dc.Name, dc.Type)
+	}
+	if dc.Scope != DedicatedColumnScopeSpan && dc.Scope != DedicatedColumnScopeResource {
+		return errors.Errorf("dedicated column '%s' invalid: scope must be 'span' or 'resource' but was '%s'", dc.Name, dc.Scope)
 	}
 	return nil
 }

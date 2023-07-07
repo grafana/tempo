@@ -163,6 +163,16 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
+	for _, dc := range c.StorageConfig.Trace.Block.DedicatedColumns {
+		err := dc.Validate()
+		if err != nil {
+			warnings = append(warnings, ConfigWarning{
+				Message: err.Error(),
+				Explain: "Tempo will not start with an invalid dedicated attribute column configuration",
+			})
+		}
+	}
+
 	// check v2 specific settings
 	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != common.DefaultIndexDownSampleBytes {
 		warnings = append(warnings, newV2Warning("v2_index_downsample_bytes"))
