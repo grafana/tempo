@@ -21,27 +21,29 @@ var (
 	ErrStopped         = errors.New("queue is stopped")
 )
 
-// UserIndex is opaque type that allows to resume iteration over users between successive calls
+// userIndex is opaque type that allows to resume iteration over users between successive calls
 // of RequestQueue.GetNextRequestForQuerier method.
-type UserIndex struct {
+type userIndex struct {
 	last int
 }
 
 // Modify index to start iteration on the same user, for which last queue was returned.
-func (ui UserIndex) ReuseLastUser() UserIndex {
+func (ui userIndex) reuseLastUser() userIndex {
 	if ui.last >= 0 {
-		return UserIndex{last: ui.last - 1}
+		return userIndex{last: ui.last - 1}
 	}
 	return ui
 }
 
 // FirstUser returns UserIndex that starts iteration over user queues from the very first user.
-func FirstUser() UserIndex {
-	return UserIndex{last: -1}
+func FirstUser() userIndex {
+	return userIndex{last: -1}
 }
 
 // Request stored into the queue.
-type Request interface{}
+type Request interface {
+	Invalid() bool
+}
 
 // RequestQueue holds incoming requests in per-user queues. It also assigns each user specified number of queriers,
 // and when querier asks for next request to handle (using GetNextRequestForQuerier), it returns requests
@@ -142,6 +144,12 @@ FindQueue:
 			q.queues.deleteQueue(userID)
 		}
 
+		// drain the queue of all invalid requests until we find the first valid one from a given user
+		if request.Invalid() {
+			last = last.reuseLastUser()
+			continue
+		}
+
 		q.queueLength.WithLabelValues(userID).Dec()
 
 		// Tell close() we've processed a request.
@@ -159,13 +167,13 @@ FindQueue:
 // GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
 // By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
 // If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex) (Request, UserIndex, error) { // jpe ditch last user index
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context) (Request, error) {
 	// select ctx.Done against outgoing queue
 	select {
 	case <-ctx.Done():
-		return nil, last, ctx.Err()
+		return nil, ctx.Err()
 	case req := <-q.outgoing:
-		return req, last, nil
+		return req, nil
 	}
 }
 

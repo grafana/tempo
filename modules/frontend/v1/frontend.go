@@ -77,6 +77,12 @@ type request struct {
 	response chan *httpgrpc.HTTPResponse
 }
 
+// Invalid implements queue.Request. It is used as an early hint to allow the queue to drain
+// requests whose context is cancelled.
+func (r *request) Invalid() bool {
+	return r.originalCtx.Err() != nil
+}
+
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
 func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
 	f := &Frontend{
@@ -209,35 +215,16 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		f.requestQueue.QuerierDisconnecting()
 	}()
 
-	lastUserIndex := queue.FirstUser()
-
 	for {
-		reqWrapper, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex)
+		reqWrapper, err := f.requestQueue.GetNextRequestForQuerier(server.Context())
 		if err != nil {
 			return err
 		}
-		lastUserIndex = idx
 
 		req := reqWrapper.(*request)
 
 		f.queueDuration.Observe(time.Since(req.enqueueTime).Seconds())
 		req.queueSpan.Finish()
-
-		/*
-		  We want to dequeue the next unexpired request from the chosen tenant queue.
-		  The chance of choosing a particular tenant for dequeueing is (1/active_tenants).
-		  This is problematic under load, especially with other middleware enabled such as
-		  querier.split-by-interval, where one request may fan out into many.
-		  If expired requests aren't exhausted before checking another tenant, it would take
-		  n_active_tenants * n_expired_requests_at_front_of_queue requests being processed
-		  before an active request was handled for the tenant in question.
-		  If this tenant meanwhile continued to queue requests,
-		  it's possible that it's own queue would perpetually contain only expired requests.
-		*/
-		if req.originalCtx.Err() != nil {
-			lastUserIndex = lastUserIndex.ReuseLastUser() // jpe needs to go somewhere
-			continue
-		}
 
 		// Handle the stream sending & receiving on a goroutine so we can
 		// monitoring the contexts in a select and cancel things appropriately.
