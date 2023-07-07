@@ -126,7 +126,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&dedicatedColumns=%5B%7B%22type%22%3A%22string%22%2C%22name%22%3A%22net.sock.host.addr%22%2C%22scope%22%3A%22span%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&dedicatedColumns=%5B%7B%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=10&size=1000&start=10&startPage=0&totalRecords=10&v=test&version=vParquet3",
 			},
 		},
 		// bytes/per request is too small for the page size

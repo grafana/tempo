@@ -2,6 +2,9 @@ package backend
 
 import (
 	"encoding/json"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
@@ -153,6 +156,112 @@ func TestBlockMetaParsing(t *testing.T) {
 			blockMeta := BlockMeta{}
 			err := json.Unmarshal([]byte(tc.json), &blockMeta)
 			assert.NoError(t, err, "expected to be able to unmarshal from JSON")
+		})
+	}
+}
+
+func TestDedicateColumnsFromTempopb(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		cols        []*tempopb.DedicatedColumn
+		expected    []DedicatedColumn
+		expectedErr error
+	}{
+		{
+			name: "no error",
+			cols: []*tempopb.DedicatedColumn{
+				{tempopb.DedicatedColumn_SPAN, "test.span.1", tempopb.DedicatedColumn_STRING},
+				{tempopb.DedicatedColumn_RESOURCE, "test.res.1", tempopb.DedicatedColumn_STRING},
+				{tempopb.DedicatedColumn_SPAN, "test.span.2", tempopb.DedicatedColumn_STRING},
+			},
+			expected: []DedicatedColumn{
+				{DedicatedColumnScopeSpan, "test.span.1", DedicatedColumnTypeString},
+				{DedicatedColumnScopeResource, "test.res.1", DedicatedColumnTypeString},
+				{DedicatedColumnScopeSpan, "test.span.2", DedicatedColumnTypeString},
+			},
+		},
+		{
+			name: "wrong type",
+			cols: []*tempopb.DedicatedColumn{
+				{tempopb.DedicatedColumn_RESOURCE, "test.res.1", tempopb.DedicatedColumn_Type(3)},
+				{tempopb.DedicatedColumn_SPAN, "test.span.2", tempopb.DedicatedColumn_STRING},
+			},
+			expectedErr: errors.New("unable to convert dedicated column 'test.res.1': invalid value for tempopb.DedicatedColumn_Type '3'"),
+		},
+		{
+			name: "wrong scope",
+			cols: []*tempopb.DedicatedColumn{
+				{tempopb.DedicatedColumn_RESOURCE, "test.res.1", tempopb.DedicatedColumn_STRING},
+				{tempopb.DedicatedColumn_Scope(4), "test.span.2", tempopb.DedicatedColumn_STRING},
+			},
+			expectedErr: errors.New("unable to convert dedicated column 'test.span.2': invalid value for tempopb.DedicatedColumn_Scope '4'"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cols, err := DedicateColumnsFromTempopb(tc.cols)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.EqualError(t, err, tc.expectedErr.Error())
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, cols)
+			}
+		})
+	}
+}
+
+func TestDedicateColumnsToTempopb(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		cols        []DedicatedColumn
+		expected    []*tempopb.DedicatedColumn
+		expectedErr error
+	}{
+		{
+			name: "no error",
+			cols: []DedicatedColumn{
+				{DedicatedColumnScopeSpan, "test.span.1", DedicatedColumnTypeString},
+				{DedicatedColumnScopeResource, "test.res.1", DedicatedColumnTypeString},
+				{DedicatedColumnScopeSpan, "test.span.2", DedicatedColumnTypeString},
+			},
+			expected: []*tempopb.DedicatedColumn{
+				{tempopb.DedicatedColumn_SPAN, "test.span.1", tempopb.DedicatedColumn_STRING},
+				{tempopb.DedicatedColumn_RESOURCE, "test.res.1", tempopb.DedicatedColumn_STRING},
+				{tempopb.DedicatedColumn_SPAN, "test.span.2", tempopb.DedicatedColumn_STRING},
+			},
+		},
+		{
+			name: "wrong type",
+			cols: []DedicatedColumn{
+				{DedicatedColumnScopeSpan, "test.span.1", DedicatedColumnType("no-type")},
+				{DedicatedColumnScopeResource, "test.res.1", DedicatedColumnTypeString},
+			},
+			expectedErr: errors.New("unable to convert dedicated column 'test.span.1': invalid value for DedicatedColumnType 'no-type'"),
+		},
+		{
+			name: "wrong scope",
+			cols: []DedicatedColumn{
+				{DedicatedColumnScopeResource, "test.res.1", DedicatedColumnTypeString},
+				{DedicatedColumnScope("no-scope"), "test.span.2", DedicatedColumnTypeString},
+			},
+			expectedErr: errors.New("unable to convert dedicated column 'test.span.2': invalid value for DedicatedColumnScope 'no-scope'"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cols, err := DedicateColumnsToTempopb(tc.cols)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.EqualError(t, err, tc.expectedErr.Error())
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, cols)
+			}
 		})
 	}
 }

@@ -82,6 +82,11 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("parsing encoding", err, http.StatusBadRequest)
 	}
 
+	dc, err := backend.DedicateColumnsFromTempopb(searchReq.DedicatedColumns)
+	if err != nil {
+		return nil, httpError("parsing dedicated columns", err, http.StatusBadRequest)
+	}
+
 	// /giphy so meta
 	meta := &backend.BlockMeta{
 		Version:          searchReq.Version,
@@ -93,7 +98,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		DataEncoding:     searchReq.DataEncoding,
 		Size:             searchReq.Size_,
 		FooterSize:       searchReq.FooterSize,
-		DedicatedColumns: backend.DedicateColumnsFromTempopb(searchReq.DedicatedColumns),
+		DedicatedColumns: dc,
 	}
 
 	block, err := encoding.OpenBlock(meta, reader)

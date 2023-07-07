@@ -85,9 +85,16 @@ message SearchBlockRequest {
 
 // Configuration for a single dedicated attribute column.
 message DedicatedColumn {
-  string type = 1;
+  enum Scope {
+    SPAN = 0;
+    RESOURCE = 1;
+  }
+  enum Type {
+    STRING = 0;
+  }
+  Scope scope = 3;
   string name = 2;
-  string scope = 3;
+  Type type = 1;
 }
 
 message SearchResponse {
