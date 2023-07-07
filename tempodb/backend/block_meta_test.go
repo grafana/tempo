@@ -166,7 +166,7 @@ func TestDedicateColumnsFromTempopb(t *testing.T) {
 	tests := []struct {
 		name        string
 		cols        []*tempopb.DedicatedColumn
-		expected    []DedicatedColumn
+		expected    DedicatedColumns
 		expectedErr error
 	}{
 		{
@@ -176,7 +176,7 @@ func TestDedicateColumnsFromTempopb(t *testing.T) {
 				{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "test.res.1", Type: tempopb.DedicatedColumn_STRING},
 				{Scope: tempopb.DedicatedColumn_SPAN, Name: "test.span.2", Type: tempopb.DedicatedColumn_STRING},
 			},
-			expected: []DedicatedColumn{
+			expected: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
@@ -214,17 +214,17 @@ func TestDedicateColumnsFromTempopb(t *testing.T) {
 	}
 }
 
-func TestDedicateColumnsToTempopb(t *testing.T) {
+func TestDedicatedColumns_ToTempopb(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cols        []DedicatedColumn
+		cols        DedicatedColumns
 		expected    []*tempopb.DedicatedColumn
 		expectedErr error
 	}{
 		{
 			name: "no error",
-			cols: []DedicatedColumn{
+			cols: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.2", Type: DedicatedColumnTypeString},
@@ -237,25 +237,25 @@ func TestDedicateColumnsToTempopb(t *testing.T) {
 		},
 		{
 			name: "wrong type",
-			cols: []DedicatedColumn{
+			cols: DedicatedColumns{
 				{Scope: DedicatedColumnScopeSpan, Name: "test.span.1", Type: DedicatedColumnType("no-type")},
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 			},
-			expectedErr: errors.New("unable to convert dedicated column 'test.span.1': invalid value for DedicatedColumnType 'no-type'"),
+			expectedErr: errors.New("unable to convert dedicated column 'test.span.1': invalid value for dedicated column type 'no-type'"),
 		},
 		{
 			name: "wrong scope",
-			cols: []DedicatedColumn{
+			cols: DedicatedColumns{
 				{Scope: DedicatedColumnScopeResource, Name: "test.res.1", Type: DedicatedColumnTypeString},
 				{Scope: DedicatedColumnScope("no-scope"), Name: "test.span.2", Type: DedicatedColumnTypeString},
 			},
-			expectedErr: errors.New("unable to convert dedicated column 'test.span.2': invalid value for DedicatedColumnScope 'no-scope'"),
+			expectedErr: errors.New("unable to convert dedicated column 'test.span.2': invalid value for dedicated column scope 'no-scope'"),
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cols, err := DedicateColumnsToTempopb(tc.cols)
+			cols, err := tc.cols.ToTempopb()
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.EqualError(t, err, tc.expectedErr.Error())

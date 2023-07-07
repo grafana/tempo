@@ -192,8 +192,8 @@ func (b *BlockMeta) DedicatedColumnsHash() uint64 {
 	return b.DedicatedColumns.Hash()
 }
 
-func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) ([]DedicatedColumn, error) {
-	cols := make([]DedicatedColumn, 0, len(tempopbCols))
+func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {
+	cols := make(DedicatedColumns, 0, len(tempopbCols))
 
 	for _, c := range tempopbCols {
 		scope, err := DedicatedColumnScopeFromTempopb(c.Scope)
