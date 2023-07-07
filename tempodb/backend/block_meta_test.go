@@ -2,14 +2,15 @@ package backend
 
 import (
 	"encoding/json"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
