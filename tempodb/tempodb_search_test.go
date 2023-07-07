@@ -173,25 +173,34 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		{Query: fmt.Sprintf("{ true } || { true } | count() = %d", totalSpans)},
 		{Query: fmt.Sprintf("{ %s && %s && name=`MySpan` } | count() = 1", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
 		// avgs/min/max/sum
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | avg(duration) = %dns",
+		// These tests are tricky because asserting avg/sum/min/max only work if exactly the
+		// expected spans are selected.  However there are random conditions such as traceDuration > 0
+		// that always match multiple spans. The only way to keep these tests from being brittle
+		// is to ensure that all spans are selected.  It's ok if a span still shows up in multiple
+		// filters (because of traceDuration > 0 for example) because the && operator ensures final uniqueness.
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } | avg(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
-			(durationBySpan[0]+durationBySpan[1])/2)},
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | min(duration) = %dns",
+			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
+			(durationBySpan[0]+durationBySpan[1]+durationBySpan[2])/3)},
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } | min(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
-			math.Min64(int64(durationBySpan[0]), int64(durationBySpan[1])))},
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | max(duration) = %dns",
+			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
+			math.Min64(math.Min64(int64(durationBySpan[0]), int64(durationBySpan[1])), int64(durationBySpan[2])))},
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s }  && { %s && %s } | max(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
-			math.Max64(int64(durationBySpan[0]), int64(durationBySpan[1])))},
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | sum(duration) = %dns",
+			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
+			math.Max64(math.Max64(int64(durationBySpan[0]), int64(durationBySpan[1])), int64(durationBySpan[2])))},
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } | sum(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
-			durationBySpan[0]+durationBySpan[1])},
+			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
+			durationBySpan[0]+durationBySpan[1]+durationBySpan[2])},
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 2"},
-		{Query: "{} | by(resource.service.name) | count() = 2"},
+		{Query: "{} | by(resource.service.name) | count() = 1"},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -304,6 +313,24 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 						{
 							Spans: []*tempopb.Span{
 								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+									},
+								},
+							},
+							Matched: 1,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "MyService"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+							},
+						},
+						{
+							Spans: []*tempopb.Span{
+								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
@@ -316,6 +343,24 @@ func groupTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.T
 							Matched: 1,
 							Attributes: []*v1_common.KeyValue{
 								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "RootService"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+							},
+						},
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Service3"}}},
+									},
+								},
+							},
+							Matched: 1,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Service3"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 							},
 						},
@@ -439,6 +484,30 @@ func traceQLStructural(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.Tr
 								},
 							},
 							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } >> {}"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+								},
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+								},
+							},
+							Matched: 2,
 						},
 					},
 				},
@@ -779,18 +848,6 @@ func searchTestSuite() (
 									boolKV("child", true),
 								},
 							},
-							{
-								TraceId:           id,
-								SpanId:            []byte{7, 8, 9},
-								ParentSpanId:      []byte{4, 5, 6},
-								StartTimeUnixNano: uint64(1000 * time.Second),
-								EndTimeUnixNano:   uint64(1001 * time.Second),
-								Kind:              v1.Span_SPAN_KIND_PRODUCER,
-								Status:            &v1.Status{},
-								Attributes: []*v1_common.KeyValue{
-									boolKV("child2", true),
-								},
-							},
 						},
 					},
 				},
@@ -815,6 +872,31 @@ func searchTestSuite() (
 								Attributes: []*v1_common.KeyValue{
 									stringKV("foo", "Bar"),
 									boolKV("parent", true),
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: &v1_resource.Resource{
+					Attributes: []*v1_common.KeyValue{
+						stringKV("service.name", "Service3"),
+					},
+				},
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{
+								TraceId:           id,
+								SpanId:            []byte{7, 8, 9},
+								ParentSpanId:      []byte{4, 5, 6},
+								StartTimeUnixNano: uint64(1000 * time.Second),
+								EndTimeUnixNano:   uint64(1001 * time.Second),
+								Kind:              v1.Span_SPAN_KIND_PRODUCER,
+								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
+								Attributes: []*v1_common.KeyValue{
+									boolKV("child2", true),
 								},
 							},
 						},
@@ -915,7 +997,7 @@ func searchTestSuite() (
 		makeReq("http.method", "post"),
 		makeReq("http.url", "asdf"),
 		makeReq("http.status_code", "200"),
-		makeReq("status.code", "ok"),
+		// makeReq("status.code", "ok"),
 		makeReq("root.service.name", "NotRootService"),
 		makeReq("root.name", "NotRootSpan"),
 

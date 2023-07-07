@@ -94,6 +94,9 @@ func (s *span) attributesMatched() int {
 	if len(s.id) > 0 {
 		count++
 	}
+	if s.nestedSetLeft > 0 || s.nestedSetRight > 0 || s.nestedSetParent > 0 {
+		count++
+	}
 
 	return count
 }
@@ -218,13 +221,13 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	typ        traceql.StaticType
 	columnPath string
 }{
-	traceql.IntrinsicName:          {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
-	traceql.IntrinsicStatus:        {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
-	traceql.IntrinsicDuration:      {intrinsicScopeSpan, traceql.TypeDuration, columnPathDurationNanos},
-	traceql.IntrinsicKind:          {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
-	traceql.IntrinsicSpanID:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
-	traceql.IntrinsicSpanStartTime: {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
-	traceql.IntrinsicStructural:    {intrinsicScopeSpan, traceql.TypeNil, ""},
+	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
+	traceql.IntrinsicStatus:               {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
+	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathDurationNanos},
+	traceql.IntrinsicKind:                 {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
+	traceql.IntrinsicSpanID:               {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
+	traceql.IntrinsicSpanStartTime:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
+	traceql.IntrinsicStructuralDescendant: {intrinsicScopeSpan, traceql.TypeNil, ""},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -813,6 +816,13 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
+	selectColumnIfNotAlready := func(path string) {
+		if columnPredicates[path] == nil {
+			addPredicate(path, nil)
+			columnSelectAs[path] = path
+		}
+	}
+
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
@@ -870,13 +880,16 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
 			continue
 
-		case traceql.IntrinsicStructural:
-			addPredicate(columnPathSpanNestedSetLeft, nil)
-			addPredicate(columnPathSpanNestedSetRight, nil)
-			addPredicate(columnPathSpanParentID, nil)
-			columnSelectAs[columnPathSpanNestedSetLeft] = columnPathSpanNestedSetLeft
-			columnSelectAs[columnPathSpanNestedSetRight] = columnPathSpanNestedSetRight
-			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
+		case traceql.IntrinsicStructuralDescendant:
+			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
+			selectColumnIfNotAlready(columnPathSpanNestedSetRight)
+
+		case traceql.IntrinsicStructuralChild:
+			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
+			selectColumnIfNotAlready(columnPathSpanParentID)
+
+		case traceql.IntrinsicStructuralSibling:
+			selectColumnIfNotAlready(columnPathSpanParentID)
 		}
 
 		// Well-known attribute?

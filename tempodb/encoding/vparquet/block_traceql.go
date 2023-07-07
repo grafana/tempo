@@ -230,7 +230,8 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 func checkConditions(conditions []traceql.Condition) error {
 	for _, cond := range conditions {
-		if cond.Attribute.Intrinsic == traceql.IntrinsicStructural {
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicStructuralDescendant, traceql.IntrinsicStructuralChild, traceql.IntrinsicStructuralSibling:
 			return common.ErrUnsupported
 		}
 

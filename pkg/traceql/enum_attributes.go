@@ -61,7 +61,9 @@ const (
 	// not yet implemented in traceql but will be
 	IntrinsicParent
 
-	IntrinsicStructural
+	IntrinsicStructuralDescendant
+	IntrinsicStructuralSibling
+	IntrinsicStructuralChild
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
