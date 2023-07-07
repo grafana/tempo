@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"sort"
+	"strconv"
+	"text/tabwriter"
 	"time"
-
-	"github.com/stoewer/parquet-cli/pkg/output"
 
 	"github.com/segmentio/parquet-go"
 
@@ -23,15 +26,17 @@ import (
 var (
 	spanAttrValPaths = []string{
 		vparquet2.FieldSpanAttrVal,
-		vparquet2.FieldSpanAttrValInt,
-		vparquet2.FieldSpanAttrValDouble,
-		vparquet2.FieldSpanAttrValBool,
+		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
+		//vparquet2.FieldSpanAttrValInt,
+		//vparquet2.FieldSpanAttrValDouble,
+		//vparquet2.FieldSpanAttrValBool,
 	}
 	resourceAttrValPaths = []string{
 		vparquet2.FieldResourceAttrVal,
-		vparquet2.FieldResourceAttrValInt,
-		vparquet2.FieldResourceAttrValDouble,
-		vparquet2.FieldResourceAttrValBool,
+		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
+		//vparquet2.FieldResourceAttrValInt,
+		//vparquet2.FieldResourceAttrValDouble,
+		//vparquet2.FieldResourceAttrValBool,
 	}
 )
 
@@ -97,17 +102,33 @@ func processBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantI
 	}
 
 	// Aggregate span attributes
-	fmt.Println("Aggregating span attributes stats")
-	if err := aggregateAttributes(pf, vparquet2.FieldSpanAttrKey, spanAttrValPaths); err != nil {
+	spanAttrsSummary, err := aggregateAttributes(pf, vparquet2.FieldSpanAttrKey, spanAttrValPaths)
+	if err != nil {
+		return err
+	}
+	if err := printSummary("span", spanAttrsSummary); err != nil {
 		return err
 	}
 
 	// Aggregate resource attributes
-	fmt.Println("Aggregating resource attributes stats")
-	return aggregateAttributes(pf, vparquet2.FieldResourceAttrKey, resourceAttrValPaths)
+	resourceAttrsSummary, err := aggregateAttributes(pf, vparquet2.FieldResourceAttrKey, resourceAttrValPaths)
+	if err != nil {
+		return err
+	}
+	return printSummary("resource", resourceAttrsSummary)
 }
 
-func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) error {
+type genericAttrSummary struct {
+	totalBytes uint64
+	attributes []attribute
+}
+
+type attribute struct {
+	name  string
+	bytes uint64
+}
+
+func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) (genericAttrSummary, error) {
 	keyIdx, _ := pq.GetColumnIndexByPath(pf, keyPath)
 	var valueIdxs []int
 	for _, v := range valuePaths {
@@ -121,9 +142,56 @@ func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) 
 	}
 	rowStats, err := inspect.NewAggregateCalculator(pf, opts)
 	if err != nil {
-		return err
+		return genericAttrSummary{}, err
 	}
 
+	// Assert rowStats.Header() format is [Key <string> 49/Value: size values nulls]
+
+	var (
+		attrList   []attribute
+		totalBytes uint64
+	)
+LOOP:
+	for {
+		row, err := rowStats.NextRow()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break LOOP
+			}
+			return genericAttrSummary{}, err
+		}
+
+		cells := row.Cells()
+
+		name := cells[0].(string)
+		bytes := uint64(cells[1].(int))
+		attrList = append(attrList, attribute{name, bytes})
+		totalBytes += bytes
+	}
+
+	// Sort attributes by size (large to small)
+	sort.Slice(attrList, func(i, j int) bool { return attrList[i].bytes > attrList[j].bytes })
+
+	return genericAttrSummary{
+		totalBytes,
+		attrList,
+	}, nil
+}
+
+func printSummary(scope string, summary genericAttrSummary) error {
 	// TODO: Support more output formats
-	return output.PrintTable(os.Stdout, output.FormatTab, rowStats)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+
+	// TODO: Make configurable
+	fmt.Printf("Top %s attributes by size\n", scope) // Print top 10 attributes
+	for i := 0; i < 10 && i < len(summary.attributes); i++ {
+		a := summary.attributes[i]
+		percentage := float64(a.bytes) / float64(summary.totalBytes) * 100
+		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", a.name, humanize.Bytes(a.bytes), strconv.FormatFloat(percentage, 'f', 2, 64))
+		if err != nil {
+			return err
+		}
+	}
+
+	return w.Flush()
 }
