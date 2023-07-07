@@ -80,6 +80,21 @@ message SearchBlockRequest {
   string version = 9;
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
+  repeated DedicatedColumn dedicatedColumns = 12;
+}
+
+// Configuration for a single dedicated attribute column.
+message DedicatedColumn {
+  enum Scope {
+    SPAN = 0;
+    RESOURCE = 1;
+  }
+  enum Type {
+    STRING = 0;
+  }
+  Scope scope = 3;
+  string name = 2;
+  Type type = 1;
 }
 
 message SearchResponse {

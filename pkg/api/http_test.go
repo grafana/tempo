@@ -366,6 +366,32 @@ func TestParseSearchBlockRequest(t *testing.T) {
 				FooterSize:    2000,
 			},
 		},
+		{
+			url: "/?tags=foo%3Dbar&start=10&end=20&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dedicatedColumns=%5B%7B%22type%22%3A0%2C%22name%22%3A%22net.sock.host.addr%22%2C%22scope%22%3A0%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
+			expected: &tempopb.SearchBlockRequest{
+				SearchReq: &tempopb.SearchRequest{
+					Tags: map[string]string{
+						"foo": "bar",
+					},
+					Start:           10,
+					End:             20,
+					Limit:           defaultLimit,
+					SpansPerSpanSet: defaultSpansPerSpanSet,
+				},
+				StartPage:     0,
+				PagesToSearch: 10,
+				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
+				Encoding:      "none",
+				IndexPageSize: 0,
+				TotalRecords:  2,
+				Version:       "vParquet3",
+				Size_:         1000,
+				FooterSize:    2000,
+				DedicatedColumns: []*tempopb.DedicatedColumn{
+					{Scope: tempopb.DedicatedColumn_SPAN, Name: "net.sock.host.addr", Type: tempopb.DedicatedColumn_STRING},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -442,6 +468,24 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				FooterSize:    2000,
 			},
 			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&footerSize=2000&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&pagesToSearch=10&size=1000&start=10&startPage=0&tags=foo%3Dbar&totalRecords=11&version=v2",
+		},
+		{
+			req: &tempopb.SearchBlockRequest{
+				StartPage:     0,
+				PagesToSearch: 10,
+				BlockID:       "b92ec614-3fd7-4299-b6db-f657e7025a9b",
+				Encoding:      "none",
+				IndexPageSize: 0,
+				TotalRecords:  2,
+				Version:       "vParquet3",
+				Size_:         1000,
+				FooterSize:    2000,
+				DedicatedColumns: []*tempopb.DedicatedColumn{
+					{Scope: tempopb.DedicatedColumn_RESOURCE, Name: "net.sock.host.addr", Type: tempopb.DedicatedColumn_STRING},
+				},
+			},
+			httpReq: httptest.NewRequest("GET", "/test/path", nil),
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dedicatedColumns=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
 		},
 	}
 

@@ -379,17 +379,24 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			subR := parent.Clone(ctx)
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
-			subR, err := api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
-				BlockID:       blockID,
-				StartPage:     uint32(startPage),
-				PagesToSearch: uint32(pages),
-				Encoding:      m.Encoding.String(),
-				IndexPageSize: m.IndexPageSize,
-				TotalRecords:  m.TotalRecords,
-				DataEncoding:  m.DataEncoding,
-				Version:       m.Version,
-				Size_:         m.Size,
-				FooterSize:    m.FooterSize,
+			dc, err := backend.DedicateColumnsToTempopb(m.DedicatedColumns)
+			if err != nil {
+				reqCh <- &backendReqMsg{err: err}
+				return
+			}
+
+			subR, err = api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
+				BlockID:          blockID,
+				StartPage:        uint32(startPage),
+				PagesToSearch:    uint32(pages),
+				Encoding:         m.Encoding.String(),
+				IndexPageSize:    m.IndexPageSize,
+				TotalRecords:     m.TotalRecords,
+				DataEncoding:     m.DataEncoding,
+				Version:          m.Version,
+				Size_:            m.Size,
+				FooterSize:       m.FooterSize,
+				DedicatedColumns: dc,
 			})
 
 			if err != nil {
