@@ -1,7 +1,7 @@
 ---
-title: TraceQL query editor
-menuTitle: TraceQL query editor
-description: Learn how to use the TraceQL query editor
+title: TraceQL queries in Grafana
+menuTitle: TraceQL queries in Grafana
+description: Learn how to create TraceQL queries in Grafana using the query editor and search.
 aliases:
   - /docs/tempo/latest/traceql/construct-query
 weight: 400
@@ -11,19 +11,62 @@ keywords:
   - TraceQL
 ---
 
-# TraceQL query editor
+# TraceQL queries in Grafana
 
-You can use the TraceQL viewer and query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface.
+You can use compose TraceQL queries in Grafana and Grafana Cloud using the Search in Explore and the TraceQL viewer and query editor in the Tempo data source.
+Both of these methods let you build queries and drill-down into result sets.
+
+To add TraceQL panels to your dashboard, refer to the [Traces panel documentation](/docs/grafana/latest/panels-visualizations/visualizations/traces/).
 
 {{% admonition type="note" %}}
-To use the TraceQL query editor in Grafana, you need to enable the `traceqlEditor` feature flag. This feature is available starting in Grafana 9.3.2. The query editory is available automatically in Grafana Cloud.
+To use the TraceQL query editor in Grafana 9.3.2 and newer, you need to enable the `traceqlEditor` feature flag.
+
+To enable the Trace Search in Grafana 10 and newer, you need to enable the `traceqlSearch` feature flag.
+
+The query editor and search are available in Grafana Cloud without enabling a feature flag.
 {{% /admonition %}}
+
+## Create TraceQL queries using the query editor
+
+The Tempo data source’s query editor helps you query and display traces from Tempo in **Explore**.
+
+To access the query editor, follow these steps:
+
+1. Sign into Grafana or Grafana Cloud.
+1. Select your Tempo data source.
+1. From the menu, choose **Explore** and select the **TraceQL** tab.
+1. Start your query on the text line by entering `{{`. For help with TraceQL syntax, refer to the [Construct a TraceQL query documentation]({{< relref "./traceql" >}}).
+1. Once you have finished your query, select **Run query**.
 
 ![Query editor showing request for http.method](/static/img/docs/tempo/query-editor-http-method.png)
 
-Using the query editor, you can use the editor’s autocomplete suggestions to write queries. The editor detects span sets to provide relevant autocomplete options. It uses regular expressions (regex) to detect where it is inside a spanset and provide attribute names, scopes, intrinsic names, logic operators, or attribute values from Tempo's API, depending on what is expected for the current situation.
+### Query by TraceID
+
+To query a particular trace:
+
+1. From the menu, choose **Explore** and select the **TraceQL** tab.
+1. Enter the trace’s ID into the query field.
+1. Select **Run query**.
+
+### Use autocomplete to write queries
+
+You can use the query editor’s autocomplete suggestions to write queries.
+The editor detects span sets to provide relevant autocomplete options.
+It uses regular expressions (regex) to detect where it is inside a spanset and provide attribute names, scopes, intrinsic names, logic operators, or attribute values from Tempo's API, depending on what is expected for the current situation.
+
+To create a query using autocomplete, follow these steps:
+
+1. Use the steps above to access the query editor and begin your query.
+
+1. Enter your query. As you type your query, autocomplete suggestions appear as a drop-down. Each letter you enter refines the autocomplete options to match.
+
+1. Use your mouse or arrow keys to select any option you wish. When the desired option is highlighted, press Tab on your keyboard to add the selection to your query.
+
+1. Once your query is complete, select **Run query** to perform the query.
 
 ![Query editor showing the auto-complete feature](/static/img/docs/tempo/query-editor-auto-complete.png)
+
+### View query results
 
 Query results are returned in a table. Selecting the Trace ID or Span ID provides more detailed information.
 
