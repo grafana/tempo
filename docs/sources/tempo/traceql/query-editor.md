@@ -1,6 +1,6 @@
 ---
-title: TraceQL queries in Grafana
-menuTitle: TraceQL queries in Grafana
+title: Create TraceQL queries in Grafana
+menuTitle: Create TraceQL queries in Grafana
 description: Learn how to create TraceQL queries in Grafana using the query editor and search.
 aliases:
   - /docs/tempo/latest/traceql/construct-query
@@ -11,7 +11,7 @@ keywords:
   - TraceQL
 ---
 
-# TraceQL queries in Grafana
+# Create TraceQL queries in Grafana
 
 You can use compose TraceQL queries in Grafana and Grafana Cloud using the Search in Explore and the TraceQL viewer and query editor in the Tempo data source.
 Both of these methods let you build queries and drill-down into result sets.
@@ -35,7 +35,7 @@ To access the query editor, follow these steps:
 1. Sign into Grafana or Grafana Cloud.
 1. Select your Tempo data source.
 1. From the menu, choose **Explore** and select the **TraceQL** tab.
-1. Start your query on the text line by entering `{{`. For help with TraceQL syntax, refer to the [Construct a TraceQL query documentation]({{< relref "./traceql" >}}).
+1. Start your query on the text line by entering `{{`. For help with TraceQL syntax, refer to the [Construct a TraceQL query documentation]({{< relref "./_index.md" >}}).
 1. Once you have finished your query, select **Run query**.
 
 ![Query editor showing request for http.method](/static/img/docs/tempo/query-editor-http-method.png)
