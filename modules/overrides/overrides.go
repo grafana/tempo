@@ -430,7 +430,7 @@ func (o *overrides) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MetricsGeneratorMaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries, tenant)
 
 		if limits.MetricsGeneratorDisableCollection {
-			ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(1), MetricMetricsGeneratorMaxActiveSeries, tenant)
+			ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(1), MetricsGeneratorDryRunEnabled, tenant)
 		}
 	}
 }

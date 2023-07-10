@@ -33,6 +33,7 @@ const (
 	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
 	MetricBlockRetention                  = "block_retention"
 	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
+	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
 
 var (
