@@ -121,7 +121,7 @@ func newUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service)
 	mgr.subservicesWatcher = services.NewFailureWatcher()
 	mgr.subservicesWatcher.WatchManager(mgr.subservices)
 
-	mgr.Service = services.NewBasicService(mgr.starting, mgr.loop, mgr.stopping)
+	mgr.Service = services.NewBasicService(mgr.starting, mgr.running, mgr.stopping)
 
 	return &mgr, nil
 }
@@ -156,7 +156,7 @@ func (o *userConfigOverridesManager) starting(ctx context.Context) error {
 	return o.reloadAllTenantLimits(ctx)
 }
 
-func (o *userConfigOverridesManager) loop(ctx context.Context) error {
+func (o *userConfigOverridesManager) running(ctx context.Context) error {
 	ticker := time.NewTicker(o.cfg.PollInterval)
 	defer ticker.Stop()
 
