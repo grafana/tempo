@@ -28,8 +28,7 @@ Client instrumentation is the process of adding instrumentation points in the ap
 create and offload spans.
 
 {{% admonition type="note" %}}
-To learn more about instrumentation, read [instrumentation references]({{< relref "./instrumentation" >}}) to learn how to instrument your
-favorite language for distributed tracing.
+To learn more about instrumentation, read the [Instrument for tracing]({{< relref "./instrumentation" >}}) documentation to learn how to instrument your favorite language for distributed tracing.
 {{% /admonition %}}
 
 ## Pipeline (Grafana Agent)
