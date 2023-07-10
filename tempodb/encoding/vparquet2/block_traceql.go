@@ -15,7 +15,6 @@ import (
 	"github.com/segmentio/parquet-go"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -333,7 +332,7 @@ func operandType(operands traceql.Operands) traceql.StaticType {
 
 // spansetIterator turns the parquet iterator into the final
 // traceql iterator.  Every row it receives is one spanset.
-var _ pq.Iterator = (*bridgeIterator)(nil)
+var _ parquetquery.Iterator = (*bridgeIterator)(nil)
 
 // bridgeIterator creates a bridge between one iterator pass and the next
 type bridgeIterator struct {
@@ -354,7 +353,7 @@ func (i *bridgeIterator) String() string {
 	return fmt.Sprintf("bridgeIterator: \n\t%s", util.TabOut(i.iter))
 }
 
-func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
+func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 	// drain current buffer
 	if len(i.nextSpans) > 0 {
 		ret := i.nextSpans[0]
@@ -422,17 +421,17 @@ func (i *bridgeIterator) Next() (*pq.IteratorResult, error) {
 	}
 }
 
-func spanToIteratorResult(s *span) *pq.IteratorResult {
-	res := &pq.IteratorResult{RowNumber: s.rowNum}
+func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
+	res := &parquetquery.IteratorResult{RowNumber: s.rowNum}
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
 	return res
 }
 
-func (i *bridgeIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
-	var at *pq.IteratorResult
+func (i *bridgeIterator) SeekTo(to parquetquery.RowNumber, definitionLevel int) (*parquetquery.IteratorResult, error) {
+	var at *parquetquery.IteratorResult
 
-	for at, _ = i.Next(); i != nil && at != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
+	for at, _ = i.Next(); i != nil && at != nil && parquetquery.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
 		at, _ = i.Next()
 	}
 
@@ -443,8 +442,8 @@ func (i *bridgeIterator) Close() {
 	i.iter.Close()
 }
 
-// confirm rebatchIterator implements pq.Iterator
-var _ pq.Iterator = (*rebatchIterator)(nil)
+// confirm rebatchIterator implements parquetquery.Iterator
+var _ parquetquery.Iterator = (*rebatchIterator)(nil)
 
 // rebatchIterator either passes spansets through directly OR rebatches them based on metadata
 // in OtherEntries
@@ -468,7 +467,7 @@ func (i *rebatchIterator) String() string {
 // that does not have a callback spanset. These can be passed directly through.
 // Second is a set of spans that have spansets imposed by the callback (i.e. for grouping)
 // these must be regrouped into the callback spansets
-func (i *rebatchIterator) Next() (*pq.IteratorResult, error) {
+func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 	for {
 		// see if we have a queue
 		res := i.resultFromNextSpans()
@@ -536,13 +535,13 @@ func (i *rebatchIterator) Next() (*pq.IteratorResult, error) {
 	}
 }
 
-func (i *rebatchIterator) resultFromNextSpans() *pq.IteratorResult {
+func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 	for len(i.nextSpans) > 0 {
 		ret := i.nextSpans[0]
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := &pq.IteratorResult{}
+			res := &parquetquery.IteratorResult{}
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -551,7 +550,7 @@ func (i *rebatchIterator) resultFromNextSpans() *pq.IteratorResult {
 	return nil
 }
 
-func (i *rebatchIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
+func (i *rebatchIterator) SeekTo(to parquetquery.RowNumber, definitionLevel int) (*parquetquery.IteratorResult, error) {
 	return i.iter.SeekTo(to, definitionLevel)
 }
 
@@ -1098,7 +1097,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		case traceql.IntrinsicTraceID:
 			traceIters = append(traceIters, makeIter(columnPathTraceID, nil, columnPathTraceID))
 		case traceql.IntrinsicTraceDuration:
-			var pred pq.Predicate
+			var pred parquetquery.Predicate
 			if allConditions {
 				pred, err = createIntPredicate(cond.Op, cond.Operands)
 				if err != nil {
@@ -1111,7 +1110,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
 			}
 		case traceql.IntrinsicTraceRootSpan:
-			var pred pq.Predicate
+			var pred parquetquery.Predicate
 			if allConditions {
 				pred, err = createStringPredicate(cond.Op, cond.Operands)
 				if err != nil {
@@ -1120,7 +1119,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 			}
 			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
 		case traceql.IntrinsicTraceRootService:
-			var pred pq.Predicate
+			var pred parquetquery.Predicate
 			if allConditions {
 				pred, err = createStringPredicate(cond.Op, cond.Operands)
 				if err != nil {
