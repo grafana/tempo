@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var errSpansetOperationMultiple = errors.New("spanset operators are not supported for multiple spansets per trace. consider using coalesce()")
+
 func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	result := make([]*Spanset, 0, len(ss))
 	groups := g.groupBuffer
@@ -99,68 +101,50 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			}
 
 		case OpSpansetDescendant:
-			if len(lhs) > 0 && len(rhs) > 0 {
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				return r.DescendantOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
 				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
 				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = nil
-				// TODO: In what situations do lhs and rhs have more than one spanset,
-				// and what should the result be?
-				for _, l := range lhs[0].Spans {
-					for i, r := range rhs[0].Spans {
-						if r == nil {
-							continue
-						}
-						if r.DescendantOf(l) {
-							// Returns RHS
-							matchingSpanset.Spans = append(matchingSpanset.Spans, r)
-							rhs[0].Spans[i] = nil // No need to check this span again
-						}
-					}
-				}
+				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
 			}
 
 		case OpSpansetChild:
-			if len(lhs) > 0 && len(rhs) > 0 {
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				return r.ChildOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
 				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
 				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = nil
-				// TODO: In what situations do lhs and rhs have more than one spanset,
-				// and what should the result be?
-				for _, l := range lhs[0].Spans {
-					for i, r := range rhs[0].Spans {
-						if r == nil {
-							continue
-						}
-						if r.ChildOf(l) {
-							// Returns RHS
-							matchingSpanset.Spans = append(matchingSpanset.Spans, r)
-							rhs[0].Spans[i] = nil // No need to check this span again
-						}
-					}
-				}
+				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
 			}
 
 		case OpSpansetSibling:
-			if len(lhs) > 0 && len(rhs) > 0 {
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				return r.SiblingOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
 				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
 				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = nil
-				// TODO: In what situations do lhs and rhs have more than one spanset,
-				// and what should the result be?
-				for _, l := range lhs[0].Spans {
-					for i, r := range rhs[0].Spans {
-						if r == nil {
-							continue
-						}
-						if r.SiblingOf(l) {
-							// Returns RHS
-							matchingSpanset.Spans = append(matchingSpanset.Spans, r)
-							rhs[0].Spans[i] = nil // No need to check this span again
-						}
-					}
-				}
+				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
 			}
 
@@ -170,6 +154,48 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 	}
 
 	return output, nil
+}
+
+// joinSpansets compares all pairwise combinations of the inputs and returns the right-hand side
+// where the eval callback returns true.  For now the behavior is only defined when there is exactly one
+// spanset on both sides and will return an error if multiple spansets are present.
+func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(l, r Span) bool) ([]Span, error) {
+	if len(lhs) < 1 || len(rhs) < 1 {
+		return nil, nil
+	}
+
+	if len(lhs) > 1 || len(rhs) > 1 {
+		return nil, errSpansetOperationMultiple
+	}
+
+	return o.joinSpansAndReturnRHS(lhs[0].Spans, rhs[0].Spans, eval), nil
+}
+
+// joinSpansAndReturnRHS compares all pairwise combinations of the inputs and returns the right-hand side
+// spans where the eval callback returns true.  Uses and internal buffer and output is only valid until
+// the next call.  Destructively edits the RHS slice for performance.
+func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, eval func(l, r Span) bool) []Span {
+	if len(lhs) == 0 || len(rhs) == 0 {
+		return nil
+	}
+
+	o.matchingSpansBuffer = o.matchingSpansBuffer[:0]
+
+	for _, l := range lhs {
+		for i, r := range rhs {
+			if r == nil {
+				// Already matched
+				continue
+			}
+			if eval(l, r) {
+				// Returns RHS
+				o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
+				rhs[i] = nil // No need to check this span again
+			}
+		}
+	}
+
+	return o.matchingSpansBuffer
 }
 
 // SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes

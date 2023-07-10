@@ -226,9 +226,10 @@ type SpansetExpression interface {
 }
 
 type SpansetOperation struct {
-	Op  Operator
-	LHS SpansetExpression
-	RHS SpansetExpression
+	Op                  Operator
+	LHS                 SpansetExpression
+	RHS                 SpansetExpression
+	matchingSpansBuffer []Span
 }
 
 func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {

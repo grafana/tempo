@@ -349,13 +349,25 @@ type mockSpan struct {
 	durationNanos      uint64
 	attributes         map[Attribute]Static
 
-	nestedsetid, left, right int
+	parentID, left, right int
 }
 
-func (m *mockSpan) WithNestedSetInfo(id, left, right int) *mockSpan {
-	m.nestedsetid = id
+func newMockSpan(id []byte) *mockSpan {
+	return &mockSpan{
+		id:         id,
+		attributes: map[Attribute]Static{},
+	}
+}
+
+func (m *mockSpan) WithNestedSetInfo(parentid, left, right int) *mockSpan {
+	m.parentID = parentid
 	m.left = left
 	m.right = right
+	return m
+}
+
+func (m *mockSpan) WithAttrBool(key string, value bool) *mockSpan {
+	m.attributes[NewAttribute(key)] = NewStaticBool(value)
 	return m
 }
 
@@ -377,16 +389,22 @@ func (m *mockSpan) DurationNanos() uint64 {
 
 func (m *mockSpan) DescendantOf(s Span) bool {
 	if ss, ok := s.(*mockSpan); ok {
-		return m.nestedsetid > ss.left && m.nestedsetid < ss.right
+		return m.left > ss.left && m.left < ss.right
 	}
 
 	return false
 }
 
-func (m *mockSpan) SiblingOf(Span) bool {
+func (m *mockSpan) SiblingOf(s Span) bool {
+	if ss, ok := s.(*mockSpan); ok {
+		return m.parentID == ss.parentID
+	}
 	return false
 }
 
-func (m *mockSpan) ChildOf(Span) bool {
+func (m *mockSpan) ChildOf(s Span) bool {
+	if ss, ok := s.(*mockSpan); ok {
+		return m.parentID == ss.left
+	}
 	return false
 }
