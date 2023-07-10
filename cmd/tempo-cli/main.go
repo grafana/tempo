@@ -48,7 +48,8 @@ var cli struct {
 	} `cmd:""`
 
 	Analyse struct {
-		Block analyseBlockCmd `cmd:"" help:"Analyse block in a bucket"`
+		Block  analyseBlockCmd  `cmd:"" help:"Analyse block in a bucket"`
+		Blocks analyseBlocksCmd `cmd:"" help:"Analyse blocks in a bucket"`
 	} `cmd:""`
 
 	View struct {
@@ -89,7 +90,7 @@ func main() {
 	ctx := kong.Parse(&cli,
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
-			//Compact: true,
+			// Compact: true,
 		}),
 	)
 	err := ctx.Run(&cli.globalOptions)

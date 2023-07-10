@@ -75,11 +75,16 @@ func resourcePathsForVersion(v string) (string, []string) {
 	return "", nil
 }
 
+type parquetBlock interface {
+	Open(ctx context.Context) (*parquet.File, *parquet.Reader, error)
+}
+
 type analyseBlockCmd struct {
 	backendOptions
 
 	BlockID  string `arg:"" help:"block ID to list"`
 	TenantID string `arg:"" help:"tenant-id within the bucket"`
+	Num      int    `arg:"" help:"Number of attributes to display" default:"15"`
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
@@ -88,87 +93,95 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	return processBlock(r, c, cmd.TenantID, time.Hour, cmd.BlockID)
+	blockSum, err := processBlock(r, c, cmd.TenantID, cmd.BlockID, time.Hour, 0)
+	if err != nil {
+		return err
+	}
+
+	if blockSum == nil {
+		return errors.New("failed to process block")
+	}
+
+	return blockSum.print(cmd.Num)
 }
 
-func processBlock(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, blockID string) error {
+func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID string, _ time.Duration, minCompactionLvl uint8) (*blockSummary, error) {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
 	if err != nil && err != backend.ErrDoesNotExist {
-		return err
+		return nil, err
 	}
 
-	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != backend.ErrDoesNotExist {
-		return err
-	}
+	// TODO: Include compacted blocks? We could be processing block data multiple times
+	//compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
+	//if err != nil && err != backend.ErrDoesNotExist {
+	//	return err
+	//}
 
-	if meta == nil && compactedMeta == nil {
+	if meta == nil {
 		fmt.Println("Unable to load any meta for block", blockID)
-		return nil
+		return nil, nil
 	}
 
-	unifiedMeta := getMeta(meta, compactedMeta, windowRange)
+	// unifiedMeta := getMeta(meta, compactedMeta, windowRange)
 
-	fmt.Println("ID            : ", unifiedMeta.BlockID)
-	fmt.Println("Version       : ", unifiedMeta.Version)
-	fmt.Println("Total Objects : ", unifiedMeta.TotalObjects)
-	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.Size))
-	fmt.Println("Encoding      : ", unifiedMeta.Encoding)
-	fmt.Println("Level         : ", unifiedMeta.CompactionLevel)
-	fmt.Println("Window        : ", unifiedMeta.window)
-	fmt.Println("Start         : ", unifiedMeta.StartTime)
-	fmt.Println("End           : ", unifiedMeta.EndTime)
-	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.EndTime.Sub(unifiedMeta.StartTime).Round(time.Second)))
-	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
-
-	type parquetBlock interface {
-		Open(ctx context.Context) (*parquet.File, *parquet.Reader, error)
+	if meta.CompactionLevel < minCompactionLvl {
+		return nil, nil
 	}
 
 	var block parquetBlock
-	switch unifiedMeta.Version {
+	switch meta.Version {
 	case vparquet.VersionString:
 		block = vparquet.NewBackendBlock(meta, r)
 	case vparquet2.VersionString:
 		block = vparquet2.NewBackendBlock(meta, r)
 	default:
-		return fmt.Errorf(
-			"cannot scan block contents. Unsupported block version: %s. Only parquet versions are supported",
-			unifiedMeta.Version,
-		)
+		fmt.Println("Unsupported block version:", meta.Version)
+		return nil, nil
 	}
 
 	fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
 
 	pf, _, err := block.Open(context.Background())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Aggregate span attributes
-	spanKey, spanVals := spanPathsForVersion(unifiedMeta.Version)
+	spanKey, spanVals := spanPathsForVersion(meta.Version)
 	spanAttrsSummary, err := aggregateAttributes(pf, spanKey, spanVals)
 	if err != nil {
-		return err
-	}
-	if err := printSummary("span", spanAttrsSummary); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Aggregate resource attributes
-	resourceKey, resourceVals := resourcePathsForVersion(unifiedMeta.Version)
+	resourceKey, resourceVals := resourcePathsForVersion(meta.Version)
 	resourceAttrsSummary, err := aggregateAttributes(pf, resourceKey, resourceVals)
 	if err != nil {
+		return nil, err
+	}
+
+	return &blockSummary{
+		spanSummary:     spanAttrsSummary,
+		resourceSummary: resourceAttrsSummary,
+	}, nil
+}
+
+type blockSummary struct {
+	spanSummary, resourceSummary genericAttrSummary
+}
+
+func (s *blockSummary) print(maxAttr int) error {
+	if err := printSummary("span", maxAttr, s.spanSummary); err != nil {
 		return err
 	}
-	return printSummary("resource", resourceAttrsSummary)
+	return printSummary("resource", maxAttr, s.resourceSummary)
 }
 
 type genericAttrSummary struct {
 	totalBytes uint64
-	attributes []attribute
+	attributes map[string]uint64 // key: attribute name, value: total bytes
 }
 
 type attribute struct {
@@ -193,12 +206,8 @@ func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) 
 		return genericAttrSummary{}, err
 	}
 
-	// TODO: assert rowStats.Header() format
-
-	var (
-		attrList   []attribute
-		totalBytes uint64
-	)
+	attrMap := make(map[string]uint64)
+	totalBytes := uint64(0)
 
 	for {
 		row, err := rowStats.NextRow()
@@ -213,27 +222,27 @@ func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) 
 
 		name := cells[0].(string)
 		bytes := uint64(cells[1].(int))
-		attrList = append(attrList, attribute{name, bytes})
+		attrMap[name] = bytes
 		totalBytes += bytes
 	}
 
-	// Sort attributes by size (large to small)
-	sort.Slice(attrList, func(i, j int) bool { return attrList[i].bytes > attrList[j].bytes })
-
 	return genericAttrSummary{
 		totalBytes: totalBytes,
-		attributes: attrList,
+		attributes: attrMap,
 	}, nil
 }
 
-func printSummary(scope string, summary genericAttrSummary) error {
+func printSummary(scope string, max int, summary genericAttrSummary) error {
 	// TODO: Support more output formats
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
-	// TODO: Make configurable
-	fmt.Printf("Top %s attributes by size\n", scope) // Print top 10 attributes
-	for i := 0; i < 10 && i < len(summary.attributes); i++ {
-		a := summary.attributes[i]
+	if max > len(summary.attributes) {
+		max = len(summary.attributes)
+	}
+
+	fmt.Printf("Top %d %s attributes by size\n", max, scope)
+	attrList := topN(max, summary.attributes)
+	for _, a := range attrList {
 		percentage := float64(a.bytes) / float64(summary.totalBytes) * 100
 		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", a.name, humanize.Bytes(a.bytes), strconv.FormatFloat(percentage, 'f', 2, 64))
 		if err != nil {
@@ -242,4 +251,18 @@ func printSummary(scope string, summary genericAttrSummary) error {
 	}
 
 	return w.Flush()
+}
+
+func topN(n int, attrs map[string]uint64) []attribute {
+	top := make([]attribute, 0, len(attrs))
+	for name, bytes := range attrs {
+		top = append(top, attribute{name, bytes})
+	}
+	sort.Slice(top, func(i, j int) bool {
+		return top[i].bytes > top[j].bytes
+	})
+	if len(top) > n {
+		top = top[:n]
+	}
+	return top
 }
