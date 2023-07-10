@@ -121,7 +121,7 @@ func TestBuildBackendRequests(t *testing.T) {
 					Encoding:      backend.EncNone,
 					IndexPageSize: 13,
 					Version:       "vParquet3",
-					DedicatedColumns: []backend.DedicatedColumn{
+					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "net.sock.host.addr", Type: "string"},
 					},
 				},

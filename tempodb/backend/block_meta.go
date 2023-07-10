@@ -40,7 +40,7 @@ func (t DedicatedColumnType) ToTempopb() (tempopb.DedicatedColumn_Type, error) {
 	case DedicatedColumnTypeString:
 		return tempopb.DedicatedColumn_STRING, nil
 	default:
-		return 0, errors.Errorf("invalid value for DedicatedColumnType '%v'", t)
+		return 0, errors.Errorf("invalid value for dedicated column type '%v'", t)
 	}
 }
 
@@ -71,7 +71,7 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 	case DedicatedColumnScopeResource:
 		return tempopb.DedicatedColumn_RESOURCE, nil
 	default:
-		return 0, errors.Errorf("invalid value for DedicatedColumnScope '%v'", s)
+		return 0, errors.Errorf("invalid value for dedicated column scope '%v'", s)
 	}
 }
 
@@ -117,7 +117,7 @@ type BlockMeta struct {
 	// FooterSize contains the size of the footer in bytes (used by parquet)
 	FooterSize uint32 `json:"footerSize"`
 	// DedicatedColumns configuration for attributes (used by vParquet3)
-	DedicatedColumns []DedicatedColumn `json:"dedicatedColumns,omitempty"`
+	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -131,11 +131,14 @@ type DedicatedColumn struct {
 	Type DedicatedColumnType `yaml:"type" json:"type"`
 }
 
+// DedicatedColumns represents a set of configured dedicated columns.
+type DedicatedColumns []DedicatedColumn
+
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc []DedicatedColumn) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          blockID,
@@ -185,10 +188,12 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 //      the hash is computed and that the field is not accessed directly.
 //    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
 
-func (b *BlockMeta) DedicatedColumnsHash() uint64 { return HashColumns(b.DedicatedColumns) }
+func (b *BlockMeta) DedicatedColumnsHash() uint64 {
+	return b.DedicatedColumns.Hash()
+}
 
-func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) ([]DedicatedColumn, error) {
-	cols := make([]DedicatedColumn, 0, len(tempopbCols))
+func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {
+	cols := make(DedicatedColumns, 0, len(tempopbCols))
 
 	for _, c := range tempopbCols {
 		scope, err := DedicatedColumnScopeFromTempopb(c.Scope)
@@ -211,10 +216,10 @@ func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) ([]Dedic
 	return cols, nil
 }
 
-func DedicateColumnsToTempopb(metaCols []DedicatedColumn) ([]*tempopb.DedicatedColumn, error) {
-	tempopbCols := make([]*tempopb.DedicatedColumn, 0, len(metaCols))
+func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
+	tempopbCols := make([]*tempopb.DedicatedColumn, 0, len(dcs))
 
-	for _, c := range metaCols {
+	for _, c := range dcs {
 		scope, err := c.Scope.ToTempopb()
 		if err != nil {
 			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
@@ -235,16 +240,41 @@ func DedicateColumnsToTempopb(metaCols []DedicatedColumn) ([]*tempopb.DedicatedC
 	return tempopbCols, nil
 }
 
+func (dcs DedicatedColumns) Validate() error {
+	for _, dc := range dcs {
+		err := dc.Validate()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (dc *DedicatedColumn) Validate() error {
+	if dc.Name == "" {
+		return errors.New("dedicated column invalid: name must not be empty")
+	}
+	_, err := dc.Type.ToTempopb()
+	if err != nil {
+		return errors.Wrapf(err, "dedicated column '%s' invalid", dc.Name)
+	}
+	_, err = dc.Scope.ToTempopb()
+	if err != nil {
+		return errors.Wrapf(err, "dedicated column '%s' invalid", dc.Name)
+	}
+	return nil
+}
+
 // separatorByte is a byte that cannot occur in valid UTF-8 sequences
 var separatorByte = []byte{255}
 
-// HashColumns hashes the given dedicated columns configuration
-func HashColumns(d []DedicatedColumn) uint64 {
-	if len(d) == 0 {
+// Hash hashes the given dedicated columns configuration
+func (dcs DedicatedColumns) Hash() uint64 {
+	if len(dcs) == 0 {
 		return 0
 	}
 	h := xxhash.New()
-	for _, c := range d {
+	for _, c := range dcs {
 		_, _ = h.WriteString(string(c.Scope))
 		_, _ = h.Write(separatorByte)
 		_, _ = h.WriteString(c.Name)

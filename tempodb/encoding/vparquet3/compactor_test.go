@@ -111,7 +111,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 // Trace IDs are guaranteed to be monotonically increasing so that
 // the block will be iterated in order.
 // nolint: revive
-func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int, dc []backend.DedicatedColumn) *backend.BlockMeta {
+func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int, dc backend.DedicatedColumns) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
 		TenantID:         tenantID,
 		BlockID:          uuid.New(),
@@ -188,7 +188,7 @@ func TestCompact(t *testing.T) {
 		ObjectsCombined: func(compactionLevel, objects int) {},
 	})
 
-	dedicatedColumns := []backend.DedicatedColumn{
+	dedicatedColumns := backend.DedicatedColumns{
 		{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
 		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
 	}

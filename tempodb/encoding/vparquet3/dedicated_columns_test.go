@@ -11,13 +11,13 @@ import (
 func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 	tests := []struct {
 		name            string
-		columns         []backend.DedicatedColumn
+		columns         backend.DedicatedColumns
 		scopes          []backend.DedicatedColumnScope
 		expectedMapping dedicatedColumnMapping
 	}{
 		{
 			name: "scope span",
-			columns: []backend.DedicatedColumn{
+			columns: backend.DedicatedColumns{
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "string"},
@@ -33,7 +33,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 		},
 		{
 			name: "scope resource",
-			columns: []backend.DedicatedColumn{
+			columns: backend.DedicatedColumns{
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "string"},
@@ -50,7 +50,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 		},
 		{
 			name: "all scopes explicit",
-			columns: []backend.DedicatedColumn{
+			columns: backend.DedicatedColumns{
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "string"},
@@ -69,7 +69,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 		},
 		{
 			name: "all scopes implicit",
-			columns: []backend.DedicatedColumn{
+			columns: backend.DedicatedColumns{
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "string"},
@@ -88,7 +88,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 		},
 		{
 			name: "wrong type",
-			columns: []backend.DedicatedColumn{
+			columns: backend.DedicatedColumns{
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "resource", Name: "res.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "integer"}, // ignored
@@ -103,7 +103,7 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 		},
 		{
 			name: "too many columns",
-			columns: []backend.DedicatedColumn{
+			columns: backend.DedicatedColumns{
 				{Scope: "span", Name: "span.one", Type: "string"},
 				{Scope: "span", Name: "span.two", Type: "string"},
 				{Scope: "span", Name: "span.three", Type: "string"},

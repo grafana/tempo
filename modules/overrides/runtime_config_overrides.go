@@ -379,7 +379,7 @@ func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Du
 	return time.Duration(o.getOverridesForUser(userID).MaxSearchDuration)
 }
 
-func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) []backend.DedicatedColumn {
+func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.DedicatedColumns {
 	return o.getOverridesForUser(userID).DedicatedColumns
 }
 

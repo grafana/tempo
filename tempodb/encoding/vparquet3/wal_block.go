@@ -152,7 +152,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(id uuid.UUID, tenantID, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns []backend.DedicatedColumn) (*walBlock, error) {
+func createWALBlock(id uuid.UUID, tenantID, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns backend.DedicatedColumns) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:          VersionString,

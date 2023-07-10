@@ -113,7 +113,7 @@ type instance struct {
 	limiter            *Limiter
 	writer             tempodb.Writer
 
-	dedicatedColumns []backend.DedicatedColumn
+	dedicatedColumns backend.DedicatedColumns
 	overrides        ingesterOverrides
 
 	local       *local.Backend
@@ -125,7 +125,7 @@ type instance struct {
 	autocompleteFilteringEnabled bool
 }
 
-func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool, dedicatedColumns []backend.DedicatedColumn) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: map[uint32]uint32{},
@@ -498,8 +498,14 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) getDedicatedColumns() []backend.DedicatedColumn {
+func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
 	if cols := i.overrides.DedicatedColumns(i.instanceID); cols != nil {
+		err := cols.Validate()
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "tenant", i.instanceID, "error", err)
+			return i.dedicatedColumns
+		}
+
 		return cols
 	}
 	return i.dedicatedColumns

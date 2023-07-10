@@ -100,7 +100,7 @@ type Limits struct {
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 
 	// tempodb limits
-	DedicatedColumns []backend.DedicatedColumn `yaml:"dedicated_columns" json:"dedicated_columns"`
+	DedicatedColumns backend.DedicatedColumns `yaml:"dedicated_columns" json:"dedicated_columns"`
 
 	// Configuration for overrides module, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`

@@ -385,7 +385,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			subR := parent.Clone(ctx)
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
-			dc, err := backend.DedicateColumnsToTempopb(m.DedicatedColumns)
+			dc, err := m.DedicatedColumns.ToTempopb()
 			if err != nil {
 				reqCh <- &backendReqMsg{err: err}
 				return
