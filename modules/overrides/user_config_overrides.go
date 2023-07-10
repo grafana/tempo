@@ -201,7 +201,7 @@ func (o *userConfigOverridesManager) reloadAllTenantLimits(ctx context.Context) 
 
 	// Clean up cached tenants that have been removed from the backend
 	for cachedTenant := range o.tenantLimits {
-		if doesNotContain(tenants, cachedTenant) {
+		if !slices.Contains(tenants, cachedTenant) {
 			delete(o.tenantLimits, cachedTenant)
 		}
 	}
