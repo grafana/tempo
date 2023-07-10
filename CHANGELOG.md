@@ -2,7 +2,7 @@
 
 * [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
 * [CHANGE] Disable tempo-query by default in Jsonnet libs. [#2462](https://github.com/grafana/tempo/pull/2462) (@electron0zero)
-* [FEATURE] New experimental API to derive on-demand RED metrics grouped by any attribute, and new metrics generator processor [#2368](https://github.com/grafana/tempo/pull/2368) [#2418](https://github.com/grafana/tempo/pull/2418) [#2424](https://github.com/grafana/tempo/pull/2424) [#2442](https://github.com/grafana/tempo/pull/2442) [#2480](https://github.com/grafana/tempo/pull/2480) [#2481](https://github.com/grafana/tempo/pull/2481) [#2501](https://github.com/grafana/tempo/pull/2501) [#2579](https://github.com/grafana/tempo/pull/2579) (@mdisibio @zalegrala)
+* [FEATURE] New experimental API to derive on-demand RED metrics grouped by any attribute, and new metrics generator processor [#2368](https://github.com/grafana/tempo/pull/2368) [#2418](https://github.com/grafana/tempo/pull/2418) [#2424](https://github.com/grafana/tempo/pull/2424) [#2442](https://github.com/grafana/tempo/pull/2442) [#2480](https://github.com/grafana/tempo/pull/2480) [#2481](https://github.com/grafana/tempo/pull/2481) [#2501](https://github.com/grafana/tempo/pull/2501) [#2579](https://github.com/grafana/tempo/pull/2579) [#2582](https://github.com/grafana/tempo/pull/2582) (@mdisibio @zalegrala)
 * [FEATURE] Add user-configurable overrides module [#2543](https://github.com/grafana/tempo/pull/2543) (@electron0zero @kvrhdn)
 * [ENHANCEMENT] Add capability to flush all remaining traces to backend when ingester is stopped [#2538](https://github.com/grafana/tempo/pull/2538)
 * [ENHANCEMENT] Fill parent ID column and nested set columns [#2487](https://github.com/grafana/tempo/pull/2487) (@stoewer)
@@ -23,6 +23,39 @@
     tolerate_failed_blocks: <int>
   ```
 * [CHANGE] Upgrade memcached version in jsonnet microservices [#2466](https://github.com/grafana/tempo/pull/2466) (@zalegrala)
+* [CHANGE] **Breaking Change** Convert metrics generator from deployment to a statefulset in jsonnet [#2533](https://github.com/grafana/tempo/pull/2533) (@zalegrala)
+To support a new `processor`, the metrics generator has been converted from a `deployment` into a `statefulset` with a PVC.  This will require manual intervention in order to migrate successfully and avoid downtime.  Note that currently both a `deployment` and a `statefulset` will be managed by the jsonnet for a period of time, after which we will delete the `deployment` from this repo and you will need to delete user-side references to the `tempo_metrics_generator_deployment`, as well as delete the `deployment` itself.
+
+First, just as with the `ingester` configuration, you will need to specify a `pvc_size` and a `pvc_storage_class` for the `metrics_generator` PVC configuration.  For example:
+```jsonnet
+{
+  _config+:: {
+    metrics_generator+: {
+      pvc_size: '10Gi',
+      pvc_storage_class: 'local-path',
+    },
+  }
+}
+```
+
+Any user-side overrides for the `tempo_metrics_generator_deployment` need to be considered for the `tempo_metrics_generator_statefulset` object.
+
+Currently, the `deplyment` replicas are set to `0` by default in the jsonnet, while the `statefulset` inherits replica configuration from the `$._config` object.  To keep the `deployment` replicas around and make the transition without an outage, you can keep the replicas by overriding the following key.
+
+```jsonnet
+  tempo_metrics_generator_deployment+:
+    { spec+: { replicas: $._config.metrics_generator.replicas } },
+```
+
+This will maintain the same number of replicas you have specified in the configuration for the `statefulset`.  Note that this will be approximately double the resource requirements for a period of time while you stabilize the ring and prepare to scale down the `deployment`.
+
+You can check memberlist either with the `tempo_memberlist_client_cluster_members_count` metric, or you can visit the `http://tempo:3200/memberlist` page to see that metrics generator instances for both the `statefulset` and `deployment` are available.
+
+Once all instances are healthy, you can begin to scale down your `deployment` and delete the above reference to the `tempo_metrics_generator_deployment`.
+
+Without handling the above, a brief outage will be incurred for the metrics-generator, but everything should be functioning again once the `statefulset` for the metrics-generator is up and available.
+
+
 * [ENHANCEMENT] Add support to filter using negated regex operator `!~` [#2410](https://github.com/grafana/tempo/pull/2410) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2386](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.s3` [#2362](https://github.com/grafana/tempo/pull/2362) (@kousikmitra)

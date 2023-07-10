@@ -27,6 +27,8 @@ tempo {
       },
     },
     metrics_generator+: {
+      pvc_size: '5Gi',
+      pvc_storage_class: 'local-path',
       ephemeral_storage_limit_size: '2Gi',
       ephemeral_storage_request_size: '1Gi',
     },
