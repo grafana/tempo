@@ -111,7 +111,7 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 // GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
 // By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
 // If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string) (Request, UserIndex, error) {
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string, count int) ([]Request, UserIndex, error) {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -132,6 +132,11 @@ FindQueue:
 		return nil, last, err
 	}
 
+	// always grab at least one request
+	if count < 1 {
+		count = 1
+	}
+
 	for {
 		queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
 		last.last = idx
@@ -139,18 +144,27 @@ FindQueue:
 			break
 		}
 
-		// Pick next request from the queue.
-		request := <-queue
-		if len(queue) == 0 {
-			q.queues.deleteQueue(userID)
+		// this is all threadsafe b/c all users queues are blocked by q.mtx
+		if len(queue) < count {
+			count = len(queue)
 		}
 
-		q.queueLength.WithLabelValues(userID).Dec()
+		// Pick next requests from the queue.
+		requests := make([]Request, 0, count)
+		for i := 0; i < count; i++ {
+			requests = append(requests, <-queue)
+		}
+
+		qLen := len(queue)
+		if qLen == 0 {
+			q.queues.deleteQueue(userID)
+		}
+		q.queueLength.WithLabelValues(userID).Set(float64(qLen))
 
 		// Tell close() we've processed a request.
 		q.cond.Broadcast()
 
-		return request, last, nil
+		return requests, last, nil
 	}
 
 	// There are no unexpired requests, so we can get back

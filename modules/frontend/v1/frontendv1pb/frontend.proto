@@ -24,16 +24,27 @@ service Frontend {
 enum Type {
   HTTP_REQUEST = 0;
   GET_ID = 1;
+  HTTP_REQUEST_BATCH = 2;
+}
+
+enum Feature {
+  NONE = 0; 
+  REQUEST_BATCHING = 1;
 }
 
 message FrontendToClient {
   httpgrpc.HTTPRequest httpRequest = 1;
   Type type = 2;
+  // bool statsEnabled = 3; - removed in 2.2. reserved until we can cleanly reclaim it
+  repeated httpgrpc.HTTPRequest httpRequestBatch = 4;
 }
 
 message ClientToFrontend {
   httpgrpc.HTTPResponse httpResponse = 1;
   string clientID = 2;
+  // stats.Stats stats = 3; - removed in 2.2. reserved until we can cleanly reclaim it
+  repeated httpgrpc.HTTPResponse httpResponseBatch = 4;
+  int32 features = 5; // used by the querier to indicate to the fronted that it supports
 }
 
 message NotifyClientShutdownRequest {
