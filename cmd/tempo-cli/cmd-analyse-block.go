@@ -76,7 +76,7 @@ func resourcePathsForVersion(v string) (string, []string) {
 }
 
 type parquetBlock interface {
-	Open(ctx context.Context) (*parquet.File, *parquet.Reader, error)
+	Open(ctx context.Context) (*parquet.File, *parquet.Reader, error) //nolint:all //deprecated
 }
 
 type analyseBlockCmd struct {
