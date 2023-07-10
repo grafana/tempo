@@ -140,19 +140,17 @@ FindQueue:
 		}
 
 		// Pick next request from the queue.
-		for {
-			request := <-queue
-			if len(queue) == 0 {
-				q.queues.deleteQueue(userID)
-			}
-
-			q.queueLength.WithLabelValues(userID).Dec()
-
-			// Tell close() we've processed a request.
-			q.cond.Broadcast()
-
-			return request, last, nil
+		request := <-queue
+		if len(queue) == 0 {
+			q.queues.deleteQueue(userID)
 		}
+
+		q.queueLength.WithLabelValues(userID).Dec()
+
+		// Tell close() we've processed a request.
+		q.cond.Broadcast()
+
+		return request, last, nil
 	}
 
 	// There are no unexpired requests, so we can get back
