@@ -3,17 +3,11 @@ package queue
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/grafana/dskit/services"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
-)
-
-const (
-	// How frequently to check for disconnected queriers that should be forgotten.
-	forgetCheckPeriod = 5 * time.Second
 )
 
 var (
@@ -35,8 +29,8 @@ func (ui userIndex) reuseLastUser() userIndex {
 	return ui
 }
 
-// FirstUser returns UserIndex that starts iteration over user queues from the very first user.
-func FirstUser() userIndex {
+// firstUser returns UserIndex that starts iteration over user queues from the very first user.
+func firstUser() userIndex {
 	return userIndex{last: -1}
 }
 
@@ -86,7 +80,7 @@ func NewRequestQueue(maxOutstandingPerTenant int, queueLength *prometheus.GaugeV
 // between calls.
 //
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
-func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int, successFn func()) error {
+func (q *RequestQueue) EnqueueRequest(userID string, req Request, successFn func()) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -94,7 +88,7 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 		return ErrStopped
 	}
 
-	queue := q.queues.getOrAddQueue(userID, maxQueriers)
+	queue := q.queues.getOrAddQueue(userID)
 	if queue == nil {
 		// This can only happen if userID is "".
 		return errors.New("no queue found")
@@ -116,7 +110,7 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 }
 
 func (q *RequestQueue) queueWorker() {
-	last := FirstUser()
+	last := firstUser()
 
 FindQueue:
 	q.mtx.Lock()

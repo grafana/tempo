@@ -1,21 +1,5 @@
 package queue
 
-import (
-	"time"
-)
-
-// querier holds information about a querier registered in the queue.
-type querier struct {
-	// Number of active connections.
-	connections int
-
-	// True if the querier notified it's gracefully shutting down.
-	shuttingDown bool
-
-	// When the last connection has been unregistered.
-	disconnectedAt time.Time
-}
-
 // This struct holds user queues for pending requests. It also keeps track of connected queriers,
 // and mapping between users and queriers.
 type queues struct {
@@ -67,14 +51,10 @@ func (q *queues) deleteQueue(userID string) {
 // MaxQueriers is used to compute which queriers should handle requests for this user.
 // If maxQueriers is <= 0, all queriers can handle this user's requests.
 // If maxQueriers has changed since the last call, queriers for this are recomputed.
-func (q *queues) getOrAddQueue(userID string, maxQueriers int) chan Request {
+func (q *queues) getOrAddQueue(userID string) chan Request {
 	// Empty user is not allowed, as that would break our users list ("" is used for free spot).
 	if userID == "" {
 		return nil
-	}
-
-	if maxQueriers < 0 {
-		maxQueriers = 0
 	}
 
 	uq := q.userQueues[userID]

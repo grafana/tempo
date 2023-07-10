@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/pkg/scheduler/queue"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/validation"
 )
 
 var (
@@ -306,13 +305,10 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 	req.enqueueTime = now
 	req.queueSpan, _ = opentracing.StartSpanFromContext(ctx, "queued")
 
-	// aggregate the max queriers limit in the case of a multi tenant query
-	maxQueriers := validation.SmallestPositiveNonZeroIntPerTenant(tenantIDs, f.limits.MaxQueriersPerUser)
-
 	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
 	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
 
-	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers, nil)
+	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, nil)
 	if err == queue.ErrTooManyRequests {
 		return errTooManyRequest
 	}

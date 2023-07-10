@@ -24,14 +24,14 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q := queueWithListeners(100, ctx, func(r Request) {
+	q := queueWithListeners(ctx, 100, func(r Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			close(stop)
 		}
 	})
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest("test", &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest("test", &mockRequest{}, nil)
 		require.NoError(t, err)
 	}
 
@@ -51,14 +51,14 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q := queueWithListeners(100, ctx, func(r Request) {
+	q := queueWithListeners(ctx, 100, func(r Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			close(stop)
 		}
 	})
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest(test.RandomString(), &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest(test.RandomString(), &mockRequest{}, nil)
 		require.NoError(t, err)
 	}
 
@@ -90,7 +90,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q := queueWithListeners(listeners, ctx, func(r Request) {
+	q := queueWithListeners(ctx, listeners, func(r Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			stop <- struct{}{}
 		}
@@ -100,7 +100,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < messages; j++ {
-			err := q.EnqueueRequest(user, req, 0, nil)
+			err := q.EnqueueRequest(user, req, nil)
 			if err != nil {
 				panic(err)
 			}
@@ -116,7 +116,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	}
 }
 
-func queueWithListeners(listeners int, ctx context.Context, listenerFn func(r Request)) *RequestQueue {
+func queueWithListeners(ctx context.Context, listeners int, listenerFn func(r Request)) *RequestQueue {
 	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "test_len",
 	}, []string{"user"})
