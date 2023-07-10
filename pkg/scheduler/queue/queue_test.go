@@ -96,10 +96,11 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 		}
 	})
 
+	req := &mockRequest{}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < messages; j++ {
-			err := q.EnqueueRequest(user, &mockRequest{}, 0, nil)
+			err := q.EnqueueRequest(user, req, 0, nil)
 			if err != nil {
 				panic(err)
 			}
