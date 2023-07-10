@@ -123,7 +123,7 @@ func queueWithListeners(listeners int, ctx context.Context, listenerFn func(r Re
 		Name: "test_discarded",
 	}, []string{"user"})
 
-	q := NewRequestQueue(100_000, 0, g, c)
+	q := NewRequestQueue(100_000, g, c)
 
 	for i := 0; i < listeners; i++ {
 		go func() {

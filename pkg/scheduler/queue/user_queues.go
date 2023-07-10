@@ -36,7 +36,7 @@ type userQueue struct {
 	index int
 }
 
-func newUserQueues(maxUserQueueSize int, forgetDelay time.Duration) *queues {
+func newUserQueues(maxUserQueueSize int) *queues {
 	return &queues{
 		userQueues:       map[string]*userQueue{},
 		users:            nil,
