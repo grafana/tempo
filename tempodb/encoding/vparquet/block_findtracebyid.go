@@ -27,8 +27,8 @@ const (
 	TraceIDColumnName = "TraceID"
 )
 
-func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkBloom",
+func (b *BackendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.BackendBlock.checkBloom",
 		opentracing.Tags{
 			"blockID":  b.meta.BlockID,
 			"tenantID": b.meta.TenantID,
@@ -53,8 +53,8 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
+func (b *BackendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.BackendBlock.FindTraceByID",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
 			"tenantID":  b.meta.TenantID,

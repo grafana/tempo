@@ -16,22 +16,37 @@ import (
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/stoewer/parquet-cli/pkg/inspect"
 
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
-	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 var (
-	spanAttrValPaths = []string{
+	vparquetSpanAttrs = []string{
+		vparquet.FieldSpanAttrVal,
+		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
+		// vparquet.FieldSpanAttrValInt,
+		// vparquet.FieldSpanAttrValDouble,
+		// vparquet.FieldSpanAttrValBool,
+	}
+	vparquetResourceAttrs = []string{
+		vparquet.FieldResourceAttrVal,
+		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
+		// vparquet.FieldResourceAttrValInt,
+		// vparquet.FieldResourceAttrValDouble,
+		// vparquet.FieldResourceAttrValBool,
+	}
+	vparquet2SpanAttrs = []string{
 		vparquet2.FieldSpanAttrVal,
 		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
 		// vparquet2.FieldSpanAttrValInt,
 		// vparquet2.FieldSpanAttrValDouble,
 		// vparquet2.FieldSpanAttrValBool,
 	}
-	resourceAttrValPaths = []string{
+	vparquet2ResourceAttrs = []string{
 		vparquet2.FieldResourceAttrVal,
 		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
 		// vparquet2.FieldResourceAttrValInt,
@@ -39,6 +54,26 @@ var (
 		// vparquet2.FieldResourceAttrValBool,
 	}
 )
+
+func spanPathsForVersion(v string) (string, []string) {
+	switch v {
+	case vparquet.VersionString:
+		return vparquet.FieldSpanAttrKey, vparquetSpanAttrs
+	case vparquet2.VersionString:
+		return vparquet2.FieldSpanAttrKey, vparquet2SpanAttrs
+	}
+	return "", nil
+}
+
+func resourcePathsForVersion(v string) (string, []string) {
+	switch v {
+	case vparquet.VersionString:
+		return vparquet.FieldResourceAttrKey, vparquetResourceAttrs
+	case vparquet2.VersionString:
+		return vparquet2.FieldResourceAttrKey, vparquet2ResourceAttrs
+	}
+	return "", nil
+}
 
 type analyseBlockCmd struct {
 	backendOptions
@@ -56,16 +91,16 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 	return processBlock(r, c, cmd.TenantID, time.Hour, cmd.BlockID)
 }
 
-func processBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID string, windowRange time.Duration, blockID string) error {
+func processBlock(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, blockID string) error {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
-	if err != nil && err != tempodb_backend.ErrDoesNotExist {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return err
 	}
 
 	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != tempodb_backend.ErrDoesNotExist {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return err
 	}
 
@@ -88,13 +123,24 @@ func processBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantI
 	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.EndTime.Sub(unifiedMeta.StartTime).Round(time.Second)))
 	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
 
-	if unifiedMeta.Version != vparquet2.VersionString {
-		return fmt.Errorf("cannot scan block contents. unsupported block version: %s", unifiedMeta.Version)
+	type parquetBlock interface {
+		Open(ctx context.Context) (*parquet.File, *parquet.Reader, error)
+	}
+
+	var block parquetBlock
+	switch unifiedMeta.Version {
+	case vparquet.VersionString:
+		block = vparquet.NewBackendBlock(meta, r)
+	case vparquet2.VersionString:
+		block = vparquet2.NewBackendBlock(meta, r)
+	default:
+		return fmt.Errorf(
+			"cannot scan block contents. Unsupported block version: %s. Only parquet versions are supported",
+			unifiedMeta.Version,
+		)
 	}
 
 	fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
-
-	block := vparquet2.NewBackendBlock(&unifiedMeta.BlockMeta, r)
 
 	pf, _, err := block.Open(context.Background())
 	if err != nil {
@@ -102,7 +148,8 @@ func processBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantI
 	}
 
 	// Aggregate span attributes
-	spanAttrsSummary, err := aggregateAttributes(pf, vparquet2.FieldSpanAttrKey, spanAttrValPaths)
+	spanKey, spanVals := spanPathsForVersion(unifiedMeta.Version)
+	spanAttrsSummary, err := aggregateAttributes(pf, spanKey, spanVals)
 	if err != nil {
 		return err
 	}
@@ -111,7 +158,8 @@ func processBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantI
 	}
 
 	// Aggregate resource attributes
-	resourceAttrsSummary, err := aggregateAttributes(pf, vparquet2.FieldResourceAttrKey, resourceAttrValPaths)
+	resourceKey, resourceVals := resourcePathsForVersion(unifiedMeta.Version)
+	resourceAttrsSummary, err := aggregateAttributes(pf, resourceKey, resourceVals)
 	if err != nil {
 		return err
 	}

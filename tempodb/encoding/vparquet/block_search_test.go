@@ -227,7 +227,7 @@ func TestBackendBlockSearch(t *testing.T) {
 	}
 }
 
-func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
+func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *BackendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -259,7 +259,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b := newBackendBlock(s.meta, r)
+	b := NewBackendBlock(s.meta, r)
 
 	return b
 }
@@ -381,7 +381,7 @@ func BenchmarkBackendBlockSearchTraces(b *testing.B) {
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
 
-	block := newBackendBlock(meta, rr)
+	block := NewBackendBlock(meta, rr)
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10

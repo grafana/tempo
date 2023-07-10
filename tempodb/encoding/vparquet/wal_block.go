@@ -207,8 +207,8 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 	}
 }
 
-// file() opens the parquet file and returns it. previously this method cached the file on first open
-// but the memory cost of this was quite high. so instead we open it fresh every time
+// file() opens the parquet file and returns it. previously this method cached the file on first Open
+// but the memory cost of this was quite high. so instead we Open it fresh every time
 func (w *walBlockFlush) file() (*pageFile, error) {
 	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
 	if err != nil {
@@ -620,7 +620,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 }
 
 func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
+	// todo: this same method is called in BackendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")

@@ -199,7 +199,7 @@ var wellKnownColumnLookups = map[string]struct {
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
-func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+func (b *BackendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 
 	err := checkConditions(req.Conditions)
 	if err != nil {

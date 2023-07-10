@@ -58,7 +58,7 @@ var KindMapping = map[string]int{
 }
 
 // openForSearch consolidates all the logic for opening a parquet file
-func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
+func (b *BackendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
 
@@ -101,8 +101,8 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	return pf, backendReaderAt, err
 }
 
-func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
+func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.BackendBlock.Search",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
 			"tenantID":  b.meta.TenantID,
