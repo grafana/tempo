@@ -84,7 +84,7 @@ type analyseBlockCmd struct {
 
 	BlockID  string `arg:"" help:"block ID to list"`
 	TenantID string `arg:"" help:"tenant-id within the bucket"`
-	Num      int    `arg:"" help:"Number of attributes to display" default:"15"`
+	NumAttr  int    `help:"Number of attributes to display" default:"15"`
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
@@ -102,7 +102,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("failed to process block")
 	}
 
-	return blockSum.print(cmd.Num)
+	return blockSum.print(cmd.NumAttr)
 }
 
 func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID string, _ time.Duration, minCompactionLvl uint8) (*blockSummary, error) {
