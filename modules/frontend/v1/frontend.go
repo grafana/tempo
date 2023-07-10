@@ -204,14 +204,6 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	f.requestQueue.RegisterQuerierConnection(querierID)
 	defer f.requestQueue.UnregisterQuerierConnection(querierID)
 
-	// If the downstream request(from querier -> frontend) is cancelled,
-	// we need to ping the condition variable to unblock getNextRequestForQuerier.
-	// Ideally we'd have ctx aware condition variables...
-	go func() {
-		<-server.Context().Done()
-		f.requestQueue.QuerierDisconnecting()
-	}()
-
 	for {
 		reqWrapper, err := f.requestQueue.GetNextRequestForQuerier(server.Context())
 		if err != nil {

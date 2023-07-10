@@ -196,11 +196,6 @@ func (q *RequestQueue) UnregisterQuerierConnection(querier string) {
 	q.connectedQuerierWorkers.Dec()
 }
 
-// When querier is waiting for next request, this unblocks the method.
-func (q *RequestQueue) QuerierDisconnecting() {
-	q.cond.Broadcast()
-}
-
 func (q *RequestQueue) GetConnectedQuerierWorkersMetric() float64 {
 	return float64(q.connectedQuerierWorkers.Load())
 }
