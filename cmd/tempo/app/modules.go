@@ -191,8 +191,13 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
-	overridesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.OverridesHandler))
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathOverrides), overridesHandler)
+	t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathOverrides)).Methods(http.MethodGet).Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.GetOverridesHandler)))
+
+	// Only expose write endpoints on query-frontend
+	if t.isModuleActive(QueryFrontend) {
+		t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathOverrides)).Methods(http.MethodPost).Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.PostOverridesHandler)))
+		t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathOverrides)).Methods(http.MethodDelete).Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.DeleteOverridesHandler)))
+	}
 
 	return t.Overrides, nil
 }

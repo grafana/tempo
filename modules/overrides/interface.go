@@ -20,6 +20,7 @@ type Service interface {
 type Interface interface {
 	prometheus.Collector
 
+	// Limits
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
@@ -54,6 +55,10 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
-	OverridesHandler(w http.ResponseWriter, r *http.Request)
+
+	// API
+	GetOverridesHandler(w http.ResponseWriter, r *http.Request)
+	PostOverridesHandler(w http.ResponseWriter, r *http.Request)
+	DeleteOverridesHandler(w http.ResponseWriter, r *http.Request)
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }
