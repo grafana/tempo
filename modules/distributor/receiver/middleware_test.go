@@ -32,7 +32,7 @@ func newAssertingConsumer(t *testing.T, assertFunc assertFunc) consumer.Traces {
 	}
 }
 
-func (tc *testConsumer) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
+func (tc *testConsumer) ConsumeTraces(ctx context.Context, _ ptrace.Traces) error {
 	tc.assertFunc(tc.t, ctx)
 	return nil
 }

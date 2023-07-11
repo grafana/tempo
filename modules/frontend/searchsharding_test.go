@@ -44,24 +44,24 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
+func (m *mockReader) Find(context.Context, string, common.ID, string, string, int64, int64) ([]*tempopb.Trace, []error, error) {
 	return nil, nil, nil
 }
 
-func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
+func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
 }
 
-func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (m *mockReader) Search(context.Context, *backend.BlockMeta, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, nil
 }
 
-func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
-func (m *mockReader) Shutdown()                                  {}
+func (m *mockReader) EnablePolling(blocklist.JobSharder) {}
+func (m *mockReader) Shutdown()                          {}
 
 func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {

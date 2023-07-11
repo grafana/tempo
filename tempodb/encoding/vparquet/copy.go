@@ -23,7 +23,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 	}
 
 	// Read entire object and attempt to cache
-	copy := func(name string) error {
+	cpy := func(name string) error {
 		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, true)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
@@ -40,7 +40,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 
 	// Bloom
 	for i := 0; i < common.ValidateShardCount(int(fromMeta.BloomShardCount)); i++ {
-		err = copy(common.BloomName(i))
+		err = cpy(common.BloomName(i))
 		if err != nil {
 			return err
 		}

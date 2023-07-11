@@ -208,9 +208,8 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 			id, obj, err := iterator.Next(ctx)
 			if err == io.EOF || id == nil {
 				break
-			} else {
-				require.NoError(t, err)
 			}
+			require.NoError(t, err)
 
 			found := false
 			j := 0

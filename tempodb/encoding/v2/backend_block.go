@@ -141,15 +141,15 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 	return dec.PrepareForRead(obj)
 }
 
-func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
+func (b *BackendBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
 	return nil, common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *BackendBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *BackendBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

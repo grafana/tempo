@@ -34,7 +34,7 @@ func (h *dataHeader) headerLength() int {
 	return DataHeaderLength
 }
 
-func (h *dataHeader) marshalHeader(b []byte) error {
+func (h *dataHeader) marshalHeader([]byte) error {
 	return nil
 }
 

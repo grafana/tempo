@@ -41,7 +41,7 @@ type Config struct {
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Wait = 10 * time.Second
 	cfg.MaxItems = 10_000
 	cfg.Workers = 10

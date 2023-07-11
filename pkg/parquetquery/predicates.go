@@ -154,7 +154,7 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 	return matched
 }
 
-func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (p *regexPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
 	p.helper.setNewRowGroup()
 
 	// Can we do any filtering here?
@@ -203,7 +203,7 @@ func (p *SubstringPredicate) String() string {
 	return fmt.Sprintf("SubstringPredicate{%s}", p.substring)
 }
 
-func (p *SubstringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (p *SubstringPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
 	p.helper.setNewRowGroup()
 
 	// Reset match cache on each row group change
@@ -573,7 +573,7 @@ func (p *SkipNilsPredicate) String() string {
 	return "SkipNilsPredicate{}"
 }
 
-func (p *SkipNilsPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *SkipNilsPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
 	return true
 }
 

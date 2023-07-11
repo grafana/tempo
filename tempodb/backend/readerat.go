@@ -70,12 +70,12 @@ func NewContextReaderWithAllReader(r AllReader) ContextReader {
 }
 
 // ReadAt implements ContextReader
-func (r *allReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
+func (r *allReader) ReadAt(_ context.Context, p []byte, off int64) (int, error) {
 	return r.r.ReadAt(p, off)
 }
 
 // ReadAll implements ContextReader
-func (r *allReader) ReadAll(ctx context.Context) ([]byte, error) {
+func (r *allReader) ReadAll(_ context.Context) ([]byte, error) {
 	return io.ReadAll(r.r)
 }
 

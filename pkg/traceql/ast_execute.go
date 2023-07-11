@@ -151,10 +151,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
-			copy := ss.clone()
-			copy.Scalar = NewStaticInt(len(ss.Spans))
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = NewStaticInt(len(ss.Spans))
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateAvg:
 			var sum *Static
@@ -173,10 +173,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				count++
 			}
 
-			copy := ss.clone()
-			copy.Scalar = sum.divideBy(float64(count))
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = sum.divideBy(float64(count))
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateMax:
 			var max *Static
@@ -189,10 +189,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					max = &val
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = *max
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *max
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateMin:
 			var min *Static
@@ -205,10 +205,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					min = &val
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = *min
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *min
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateSum:
 			var sum *Static
@@ -223,10 +223,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					sum.sumInto(val)
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = *sum
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *sum
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		default:
 			return nil, fmt.Errorf("aggregate operation (%v) not supported", a.op)
@@ -375,7 +375,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s Static) execute(span Span) (Static, error) {
+func (s Static) execute(Span) (Static, error) {
 	return s, nil
 }
 

@@ -78,7 +78,7 @@ func (s sample) String() string {
 var _ storage.Appendable = (*capturingAppender)(nil)
 var _ storage.Appender = (*capturingAppender)(nil)
 
-func (c *capturingAppender) Appender(ctx context.Context) storage.Appender {
+func (c *capturingAppender) Appender(context.Context) storage.Appender {
 	return c
 }
 
