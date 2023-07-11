@@ -717,7 +717,7 @@ func newRowIterator(r *parquet.Reader, pageFile *pageFile, rowNumbers []common.I
 	}
 }
 
-func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
+func (i *rowIterator) peekNextID(context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
 	if len(i.rowNumbers) == 0 {
 		return nil, nil
 	}
@@ -725,7 +725,7 @@ func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) { //nol
 	return i.rowNumbers[0].ID, nil
 }
 
-func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) {
+func (i *rowIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	if len(i.rowNumbers) == 0 {
 		return nil, nil, nil
 	}
