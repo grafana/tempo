@@ -494,7 +494,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -536,7 +536,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 	return tr, nil
 }
 
-func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {
 	results := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
@@ -566,7 +566,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file()
 		if err != nil {

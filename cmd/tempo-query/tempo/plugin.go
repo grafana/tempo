@@ -153,7 +153,7 @@ func tlsCipherSuites() map[string]uint16 {
 	return cipherSuites
 }
 
-func (b *Backend) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
+func (b *Backend) GetDependencies(context.Context, time.Time, time.Duration) ([]jaeger.DependencyLink, error) {
 	return nil, nil
 }
 
@@ -237,7 +237,7 @@ func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
 	return b.lookupTagValues(ctx, span, serviceSearchTag)
 }
 
-func (b *Backend) GetOperations(ctx context.Context, query jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
+func (b *Backend) GetOperations(ctx context.Context, _ jaeger_spanstore.OperationQueryParameters) ([]jaeger_spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetOperations")
 	defer span.Finish()
 
@@ -416,7 +416,7 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 	return searchLookupResponse.TagValues, nil
 }
 
-func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
+func (b *Backend) WriteSpan(context.Context, *jaeger.Span) error {
 	return nil
 }
 

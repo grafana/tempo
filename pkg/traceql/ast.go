@@ -126,7 +126,7 @@ func newCoalesceOperation() CoalesceOperation {
 	return CoalesceOperation{}
 }
 
-func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
+func (o CoalesceOperation) extractConditions(*FetchSpansRequest) {
 }
 
 type SelectOperation struct {

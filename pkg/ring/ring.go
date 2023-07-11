@@ -59,7 +59,7 @@ type EventuallyConsistentStrategy struct {
 // - Filters out dead ingesters so the one doesn't even try to write to them.
 // - Checks there is enough ingesters for an operation to succeed.
 // The ingesters argument may be overwritten.
-func (s *EventuallyConsistentStrategy) Filter(ingesters []ring.InstanceDesc, op ring.Operation, replicationFactor int, heartbeatTimeout time.Duration, zoneAwarenessEnabled bool) ([]ring.InstanceDesc, int, error) {
+func (s *EventuallyConsistentStrategy) Filter(ingesters []ring.InstanceDesc, op ring.Operation, _ int, heartbeatTimeout time.Duration, _ bool) ([]ring.InstanceDesc, int, error) {
 	minSuccess := 1
 
 	// Skip those that have not heartbeated in a while. NB these are still

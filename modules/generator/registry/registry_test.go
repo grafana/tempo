@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestManagedRegistry_concurrency(t *testing.T) {
+func TestManagedRegistry_concurrency(*testing.T) {
 	cfg := &Config{
 		StaleDuration: 1 * time.Millisecond,
 	}
@@ -259,15 +259,15 @@ type mockOverrides struct {
 
 var _ Overrides = (*mockOverrides)(nil)
 
-func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
+func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
 	return m.maxActiveSeries
 }
 
-func (m *mockOverrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration {
 	return 15 * time.Second
 }
 
-func (m *mockOverrides) MetricsGeneratorDisableCollection(userID string) bool {
+func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
