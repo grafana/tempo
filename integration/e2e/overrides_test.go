@@ -14,7 +14,7 @@ import (
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/modules/overrides/user_configurable_api"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/httpclient"
 )
 
 func TestOverrides(t *testing.T) {
@@ -59,7 +59,7 @@ func TestOverrides(t *testing.T) {
 			require.NoError(t, s.StartAndWaitReady(tempo))
 
 			orgID := ""
-			apiClient := Client{tempoUtil.NewClient("http://"+tempo.Endpoint(3200), orgID)}
+			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), orgID)
 
 			// Get default overrides
 			limits, err := apiClient.GetOverrides()
