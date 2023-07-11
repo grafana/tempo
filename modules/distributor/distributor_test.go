@@ -665,7 +665,7 @@ func TestDistributor(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
-			limits := &overrides.Limits{}
+			limits := overrides.Limits{}
 			flagext.DefaultValues(limits)
 
 			// todo:  test limits
