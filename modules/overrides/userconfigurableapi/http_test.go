@@ -27,12 +27,10 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, overridesAPI.client.Set(context.Background(), tenant, &UserConfigurableLimits{
-		Version:    "v1",
 		Forwarders: &[]string{"my-other-forwarder"},
 	}))
 
 	postJSON, err := jsoniter.Marshal(&UserConfigurableLimits{
-		Version:    "v1",
 		Forwarders: &[]string{"my-updated-forwarder"},
 	})
 	require.NoError(t, err)
@@ -49,7 +47,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "GET",
 			handler:        overridesAPI.GetOverridesHandler,
 			req:            httptest.NewRequest("GET", "/", nil),
-			expResp:        "{\"version\":\"v1\",\"forwarders\":[\"my-other-forwarder\"]}",
+			expResp:        "{\"forwarders\":[\"my-other-forwarder\"]}",
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -64,16 +62,16 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		{
 			name:           "POST - invalid JSON",
 			handler:        overridesAPI.PostOverridesHandler,
-			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("{\"versn\":\"v1\"}"))),
-			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: versn, error found in #8 byte of ...|{\"versn\":\"v1\"}|..., bigger context ...|{\"versn\":\"v1\"}|...\n",
+			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("not a json"))),
+			expResp:        "skipThreeBytes: expect ull, error found in #2 byte of ...|not a json|..., bigger context ...|not a json|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
 		{
 			name:           "POST - unknown field JSON",
 			handler:        overridesAPI.PostOverridesHandler,
-			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("{\"version\":\"v1\",\"unknown\":true}"))),
-			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|,\"unknown\":true}|..., bigger context ...|{\"version\":\"v1\",\"unknown\":true}|...\n",
+			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("{\"unknown\":true}"))),
+			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|{\"unknown\":true}|..., bigger context ...|{\"unknown\":true}|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},

@@ -144,9 +144,6 @@ func (o *userConfigOverridesClient) Set(ctx context.Context, userID string, limi
 	defer span.Finish()
 	span.SetTag("tenant", userID)
 
-	// TODO do this in a constructor or something?
-	limits.Version = "v1"
-
 	data, err := jsoniter.Marshal(limits)
 	if err != nil {
 		return err

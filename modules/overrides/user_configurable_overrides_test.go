@@ -37,8 +37,9 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
 
 	// Update limits for tenant-1
-	userConfigurableLimits := api.NewUserConfigurableLimits()
-	userConfigurableLimits.Forwarders = &[]string{"my-other-forwarder"}
+	userConfigurableLimits := &api.UserConfigurableLimits{
+		Forwarders: &[]string{"my-other-forwarder"},
+	}
 	err := mgr.client.Set(context.Background(), tenant2, userConfigurableLimits)
 	assert.NoError(t, err)
 
@@ -72,8 +73,9 @@ func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-forwarder"})
 
 	// write directly to backend
-	limits := api.NewUserConfigurableLimits()
-	limits.Forwarders = &[]string{"my-other-forwarder"}
+	limits := &api.UserConfigurableLimits{
+		Forwarders: &[]string{"my-other-forwarder"},
+	}
 	writeUserConfigurableOverridesToDisk(t, tempDir, tenant1, limits)
 
 	// reload from backend
@@ -89,8 +91,9 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 	}
 	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	limits := api.NewUserConfigurableLimits()
-	limits.Forwarders = &[]string{"my-other-forwarder"}
+	limits := &api.UserConfigurableLimits{
+		Forwarders: &[]string{"my-other-forwarder"},
+	}
 	err := mgr.client.Set(context.Background(), tenant1, limits)
 	assert.NoError(t, err)
 
@@ -114,8 +117,9 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	}
 	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	limits := api.NewUserConfigurableLimits()
-	limits.Forwarders = &[]string{"my-other-forwarder"}
+	limits := &api.UserConfigurableLimits{
+		Forwarders: &[]string{"my-other-forwarder"},
+	}
 	err := mgr.client.Set(context.Background(), tenant1, limits)
 	assert.NoError(t, err)
 
@@ -137,7 +141,6 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 
 	// set user config limits
 	configurableOverrides.tenantLimits["test"] = &api.UserConfigurableLimits{
-		Version:    "v1",
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
 

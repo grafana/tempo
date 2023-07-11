@@ -34,7 +34,6 @@ func TestUserConfigOverridesClient(t *testing.T) {
 
 	// Set
 	limits := &UserConfigurableLimits{
-		Version:    "v1",
 		Forwarders: &[]string{"my-forwarder"},
 	}
 	assert.NoError(t, client.Set(ctx, tenant, limits))
