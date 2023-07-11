@@ -142,7 +142,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 	return sb.meta
 }
 
-func TestValueAlloc(t *testing.T) {
+func TestValueAlloc(_ *testing.T) {
 	_ = make([]parquet.Value, 1_000_000)
 }
 

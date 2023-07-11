@@ -82,7 +82,7 @@ func (*Processor) Name() string {
 	return "LocalBlocksProcessor"
 }
 
-func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
@@ -104,7 +104,7 @@ func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	metricTotalTraces.WithLabelValues(p.tenant).Add(float64(after - before))
 }
 
-func (p *Processor) Shutdown(ctx context.Context) {
+func (p *Processor) Shutdown(context.Context) {
 	close(p.closeCh)
 	p.wg.Wait()
 

@@ -534,7 +534,7 @@ func newSpansetIterator(iter parquetquery.Iterator) *spansetIterator {
 	}
 }
 
-func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 	res, err := i.iter.Next()
 	if err != nil {
 		return nil, err

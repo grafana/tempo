@@ -162,7 +162,7 @@ func TestMultiblockIteratorCanBeCancelled(t *testing.T) {
 	}
 }
 
-func TestMultiblockIteratorCanBeCancelledMultipleTimes(t *testing.T) {
+func TestMultiblockIteratorCanBeCancelledMultipleTimes(*testing.T) {
 	inner := &testIterator{}
 
 	iter := NewMultiblockIterator(context.TODO(), []BytesIterator{inner}, 1, &mockCombiner{}, "", testLogger)

@@ -47,7 +47,7 @@ type Config struct {
 	FilterPolicies []filterconfig.FilterPolicy `yaml:"filter_policies"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
 	cfg.IntrinsicDimensions.Service = true
 	cfg.IntrinsicDimensions.SpanName = true

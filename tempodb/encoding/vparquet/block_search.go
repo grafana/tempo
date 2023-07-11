@@ -419,7 +419,7 @@ func (r *reportValuesPredicate) String() string {
 }
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
-func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
+func (r *reportValuesPredicate) KeepColumnChunk(parquet.ColumnChunk) bool {
 	// Reinspect dictionary for each new column chunk
 	r.inspectedDict = false
 	return true

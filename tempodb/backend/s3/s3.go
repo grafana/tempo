@@ -225,7 +225,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 }
 
 // List implements backend.Reader
-func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	var objects []string
