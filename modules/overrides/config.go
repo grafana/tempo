@@ -7,10 +7,35 @@ import (
 )
 
 type Config struct {
-	DefaultLimits Limits `yaml:",inline" json:",inline"`
+	DefaultLimits Limits `yaml:"default_limits" json:"default_limits"`
 
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
+}
+
+func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try to unmarshal it normally
+	type rawConfig Config
+	if err := unmarshal((*rawConfig)(c)); err == nil {
+		return nil
+	}
+
+	// Try to unmarshal inline limits
+	type legacyConfig struct {
+		DefaultLimits Limits `yaml:",inline" json:",inline"`
+
+		PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
+		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
+	}
+	var legacyCfg legacyConfig
+	if err := unmarshal(&legacyCfg); err != nil {
+		return err
+	}
+
+	c.DefaultLimits = legacyCfg.DefaultLimits
+	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
+	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
+	return nil
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet
