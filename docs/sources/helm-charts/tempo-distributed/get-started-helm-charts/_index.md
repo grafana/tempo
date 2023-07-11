@@ -166,6 +166,22 @@ gateway:
 # MinIO storage configuration
 minio:
   enabled: true
+  mode: standalone
+  rootUser: grafana-tempo
+  rootPassword: supersecret
+  buckets:
+    # Default Tempo storage bucket.
+    - name: tempo-traces
+      policy: none
+      purge: false
+    # Bucket for traces storage if enterprise.enabled is true - requires license.
+    - name: enterprise-traces
+      policy: none
+      purge: false
+    # Admin client bucket if enterprise.enabled is true - requires license.
+    - name: enterprise-traces-admin
+      policy: none
+      purge: false
 storage:
   trace:
     backend: s3
