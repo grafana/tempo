@@ -100,11 +100,11 @@ func newTestIterator() *testIterator {
 	return &testIterator{}
 }
 
-func (i *testIterator) Add(tr *tempopb.Trace, start, end uint32) {
+func (i *testIterator) Add(tr *tempopb.Trace, _, _ uint32) {
 	i.traces = append(i.traces, tr)
 }
 
-func (i *testIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+func (i *testIterator) Next(context.Context) (common.ID, *tempopb.Trace, error) {
 	if len(i.traces) == 0 {
 		return nil, nil, io.EOF
 	}

@@ -71,9 +71,9 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
-	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(cfg, o, reader, logger), retryWare)
+	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(), retryWare)
 
-	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(cfg, o, reader, logger), retryWare)
+	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -201,7 +201,7 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 }
 
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
+func newSearchTagsMiddleware() Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
 
@@ -218,7 +218,7 @@ func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.R
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSpanMetricsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
+func newSpanMetricsMiddleware() Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		generatorRT := next
 

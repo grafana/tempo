@@ -1,4 +1,4 @@
-package util
+package httpclient
 
 import (
 	"fmt"
@@ -10,8 +10,10 @@ import (
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/klauspost/compress/gzhttp"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -31,7 +33,7 @@ type Client struct {
 	client  *http.Client
 }
 
-func NewClient(baseURL, orgID string) *Client {
+func New(baseURL, orgID string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		OrgID:   orgID,
@@ -39,8 +41,8 @@ func NewClient(baseURL, orgID string) *Client {
 	}
 }
 
-func NewClientWithCompression(baseURL, orgID string) *Client {
-	c := NewClient(baseURL, orgID)
+func NewWithCompression(baseURL, orgID string) *Client {
+	c := New(baseURL, orgID)
 	c.WithTransport(gzhttp.Transport(http.DefaultTransport))
 	return c
 }
@@ -154,7 +156,7 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	resp, err := c.getFor(c.BaseURL+QueryTraceEndpoint+"/"+id, m)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, ErrTraceNotFound
+			return nil, util.ErrTraceNotFound
 		}
 		return nil, err
 	}

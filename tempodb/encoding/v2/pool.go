@@ -318,10 +318,10 @@ func (pool *NoopPool) GetReader(src io.Reader) (io.Reader, error) {
 }
 
 // PutReader places back in the pool a CompressionReader
-func (pool *NoopPool) PutReader(reader io.Reader) {}
+func (pool *NoopPool) PutReader(io.Reader) {}
 
 // ResetReader implements ReaderPool
-func (pool *NoopPool) ResetReader(src io.Reader, resetReader io.Reader) (io.Reader, error) {
+func (pool *NoopPool) ResetReader(src io.Reader, _ io.Reader) (io.Reader, error) {
 	return src, nil
 }
 
@@ -337,10 +337,10 @@ func (pool *NoopPool) GetWriter(dst io.Writer) (io.WriteCloser, error) {
 }
 
 // PutWriter places back in the pool a CompressionWriter
-func (pool *NoopPool) PutWriter(writer io.WriteCloser) {}
+func (pool *NoopPool) PutWriter(io.WriteCloser) {}
 
 // ResetWriter implements WriterPool
-func (pool *NoopPool) ResetWriter(dst io.Writer, resetWriter io.WriteCloser) (io.WriteCloser, error) {
+func (pool *NoopPool) ResetWriter(dst io.Writer, _ io.WriteCloser) (io.WriteCloser, error) {
 	return noopCloser{dst}, nil
 }
 

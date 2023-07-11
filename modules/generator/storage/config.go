@@ -22,7 +22,7 @@ type Config struct {
 	RemoteWrite []prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Wal = agentDefaultOptions()
 
 	cfg.RemoteWriteFlushDeadline = time.Minute

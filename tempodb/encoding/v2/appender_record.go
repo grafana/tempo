@@ -21,7 +21,7 @@ func NewRecordAppender(records []Record) Appender {
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
 // Copies should be made and passed in if this is a problem
-func (a *recordAppender) Append(id common.ID, b []byte) error {
+func (a *recordAppender) Append(common.ID, []byte) error {
 	return util.ErrUnsupported
 }
 

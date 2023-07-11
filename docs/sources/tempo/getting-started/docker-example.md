@@ -9,39 +9,44 @@ weight: 600
 
 The Tempo repository provides [multiple examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) to help you quickly get started using Tempo and distributed tracing data.
 
-Every example has a `docker-compose.yaml` manifest that includes all of the options needed to explore trace data in Grafana, including resource configuration and trace data generation. The Tempo examples running with Docker using docker-compose all include a version of Tempo and a storage configuration like Amazon S3 and GCS.
+Every example has a `docker-compose.yaml` manifest that includes all of the options needed to explore trace data in Grafana, including resource configuration and trace data generation.
+The Tempo examples running with Docker using docker-compose all include a version of Tempo and a storage configuration like Amazon S3 and GCS.
 
-This quick start guide uses the `local` example running Tempo as a single binary (monolithic). Any data is stored locally in the `tempo-data` folder. To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
+This quick start guide uses the `local` example running Tempo as a single binary (monolithic). Any data is stored locally in the `tempo-data` folder.
+To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
 
 ## Alternative: Complete MLT example
 
-If you would like to use a demo with Tempo, Mimir, Loki and Grafana, then try the [Introduction to Metrics, Logs and Traces in Grafana](https://github.com/grafana/intro-to-mlt). Intro-to-mlt provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana. It includes detailed explanations of each component and annotated configurations for a single-instance deployment. Data from intro-to-mlt can also be pushed to Grafana Cloud.
+If you would like to use a demo with Tempo, Mimir, Loki and Grafana, then try the [Introduction to Metrics, Logs and Traces in Grafana](https://github.com/grafana/intro-to-mlt).
+Intro-to-mlt provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana.
+It includes detailed explanations of each component and annotated configurations for a single-instance deployment.
+Data from intro-to-mlt can also be pushed to Grafana Cloud.
 
 ## Before you begin
 
 To follow this guide, you need:
 
-- Git, Docker, and docker-compose plugin
+- Git, Docker, and the docker-compose plugin
 
 ## Clone the Tempo repository and start Docker
 
 1. Clone the Tempo repository:
-   ```
+   ```bash
    git clone https://github.com/grafana/tempo.git
    ```
 
 1. Go into the examples directory:
-   ```
+   ```bash
    cd tempo/example/docker-compose/local
    ```
 
 1. Start the services defined in the docker-compose file:
-   ```
+   ```bash
    docker compose up -d
    ```
 
 1. Verify that the services are running using `docker compose ps`. You should see something like:
-   ```
+   ```console
    docker compose ps
    NAME                 COMMAND                  SERVICE             STATUS              PORTS
    local-grafana-1      "/run.sh"                grafana             running             0.0.0.0:3000->3000/tcp
@@ -59,6 +64,6 @@ To follow this guide, you need:
     <p align="center"><img src="../../setup/assets/setup-linux-node-graph.png" alt="Service graph sample"></p>
 
 1.  To stop the services:
-   ```
-   docker-compose down -v
-   ```
+    ```
+    docker-compose down -v
+    ```

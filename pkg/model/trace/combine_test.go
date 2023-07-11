@@ -77,8 +77,8 @@ func TestTokenForIDCollision(t *testing.T) {
 		_, err := crand.Read(spanID)
 		require.NoError(t, err)
 
-		copy := append([]byte(nil), spanID...)
-		IDs = append(IDs, copy)
+		cpy := append([]byte(nil), spanID...)
+		IDs = append(IDs, cpy)
 
 		tokens[tokenForID(h, buf, 0, spanID)] = struct{}{}
 	}

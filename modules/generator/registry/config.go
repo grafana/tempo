@@ -28,7 +28,7 @@ type Config struct {
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.CollectionInterval = 15 * time.Second
 	cfg.StaleDuration = 15 * time.Minute
 	cfg.MaxLabelNameLength = 1024

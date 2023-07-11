@@ -32,6 +32,7 @@ Grafana Tempo is available as a [pre-compiled binary, OS_specific packaging](htt
 The following procedures provide example Tempo deployments that you can use as a starting point:
 
 - [Deploy with Helm]({{< relref "./helm-chart" >}}) (microservices and monolithic)
+- [Deploy with Tempo Operator]({{< relref "./operator" >}}) (microservices)
 - [Deploy on Linux]({{< relref "./linux" >}}) (monolithic)
 - [Deploy on Kubernetes using Tanka]({{< relref "./tanka" >}}) (microservices)
 

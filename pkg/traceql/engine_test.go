@@ -339,7 +339,7 @@ type MockSpanSetFetcher struct {
 
 var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
-func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
+func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
 	m.iterator.(*MockSpanSetIterator).filter = request.SecondPass
 	return FetchSpansResponse{
