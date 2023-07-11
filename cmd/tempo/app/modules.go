@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/weaveworks/common/middleware"
@@ -26,7 +27,7 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/user_configurable_api"
+	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -195,10 +196,11 @@ func (t *App) initOverrides() (services.Service, error) {
 	// User-configurable overrides API
 	userConfigOverridesCfg := t.cfg.LimitsConfig.UserConfigurableOverridesConfig
 
+	// only run API on query-frontend
 	if userConfigOverridesCfg.Enabled && t.isModuleActive(QueryFrontend) {
-		userConfigOverridesAPI, err := user_configurable_api.NewUserConfigOverridesAPI(&userConfigOverridesCfg.ClientConfig)
+		userConfigOverridesAPI, err := userconfigurableapi.NewUserConfigOverridesAPI(&userConfigOverridesCfg.ClientConfig)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
 		}
 
 		overridesPath := addHTTPAPIPrefix(&t.cfg, api.PathOverrides)

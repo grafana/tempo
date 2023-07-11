@@ -1,4 +1,4 @@
-package user_configurable_api
+package userconfigurableapi
 
 import (
 	"context"
@@ -17,7 +17,7 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	tenant := "foo"
 	dir := t.TempDir()
 
-	cfg := &UserConfigOverridesClientConfig{
+	cfg := &UserConfigurableOverridesClientConfig{
 		Backend: "local",
 		Local: &local.Config{
 			Path: dir,

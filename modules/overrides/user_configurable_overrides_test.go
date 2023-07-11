@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	api "github.com/grafana/tempo/modules/overrides/user_configurable_api"
+	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
@@ -169,12 +169,12 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	}
 }
 
-func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userConfigOverridesManager) {
+func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userConfigurableOverridesManager) {
 	path := t.TempDir()
 
-	cfg := &UserConfigOverridesConfig{
+	cfg := &UserConfigurableOverridesConfig{
 		Enabled: true,
-		ClientConfig: api.UserConfigOverridesClientConfig{
+		ClientConfig: api.UserConfigurableOverridesClientConfig{
 			Backend: "local",
 			Local:   &local.Config{Path: path},
 		},
@@ -210,18 +210,18 @@ func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant st
 
 type badClient struct{}
 
-func (b badClient) List(ctx context.Context) ([]string, error) {
+func (b badClient) List(context.Context) ([]string, error) {
 	return nil, errors.New("no")
 }
 
-func (b badClient) Get(ctx context.Context, s string) (*api.UserConfigurableLimits, error) {
+func (b badClient) Get(context.Context, string) (*api.UserConfigurableLimits, error) {
 	return nil, errors.New("no")
 }
 
-func (b badClient) Set(ctx context.Context, s string, limits *api.UserConfigurableLimits) error {
+func (b badClient) Set(context.Context, string, *api.UserConfigurableLimits) error {
 	return errors.New("no")
 }
 
-func (b badClient) Delete(ctx context.Context, s string) error {
+func (b badClient) Delete(context.Context, string) error {
 	return errors.New("no")
 }

@@ -66,7 +66,7 @@ func (m *MockRawWriter) CloseAppend(context.Context, AppendTracker) error {
 	m.closeAppendCalled = true
 	return nil
 }
-func (m *MockRawWriter) Delete(ctx context.Context, name string, keypath KeyPath) error {
+func (m *MockRawWriter) Delete(context.Context, string, KeyPath) error {
 	return nil
 }
 

@@ -102,7 +102,7 @@ func (rw *Backend) CloseAppend(_ context.Context, tracker backend.AppendTracker)
 	return dst.Close()
 }
 
-func (rw *Backend) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+func (rw *Backend) Delete(_ context.Context, name string, keypath backend.KeyPath) error {
 	path := rw.rootPath(append(keypath, name))
 	return os.RemoveAll(path)
 }

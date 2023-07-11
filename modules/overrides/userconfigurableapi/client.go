@@ -1,4 +1,4 @@
-package user_configurable_api
+package userconfigurableapi
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ var (
 	}, []string{"tenant"})
 )
 
-type UserConfigOverridesClientConfig struct {
+type UserConfigurableOverridesClientConfig struct {
 	Backend string `yaml:"backend"`
 
 	Local *local.Config `yaml:"local"`
@@ -61,7 +61,7 @@ type userConfigOverridesClient struct {
 
 var _ Client = (*userConfigOverridesClient)(nil)
 
-func NewUserConfigOverridesClient(cfg *UserConfigOverridesClientConfig) (Client, error) {
+func NewUserConfigOverridesClient(cfg *UserConfigurableOverridesClientConfig) (Client, error) {
 	r, w, err := initBackend(cfg)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func NewUserConfigOverridesClient(cfg *UserConfigOverridesClientConfig) (Client,
 	return &userConfigOverridesClient{r, w}, nil
 }
 
-func initBackend(cfg *UserConfigOverridesClientConfig) (reader backend.RawReader, writer backend.RawWriter, err error) {
+func initBackend(cfg *UserConfigurableOverridesClientConfig) (reader backend.RawReader, writer backend.RawWriter, err error) {
 	switch cfg.Backend {
 	case "local":
 		reader, writer, _, err = local.New(cfg.Local)

@@ -103,7 +103,7 @@ type Limits struct {
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
 
-	UserConfigurableOverridesConfig UserConfigOverridesConfig `yaml:"user_configurable_overrides_config" json:"user_configurable_overrides_config"`
+	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 }
 
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet

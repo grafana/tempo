@@ -14,7 +14,7 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all
 	"github.com/klauspost/compress/gzhttp"
 
-	api "github.com/grafana/tempo/modules/overrides/user_configurable_api"
+	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 

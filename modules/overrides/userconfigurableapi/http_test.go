@@ -1,4 +1,4 @@
-package user_configurable_api
+package userconfigurableapi
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ import (
 func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	tenant := "single-tenant"
 
-	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigOverridesClientConfig{
+	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
 		Backend: "local",
 		Local:   &local.Config{Path: t.TempDir()},
 	})
@@ -65,7 +65,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "POST - invalid JSON",
 			handler:        overridesAPI.PostOverridesHandler,
 			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("{\"versn\":\"v1\"}"))),
-			expResp:        "user_configurable_api.UserConfigurableLimits.ReadObject: found unknown field: versn, error found in #8 byte of ...|{\"versn\":\"v1\"}|..., bigger context ...|{\"versn\":\"v1\"}|...\n",
+			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: versn, error found in #8 byte of ...|{\"versn\":\"v1\"}|..., bigger context ...|{\"versn\":\"v1\"}|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
@@ -73,7 +73,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "POST - unknown field JSON",
 			handler:        overridesAPI.PostOverridesHandler,
 			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("{\"version\":\"v1\",\"unknown\":true}"))),
-			expResp:        "user_configurable_api.UserConfigurableLimits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|,\"unknown\":true}|..., bigger context ...|{\"version\":\"v1\",\"unknown\":true}|...\n",
+			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|,\"unknown\":true}|..., bigger context ...|{\"version\":\"v1\",\"unknown\":true}|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},

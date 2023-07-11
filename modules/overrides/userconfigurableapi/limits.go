@@ -1,4 +1,4 @@
-package user_configurable_api
+package userconfigurableapi
 
 type UserConfigurableLimits struct {
 	// TODO how do we ensure Version is always filled in?

@@ -1,4 +1,4 @@
-package user_configurable_api
+package userconfigurableapi
 
 import (
 	"net/http"
@@ -21,7 +21,7 @@ type UserConfigOverridesAPI struct {
 	client Client
 }
 
-func NewUserConfigOverridesAPI(config *UserConfigOverridesClientConfig) (*UserConfigOverridesAPI, error) {
+func NewUserConfigOverridesAPI(config *UserConfigurableOverridesClientConfig) (*UserConfigOverridesAPI, error) {
 	client, err := NewUserConfigOverridesClient(config)
 	if err != nil {
 		return nil, err

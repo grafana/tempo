@@ -40,7 +40,7 @@ storage:
       queue_depth: 1000
 
 overrides:
-  user_configurable_overrides_config:
+  user_configurable_overrides:
     enabled: true
     poll_interval: 10s
     client:
