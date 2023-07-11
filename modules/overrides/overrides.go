@@ -57,12 +57,6 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	return overrides, nil
 }
 
-// Config is a struct used to print the complete runtime config (defaults + overrides)
-type Config struct {
-	Defaults           *Limits            `yaml:"defaults"`
-	PerTenantOverrides perTenantOverrides `yaml:",inline"`
-}
-
 // overrides periodically fetch a set of per-user overrides, and provides convenience
 // functions for fetching the correct value.
 type overrides struct {
@@ -80,14 +74,14 @@ type overrides struct {
 // We store the supplied limits in a global variable to ensure per-tenant limits
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
-func NewOverrides(defaults Limits) (Service, error) {
+func NewOverrides(config Config) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
-	if defaults.PerTenantOverrideConfig != "" {
+	if config.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.Config{
-			LoadPath:     []string{defaults.PerTenantOverrideConfig},
-			ReloadPeriod: time.Duration(defaults.PerTenantOverridePeriod),
+			LoadPath:     []string{config.PerTenantOverrideConfig},
+			ReloadPeriod: time.Duration(config.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides,
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
@@ -100,7 +94,7 @@ func NewOverrides(defaults Limits) (Service, error) {
 
 	o := &overrides{
 		runtimeConfigMgr: manager,
-		defaultLimits:    &defaults,
+		defaultLimits:    &config.DefaultLimits,
 	}
 
 	if len(subservices) > 0 {
@@ -167,7 +161,10 @@ func (o *overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 		tenantOverrides = *o.tenantOverrides()
 	}
 	var output interface{}
-	cfg := Config{
+	cfg := struct {
+		Defaults           *Limits            `yaml:"defaults"`
+		PerTenantOverrides perTenantOverrides `yaml:",inline"`
+	}{
 		Defaults:           o.defaultLimits,
 		PerTenantOverrides: tenantOverrides,
 	}

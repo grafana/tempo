@@ -864,8 +864,8 @@ func TestLogSpans(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
-			limits := &overrides.Limits{}
-			flagext.DefaultValues(limits)
+			limits := overrides.Limits{}
+			flagext.DefaultValues(&limits)
 
 			buf := &bytes.Buffer{}
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
@@ -977,7 +977,7 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger log.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Limits, kvStore kv.Client, logger log.Logger) *Distributor {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -988,7 +988,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger l
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(*limits)
+	overrides, err := overrides.NewOverrides(overrides.Config{DefaultLimits: limits})
 	require.NoError(t, err)
 
 	// Mock the ingesters ring

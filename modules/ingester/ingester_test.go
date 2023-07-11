@@ -341,7 +341,7 @@ func TestFlush(t *testing.T) {
 
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
+	limits, err := overrides.NewOverrides(defaultOverridesConfig())
 	require.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
@@ -430,10 +430,10 @@ func defaultIngesterTestConfig() Config {
 	return cfg
 }
 
-func defaultLimitsTestConfig() overrides.Limits {
-	limits := overrides.Limits{}
-	flagext.DefaultValues(&limits)
-	return limits
+func defaultOverridesConfig() overrides.Config {
+	config := overrides.Config{}
+	flagext.DefaultValues(&config)
+	return config
 }
 
 func pushBatchV2(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) {

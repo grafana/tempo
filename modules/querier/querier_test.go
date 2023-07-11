@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/atomic"
+	"github.com/weaveworks/common/user"
+
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/atomic"
-	"github.com/weaveworks/common/user"
 )
 
 func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
@@ -65,7 +66,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 	for _, tc := range tests {
 		numExternalRequests.Store(0)
 
-		o, err := overrides.NewOverrides(overrides.Limits{})
+		o, err := overrides.NewOverrides(overrides.Config{})
 		require.NoError(t, err)
 
 		q, err := New(tc.cfg, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)
@@ -82,7 +83,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 }
 
 func TestVirtualTagsDoesntHitBackend(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)

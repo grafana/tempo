@@ -179,15 +179,15 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig)
+	overrides, err := overrides.NewOverrides(t.cfg.OverridesConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
 	t.Overrides = overrides
 
-	prometheus.MustRegister(&t.cfg.LimitsConfig)
+	prometheus.MustRegister(&t.cfg.OverridesConfig.DefaultLimits)
 
-	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
+	if t.cfg.OverridesConfig.PerTenantOverrideConfig != "" {
 		prometheus.MustRegister(t.Overrides)
 	}
 

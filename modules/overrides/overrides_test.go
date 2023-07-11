@@ -8,20 +8,21 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/grafana/tempo/pkg/sharedconfig"
 )
 
 func TestOverrides(t *testing.T) {
 
 	tests := []struct {
 		name                        string
-		limits                      Limits
-		overrides                   *perTenantOverrides
+		defaultLimits               Limits
+		perTenantOverrides          *perTenantOverrides
 		expectedMaxLocalTraces      map[string]int
 		expectedMaxGlobalTraces     map[string]int
 		expectedMaxBytesPerTrace    map[string]int
@@ -31,7 +32,7 @@ func TestOverrides(t *testing.T) {
 	}{
 		{
 			name: "limits only",
-			limits: Limits{
+			defaultLimits: Limits{
 				MaxGlobalTracesPerUser:  1,
 				MaxLocalTracesPerUser:   2,
 				MaxBytesPerTrace:        3,
@@ -47,14 +48,14 @@ func TestOverrides(t *testing.T) {
 		},
 		{
 			name: "basic overrides",
-			limits: Limits{
+			defaultLimits: Limits{
 				MaxGlobalTracesPerUser:  1,
 				MaxLocalTracesPerUser:   2,
 				MaxBytesPerTrace:        3,
 				IngestionBurstSizeBytes: 4,
 				IngestionRateLimitBytes: 5,
 			},
-			overrides: &perTenantOverrides{
+			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						MaxGlobalTracesPerUser:  6,
@@ -75,14 +76,14 @@ func TestOverrides(t *testing.T) {
 		},
 		{
 			name: "wildcard override",
-			limits: Limits{
+			defaultLimits: Limits{
 				MaxGlobalTracesPerUser:  1,
 				MaxLocalTracesPerUser:   2,
 				MaxBytesPerTrace:        3,
 				IngestionBurstSizeBytes: 4,
 				IngestionRateLimitBytes: 5,
 			},
-			overrides: &perTenantOverrides{
+			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						MaxGlobalTracesPerUser:  6,
@@ -112,21 +113,25 @@ func TestOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.overrides != nil {
+			cfg := Config{
+				DefaultLimits: tt.defaultLimits,
+			}
+
+			if tt.perTenantOverrides != nil {
 				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
 
-				buff, err := yaml.Marshal(tt.overrides)
+				buff, err := yaml.Marshal(tt.perTenantOverrides)
 				require.NoError(t, err)
 
 				err = os.WriteFile(overridesFile, buff, os.ModePerm)
 				require.NoError(t, err)
 
-				tt.limits.PerTenantOverrideConfig = overridesFile
-				tt.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
+				cfg.PerTenantOverrideConfig = overridesFile
+				cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(tt.limits)
+			overrides, err := NewOverrides(cfg)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -151,10 +156,10 @@ func TestOverrides(t *testing.T) {
 				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
 			}
 
-			//if srv != nil {
+			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
-			//}
+			// }
 		})
 	}
 }
@@ -163,14 +168,14 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 	tests := []struct {
 		name                      string
-		limits                    Limits
-		overrides                 *perTenantOverrides
+		defaultLimits             Limits
+		perTenantOverrides        *perTenantOverrides
 		expectedEnableTargetInfo  map[string]bool
 		expectedDimensionMappings map[string][]sharedconfig.DimensionMappings
 	}{
 		{
 			name: "limits only",
-			limits: Limits{
+			defaultLimits: Limits{
 				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
 				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
 					{
@@ -199,9 +204,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:   "basic overrides",
-			limits: Limits{},
-			overrides: &perTenantOverrides{
+			name:          "basic overrides",
+			defaultLimits: Limits{},
+			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
@@ -229,7 +234,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		},
 		{
 			name: "wildcard override",
-			limits: Limits{
+			defaultLimits: Limits{
 				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: false,
 				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
 					{
@@ -239,7 +244,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
-			overrides: &perTenantOverrides{
+			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
@@ -295,21 +300,25 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.overrides != nil {
+			cfg := Config{
+				DefaultLimits: tt.defaultLimits,
+			}
+
+			if tt.perTenantOverrides != nil {
 				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
 
-				buff, err := yaml.Marshal(tt.overrides)
+				buff, err := yaml.Marshal(tt.perTenantOverrides)
 				require.NoError(t, err)
 
 				err = os.WriteFile(overridesFile, buff, os.ModePerm)
 				require.NoError(t, err)
 
-				tt.limits.PerTenantOverrideConfig = overridesFile
-				tt.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
+				cfg.PerTenantOverrideConfig = overridesFile
+				cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(tt.limits)
+			overrides, err := NewOverrides(cfg)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -322,10 +331,10 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(user))
 			}
 
-			//if srv != nil {
+			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
-			//}
+			// }
 		})
 	}
 }

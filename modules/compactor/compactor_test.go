@@ -4,19 +4,22 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCombineLimitsNotHit(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: math.MaxInt,
+	o, err := overrides.NewOverrides(overrides.Config{
+		DefaultLimits: overrides.Limits{
+			MaxBytesPerTrace: math.MaxInt,
+		},
 	})
 	require.NoError(t, err)
 
@@ -45,8 +48,10 @@ func TestCombineLimitsNotHit(t *testing.T) {
 }
 
 func TestCombineLimitsHit(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: 1,
+	o, err := overrides.NewOverrides(overrides.Config{
+		DefaultLimits: overrides.Limits{
+			MaxBytesPerTrace: 1,
+		},
 	})
 	require.NoError(t, err)
 
@@ -75,8 +80,10 @@ func TestCombineLimitsHit(t *testing.T) {
 }
 
 func TestCombineDoesntEnforceZero(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: 0,
+	o, err := overrides.NewOverrides(overrides.Config{
+		DefaultLimits: overrides.Limits{
+			MaxBytesPerTrace: 0,
+		},
 	})
 	require.NoError(t, err)
 

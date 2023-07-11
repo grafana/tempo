@@ -4,10 +4,11 @@ import (
 	"flag"
 	"time"
 
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+
+	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 const (
@@ -97,10 +98,6 @@ type Limits struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
-
-	// Configuration for overrides, convenient if it goes here.
-	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
-	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet
@@ -118,10 +115,6 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&l.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&l.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
-
-	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
-	_ = l.PerTenantOverridePeriod.Set("10s")
-	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
 }
 
 func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
