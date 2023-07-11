@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -267,7 +268,7 @@ func NewSearchGRPCClient(endpoint string) (tempopb.StreamingQuerierClient, error
 	return tempopb.NewStreamingQuerierClient(clientConn), nil
 }
 
-func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func SearchAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
@@ -288,7 +289,7 @@ func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func SearchTraceQLAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
@@ -335,7 +336,7 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
-func SearchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
+func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
