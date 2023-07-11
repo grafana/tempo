@@ -60,7 +60,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		span, derivedCtx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.iterator")
 		defer span.Finish()
 
-		iter, err := block.RawIterator(derivedCtx, pool)
+		iter, err := block.rawIter(derivedCtx, pool)
 		if err != nil {
 			return nil, err
 		}

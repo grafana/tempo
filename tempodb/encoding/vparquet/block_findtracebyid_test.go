@@ -121,7 +121,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 
 	b := NewBackendBlock(meta, r)
 
-	iter, err := b.RawIterator(context.Background(), newRowPool(10))
+	iter, err := b.rawIter(context.Background(), newRowPool(10))
 	require.NoError(t, err)
 
 	sch := parquet.SchemaOf(new(Trace))

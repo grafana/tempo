@@ -28,7 +28,7 @@ func (b *BackendBlock) Open(ctx context.Context) (*parquet.File, *parquet.Reader
 	return pf, r, nil
 }
 
-func (b *BackendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIterator, error) {
+func (b *BackendBlock) rawIter(ctx context.Context, pool *rowPool) (*rawIterator, error) {
 	pf, r, err := b.Open(ctx)
 	if err != nil {
 		return nil, err
