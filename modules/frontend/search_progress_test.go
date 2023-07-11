@@ -121,7 +121,7 @@ func TestSearchProgressCombineResults(t *testing.T) {
 
 }
 
-func TestInstanceDoesNotRace(t *testing.T) {
+func TestInstanceDoesNotRace(*testing.T) {
 
 	end := make(chan struct{})
 	concurrent := func(f func()) {

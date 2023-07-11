@@ -72,7 +72,7 @@ func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
 }
 
-func (s Static) extractConditions(request *FetchSpansRequest) {
+func (s Static) extractConditions(*FetchSpansRequest) {
 }
 
 func (a Attribute) extractConditions(request *FetchSpansRequest) {

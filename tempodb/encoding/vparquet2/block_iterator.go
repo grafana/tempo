@@ -28,7 +28,7 @@ func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader
 	return pf, r, nil
 }
 
-func (b *backendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIterator, error) {
+func (b *backendBlock) rawIter(ctx context.Context, pool *rowPool) (*rawIterator, error) {
 	pf, r, err := b.open(ctx)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	return nil, nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
 }
 
-func (i *rawIterator) peekNextID(ctx context.Context) (common.ID, error) { // nolint:unused // this is required to satisfy the bookmarkIterator interface
+func (i *rawIterator) peekNextID(context.Context) (common.ID, error) { // nolint:unused // this is required to satisfy the bookmarkIterator interface
 	return nil, common.ErrUnsupported
 }
 

@@ -39,7 +39,7 @@ func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, 
 
 	return io.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
 }
-func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, _ bool) error {
+func (m *MockRawReader) ReadRange(_ context.Context, _ string, _ KeyPath, _ uint64, buffer []byte, _ bool) error {
 	copy(buffer, m.Range)
 
 	return nil
@@ -53,16 +53,16 @@ type MockRawWriter struct {
 	closeAppendCalled bool
 }
 
-func (m *MockRawWriter) Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error {
+func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ bool) error {
 	var err error
 	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
 	return err
 }
-func (m *MockRawWriter) Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
+func (m *MockRawWriter) Append(_ context.Context, _ string, _ KeyPath, _ AppendTracker, buffer []byte) (AppendTracker, error) {
 	m.appendBuffer = buffer
 	return nil, nil
 }
-func (m *MockRawWriter) CloseAppend(ctx context.Context, tracker AppendTracker) error {
+func (m *MockRawWriter) CloseAppend(context.Context, AppendTracker) error {
 	m.closeAppendCalled = true
 	return nil
 }
@@ -75,11 +75,11 @@ type MockCompactor struct {
 	BlockMetaFn func(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 }
 
-func (c *MockCompactor) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (c *MockCompactor) MarkBlockCompacted(uuid.UUID, string) error {
 	return nil
 }
 
-func (c *MockCompactor) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (c *MockCompactor) ClearBlock(uuid.UUID, string) error {
 	return nil
 }
 
@@ -100,7 +100,7 @@ type MockReader struct {
 	ReadFn        func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
 }
 
-func (m *MockReader) Tenants(ctx context.Context) ([]string, error) {
+func (m *MockReader) Tenants(context.Context) ([]string, error) {
 	return m.T, nil
 }
 func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
@@ -118,7 +118,7 @@ func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID 
 	return m.M, nil
 }
 
-func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
+func (m *MockReader) Read(_ context.Context, name string, blockID uuid.UUID, tenantID string, _ bool) ([]byte, error) {
 	if m.ReadFn != nil {
 		return m.ReadFn(name, blockID, tenantID)
 	}
@@ -126,11 +126,11 @@ func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, t
 	return m.R, nil
 }
 
-func (m *MockReader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (m *MockReader) StreamReader(context.Context, string, uuid.UUID, string) (io.ReadCloser, int64, error) {
 	panic("StreamReader is not yet supported for mock reader")
 }
 
-func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, _ bool) error {
+func (m *MockReader) ReadRange(_ context.Context, _ string, _ uuid.UUID, _ string, _ uint64, buffer []byte, _ bool) error {
 	copy(buffer, m.Range)
 
 	return nil
@@ -152,22 +152,22 @@ type MockWriter struct {
 	IndexCompactedMeta map[string][]*CompactedBlockMeta
 }
 
-func (m *MockWriter) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error {
+func (m *MockWriter) Write(context.Context, string, uuid.UUID, string, []byte, bool) error {
 	return nil
 }
-func (m *MockWriter) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+func (m *MockWriter) StreamWriter(context.Context, string, uuid.UUID, string, io.Reader, int64) error {
 	return nil
 }
-func (m *MockWriter) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
+func (m *MockWriter) WriteBlockMeta(context.Context, *BlockMeta) error {
 	return nil
 }
-func (m *MockWriter) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
+func (m *MockWriter) Append(context.Context, string, uuid.UUID, string, AppendTracker, []byte) (AppendTracker, error) {
 	return nil, nil
 }
-func (m *MockWriter) CloseAppend(ctx context.Context, tracker AppendTracker) error {
+func (m *MockWriter) CloseAppend(context.Context, AppendTracker) error {
 	return nil
 }
-func (m *MockWriter) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
 	if m.IndexMeta == nil {
 		m.IndexMeta = make(map[string][]*BlockMeta)
 	}

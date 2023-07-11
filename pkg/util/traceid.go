@@ -17,9 +17,8 @@ func HexStringToTraceID(id string) ([]byte, error) {
 			(idChar >= "A" && idChar <= "F") ||
 			(idChar >= "0" && idChar <= "9") {
 			continue
-		} else {
-			return nil, fmt.Errorf("trace IDs can only contain hex characters: invalid character '%s' at position %d", idChar, pos+1)
 		}
+		return nil, fmt.Errorf("trace IDs can only contain hex characters: invalid character '%s' at position %d", idChar, pos+1)
 	}
 
 	// the encoding/hex package does not like odd length strings.

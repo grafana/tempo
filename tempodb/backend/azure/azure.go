@@ -109,7 +109,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 }
 
 // CloseAppend implements backend.Writer
-func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+func (rw *readerWriter) CloseAppend(context.Context, backend.AppendTracker) error {
 	return nil
 }
 

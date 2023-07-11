@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -36,15 +37,15 @@ func TestCompression(t *testing.T) {
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(c))
 
-	apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
+	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
 
-	apiClientWithCompression := tempoUtil.NewClientWithCompression("http://"+tempo.Endpoint(3200), "")
+	apiClientWithCompression := httpclient.NewWithCompression("http://"+tempo.Endpoint(3200), "")
 
 	queryAndAssertTrace(t, apiClient, info)
 	queryAndAssertTraceCompression(t, apiClientWithCompression, info)
 }
 
-func queryAndAssertTraceCompression(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 
 	// The received client will strip the header before we have a chance to inspect it, so just validate that the compressed client works as expected.
 	result, err := client.QueryTrace(info.HexID())
@@ -59,7 +60,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *tempoUtil.Client, info
 	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header.
 
 	// Make the call directly so we have a chance to inspect the response header and manually un-gzip it ourselves to confirm the content.
-	request, err := http.NewRequest("GET", client.BaseURL+tempoUtil.QueryTraceEndpoint+"/"+info.HexID(), nil)
+	request, err := http.NewRequest("GET", client.BaseURL+httpclient.QueryTraceEndpoint+"/"+info.HexID(), nil)
 	require.NoError(t, err)
 	request.Header.Add("Accept-Encoding", "gzip")
 

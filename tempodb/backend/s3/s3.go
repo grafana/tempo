@@ -230,7 +230,7 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 }
 
 // List implements backend.Reader
-func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	var objects []string

@@ -31,7 +31,7 @@ func (d *DistinctValueCollector[T]) Collect(v T) (exceeded bool) {
 	d.mtx.RUnlock()
 
 	// Calculate length
-	len := d.len(v)
+	valueLen := d.len(v)
 
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -41,16 +41,16 @@ func (d *DistinctValueCollector[T]) Collect(v T) (exceeded bool) {
 	}
 
 	// Record total inspected length regardless
-	d.totalLen += len
+	d.totalLen += valueLen
 
 	// Can it fit?
-	if d.maxLen > 0 && d.currLen+len > d.maxLen {
+	if d.maxLen > 0 && d.currLen+valueLen > d.maxLen {
 		// No
 		return true
 	}
 
 	d.values[v] = struct{}{}
-	d.currLen += len
+	d.currLen += valueLen
 	return false
 }
 

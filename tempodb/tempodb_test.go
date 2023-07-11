@@ -677,9 +677,9 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 
 	wal := w.WAL()
 
-	now := time.Now().Unix()
-	oneHourAgo := time.Now().Add(-1 * time.Hour).Unix()
-	oneHour := time.Now().Add(time.Hour).Unix()
+	now := time.Now()
+	oneHourAgo := now.Add(-1 * time.Hour).Unix()
+	oneHour := now.Add(time.Hour).Unix()
 
 	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
@@ -694,8 +694,8 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	require.NoError(t, err, "unexpected error completing block")
 
 	// Verify the block time was constrained to the slack time.
-	require.Equal(t, now, complete.BlockMeta().StartTime.Unix())
-	require.Equal(t, now, complete.BlockMeta().EndTime.Unix())
+	require.Equal(t, now.Unix(), complete.BlockMeta().StartTime.Unix())
+	require.Equal(t, now.Unix(), complete.BlockMeta().EndTime.Unix())
 }
 func TestShouldCache(t *testing.T) {
 	tempDir := t.TempDir()

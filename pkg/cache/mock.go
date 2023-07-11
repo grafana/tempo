@@ -18,7 +18,7 @@ func (m *mockCache) Store(_ context.Context, keys []string, bufs [][]byte) {
 	}
 }
 
-func (m *mockCache) Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string) {
+func (m *mockCache) Fetch(_ context.Context, keys []string) (found []string, bufs [][]byte, missing []string) {
 	m.Lock()
 	defer m.Unlock()
 	for _, key := range keys {

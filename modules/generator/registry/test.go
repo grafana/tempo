@@ -144,7 +144,7 @@ type testHistogram struct {
 
 var _ Histogram = (*testHistogram)(nil)
 
-func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
+func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, _ string, multiplier float64) {
 	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
 	for i, label := range labelValueCombo.labels.names {
 		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}

@@ -80,7 +80,7 @@ type SearchConfig struct {
 	} `yaml:"cache_control"`
 }
 
-func (c *SearchConfig) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
+func (c *SearchConfig) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	c.ChunkSizeBytes = DefaultSearchChunkSizeBytes
 	c.PrefetchTraceCount = DefaultPrefetchTraceCount
 	c.ReadBufferCount = DefaultReadBufferCount
