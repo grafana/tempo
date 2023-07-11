@@ -6,10 +6,12 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
-	util "github.com/grafana/tempo/integration"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
+
+	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
 // TestCrossClusterReads uses the secondary_ingester_ring querier configuration option. it writes a trace to
@@ -45,7 +47,7 @@ func TestCrossClusterReads(t *testing.T) {
 	require.NoError(t, tempoDistributorA.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
 	// read from cluster B
-	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontendB.Endpoint(3200), "")
+	apiClient := httpclient.New("http://"+tempoQueryFrontendB.Endpoint(3200), "")
 
 	// query an in-memory trace
 	queryAndAssertTrace(t, apiClient, info)

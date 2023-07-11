@@ -11,6 +11,7 @@ import (
 	e2e_db "github.com/grafana/e2e/db"
 
 	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
@@ -96,7 +97,7 @@ func TestServerless(t *testing.T) {
 			}
 			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_feature_enabled`}, e2e.WithLabelMatchers(features...), e2e.WaitMissingMetrics))
 
-			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+			apiClient := httpclient.New("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// flush trace to backend
 			res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
