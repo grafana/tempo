@@ -57,8 +57,5 @@ type Interface interface {
 	MaxSearchDuration(userID string) time.Duration
 
 	// API
-	GetOverridesHandler(w http.ResponseWriter, r *http.Request)
-	PostOverridesHandler(w http.ResponseWriter, r *http.Request)
-	DeleteOverridesHandler(w http.ResponseWriter, r *http.Request)
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }

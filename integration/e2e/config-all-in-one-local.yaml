@@ -48,6 +48,7 @@ overrides:
   user_configurable_overrides_config:
     enabled: true
     poll_interval: 10s
-    backend: local
-    local:
-      path: /var/tempo_overrides
+    client:
+      backend: local
+      local:
+        path: /var/tempo_overrides

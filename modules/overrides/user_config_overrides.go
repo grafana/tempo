@@ -1,53 +1,26 @@
 package overrides
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/tracing"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
+	api "github.com/grafana/tempo/modules/overrides/user_configurable_api"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-)
-
-const (
-	overridesKeyPath  = "overrides"
-	overridesFileName = "overrides.json"
-)
-
-var (
-	metricFetch = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "overrides_user_configurable_overrides_fetch_total",
-		Help:      "How often the user-configurable overrides was fetched for this tenant",
-	}, []string{"tenant"})
-	metricFetchFailed = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "overrides_user_configurable_overrides_fetch_failed_total",
-		Help:      "How often fetching the user-configurable overrides failed for this tenant",
-	}, []string{"tenant"})
 )
 
 type UserConfigOverridesConfig struct {
@@ -56,14 +29,10 @@ type UserConfigOverridesConfig struct {
 	// PollInterval controls how often the overrides will be refreshed by polling the backend
 	PollInterval time.Duration `yaml:"poll_interval"`
 
-	Backend string        `yaml:"backend"`
-	Local   *local.Config `yaml:"local"`
-	GCS     *gcs.Config   `yaml:"gcs"`
-	S3      *s3.Config    `yaml:"s3"`
-	Azure   *azure.Config `yaml:"azure"`
+	ClientConfig api.UserConfigOverridesClientConfig `yaml:"client"`
 }
 
-func (cfg *UserConfigOverridesConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
+func (cfg *UserConfigOverridesConfig) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	cfg.PollInterval = time.Minute
 }
 
@@ -73,20 +42,15 @@ type userConfigOverridesManager struct {
 	// wrap Interface and only overrides select functions
 	Interface
 
-	cfg UserConfigOverridesConfig
+	cfg *UserConfigOverridesConfig
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
-	// mtx is used to protect changes to tenantLimits and the backend
-	mtx sync.RWMutex
-
-	// tenantLimits is an in-memory cache that is refreshed at PollInterval or when a GET request
-	// is received
+	mtx          sync.RWMutex
 	tenantLimits tenantLimits
 
-	r backend.RawReader
-	w backend.RawWriter
+	client api.Client
 
 	logger log.Logger
 }
@@ -96,21 +60,20 @@ type statusUserConfigOverrides struct {
 	TenantLimits tenantLimits `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 }
 
-type tenantLimits map[string]*UserConfigurableLimits
+type tenantLimits map[string]*api.UserConfigurableLimits
 
 // newUserConfigOverrides wraps the given overrides with user-configurable overrides.
-func newUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service) (*userConfigOverridesManager, error) {
-	reader, writer, err := initBackend(cfg)
+func newUserConfigOverrides(cfg *UserConfigOverridesConfig, subOverrides Service) (*userConfigOverridesManager, error) {
+	client, err := api.NewUserConfigOverridesClient(&cfg.ClientConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize backend for user-configurable overrides: %w", err)
+		return nil, fmt.Errorf("failed to initialize backend client for user-configurable overrides: %w", err)
 	}
 
 	mgr := userConfigOverridesManager{
 		Interface:    subOverrides,
 		cfg:          cfg,
 		tenantLimits: make(tenantLimits),
-		r:            reader,
-		w:            writer,
+		client:       client,
 		logger:       log.With(tempo_log.Logger, "component", "user-configurable overrides"),
 	}
 
@@ -124,28 +87,6 @@ func newUserConfigOverrides(cfg UserConfigOverridesConfig, subOverrides Service)
 	mgr.Service = services.NewBasicService(mgr.starting, mgr.running, mgr.stopping)
 
 	return &mgr, nil
-}
-
-func initBackend(cfg UserConfigOverridesConfig) (reader backend.RawReader, writer backend.RawWriter, err error) {
-	switch cfg.Backend {
-	case "local":
-		reader, writer, _, err = local.New(cfg.Local)
-		if err != nil {
-			return
-		}
-		// Create overrides directory with necessary permissions
-		err = os.MkdirAll(path.Join(cfg.Local.Path, overridesKeyPath), os.ModePerm)
-	case "gcs":
-		reader, writer, _, err = gcs.New(cfg.GCS)
-	case "s3":
-		reader, writer, _, err = s3.New(cfg.S3)
-	case "azure":
-		reader, writer, _, err = azure.New(cfg.Azure)
-	default:
-		err = fmt.Errorf("unknown backend %s", cfg.Backend)
-	}
-	// TODO wrap reader and writer in cache
-	return
 }
 
 func (o *userConfigOverridesManager) starting(ctx context.Context) error {
@@ -183,18 +124,14 @@ func (o *userConfigOverridesManager) stopping(error) error {
 }
 
 func (o *userConfigOverridesManager) reloadAllTenantLimits(ctx context.Context) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.reloadAllTenantLimits")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesManager.reloadAllTenantLimits")
 	defer span.Finish()
 
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	level.Info(o.logger).Log("msg", "reloading all tenant limits", "traceID", traceID)
 
-	// TODO can we make this lock smaller? this will block all operations that read from the overrides
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
 	// List tenants with user-configurable overrides
-	tenants, err := o.listTenantsUnderLock(ctx)
+	tenants, err := o.client.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -202,129 +139,23 @@ func (o *userConfigOverridesManager) reloadAllTenantLimits(ctx context.Context) 
 	// Clean up cached tenants that have been removed from the backend
 	for cachedTenant := range o.tenantLimits {
 		if !slices.Contains(tenants, cachedTenant) {
-			delete(o.tenantLimits, cachedTenant)
+			o.deleteTenantLimit(cachedTenant)
 		}
 	}
 
 	// For every tenant with user-configurable overrides, download and cache them
 	for _, tenant := range tenants {
-		_, err = o.getTenantLimitsUnderLock(ctx, tenant)
+		limits, err := o.client.Get(ctx, tenant)
 		if err != nil {
-			// TODO should we keep trying the other tenants and return a combined error message?
-			//  this implementation gives up after a single failure
-			return errors.Wrap(err, "failed to load tenant limits")
+			return errors.Wrapf(err, "failed to load tenant limits for tenant %v", tenant)
 		}
+		o.setTenantLimit(tenant, limits)
 	}
 
 	return nil
 }
 
-func (o *userConfigOverridesManager) listTenantsUnderLock(ctx context.Context) ([]string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.listTenantsUnderLock")
-	defer span.Finish()
-
-	// TODO to avoid polling the entire bucket, use a tenant list and keep it in a shared cache
-	tenants, err := o.r.List(ctx, []string{overridesKeyPath})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to list tenants")
-	}
-	return tenants, nil
-}
-
-// getTenantLimits will look up the UserConfigurableLimits for a tenant, it performs a backend request
-// and will update the entry in the local cache.
-func (o *userConfigOverridesManager) getTenantLimits(ctx context.Context, userID string) (tenantLimits *UserConfigurableLimits, err error) {
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	return o.getTenantLimitsUnderLock(ctx, userID)
-}
-
-// getTenantLimitsUnderLock does the same as getTenantLimits but requires a write lock.
-func (o *userConfigOverridesManager) getTenantLimitsUnderLock(ctx context.Context, userID string) (tenantLimits *UserConfigurableLimits, err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.getTenantLimitsUnderLock")
-	defer span.Finish()
-	span.SetTag("tenant", userID)
-
-	// TODO save backend request by reading tenant limit from shared cache?
-
-	metricFetch.WithLabelValues(userID).Inc()
-	defer func() {
-		if err != nil {
-			metricFetchFailed.WithLabelValues(userID).Inc()
-		}
-	}()
-
-	reader, _, err := o.r.Read(ctx, overridesFileName, []string{overridesKeyPath, userID}, false)
-	if err == backend.ErrDoesNotExist {
-		delete(o.tenantLimits, userID)
-		return nil, nil
-	}
-	if err != nil {
-		return
-	}
-	defer reader.Close()
-
-	d := json.NewDecoder(reader)
-	err = d.Decode(&tenantLimits)
-	if err != nil {
-		return
-	}
-
-	o.tenantLimits[userID] = tenantLimits
-	return
-}
-
-// setTenantLimits will store the given limits
-func (o *userConfigOverridesManager) setTenantLimits(ctx context.Context, userID string, limits *UserConfigurableLimits) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.setTenantLimits")
-	defer span.Finish()
-	span.SetTag("tenant", userID)
-
-	// TODO perform validation
-
-	// TODO do this in a constructor or something?
-	limits.Version = "v1"
-
-	data, err := jsoniter.Marshal(limits)
-	if err != nil {
-		return err
-	}
-
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	// Store on the bucket
-	err = o.w.Write(ctx, overridesFileName, []string{overridesKeyPath, userID}, bytes.NewReader(data), -1, false)
-	if err != nil {
-		return err
-	}
-
-	// TODO future improvement: update/invalidate cache
-
-	o.tenantLimits[userID] = limits
-	return nil
-}
-
-// deleteTenantLimits will clear all user configurable limits for the given tenant
-func (o *userConfigOverridesManager) deleteTenantLimits(ctx context.Context, userID string) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "overrides.deleteTenantLimits")
-	defer span.Finish()
-	span.SetTag("tenant", userID)
-
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	err := o.w.Delete(ctx, overridesFileName, []string{overridesKeyPath, userID})
-	if err != nil {
-		return err
-	}
-	delete(o.tenantLimits, userID)
-	return nil
-}
-
-// getCachedTenantLimits will return the UserConfigurableLimits for a tenant from the local cache
-func (o *userConfigOverridesManager) getCachedTenantLimits(userID string) (*UserConfigurableLimits, bool) {
+func (o *userConfigOverridesManager) getTenantLimits(userID string) (*api.UserConfigurableLimits, bool) {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
@@ -332,15 +163,29 @@ func (o *userConfigOverridesManager) getCachedTenantLimits(userID string) (*User
 	return tenantLimits, ok
 }
 
-func (o *userConfigOverridesManager) getAllCachedTenantLimits() tenantLimits {
+func (o *userConfigOverridesManager) getAllTenantLimits() tenantLimits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
 	return o.tenantLimits
 }
 
+func (o *userConfigOverridesManager) setTenantLimit(userID string, limits *api.UserConfigurableLimits) {
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+
+	o.tenantLimits[userID] = limits
+}
+
+func (o *userConfigOverridesManager) deleteTenantLimit(userID string) {
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+
+	delete(o.tenantLimits, userID)
+}
+
 func (o *userConfigOverridesManager) Forwarders(userID string) []string {
-	tenantLimits, ok := o.getCachedTenantLimits(userID)
+	tenantLimits, ok := o.getTenantLimits(userID)
 	if ok && tenantLimits.Forwarders != nil {
 		return *tenantLimits.Forwarders
 	}
@@ -356,7 +201,7 @@ func (o *userConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r *ht
 
 	// now write per tenant user configured overrides
 	// wrap in userConfigOverrides struct to return correct yaml
-	l := o.getAllCachedTenantLimits()
+	l := o.getAllTenantLimits()
 	ucl := statusUserConfigOverrides{TenantLimits: l}
 	out, err := yaml.Marshal(ucl)
 	if err != nil {

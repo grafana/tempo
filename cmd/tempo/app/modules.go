@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/user_configurable_api"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -191,12 +192,23 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
-	t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathOverrides)).Methods(http.MethodGet).Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.GetOverridesHandler)))
+	// User-configurable overrides API
+	userConfigOverridesCfg := t.cfg.LimitsConfig.UserConfigurableOverridesConfig
 
-	// Only expose write endpoints on query-frontend
-	if t.isModuleActive(QueryFrontend) {
-		t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathOverrides)).Methods(http.MethodPost).Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.PostOverridesHandler)))
-		t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathOverrides)).Methods(http.MethodDelete).Handler(t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(o.DeleteOverridesHandler)))
+	if userConfigOverridesCfg.Enabled && t.isModuleActive(QueryFrontend) {
+		userConfigOverridesAPI, err := user_configurable_api.NewUserConfigOverridesAPI(&userConfigOverridesCfg.ClientConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		overridesPath := addHTTPAPIPrefix(&t.cfg, api.PathOverrides)
+		wrapHandler := func(h http.HandlerFunc) http.Handler {
+			return t.HTTPAuthMiddleware.Wrap(h)
+		}
+
+		t.Server.HTTP.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetOverridesHandler))
+		t.Server.HTTP.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostOverridesHandler))
+		t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteOverridesHandler))
 	}
 
 	return t.Overrides, nil

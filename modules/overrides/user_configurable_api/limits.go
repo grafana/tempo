@@ -1,4 +1,4 @@
-package overrides
+package user_configurable_api
 
 type UserConfigurableLimits struct {
 	// TODO how do we ensure Version is always filled in?
@@ -8,7 +8,7 @@ type UserConfigurableLimits struct {
 	Forwarders *[]string `json:"forwarders" yaml:"forwarders"`
 }
 
-func newUserConfigurableLimits() *UserConfigurableLimits {
+func NewUserConfigurableLimits() *UserConfigurableLimits {
 	return &UserConfigurableLimits{
 		Version: "v1",
 	}

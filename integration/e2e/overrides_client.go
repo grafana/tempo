@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
+	api "github.com/grafana/tempo/modules/overrides/user_configurable_api"
+	tempo_api "github.com/grafana/tempo/pkg/api"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
@@ -18,8 +18,8 @@ type Client struct {
 	*tempoUtil.Client
 }
 
-func (c *Client) GetOverrides() (*overrides.UserConfigurableLimits, error) {
-	req, err := http.NewRequest("GET", c.BaseURL+api.PathOverrides, nil)
+func (c *Client) GetOverrides() (*api.UserConfigurableLimits, error) {
+	req, err := http.NewRequest("GET", c.BaseURL+tempo_api.PathOverrides, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -46,20 +46,20 @@ func (c *Client) GetOverrides() (*overrides.UserConfigurableLimits, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	limits := &overrides.UserConfigurableLimits{}
+	limits := &api.UserConfigurableLimits{}
 	if err = json.Unmarshal(body, limits); err != nil {
 		return nil, fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
 	}
 	return limits, err
 }
 
-func (c *Client) SetOverrides(limits *overrides.UserConfigurableLimits) error {
+func (c *Client) SetOverrides(limits *api.UserConfigurableLimits) error {
 	b, err := json.Marshal(limits)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", c.BaseURL+api.PathOverrides, bytes.NewBuffer(b))
+	req, err := http.NewRequest("POST", c.BaseURL+tempo_api.PathOverrides, bytes.NewBuffer(b))
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (c *Client) SetOverrides(limits *overrides.UserConfigurableLimits) error {
 }
 
 func (c *Client) DeleteOverrides() error {
-	req, err := http.NewRequest("DELETE", c.BaseURL+api.PathOverrides, nil)
+	req, err := http.NewRequest("DELETE", c.BaseURL+tempo_api.PathOverrides, nil)
 	if err != nil {
 		return err
 	}

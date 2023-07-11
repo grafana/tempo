@@ -43,9 +43,10 @@ overrides:
   user_configurable_overrides_config:
     enabled: true
     poll_interval: 10s
-    backend: gcs
-    gcs:
-      # TODO use separate bucket?
-      bucket_name: tempo
-      endpoint: https://tempo_e2e-gcs:4443/storage/v1/
-      insecure: true
+    client:
+      backend: gcs
+      gcs:
+        # TODO use separate bucket?
+        bucket_name: tempo
+        endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+        insecure: true

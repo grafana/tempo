@@ -3,7 +3,6 @@ package overrides
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,9 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/tempodb/backend"
-
+	api "github.com/grafana/tempo/modules/overrides/user_configurable_api"
+	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
@@ -26,7 +24,6 @@ const (
 )
 
 func TestUserConfigOverridesManager(t *testing.T) {
-
 	defaultLimits := Limits{
 		MaxBytesPerTrace: 1024,
 		Forwarders:       []string{"my-forwarder"},
@@ -40,10 +37,12 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
 
 	// Update limits for tenant-1
-	userConfigurableLimits := newUserConfigurableLimits()
+	userConfigurableLimits := api.NewUserConfigurableLimits()
 	userConfigurableLimits.Forwarders = &[]string{"my-other-forwarder"}
-	err := mgr.setTenantLimits(context.Background(), tenant2, userConfigurableLimits)
+	err := mgr.client.Set(context.Background(), tenant2, userConfigurableLimits)
 	assert.NoError(t, err)
+
+	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
 	// Verify updated limits are returned
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
@@ -52,8 +51,10 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant2))
 
 	// Delete limits for tenant-1
-	err = mgr.deleteTenantLimits(context.Background(), tenant2)
+	err = mgr.client.Delete(context.Background(), tenant2)
 	assert.NoError(t, err)
+
+	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
 	// Verify default limits are returned
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
@@ -71,7 +72,7 @@ func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-forwarder"})
 
 	// write directly to backend
-	limits := newUserConfigurableLimits()
+	limits := api.NewUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
 	writeUserConfigurableOverridesToDisk(t, tempDir, tenant1, limits)
 
@@ -88,10 +89,12 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 	}
 	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	limits := newUserConfigurableLimits()
+	limits := api.NewUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
-	err := mgr.setTenantLimits(context.Background(), tenant1, limits)
+	err := mgr.client.Set(context.Background(), tenant1, limits)
 	assert.NoError(t, err)
+
+	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
 	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-other-forwarder"})
 
@@ -111,24 +114,15 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	}
 	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	limits := newUserConfigurableLimits()
+	limits := api.NewUserConfigurableLimits()
 	limits.Forwarders = &[]string{"my-other-forwarder"}
-	err := mgr.setTenantLimits(context.Background(), tenant1, limits)
+	err := mgr.client.Set(context.Background(), tenant1, limits)
 	assert.NoError(t, err)
 
-	// replace reader by this uncooperative fella
-	mgr.r = &backend.MockRawReader{
-		ListFn: func(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
-			return nil, errors.New("no")
-		},
-		ReadFn: func(ctx context.Context, name string, keypath backend.KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
-			return nil, 0, errors.New("no")
-		},
-	}
+	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
-	// get requests fail
-	_, err = mgr.getTenantLimits(context.Background(), tenant1)
-	assert.Error(t, err)
+	// replace reader by this uncooperative fella
+	mgr.client = badClient{}
 
 	// reloading fails
 	assert.Error(t, mgr.reloadAllTenantLimits(context.Background()))
@@ -142,7 +136,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	_, configurableOverrides := localUserConfigOverrides(t, bl)
 
 	// set user config limits
-	configurableOverrides.tenantLimits["test"] = &UserConfigurableLimits{
+	configurableOverrides.tenantLimits["test"] = &api.UserConfigurableLimits{
 		Version:    "v1",
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
@@ -169,7 +163,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 			require.Contains(t, data, "my-other-forwarder")
 
 			res := w.Result()
-			require.Equal(t, "text/plain; charset=utf-8", res.Header.Get(api.HeaderContentType))
+			require.Equal(t, "text/plain; charset=utf-8", res.Header.Get(tempo_api.HeaderContentType))
 			require.Equal(t, 200, res.StatusCode)
 		})
 	}
@@ -178,10 +172,12 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userConfigOverridesManager) {
 	path := t.TempDir()
 
-	cfg := UserConfigOverridesConfig{
+	cfg := &UserConfigOverridesConfig{
 		Enabled: true,
-		Backend: "local",
-		Local:   &local.Config{Path: path},
+		ClientConfig: api.UserConfigOverridesClientConfig{
+			Backend: "local",
+			Local:   &local.Config{Path: path},
+		},
 	}
 
 	baseOverrides, err := NewOverrides(baseLimits)
@@ -193,21 +189,39 @@ func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userCon
 	return path, configurableOverrides
 }
 
-func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *UserConfigurableLimits) {
+func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *api.UserConfigurableLimits) {
 	b, err := json.Marshal(limits)
 	assert.NoError(t, err)
 
-	err = os.MkdirAll(path.Join(dir, overridesKeyPath, tenant), os.ModePerm)
+	err = os.MkdirAll(path.Join(dir, api.OverridesKeyPath, tenant), os.ModePerm)
 	assert.NoError(t, err)
 
-	err = os.WriteFile(path.Join(dir, overridesKeyPath, tenant, overridesFileName), b, 0644)
+	err = os.WriteFile(path.Join(dir, api.OverridesKeyPath, tenant, api.OverridesFileName), b, 0644)
 	assert.NoError(t, err)
 }
 
 func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant string) {
-	err := os.Remove(path.Join(dir, overridesKeyPath, tenant, overridesFileName))
+	err := os.Remove(path.Join(dir, api.OverridesKeyPath, tenant, api.OverridesFileName))
 	assert.NoError(t, err)
 
-	err = os.Remove(path.Join(dir, overridesKeyPath, tenant))
+	err = os.Remove(path.Join(dir, api.OverridesKeyPath, tenant))
 	assert.NoError(t, err)
+}
+
+type badClient struct{}
+
+func (b badClient) List(ctx context.Context) ([]string, error) {
+	return nil, errors.New("no")
+}
+
+func (b badClient) Get(ctx context.Context, s string) (*api.UserConfigurableLimits, error) {
+	return nil, errors.New("no")
+}
+
+func (b badClient) Set(ctx context.Context, s string, limits *api.UserConfigurableLimits) error {
+	return errors.New("no")
+}
+
+func (b badClient) Delete(ctx context.Context, s string) error {
+	return errors.New("no")
 }

@@ -1,4 +1,4 @@
-package overrides
+package user_configurable_api
 
 import (
 	"net/http"
@@ -15,10 +15,24 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-// GetOverridesHandler is a http.HandlerFunc that returns the user-configured overrides.
-func (o *userConfigOverridesManager) GetOverridesHandler(w http.ResponseWriter, r *http.Request) {
+// UserConfigOverridesAPI manages the API to retrieve, update and delete user-configurable overrides
+// from the backend.
+type UserConfigOverridesAPI struct {
+	client Client
+}
+
+func NewUserConfigOverridesAPI(config *UserConfigOverridesClientConfig) (*UserConfigOverridesAPI, error) {
+	client, err := NewUserConfigOverridesClient(config)
+	if err != nil {
+		return nil, err
+	}
+	return &UserConfigOverridesAPI{client}, nil
+}
+
+// GetOverridesHandler retrieves the user-configured overrides from the backend.
+func (a *UserConfigOverridesAPI) GetOverridesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesManager.GetOverridesHandler")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.GetOverridesHandler")
 	defer span.Finish()
 
 	userID, err := user.ExtractOrgID(ctx)
@@ -28,7 +42,7 @@ func (o *userConfigOverridesManager) GetOverridesHandler(w http.ResponseWriter, 
 	}
 	logRequest(userID, r)
 
-	limits, err := o.getTenantLimits(ctx, userID)
+	limits, err := a.client.Get(ctx, userID)
 	if err != nil {
 		handleError(span, userID, r, w, http.StatusInternalServerError, err)
 		return
@@ -46,9 +60,9 @@ func (o *userConfigOverridesManager) GetOverridesHandler(w http.ResponseWriter, 
 }
 
 // PostOverridesHandler accepts post requests with json payload and writes it to config backend.
-func (o *userConfigOverridesManager) PostOverridesHandler(w http.ResponseWriter, r *http.Request) {
+func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesManager.PostOverridesHandler")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.PostOverridesHandler")
 	defer span.Finish()
 
 	userID, err := user.ExtractOrgID(ctx)
@@ -62,24 +76,20 @@ func (o *userConfigOverridesManager) PostOverridesHandler(w http.ResponseWriter,
 	// error in case of unwanted fields
 	d.DisallowUnknownFields()
 
-	ucl := &UserConfigurableLimits{}
+	limits := &UserConfigurableLimits{}
 
-	err = d.Decode(&ucl)
+	err = d.Decode(&limits)
 	if err != nil {
 		// bad JSON or unrecognized json field
-		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "bad json or missing required fields in payload"))
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
 		return
 	}
 
-	// check for extra data
-	if d.More() {
-		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "extraneous data in payload"))
-		return
-	}
+	// TODO validate the received data
 
-	err = o.setTenantLimits(ctx, userID, ucl)
+	err = a.client.Set(ctx, userID, limits)
 	if err != nil {
-		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "failed to set user config limits"))
+		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "failed to store user-configurable limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -87,9 +97,9 @@ func (o *userConfigOverridesManager) PostOverridesHandler(w http.ResponseWriter,
 	_, _ = w.Write([]byte("ok"))
 }
 
-func (o *userConfigOverridesManager) DeleteOverridesHandler(w http.ResponseWriter, r *http.Request) {
+func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesManager.DeleteOverridesHandler")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.DeleteOverridesHandler")
 	defer span.Finish()
 
 	userID, err := user.ExtractOrgID(ctx)
@@ -99,35 +109,14 @@ func (o *userConfigOverridesManager) DeleteOverridesHandler(w http.ResponseWrite
 	}
 	logRequest(userID, r)
 
-	err = o.deleteTenantLimits(ctx, userID)
+	err = a.client.Delete(ctx, userID)
 	if err != nil {
-		handleError(span, userID, nil, w, http.StatusInternalServerError, errors.Wrap(err, "failed to set user config limits"))
+		handleError(span, userID, nil, w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete user-configurable limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte("ok"))
-}
-
-func (o *runtimeConfigOverridesManager) GetOverridesHandler(w http.ResponseWriter, r *http.Request) {
-	span, _ := opentracing.StartSpanFromContext(r.Context(), "runtimeConfigOverridesManager.GetOverridesHandler")
-	defer span.Finish()
-
-	http.Error(w, "user configured overrides are not enabled", http.StatusMethodNotAllowed)
-}
-
-func (o *runtimeConfigOverridesManager) PostOverridesHandler(w http.ResponseWriter, r *http.Request) {
-	span, _ := opentracing.StartSpanFromContext(r.Context(), "runtimeConfigOverridesManager.PostOverridesHandler")
-	defer span.Finish()
-
-	http.Error(w, "user configured overrides are not enabled", http.StatusMethodNotAllowed)
-}
-
-func (o *runtimeConfigOverridesManager) DeleteOverridesHandler(w http.ResponseWriter, r *http.Request) {
-	span, _ := opentracing.StartSpanFromContext(r.Context(), "runtimeConfigOverridesManager.DeleteOverridesHandler")
-	defer span.Finish()
-
-	http.Error(w, "user configured overrides are not enabled", http.StatusMethodNotAllowed)
 }
 
 func logRequest(userID string, r *http.Request) {
