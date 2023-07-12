@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig_CheckConfig(t *testing.T) {
@@ -96,6 +97,44 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg.Compactor.Compactor.ChunkSizeBytes = 1
 				cfg.Compactor.Compactor.FlushSizeBytes = 1
 				cfg.Compactor.Compactor.IteratorBufferSize = 1
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
+			name: "trace storage conflicts with overrides storage - local",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = "local"
+				cfg.StorageConfig.Trace.Local.Path = "/var/tempo"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = "local"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Local.Path = "/var/tempo"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - gcs",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = "gcs"
+				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
+				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = "gcs"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "my-bucket"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.Prefix = "tempo"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - different backends",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = "gcs"
+				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = "s3"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.S3.Bucket = "my-bucket"
 				return cfg
 			}(),
 			expect: nil,
