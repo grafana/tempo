@@ -49,7 +49,7 @@ func (m *mockSpan) Attributes() map[traceql.Attribute]traceql.Static { return m.
 func (m *mockSpan) ID() []byte                                       { return nil }
 func (m *mockSpan) StartTimeUnixNanos() uint64                       { return m.start }
 func (m *mockSpan) DurationNanos() uint64                            { return m.duration }
-func (m *mockSpan) DescendantOf(s traceql.Span) bool                 { return false }
+func (m *mockSpan) DescendantOf(traceql.Span) bool                   { return false }
 func (m *mockSpan) SiblingOf(traceql.Span) bool                      { return false }
 func (m *mockSpan) ChildOf(traceql.Span) bool                        { return false }
 
