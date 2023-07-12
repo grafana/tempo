@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -666,7 +667,7 @@ func TestDistributor(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
 			limits := overrides.Limits{}
-			flagext.DefaultValues(limits)
+			limits.RegisterFlags(&flag.FlagSet{})
 
 			// todo:  test limits
 			d := prepare(t, limits, nil, nil)
