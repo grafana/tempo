@@ -95,6 +95,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [BUGFIX] Fixes issue where matches and other spanset level attributes were not persisted to the TraceQL results. [#2490](https://github.com/grafana/tempo/pull/2490) 
 * [BUGFIX] Fixes issue where ingester search could occasionally fail with file does not exist error [#2534](https://github.com/grafana/tempo/issues/2534) (@mdisibio)
 * [BUGFIX] Tempo failed to find meta.json path after adding prefix in S3/GCS/Azure configuration. [#2585](https://github.com/grafana/tempo/issues/2585) (@WildCatFish)
+* [BUGFIX] Delay logging config warnings until the logger has been initialized [#2645](https://github.com/grafana/tempo/pull/2645) (@kvrhdn)
 * [CHANGE] **Breaking Change** Rename s3.insecure_skip_verify [#2407](https://github.com/grafana/tempo/pull/2407) (@zalegrala)
 ```yaml
 storage:
