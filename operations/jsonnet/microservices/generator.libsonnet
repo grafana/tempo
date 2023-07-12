@@ -50,7 +50,7 @@
     deployment.new(
       target_name,
       0,
-      $.tempo_metrics_generator_container
+      $.tempo_metrics_generator_container,
       {
         app: target_name,
         [$._config.gossip_member_label]: 'true',
