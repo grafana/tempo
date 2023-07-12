@@ -22,13 +22,13 @@ import (
 )
 
 const (
-	OrgIDHeader = "X-Scope-OrgID"
+	orgIDHeader = "X-Scope-OrgID"
 
 	QueryTraceEndpoint = "/api/traces"
 
-	AcceptHeader        = "Accept"
-	ApplicationProtobuf = "application/protobuf"
-	ApplicationJSON     = "application/json"
+	acceptHeader        = "Accept"
+	applicationProtobuf = "application/protobuf"
+	applicationJSON     = "application/json"
 )
 
 // Client is client to the Tempo API.
@@ -60,50 +60,33 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return c.client.Do(req)
 }
 
+// getFor sends a GET request and attempts to unmarshal the response.
 func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(c.OrgID) > 0 {
-		req.Header.Set(OrgIDHeader, c.OrgID)
-	}
-
-	marshallingFormat := ApplicationJSON
+	marshallingFormat := applicationJSON
 	if strings.Contains(url, QueryTraceEndpoint) {
-		marshallingFormat = ApplicationProtobuf
+		marshallingFormat = applicationProtobuf
 	}
 	// Set 'Accept' header to 'application/protobuf'.
 	// This is required for the /api/traces endpoint to return a protobuf response.
 	// JSON lost backwards compatibility with the upgrade to `opentelemetry-proto` v0.18.0.
-	req.Header.Set(AcceptHeader, marshallingFormat)
+	req.Header.Set(acceptHeader, marshallingFormat)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, body, err := c.doRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("error searching tempo for tag %v", err)
+		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return resp, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
 
 	switch marshallingFormat {
-	case ApplicationJSON:
+	case applicationJSON:
 		if err = jsonpb.UnmarshalString(string(body), m); err != nil {
 			return resp, fmt.Errorf("error decoding %T json, err: %v body: %s", m, err, string(body))
 		}
-	case ApplicationProtobuf:
+	case applicationProtobuf:
 
 		if err = proto.Unmarshal(body, m); err != nil {
 			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
@@ -111,6 +94,33 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+// doRequest sends the given request, it injects X-Scope-OrgID and handles bad status codes.
+func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
+	if len(c.OrgID) > 0 {
+		req.Header.Set(orgIDHeader, c.OrgID)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error querying Tempo %v", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, nil, fmt.Errorf("%s request to %s failed with response: %d body: %s", req.Method, req.URL.String(), resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	return resp, body, nil
 }
 
 func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
@@ -207,28 +217,12 @@ func (c *Client) GetOverrides() (*api.UserConfigurableLimits, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set(acceptHeader, applicationJSON)
 
-	if len(c.OrgID) > 0 {
-		req.Header.Set(OrgIDHeader, c.OrgID)
-	}
-	req.Header.Set(AcceptHeader, ApplicationJSON)
-
-	resp, err := http.DefaultClient.Do(req)
+	_, body, err := c.doRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("error querying Tempo %v", err)
+		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
 
 	limits := &api.UserConfigurableLimits{}
 	if err = json.Unmarshal(body, limits); err != nil {
@@ -248,21 +242,8 @@ func (c *Client) SetOverrides(limits *api.UserConfigurableLimits) error {
 		return err
 	}
 
-	if len(c.OrgID) > 0 {
-		req.Header.Set(OrgIDHeader, c.OrgID)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error querying Tempo %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-	return nil
+	_, _, err = c.doRequest(req)
+	return err
 }
 
 func (c *Client) DeleteOverrides() error {
@@ -271,19 +252,6 @@ func (c *Client) DeleteOverrides() error {
 		return err
 	}
 
-	if len(c.OrgID) > 0 {
-		req.Header.Set(OrgIDHeader, c.OrgID)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error querying Tempo %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-	return nil
+	_, _, err = c.doRequest(req)
+	return err
 }

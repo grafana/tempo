@@ -21,6 +21,9 @@ var (
 // become the new global defaults.
 func NewOverrides(cfg Limits) (Service, error) {
 	overrides, err := newRuntimeConfigOverrides(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	if cfg.UserConfigurableOverridesConfig.Enabled {
 		// Wrap runtime config with user-config overrides module
