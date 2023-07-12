@@ -105,10 +105,8 @@ func (o SpansetOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	if err := o.RHS.validate(); err != nil {
-		return err
-	}
-	return nil
+
+	return o.RHS.validate()
 }
 
 func (f SpansetFilter) validate() error {

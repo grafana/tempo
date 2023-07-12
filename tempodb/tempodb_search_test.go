@@ -412,7 +412,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 	}
 }
 
-func traceQLStructural(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
 
