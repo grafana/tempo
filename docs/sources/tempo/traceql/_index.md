@@ -1,6 +1,6 @@
 ---
-title: TraceQL
-menuTitle: TraceQL
+title: Query with TraceQL
+menuTitle: Query with TraceQL
 description: Learn about TraceQL, Tempo's query language for traces
 weight: 600
 aliases:
@@ -11,7 +11,7 @@ keywords:
   - TraceQL
 ---
 
-# TraceQL
+# Query with TraceQL
 
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following:
 
