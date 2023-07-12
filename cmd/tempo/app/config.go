@@ -185,6 +185,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
 	}
 
+	if c.tracesAndOverridesStorageConflict() {
+		warnings = append(warnings, warnTracesAndUserConfigurableOverridesStorageConflict)
+	}
+
 	return warnings
 }
 
@@ -240,6 +244,9 @@ var (
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
 	}
+	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{
+		Message: "Trace storage conflicts with user-configuirable overrides storage",
+	}
 )
 
 func newV2Warning(setting string) ConfigWarning {
@@ -247,4 +254,26 @@ func newV2Warning(setting string) ConfigWarning {
 		Message: "c.StorageConfig.Trace.Block.Version != \"v2\" but " + setting + " is set",
 		Explain: "This setting is only used in v2 blocks",
 	}
+}
+
+func (c *Config) tracesAndOverridesStorageConflict() bool {
+	traceStorage := c.StorageConfig.Trace
+	overridesStorage := c.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig
+
+	if traceStorage.Backend != overridesStorage.Backend {
+		return false
+	}
+
+	switch traceStorage.Backend {
+	case "local":
+		return traceStorage.Local.PathMatches(overridesStorage.Local)
+	case "gcs":
+		return traceStorage.GCS.PathMatches(overridesStorage.GCS)
+	case "s3":
+		return traceStorage.S3.PathMatches(overridesStorage.S3)
+	case "azure":
+		return traceStorage.Azure.PathMatches(overridesStorage.Azure)
+	}
+
+	return false
 }

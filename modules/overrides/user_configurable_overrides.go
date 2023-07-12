@@ -32,8 +32,10 @@ type UserConfigurableOverridesConfig struct {
 	ClientConfig api.UserConfigurableOverridesClientConfig `yaml:"client"`
 }
 
-func (cfg *UserConfigurableOverridesConfig) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
+func (cfg *UserConfigurableOverridesConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	cfg.PollInterval = time.Minute
+
+	cfg.ClientConfig.RegisterFlagsAndApplyDefaults(f)
 }
 
 type tenantLimits map[string]*api.UserConfigurableLimits

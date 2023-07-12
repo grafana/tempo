@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path"
@@ -45,6 +46,13 @@ type UserConfigurableOverridesClientConfig struct {
 	GCS   *gcs.Config   `yaml:"gcs"`
 	S3    *s3.Config    `yaml:"s3"`
 	Azure *azure.Config `yaml:"azure"`
+}
+
+func (c *UserConfigurableOverridesClientConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
+	c.Local = &local.Config{}
+	c.GCS = &gcs.Config{}
+	c.S3 = &s3.Config{}
+	c.Azure = &azure.Config{}
 }
 
 type Client interface {
