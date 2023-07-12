@@ -170,10 +170,6 @@ minio:
   rootUser: grafana-tempo
   rootPassword: supersecret
   buckets:
-    # Default Tempo storage bucket.
-    - name: tempo-traces
-      policy: none
-      purge: false
     # Bucket for traces storage if enterprise.enabled is true - requires license.
     - name: enterprise-traces
       policy: none
@@ -182,6 +178,8 @@ minio:
     - name: enterprise-traces-admin
       policy: none
       purge: false
+  # Changed the mc config path to '/tmp' from '/etc' as '/etc' is only writable by root and OpenShift will not permit this.
+  configPathmc: '/tmp/minio/mc/'
 storage:
   trace:
     backend: s3
