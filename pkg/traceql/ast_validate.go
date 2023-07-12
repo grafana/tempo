@@ -102,21 +102,11 @@ func (a Aggregate) validate() error {
 }
 
 func (o SpansetOperation) validate() error {
-	// TODO validate operator is a SpanSetOperator
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	if err := o.RHS.validate(); err != nil {
-		return err
-	}
 
-	// supported spanset operations
-	switch o.Op {
-	case OpSpansetChild, OpSpansetDescendant, OpSpansetSibling:
-		return newUnsupportedError(fmt.Sprintf("spanset operation (%v)", o.Op))
-	}
-
-	return nil
+	return o.RHS.validate()
 }
 
 func (f SpansetFilter) validate() error {
@@ -225,8 +215,7 @@ func (a Attribute) validate() error {
 		return newUnsupportedError("parent")
 	}
 	switch a.Intrinsic {
-	case IntrinsicParent,
-		IntrinsicChildCount:
+	case IntrinsicParent, IntrinsicChildCount:
 		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 
