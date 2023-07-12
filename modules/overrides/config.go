@@ -14,6 +14,9 @@ type Config struct {
 }
 
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
+	// unmarshal() will not return an error for legacy configuration and we return immediately.
+
 	// Try to unmarshal it normally
 	type rawConfig Config
 	if err := unmarshal((*rawConfig)(c)); err == nil {
@@ -22,12 +25,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// Try to unmarshal inline limits
 	type legacyConfig struct {
-		DefaultLimits Limits `yaml:",inline" json:",inline"`
+		DefaultLimits Limits `yaml:",inline"`
 
-		PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
-		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
+		PerTenantOverrideConfig string         `yaml:"per_tenant_override_config"`
+		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
 	}
 	var legacyCfg legacyConfig
+	legacyCfg.DefaultLimits = c.DefaultLimits
+	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
+	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
+
 	if err := unmarshal(&legacyCfg); err != nil {
 		return err
 	}
