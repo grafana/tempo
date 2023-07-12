@@ -94,21 +94,7 @@ func (o *userConfigOverridesClient) List(ctx context.Context) ([]string, error) 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.List")
 	defer span.Finish()
 
-	tenantDirectories, err := o.r.List(ctx, []string{OverridesKeyPath})
-	if err != nil {
-		return nil, err
-	}
-
-	var tenants []string
-	for _, tenant := range tenantDirectories {
-		_, _, err := o.r.Read(ctx, OverridesFileName, []string{OverridesKeyPath, tenant}, false)
-		if err != nil {
-			continue
-		}
-		tenants = append(tenants, tenant)
-	}
-
-	return tenants, nil
+	return o.r.List(ctx, []string{OverridesKeyPath})
 }
 
 // Get downloads the tenant limits from the backend. Returns nil, nil if no limits are set.

@@ -2,11 +2,8 @@ package overrides
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -193,21 +190,24 @@ func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userCon
 }
 
 func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *api.UserConfigurableLimits) {
-	b, err := json.Marshal(limits)
+	client, err := api.NewUserConfigOverridesClient(&api.UserConfigurableOverridesClientConfig{
+		Backend: "local",
+		Local:   &local.Config{Path: dir},
+	})
 	assert.NoError(t, err)
 
-	err = os.MkdirAll(path.Join(dir, api.OverridesKeyPath, tenant), os.ModePerm)
-	assert.NoError(t, err)
-
-	err = os.WriteFile(path.Join(dir, api.OverridesKeyPath, tenant, api.OverridesFileName), b, 0644)
+	err = client.Set(context.Background(), tenant, limits)
 	assert.NoError(t, err)
 }
 
 func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant string) {
-	err := os.Remove(path.Join(dir, api.OverridesKeyPath, tenant, api.OverridesFileName))
+	client, err := api.NewUserConfigOverridesClient(&api.UserConfigurableOverridesClientConfig{
+		Backend: "local",
+		Local:   &local.Config{Path: dir},
+	})
 	assert.NoError(t, err)
 
-	err = os.Remove(path.Join(dir, api.OverridesKeyPath, tenant))
+	err = client.Delete(context.Background(), tenant)
 	assert.NoError(t, err)
 }
 

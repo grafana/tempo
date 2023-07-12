@@ -134,7 +134,7 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 	// Clean up cached tenants that have been removed from the backend
 	for cachedTenant := range o.tenantLimits {
 		if !slices.Contains(tenants, cachedTenant) {
-			o.deleteTenantLimit(cachedTenant)
+			o.setTenantLimit(cachedTenant, nil)
 		}
 	}
 
@@ -169,14 +169,11 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
-	o.tenantLimits[userID] = limits
-}
-
-func (o *userConfigurableOverridesManager) deleteTenantLimit(userID string) {
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	delete(o.tenantLimits, userID)
+	if limits == nil {
+		delete(o.tenantLimits, userID)
+	} else {
+		o.tenantLimits[userID] = limits
+	}
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
