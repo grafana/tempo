@@ -23,7 +23,7 @@
     tolerate_failed_blocks: <int>
   ```
 * [CHANGE] Upgrade memcached version in jsonnet microservices [#2466](https://github.com/grafana/tempo/pull/2466) (@zalegrala)
-* [CHANGE] **Breaking Change** Convert metrics generator from deployment to a statefulset in jsonnet [#2533](https://github.com/grafana/tempo/pull/2533) (@zalegrala)
+* [CHANGE] **Breaking Change** Convert metrics generator from deployment to a statefulset in jsonnet [#2533](https://github.com/grafana/tempo/pull/2533) [#2467](https://github.com/grafana/tempo/pull/2647) (@zalegrala)
 To support a new `processor`, the metrics generator has been converted from a `deployment` into a `statefulset` with a PVC.  This will require manual intervention in order to migrate successfully and avoid downtime.  Note that currently both a `deployment` and a `statefulset` will be managed by the jsonnet for a period of time, after which we will delete the `deployment` from this repo and you will need to delete user-side references to the `tempo_metrics_generator_deployment`, as well as delete the `deployment` itself.
 
 First, just as with the `ingester` configuration, you will need to specify a `pvc_size` and a `pvc_storage_class` for the `metrics_generator` PVC configuration.  For example:
