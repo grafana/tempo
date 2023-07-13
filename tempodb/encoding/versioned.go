@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -45,10 +47,10 @@ type VersionedEncoding interface {
 	MigrateBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
 
 	// OpenWALBlock opens an existing appendable block for the WAL
-	OpenWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error)
+	OpenWALBlock(filename, path string, ingestionSlack, additionalStartSlack time.Duration) (common.WALBlock, error, error)
 
 	// CreateWALBlock creates a new appendable block for the WAL
-	CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
+	CreateWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
 
 	// OwnsWALBlock indicates if this encoding owns the WAL block
 	OwnsWALBlock(entry fs.DirEntry) bool
@@ -63,6 +65,8 @@ func FromVersion(v string) (VersionedEncoding, error) {
 		return vparquet.Encoding{}, nil
 	case vparquet2.VersionString:
 		return vparquet2.Encoding{}, nil
+	case vparquet3.VersionString:
+		return vparquet3.Encoding{}, nil
 	default:
 		return nil, fmt.Errorf("%s is not a valid block version", v)
 	}
@@ -79,6 +83,7 @@ func AllEncodings() []VersionedEncoding {
 		v2.Encoding{},
 		vparquet.Encoding{},
 		vparquet2.Encoding{},
+		vparquet3.Encoding{},
 	}
 }
 
