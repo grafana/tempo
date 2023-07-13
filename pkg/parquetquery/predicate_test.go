@@ -31,10 +31,13 @@ func newAlwaysFalsePredicate() *mockPredicate {
 	return &mockPredicate{ret: false}
 }
 
-func (p *mockPredicate) String() string                           { return "mockPredicate{}" }
-func (p *mockPredicate) KeepValue(parquet.Value) bool             { p.valCalled = true; return p.ret }
-func (p *mockPredicate) KeepPage(parquet.Page) bool               { p.pageCalled = true; return p.ret }
-func (p *mockPredicate) KeepColumnChunk(parquet.ColumnChunk) bool { p.chunkCalled = true; return p.ret }
+func (p *mockPredicate) String() string               { return "mockPredicate{}" }
+func (p *mockPredicate) KeepValue(parquet.Value) bool { p.valCalled = true; return p.ret }
+func (p *mockPredicate) KeepPage(parquet.Page) bool   { p.pageCalled = true; return p.ret }
+func (p *mockPredicate) KeepColumnChunk(parquet.ColumnChunk) (bool, parquet.Pages, parquet.Page) {
+	p.chunkCalled = true
+	return p.ret, nil, nil
+}
 
 type predicateTestCase struct {
 	testName   string
@@ -63,7 +66,7 @@ func TestSubstringPredicate(t *testing.T) {
 		{
 			testName:   "dictionary in the page header allows for skipping a page",
 			predicate:  NewSubstringPredicate("x"), // Not present in any values
-			keptChunks: 1,
+			keptChunks: 0,
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all

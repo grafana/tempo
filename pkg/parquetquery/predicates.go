@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
-	"strings"
 
 	pq "github.com/segmentio/parquet-go"
 )
@@ -14,7 +13,7 @@ import (
 type Predicate interface {
 	fmt.Stringer
 
-	KeepColumnChunk(cc pq.ColumnChunk) bool
+	KeepColumnChunk(cc pq.ColumnChunk) (bool, pq.Pages, pq.Page)
 	KeepPage(page pq.Page) bool
 	KeepValue(pq.Value) bool
 }
@@ -47,7 +46,7 @@ func (p *StringInPredicate) String() string {
 	return fmt.Sprintf("StringInPredicate{%s}", strings)
 }
 
-func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	p.helper.setNewRowGroup()
 
 	if ci := cc.ColumnIndex(); ci != nil {
@@ -56,28 +55,40 @@ func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
 				if ok {
 					// At least one page in this chunk matches
-					return true
+					return true, nil, nil
 				}
 			}
 		}
-		return false
+		return false, nil, nil
 	}
 
 	// Check the row group dictionary (accessible through the first page)
 	// If present then use it to skip row group or not.
 	pgs := cc.Pages()
-	defer pgs.Close()
 
 	firstPage, _ := pgs.ReadPage()
-	if firstPage != nil {
-		defer pq.Release(firstPage)
-
-		if firstPage.Dictionary() != nil {
-			return p.helper.keepPage(firstPage, p.KeepValue)
-		}
+	if firstPage == nil {
+		// Failed to read the first page, can't make a determination
+		pgs.Close()
+		return true, nil, nil
 	}
 
-	return true
+	if firstPage.Dictionary() == nil {
+		// Not a dictionary column
+		// TODO - Can we check this earlier?
+		pgs.Close()
+		pq.Release(firstPage)
+		return true, nil, nil
+	}
+
+	if !p.helper.keepPage(firstPage, p.KeepValue) {
+		// No match, cleanup and skip
+		pq.Release(firstPage)
+		pgs.Close()
+		return false, nil, nil
+	}
+
+	return true, pgs, firstPage
 }
 
 func (p *StringInPredicate) KeepValue(v pq.Value) bool {
@@ -169,7 +180,7 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 	return matched
 }
 
-func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	p.helper.setNewRowGroup()
 
 	// Reset match cache on each row group change
@@ -178,19 +189,30 @@ func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	// Check the row group dictionary (accessible through the first page)
 	// If present then use it to skip row group or not.
 	pgs := cc.Pages()
-	defer pgs.Close()
 
 	firstPage, _ := pgs.ReadPage()
-	if firstPage != nil {
-		defer pq.Release(firstPage)
-
-		if firstPage.Dictionary() != nil {
-			return p.helper.keepPage(firstPage, p.KeepValue)
-		}
+	if firstPage == nil {
+		// Failed to read the first page, can't make a determination
+		pgs.Close()
+		return true, nil, nil
 	}
 
-	// Can we do any filtering here?
-	return true
+	if firstPage.Dictionary() == nil {
+		// Not a dictionary column
+		// TODO - Can we check this earlier?
+		pgs.Close()
+		pq.Release(firstPage)
+		return true, nil, nil
+	}
+
+	if !p.helper.keepPage(firstPage, p.KeepValue) {
+		// No match, cleanup and skip
+		pq.Release(firstPage)
+		pgs.Close()
+		return false, nil, nil
+	}
+
+	return true, pgs, firstPage
 }
 
 func (p *regexPredicate) KeepValue(v pq.Value) bool {
@@ -216,7 +238,7 @@ func (p *regexPredicate) KeepPage(page pq.Page) bool {
 }
 
 type SubstringPredicate struct {
-	substring string
+	substring []byte
 	matches   map[string]bool
 
 	helper DictionaryPredicateHelper
@@ -226,7 +248,7 @@ var _ Predicate = (*SubstringPredicate)(nil)
 
 func NewSubstringPredicate(substring string) *SubstringPredicate {
 	return &SubstringPredicate{
-		substring: substring,
+		substring: []byte(substring),
 		matches:   map[string]bool{},
 	}
 }
@@ -235,27 +257,55 @@ func (p *SubstringPredicate) String() string {
 	return fmt.Sprintf("SubstringPredicate{%s}", p.substring)
 }
 
-func (p *SubstringPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
+func (p *SubstringPredicate) KeepColumnChunk(cc pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	p.helper.setNewRowGroup()
 
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
 
-	// Is there any filtering possible here?
-	// Column chunk contains a bloom filter and min/max bounds,
-	// but those can't be inspected for a substring match.
-	return true
+	// Check the row group dictionary (accessible through the first page)
+	// If present then use it to skip row group or not.
+	pgs := cc.Pages()
+
+	firstPage, _ := pgs.ReadPage()
+	if firstPage == nil {
+		// Failed to read the first page, can't make a determination
+		pgs.Close()
+		return true, nil, nil
+	}
+
+	if firstPage.Dictionary() == nil {
+		// Not a dictionary column
+		// TODO - Can we check this earlier?
+		pgs.Close()
+		pq.Release(firstPage)
+		return true, nil, nil
+	}
+
+	if !p.helper.keepPage(firstPage, p.KeepValue) {
+		// No match, cleanup and skip
+		pq.Release(firstPage)
+		pgs.Close()
+		return false, nil, nil
+	}
+
+	return true, pgs, firstPage
 }
 
 func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
-	vs := v.String()
-	if m, ok := p.matches[vs]; ok {
-		return m
+	b := v.ByteArray()
+
+	// Check uses zero alloc optimization of map[string([]byte)]
+	if matched, ok := p.matches[string(b)]; ok {
+		return matched
 	}
 
-	m := strings.Contains(vs, p.substring)
-	p.matches[vs] = m
-	return m
+	matched := bytes.Contains(b, p.substring)
+
+	// Only alloc the string when updating the map
+	p.matches[string(b)] = matched
+
+	return matched
 }
 
 func (p *SubstringPredicate) KeepPage(page pq.Page) bool {
@@ -277,19 +327,19 @@ func (p *IntBetweenPredicate) String() string {
 	return fmt.Sprintf("IntBetweenPredicate{%d,%d}", p.min, p.max)
 }
 
-func (p *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Int64()
 			max := ci.MaxValue(i).Int64()
 			if p.max >= min && p.min <= max {
-				return true
+				return true, nil, nil
 			}
 		}
-		return false
+		return false, nil, nil
 	}
 
-	return true
+	return true, nil, nil
 }
 
 func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
@@ -327,11 +377,11 @@ func (p *GenericPredicate[T]) String() string {
 	return "GenericPredicate{}"
 }
 
-func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	p.helper.setNewRowGroup()
 
 	if p.RangeFn == nil {
-		return true
+		return true, nil, nil
 	}
 
 	if ci := c.ColumnIndex(); ci != nil {
@@ -339,13 +389,13 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
 			min := p.Extract(ci.MinValue(i))
 			max := p.Extract(ci.MaxValue(i))
 			if p.RangeFn(min, max) {
-				return true
+				return true, nil, nil
 			}
 		}
-		return false
+		return false, nil, nil
 	}
 
-	return true
+	return true, nil, nil
 }
 
 func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
@@ -398,19 +448,19 @@ func (p *FloatBetweenPredicate) String() string {
 	return fmt.Sprintf("FloatBetweenPredicate{%f,%f}", p.min, p.max)
 }
 
-func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Double()
 			max := ci.MaxValue(i).Double()
 			if p.max >= min && p.min <= max {
-				return true
+				return true, nil, nil
 			}
 		}
-		return false
+		return false, nil, nil
 	}
 
-	return true
+	return true, nil, nil
 }
 
 func (p *FloatBetweenPredicate) KeepValue(v pq.Value) bool {
@@ -449,20 +499,24 @@ func (p *OrPredicate) String() string {
 	return fmt.Sprintf("OrPredicate{%s}", preds)
 }
 
-func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	ret := false
+	var pgs pq.Pages
+	var pg pq.Page
+	var keep bool
 	for _, p := range p.preds {
 		if p == nil {
 			// Nil means all values are returned
 			ret = ret || true
 			continue
 		}
-		if p.KeepColumnChunk(c) {
+		keep, pgs, pg = p.KeepColumnChunk(c)
+		if keep {
 			ret = ret || true
 		}
 	}
 
-	return ret
+	return ret, pgs, pg
 }
 
 func (p *OrPredicate) KeepPage(page pq.Page) bool {
@@ -512,15 +566,20 @@ func (p *InstrumentedPredicate) String() string {
 	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.pred)
 }
 
-func (p *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
 	p.InspectedColumnChunks++
 
-	if p.pred == nil || p.pred.KeepColumnChunk(c) {
+	if p.pred == nil {
 		p.KeptColumnChunks++
-		return true
+		return true, nil, nil
 	}
 
-	return false
+	if keep, pgs, pg := p.pred.KeepColumnChunk(c); keep {
+		p.KeptColumnChunks++
+		return true, pgs, pg
+	}
+
+	return false, nil, nil
 }
 
 func (p *InstrumentedPredicate) KeepPage(page pq.Page) bool {
@@ -601,8 +660,8 @@ func (p *SkipNilsPredicate) String() string {
 	return "SkipNilsPredicate{}"
 }
 
-func (p *SkipNilsPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
-	return true
+func (p *SkipNilsPredicate) KeepColumnChunk(pq.ColumnChunk) (bool, pq.Pages, pq.Page) {
+	return true, nil, nil
 }
 
 func (p *SkipNilsPredicate) KeepPage(page pq.Page) bool {

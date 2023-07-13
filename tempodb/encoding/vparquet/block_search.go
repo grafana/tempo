@@ -264,7 +264,6 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 }
 
 func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) (*tempopb.SearchResponse, error) {
-
 	// Search happens in 2 phases for an optimization.
 	// Phase 1 is iterate all columns involved in the request.
 	// Only if there are any matches do we enter phase 2, which
@@ -419,10 +418,10 @@ func (r *reportValuesPredicate) String() string {
 }
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
-func (r *reportValuesPredicate) KeepColumnChunk(parquet.ColumnChunk) bool {
+func (r *reportValuesPredicate) KeepColumnChunk(parquet.ColumnChunk) (bool, parquet.Pages, parquet.Page) {
 	// Reinspect dictionary for each new column chunk
 	r.inspectedDict = false
-	return true
+	return true, nil, nil
 }
 
 // KeepPage checks to see if the page has a dictionary. if it does then we can report the values contained in it

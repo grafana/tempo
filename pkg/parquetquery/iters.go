@@ -515,7 +515,6 @@ type SyncIterator struct {
 var _ Iterator = (*SyncIterator)(nil)
 
 func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
-
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -570,7 +569,6 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 // SeekTo moves this iterator to the next result that is greater than
 // or equal to the given row number (and based on the given definition level)
 func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
-
 	if c.seekRowGroup(to, definitionLevel) {
 		return nil, nil
 	}
@@ -635,13 +633,25 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 			continue
 		}
 
+		if c.filter == nil {
+			c.setRowGroup(rg, min, max, nil, nil, nil)
+			continue
+		}
+
 		cc := rg.ColumnChunks()[c.column]
-		if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+		keep, pgs, pg := c.filter.KeepColumnChunk(cc)
+		if !keep {
+			if pg != nil {
+				pq.Release(pg)
+			}
+			if pgs != nil {
+				pgs.Close()
+			}
 			continue
 		}
 
 		// This row group matches both row number and filter.
-		c.setRowGroup(rg, min, max)
+		c.setRowGroup(rg, min, max, cc, pgs, pg)
 	}
 
 	return c.currRowGroup == nil
@@ -656,7 +666,6 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 	}
 
 	if c.currPage == nil {
-
 		// TODO (mdisibio)   :((((((((
 		//    pages.SeekToRow is more costly than expected.  It doesn't reuse existing i/o
 		// so it can't be called naively every time we swap pages. We need to figure out
@@ -723,12 +732,24 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				return EmptyRowNumber(), nil, nil
 			}
 
-			cc := rg.ColumnChunks()[c.column]
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+			if c.filter == nil {
+				c.setRowGroup(rg, min, max, nil, nil, nil)
 				continue
 			}
 
-			c.setRowGroup(rg, min, max)
+			cc := rg.ColumnChunks()[c.column]
+			keep, pgs, pg := c.filter.KeepColumnChunk(cc)
+			if !keep {
+				if pg != nil {
+					pq.Release(pg)
+				}
+				if pgs != nil {
+					pgs.Close()
+				}
+				continue
+			}
+
+			c.setRowGroup(rg, min, max, cc, pgs, pg)
 		}
 
 		if c.currPage == nil {
@@ -787,18 +808,29 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	}
 }
 
-func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber) {
+func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc pq.ColumnChunk, pages pq.Pages, firstPage pq.Page) {
 	c.closeCurrRowGroup()
 	c.curr = min
 	c.currRowGroup = rg
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
-	c.currChunk = rg.ColumnChunks()[c.column]
-	c.currPages = c.currChunk.Pages()
+
+	c.currChunk = cc
+	if c.currChunk == nil {
+		c.currChunk = rg.ColumnChunks()[c.column]
+	}
+
+	c.currPages = pages
+	if c.currPages == nil {
+		c.currPages = c.currChunk.Pages()
+	}
+
+	if firstPage != nil {
+		c.setPage(firstPage)
+	}
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
-
 	// Handle an outgoing page
 	if c.currPage != nil {
 		c.curr = c.currPageMax.Preceding() // Reposition current row number to end of this page.
@@ -961,30 +993,41 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			return
 		}
 
-		col := rg.ColumnChunks()[c.col]
-
 		if keepSeeking(rg.NumRows()) {
 			// Skip column chunk
 			rn.Skip(rg.NumRows())
 			continue
 		}
 
+		var (
+			col  = rg.ColumnChunks()[c.col]
+			pgs  pq.Pages
+			pg   pq.Page
+			keep bool
+		)
+
 		if c.filter != nil {
-			if !c.filter.KeepColumnChunk(col) {
+			keep, pgs, pg = c.filter.KeepColumnChunk(col)
+			if !keep {
 				// Skip column chunk
 				rn.Skip(rg.NumRows())
 				continue
 			}
 		}
-		func(col pq.ColumnChunk) {
-			pgs := col.Pages()
+		func() {
+			if pgs == nil {
+				pgs = col.Pages()
+			}
 			defer func() {
 				if err := pgs.Close(); err != nil {
 					c.storeErr("column iterator pages close", err)
 				}
 			}()
 			for {
-				pg, err := pgs.ReadPage()
+				var err error
+				if pg == nil {
+					pg, err = pgs.ReadPage()
+				}
 
 				if pg == nil || err == io.EOF {
 					break
@@ -1067,11 +1110,12 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					}
 					return
 				}(pg)
+				pg = nil
 				if stop {
 					break
 				}
 			}
-		}(col)
+		}()
 	}
 }
 
@@ -1386,7 +1430,6 @@ func (j *LeftJoinIterator) String() string {
 }
 
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
-
 	// Here is the algorithm for joins:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest rows. If all
 	// are the lowest (and therefore pointing at the same thing) then
@@ -1536,7 +1579,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 		return nil, err
 	}
 
-	//fmt.Printf("result:%+v\n", result)
+	// fmt.Printf("result:%+v\n", result)
 
 	return result, nil
 }
