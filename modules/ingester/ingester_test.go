@@ -346,7 +346,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
-			Backend: "local",
+			Backend: backend.Local,
 			Local: &local.Config{
 				Path: tmpDir,
 			},
