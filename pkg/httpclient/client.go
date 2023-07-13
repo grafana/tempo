@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,6 +30,10 @@ const (
 	acceptHeader        = "Accept"
 	applicationProtobuf = "application/protobuf"
 	applicationJSON     = "application/json"
+)
+
+var (
+	ErrNotFound = errors.New("resource not found")
 )
 
 // Client is client to the Tempo API.
@@ -112,7 +117,7 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 
 	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, nil, fmt.Errorf("%s request to %s failed with response: %d body: %s", req.Method, req.URL.String(), resp.StatusCode, string(body))
+		return resp, body, fmt.Errorf("%s request to %s failed with response: %d body: %s", req.Method, req.URL.String(), resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -219,8 +224,11 @@ func (c *Client) GetOverrides() (*api.UserConfigurableLimits, error) {
 	}
 	req.Header.Set(acceptHeader, applicationJSON)
 
-	_, body, err := c.doRequest(req)
+	resp, body, err := c.doRequest(req)
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 

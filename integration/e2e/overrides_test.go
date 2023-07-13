@@ -61,17 +61,6 @@ func TestOverrides(t *testing.T) {
 			orgID := ""
 			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), orgID)
 
-			// Get default overrides
-			limits, err := apiClient.GetOverrides()
-			printLimits(limits)
-			require.NoError(t, err)
-
-			// We fetched the overrides exactly once
-			require.NoError(t, tempo.WaitSumMetrics(e2e.GreaterOrEqual(1), "tempo_overrides_user_configurable_overrides_fetch_total"))
-
-			require.NotNil(t, limits)
-			assert.Empty(t, nil, limits.Forwarders)
-
 			// Modify overrides
 			fmt.Println("* Setting overrides.forwarders")
 			err = apiClient.SetOverrides(&userconfigurableapi.UserConfigurableLimits{
@@ -79,7 +68,7 @@ func TestOverrides(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			limits, err = apiClient.GetOverrides()
+			limits, err := apiClient.GetOverrides()
 			printLimits(limits)
 			require.NoError(t, err)
 
@@ -87,20 +76,16 @@ func TestOverrides(t *testing.T) {
 			require.NotNil(t, limits.Forwarders)
 			assert.ElementsMatch(t, *limits.Forwarders, []string{"my-forwarder"})
 
-			// We fetched the overrides 2 times manually, but we also expect at least one poll_interval to have happened
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(2), "tempo_overrides_user_configurable_overrides_fetch_total"))
+			// We fetched the overrides once manually, but we also expect at least one poll_interval to have happened
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(1), "tempo_overrides_user_configurable_overrides_fetch_total"))
 
 			// Clear overrides
 			fmt.Println("* Deleting overrides")
 			err = apiClient.DeleteOverrides()
 			require.NoError(t, err)
 
-			limits, err = apiClient.GetOverrides()
-			printLimits(limits)
-			require.NoError(t, err)
-
-			require.NotNil(t, limits)
-			assert.Empty(t, nil, limits.Forwarders)
+			_, err = apiClient.GetOverrides()
+			require.ErrorIs(t, err, httpclient.ErrNotFound)
 		})
 	}
 }

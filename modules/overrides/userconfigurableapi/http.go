@@ -48,6 +48,11 @@ func (a *UserConfigOverridesAPI) GetOverridesHandler(w http.ResponseWriter, r *h
 		return
 	}
 
+	if limits == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	data, err := jsoniter.Marshal(limits)
 	if err != nil {
 		handleError(span, userID, r, w, http.StatusInternalServerError, err)
@@ -93,8 +98,6 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte("ok"))
 }
 
 func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r *http.Request) {
@@ -115,8 +118,6 @@ func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Header().Set(api.HeaderContentType, "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte("ok"))
 }
 
 func logRequest(userID string, r *http.Request) {

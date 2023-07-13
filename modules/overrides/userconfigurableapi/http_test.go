@@ -13,12 +13,11 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
-	tenant := "single-tenant"
+	tenant := "my-tenant"
 
 	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
 		Backend: "local",
@@ -26,6 +25,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Provision some data
 	require.NoError(t, overridesAPI.client.Set(context.Background(), tenant, &UserConfigurableLimits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}))
@@ -46,23 +46,27 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		{
 			name:           "GET",
 			handler:        overridesAPI.GetOverridesHandler,
-			req:            httptest.NewRequest("GET", "/", nil),
+			req:            prepareRequest(tenant, "GET", nil),
 			expResp:        "{\"forwarders\":[\"my-other-forwarder\"]}",
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
 		{
-			name:           "POST",
-			handler:        overridesAPI.PostOverridesHandler,
-			req:            httptest.NewRequest("POST", "/", bytes.NewReader(postJSON)),
-			expResp:        "ok",
-			expContentType: "text/plain; charset=utf-8",
-			expStatusCode:  200,
+			name:          "GET - not found",
+			handler:       overridesAPI.GetOverridesHandler,
+			req:           prepareRequest("some-other-tenant", "GET", nil),
+			expStatusCode: 404,
+		},
+		{
+			name:          "POST",
+			handler:       overridesAPI.PostOverridesHandler,
+			req:           prepareRequest(tenant, "POST", postJSON),
+			expStatusCode: 200,
 		},
 		{
 			name:           "POST - invalid JSON",
 			handler:        overridesAPI.PostOverridesHandler,
-			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("not a json"))),
+			req:            prepareRequest(tenant, "POST", []byte("not a json")),
 			expResp:        "skipThreeBytes: expect ull, error found in #2 byte of ...|not a json|..., bigger context ...|not a json|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
@@ -70,26 +74,20 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		{
 			name:           "POST - unknown field JSON",
 			handler:        overridesAPI.PostOverridesHandler,
-			req:            httptest.NewRequest("POST", "/", bytes.NewReader([]byte("{\"unknown\":true}"))),
+			req:            prepareRequest(tenant, "POST", []byte("{\"unknown\":true}")),
 			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|{\"unknown\":true}|..., bigger context ...|{\"unknown\":true}|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
 		{
-			name:           "DELETE",
-			handler:        overridesAPI.DeleteOverridesHandler,
-			req:            httptest.NewRequest("DELETE", "/", nil),
-			expResp:        "ok",
-			expContentType: "text/plain; charset=utf-8",
-			expStatusCode:  200,
+			name:          "DELETE",
+			handler:       overridesAPI.DeleteOverridesHandler,
+			req:           prepareRequest(tenant, "DELETE", nil),
+			expStatusCode: 200,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// inject "single-tenant" in tc.req
-			ctx := user.InjectOrgID(tc.req.Context(), util.FakeTenantID)
-			tc.req = tc.req.WithContext(ctx)
-
 			w := httptest.NewRecorder()
 			tc.handler(w, tc.req)
 
@@ -108,4 +106,11 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func prepareRequest(tenant, method string, payload []byte) *http.Request {
+	r := httptest.NewRequest(method, "/", bytes.NewReader(payload))
+	ctx := user.InjectOrgID(r.Context(), tenant)
+	r = r.WithContext(ctx)
+	return r
 }
