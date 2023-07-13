@@ -51,7 +51,7 @@ type RequestQueue struct {
 
 	connectedQuerierWorkers *atomic.Int32
 
-	mtx     sync.Mutex
+	mtx     sync.RWMutex
 	cond    contextCond // Notified when request is enqueued or dequeued, or querier is disconnected.
 	queues  *queues
 	stopped bool
@@ -79,18 +79,18 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 // between calls.
 //
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
-func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int, successFn func()) error {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int, successFn func()) error { // jpe ditch successFn
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	if q.stopped {
 		return ErrStopped
 	}
 
-	queue := q.queues.getOrAddQueue(userID, maxQueriers)
-	if queue == nil {
-		// This can only happen if userID is "".
-		return errors.New("no queue found")
+	// try to grab the user queue under read lock
+	queue, err := q.getQueueUnderRlock(userID, maxQueriers)
+	if err != nil {
+		return err
 	}
 
 	select {
@@ -106,6 +106,30 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 		q.discardedRequests.WithLabelValues(userID).Inc()
 		return ErrTooManyRequests
 	}
+}
+
+func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan Request, error) {
+	uq := q.queues.userQueues[userID]
+	if uq != nil {
+		return uq.ch, nil
+	}
+
+	// trace the read lock for a rw lock and then defer the opposite
+	// this method should be called under RLock() and return under RLock()
+	q.mtx.RUnlock()
+	q.mtx.Lock()
+	defer func() {
+		q.mtx.Unlock()
+		q.mtx.RLock()
+	}()
+
+	queue := q.queues.getOrAddQueue(userID, maxQueriers)
+	if queue == nil {
+		// This can only happen if userID is "".
+		return nil, errors.New("no queue found")
+	}
+
+	return queue, nil
 }
 
 // GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
