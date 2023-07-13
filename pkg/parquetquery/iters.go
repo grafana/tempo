@@ -749,6 +749,15 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				continue
 			}
 
+			if pg != nil {
+				if c.filter != nil && !c.filter.KeepPage(pg) {
+					// This page filtered out
+					c.curr.Skip(pg.NumRows())
+					pq.Release(pg)
+					pg = nil
+				}
+			}
+
 			c.setRowGroup(rg, min, max, cc, pgs, pg)
 		}
 
