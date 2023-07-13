@@ -59,6 +59,8 @@ type Reader interface {
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
 	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
+	// QuickBlocks returns the blockIDs, compactedBlockIDs and an error from the backend.
+	QuickBlocks(ctx context.Context, tenantID string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Shutdown shuts...down?
 	Shutdown()
 }

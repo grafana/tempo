@@ -181,6 +181,12 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 	return blockIDs, nil
 }
 
+// Blocks implements backend.Reader
+func (r *reader) QuickBlocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+	return r.r.ListBlocks(ctx, KeyPath{tenantID})
+}
+
+// Blocks implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), false)
 	if err != nil {
