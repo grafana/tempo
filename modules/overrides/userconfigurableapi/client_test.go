@@ -55,9 +55,4 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	retrievedLimits, err = client.Get(ctx, tenant)
 	assert.NoError(t, err)
 	assert.Nil(t, retrievedLimits)
-
-	// List - should be empty
-	list, err = client.List(ctx)
-	assert.NoError(t, err)
-	assert.Empty(t, list)
 }

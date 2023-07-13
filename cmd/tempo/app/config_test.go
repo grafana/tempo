@@ -118,10 +118,10 @@ func TestConfig_CheckConfig(t *testing.T) {
 			config: func() *Config {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = "gcs"
-				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
+				cfg.StorageConfig.Trace.GCS.BucketName = "bucketname"
 				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
 				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = "gcs"
-				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "my-bucket"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "bucketname"
 				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.Prefix = "tempo"
 				return cfg
 			}(),

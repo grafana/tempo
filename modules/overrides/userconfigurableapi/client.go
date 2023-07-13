@@ -48,7 +48,7 @@ type UserConfigurableOverridesClientConfig struct {
 	Azure *azure.Config `yaml:"azure"`
 }
 
-func (c *UserConfigurableOverridesClientConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
+func (c *UserConfigurableOverridesClientConfig) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.Local = &local.Config{}
 	c.GCS = &gcs.Config{}
 	c.S3 = &s3.Config{}

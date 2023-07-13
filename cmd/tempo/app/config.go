@@ -245,7 +245,7 @@ var (
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
 	}
 	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{
-		Message: "Trace storage conflicts with user-configuirable overrides storage",
+		Message: "Trace storage conflicts with user-configurable overrides storage",
 	}
 )
 
