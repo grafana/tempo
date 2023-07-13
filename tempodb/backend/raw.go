@@ -156,7 +156,7 @@ func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUI
 }
 
 // ReadRange implements backend.Reader
-func (r *reader) ReadRange(ctx context.Context,name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error {
+func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error {
 	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, shouldCache)
 }
 
