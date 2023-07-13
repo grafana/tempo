@@ -189,7 +189,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	defer span.Finish()
 
 	// are we a tenant index builder?
-	if !p.buildTenantIndex(tenantID) {
+	if !p.tenantIndexBuilder(tenantID) {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
 
 		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
@@ -237,7 +237,10 @@ func (p *Poller) pollTenantAndCreateIndex(
 	return blocklist, compactedBlocklist, nil
 }
 
-func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+func (p *Poller) pollTenantBlocks(
+	ctx context.Context,
+	tenantID string,
+) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	blockIDs, err := p.reader.Blocks(ctx, tenantID)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
@@ -251,19 +254,19 @@ func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*back
 
 	for _, blockID := range blockIDs {
 		bg.Add(1)
-		go func(uuid uuid.UUID) {
+		go func(id uuid.UUID) {
 			defer bg.Done()
 
 			if p.cfg.PollJitterMs > 0 {
 				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
 			}
 
-			m, cm, err := p.pollBlock(ctx, tenantID, uuid)
+			m, cm, pollBlockErr := p.pollBlock(ctx, tenantID, id)
 			if m != nil {
 				chMeta <- m
 			} else if cm != nil {
 				chCompactedMeta <- cm
-			} else if err != nil {
+			} else if pollBlockErr != nil {
 				anyError.Store(err)
 			}
 		}(blockID)
@@ -339,7 +342,6 @@ func (p *Poller) quickPollTenantBlocks(
 			if !compactedFound {
 				for _, previousMeta := range previousMetas {
 					if previousMeta.BlockID == blockID {
-						compactedFound = true
 						chCompactedMeta <- &backend.CompactedBlockMeta{
 							BlockMeta: *previousMeta,
 						}
@@ -398,7 +400,7 @@ func (p *Poller) flushMetaChannels(
 		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
 	})
 
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
+	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(chCompactedMeta))
 	for cm := range chCompactedMeta {
 		newCompactedBlocklist = append(newCompactedBlocklist, cm)
 	}
@@ -409,7 +411,11 @@ func (p *Poller) flushMetaChannels(
 	return newBlockList, newCompactedBlocklist, nil
 }
 
-func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+func (p *Poller) pollBlock(
+	ctx context.Context,
+	tenantID string,
+	blockID uuid.UUID,
+) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
 	var compactedBlockMeta *backend.CompactedBlockMeta
 	blockMeta, err := p.reader.BlockMeta(ctx, blockID, tenantID)
 	// if the normal meta doesn't exist maybe it's compacted.
@@ -462,7 +468,10 @@ type backendMetaMetrics struct {
 	compactedBlockMetaTotalBytes   uint64
 }
 
-func sumTotalBackendMetaMetrics(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) backendMetaMetrics {
+func sumTotalBackendMetaMetrics(
+	blockMeta []*backend.BlockMeta,
+	compactedBlockMeta []*backend.CompactedBlockMeta,
+) backendMetaMetrics {
 	var sumTotalObjectsBM int
 	var sumTotalObjectsCBM int
 	var sumTotalBytesBM uint64
