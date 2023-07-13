@@ -38,7 +38,7 @@ To access the query editor, follow these steps:
 1. Select your Tempo data source.
 1. From the menu, choose **Explore** and select the **TraceQL** tab.
 1. Start your query on the text line by entering `{{`. For help with TraceQL syntax, refer to the [Construct a TraceQL query documentation]({{< relref "./_index.md" >}}).
-1. Optional: Limit the data shown by using the Time picker drop-down (refer to the [documentation for instructions](/docs/grafana/latest/dashboards/use-dashboards#set-dashboard-time-range)).
+1. Optional: Use the Time picker drop-down to change the time and range for the query (refer to the [documentation for instructions](/docs/grafana/latest/dashboards/use-dashboards#set-dashboard-time-range)).
 1. Once you have finished your query, select **Run query**.
 
 ![Query editor showing request for http.method](/static/img/docs/tempo/query-editor-http-method.png)
