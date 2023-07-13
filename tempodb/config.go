@@ -20,11 +20,12 @@ import (
 )
 
 const (
-	DefaultBlocklistPoll            = 5 * time.Minute
-	DefaultMaxTimePerTenant         = 5 * time.Minute
-	DefaultBlocklistPollConcurrency = uint(50)
-	DefaultRetentionConcurrency     = uint(10)
-	DefaultTenantIndexBuilders      = 2
+	DefaultBlocklistPoll             = 5 * time.Minute
+	DefaultMaxTimePerTenant          = 5 * time.Minute
+	DefaultBlocklistPollConcurrency  = uint(50)
+	DefaultRetentionConcurrency      = uint(10)
+	DefaultTenantIndexBuilders       = 2
+	DefaultTolerateConsecutiveErrors = 1
 
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
@@ -40,12 +41,13 @@ type Config struct {
 	Block  *common.BlockConfig `yaml:"block"`
 	Search *SearchConfig       `yaml:"search"`
 
-	BlocklistPoll                    time.Duration `yaml:"blocklist_poll"`
-	BlocklistPollConcurrency         uint          `yaml:"blocklist_poll_concurrency"`
-	BlocklistPollFallback            bool          `yaml:"blocklist_poll_fallback"`
-	BlocklistPollTenantIndexBuilders int           `yaml:"blocklist_poll_tenant_index_builders"`
-	BlocklistPollStaleTenantIndex    time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
-	BlocklistPollJitterMs            int           `yaml:"blocklist_poll_jitter_ms"`
+	BlocklistPoll                          time.Duration `yaml:"blocklist_poll"`
+	BlocklistPollConcurrency               uint          `yaml:"blocklist_poll_concurrency"`
+	BlocklistPollFallback                  bool          `yaml:"blocklist_poll_fallback"`
+	BlocklistPollTenantIndexBuilders       int           `yaml:"blocklist_poll_tenant_index_builders"`
+	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
+	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
+	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
 
 	// backends
 	Backend string        `yaml:"backend"`
@@ -78,7 +80,7 @@ type SearchConfig struct {
 	} `yaml:"cache_control"`
 }
 
-func (c *SearchConfig) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
+func (c *SearchConfig) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	c.ChunkSizeBytes = DefaultSearchChunkSizeBytes
 	c.PrefetchTraceCount = DefaultPrefetchTraceCount
 	c.ReadBufferCount = DefaultReadBufferCount

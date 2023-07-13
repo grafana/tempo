@@ -18,7 +18,6 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/modules/querier/stats"
 	"github.com/grafana/tempo/pkg/scheduler/queue"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -246,9 +245,8 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		errs := make(chan error, 1)
 		go func() {
 			err = server.Send(&frontendv1pb.FrontendToClient{
-				Type:         frontendv1pb.Type_HTTP_REQUEST,
-				HttpRequest:  req.request,
-				StatsEnabled: stats.IsEnabled(req.originalCtx),
+				Type:        frontendv1pb.Type_HTTP_REQUEST,
+				HttpRequest: req.request,
 			})
 			if err != nil {
 				errs <- err
@@ -279,11 +277,6 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 
 		// Happy path: merge the stats and propagate the response.
 		case resp := <-resps:
-			if stats.ShouldTrackHTTPGRPCResponse(resp.HttpResponse) {
-				stats := stats.FromContext(req.originalCtx)
-				stats.Merge(resp.Stats) // Safe if stats is nil.
-			}
-
 			req.response <- resp.HttpResponse
 		}
 	}

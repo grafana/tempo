@@ -1,5 +1,7 @@
 ---
-title: Automatic logging
+title: 'Automatic logging: Trace discovery through logs'
+description: Automatic logging provides an easy and fast way of getting trace discovery through logs.
+menuTitle: Automatic logging
 weight: 200
 aliases:
 - /docs/tempo/grafana-agent/automatic-logging

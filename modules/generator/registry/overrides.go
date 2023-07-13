@@ -12,4 +12,4 @@ type Overrides interface {
 	MetricsGeneratorDisableCollection(userID string) bool
 }
 
-var _ Overrides = (*overrides.Overrides)(nil)
+var _ Overrides = (overrides.Interface)(nil)

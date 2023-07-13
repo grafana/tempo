@@ -2,7 +2,7 @@
 title: TraceQL
 menuTitle: TraceQL
 description: Learn about TraceQL, Tempo's query language for traces
-weight: 450
+weight: 600
 aliases:
   - /docs/tempo/latest/traceql/
 keywords:
@@ -18,18 +18,18 @@ Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()`, `avg()`, `min()`, `max()`, and `sum()`
 
-Read the blog post, "[Get to know TraceQL](https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
+Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
 
 {{< vimeo 796408188 >}}
 
-For information on where the language is headed, see [future work](architecture).
-The TraceQL language uses similar syntax and semantics as [PromQL](https://grafana.com/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](https://grafana.com/docs/loki/latest/logql/), where possible.
+For information on where the language is headed, see [future work]({{< relref "./architecture" >}}).
+The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
 
-TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend](https://grafana.com/docs/tempo/latest/configuration/parquet/) Tempo documentation.
+TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend]({{< relref "..//configuration/parquet" >}}) Tempo documentation.
 
 ## TraceQL query editor
 
-With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor]({{< relref "query-editor" >}}).
+With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor]({{< relref "./query-editor" >}}).
 
 <p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
@@ -62,12 +62,21 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 The following table shows the current intrinsic fields:
 
-| **Field**     | **Type**    | **Definition**                                                  | **Example**            |
-|---------------|-------------|-----------------------------------------------------------------|------------------------|
-| status        | status enum | status: error, ok, or unset                                     | { status = ok }        |
-| duration      | duration    | end - start time of the span                                    | { duration > 100ms }   |
-| name          | string      | operation or span name                                          | { name = "HTTP POST" } |
-| kind          | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }      |
+| **Field**       | **Type**    | **Definition**                                                  | **Example**                     |
+|-----------------|-------------|-----------------------------------------------------------------|---------------------------------|
+| status          | status enum | status: error, ok, or unset                                     | { status = ok }                 |
+| duration        | duration    | end - start time of the span                                    | { duration > 100ms }            |
+| name            | string      | operation or span name                                          | { name = "HTTP POST" }          |
+| kind            | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }               |
+| traceDuration   | duration    | max(end) - min(start) time of the spans in the trace            | { traceDuration > 100ms }       |
+| rootName        | string      | if it exists the name of the root span in the trace             | { rootName = "HTTP GET" }       |
+| rootServiceName | string      | if it exists the service name of the root span in the trace     | { rootServiceName = "gateway" } |
+
+{{% admonition type="note" %}}
+`traceDuration`, `rootName` and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
+these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
+possible to span-level intrinsics.
+{{% /admonition %}}
 
 ### Attribute fields
 
@@ -100,7 +109,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results. 
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -196,7 +205,7 @@ So far, all of the example queries expressions have been about individual spans.
 - `min` - The min value of a given numeric attribute or intrinsic for a spanset.
 - `sum` - The sum value of a given numeric attribute or intrinsic for a spanset.
 
-Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works]({{< relref "architecture" >}}).
+Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works]({{< relref "./architecture" >}}).
 
 For example, to find traces where the total number of spans is greater than `10`:
 
@@ -216,6 +225,15 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 { span.http.status_code = 200 } | count() > 3
 ```
 
+## Grouping
+
+TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to
+find someting like a single service with more than 1 error:
+
+```
+{ error = true } | by(resource.service.name) | count() > 1
+```
+
 ## Arithmetic
 
 TraceQL supports arbitrary arithmetic in your queries. This can be useful to make queries more human readable:
@@ -227,6 +245,14 @@ to compare the ratios of two span attributes:
 { span.bytes_processed < span.jobs_processed * 10 }
 ```
 or anything else that comes to mind.
+
+## Selection
+
+TraceQL can select arbitrary fields from spans. This is particularly performant b/c
+the selected fields are not retrieved until all other criteria is met.
+```
+{ status=error } | select(span.http.status_code, span.http.url)
+```
 
 ## Examples
 
@@ -244,8 +270,8 @@ When using the same Grafana stack for multiple environments (e.g., `production` 
 ```
 {
   resource.service.namespace = "ecommerce" &&
-  resource.service.name = "frontend" &&  
-  resource.deployment.environment = "production" && 
+  resource.service.name = "frontend" &&
+  resource.deployment.environment = "production" &&
   name = "POST /api/orders"
 }
 ```
@@ -256,8 +282,8 @@ This example finds all traces on the operation `POST /api/orders` that have an e
 
 ```
 {
-  resource.service.name="frontend" && 
-  name = "POST /api/orders" && 
+  resource.service.name="frontend" &&
+  name = "POST /api/orders" &&
   status = error
 }
 ```
@@ -266,8 +292,8 @@ This example finds all traces on the operation `POST /api/orders` that return wi
 
 ```
 {
-  resource.service.name="frontend" && 
-  name = "POST /api/orders" && 
+  resource.service.name="frontend" &&
+  name = "POST /api/orders" &&
   span.http.status_code >= 500
 }
 ```
@@ -283,8 +309,8 @@ This example locates all the traces of the `GET /api/products/{id}` operation th
 
 ### Find traces going through `production` and `staging` instances
 
-This example finds traces that go through `production` and `staging` instances. 
-It's a convenient request to identify misconfigurations and leaks across production and non-production environments. 
+This example finds traces that go through `production` and `staging` instances.
+It's a convenient request to identify misconfigurations and leaks across production and non-production environments.
 
 ```
 { resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }

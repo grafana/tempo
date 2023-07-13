@@ -70,7 +70,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prometheus.Registerer) (*Ingester, error) {
+func New(cfg Config, store storage.Store, limits overrides.Interface, reg prometheus.Registerer) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},
@@ -144,9 +144,27 @@ func (i *Ingester) loop(ctx context.Context) error {
 	}
 }
 
+// complete the flushing
+// ExclusiveQueues.activekeys keeps track of flush operations due for processing
+// ExclusiveQueues.IsEmpty check uses ExclusiveQueues.activeKeys to determine if flushQueues is empty or not
+// sweepAllInstances prepares remaining traces to be flushed by flushLoop routine, also updating ExclusiveQueues.activekeys with keys for new flush operations
+// ExclusiveQueues.activeKeys is cleared of a flush operation when a processing of flush operation is either successful or doesn't return retry signal
+// This ensures that i.flushQueues is empty only when all traces are flushed
+func (i *Ingester) flushRemaining() {
+	i.sweepAllInstances(true)
+	for !i.flushQueues.IsEmpty() {
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 // stopping is run when ingester is asked to stop
 func (i *Ingester) stopping(_ error) error {
 	i.markUnavailable()
+
+	// flush any remaining traces
+	if i.cfg.FlushAllOnShutdown {
+		i.flushRemaining()
+	}
 
 	if i.flushQueues != nil {
 		i.flushQueues.Stop()
@@ -319,7 +337,7 @@ func (i *Ingester) stopIncomingRequests() {
 }
 
 // TransferOut implements ring.Lifecycler.
-func (i *Ingester) TransferOut(ctx context.Context) error {
+func (i *Ingester) TransferOut(context.Context) error {
 	return ring.ErrTransferDisabled
 }
 

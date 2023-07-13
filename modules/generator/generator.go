@@ -103,7 +103,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
 	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
 
-	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, cfg.OverrideRingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("create ring lifecycler: %w", err)
 	}
@@ -293,7 +293,7 @@ func (g *Generator) CheckReady(_ context.Context) error {
 }
 
 // OnRingInstanceRegister implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceRegister(lifecycler *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, instanceID string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
+func (g *Generator) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, _ string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
 	// When we initialize the metrics-generator instance in the ring we want to start from
 	// a clean situation, so whatever is the state we set it ACTIVE, while we keep existing
 	// tokens (if any) or the ones loaded from file.
@@ -312,15 +312,15 @@ func (g *Generator) OnRingInstanceRegister(lifecycler *ring.BasicLifecycler, rin
 }
 
 // OnRingInstanceTokens implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceTokens(lifecycler *ring.BasicLifecycler, tokens ring.Tokens) {
+func (g *Generator) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {
 }
 
 // OnRingInstanceStopping implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {
+func (g *Generator) OnRingInstanceStopping(*ring.BasicLifecycler) {
 }
 
 // OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
-func (g *Generator) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
+func (g *Generator) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
 }
 
 func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (*tempopb.SpanMetricsResponse, error) {

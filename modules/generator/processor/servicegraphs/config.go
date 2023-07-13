@@ -24,9 +24,14 @@ type Config struct {
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
 
 	// Additional dimensions (labels) to be added to the metric along with the default ones.
-	// If client and server spans have the same attribute, behaviour is undetermined
-	// (either value could get used)
+	// If client and server spans have the same attribute and EnableClientServerPrefix is not enabled,
+	// behaviour is undetermined (either value could get used)
 	Dimensions []string `yaml:"dimensions"`
+
+	// If enabled, additional dimensions (labels) will be prefixed with either
+	// "client_" or "server_" depending on the span kind. Up to two labels will be added
+	// per dimension.
+	EnableClientServerPrefix bool `yaml:"enable_client_server_prefix"`
 
 	// PeerAttributes are attributes that will be used to create a peer edge
 	// Attributes are searched in the order they are provided
@@ -36,7 +41,7 @@ type Config struct {
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Wait = 10 * time.Second
 	cfg.MaxItems = 10_000
 	cfg.Workers = 10

@@ -13,12 +13,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
+	"go.uber.org/atomic"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
-	"github.com/pkg/errors"
-	"go.uber.org/atomic"
 )
 
 // diffSearchProgress only returns new and updated traces when result() is called
@@ -31,7 +32,7 @@ type diffSearchProgress struct {
 	mtx        sync.Mutex
 }
 
-func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) *diffSearchProgress {
+func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) *diffSearchProgress {
 	return &diffSearchProgress{
 		seenTraces: map[string]struct{}{},
 		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
@@ -92,7 +93,7 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 }
 
 // newSearchStreamingHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
+func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		// build search request and propagate context
@@ -118,7 +119,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 		}
 
 		progress := atomic.NewPointer[*diffSearchProgress](nil)
-		fn := func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+		fn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
 			p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
 			progress.Store(&p)
 			return p

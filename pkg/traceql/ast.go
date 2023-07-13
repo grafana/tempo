@@ -104,20 +104,19 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 
 type GroupOperation struct {
 	Expression FieldExpression
+
+	groupBuffer map[Static]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
-		Expression: e,
+		Expression:  e,
+		groupBuffer: make(map[Static]*Spanset),
 	}
 }
 
 func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
-}
-
-func (GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
-	return ss, nil
 }
 
 type CoalesceOperation struct {
@@ -127,11 +126,17 @@ func newCoalesceOperation() CoalesceOperation {
 	return CoalesceOperation{}
 }
 
-func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
+func (o CoalesceOperation) extractConditions(*FetchSpansRequest) {
 }
 
-func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
-	return ss, nil
+type SelectOperation struct {
+	exprs []FieldExpression
+}
+
+func newSelectOperation(exprs []FieldExpression) SelectOperation {
+	return SelectOperation{
+		exprs: exprs,
+	}
 }
 
 // **********************
@@ -245,27 +250,30 @@ func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpressi
 func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
-	Expression FieldExpression
+	Expression          FieldExpression
+	outputBuffer        []*Spanset
+	matchingSpansBuffer []Span
 }
 
-func newSpansetFilter(e FieldExpression) SpansetFilter {
-	return SpansetFilter{
+func newSpansetFilter(e FieldExpression) *SpansetFilter {
+	return &SpansetFilter{
 		Expression: e,
 	}
 }
 
 // nolint: revive
-func (SpansetFilter) __spansetExpression() {}
+func (*SpansetFilter) __spansetExpression() {}
 
-func (f SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	var output []*Spanset
+func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
+	f.outputBuffer = f.outputBuffer[:0]
 
 	for _, ss := range input {
 		if len(ss.Spans) == 0 {
 			continue
 		}
 
-		var matchingSpans []Span
+		f.matchingSpansBuffer = f.matchingSpansBuffer[:0]
+
 		for _, s := range ss.Spans {
 			result, err := f.Expression.execute(s)
 			if err != nil {
@@ -280,19 +288,26 @@ func (f SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 				continue
 			}
 
-			matchingSpans = append(matchingSpans, s)
+			f.matchingSpansBuffer = append(f.matchingSpansBuffer, s)
 		}
 
-		if len(matchingSpans) == 0 {
+		if len(f.matchingSpansBuffer) == 0 {
 			continue
 		}
 
-		matchingSpanset := *ss
-		matchingSpanset.Spans = matchingSpans
-		output = append(output, &matchingSpanset)
+		if len(f.matchingSpansBuffer) == len(ss.Spans) {
+			// All matched, so we return the input as-is
+			// and preserve the local buffer.
+			f.outputBuffer = append(f.outputBuffer, ss)
+			continue
+		}
+
+		matchingSpanset := ss.clone()
+		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
+		f.outputBuffer = append(f.outputBuffer, matchingSpanset)
 	}
 
-	return output, nil
+	return f.outputBuffer, nil
 }
 
 type ScalarFilter struct {
@@ -443,6 +458,89 @@ func (s Static) Equals(other Static) bool {
 	return s == other
 }
 
+func (s Static) compare(other *Static) int {
+	if s.Type != other.Type {
+		if s.asFloat() > other.asFloat() {
+			return 1
+		} else if s.asFloat() < other.asFloat() {
+			return -1
+		}
+
+		return 0
+	}
+
+	switch s.Type {
+	case TypeInt:
+		if s.N > other.N {
+			return 1
+		} else if s.N < other.N {
+			return -1
+		}
+	case TypeFloat:
+		if s.F > other.F {
+			return 1
+		} else if s.F < other.F {
+			return -1
+		}
+	case TypeDuration:
+		if s.D > other.D {
+			return 1
+		} else if s.D < other.D {
+			return -1
+		}
+	case TypeString:
+		if s.S > other.S {
+			return 1
+		} else if s.S < other.S {
+			return -1
+		}
+	case TypeBoolean:
+		if s.B && !other.B {
+			return 1
+		} else if !s.B && other.B {
+			return -1
+		}
+	case TypeStatus:
+		if s.Status > other.Status {
+			return 1
+		} else if s.Status < other.Status {
+			return -1
+		}
+	case TypeKind:
+		if s.Kind > other.Kind {
+			return 1
+		} else if s.Kind < other.Kind {
+			return -1
+		}
+	}
+
+	return 0
+}
+
+func (s *Static) sumInto(other Static) {
+	switch s.Type {
+	case TypeInt:
+		s.N += other.N
+	case TypeFloat:
+		s.F += other.F
+	case TypeDuration:
+		s.D += other.D
+	}
+}
+
+func (s Static) divideBy(f float64) Static {
+	switch s.Type {
+	case TypeInt:
+		return NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
+	case TypeFloat:
+		return NewStaticFloat(s.F / f)
+	case TypeDuration:
+		return NewStaticDuration(s.D / time.Duration(f))
+	}
+
+	return s
+}
+
 func (s Static) asFloat() float64 {
 	switch s.Type {
 	case TypeInt:
@@ -549,6 +647,12 @@ func (a Attribute) impliedType() StaticType {
 		return TypeKind
 	case IntrinsicParent:
 		return TypeNil
+	case IntrinsicTraceDuration:
+		return TypeDuration
+	case IntrinsicTraceRootService:
+		return TypeString
+	case IntrinsicTraceRootSpan:
+		return TypeString
 	}
 
 	return TypeAttribute

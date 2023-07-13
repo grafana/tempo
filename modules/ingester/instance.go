@@ -98,8 +98,10 @@ type instance struct {
 	traceSizes map[uint32]uint32
 	traceCount atomic.Int32
 
+	headBlockMtx sync.RWMutex
+	headBlock    common.WALBlock
+
 	blocksMtx        sync.RWMutex
-	headBlock        common.WALBlock
 	completingBlocks []common.WALBlock
 	completeBlocks   []*localBlock
 
@@ -241,16 +243,16 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseByteSlices(t.batches)
 	}
 
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	i.headBlockMtx.Lock()
+	defer i.headBlockMtx.Unlock()
 	return i.headBlock.Flush()
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready.
 // Returns the ID of a block if one was cut or a nil ID if one was not cut, along with the error (if any).
 func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (uuid.UUID, error) {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	i.headBlockMtx.Lock()
+	defer i.headBlockMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
 		return uuid.Nil, nil
@@ -266,6 +268,15 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 		}
 
 		completingBlock := i.headBlock
+
+		// Now that we are adding a new block take the blocks mutex.
+		// A warning about deadlocks!!  This area does a hard-acquire of both mutexes.
+		// To avoid deadlocks this function and all others must acquire them in
+		// the ** same_order ** or else!!! i.e. another function can't acquire blocksMtx
+		// then headblockMtx. Even if the likelihood is low it is a statistical certainly
+		// that eventually a deadlock will occur.
+		i.blocksMtx.Lock()
+		defer i.blocksMtx.Unlock()
 
 		i.completingBlocks = append(i.completingBlocks, completingBlock)
 
@@ -390,18 +401,20 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 	i.tracesMtx.Unlock()
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	combiner := trace.NewCombiner()
 	combiner.Consume(completeTrace)
 
 	// headBlock
+	i.headBlockMtx.RLock()
 	tr, err := i.headBlock.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
 	combiner.Consume(tr)
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
@@ -500,8 +513,8 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 }
 
 func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint32) error {
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
+	i.headBlockMtx.Lock()
+	defer i.headBlockMtx.Unlock()
 
 	err := i.headBlock.Append(id, b, start, end)
 	if err != nil {

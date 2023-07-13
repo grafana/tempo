@@ -67,7 +67,7 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	github.com/weaveworks/common v0.0.0-20230315122012-918bab8e5f88
+	github.com/weaveworks/common v0.0.0-20230511094633-334485600903
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.74.0
@@ -92,7 +92,7 @@ require (
 	golang.org/x/sync v0.1.0
 	golang.org/x/time v0.1.0
 	google.golang.org/api v0.110.0
-	google.golang.org/grpc v1.54.0
+	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -232,7 +232,7 @@ require (
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/segmentio/encoding v0.3.5 // indirect
-	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
+	github.com/sercand/kuberesolver/v4 v4.0.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.2 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
@@ -288,6 +288,3 @@ replace (
 // - https://github.com/hashicorp/memberlist/pull/260
 // - https://github.com/grafana/memberlist/pull/3
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-
-// In sync with github.com/weaveworks/common v0.0.0-20230119144549-0aaa5abd1e63
-replace google.golang.org/grpc => google.golang.org/grpc v1.47.0

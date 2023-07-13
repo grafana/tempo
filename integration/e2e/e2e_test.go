@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -93,7 +94,7 @@ func TestAllInOne(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
+			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
 
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
@@ -126,8 +127,8 @@ func TestAllInOne(t *testing.T) {
 			now := time.Now()
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
-			// find the trace with streaming
-			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(9095))
+			// find the trace with streaming. using the http server b/c that's what Grafana will do
+			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(3200))
 			require.NoError(t, err)
 
 			util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
@@ -250,7 +251,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
-			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+			apiClient := httpclient.New("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
@@ -400,7 +401,7 @@ func TestScalableSingleBinary(t *testing.T) {
 		callStatus(t, i)
 	}
 
-	apiClient1 := tempoUtil.NewClient("http://"+tempo1.Endpoint(3200), "")
+	apiClient1 := httpclient.New("http://"+tempo1.Endpoint(3200), "")
 
 	queryAndAssertTrace(t, apiClient1, info)
 
@@ -492,7 +493,7 @@ func assertEcho(t *testing.T, url string) {
 	defer res.Body.Close()
 }
 
-func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func queryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 	resp, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
 

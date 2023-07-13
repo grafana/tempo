@@ -255,7 +255,7 @@ func (b *pageFile) Close() error {
 }
 
 type pageFileClosingIterator struct {
-	iter     *spansetMetadataIterator
+	iter     *spansetIterator
 	pageFile *pageFile
 }
 
@@ -494,7 +494,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -536,7 +536,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 	return tr, nil
 }
 
-func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {
 	results := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
@@ -566,7 +566,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file()
 		if err != nil {
@@ -717,7 +717,7 @@ func newRowIterator(r *parquet.Reader, pageFile *pageFile, rowNumbers []common.I
 	}
 }
 
-func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
+func (i *rowIterator) peekNextID(context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
 	if len(i.rowNumbers) == 0 {
 		return nil, nil
 	}
@@ -725,7 +725,7 @@ func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) { //nol
 	return i.rowNumbers[0].ID, nil
 }
 
-func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) {
+func (i *rowIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	if len(i.rowNumbers) == 0 {
 		return nil, nil, nil
 	}

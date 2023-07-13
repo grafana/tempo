@@ -5,10 +5,11 @@ local tempo = import 'microservices/tempo.libsonnet';
 tempo {
   _images+:: {
     tempo: 'grafana/tempo:latest',
-    tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
+    tempo_query: 'grafana/tempo-query:latest',
   },
 
+  // generate with `tempo_query.enabled: true` to include tempo-query manifests
   _config+:: {
     namespace: 'tracing',
     compactor+: {
@@ -45,6 +46,8 @@ tempo {
       },
     },
     metrics_generator+: {
+      pvc_size: '10Gi',
+      pvc_storage_class: 'fast',
       ephemeral_storage_request_size: '10Gi',
       ephemeral_storage_limit_size: '11Gi',
     },

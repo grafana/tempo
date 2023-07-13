@@ -38,8 +38,8 @@ const (
 	KindProducer    = "producer"
 	KindConsumer    = "consumer"
 
-	EnvVarSyncIteratorName  = "VPARQUET2_SYNC_ITERATOR"
-	EnvVarSyncIteratorValue = "1"
+	EnvVarAsyncIteratorName  = "VPARQUET2_ASYNC_ITERATOR"
+	EnvVarAsyncIteratorValue = "1"
 )
 
 var StatusCodeMapping = map[string]int{
@@ -355,7 +355,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 }
 
 func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
-	sync := os.Getenv(EnvVarSyncIteratorName) == EnvVarSyncIteratorValue
+	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
 
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _ := pq.GetColumnIndexByPath(pf, name)
@@ -364,11 +364,11 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 			panic("column not found in parquet file:" + name)
 		}
 
-		if sync {
-			return pq.NewSyncIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
+		if async {
+			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
 		}
 
-		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
+		return pq.NewSyncIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
 	}
 }
 
@@ -419,7 +419,7 @@ func (r *reportValuesPredicate) String() string {
 }
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
-func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
+func (r *reportValuesPredicate) KeepColumnChunk(parquet.ColumnChunk) bool {
 	// Reinspect dictionary for each new column chunk
 	r.inspectedDict = false
 	return true

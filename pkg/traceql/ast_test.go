@@ -288,11 +288,52 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			ast, err := Parse(tc.query)
 			require.NoError(t, err)
 
-			filt := ast.Pipeline.Elements[0].(SpansetFilter)
+			filt := ast.Pipeline.Elements[0].(*SpansetFilter)
 
 			actual, err := filt.evaluate(tc.input)
 			require.NoError(t, err)
 			require.Equal(t, tc.output, actual)
+		})
+	}
+}
+
+func TestStaticCompare(t *testing.T) {
+	testCases := []struct {
+		name     string
+		s1       Static
+		s2       Static
+		expected int
+	}{
+		{
+			name:     "IntComparison_Greater",
+			s1:       Static{Type: TypeInt, N: 10},
+			s2:       Static{Type: TypeInt, N: 5},
+			expected: 1,
+		},
+		{
+			name:     "FloatComparison_Greater",
+			s1:       Static{Type: TypeFloat, F: 10.5},
+			s2:       Static{Type: TypeFloat, F: 5.5},
+			expected: 1,
+		},
+		{
+			name:     "StringComparison_Less",
+			s1:       Static{Type: TypeString, S: "hello"},
+			s2:       Static{Type: TypeString, S: "world"},
+			expected: -1,
+		},
+		{
+			name:     "BooleanComparison_Greater",
+			s1:       Static{Type: TypeBoolean, B: true},
+			s2:       Static{Type: TypeBoolean, B: false},
+			expected: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.s1.compare(&tc.s2)
+			require.Equal(t, tc.expected, result)
 		})
 	}
 }

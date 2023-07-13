@@ -21,9 +21,9 @@ The TraceQL engine connects the Tempo API handler with the storage layer. The Tr
 
 The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can zoom in to the data you need. Query results are returned faster because the queries limit what is searched.
 
-For an indepth look at TraceQL, read the [TraceQL: A first-of-its-kind query language to accelerate trace analysis in Tempo 2.0"](https://grafana.com/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/) blog post by Trevor Jones.
+For an indepth look at TraceQL, read the [TraceQL: A first-of-its-kind query language to accelerate trace analysis in Tempo 2.0"](/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/) blog post by Trevor Jones.
 
-For examples of query syntax, refer to [Perform a query]({{<relref "traceql#construct-a-traceql-query" >}}).
+For examples of query syntax, refer to [Construct a TraceQL query]({{< relref "../traceql#construct-a-traceql-query" >}}).
 
 {{< vimeo 773194063 >}}
 
@@ -35,12 +35,7 @@ For more information about TraceQL’s design, refer to the [TraceQL Concepts de
 
 ### Future work
 
-- Additional aggregates, such as `max()`, `min()`, and others.
-- Grouping
+- Increase OTEL support: Events, Lists, ILS Scope, etc.
 - Structural Queries
 - Metrics
 - Pipeline comparisons
-
-### Request access
-
-Once TraceQL is available in Grafana Cloud as an experimental feature, you can open a ticket with Grafana Support to request access.

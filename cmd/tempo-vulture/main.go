@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -50,6 +51,7 @@ type traceMetrics struct {
 	missingSpans            int
 	notFoundByID            int
 	notFoundSearch          int
+	notFoundTraceQL         int
 	requested               int
 	requestFailed           int
 	notFoundSearchAttribute int
@@ -160,7 +162,7 @@ func main() {
 					continue
 				}
 
-				client := util.NewClient(tempoQueryURL, tempoOrgID)
+				client := httpclient.New(tempoQueryURL, tempoOrgID)
 
 				// query the trace
 				queryMetrics, err := queryTrace(client, info)
@@ -191,13 +193,13 @@ func main() {
 					continue
 				}
 
-				client := util.NewClient(tempoQueryURL, tempoOrgID)
+				client := httpclient.New(tempoQueryURL, tempoOrgID)
 
 				// query a tag we expect the trace to be found within
 				searchMetrics, err := searchTag(client, seed)
 				if err != nil {
 					metricErrorTotal.Inc()
-					log.Error("search for metrics failed",
+					log.Error("search tag for metrics failed",
 						zap.Error(err),
 					)
 				}
@@ -262,6 +264,7 @@ func pushMetrics(metrics traceMetrics) {
 	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
 	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
 	metricTracesErrors.WithLabelValues("notfound_search").Add(float64(metrics.notFoundSearch))
+	metricTracesErrors.WithLabelValues("notfound_traceql").Add(float64(metrics.notFoundTraceQL))
 	metricTracesErrors.WithLabelValues("notfound_byid").Add(float64(metrics.notFoundByID))
 	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
@@ -320,7 +323,7 @@ func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
 	return number
 }
 
-func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
+func searchTag(client *httpclient.Client, seed time.Time) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -364,13 +367,14 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 		zap.String("key", attr.Key),
 		zap.String("value", util.StringifyAnyValue(attr.Value)),
 	)
-	logger.Info("searching Tempo")
+	logger.Info("searching Tempo via search tag")
 
 	// Use the search API to find details about the expected trace. give an hour range
 	//  around the seed.
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
 	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -385,7 +389,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	return tm, nil
 }
 
-func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
+func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -429,9 +433,12 @@ func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
 		zap.String("key", attr.Key),
 		zap.String("value", util.StringifyAnyValue(attr.Value)),
 	)
-	logger.Info("searching Tempo")
+	logger.Info("searching Tempo via traceql")
 
-	resp, err := client.SearchTraceQL(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)))
+	start := seed.Add(-30 * time.Minute).Unix()
+	end := seed.Add(30 * time.Minute).Unix()
+	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -439,14 +446,14 @@ func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	if !traceInTraces(hexID, resp.Traces) {
-		tm.notFoundSearch++
-		return tm, fmt.Errorf("trace %s not found in search response: %+v", hexID, resp.Traces)
+		tm.notFoundTraceQL++
+		return tm, fmt.Errorf("trace %s not found in search traceql response: %+v", hexID, resp.Traces)
 	}
 
 	return tm, nil
 }
 
-func queryTrace(client *util.Client, info *util.TraceInfo) (traceMetrics, error) {
+func queryTrace(client *httpclient.Client, info *util.TraceInfo) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}

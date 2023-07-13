@@ -3,6 +3,7 @@ package blocklist
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -494,7 +495,75 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			assert.Equal(t, tc.expectedCompacteddBackendBytesTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
 		})
 	}
+}
 
+func TestPollTolerateConsecutiveErrors(t *testing.T) {
+
+	var (
+		c = newMockCompactor(PerTenantCompacted{}, false)
+		w = &backend.MockWriter{}
+		s = &mockJobSharder{owns: true}
+	)
+
+	testCases := []struct {
+		name          string
+		tolerate      int
+		tenantErrors  []error
+		expectedError error
+	}{
+		{
+			name:          "no errors",
+			tolerate:      0,
+			tenantErrors:  []error{nil, nil, nil},
+			expectedError: nil,
+		},
+		{
+			name:          "untolerated single error",
+			tolerate:      0,
+			tenantErrors:  []error{nil, errors.New("tenant 1 err"), nil},
+			expectedError: errors.New("tenant 1 err"),
+		},
+		{
+			name:          "tolerated errors",
+			tolerate:      2,
+			tenantErrors:  []error{nil, errors.New("tenant 1 err"), errors.New("tenant 2 err"), nil},
+			expectedError: nil,
+		},
+		{
+			name:          "too many errors",
+			tolerate:      2,
+			tenantErrors:  []error{nil, errors.New("tenant 1 err"), errors.New("tenant 2 err"), errors.New("tenant 3 err"), nil},
+			expectedError: errors.New("tenant 3 err"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			// This mock reader returns error or nil based on the tenant ID
+			r := &backend.MockReader{
+				BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+					i, _ := strconv.Atoi(tenantID)
+					return nil, tc.tenantErrors[i]
+				},
+			}
+			// Tenant ID for each index in the slice
+			for i := range tc.tenantErrors {
+				r.T = append(r.T, strconv.Itoa(i))
+			}
+
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:           testPollConcurrency,
+				PollFallback:              testPollFallback,
+				TenantIndexBuilders:       testBuilders,
+				TolerateConsecutiveErrors: tc.tolerate,
+			}, s, r, c, w, log.NewNopLogger())
+
+			_, _, err := poller.Do()
+
+			assert.Equal(t, tc.expectedError, err)
+		})
+	}
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {

@@ -142,13 +142,14 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 	return sb.meta
 }
 
-func TestValueAlloc(t *testing.T) {
+func TestValueAlloc(*testing.T) {
 	_ = make([]parquet.Value, 1_000_000)
 }
 
 func TestCountSpans(t *testing.T) {
-	batchSize := rand.Intn(1000) + 1
-	spansEach := rand.Intn(1000) + 1
+	// It causes high mem usage when batchSize and spansEach are too big (> 500)
+	batchSize := 300 + rand.Intn(25)
+	spansEach := 250 + rand.Intn(25)
 
 	sch := parquet.SchemaOf(new(Trace))
 	traceID := make([]byte, 16)

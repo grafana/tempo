@@ -1,7 +1,8 @@
 ---
-title: Manage
+title: Manage Tempo
 menuTitle: Manage
-weight: 600
+description: Learn how to manage and tune Tempo.
+weight: 450
 ---
 
 # Manage Tempo

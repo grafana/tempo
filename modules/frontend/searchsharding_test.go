@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,26 +44,26 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
+func (m *mockReader) Find(context.Context, string, common.ID, string, string, int64, int64) ([]*tempopb.Trace, []error, error) {
 	return nil, nil, nil
 }
 
-func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
+func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
 }
 
-func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (m *mockReader) Search(context.Context, *backend.BlockMeta, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, nil
 }
 
-func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
-func (m *mockReader) Shutdown()                                  {}
+func (m *mockReader) EnablePolling(blocklist.JobSharder) {}
+func (m *mockReader) Shutdown()                          {}
 
-func TestBackendRequests(t *testing.T) {
+func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {
 		targetBytesPerRequest int
 		metas                 []*backend.BlockMeta
@@ -179,26 +180,136 @@ func TestBackendRequests(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		s := &searchSharder{
-			cfg: SearchSharderConfig{
-				TargetBytesPerRequest: tc.targetBytesPerRequest,
-			},
-		}
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
 
-		reqs, err := s.backendRequests(context.Background(), "test", req, tc.metas)
-		if tc.expectedError != nil {
-			assert.Equal(t, tc.expectedError, err)
-			continue
-		}
-		assert.NoError(t, err)
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		reqCh := make(chan *backendReqMsg)
+
+		go func() {
+			buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest, reqCh, stopCh)
+		}()
 
 		actualURIs := []string{}
-		for _, r := range reqs {
-			actualURIs = append(actualURIs, r.RequestURI)
+		var actualErr error
+		for r := range reqCh {
+			if r.err != nil {
+				actualErr = r.err
+				break
+			}
+
+			if r.req != nil {
+				actualURIs = append(actualURIs, r.req.RequestURI)
+			}
 		}
 
+		if tc.expectedError != nil {
+			assert.Equal(t, tc.expectedError, actualErr)
+			continue
+		}
+		assert.NoError(t, actualErr)
 		assert.Equal(t, tc.expectedURIs, actualURIs)
+	}
+}
+
+func TestBackendRequests(t *testing.T) {
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
+	bm.StartTime = time.Unix(100, 0)
+	bm.EndTime = time.Unix(200, 0)
+	bm.Size = defaultTargetBytesPerRequest * 2
+	bm.TotalRecords = 2
+
+	s := &searchSharder{
+		cfg:    SearchSharderConfig{},
+		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
+	}
+
+	tests := []struct {
+		name               string
+		request            string
+		expectedReqsURIs   []string
+		expectedError      error
+		expectedJobs       int
+		expectedBlocks     int
+		expectedBlockBytes uint64
+	}{
+		{
+			name:    "start and end same as block",
+			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=100&end=200",
+			expectedReqsURIs: []string{
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+			},
+			expectedError:      nil,
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
+		},
+		{
+			name:    "start and end in block",
+			request: "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=110&end=150",
+			expectedReqsURIs: []string{
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
+			},
+			expectedError:      nil,
+			expectedJobs:       2,
+			expectedBlocks:     1,
+			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
+		},
+		{
+			name:             "start and end out of block",
+			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
+			expectedReqsURIs: make([]string, 0),
+			expectedError:    nil,
+		},
+		{
+			name:             "no start and end",
+			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
+			expectedReqsURIs: make([]string, 0),
+			expectedError:    nil,
+		},
+		{
+			name:             "only tags",
+			request:          "/?tags=foo%3Dbar",
+			expectedReqsURIs: make([]string, 0),
+			expectedError:    nil,
+		},
+		{
+			name:             "no params",
+			request:          "/",
+			expectedReqsURIs: make([]string, 0),
+			expectedError:    nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", tc.request, nil)
+			searchReq, err := api.ParseSearchRequest(r)
+			require.NoError(t, err)
+
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			reqCh := make(chan *backendReqMsg)
+
+			jobs, blocks, blockBytes := s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
+			require.Equal(t, tc.expectedJobs, jobs)
+			require.Equal(t, tc.expectedBlocks, blocks)
+			require.Equal(t, tc.expectedBlockBytes, blockBytes)
+
+			var actualErr error
+			actualReqURIs := []string{}
+			for r := range reqCh {
+				if r.err != nil {
+					actualErr = r.err
+				}
+				if r.req != nil {
+					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
+				}
+			}
+			require.Equal(t, tc.expectedError, actualErr)
+			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
+		})
 	}
 }
 
@@ -255,6 +366,16 @@ func TestIngesterRequest(t *testing.T) {
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
 		},
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
+			queryIngestersUntil: 15 * time.Minute,
+			expectedURI:         "/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&start=0&tags=foo%3Dbar",
+		},
+		{
+			request:             "/?limit=50",
+			queryIngestersUntil: 15 * time.Minute,
+			expectedURI:         "/querier?end=0&limit=50&start=0",
+		},
 	}
 
 	for _, tc := range tests {
@@ -268,6 +389,7 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
+		copyReq := searchReq
 		actualReq, err := s.ingesterRequest(context.Background(), "test", req, *searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
@@ -279,6 +401,10 @@ func TestIngesterRequest(t *testing.T) {
 		} else {
 			assert.Equal(t, tc.expectedURI, actualReq.RequestURI)
 		}
+
+		// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that
+		// occurs if the ingesterRequest method is changed to take a searchReq pointer
+		require.True(t, reflect.DeepEqual(copyReq, searchReq))
 	}
 }
 
@@ -343,20 +469,22 @@ func TestBackendRange(t *testing.T) {
 			expectedStart:     uint32(twentyMinutesAgo),
 			expectedEnd:       uint32(fiveMinutesAgo),
 		},
+		// request without start and end should return start and end as 0
+		{
+			request:           "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
+			queryBackendAfter: 5 * time.Minute,
+			expectedStart:     0,
+			expectedEnd:       0,
+		},
 	}
 
 	for _, tc := range tests {
-		s := &searchSharder{
-			cfg: SearchSharderConfig{
-				QueryBackendAfter: tc.queryBackendAfter,
-			},
-		}
 		req := httptest.NewRequest("GET", tc.request, nil)
 
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualStart, actualEnd := s.backendRange(searchReq)
+		actualStart, actualEnd := backendRange(searchReq, tc.queryBackendAfter)
 		assert.Equal(t, int(tc.expectedStart), int(actualStart))
 		assert.Equal(t, int(tc.expectedEnd), int(actualEnd))
 	}
@@ -592,6 +720,61 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 	}
 }
 
+func TestTotalJobsIncludesIngester(t *testing.T) {
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+			Metrics: &tempopb.SearchMetrics{},
+		})
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(resString)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	now := time.Now().Add(-10 * time.Minute).Unix()
+
+	sharder := newSearchSharder(&mockReader{
+		metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
+			{
+				StartTime:    time.Unix(now, 0),
+				EndTime:      time.Unix(now, 0),
+				Size:         defaultTargetBytesPerRequest * 2,
+				TotalRecords: 2,
+				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+			},
+		},
+	}, o, SearchSharderConfig{
+		QueryIngestersUntil:   15 * time.Minute,
+		ConcurrentRequests:    1, // 1 concurrent request to force order
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
+	req := httptest.NewRequest("GET", path, nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	resp, err := testRT.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	actualResp := &tempopb.SearchResponse{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// 2 jobs for the meta + 1 for th ingester
+	assert.Equal(t, uint32(3), actualResp.Metrics.TotalJobs)
+}
+
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		return nil, nil
@@ -807,5 +990,75 @@ func TestSubRequestsCancelled(t *testing.T) {
 
 			_, _ = testRT.RoundTrip(req)
 		})
+	}
+}
+
+func BenchmarkSearchSharderRoundTrip5(b *testing.B)     { benchmarkSearchSharderRoundTrip(b, 5) }
+func BenchmarkSearchSharderRoundTrip500(b *testing.B)   { benchmarkSearchSharderRoundTrip(b, 500) }
+func BenchmarkSearchSharderRoundTrip50000(b *testing.B) { benchmarkSearchSharderRoundTrip(b, 50000) } // max, forces all queries to run
+
+func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
+	resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}})
+	require.NoError(b, err)
+
+	successResString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "1234",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{},
+	})
+	require.NoError(b, err)
+
+	succeedAfter := atomic.NewInt32(s)
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		val := succeedAfter.Dec()
+
+		s := resString
+		if val == 0 {
+			s = successResString
+		}
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(s)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(b, err)
+
+	totalMetas := 10000
+	jobsPerMeta := 2
+	metas := make([]*backend.BlockMeta, 0, totalMetas)
+	for i := 0; i < totalMetas; i++ {
+		metas = append(metas, &backend.BlockMeta{
+			StartTime:    time.Unix(1100, 0),
+			EndTime:      time.Unix(1200, 0),
+			Size:         defaultTargetBytesPerRequest * uint64(jobsPerMeta),
+			TotalRecords: uint32(jobsPerMeta),
+			BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		})
+	}
+
+	sharder := newSearchSharder(&mockReader{
+		metas: metas,
+	}, o, SearchSharderConfig{
+		ConcurrentRequests:    100,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		succeedAfter = atomic.NewInt32(s)
+		_, err = testRT.RoundTrip(req)
+		require.NoError(b, err)
 	}
 }

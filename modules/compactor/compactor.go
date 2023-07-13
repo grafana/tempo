@@ -10,13 +10,13 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -43,7 +43,7 @@ type Compactor struct {
 
 	cfg       *Config
 	store     storage.Store
-	overrides *overrides.Overrides
+	overrides overrides.Interface
 
 	// Ring used for sharding compactions.
 	ringLifecycler *ring.BasicLifecycler
@@ -54,7 +54,7 @@ type Compactor struct {
 }
 
 // New makes a new Compactor.
-func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg prometheus.Registerer) (*Compactor, error) {
+func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Compactor, error) {
 	c := &Compactor{
 		cfg:       &cfg,
 		store:     store,
@@ -267,7 +267,7 @@ func (c *Compactor) isSharded() bool {
 // OnRingInstanceRegister is called while the lifecycler is registering the
 // instance within the ring and should return the state and set of tokens to
 // use for the instance itself.
-func (c *Compactor) OnRingInstanceRegister(lifecycler *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, instanceID string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
+func (c *Compactor) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc ring.Desc, instanceExists bool, _ string, instanceDesc ring.InstanceDesc) (ring.InstanceState, ring.Tokens) {
 	// When we initialize the compactor instance in the ring we want to start from
 	// a clean situation, so whatever is the state we set it ACTIVE, while we keep existing
 	// tokens (if any) or the ones loaded from file.
@@ -287,16 +287,16 @@ func (c *Compactor) OnRingInstanceRegister(lifecycler *ring.BasicLifecycler, rin
 
 // OnRingInstanceTokens is called once the instance tokens are set and are
 // stable within the ring (honoring the observe period, if set).
-func (c *Compactor) OnRingInstanceTokens(lifecycler *ring.BasicLifecycler, tokens ring.Tokens) {}
+func (c *Compactor) OnRingInstanceTokens(*ring.BasicLifecycler, ring.Tokens) {}
 
 // OnRingInstanceStopping is called while the lifecycler is stopping. The lifecycler
 // will continue to hearbeat the ring the this function is executing and will proceed
 // to unregister the instance from the ring only after this function has returned.
-func (c *Compactor) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {}
+func (c *Compactor) OnRingInstanceStopping(*ring.BasicLifecycler) {}
 
 // OnRingInstanceHeartbeat is called while the instance is updating its heartbeat
 // in the ring.
-func (c *Compactor) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
+func (c *Compactor) OnRingInstanceHeartbeat(*ring.BasicLifecycler, *ring.Desc, *ring.InstanceDesc) {
 }
 
 func countSpans(dataEncoding string, objs ...[]byte) (total int) {

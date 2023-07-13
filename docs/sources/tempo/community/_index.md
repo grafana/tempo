@@ -1,5 +1,6 @@
 ---
 title: Community
+description: Participate in and contribute to the Tempo open source community.
 weight: 900
 ---
 

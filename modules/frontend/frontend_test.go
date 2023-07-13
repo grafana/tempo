@@ -41,10 +41,15 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 
-	// search is a blind passthrough. easy!
-	res := httptest.NewRecorder()
-	f.SearchHandler.ServeHTTP(res, req)
-	assert.Equal(t, res.Body.String(), "next")
+	// searchTags is a blind pass through. easy!
+	resTags := httptest.NewRecorder()
+	f.SearchTagsHandler.ServeHTTP(resTags, req)
+	assert.Equal(t, resTags.Body.String(), "next")
+
+	// search will fail with `no org id` error
+	resSearch := httptest.NewRecorder()
+	f.SearchHandler.ServeHTTP(resSearch, req)
+	assert.Equal(t, resSearch.Body.String(), "no org id")
 }
 
 func TestFrontendBadConfigFails(t *testing.T) {

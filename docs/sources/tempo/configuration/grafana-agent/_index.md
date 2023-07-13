@@ -1,5 +1,6 @@
 ---
 title: Grafana Agent
+description: Configure the Grafana Agent to work with Tempo
 weight: 600
 aliases:
 - /docs/tempo/grafana-agent

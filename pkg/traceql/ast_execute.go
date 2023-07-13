@@ -8,6 +8,67 @@ import (
 	"strings"
 )
 
+func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	result := make([]*Spanset, 0, len(ss))
+	groups := g.groupBuffer
+
+	// Iterate over each spanset in the input slice
+	for _, spanset := range ss {
+		// clear out the groups
+		for k := range groups {
+			delete(groups, k)
+		}
+
+		// Iterate over each span in the spanset
+		for _, span := range spanset.Spans {
+			// Execute the FieldExpression for the span
+			result, err := g.Expression.execute(span)
+			if err != nil {
+				return nil, err
+			}
+
+			// Check if the result already has a group in the map
+			group, ok := groups[result]
+			if !ok {
+				// If not, create a new group and add it to the map
+				group = &Spanset{}
+				// copy all existing attributes forward
+				group.Attributes = append(group.Attributes, spanset.Attributes...)
+				group.AddAttribute(g.String(), result)
+				groups[result] = group
+			}
+
+			// Add the current spanset to the group
+			group.Spans = append(group.Spans, span)
+		}
+
+		// add all groups created by this spanset to the result
+		for _, group := range groups {
+			result = append(result, group)
+		}
+	}
+
+	return result, nil
+}
+
+// CoalesceOperation undoes grouping. It takes spansets and recombines them into
+// one by trace id. Since all spansets are guaranteed to be from the same traceid
+// due to the structure of the engine we can cheat and just recombine all spansets
+// in ss into one without checking.
+func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
+	l := 0
+	for _, spanset := range ss {
+		l += len(spanset.Spans)
+	}
+	result := &Spanset{
+		Spans: make([]Span, 0, l),
+	}
+	for _, spanset := range ss {
+		result.Spans = append(result.Spans, spanset.Spans...)
+	}
+	return []*Spanset{result}, nil
+}
+
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
@@ -46,6 +107,11 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 	return output, nil
 }
 
+// SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes
+func (o SelectOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
+	return input, nil
+}
+
 func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	// TODO we solve this gap where pipeline elements and scalar binary
@@ -82,16 +148,16 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 }
 
 func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
-			copy := ss.clone()
-			copy.Scalar = NewStaticInt(len(ss.Spans))
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = NewStaticInt(len(ss.Spans))
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateAvg:
-			sum := 0.0
+			var sum *Static
 			count := 0
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
@@ -99,56 +165,68 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					return nil, err
 				}
 
-				sum += val.asFloat()
+				if sum == nil {
+					sum = &val
+				} else {
+					sum.sumInto(val)
+				}
 				count++
 			}
 
-			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(sum / float64(count))
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = sum.divideBy(float64(count))
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateMax:
-			max := math.Inf(-1)
+			var max *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if val.asFloat() > max {
-					max = val.asFloat()
+				if max == nil || val.compare(max) == 1 {
+					max = &val
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(max)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *max
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateMin:
-			min := math.Inf(1)
+			var min *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if val.asFloat() < min {
-					min = val.asFloat()
+				if min == nil || val.compare(min) == -1 {
+					min = &val
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(min)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *min
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateSum:
-			sum := 0.0
+			var sum *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				sum += val.asFloat()
+				if sum == nil {
+					sum = &val
+				} else {
+					sum.sumInto(val)
+				}
 			}
-			copy := ss.clone()
-			copy.Scalar = NewStaticFloat(sum)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *sum
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		default:
 			return nil, fmt.Errorf("aggregate operation (%v) not supported", a.op)
@@ -297,7 +375,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s Static) execute(span Span) (Static, error) {
+func (s Static) execute(Span) (Static, error) {
 	return s, nil
 }
 

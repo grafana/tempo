@@ -28,6 +28,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 }
 
-var _ metricsGeneratorOverrides = (*overrides.Overrides)(nil)
+var _ metricsGeneratorOverrides = (overrides.Interface)(nil)

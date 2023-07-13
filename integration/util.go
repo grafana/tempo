@@ -22,12 +22,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
 const (
-	image = "tempo:latest"
+	image      = "tempo:latest"
+	queryImage = "tempo-query:latest"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -74,11 +76,15 @@ func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoDistributor("distributor", extraArgs...)
+}
+
+func NewNamedTempoDistributor(name string, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"distributor",
+		name,
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -92,11 +98,15 @@ func NewTempoDistributor(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoIngester(replica int, extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoIngester("ingester", replica, extraArgs...)
+}
+
+func NewNamedTempoIngester(name string, replica int, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=ingester"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"ingester-"+strconv.Itoa(replica),
+		name+"-"+strconv.Itoa(replica),
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -126,11 +136,15 @@ func NewTempoMetricsGenerator(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoQueryFrontend(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoQueryFrontend("query-frontend", extraArgs...)
+}
+
+func NewNamedTempoQueryFrontend(name string, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=query-frontend"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"query-frontend",
+		name,
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -143,11 +157,15 @@ func NewTempoQueryFrontend(extraArgs ...string) *e2e.HTTPService {
 }
 
 func NewTempoQuerier(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoQuerier("querier", extraArgs...)
+}
+
+func NewNamedTempoQuerier(name string, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
 	args = buildArgsWithExtra(args, extraArgs)
 
 	s := e2e.NewHTTPService(
-		"querier",
+		name,
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -171,6 +189,25 @@ func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPSer
 		3200,  // http all things
 		14250, // jaeger grpc ingest
 		// 9411,  // zipkin ingest (used by load)
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
+func NewTempoQuery() *e2e.HTTPService {
+	args := []string{
+		"--query.base-path=/",
+		"--grpc-storage-plugin.configuration-file=" + filepath.Join(e2e.ContainerSharedDir, "config-tempo-query.yaml"),
+	}
+
+	s := e2e.NewHTTPService(
+		"tempo-query",
+		queryImage,
+		e2e.NewCommandWithoutEntrypoint("/go/bin/query-linux", args...),
+		e2e.NewHTTPReadinessProbe(16686, "/", 200, 299),
+		16686,
 	)
 
 	s.SetBackoff(TempoBackoff())
@@ -231,7 +268,7 @@ func NewSearchGRPCClient(endpoint string) (tempopb.StreamingQuerierClient, error
 	return tempopb.NewStreamingQuerierClient(clientConn), nil
 }
 
-func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func SearchAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
@@ -252,7 +289,7 @@ func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func SearchTraceQLAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
@@ -299,7 +336,7 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
-func SearchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
+func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 

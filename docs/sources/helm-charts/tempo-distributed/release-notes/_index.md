@@ -1,7 +1,7 @@
 ---
 description: Release notes for tempo-distributed Helm chart
 menuTitle: Release notes
-title: Release notes
+title: Grafana Tempo Helm chart release notes
 weight: 20
 keywords:
   - Helm chart

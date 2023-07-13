@@ -2,19 +2,25 @@ package traceqlmetrics
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 )
 
-type latencyHistogram struct {
+type LatencyHistogram struct {
 	buckets [64]int // Exponential buckets, powers of 2
 }
 
-func (m *latencyHistogram) Record(durationNanos uint64) {
+func New(buckets [64]int) *LatencyHistogram {
+	return &LatencyHistogram{buckets: buckets}
+}
+
+func (m *LatencyHistogram) Record(durationNanos uint64) {
 	// Increment bucket that matches log2(duration)
 	var bucket int
 	if durationNanos >= 2 {
@@ -23,7 +29,7 @@ func (m *latencyHistogram) Record(durationNanos uint64) {
 	m.buckets[bucket]++
 }
 
-func (m *latencyHistogram) Count() int {
+func (m *LatencyHistogram) Count() int {
 	total := 0
 	for _, count := range m.buckets {
 		total += count
@@ -31,28 +37,37 @@ func (m *latencyHistogram) Count() int {
 	return total
 }
 
-func (m *latencyHistogram) Combine(other latencyHistogram) {
+func (m *LatencyHistogram) Combine(other LatencyHistogram) {
 	for i := range m.buckets {
 		m.buckets[i] += other.buckets[i]
 	}
 }
 
 // Percentile returns the estimated latency percentile in nanoseconds.
-func (m *latencyHistogram) Percentile(p float32) uint64 {
+func (m *LatencyHistogram) Percentile(p float64) uint64 {
+	if math.IsNaN(p) ||
+		p < 0 ||
+		p > 1 ||
+		m.Count() == 0 {
+		return 0
+	}
 
 	// Maximum amount of samples to include. We round up to better handle
 	// percentiles on low sample counts (<100).
-	maxSamples := int(math.Ceil(float64(p) * float64(m.Count())))
+	maxSamples := int(math.Ceil(p * float64(m.Count())))
 
 	// Find the bucket where the percentile falls in
 	// and the total sample count less than or equal
 	// to that bucket.
 	var total, bucket int
 	for b, count := range m.buckets {
-		if total+count < maxSamples {
+		if total+count <= maxSamples {
 			bucket = b
 			total += count
-			continue
+
+			if total < maxSamples {
+				continue
+			}
 		}
 
 		// We have enough
@@ -61,7 +76,10 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 
 	// Fraction to interpolate between buckets, sample-count wise.
 	// 0.5 means halfway
-	interp := float64(maxSamples-total) / float64(m.buckets[bucket+1])
+	var interp float64
+	if maxSamples-total > 0 {
+		interp = float64(maxSamples-total) / float64(m.buckets[bucket+1])
+	}
 
 	// Exponential interpolation between buckets
 	minDur := math.Pow(2, float64(bucket))
@@ -71,28 +89,37 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 }
 
 // Buckets returns the bucket counts for each power of 2.
-func (m *latencyHistogram) Buckets() [64]int {
+func (m *LatencyHistogram) Buckets() [64]int {
 	return m.buckets
 }
+
+const maxGroupBys = 5
+
+type KeyValue struct {
+	Key   string
+	Value traceql.Static
+}
+
+type MetricSeries [maxGroupBys]KeyValue
 
 type MetricsResults struct {
 	Estimated bool
 	SpanCount int
-	Series    map[traceql.Static]*latencyHistogram
-	Errors    map[traceql.Static]int
+	Series    map[MetricSeries]*LatencyHistogram
+	Errors    map[MetricSeries]int
 }
 
 func NewMetricsResults() *MetricsResults {
 	return &MetricsResults{
-		Series: map[traceql.Static]*latencyHistogram{},
-		Errors: map[traceql.Static]int{},
+		Series: map[MetricSeries]*LatencyHistogram{},
+		Errors: map[MetricSeries]int{},
 	}
 }
 
-func (m *MetricsResults) Record(series traceql.Static, durationNanos uint64, err bool) {
+func (m *MetricsResults) Record(series MetricSeries, durationNanos uint64, err bool) {
 	s := m.Series[series]
 	if s == nil {
-		s = &latencyHistogram{}
+		s = &LatencyHistogram{}
 		m.Series[series] = s
 	}
 	s.Record(durationNanos)
@@ -103,7 +130,6 @@ func (m *MetricsResults) Record(series traceql.Static, durationNanos uint64, err
 }
 
 func (m *MetricsResults) Combine(other *MetricsResults) {
-
 	m.SpanCount += other.SpanCount
 	if other.Estimated {
 		m.Estimated = true
@@ -112,7 +138,7 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 	for k, v := range other.Series {
 		s := m.Series[k]
 		if s == nil {
-			s = &latencyHistogram{}
+			s = &LatencyHistogram{}
 			m.Series[k] = s
 		}
 		s.Combine(*v)
@@ -124,10 +150,51 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 }
 
 // GetMetrics
-func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
-	groupByAttr, err := traceql.ParseIdentifier(groupBy)
-	if err != nil {
-		return nil, errors.Wrap(err, "parsing groupby")
+func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
+	identifiers := strings.Split(groupBy, ",")
+
+	if len(identifiers) > maxGroupBys {
+		return nil, fmt.Errorf("max group by %d attributes exceeded", maxGroupBys)
+	}
+
+	if len(identifiers) == 0 {
+		return nil, errors.New("must group by at least one attribute")
+	}
+
+	// Parse each identifier to group by.
+	// We also take any unscoped parameter and flatten it into the
+	// scoped lookups. I.e. if we tell traceql storage we want
+	// .foo it actually comes back as span.foo or resource.foo.
+	// This is computed once upfront here to make the downstream
+	// collection as efficient as possible.
+	groupBys := make([][]traceql.Attribute, 0, len(identifiers))
+	for _, id := range identifiers {
+
+		id = strings.TrimSpace(id)
+
+		attr, err := traceql.ParseIdentifier(id)
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing groupby attribute")
+		}
+
+		var lookups []traceql.Attribute
+		if attr.Intrinsic == traceql.IntrinsicNone && attr.Scope == traceql.AttributeScopeNone {
+			// Unscoped attribute. Also check span-level, then resource-level.
+			lookups = []traceql.Attribute{
+				attr,
+				traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr.Name),
+				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr.Name),
+			}
+		} else {
+			lookups = []traceql.Attribute{attr}
+		}
+
+		groupBys = append(groupBys, lookups)
+	}
+
+	groupByKeys := make([]string, len(groupBys))
+	for i := range groupBys {
+		groupByKeys[i] = groupBys[i][0].String()
 	}
 
 	eval, req, err := traceql.NewEngine().Compile(query)
@@ -136,16 +203,27 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	}
 
 	var (
-		duration  = traceql.NewIntrinsic(traceql.IntrinsicDuration)
-		status    = traceql.NewIntrinsic(traceql.IntrinsicStatus)
-		statusErr = traceql.NewStaticStatus(traceql.StatusError)
-		spanCount = 0
-		series    = NewMetricsResults()
+		duration   = traceql.NewIntrinsic(traceql.IntrinsicDuration)
+		startTime  = traceql.NewIntrinsic(traceql.IntrinsicSpanStartTime)
+		startValue = traceql.NewStaticInt(int(start))
+		status     = traceql.NewIntrinsic(traceql.IntrinsicStatus)
+		statusErr  = traceql.NewStaticStatus(traceql.StatusError)
+		spanCount  = 0
+		results    = NewMetricsResults()
 	)
 
-	// Ensure that we select the span duration, status, and group-by attribute
-	// if they are not already included in the query. These are fetched
-	// without filtering.
+	if start > 0 {
+		req.StartTimeUnixNanos = start
+		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: startTime, Op: traceql.OpGreaterEqual, Operands: []traceql.Static{startValue}})
+	}
+	if end > 0 {
+		req.EndTimeUnixNanos = end
+		// There is only an intrinsic for the span start time, so use it as the cutoff.
+		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: startTime, Op: traceql.OpLess, Operands: []traceql.Static{startValue}})
+	}
+
+	// Ensure that we select the span duration, status, and group-by attributes
+	// if they are not already included in the query.
 	addConditionIfNotPresent := func(a traceql.Attribute) {
 		for _, c := range req.Conditions {
 			if c.Attribute == a {
@@ -155,17 +233,19 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: a})
 	}
-	addConditionIfNotPresent(duration)
 	addConditionIfNotPresent(status)
-	addConditionIfNotPresent(groupByAttr)
+	addConditionIfNotPresent(duration)
+	for _, g := range groupBys {
+		addConditionIfNotPresent(g[0])
+	}
 
-	// This filter callback processes the matching spans into the
-	// bucketed metrics.  It returns nil because we don't need any
-	// results after this.
-	req.Filter = func(in *traceql.Spanset) ([]*traceql.Spanset, error) {
-
-		// Run engine to assert final query conditions
-		out, err := eval([]*traceql.Spanset{in})
+	// Read the spans in the second pass callback and return nil to discard them.
+	// We do this because it lets the fetch layer repool the spans because it
+	// knows we discarded them.
+	// TODO - Add span.Release() or something that we could use in the loop
+	// at the bottom to repool the spans?
+	req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) {
+		out, err := eval([]*traceql.Spanset{s})
 		if err != nil {
 			return nil, err
 		}
@@ -173,13 +253,24 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 		for _, ss := range out {
 			for _, s := range ss.Spans {
 
+				if start > 0 && s.StartTimeUnixNanos() < start {
+					continue
+				}
+				if end > 0 && s.StartTimeUnixNanos() >= end {
+					continue
+				}
+
 				var (
-					attr  = s.Attributes()
-					group = attr[groupByAttr]
-					err   = attr[status] == statusErr
+					attrs  = s.Attributes()
+					series = MetricSeries{}
+					err    = attrs[status] == statusErr
 				)
 
-				series.Record(group, s.DurationNanos(), err)
+				for i, g := range groupBys {
+					series[i] = KeyValue{Key: groupByKeys[i], Value: lookup(g, attrs)}
+				}
+
+				results.Record(series, s.DurationNanos(), err)
 
 				spanCount++
 				if spanLimit > 0 && spanCount >= spanLimit {
@@ -187,10 +278,11 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 				}
 			}
 		}
-		return nil, nil
+
+		return nil, err
 	}
 
-	// Perform the fetch and process the results inside the Filter
+	// Perform the fetch and process the results inside the SecondPass
 	// callback.  No actual results will be returned from this fetch call,
 	// But we still need to call Next() at least once.
 	res, err := fetcher.Fetch(ctx, *req)
@@ -200,6 +292,8 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	if err != nil {
 		return nil, err
 	}
+
+	defer res.Results.Close()
 
 	for {
 		ss, err := res.Results.Next(ctx)
@@ -212,7 +306,17 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	}
 
 	// The results are estimated if we bailed early due to limit being reached, but only if spanLimit has been set.
-	series.Estimated = spanCount >= spanLimit && spanLimit > 0
-	series.SpanCount = spanCount
-	return series, nil
+	results.Estimated = spanCount >= spanLimit && spanLimit > 0
+	results.SpanCount = spanCount
+	return results, nil
+}
+
+func lookup(needles []traceql.Attribute, haystack map[traceql.Attribute]traceql.Static) traceql.Static {
+	for _, n := range needles {
+		if v, ok := haystack[n]; ok {
+			return v
+		}
+	}
+
+	return traceql.Static{}
 }

@@ -103,14 +103,14 @@ func TestNewRegexInPredicate(t *testing.T) {
 			},
 		},
 		{
-			testName: "dictionary in the page header allows for skipping a page",
+			testName: "dictionary in the page header allows for skipping a column chunk",
 			predicate: func() Predicate {
 				pred, err := NewRegexInPredicate([]string{"x.*"})
 				require.NoError(t, err)
 
 				return pred
 			}(), // Not present in any values
-			keptChunks: 1,
+			keptChunks: 0,
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
@@ -148,14 +148,14 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 			},
 		},
 		{
-			testName: "dictionary in the page header allows for skipping a page",
+			testName: "dictionary in the page header allows for skipping a column chunk",
 			predicate: func() Predicate {
 				pred, err := NewRegexNotInPredicate([]string{"x.*"})
 				require.NoError(t, err)
 
 				return pred
 			}(), // Not present in any values
-			keptChunks: 1,
+			keptChunks: 0,
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all

@@ -243,7 +243,7 @@ func (a *walBlock) Clear() error {
 }
 
 // Find implements common.Finder
-func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "v2WalBlock.FindTraceByID")
 	defer span.Finish()
 
@@ -283,17 +283,17 @@ func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 }
 
 // Search implements common.Searcher
-func (a *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (a *walBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, common.ErrUnsupported
 }
 
 // Search implements common.Searcher
-func (a *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
+func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
 // SearchTagValues implements common.Searcher
-func (a *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+func (a *walBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

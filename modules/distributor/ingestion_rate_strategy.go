@@ -2,6 +2,7 @@ package distributor
 
 import (
 	"github.com/grafana/dskit/limiter"
+
 	"github.com/grafana/tempo/modules/overrides"
 )
 
@@ -11,10 +12,10 @@ type ReadLifecycler interface {
 }
 
 type localStrategy struct {
-	limits *overrides.Overrides
+	limits overrides.Interface
 }
 
-func newLocalIngestionRateStrategy(limits *overrides.Overrides) limiter.RateLimiterStrategy {
+func newLocalIngestionRateStrategy(limits overrides.Interface) limiter.RateLimiterStrategy {
 	return &localStrategy{
 		limits: limits,
 	}
@@ -29,11 +30,11 @@ func (s *localStrategy) Burst(userID string) int {
 }
 
 type globalStrategy struct {
-	limits *overrides.Overrides
+	limits overrides.Interface
 	ring   ReadLifecycler
 }
 
-func newGlobalIngestionRateStrategy(limits *overrides.Overrides, ring ReadLifecycler) limiter.RateLimiterStrategy {
+func newGlobalIngestionRateStrategy(limits overrides.Interface, ring ReadLifecycler) limiter.RateLimiterStrategy {
 	return &globalStrategy{
 		limits: limits,
 		ring:   ring,

@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
@@ -52,16 +53,20 @@ type exemplarSample struct {
 }
 
 func newSample(lbls map[string]string, t int64, v float64) sample {
+	l := labels.FromMap(lbls)
+	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
 	return sample{
-		l: labels.FromMap(lbls),
+		l: l,
 		t: t,
 		v: v,
 	}
 }
 
 func newExemplar(lbls map[string]string, e exemplar.Exemplar) exemplarSample {
+	l := labels.FromMap(lbls)
+	sort.Slice(l, func(i, j int) bool { return l[i].Name < l[j].Name })
 	return exemplarSample{
-		l: labels.FromMap(lbls),
+		l: l,
 		e: e,
 	}
 }
@@ -73,7 +78,7 @@ func (s sample) String() string {
 var _ storage.Appendable = (*capturingAppender)(nil)
 var _ storage.Appender = (*capturingAppender)(nil)
 
-func (c *capturingAppender) Appender(ctx context.Context) storage.Appender {
+func (c *capturingAppender) Appender(context.Context) storage.Appender {
 	return c
 }
 

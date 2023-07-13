@@ -121,6 +121,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		resourceLabels := make([]string, 0)
 		resourceValues := make([]string, 0)
+
 		if p.Cfg.EnableTargetInfo {
 			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes)
 		}

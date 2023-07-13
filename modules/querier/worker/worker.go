@@ -87,7 +87,7 @@ type querierWorker struct {
 	managers map[string]*processorManager
 }
 
-func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, reg prometheus.Registerer) (services.Service, error) {
+func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, _ prometheus.Registerer) (services.Service, error) {
 	if cfg.QuerierID == "" {
 		hostname, err := os.Hostname()
 		if err != nil {

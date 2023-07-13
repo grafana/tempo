@@ -1,6 +1,7 @@
 ---
 title: Plan your Tempo deployment
 menuTitle: Plan your deployment
+description: Plan your Grafana Tempo deployment
 aliases:
   - /docs/tempo/deployment
   - /docs/tempo/deployment/deployment
@@ -86,7 +87,14 @@ Helm charts are available in the `grafana/helm-charts` repository:
 
 In addition, several Helm chart examples are available in the Tempo repository.
 
-## Tanka/Jsonnet
+### Kubernetes Tempo Operator
+
+The operator is available in [grafana/tempo-operator](https://github.com/grafana/tempo-operator) repository.
+The operator reconciles `TempoStack` resource to deploy and manage Tempo microservices installation.
+
+Refer to the [operator documentation]({{< relref "./operator" >}}) for more details.
+
+### Tanka/Jsonnet
 
 The Jsonnet files that you need to deploy Tempo with Tanka are available here:
 

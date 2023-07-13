@@ -29,7 +29,6 @@ func GetVirtualTagValues(tagName string) []string {
 }
 
 func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
-
 	switch tagName {
 	case traceql.IntrinsicStatus.String():
 		return []tempopb.TagValue{
@@ -46,6 +45,10 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 			{Type: "keyword", Value: traceql.KindInternal.String()},
 			{Type: "keyword", Value: traceql.KindUnspecified.String()},
 		}
+	case traceql.IntrinsicDuration.String():
+		return []tempopb.TagValue{}
+	case traceql.IntrinsicTraceDuration.String():
+		return []tempopb.TagValue{}
 	}
 
 	return nil
@@ -57,32 +60,8 @@ func GetVirtualIntrinsicValues() []string {
 		traceql.IntrinsicKind.String(),
 		traceql.IntrinsicName.String(),
 		traceql.IntrinsicStatus.String(),
-	}
-}
-
-// CombineSearchResults overlays the incoming search result with the existing result. This is required
-// for the following reason:  a trace may be present in multiple blocks, or in partial segments
-// in live traces.  The results should reflect elements of all segments.
-func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
-	if existing.TraceID == "" {
-		existing.TraceID = incoming.TraceID
-	}
-
-	if existing.RootServiceName == "" {
-		existing.RootServiceName = incoming.RootServiceName
-	}
-
-	if existing.RootTraceName == "" {
-		existing.RootTraceName = incoming.RootTraceName
-	}
-
-	// Earliest start time.
-	if existing.StartTimeUnixNano > incoming.StartTimeUnixNano {
-		existing.StartTimeUnixNano = incoming.StartTimeUnixNano
-	}
-
-	// Longest duration
-	if existing.DurationMs < incoming.DurationMs {
-		existing.DurationMs = incoming.DurationMs
+		traceql.IntrinsicTraceDuration.String(),
+		traceql.IntrinsicTraceRootService.String(),
+		traceql.IntrinsicTraceRootSpan.String(),
 	}
 }

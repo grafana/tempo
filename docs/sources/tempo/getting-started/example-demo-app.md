@@ -1,5 +1,6 @@
 ---
 title: Example setups
+description: This page provides setup examples of how Tempo can be configured for a sample environment.
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
 - /docs/tempo/latest/guides/loki-derived-fields/
@@ -12,10 +13,10 @@ The following examples show various deployment and configuration options using t
 
 For more information about Tempo setup and configuration, see:
 
-* [Set up Tempo]({{< relref "../setup">}})
+* [Set up Tempo]({{< relref "../setup" >}})
 * [Tempo configuration]({{< relref "../configuration" >}})
 
-If you are interested in instrumentation, see [Tempo instrumentation]({{< relref "instrumentation" >}}).
+If you are interested in instrumentation, see [Tempo instrumentation]({{< relref "./instrumentation" >}}).
 
 ## Docker Compose
 
@@ -26,8 +27,7 @@ Some of the examples include:
 - Trace discovery with Loki
 - Basic Grafana Agent/OpenTelemetry Setup
 - Various Backends (S3/GCS/Azure)
-- [K6 with Traces]({{< relref "docker-example" >}})
-
+- [K6 with Traces]({{< relref "./docker-example" >}})
 This is a great place to get started with Tempo and learn about various trace discovery flows.
 
 ## Helm

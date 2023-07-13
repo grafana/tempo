@@ -1,6 +1,7 @@
 ---
-title: Configure
+title: Configure Tempo
 menuTitle: Configure
+description: Learn about Tempo's available options and how to configure them.
 weight: 400
 aliases:
 - /docs/tempo/latest/configuration/
@@ -30,12 +31,11 @@ This document explains the configuration options for Tempo as well as the detail
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
 
-Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
-You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
-To do this, use:
+You can use environment variable references in the configuration file to set values that need to be configurable during deployment. To do this, pass `-config.expand-env=true` and use:
 
 ```
 ${VAR}
@@ -64,7 +64,7 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
-  
+
 # Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
 # If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
 # and returns only tag values that match the query.
@@ -211,6 +211,8 @@ ingester:
         ring:
             # number of replicas of each span to make while pushing to the backend
             replication_factor: 3
+            # set sidecar proxy port
+            [port: <int>]
 
     # amount of time a trace must be idle before flushing it to the wal.
     # (default: 10s)
@@ -231,14 +233,24 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # Flush all traces to backend when ingester is stopped
+    [flush_all_on_shutdown: <bool> | default = false]
 ```
 
 ## Metrics-generator
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
+For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{< relref "../metrics-generator" >}}).
 
-Metrics-generator processors are disabled by default. To enable it for a specific tenant set `metrics_generator_processors` in the [overrides](#overrides) section.
+Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator_processors` in the [overrides](#overrides) section.
+
+You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
+In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
+
+
 
 ```yaml
 # Metrics-generator configuration block
@@ -274,6 +286,10 @@ metrics_generator:
             # resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
 
+            # Prefix additional dimensions with "client_" and "_server". Adds two labels
+            # per additional dimension instead of one.
+            [enable_client_server_prefix: <bool> | default = false]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -302,8 +318,8 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling of dimensions is possible via a list of maps consisting of 
-            # "name" <string>, "source_labels" <list of string>, "join" <string> 
+            # Custom labeling of dimensions is possible via a list of maps consisting of
+            # "name" <string>, "source_labels" <list of string>, "join" <string>
             # "name" appears in the metrics, "source_labels" are the actual
             # attributes that will make up the value of the label and "join" is the
             # separator if multiple source_labels are provided
@@ -350,10 +366,10 @@ metrics_generator:
         remote_write:
             [- <Prometheus remote write config>]
 
-    # This option only allows spans with start time that occur within the configured duration to be
-    # considered in metrics generation
-    # This is to filter out spans that are outdated
-    [ingestion_time_range_slack: <duration> | default = 30s]
+    # This option only allows spans with end times that occur within the configured duration to be
+    # considered in metrics generation.
+    # This is to filter out spans that are outdated.
+    [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 ```
 
 ## Query-frontend
@@ -589,10 +605,10 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "gcs" >}})
-* [S3]({{< relref "s3" >}})
-* [Azure]({{< relref "azure" >}})
-* [Parquet]({{< relref "parquet" >}})
+* [GCS]({{< relref "./gcs" >}})
+* [S3]({{< relref "./s3" >}})
+* [Azure]({{< relref "./azure" >}})
+* [Parquet]({{< relref "./parquet" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -835,6 +851,12 @@ storage:
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
+        # Polling will tolerate this many consecutive errors before failing and exiting early for the
+        # current repoll. Can be set to 0 which means a single error is sufficient to fail and exit early
+        # (matches the original polling behavior).
+        # Default 1
+        [blocklist_poll_tolerate_consecutive_errors: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]
@@ -1037,7 +1059,7 @@ storage:
         # block configuration
         block:
             # block format version. options: v2, vParquet, vParquet2
-            [version: <string> | default = vParquet]
+            [version: <string> | default = vParquet2]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
             [bloom_filter_false_positive: <float> | default = 0.01]

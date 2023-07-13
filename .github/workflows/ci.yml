@@ -46,7 +46,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.51.0
+          version: v1.53.3
 
   unit-tests-pkg:
     name: Test packages - pkg
@@ -198,7 +198,7 @@ jobs:
       - name: Check vendor
         run: make vendor-check
 
-  tempo-mixin:
+  tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
     steps:
@@ -226,6 +226,9 @@ jobs:
 
       - name: Check tempo-mixin
         run: make tempo-mixin-check
+
+      - name: Test jsonnet
+        run: make jsonnet-test
 
   build-technical-documentation:
     name: Build technical documentation

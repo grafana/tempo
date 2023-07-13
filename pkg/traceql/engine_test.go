@@ -21,10 +21,11 @@ import (
 
 func TestEngine_Execute(t *testing.T) {
 	now := time.Now()
-	e := Engine{}
+	e := NewEngine()
 
 	req := &tempopb.SearchRequest{
-		Query: `{ .foo = .bar }`,
+		Query:           `{ .foo = .bar }`,
+		SpansPerSpanSet: 2,
 	}
 	spanSetFetcher := MockSpanSetFetcher{
 		iterator: &MockSpanSetIterator{
@@ -42,6 +43,33 @@ func TestEngine_Execute(t *testing.T) {
 						},
 						&mockSpan{
 							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{3},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((200 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{4},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("diff"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{5},
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
@@ -76,44 +104,70 @@ func TestEngine_Execute(t *testing.T) {
 			newCondition(NewAttribute("foo"), OpNone),
 			newCondition(NewAttribute("bar"), OpNone),
 		},
-		AllConditions: true,
+		AllConditions:        true,
+		SecondPassConditions: SearchMetaConditions(),
 	}
-	spanSetFetcher.capturedRequest.Filter = nil // have to set this to nil b/c assert.Equal does not handle function pointers
+	spanSetFetcher.capturedRequest.SecondPass = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
+	expectedSpanset := &tempopb.SpanSet{
+		Spans: []*tempopb.Span{
+			{
+				SpanID:            "0000000000000002",
+				StartTimeUnixNano: uint64(now.UnixNano()),
+				DurationNanos:     100_000_000,
+				Attributes: []*v1.KeyValue{
+					{
+						Key: "foo",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+					{
+						Key: "bar",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+				},
+			},
+			{
+				SpanID:            "0000000000000003",
+				StartTimeUnixNano: uint64(now.UnixNano()),
+				DurationNanos:     200_000_000,
+				Attributes: []*v1.KeyValue{
+					{
+						Key: "foo",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+					{
+						Key: "bar",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "value",
+							},
+						},
+					},
+				},
+			},
+		},
+		Matched: 0,
+	}
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
 		{
 			TraceID:         "1",
 			RootServiceName: "my-service",
 			RootTraceName:   "HTTP GET",
-			SpanSet: &tempopb.SpanSet{
-				Spans: []*tempopb.Span{
-					{
-						SpanID:            "0000000000000002",
-						StartTimeUnixNano: uint64(now.UnixNano()),
-						DurationNanos:     100_000_000,
-						Attributes: []*v1.KeyValue{
-							{
-								Key: "foo",
-								Value: &v1.AnyValue{
-									Value: &v1.AnyValue_StringValue{
-										StringValue: "value",
-									},
-								},
-							},
-							{
-								Key: "bar",
-								Value: &v1.AnyValue{
-									Value: &v1.AnyValue_StringValue{
-										StringValue: "value",
-									},
-								},
-							},
-						},
-					},
-				},
-				Matched: 1,
-			},
+			SpanSet:         expectedSpanset,
+			SpanSets:        []*tempopb.SpanSet{expectedSpanset},
 		},
 	}
 
@@ -173,85 +227,101 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				attributes:         map[Attribute]Static{},
 			},
 		},
+		Attributes: []*SpansetAttribute{
+			{Name: attributeMatched, Val: NewStaticInt(2)},
+			{Name: "avg(duration)", Val: NewStaticFloat(15.0)},
+		},
 	}
 
 	e := NewEngine()
 
 	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
 
+	expectedSpanset := &tempopb.SpanSet{
+		Matched: 2,
+		Spans: []*tempopb.Span{
+			{
+				SpanID:            util.SpanIDToHexString(spanID1),
+				Name:              "HTTP GET",
+				StartTimeUnixNano: uint64(now.UnixNano()),
+				DurationNanos:     10_000_000_000,
+				Attributes: []*v1.KeyValue{
+					{
+						Key: "cluster",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: "prod",
+							},
+						},
+					},
+					{
+						Key: "count",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_IntValue{
+								IntValue: 5,
+							},
+						},
+					},
+					{
+						Key: "count_but_float",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_DoubleValue{
+								DoubleValue: 5.0,
+							},
+						},
+					},
+					{
+						Key: "is_ok",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_BoolValue{
+								BoolValue: true,
+							},
+						},
+					},
+					{
+						Key: "kind",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: KindClient.String(),
+							},
+						},
+					},
+					{
+						Key: "status",
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: StatusOk.String(),
+							},
+						},
+					},
+				},
+			},
+			{
+				SpanID:            util.SpanIDToHexString(spanID2),
+				StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
+				DurationNanos:     20_000_000_000,
+				Attributes:        nil,
+			},
+		},
+		Attributes: []*v1.KeyValue{
+			{
+				Key: "avg(duration)",
+				Value: &v1.AnyValue{
+					Value: &v1.AnyValue_DoubleValue{
+						DoubleValue: 15.0,
+					},
+				},
+			},
+		},
+	}
 	expectedTraceSearchMetadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(traceID),
 		RootServiceName:   "my-service",
 		RootTraceName:     "HTTP GET",
 		StartTimeUnixNano: 1000,
 		DurationMs:        uint32(time.Second.Milliseconds()),
-		SpanSet: &tempopb.SpanSet{
-			Matched: 2,
-			Spans: []*tempopb.Span{
-				{
-					SpanID:            util.SpanIDToHexString(spanID1),
-					Name:              "HTTP GET",
-					StartTimeUnixNano: uint64(now.UnixNano()),
-					DurationNanos:     10_000_000_000,
-					Attributes: []*v1.KeyValue{
-						{
-							Key: "cluster",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: "prod",
-								},
-							},
-						},
-						{
-							Key: "count",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_IntValue{
-									IntValue: 5,
-								},
-							},
-						},
-						{
-							Key: "count_but_float",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_DoubleValue{
-									DoubleValue: 5.0,
-								},
-							},
-						},
-						{
-							Key: "is_ok",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_BoolValue{
-									BoolValue: true,
-								},
-							},
-						},
-						{
-							Key: "kind",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: KindClient.String(),
-								},
-							},
-						},
-						{
-							Key: "status",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: StatusOk.String(),
-								},
-							},
-						},
-					},
-				},
-				{
-					SpanID:            util.SpanIDToHexString(spanID2),
-					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
-					DurationNanos:     20_000_000_000,
-					Attributes:        nil,
-				},
-			},
-		},
+		SpanSet:           expectedSpanset,
+		SpanSets:          []*tempopb.SpanSet{expectedSpanset},
 	}
 
 	// Ensure attributes are sorted to avoid a flaky test
@@ -269,9 +339,9 @@ type MockSpanSetFetcher struct {
 
 var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
-func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
+func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
-	m.iterator.(*MockSpanSetIterator).filter = request.Filter
+	m.iterator.(*MockSpanSetIterator).filter = request.SecondPass
 	return FetchSpansResponse{
 		Results: m.iterator,
 		Bytes: func() uint64 {
@@ -282,7 +352,7 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 
 type MockSpanSetIterator struct {
 	results []*Spanset
-	filter  FilterSpans
+	filter  SecondPassFn
 }
 
 func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
@@ -293,6 +363,10 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 		r := m.results[0]
 		m.results = m.results[1:]
 
+		if m.filter == nil {
+			return r, nil
+		}
+
 		ss, err := m.filter(r)
 		if err != nil {
 			return nil, err
@@ -301,9 +375,10 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 			continue
 		}
 
-		r.Spans = r.Spans[len(ss):]
+		r.Spans = ss[0].Spans
 		return r, nil
 	}
+
 }
 
 func (m *MockSpanSetIterator) Close() {}

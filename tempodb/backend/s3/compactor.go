@@ -20,14 +20,14 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		return backend.ErrEmptyBlockID
 	}
 
-	metaFileName := backend.MetaFileName(blockID, tenantID)
+	metaFileName := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	// copy meta.json to meta.compacted.json
 	_, err := rw.core.CopyObject(
 		context.TODO(),
 		rw.cfg.Bucket,
 		metaFileName,
 		rw.cfg.Bucket,
-		backend.CompactedMetaFileName(blockID, tenantID),
+		backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),
 		nil,
 		minio.CopySrcOptions{},
 		minio.PutObjectOptions{},
@@ -48,7 +48,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		return backend.ErrEmptyBlockID
 	}
 
-	path := backend.RootPath(blockID, tenantID) + "/"
+	path := backend.RootPath(blockID, tenantID, rw.cfg.Prefix) + "/"
 	level.Debug(rw.logger).Log("msg", "deleting block", "block path", path)
 
 	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
@@ -76,7 +76,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 		return nil, backend.ErrEmptyBlockID
 	}
 
-	compactedMetaFileName := backend.CompactedMetaFileName(blockID, tenantID)
+	compactedMetaFileName := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileName)
 	if err != nil {
 		return nil, readError(err)

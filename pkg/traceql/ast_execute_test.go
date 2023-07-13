@@ -1,7 +1,9 @@
 package traceql
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -30,8 +32,19 @@ func testEvaluator(t *testing.T, tc evalTC) {
 
 		actual, err := ast.Pipeline.evaluate(tc.input)
 		require.NoError(t, err)
+
+		// sort expected/actual spansets. grouping requires this b/c map iteration makes the output
+		// non-deterministic.
+		makeSort := func(ss []*Spanset) func(i, j int) bool {
+			return func(i, j int) bool {
+				return bytes.Compare(ss[i].Spans[0].ID(), ss[j].Spans[0].ID()) < 0
+			}
+		}
+		sort.Slice(actual, makeSort(actual))
+		sort.Slice(tc.output, makeSort(tc.output))
+
 		require.Equal(t, tc.output, actual)
-		require.Equal(t, cloneIn, tc.input)
+		require.Equal(t, tc.input, cloneIn)
 	})
 }
 
@@ -165,6 +178,96 @@ func TestSpansetFilter_matches(t *testing.T) {
 	}
 }
 
+func TestGroup(t *testing.T) {
+	testCases := []evalTC{
+		{
+			"{ } | by(.foo)",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				},
+					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("a")}},
+				},
+				{Spans: []Span{
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				},
+					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("b")}},
+				},
+			},
+		},
+		{
+			"{ } | by(.foo) | by(.bar)",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a"), NewAttribute("bar"): NewStaticString("1")}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("1")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("2")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a"), NewAttribute("bar"): NewStaticString("1")}},
+				},
+					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("a")}, {Name: "by(.bar)", Val: NewStaticString("1")}},
+				},
+				{Spans: []Span{
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("1")}},
+				},
+					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("b")}, {Name: "by(.bar)", Val: NewStaticString("1")}},
+				},
+				{Spans: []Span{
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("2")}},
+				},
+					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("b")}, {Name: "by(.bar)", Val: NewStaticString("2")}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
+func TestCoalesce(t *testing.T) {
+	testCases := []evalTC{
+		{
+			"{ } | coalesce()",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+				{Spans: []Span{
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				},
+					// coalesce() should drop attributes
+					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("a")}},
+				},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
 func TestSpansetOperationEvaluate(t *testing.T) {
 	testCases := []evalTC{
 		{
@@ -266,6 +369,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 						&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 						&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					},
+					Attributes: []*SpansetAttribute{{Name: "count()", Val: NewStaticInt(2)}},
 				},
 			},
 		},
@@ -297,9 +401,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					// TODO - Type handling of aggregate output could use some improvement.
-					// avg(duration) should probably return a Duration instead of a float.
-					Scalar: NewStaticFloat(10.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(10.0 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -310,6 +412,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
+					Attributes: []*SpansetAttribute{{Name: "avg(duration)", Val: NewStaticDuration(10 * time.Millisecond)}},
 				},
 			},
 		},
@@ -342,7 +445,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(15.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(15 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -353,6 +456,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
 						},
 					},
+					Attributes: []*SpansetAttribute{{Name: "max(duration)", Val: NewStaticDuration(15 * time.Millisecond)}},
 				},
 			},
 		},
@@ -385,7 +489,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(2.0 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(2 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -396,6 +500,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
+					Attributes: []*SpansetAttribute{{Name: "min(duration)", Val: NewStaticDuration(2 * time.Millisecond)}},
 				},
 			},
 		},
@@ -428,7 +533,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{
-					Scalar: NewStaticFloat(10 * float64(time.Millisecond)),
+					Scalar: NewStaticDuration(10 * time.Millisecond),
 					Spans: []Span{
 						&mockSpan{attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
@@ -439,6 +544,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 						},
 					},
+					Attributes: []*SpansetAttribute{{Name: "sum(duration)", Val: NewStaticDuration(10 * time.Millisecond)}},
 				},
 			},
 		},
@@ -856,5 +962,18 @@ func BenchmarkUniqueSpans(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+func BenchmarkAggregate(b *testing.B) {
+	agg := newAggregate(aggregateAvg, NewStaticInt(3))
+	ss := make([]*Spanset, 1)
+	ss[0] = &Spanset{
+		Spans: make([]Span, 1000),
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = agg.evaluate(ss)
 	}
 }

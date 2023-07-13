@@ -4,7 +4,7 @@
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     rollout_operator: 'grafana/rollout-operator:v0.1.1',
-    memcached: 'memcached:1.6.9-alpine',
+    memcached: 'memcached:1.6.17-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.6.0',
   },
 
@@ -18,6 +18,10 @@
     node_selector: null,
     ingester_allow_multiple_replicas_on_same_node: false,
 
+    // disable tempo-query by default
+    tempo_query: {
+      enabled: false,
+    },
     compactor: {
       replicas: 1,
       resources: {
@@ -87,6 +91,8 @@
       },
     },
     metrics_generator: {
+      pvc_size: error 'Must specify a metrics-generator pvc size',
+      pvc_storage_class: error 'Must specify a metrics-generator pvc storage class',
       ephemeral_storage_request_size: error 'Must specify a generator ephemeral_storage_request size',
       ephemeral_storage_limit_size: error 'Must specify a metrics generator ephemeral_storage_limit size',
       replicas: 0,
