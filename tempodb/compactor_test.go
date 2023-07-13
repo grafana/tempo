@@ -32,19 +32,19 @@ import (
 type mockSharder struct {
 }
 
-func (m *mockSharder) Owns(hash string) bool {
+func (m *mockSharder) Owns(string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
+func (m *mockSharder) Combine(dataEncoding string, _ string, objs ...[]byte) ([]byte, bool, error) {
 	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
-func (m *mockSharder) RecordDiscardedSpans(count int, tenantID string, traceID string) {}
+func (m *mockSharder) RecordDiscardedSpans(int, string, string) {}
 
 type mockJobSharder struct{}
 
-func (m *mockJobSharder) Owns(_ string) bool { return true }
+func (m *mockJobSharder) Owns(string) bool { return true }
 
 type mockOverrides struct {
 	blockRetention   time.Duration

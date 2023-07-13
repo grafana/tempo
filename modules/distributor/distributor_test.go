@@ -1029,11 +1029,11 @@ type mockIngester struct {
 
 var _ tempopb.PusherClient = (*mockIngester)(nil)
 
-func (i *mockIngester) PushBytes(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+func (i *mockIngester) PushBytes(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
 }
 
-func (i *mockIngester) PushBytesV2(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+func (i *mockIngester) PushBytesV2(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
 }
 
@@ -1052,7 +1052,7 @@ type mockRing struct {
 
 var _ ring.ReadRing = (*mockRing)(nil)
 
-func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.InstanceDesc, _, _ []string) (ring.ReplicationSet, error) {
+func (r mockRing) Get(key uint32, _ ring.Operation, buf []ring.InstanceDesc, _, _ []string) (ring.ReplicationSet, error) {
 	result := ring.ReplicationSet{
 		MaxErrors: 1,
 		Instances: buf[:0],
@@ -1064,7 +1064,7 @@ func (r mockRing) Get(key uint32, op ring.Operation, buf []ring.InstanceDesc, _,
 	return result, nil
 }
 
-func (r mockRing) GetAllHealthy(op ring.Operation) (ring.ReplicationSet, error) {
+func (r mockRing) GetAllHealthy(ring.Operation) (ring.ReplicationSet, error) {
 	return ring.ReplicationSet{
 		Instances: r.ingesters,
 		MaxErrors: 1,
@@ -1079,7 +1079,7 @@ func (r mockRing) ReplicationFactor() int {
 	return int(r.replicationFactor)
 }
 
-func (r mockRing) ShuffleShard(identifier string, size int) ring.ReadRing {
+func (r mockRing) ShuffleShard(string, int) ring.ReadRing {
 	return r
 }
 
@@ -1091,13 +1091,13 @@ func (r mockRing) InstancesCount() int {
 	return len(r.ingesters)
 }
 
-func (r mockRing) HasInstance(instanceID string) bool {
+func (r mockRing) HasInstance(string) bool {
 	return true
 }
 
-func (r mockRing) CleanupShuffleShardCache(identifier string) {
+func (r mockRing) CleanupShuffleShardCache(string) {
 }
 
-func (r mockRing) GetInstanceState(instanceID string) (ring.InstanceState, error) {
+func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 	return ring.ACTIVE, nil
 }

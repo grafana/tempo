@@ -667,17 +667,17 @@ func (q *Querier) SpanMetricsSummary(
 	}
 
 	// Combine the results
-	yyy := make(map[traceql.Static]*traceqlmetrics.LatencyHistogram)
-	xxx := make(map[traceql.Static]*tempopb.SpanMetricsSummary)
+	yyy := make(map[traceqlmetrics.MetricSeries]*traceqlmetrics.LatencyHistogram)
+	xxx := make(map[traceqlmetrics.MetricSeries]*tempopb.SpanMetricsSummary)
 
 	var h *traceqlmetrics.LatencyHistogram
-	var s traceql.Static
+	var s traceqlmetrics.MetricSeries
 	for _, r := range results {
 		for _, m := range r.Metrics {
-			s = protoToTraceQLStatic(m.Static)
+			s = protoToMetricSeries(m.Series)
 
 			if _, ok := xxx[s]; !ok {
-				xxx[s] = &tempopb.SpanMetricsSummary{Static: m.Static}
+				xxx[s] = &tempopb.SpanMetricsSummary{Series: m.Series}
 			}
 
 			xxx[s].ErrorSpanCount += m.Errors
@@ -868,15 +868,26 @@ func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint s
 	return &searchResp, nil
 }
 
-func protoToTraceQLStatic(proto *tempopb.TraceQLStatic) traceql.Static {
-	return traceql.Static{
-		Type:   traceql.StaticType(proto.Type),
-		N:      int(proto.N),
-		F:      proto.F,
-		S:      proto.S,
-		B:      proto.B,
-		D:      time.Duration(proto.D),
-		Status: traceql.Status(proto.Status),
-		Kind:   traceql.Kind(proto.Kind),
+func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries {
+	r := traceqlmetrics.MetricSeries{}
+	for i := range proto {
+		r[i] = protoToTraceQLStatic(proto[i])
+	}
+	return r
+}
+
+func protoToTraceQLStatic(proto *tempopb.KeyValue) traceqlmetrics.KeyValue {
+	return traceqlmetrics.KeyValue{
+		Key: proto.Key,
+		Value: traceql.Static{
+			Type:   traceql.StaticType(proto.Value.Type),
+			N:      int(proto.Value.N),
+			F:      proto.Value.F,
+			S:      proto.Value.S,
+			B:      proto.Value.B,
+			D:      time.Duration(proto.Value.D),
+			Status: traceql.Status(proto.Value.Status),
+			Kind:   traceql.Kind(proto.Value.Kind),
+		},
 	}
 }

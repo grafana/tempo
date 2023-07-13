@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var errSpansetOperationMultiple = errors.New("spanset operators are not supported for multiple spansets per trace. consider using coalesce()")
+
 func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	result := make([]*Spanset, 0, len(ss))
 	groups := g.groupBuffer
@@ -70,7 +72,6 @@ func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 }
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	for i := range input {
 		curr := input[i : i+1]
 
@@ -99,6 +100,54 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				output = append(output, matchingSpanset)
 			}
 
+		case OpSpansetDescendant:
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				return r.DescendantOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = append([]Span(nil), spans...)
+				output = append(output, matchingSpanset)
+			}
+
+		case OpSpansetChild:
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				return r.ChildOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = append([]Span(nil), spans...)
+				output = append(output, matchingSpanset)
+			}
+
+		case OpSpansetSibling:
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				return r.SiblingOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = append([]Span(nil), spans...)
+				output = append(output, matchingSpanset)
+			}
+
 		default:
 			return nil, fmt.Errorf("spanset operation (%v) not supported", o.Op)
 		}
@@ -107,13 +156,54 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 	return output, nil
 }
 
+// joinSpansets compares all pairwise combinations of the inputs and returns the right-hand side
+// where the eval callback returns true.  For now the behavior is only defined when there is exactly one
+// spanset on both sides and will return an error if multiple spansets are present.
+func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(l, r Span) bool) ([]Span, error) {
+	if len(lhs) < 1 || len(rhs) < 1 {
+		return nil, nil
+	}
+
+	if len(lhs) > 1 || len(rhs) > 1 {
+		return nil, errSpansetOperationMultiple
+	}
+
+	return o.joinSpansAndReturnRHS(lhs[0].Spans, rhs[0].Spans, eval), nil
+}
+
+// joinSpansAndReturnRHS compares all pairwise combinations of the inputs and returns the right-hand side
+// spans where the eval callback returns true.  Uses and internal buffer and output is only valid until
+// the next call.  Destructively edits the RHS slice for performance.
+func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, eval func(l, r Span) bool) []Span {
+	if len(lhs) == 0 || len(rhs) == 0 {
+		return nil
+	}
+
+	o.matchingSpansBuffer = o.matchingSpansBuffer[:0]
+
+	for _, l := range lhs {
+		for i, r := range rhs {
+			if r == nil {
+				// Already matched
+				continue
+			}
+			if eval(l, r) {
+				// Returns RHS
+				o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
+				rhs[i] = nil // No need to check this span again
+			}
+		}
+	}
+
+	return o.matchingSpansBuffer
+}
+
 // SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes
 func (o SelectOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 	return input, nil
 }
 
 func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
 	// case: aggregate binop static
@@ -151,10 +241,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
-			copy := ss.clone()
-			copy.Scalar = NewStaticInt(len(ss.Spans))
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = NewStaticInt(len(ss.Spans))
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateAvg:
 			var sum *Static
@@ -173,10 +263,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				count++
 			}
 
-			copy := ss.clone()
-			copy.Scalar = sum.divideBy(float64(count))
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = sum.divideBy(float64(count))
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateMax:
 			var max *Static
@@ -189,10 +279,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					max = &val
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = *max
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *max
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateMin:
 			var min *Static
@@ -205,10 +295,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					min = &val
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = *min
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *min
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		case aggregateSum:
 			var sum *Static
@@ -223,10 +313,10 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					sum.sumInto(val)
 				}
 			}
-			copy := ss.clone()
-			copy.Scalar = *sum
-			copy.AddAttribute(a.String(), copy.Scalar)
-			output = append(output, copy)
+			cpy := ss.clone()
+			cpy.Scalar = *sum
+			cpy.AddAttribute(a.String(), cpy.Scalar)
+			output = append(output, cpy)
 
 		default:
 			return nil, fmt.Errorf("aggregate operation (%v) not supported", a.op)
@@ -375,7 +465,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s Static) execute(span Span) (Static, error) {
+func (s Static) execute(Span) (Static, error) {
 	return s, nil
 }
 

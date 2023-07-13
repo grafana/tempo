@@ -1,19 +1,17 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: metrics-generator
   namespace: tracing
 spec:
+  podManagementPolicy: Parallel
   replicas: 0
   selector:
     matchLabels:
       app: metrics-generator
       name: metrics-generator
       tempo-gossip-member: "true"
-  strategy:
-    rollingUpdate:
-      maxSurge: 3
-      maxUnavailable: 1
+  serviceName: metrics-generator
   template:
     metadata:
       annotations:
@@ -23,6 +21,13 @@ spec:
         name: metrics-generator
         tempo-gossip-member: "true"
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                name: metrics-generator
+            topologyKey: kubernetes.io/hostname
       containers:
       - args:
         - -config.file=/conf/tempo.yaml
@@ -62,5 +67,18 @@ spec:
       - configMap:
           name: tempo-overrides
         name: overrides
-      - emptyDir: {}
-        name: metrics-generator-data
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: metrics-generator
+      name: metrics-generator-data
+      namespace: tracing
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: fast

@@ -119,14 +119,13 @@ func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
 }
 
-type CoalesceOperation struct {
-}
+type CoalesceOperation struct{}
 
 func newCoalesceOperation() CoalesceOperation {
 	return CoalesceOperation{}
 }
 
-func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
+func (o CoalesceOperation) extractConditions(*FetchSpansRequest) {
 }
 
 type SelectOperation struct {
@@ -143,7 +142,7 @@ func newSelectOperation(exprs []FieldExpression) SelectOperation {
 // Scalars
 // **********************
 type ScalarExpression interface {
-	//pipelineElement
+	// pipelineElement
 	Element
 	typedExpression
 	__scalarExpression()
@@ -227,14 +226,31 @@ type SpansetExpression interface {
 }
 
 type SpansetOperation struct {
-	Op  Operator
-	LHS SpansetExpression
-	RHS SpansetExpression
+	Op                  Operator
+	LHS                 SpansetExpression
+	RHS                 SpansetExpression
+	matchingSpansBuffer []Span
 }
 
 func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	o.LHS.extractConditions(request)
 	o.RHS.extractConditions(request)
+
+	switch o.Op {
+	case OpSpansetDescendant:
+		request.Conditions = append(request.Conditions, Condition{
+			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
+		})
+	case OpSpansetChild:
+		request.Conditions = append(request.Conditions, Condition{
+			Attribute: NewIntrinsic(IntrinsicStructuralChild),
+		})
+	case OpSpansetSibling:
+		request.Conditions = append(request.Conditions, Condition{
+			Attribute: NewIntrinsic(IntrinsicStructuralSibling),
+		})
+	}
+
 	request.AllConditions = false
 }
 
@@ -688,10 +704,12 @@ func NewIntrinsic(n Intrinsic) Attribute {
 	}
 }
 
-var _ pipelineElement = (*Pipeline)(nil)
-var _ pipelineElement = (*Aggregate)(nil)
-var _ pipelineElement = (*SpansetOperation)(nil)
-var _ pipelineElement = (*SpansetFilter)(nil)
-var _ pipelineElement = (*CoalesceOperation)(nil)
-var _ pipelineElement = (*ScalarFilter)(nil)
-var _ pipelineElement = (*GroupOperation)(nil)
+var (
+	_ pipelineElement = (*Pipeline)(nil)
+	_ pipelineElement = (*Aggregate)(nil)
+	_ pipelineElement = (*SpansetOperation)(nil)
+	_ pipelineElement = (*SpansetFilter)(nil)
+	_ pipelineElement = (*CoalesceOperation)(nil)
+	_ pipelineElement = (*ScalarFilter)(nil)
+	_ pipelineElement = (*GroupOperation)(nil)
+)

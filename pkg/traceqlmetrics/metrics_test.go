@@ -59,9 +59,9 @@ func TestPercentile(t *testing.T) {
 }
 
 func TestMetricsResultsCombine(t *testing.T) {
-	a := traceql.NewStaticString("1")
-	b := traceql.NewStaticString("2")
-	c := traceql.NewStaticString("3")
+	a := MetricSeries{KeyValue{Key: "x", Value: traceql.NewStaticString("1")}}
+	b := MetricSeries{KeyValue{Key: "x", Value: traceql.NewStaticString("2")}}
+	c := MetricSeries{KeyValue{Key: "x", Value: traceql.NewStaticString("3")}}
 
 	m := NewMetricsResults()
 	m.Record(a, 1, true)
@@ -120,8 +120,8 @@ func TestGetMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
-	one := traceql.NewStaticString("1")
-	two := traceql.NewStaticString("2")
+	one := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("1")}}
+	two := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("2")}}
 
 	require.Equal(t, 0, res.Errors[one])
 	require.Equal(t, 1, res.Errors[two])
@@ -165,8 +165,8 @@ func TestGetMetricsTimeRange(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
-	one := traceql.NewStaticString("1")
-	two := traceql.NewStaticString("2")
+	one := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("1")}}
+	two := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("2")}}
 
 	require.Equal(t, uint64(128), res.Series[one].Percentile(1.0)) // Highest span
 	require.Equal(t, uint64(512), res.Series[two].Percentile(1.0)) // Highest span

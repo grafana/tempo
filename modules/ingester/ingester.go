@@ -337,7 +337,7 @@ func (i *Ingester) stopIncomingRequests() {
 }
 
 // TransferOut implements ring.Lifecycler.
-func (i *Ingester) TransferOut(ctx context.Context) error {
+func (i *Ingester) TransferOut(context.Context) error {
 	return ring.ErrTransferDisabled
 }
 

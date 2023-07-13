@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/httpclient"
 )
 
 type queryTraceIDCmd struct {
@@ -12,7 +12,7 @@ type queryTraceIDCmd struct {
 }
 
 func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
-	client := util.NewClient(cmd.APIEndpoint, cmd.OrgID)
+	client := httpclient.New(cmd.APIEndpoint, cmd.OrgID)
 
 	// util.QueryTrace will only add orgID header if len(orgID) > 0
 	trace, err := client.QueryTrace(cmd.TraceID)

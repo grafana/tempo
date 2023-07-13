@@ -19,7 +19,7 @@ func NewSegmentDecoder() *SegmentDecoder {
 	return segmentDecoder
 }
 
-func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error) {
+func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, _, _ uint32) ([]byte, error) {
 	// v1 encoding doesn't support start/end
 	return proto.Marshal(trace)
 }
