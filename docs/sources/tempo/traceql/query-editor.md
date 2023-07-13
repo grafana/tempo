@@ -13,7 +13,7 @@ keywords:
 
 # Create TraceQL queries in Grafana
 
-You can use compose TraceQL queries in Grafana and Grafana Cloud using the Search in Explore and the TraceQL viewer and query editor in the Tempo data source.
+You can use compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source. You can use either the **Query type** > **Search** or the **TraceQL** tab.
 Both of these methods let you build queries and drill-down into result sets.
 
 To add TraceQL panels to your dashboard, refer to the [Traces panel documentation](/docs/grafana/latest/panels-visualizations/visualizations/traces/).
@@ -25,19 +25,19 @@ To use the TraceQL query editor in Grafana 9.3.2 and newer, you need to enable t
 
 To enable the Trace Search in Grafana 10 and newer, you need to enable the `traceqlSearch` feature flag.
 
-The query editor and search are available in Grafana Cloud without enabling a feature flag.
+These features are available in Grafana Cloud without enabling a feature flag.
 {{% /admonition %}}
 
-## Create TraceQL queries using the query editor
+## Write TraceQL queries using the query editor
 
-The Tempo data source’s query editor helps you query and display traces from Tempo in **Explore**.
+The Tempo data source’s TraceQL query editor helps you query and display traces from Tempo in **Explore**.
 
 To access the query editor, follow these steps:
 
 1. Sign into Grafana or Grafana Cloud.
 1. Select your Tempo data source.
 1. From the menu, choose **Explore** and select the **TraceQL** tab.
-1. Start your query on the text line by entering `{{`. For help with TraceQL syntax, refer to the [Construct a TraceQL query documentation]({{< relref "./_index.md" >}}).
+1. Start your query on the text line by entering `{`. For help with TraceQL syntax, refer to the [Construct a TraceQL query documentation]({{< relref "./_index.md" >}}).
 1. Optional: Use the Time picker drop-down to change the time and range for the query (refer to the [documentation for instructions](/docs/grafana/latest/dashboards/use-dashboards#set-dashboard-time-range)).
 1. Once you have finished your query, select **Run query**.
 
@@ -47,9 +47,9 @@ To access the query editor, follow these steps:
 
 To query a particular trace:
 
-1. From the menu, choose **Explore** and select the **TraceQL** tab.
+1. From the menu, choose **Explore**, select the desired Tempo data source, and navigate to the **TraceQL** tab.
 1. Enter the trace ID into the query field. For example: `1f187d8363b5a9b30cedd8e0ce9ccb43`
-1. Select **Run query**.
+1. Click **Run query** or use the keyboard shortcut Shift + Enter.
 
 ### Use autocomplete to write queries
 
