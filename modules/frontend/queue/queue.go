@@ -81,14 +81,15 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
 func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int, successFn func()) error { // jpe ditch successFn
 	q.mtx.RLock()
-	defer q.mtx.RUnlock()
 
 	if q.stopped {
+		q.mtx.RUnlock()
 		return ErrStopped
 	}
 
 	// try to grab the user queue under read lock
-	queue, err := q.getQueueUnderRlock(userID, maxQueriers)
+	queue, cleanup, err := q.getQueueUnderRlock(userID, maxQueriers)
+	defer cleanup()
 	if err != nil {
 		return err
 	}
@@ -108,28 +109,32 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 	}
 }
 
-func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan Request, error) {
+func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan Request, func(), error) {
+	cleanup := func() {
+		q.mtx.RUnlock() // jpe htis unlocks the enqueue request lock. make not dumb
+	}
+
 	uq := q.queues.userQueues[userID]
 	if uq != nil {
-		return uq.ch, nil
+		return uq.ch, cleanup, nil
 	}
 
 	// trace the read lock for a rw lock and then defer the opposite
 	// this method should be called under RLock() and return under RLock()
 	q.mtx.RUnlock()
 	q.mtx.Lock()
-	defer func() {
-		q.mtx.Unlock()
-		q.mtx.RLock()
-	}()
+
+	cleanup = func() {
+		q.mtx.Unlock() // jpe - THE PROBLEM IS HERE - when swapping write -> read lock it allows GetNextRequsetForQuerier to delete the queue and now this queue is no longer tracked
+	}
 
 	queue := q.queues.getOrAddQueue(userID, maxQueriers)
 	if queue == nil {
 		// This can only happen if userID is "".
-		return nil, errors.New("no queue found")
+		return nil, cleanup, errors.New("no queue found")
 	}
 
-	return queue, nil
+	return queue, cleanup, nil
 }
 
 // GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
