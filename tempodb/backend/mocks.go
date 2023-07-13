@@ -4,12 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
-<<<<<<< HEAD
 	"strings"
-||||||| parent of 83a1fbda6 (tempodb: update poller tests and mocks to support new work)
-=======
 	"sync"
->>>>>>> 83a1fbda6 (tempodb: update poller tests and mocks to support new work)
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 
@@ -26,11 +22,15 @@ var (
 
 // MockRawReader
 type MockRawReader struct {
-	L      []string
-	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
-	R      []byte // read
-	Range  []byte // ReadRange
-	ReadFn func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	L            []string
+	ListFn       func(ctx context.Context, keypath KeyPath) ([]string, error)
+	ListBlocksFn func(ctx context.Context, keypath KeyPath) ([]uuid.UUID, []uuid.UUID, error)
+	R            []byte // read
+	Range        []byte // ReadRange
+	ReadFn       func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+
+	BlockIDs          []uuid.UUID
+	CompactedBlockIDs []uuid.UUID
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -39,6 +39,14 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	}
 
 	return m.L, nil
+}
+
+func (m *MockRawReader) ListBlocks(ctx context.Context, keypath KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
+	if m.ListFn != nil {
+		return m.ListBlocksFn(ctx, keypath)
+	}
+
+	return m.BlockIDs, m.CompactedBlockIDs, nil
 }
 
 func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
@@ -54,6 +62,7 @@ func (m *MockRawReader) ReadRange(_ context.Context, _ string, _ KeyPath, _ uint
 
 	return nil
 }
+
 func (m *MockRawReader) Shutdown() {}
 
 // MockRawWriter

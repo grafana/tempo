@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
@@ -184,6 +185,12 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	}
 
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
+	// TODO: implement
+	return nil, nil, nil
 }
 
 // Read implements backend.Reader

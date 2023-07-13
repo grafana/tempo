@@ -148,6 +148,12 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 	return objects, nil
 }
 
+// ListBlocks implements backend.Reader
+func (rw *Backend) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
+	// TODO: implement
+	return nil, nil, nil
+}
+
 // Read implements backend.Reader
 func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	if err := ctx.Err(); err != nil {

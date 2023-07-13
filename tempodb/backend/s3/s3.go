@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -275,6 +276,66 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	}
 
 	return objects, nil
+}
+
+func (rw *readerWriter) ListBlocks(
+	ctx context.Context,
+	keypath backend.KeyPath,
+) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	var objects []string
+
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	nextMarker := ""
+	isTruncated := true
+	for isTruncated {
+		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
+		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, ".json", 0)
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
+		}
+
+		// level.Debug(s.logger).Log("response", spew.Sdump(res))
+
+		isTruncated = res.IsTruncated
+		nextMarker = res.NextMarker
+		var parts []string
+		var id uuid.UUID
+
+		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", path.Join(keypath...)+"/",
+			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
+
+		if len(res.CommonPrefixes) > 0 {
+			for _, cp := range res.CommonPrefixes {
+				parts = strings.Split(cp.Prefix, "/")
+				// ie: <tenant>/<blockID>/meta.json
+				if len(parts) != 3 {
+					continue
+				}
+
+				id, err = uuid.Parse(parts[1])
+				if err != nil {
+					return nil, nil, err
+				}
+
+				switch parts[2] {
+				case backend.MetaName:
+					blockIDs = append(blockIDs, id)
+				case backend.CompactedMetaName:
+					compactedBlockIDs = append(compactedBlockIDs, id)
+				}
+			}
+		}
+
+	}
+
+	level.Debug(rw.logger).Log("msg", "listing blocks complete", "count", len(objects))
+
+	return
 }
 
 // Read implements backend.Reader
