@@ -13,6 +13,7 @@ import (
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -139,7 +140,7 @@ func newTempoServerlessGCR() *e2e.HTTPService {
 		"TEMPO_S3_ACCESS_KEY": e2e_db.MinioAccessKey,
 		"TEMPO_S3_SECRET_KEY": e2e_db.MinioSecretKey,
 		"TEMPO_S3_INSECURE":   "true",
-		"TEMPO_BACKEND":       "s3",
+		"TEMPO_BACKEND":       backend.S3,
 	})
 
 	s.SetBackoff(util.TempoBackoff())
@@ -162,7 +163,7 @@ func newTempoServerlessLambda() *e2e.HTTPService {
 		"TEMPO_S3_ACCESS_KEY": e2e_db.MinioAccessKey,
 		"TEMPO_S3_SECRET_KEY": e2e_db.MinioSecretKey,
 		"TEMPO_S3_INSECURE":   "true",
-		"TEMPO_BACKEND":       "s3",
+		"TEMPO_BACKEND":       backend.S3,
 	})
 
 	s.SetBackoff(util.TempoBackoff())

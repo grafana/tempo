@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -148,7 +149,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnRetentionConcurrency)
 	}
 
-	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
+	if c.StorageConfig.Trace.Backend == backend.S3 && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
 		warnings = append(warnings, warnStorageTraceBackendS3)
 	}
 
@@ -160,7 +161,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnLogReceivedTraces)
 	}
 
-	if c.StorageConfig.Trace.Backend == "local" && c.Target != SingleBinary {
+	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 

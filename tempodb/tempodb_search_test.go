@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -29,7 +31,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/stretchr/testify/require"
 )
 
 type runnerFn func(*testing.T, *tempopb.Trace, *tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader)
@@ -641,7 +642,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -1023,7 +1024,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	)
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},

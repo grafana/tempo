@@ -473,13 +473,13 @@ func (t *App) initUsageReport() (services.Service, error) {
 	var writer backend.RawWriter
 
 	switch t.cfg.StorageConfig.Trace.Backend {
-	case "local":
+	case backend.Local:
 		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
-	case "gcs":
+	case backend.GCS:
 		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
-	case "s3":
+	case backend.S3:
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
-	case "azure":
+	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)

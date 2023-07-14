@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
@@ -31,7 +32,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				Target: MetricsGenerator,
 				StorageConfig: storage.Config{
 					Trace: tempodb.Config{
-						Backend:       "s3",
+						Backend:       backend.S3,
 						BlocklistPoll: time.Minute,
 						Block: &common.BlockConfig{
 							Version: "v2",
@@ -56,7 +57,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 			config: func() *Config {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace = tempodb.Config{
-					Backend:                  "local",
+					Backend:                  backend.Local,
 					BlocklistPollConcurrency: 1,
 					Block: &common.BlockConfig{
 						Version: "v2",
