@@ -761,10 +761,10 @@ func intKV(k string, v int) *v1_common.KeyValue {
 	}
 }
 
-func boolKV(k string, v bool) *v1_common.KeyValue {
+func boolKV(k string) *v1_common.KeyValue {
 	return &v1_common.KeyValue{
 		Key:   k,
-		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: v}},
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}},
 	}
 }
 
@@ -875,7 +875,7 @@ func searchTestSuite() (
 									stringKV("http.url", "url/Hello/World"),
 									intKV("http.status_code", 500),
 									stringKV("foo", "Bar"),
-									boolKV("child", true),
+									boolKV("child"),
 								},
 							},
 						},
@@ -901,7 +901,7 @@ func searchTestSuite() (
 								Kind:              v1.Span_SPAN_KIND_CLIENT,
 								Attributes: []*v1_common.KeyValue{
 									stringKV("foo", "Bar"),
-									boolKV("parent", true),
+									boolKV("parent"),
 								},
 							},
 						},
@@ -926,7 +926,7 @@ func searchTestSuite() (
 								Kind:              v1.Span_SPAN_KIND_PRODUCER,
 								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
 								Attributes: []*v1_common.KeyValue{
-									boolKV("child2", true),
+									boolKV("child2"),
 								},
 							},
 						},
@@ -951,7 +951,7 @@ func searchTestSuite() (
 								EndTimeUnixNano:   uint64(1001 * time.Second),
 								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
 								Attributes: []*v1_common.KeyValue{
-									boolKV("broken", true),
+									boolKV("broken"),
 								},
 							},
 						},
