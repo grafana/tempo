@@ -291,9 +291,12 @@ func (rw *readerWriter) ListBlocks(
 
 	nextMarker := ""
 	isTruncated := true
+	var parts []string
+	var id uuid.UUID
+	var res minio.ListBucketResult
+
 	for isTruncated {
-		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
-		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, ".json", 0)
+		res, err = rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, ".json", 0)
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
 		}
@@ -302,8 +305,6 @@ func (rw *readerWriter) ListBlocks(
 
 		isTruncated = res.IsTruncated
 		nextMarker = res.NextMarker
-		var parts []string
-		var id uuid.UUID
 
 		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", path.Join(keypath...)+"/",
 			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
