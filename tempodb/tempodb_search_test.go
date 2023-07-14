@@ -541,6 +541,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{ .child } >> { .parent }"},
 		{Query: "{ .child } > { .parent }"},
 		{Query: "{ .child } ~ { .parent }"},
+		{Query: "{ .child } ~ { .child }"},
 		{Query: "{ .broken} >> {}"},
 		{Query: "{ .broken} > {}"},
 		{Query: "{ .broken} ~ {}"},

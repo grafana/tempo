@@ -74,7 +74,12 @@ func (s *span) SiblingOf(x traceql.Span) bool {
 			ss.nestedSetParent == 0 {
 			return false
 		}
-		return ss.nestedSetParent == s.nestedSetParent
+		// Same parent but not ourself
+		// Checking pointers here means we don't have to load
+		// an additional column of nestedSetLeft but assumes the span
+		// object. This is true because all TraceQL executions are
+		// currently single-pass.
+		return ss.nestedSetParent == s.nestedSetParent && s != ss
 	}
 	return false
 }
