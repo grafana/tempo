@@ -291,7 +291,7 @@ func (p *Poller) quickPollTenantBlocks(
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.QuickBlocks(ctx, tenantID)
 	if err != nil {
-		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}, err
+		return nil, nil, err
 	}
 
 	previousMetas := previous.Metas(tenantID)
