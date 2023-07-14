@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
@@ -20,7 +21,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	tenant := "my-tenant"
 
 	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
-		Backend: "local",
+		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	})
 	require.NoError(t, err)

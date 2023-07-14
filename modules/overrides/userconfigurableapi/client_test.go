@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
@@ -18,7 +19,7 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := &UserConfigurableOverridesClientConfig{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: dir,
 		},

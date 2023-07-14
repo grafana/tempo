@@ -12,6 +12,7 @@ import (
 
 	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	tempo_api "github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
@@ -175,7 +176,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userCon
 	cfg := &UserConfigurableOverridesConfig{
 		Enabled: true,
 		ClientConfig: api.UserConfigurableOverridesClientConfig{
-			Backend: "local",
+			Backend: backend.Local,
 			Local:   &local.Config{Path: path},
 		},
 	}
@@ -191,7 +192,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userCon
 
 func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *api.UserConfigurableLimits) {
 	client, err := api.NewUserConfigOverridesClient(&api.UserConfigurableOverridesClientConfig{
-		Backend: "local",
+		Backend: backend.Local,
 		Local:   &local.Config{Path: dir},
 	})
 	assert.NoError(t, err)
@@ -202,7 +203,7 @@ func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant strin
 
 func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant string) {
 	client, err := api.NewUserConfigOverridesClient(&api.UserConfigurableOverridesClientConfig{
-		Backend: "local",
+		Backend: backend.Local,
 		Local:   &local.Config{Path: dir},
 	})
 	assert.NoError(t, err)

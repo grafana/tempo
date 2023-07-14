@@ -266,13 +266,13 @@ func (c *Config) tracesAndOverridesStorageConflict() bool {
 	}
 
 	switch traceStorage.Backend {
-	case "local":
+	case backend.Local:
 		return traceStorage.Local.PathMatches(overridesStorage.Local)
-	case "gcs":
+	case backend.GCS:
 		return traceStorage.GCS.PathMatches(overridesStorage.GCS)
-	case "s3":
+	case backend.S3:
 		return traceStorage.S3.PathMatches(overridesStorage.S3)
-	case "azure":
+	case backend.Azure:
 		return traceStorage.Azure.PathMatches(overridesStorage.Azure)
 	}
 

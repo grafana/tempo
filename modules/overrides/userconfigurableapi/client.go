@@ -79,18 +79,18 @@ func NewUserConfigOverridesClient(cfg *UserConfigurableOverridesClientConfig) (C
 
 func initBackend(cfg *UserConfigurableOverridesClientConfig) (reader backend.RawReader, writer backend.RawWriter, err error) {
 	switch cfg.Backend {
-	case "local":
+	case backend.Local:
 		reader, writer, _, err = local.New(cfg.Local)
 		if err != nil {
 			return
 		}
 		// Create overrides directory with necessary permissions
 		err = os.MkdirAll(path.Join(cfg.Local.Path, OverridesKeyPath), os.ModePerm)
-	case "gcs":
+	case backend.GCS:
 		reader, writer, _, err = gcs.New(cfg.GCS)
-	case "s3":
+	case backend.S3:
 		reader, writer, _, err = s3.New(cfg.S3)
-	case "azure":
+	case backend.Azure:
 		reader, writer, _, err = azure.New(cfg.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
