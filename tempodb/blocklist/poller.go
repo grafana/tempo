@@ -294,15 +294,8 @@ func (p *Poller) quickPollTenantBlocks(
 		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}, err
 	}
 
-	fmt.Printf("current IDs: %+v\n", currentBlockIDs)
-	fmt.Printf("current compacted IDs: %+v\n", currentCompactedBlockIDs)
-
 	previousMetas := previous.Metas(tenantID)
 	previousCompactedMetas := previous.CompactedMetas(tenantID)
-
-	fmt.Printf("previous metas: %+v\n", previousMetas)
-	fmt.Printf("previous compacted metas: %+v\n", previousCompactedMetas)
-	fmt.Printf("polling blocks for tenant: %+v\n", tenantID)
 
 	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
 	chMeta := make(chan *backend.BlockMeta, len(currentBlockIDs))
@@ -353,8 +346,6 @@ func (p *Poller) quickPollTenantBlocks(
 			newBlockIDs = append(newBlockIDs, blockID)
 		}
 	}
-
-	fmt.Printf("newBlockIDs: %+v\n", newBlockIDs)
 
 	for _, blockID := range newBlockIDs {
 		bg.Add(1)
