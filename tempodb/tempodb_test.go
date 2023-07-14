@@ -33,7 +33,12 @@ const (
 
 type testConfigOption func(*Config)
 
-func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
+func testConfig(
+	t *testing.T,
+	enc backend.Encoding,
+	blocklistPoll time.Duration,
+	opts ...testConfigOption,
+) (*tempoDB, string) {
 	tempDir := t.TempDir()
 
 	cfg := &Config{
@@ -59,15 +64,15 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 		opt(cfg)
 	}
 
-	r, w, c, err := New(cfg, log.NewNopLogger())
+	db, err := New(cfg, log.NewNopLogger())
 	require.NoError(t, err)
-	return r, w, c, tempDir
+	return db, tempDir
 }
 
 func TestDB(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+	db, _ := testConfig(t, backend.EncGZIP, 0)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := db.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -75,11 +80,11 @@ func TestDB(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(context.Background(), &mockJobSharder{})
 
 	blockID := uuid.New()
 
-	wal := w.WAL()
+	wal := db.WAL()
 
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
@@ -96,15 +101,15 @@ func TestDB(t *testing.T) {
 		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
 	}
 
-	_, err = w.CompleteBlock(context.Background(), head)
+	_, err = db.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 
 	// poll
-	r.(*readerWriter).pollBlocklist()
+	db.pollBlocklist(context.Background())
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0)
+		bFound, failedBlocks, err := db.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0)
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 		assert.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -112,25 +117,27 @@ func TestDB(t *testing.T) {
 }
 
 func TestNoCompactionWhenCompactionRange0(t *testing.T) {
-	_, _, c, _ := testConfig(t, backend.EncGZIP, 0)
+	db, _ := testConfig(t, backend.EncGZIP, 0)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := db.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange: 0,
 	}, &mockSharder{}, &mockOverrides{})
 	require.Error(t, err)
 }
 
 func TestBlockSharding(t *testing.T) {
+	ctx := context.Background()
+
 	// push a req with some traceID
 	// cut headblock & write to backend
 	// search with different shards and check if its respecting the params
-	r, w, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
+	db, _ := testConfig(t, backend.EncLZ4_256k, 0)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
 	// create block with known ID
 	blockID := uuid.New()
-	wal := w.WAL()
+	wal := db.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
@@ -142,20 +149,20 @@ func TestBlockSharding(t *testing.T) {
 	writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 	// write block to backend
-	_, err = w.CompleteBlock(context.Background(), head)
+	_, err = db.CompleteBlock(ctx, head)
 	assert.NoError(t, err)
 
 	// poll
-	r.(*readerWriter).pollBlocklist()
+	db.pollBlocklist(ctx)
 
 	// get blockID
-	blocks := r.(*readerWriter).blocklist.Metas(testTenantID)
+	blocks := db.blocklist.Metas(testTenantID)
 	assert.Len(t, blocks, 1)
 
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0)
+	bFound, failedBlocks, err := db.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0)
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
@@ -164,25 +171,25 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, failedBlocks, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0)
+	bFound, failedBlocks, err = db.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0)
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Len(t, bFound, 0)
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
-	r, _, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
+	db, _ := testConfig(t, backend.EncLZ4_256k, 0)
 
-	buff, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax, 0, 0)
+	buff, failedBlocks, err := db.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax, 0, 0)
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 	assert.Nil(t, failedBlocks)
 }
 
 func TestBlockCleanup(t *testing.T) {
-	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
+	db, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := db.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -190,38 +197,37 @@ func TestBlockCleanup(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	ctx := context.Background()
+	db.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := uuid.New()
 
-	wal := w.WAL()
+	wal := db.WAL()
 
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
-	_, err = w.CompleteBlock(context.Background(), head)
+	_, err = db.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 
-	rw := r.(*readerWriter)
-
 	// poll
-	rw.pollBlocklist()
+	db.pollBlocklist(ctx)
 
-	assert.Len(t, rw.blocklist.Metas(testTenantID), 1)
+	assert.Len(t, db.blocklist.Metas(testTenantID), 1)
 
 	os.RemoveAll(tempDir + "/traces/" + testTenantID)
 
 	// poll
-	rw.pollBlocklist()
+	db.pollBlocklist(ctx)
 
-	m := rw.blocklist.Metas(testTenantID)
+	m := db.blocklist.Metas(testTenantID)
 	assert.Equal(t, 0, len(m))
 }
 
-func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
-	rw.pollBlocklist()
+func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, db *tempoDB) {
+	db.pollBlocklist(context.Background())
 
-	blocklist := rw.blocklist.Metas(testTenantID)
+	blocklist := db.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
 		assert.Equal(t, expectedID, blocklist[0].BlockID)
@@ -234,7 +240,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		lastTime = b.StartTime
 	}
 
-	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
+	compactedBlocklist := db.blocklist.CompactedMetas(testTenantID)
 	assert.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
 		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
@@ -507,13 +513,12 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, tc.start, tc.end))
 		})
 	}
-
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
+	db, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := db.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -521,9 +526,9 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(context.Background(), &mockJobSharder{})
 
-	wal := w.WAL()
+	wal := db.WAL()
 
 	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
@@ -543,19 +548,17 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	complete, err := w.CompleteBlock(ctx, head)
+	complete, err := db.CompleteBlock(ctx, head)
 	require.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
 
-	rw := r.(*readerWriter)
-
 	// poll
-	rw.pollBlocklist()
+	db.pollBlocklist(ctx)
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := db.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -564,22 +567,22 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
+	require.NoError(t, db.compact(ctx, blockMetas, testTenantID))
 
 	// poll
-	rw.pollBlocklist()
+	db.pollBlocklist(ctx)
 
 	// make sure the block is compacted
-	compactedBlocks := rw.blocklist.CompactedMetas(testTenantID)
+	compactedBlocks := db.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocks, 1)
 	require.Equal(t, compactedBlocks[0].BlockID.String(), blockID)
-	blocks := rw.blocklist.Metas(testTenantID)
+	blocks := db.blocklist.Metas(testTenantID)
 	require.Len(t, blocks, 1)
 	require.NotEqual(t, blocks[0].BlockID.String(), blockID)
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := db.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -597,13 +600,12 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func testCompleteBlock(t *testing.T, from, to string) {
-	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute, func(c *Config) {
+	db, _ := testConfig(t, backend.EncLZ4_256k, time.Minute, func(c *Config) {
 		c.Block.Version = from // temporarily set config to from while we create the wal, so it makes blocks in the "from" format
 	})
 
-	wal := w.WAL()
-	rw := w.(*readerWriter)
-	rw.cfg.Block.Version = to // now set it back so we cut blocks in the "to" format
+	wal := db.WAL()
+	db.cfg.Block.Version = to // now set it back so we cut blocks in the "to" format
 
 	blockID := uuid.New()
 
@@ -626,7 +628,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	}
 	require.NoError(t, block.Flush())
 
-	complete, err := w.CompleteBlock(context.Background(), block)
+	complete, err := db.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
 	require.Equal(t, complete.BlockMeta().Version, to)
 
@@ -649,10 +651,9 @@ func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
 }
 
 func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion string) {
-
 	tempDir := t.TempDir()
 
-	_, w, _, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -675,7 +676,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	wal := w.WAL()
+	wal := db.WAL()
 
 	now := time.Now()
 	oneHourAgo := now.Add(-1 * time.Hour).Unix()
@@ -690,17 +691,18 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	req := test.MakeTrace(10, id)
 	writeTraceToWal(t, block, dec, id, req, uint32(oneHourAgo), uint32(oneHour))
 
-	complete, err := w.CompleteBlock(context.Background(), block)
+	complete, err := db.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
 
 	// Verify the block time was constrained to the slack time.
 	require.Equal(t, now.Unix(), complete.BlockMeta().StartTime.Unix())
 	require.Equal(t, now.Unix(), complete.BlockMeta().EndTime.Unix())
 }
+
 func TestShouldCache(t *testing.T) {
 	tempDir := t.TempDir()
 
-	r, _, _, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -721,8 +723,6 @@ func TestShouldCache(t *testing.T) {
 		CacheMinCompactionLevel: 1,
 	}, log.NewNopLogger())
 	require.NoError(t, err)
-
-	rw := r.(*readerWriter)
 
 	testCases := []struct {
 		name            string
@@ -758,12 +758,23 @@ func TestShouldCache(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.cache, rw.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()))
+			assert.Equal(
+				t,
+				tt.cache,
+				db.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()),
+			)
 		})
 	}
 }
 
-func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
+func writeTraceToWal(
+	t require.TestingT,
+	b common.WALBlock,
+	dec model.SegmentDecoder,
+	id common.ID,
+	tr *tempopb.Trace,
+	start, end uint32,
+) {
 	b1, err := dec.PrepareForWrite(tr, 0, 0)
 	require.NoError(t, err)
 
@@ -788,7 +799,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	flushCount := 1000
 
 	tempDir := b.TempDir()
-	_, w, _, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -812,7 +823,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	wal := w.WAL()
+	wal := db.WAL()
 	blk, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
 	require.NoError(b, err)
 
@@ -832,7 +843,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 
 	// Complete it
 	for i := 0; i < b.N; i++ {
-		_, err := w.CompleteBlock(context.Background(), blk)
+		_, err := db.CompleteBlock(context.Background(), blk)
 		require.NoError(b, err)
 	}
 }

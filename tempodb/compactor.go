@@ -61,10 +61,10 @@ var (
 	}, []string{"tenant"})
 )
 
-func (rw *readerWriter) compactionLoop(ctx context.Context) {
+func (db *tempoDB) compactionLoop(ctx context.Context) {
 	compactionCycle := DefaultCompactionCycle
-	if rw.compactorCfg.CompactionCycle > 0 {
-		compactionCycle = rw.compactorCfg.CompactionCycle
+	if db.compactorCfg.CompactionCycle > 0 {
+		compactionCycle = db.compactorCfg.CompactionCycle
 	}
 
 	ticker := time.NewTicker(compactionCycle)
@@ -78,7 +78,7 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 
 		select {
 		case <-ticker.C:
-			rw.doCompaction(ctx)
+			db.doCompaction(ctx)
 		case <-ctx.Done():
 			return
 		}
@@ -86,10 +86,10 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 }
 
 // doCompaction runs a compaction cycle every 30s
-func (rw *readerWriter) doCompaction(ctx context.Context) {
+func (db *tempoDB) doCompaction(ctx context.Context) {
 	// List of all tenants in the block list
 	// The block list is updated by constant polling the storage for tenant indexes and/or tenant blocks (and building the index)
-	tenants := rw.blocklist.Tenants()
+	tenants := db.blocklist.Tenants()
 	if len(tenants) == 0 {
 		return
 	}
@@ -97,12 +97,12 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	// Iterate through tenants each cycle
 	// Sort tenants for stability (since original map does not guarantee order)
 	sort.Slice(tenants, func(i, j int) bool { return tenants[i] < tenants[j] })
-	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
+	db.compactorTenantOffset = (db.compactorTenantOffset + 1) % uint(len(tenants))
 
 	// Select the next tenant to run compaction for
-	tenantID := tenants[rw.compactorTenantOffset]
+	tenantID := tenants[db.compactorTenantOffset]
 	// Get the meta file of all non-compacted blocks for the given tenant
-	blocklist := rw.blocklist.Metas(tenantID)
+	blocklist := db.blocklist.Metas(tenantID)
 
 	// Select which blocks to compact.
 	//
@@ -112,15 +112,15 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
 	blockSelector := newTimeWindowBlockSelector(blocklist,
-		rw.compactorCfg.MaxCompactionRange,
-		rw.compactorCfg.MaxCompactionObjects,
-		rw.compactorCfg.MaxBlockBytes,
+		db.compactorCfg.MaxCompactionRange,
+		db.compactorCfg.MaxCompactionObjects,
+		db.compactorCfg.MaxBlockBytes,
 		defaultMinInputBlocks,
 		defaultMaxInputBlocks)
 
 	start := time.Now()
 
-	level.Debug(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
+	level.Debug(db.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", db.compactorTenantOffset)
 	for {
 		select {
 		case <-ctx.Done():
@@ -129,47 +129,47 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 			// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
 			toBeCompacted, hashString := blockSelector.BlocksToCompact()
 			if len(toBeCompacted) == 0 {
-				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+				measureOutstandingBlocks(tenantID, blockSelector, db.compactorSharder.Owns)
 
-				level.Debug(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
+				level.Debug(db.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 				return
 			}
-			if !rw.compactorSharder.Owns(hashString) {
+			if !db.compactorSharder.Owns(hashString) {
 				// continue on this tenant until we find something we own
 				continue
 			}
-			level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+			level.Info(db.logger).Log("msg", "Compacting hash", "hashString", hashString)
 			// Compact selected blocks into a larger one
-			err := rw.compact(ctx, toBeCompacted, tenantID)
+			err := db.compact(ctx, toBeCompacted, tenantID)
 
 			if err == backend.ErrDoesNotExist {
-				level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
+				level.Warn(db.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
 			} else if err != nil {
-				level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+				level.Error(db.logger).Log("msg", "error during compaction cycle", "err", err)
 				metricCompactionErrors.Inc()
 			}
 
 			// after a maintenance cycle bail out
-			if start.Add(rw.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
-				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+			if start.Add(db.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
+				measureOutstandingBlocks(tenantID, blockSelector, db.compactorSharder.Owns)
 
-				level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
+				level.Info(db.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 				return
 			}
 		}
 	}
 }
 
-func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
-	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
+func (db *tempoDB) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+	level.Debug(db.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
-	span, ctx := opentracing.StartSpanFromContext(ctx, "rw.compact")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "db.compact")
 	defer span.Finish()
 
 	traceID, _ := util.ExtractTraceID(ctx)
 	if traceID != "" {
-		level.Info(rw.logger).Log("msg", "beginning compaction", "traceID", traceID)
+		level.Info(db.logger).Log("msg", "beginning compaction", "traceID", traceID)
 	}
 
 	if len(blockMetas) == 0 {
@@ -181,11 +181,11 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
-		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
+		level.Info(db.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
 
 		// Make sure block still exists
-		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
+		_, err = db.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
 		if err != nil {
 			return err
 		}
@@ -201,18 +201,18 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 
 	combiner := instrumentedObjectCombiner{
 		tenant:               tenantID,
-		inner:                rw.compactorSharder,
+		inner:                db.compactorSharder,
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
 	opts := common.CompactionOptions{
-		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     rw.compactorCfg.ChunkSizeBytes,
-		FlushSizeBytes:     rw.compactorCfg.FlushSizeBytes,
-		IteratorBufferSize: rw.compactorCfg.IteratorBufferSize,
+		BlockConfig:        *db.cfg.Block,
+		ChunkSizeBytes:     db.compactorCfg.ChunkSizeBytes,
+		FlushSizeBytes:     db.compactorCfg.FlushSizeBytes,
+		IteratorBufferSize: db.compactorCfg.IteratorBufferSize,
 		OutputBlocks:       outputBlocks,
 		Combiner:           combiner,
-		MaxBytesPerTrace:   rw.compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
+		MaxBytesPerTrace:   db.compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
@@ -223,20 +223,20 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
 		SpansDiscarded: func(traceId string, spans int) {
-			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId)
+			db.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId)
 		},
 	}
 
 	compactor := enc.NewCompactor(opts)
 
 	// Compact selected blocks into a larger one
-	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas)
+	newCompactedBlocks, err := compactor.Compact(ctx, db.logger, db.r, db.getWriterForBlock, blockMetas)
 	if err != nil {
 		return err
 	}
 
 	// mark old blocks compacted, so they don't show up in polling
-	if err := markCompacted(rw, tenantID, blockMetas, newCompactedBlocks); err != nil {
+	if err := markCompacted(db, tenantID, blockMetas, newCompactedBlocks); err != nil {
 		return err
 	}
 
@@ -251,19 +251,19 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 	for _, meta := range newCompactedBlocks {
 		logArgs = append(logArgs, "block", fmt.Sprintf("%+v", meta))
 	}
-	level.Info(rw.logger).Log(logArgs...)
+	level.Info(db.logger).Log(logArgs...)
 
 	return nil
 }
 
-func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) error {
+func markCompacted(db *tempoDB, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) error {
 	// Check if we have any errors, but continue marking the blocks as compacted
 	var errCount int
 	for _, meta := range oldBlocks {
 		// Mark in the backend
-		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
+		if err := db.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
 			errCount++
-			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
+			level.Error(db.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
 		}
 	}
@@ -278,7 +278,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 	}
 
 	// Update blocklist in memory
-	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions, nil)
+	db.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions, nil)
 
 	if errCount > 0 {
 		return fmt.Errorf("unable to mark %d blocks compacted", errCount)

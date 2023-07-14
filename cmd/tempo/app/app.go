@@ -38,10 +38,13 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb"
 )
 
-const metricsNamespace = "tempo"
-const apiDocs = "https://grafana.com/docs/tempo/latest/api_docs/"
+const (
+	metricsNamespace = "tempo"
+	apiDocs          = "https://grafana.com/docs/tempo/latest/api_docs/"
+)
 
 var (
 	metricConfigFeatDesc = prometheus.NewDesc(
@@ -71,6 +74,7 @@ type App struct {
 	ingester       *ingester.Ingester
 	generator      *generator.Generator
 	store          storage.Store
+	poller         tempodb.Poller
 	usageReport    *usagestats.Reporter
 	MemberlistKV   *memberlist.KVInitService
 

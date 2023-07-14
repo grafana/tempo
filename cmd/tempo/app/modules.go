@@ -52,6 +52,8 @@ const (
 	MemberlistKV   string = "memberlist-kv"
 	UsageReport    string = "usage-report"
 	Overrides      string = "overrides"
+	Poller         string = "poller"
+
 	// rings
 	IngesterRing          string = "ring"
 	SecondaryIngesterRing string = "secondary-ring"
@@ -165,7 +167,11 @@ func (t *App) initSecondaryIngesterRing() (services.Service, error) {
 	}
 
 	// note that this is using the same cnofig as above. both rings have to be configured the same
-	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringSecondaryIngester, t.cfg.Querier.SecondaryIngesterRing)
+	return t.initReadRing(
+		t.cfg.Ingester.LifecyclerConfig.RingConfig,
+		ringSecondaryIngester,
+		t.cfg.Querier.SecondaryIngesterRing,
+	)
 }
 
 func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error) {
@@ -257,7 +263,8 @@ func (t *App) initIngester() (services.Service, error) {
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
-	if err == generator.ErrUnconfigured && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+	if err == generator.ErrUnconfigured &&
+		t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -285,11 +292,6 @@ func (t *App) initQuerier() (services.Service, error) {
 			t.cfg.Querier.Worker.FrontendAddress = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
 			level.Warn(log.Logger).Log("msg", "Worker address is empty in single binary mode. Attempting automatic worker configuration. If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
 		}
-	}
-
-	// do not enable polling if this is the single binary. in that case the compactor will take care of polling
-	if t.cfg.Target == Querier {
-		t.store.EnablePolling(nil)
 	}
 
 	ingesterRings := []ring.ReadRing{t.readRings[ringIngester]}
@@ -328,28 +330,51 @@ func (t *App) initQuerier() (services.Service, error) {
 	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
 
 	searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+	t.Server.HTTP.Handle(
+		path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)),
+		searchTagValuesHandler,
+	)
 
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
+	t.Server.HTTP.Handle(
+		path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)),
+		searchTagValuesV2Handler,
+	)
 
 	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
+	t.Server.HTTP.Handle(
+		path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)),
+		spanMetricsSummaryHandler,
+	)
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
-	// cortexTripper is a bridge between http and httpgrpc.
+	// frontendRoundTripper is a bridge between http and httpgrpc.
 	// It does the job of passing data to the cortex frontend code.
-	cortexTripper, v1, err := frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, log.Logger, prometheus.DefaultRegisterer)
+	frontendRoundTripper, v1, err := frontend.InitFrontend(
+		t.cfg.Frontend.Config,
+		frontend.CortexNoQuerierLimits{},
+		log.Logger,
+		prometheus.DefaultRegisterer,
+		t.poller,
+	)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	queryFrontend, err := frontend.New(
+		t.cfg.Frontend,
+		frontendRoundTripper,
+		t.Overrides,
+		t.store,
+		t.cfg.HTTPAPIPrefix,
+		log.Logger,
+		prometheus.DefaultRegisterer,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -385,9 +410,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http metrics endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
 
-	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
-	t.store.EnablePolling(nil)
-
 	// http query echo endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
 
@@ -414,6 +436,11 @@ func (t *App) initCompactor() (services.Service, error) {
 	}
 
 	return t.compactor, nil
+}
+
+func (t *App) initPoller() (services.Service, error) {
+	t.poller = t.store
+	return nil, nil
 }
 
 func (t *App) initStore() (services.Service, error) {
@@ -489,7 +516,14 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	ur, err := usagestats.NewReporter(
+		t.cfg.UsageReport,
+		t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore,
+		reader,
+		writer,
+		util_log.Logger,
+		prometheus.DefaultRegisterer,
+	)
 	if err != nil {
 		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
@@ -513,6 +547,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
+	mm.RegisterModule(Poller, t.initPoller, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
@@ -536,15 +571,16 @@ func (t *App) setupModuleManager() error {
 		IngesterRing:          {Server, MemberlistKV},
 		SecondaryIngesterRing: {Server, MemberlistKV},
 		MetricsGeneratorRing:  {Server, MemberlistKV},
+		Poller:                {Server, Store},
 
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
-		QueryFrontend:    {Common, Store},
+		QueryFrontend:    {Common, Store, Poller},
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
 		Ingester:         {Common, Store, MemberlistKV},
 		MetricsGenerator: {Common, MemberlistKV},
-		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
+		Querier:          {Common, Store, Poller, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},

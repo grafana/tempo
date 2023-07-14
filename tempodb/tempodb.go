@@ -79,9 +79,12 @@ type Reader interface {
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
-	EnablePolling(sharder blocklist.JobSharder)
 
 	Shutdown()
+}
+
+type Poller interface {
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 }
 
 type Compactor interface {
@@ -104,7 +107,7 @@ type WriteableBlock interface {
 	Write(ctx context.Context, w backend.Writer) error
 }
 
-type readerWriter struct {
+type tempoDB struct {
 	r backend.Reader
 	w backend.Writer
 	c backend.Compactor
@@ -128,14 +131,14 @@ type readerWriter struct {
 }
 
 // New creates a new tempodb
-func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
+func New(cfg *Config, logger gkLog.Logger) (*tempoDB, error) {
 	var rawR backend.RawReader
 	var rawW backend.RawWriter
 	var c backend.Compactor
 
 	err := validateConfig(cfg)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("invalid config while creating tempodb: %w", err)
+		return nil, fmt.Errorf("invalid config while creating tempodb: %w", err)
 	}
 
 	switch cfg.Backend {
@@ -152,7 +155,7 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 	}
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	uncachedReader := backend.NewReader(rawR)
@@ -170,13 +173,13 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 	if cacheBackend != nil {
 		rawR, rawW, err = cache.NewCache(rawR, rawW, cacheBackend)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 	}
 
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
-	rw := &readerWriter{
+	db := &tempoDB{
 		c:              c,
 		r:              r,
 		uncachedReader: uncachedReader,
@@ -188,30 +191,29 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 		blocklist:      blocklist.New(),
 	}
 
-	rw.wal, err = wal.New(rw.cfg.WAL)
+	db.wal, err = wal.New(db.cfg.WAL)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return rw, rw, rw, nil
+	return db, nil
 }
 
-func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
-	w := rw.getWriterForBlock(c.BlockMeta(), time.Now())
+func (db *tempoDB) WriteBlock(ctx context.Context, c WriteableBlock) error {
+	w := db.getWriterForBlock(c.BlockMeta(), time.Now())
 	return c.Write(ctx, w)
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
-func (rw *readerWriter) CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error) {
-	return rw.CompleteBlockWithBackend(ctx, block, rw.r, rw.w)
+func (db *tempoDB) CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error) {
+	return db.CompleteBlockWithBackend(ctx, block, db.r, db.w)
 }
 
 // CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
 // new block will have the same ID as the input block.
-func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
-
+func (db *tempoDB) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 	// The destination block format:
-	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
+	vers, err := encoding.FromVersion(db.cfg.Block.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -240,10 +242,10 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		DataEncoding: walMeta.DataEncoding,
 
 		// Other
-		Encoding: rw.cfg.Block.Encoding,
+		Encoding: db.cfg.Block.Encoding,
 	}
 
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
+	newMeta, err := vers.CreateBlock(ctx, db.cfg.Block, inMeta, iter, r, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}
@@ -256,15 +258,15 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	return backendBlock, nil
 }
 
-func (rw *readerWriter) WAL() *wal.WAL {
-	return rw.wal
+func (db *tempoDB) WAL() *wal.WAL {
+	return db.wal
 }
 
-func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
-	return rw.blocklist.Metas(tenantID)
+func (db *tempoDB) BlockMetas(tenantID string) []*backend.BlockMeta {
+	return db.blocklist.Metas(tenantID)
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
+func (db *tempoDB) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -288,8 +290,8 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	}
 
 	// gather appropriate blocks
-	blocklist := rw.blocklist.Metas(tenantID)
-	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
+	blocklist := db.blocklist.Metas(tenantID)
+	compactedBlocklist := db.blocklist.CompactedMetas(tenantID)
 	copiedBlocklist := make([]interface{}, 0, len(blocklist))
 	blocksSearched := 0
 	compactedBlocksSearched := 0
@@ -301,7 +303,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, db.cfg.BlocklistPoll, timeStart, timeEnd) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}
@@ -311,14 +313,14 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	}
 
 	opts := common.DefaultSearchOptions()
-	if rw.cfg != nil && rw.cfg.Search != nil {
-		rw.cfg.Search.ApplyToOptions(&opts)
+	if db.cfg != nil && db.cfg.Search != nil {
+		db.cfg.Search.ApplyToOptions(&opts)
 	}
 
 	curTime := time.Now()
-	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
+	partialTraces, funcErrs, err := db.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
-		r := rw.getReaderForBlock(meta, curTime)
+		r := db.getReaderForBlock(meta, curTime)
 		block, err := encoding.OpenBlock(meta, r)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("error opening block for reading, blockID: %s", meta.BlockID.String()))
@@ -349,34 +351,34 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 // Search the given block.  This method takes the pre-loaded block meta instead of a block ID, which
 // eliminates a read per search request.
-func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
-	block, err := encoding.OpenBlock(meta, rw.r)
+func (db *tempoDB) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+	block, err := encoding.OpenBlock(meta, db.r)
 	if err != nil {
 		return nil, err
 	}
 
-	rw.cfg.Search.ApplyToOptions(&opts)
+	db.cfg.Search.ApplyToOptions(&opts)
 	return block.Search(ctx, req, opts)
 }
 
-func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	block, err := encoding.OpenBlock(meta, rw.r)
+func (db *tempoDB) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+	block, err := encoding.OpenBlock(meta, db.r)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
 	}
 
-	rw.cfg.Search.ApplyToOptions(&opts)
+	db.cfg.Search.ApplyToOptions(&opts)
 	return block.Fetch(ctx, req, opts)
 }
 
-func (rw *readerWriter) Shutdown() {
+func (db *tempoDB) Shutdown() {
 	// todo: stop blocklist poll
-	rw.pool.Shutdown()
-	rw.r.Shutdown()
+	db.pool.Shutdown()
+	db.r.Shutdown()
 }
 
 // EnableCompaction activates the compaction/retention loops
-func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
+func (db *tempoDB) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
 	// If compactor configuration is not as expected, no need to go any further
 	err := cfg.validate()
 	if err != nil {
@@ -388,19 +390,19 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 		cfg.RetentionConcurrency = DefaultRetentionConcurrency
 	}
 
-	rw.compactorCfg = cfg
-	rw.compactorSharder = c
-	rw.compactorOverrides = overrides
+	db.compactorCfg = cfg
+	db.compactorSharder = c
+	db.compactorOverrides = overrides
 
-	if rw.cfg.BlocklistPoll == 0 {
-		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
+	if db.cfg.BlocklistPoll == 0 {
+		level.Info(db.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
 		return nil
 	}
 
 	if cfg != nil {
-		level.Info(rw.logger).Log("msg", "compaction and retention enabled.")
-		go rw.compactionLoop(ctx)
-		go rw.retentionLoop(ctx)
+		level.Info(db.logger).Log("msg", "compaction and retention enabled.")
+		go db.compactionLoop(ctx)
+		go db.retentionLoop(ctx)
 	}
 
 	return nil
@@ -409,88 +411,88 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
+func (db *tempoDB) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
 
-	if rw.cfg.BlocklistPoll == 0 {
-		rw.cfg.BlocklistPoll = DefaultBlocklistPoll
+	if db.cfg.BlocklistPoll == 0 {
+		db.cfg.BlocklistPoll = DefaultBlocklistPoll
 	}
 
-	if rw.cfg.BlocklistPollConcurrency == 0 {
-		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
+	if db.cfg.BlocklistPollConcurrency == 0 {
+		db.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
-	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
-		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
+	if db.cfg.BlocklistPollTenantIndexBuilders <= 0 {
+		db.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 
-	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
+	level.Info(db.logger).Log("msg", "polling enabled", "interval", db.cfg.BlocklistPoll, "concurrency", db.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
-		PollConcurrency:           rw.cfg.BlocklistPollConcurrency,
-		PollFallback:              rw.cfg.BlocklistPollFallback,
-		TenantIndexBuilders:       rw.cfg.BlocklistPollTenantIndexBuilders,
-		StaleTenantIndex:          rw.cfg.BlocklistPollStaleTenantIndex,
-		PollJitterMs:              rw.cfg.BlocklistPollJitterMs,
-		TolerateConsecutiveErrors: rw.cfg.BlocklistPollTolerateConsecutiveErrors,
-	}, sharder, rw.r, rw.c, rw.w, rw.logger)
+		PollConcurrency:           db.cfg.BlocklistPollConcurrency,
+		PollFallback:              db.cfg.BlocklistPollFallback,
+		TenantIndexBuilders:       db.cfg.BlocklistPollTenantIndexBuilders,
+		StaleTenantIndex:          db.cfg.BlocklistPollStaleTenantIndex,
+		PollJitterMs:              db.cfg.BlocklistPollJitterMs,
+		TolerateConsecutiveErrors: db.cfg.BlocklistPollTolerateConsecutiveErrors,
+	}, sharder, db.r, db.c, db.w, db.logger)
 
-	rw.blocklistPoller = blocklistPoller
+	db.blocklistPoller = blocklistPoller
 
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
-	rw.pollBlocklist()
+	db.pollBlocklist(ctx)
 
-	go rw.pollingLoop()
+	go db.pollingLoop(ctx)
 }
 
-func (rw *readerWriter) pollingLoop() {
-	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
+func (db *tempoDB) pollingLoop(ctx context.Context) {
+	ticker := time.NewTicker(db.cfg.BlocklistPoll)
 	for range ticker.C {
-		rw.pollBlocklist()
+		db.pollBlocklist(ctx)
 	}
 }
 
-func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
+func (db *tempoDB) pollBlocklist(ctx context.Context) {
+	blocklist, compactedBlocklist, err := db.blocklistPoller.Do(ctx)
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
+		level.Error(db.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
 		return
 	}
 
-	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+	db.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
 }
 
-func (rw *readerWriter) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
+func (db *tempoDB) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
 	// compaction level is _atleast_ CacheMinCompactionLevel
-	if rw.cfg.CacheMinCompactionLevel > 0 && meta.CompactionLevel < rw.cfg.CacheMinCompactionLevel {
+	if db.cfg.CacheMinCompactionLevel > 0 && meta.CompactionLevel < db.cfg.CacheMinCompactionLevel {
 		return false
 	}
 
 	// block is not older than CacheMaxBlockAge
-	if rw.cfg.CacheMaxBlockAge > 0 && curTime.Sub(meta.StartTime) > rw.cfg.CacheMaxBlockAge {
+	if db.cfg.CacheMaxBlockAge > 0 && curTime.Sub(meta.StartTime) > db.cfg.CacheMaxBlockAge {
 		return false
 	}
 
 	return true
 }
 
-func (rw *readerWriter) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Reader {
-	if rw.shouldCache(meta, curTime) {
-		return rw.r
+func (db *tempoDB) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Reader {
+	if db.shouldCache(meta, curTime) {
+		return db.r
 	}
 
-	return rw.uncachedReader
+	return db.uncachedReader
 }
 
-func (rw *readerWriter) getWriterForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Writer {
-	if rw.shouldCache(meta, curTime) {
-		return rw.w
+func (db *tempoDB) getWriterForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Writer {
+	if db.shouldCache(meta, curTime) {
+		return db.w
 	}
 
-	return rw.uncachedWriter
+	return db.uncachedWriter
 }
 
 // includeBlock indicates whether a given block should be included in a backend search

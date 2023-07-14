@@ -155,7 +155,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
-			actualList, actualCompactedList, err := poller.Do()
+			actualList, actualCompactedList, err := poller.Do(context.Background())
 
 			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
@@ -244,7 +244,9 @@ func TestTenantIndexFallback(t *testing.T) {
 					return nil, errors.New("err")
 				}
 				return &backend.TenantIndex{
-					CreatedAt: time.Now().Add(-5 * time.Minute), // always make the tenant index 5 minutes old so the above tests can use that for fallback testing
+					CreatedAt: time.Now().
+						Add(-5 * time.Minute),
+					// always make the tenant index 5 minutes old so the above tests can use that for fallback testing
 				}, nil
 			}
 
@@ -256,7 +258,7 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
-			_, _, err := poller.Do()
+			_, _, err := poller.Do(context.Background())
 
 			assert.Equal(t, tc.expectsError, err != nil)
 			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
@@ -498,7 +500,6 @@ func TestBlockListBackendMetrics(t *testing.T) {
 }
 
 func TestPollTolerateConsecutiveErrors(t *testing.T) {
-
 	var (
 		c = newMockCompactor(PerTenantCompacted{}, false)
 		w = &backend.MockWriter{}
@@ -530,16 +531,21 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:          "too many errors",
-			tolerate:      2,
-			tenantErrors:  []error{nil, errors.New("tenant 1 err"), errors.New("tenant 2 err"), errors.New("tenant 3 err"), nil},
+			name:     "too many errors",
+			tolerate: 2,
+			tenantErrors: []error{
+				nil,
+				errors.New("tenant 1 err"),
+				errors.New("tenant 2 err"),
+				errors.New("tenant 3 err"),
+				nil,
+			},
 			expectedError: errors.New("tenant 3 err"),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
 				BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
@@ -559,7 +565,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				TolerateConsecutiveErrors: tc.tolerate,
 			}, s, r, c, w, log.NewNopLogger())
 
-			_, _, err := poller.Do()
+			_, _, err := poller.Do(context.Background())
 
 			assert.Equal(t, tc.expectedError, err)
 		})

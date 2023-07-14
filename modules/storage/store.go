@@ -26,6 +26,7 @@ type Store interface {
 	tempodb.Reader
 	tempodb.Writer
 	tempodb.Compactor
+	tempodb.Poller
 }
 
 type store struct {
@@ -36,11 +37,11 @@ type store struct {
 	tempodb.Reader
 	tempodb.Writer
 	tempodb.Compactor
+	tempodb.Poller
 }
 
 // NewStore creates a new Tempo Store using configuration supplied.
 func NewStore(cfg Config, logger log.Logger) (Store, error) {
-
 	statCache.Set(cfg.Trace.Cache)
 	statBackend.Set(cfg.Trace.Backend)
 	statWalEncoding.Set(cfg.Trace.WAL.Encoding.String())
@@ -48,16 +49,17 @@ func NewStore(cfg Config, logger log.Logger) (Store, error) {
 	statBlockEncoding.Set(cfg.Trace.Block.Encoding.String())
 	statBlockSearchEncoding.Set(cfg.Trace.Block.SearchEncoding.String())
 
-	r, w, c, err := tempodb.New(&cfg.Trace, logger)
+	db, err := tempodb.New(&cfg.Trace, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &store{
 		cfg:       cfg,
-		Reader:    r,
-		Writer:    w,
-		Compactor: c,
+		Reader:    db,
+		Writer:    db,
+		Compactor: db,
+		Poller:    db,
 	}
 
 	s.Service = services.NewIdleService(s.starting, s.stopping)

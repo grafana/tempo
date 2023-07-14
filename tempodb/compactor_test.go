@@ -29,8 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-type mockSharder struct {
-}
+type mockSharder struct{}
 
 func (m *mockSharder) Owns(string) bool {
 	return true
@@ -71,7 +70,7 @@ func TestCompactionRoundtrip(t *testing.T) {
 func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -97,7 +96,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -106,9 +105,9 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
-	wal := w.WAL()
+	wal := db.WAL()
 	require.NoError(t, err)
 
 	blockCount := 4
@@ -134,11 +133,11 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			allIds = append(allIds, id)
 		}
 
-		_, err = w.CompleteBlock(ctx, head)
+		_, err = db.CompleteBlock(ctx, head)
 		require.NoError(t, err)
 	}
 
-	rw := r.(*readerWriter)
+	rw := db
 
 	expectedBlockCount := blockCount
 	expectedCompactedCount := 0
@@ -146,10 +145,17 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
+	blockSelector := newTimeWindowBlockSelector(
+		blocklist,
+		rw.compactorCfg.MaxCompactionRange,
+		10000,
+		1024*1024*1024,
+		defaultMinInputBlocks,
+		2,
+	)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -217,7 +223,7 @@ func TestSameIDCompaction(t *testing.T) {
 func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -243,7 +249,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -252,9 +258,9 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
-	wal := w.WAL()
+	wal := db.WAL()
 	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(v1.Encoding)
@@ -304,18 +310,25 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			}
 		}
 
-		_, err = w.CompleteBlock(context.Background(), head)
+		_, err = db.CompleteBlock(context.Background(), head)
 		require.NoError(t, err)
 	}
 
-	rw := r.(*readerWriter)
+	rw := db
 
 	// check blocklists, force compaction and check again
 	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
+	blockSelector := newTimeWindowBlockSelector(
+		list,
+		rw.compactorCfg.MaxCompactionRange,
+		10000,
+		1024*1024*1024,
+		defaultMinInputBlocks,
+		blockCount,
+	)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
@@ -361,7 +374,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 func TestCompactionUpdatesBlocklist(t *testing.T) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -386,7 +399,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -394,15 +407,15 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 1
-	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
+	cutTestBlocks(t, ctx, db, testTenantID, blockCount, recordCount)
 
-	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw := db
+	db.pollBlocklist(ctx)
 
 	// compact everything
 	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
@@ -432,7 +445,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 func TestCompactionMetrics(t *testing.T) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -457,7 +470,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -465,15 +478,15 @@ func TestCompactionMetrics(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 10
-	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
+	cutTestBlocks(t, ctx, db, testTenantID, blockCount, recordCount)
 
-	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw := db
+	db.pollBlocklist(ctx)
 
 	// Get starting metrics
 	processedStart, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
@@ -500,13 +513,17 @@ func TestCompactionMetrics(t *testing.T) {
 
 	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
-	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
+	assert.Greater(
+		t,
+		bytesEnd,
+		bytesStart,
+	) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -531,7 +548,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
@@ -541,14 +558,14 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut blocks for multiple tenants
-	cutTestBlocks(t, w, testTenantID, 2, 2)
-	cutTestBlocks(t, w, testTenantID2, 2, 2)
+	cutTestBlocks(t, ctx, db, testTenantID, 2, 2)
+	cutTestBlocks(t, ctx, db, testTenantID2, 2, 2)
 
-	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw := db
+	db.pollBlocklist(ctx)
 
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID2)))
@@ -577,7 +594,7 @@ func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
 func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -604,7 +621,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -613,19 +630,19 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	db.EnablePolling(ctx, &mockJobSharder{})
 
-	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+	cutTestBlockWithTraces(t, db, testTenantID, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 102, 103},
 	})
-	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+	cutTestBlockWithTraces(t, db, testTenantID, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 104, 105},
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 106, 107},
 	})
 
-	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw := db
+	db.pollBlocklist(ctx)
 
 	// compact everything
 	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
@@ -665,7 +682,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 	return b
 }
 
-func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []common.BackendBlock {
+func cutTestBlocks(t testing.TB, ctx context.Context, w *tempoDB, tenantID string, blockCount int, recordCount int) []common.BackendBlock {
 	blocks := make([]common.BackendBlock, 0)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -681,7 +698,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			writeTraceToWal(t, head, dec, id, tr, now, now)
 		}
 
-		b, err := w.CompleteBlock(context.Background(), head)
+		b, err := w.CompleteBlock(ctx, head)
 		require.NoError(t, err)
 		blocks = append(blocks, b)
 	}
@@ -708,7 +725,7 @@ func BenchmarkCompaction(b *testing.B) {
 func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	tempDir := b.TempDir()
 
-	_, w, c, err := New(&Config{
+	db, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -733,10 +750,10 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(b, err)
 
-	rw := c.(*readerWriter)
+	rw := db
 
 	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	err = db.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:     10_000_000,
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
@@ -747,7 +764,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	blockCount := 8
 
 	// Cut input blocks
-	blocks := cutTestBlocks(b, w, testTenantID, blockCount, traceCount)
+	blocks := cutTestBlocks(b, ctx, db, testTenantID, blockCount, traceCount)
 	metas := make([]*backend.BlockMeta, 0)
 	for _, b := range blocks {
 		metas = append(metas, b.BlockMeta())

@@ -11,11 +11,10 @@ import (
 	"github.com/grafana/tempo/modules/frontend/transport"
 	v1 "github.com/grafana/tempo/modules/frontend/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
+	"github.com/grafana/tempo/tempodb"
 )
 
-var (
-	statVersion = usagestats.NewString("frontend_version")
-)
+var statVersion = usagestats.NewString("frontend_version")
 
 type Config struct {
 	Config     v1.Config       `yaml:",inline"`
@@ -87,10 +86,16 @@ func (CortexNoQuerierLimits) MaxQueriersPerUser(string) int { return 0 }
 // Returned RoundTripper can be wrapped in more round-tripper middlewares, and then eventually registered
 // into HTTP server using the Handler from this package. Returned RoundTripper is always non-nil
 // (if there are no errors), and it uses the returned frontend (if any).
-func InitFrontend(cfg v1.Config, limits v1.Limits, log log.Logger, reg prometheus.Registerer) (http.RoundTripper, *v1.Frontend, error) {
+func InitFrontend(
+	cfg v1.Config,
+	limits v1.Limits,
+	log log.Logger,
+	reg prometheus.Registerer,
+	poller tempodb.Poller,
+) (http.RoundTripper, *v1.Frontend, error) {
 	statVersion.Set("v1")
 	// No scheduler = use original frontend.
-	fr, err := v1.New(cfg, limits, log, reg)
+	fr, err := v1.New(cfg, limits, log, reg, poller)
 	if err != nil {
 		return nil, nil, err
 	}
