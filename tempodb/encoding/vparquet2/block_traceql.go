@@ -55,7 +55,14 @@ func (s *span) DurationNanos() uint64 {
 
 func (s *span) DescendantOf(x traceql.Span) bool {
 	if ss, ok := x.(*span); ok {
-		return s.nestedSetLeft > ss.nestedSetLeft && s.nestedSetLeft < ss.nestedSetRight
+		if s.nestedSetLeft == 0 ||
+			s.nestedSetRight == 0 ||
+			ss.nestedSetLeft == 0 ||
+			ss.nestedSetRight == 0 {
+			// Spans with missing data, never a match.
+			return false
+		}
+		return s.nestedSetLeft > ss.nestedSetLeft && s.nestedSetRight < ss.nestedSetRight
 	}
 
 	return false
@@ -63,6 +70,10 @@ func (s *span) DescendantOf(x traceql.Span) bool {
 
 func (s *span) SiblingOf(x traceql.Span) bool {
 	if ss, ok := x.(*span); ok {
+		if s.nestedSetParent == 0 ||
+			ss.nestedSetParent == 0 {
+			return false
+		}
 		return ss.nestedSetParent == s.nestedSetParent
 	}
 	return false
@@ -70,6 +81,10 @@ func (s *span) SiblingOf(x traceql.Span) bool {
 
 func (s *span) ChildOf(x traceql.Span) bool {
 	if ss, ok := x.(*span); ok {
+		if s.nestedSetParent == 0 ||
+			ss.nestedSetLeft == 0 {
+			return false
+		}
 		return ss.nestedSetLeft == s.nestedSetParent
 	}
 	return false
