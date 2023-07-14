@@ -284,7 +284,6 @@ func (rw *readerWriter) ListBlocks(
 ) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
-	var objects []string
 
 	if len(prefix) > 0 {
 		prefix = prefix + "/"
@@ -333,7 +332,8 @@ func (rw *readerWriter) ListBlocks(
 
 	}
 
-	level.Debug(rw.logger).Log("msg", "listing blocks complete", "count", len(objects))
+	level.Debug(rw.logger).
+		Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
 
 	return
 }
