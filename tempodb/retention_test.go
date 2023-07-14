@@ -185,7 +185,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	db.EnablePolling(ctx, &mockJobSharder{})
 
-	cutTestBlocks(t, ctx, db, testTenantID, 10, 10)
+	cutTestBlocks(ctx, t, db, testTenantID, 10, 10)
 
 	// The test spans are all 1 second long, so we have to sleep to put all the
 	// data in the past

@@ -412,7 +412,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 1
-	cutTestBlocks(t, ctx, db, testTenantID, blockCount, recordCount)
+	cutTestBlocks(ctx, t, db, testTenantID, blockCount, recordCount)
 
 	rw := db
 	db.pollBlocklist(ctx)
@@ -483,7 +483,7 @@ func TestCompactionMetrics(t *testing.T) {
 	// Cut x blocks with y records each
 	blockCount := 5
 	recordCount := 10
-	cutTestBlocks(t, ctx, db, testTenantID, blockCount, recordCount)
+	cutTestBlocks(ctx, t, db, testTenantID, blockCount, recordCount)
 
 	rw := db
 	db.pollBlocklist(ctx)
@@ -561,8 +561,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	db.EnablePolling(ctx, &mockJobSharder{})
 
 	// Cut blocks for multiple tenants
-	cutTestBlocks(t, ctx, db, testTenantID, 2, 2)
-	cutTestBlocks(t, ctx, db, testTenantID2, 2, 2)
+	cutTestBlocks(ctx, t, db, testTenantID, 2, 2)
+	cutTestBlocks(ctx, t, db, testTenantID2, 2, 2)
 
 	rw := db
 	db.pollBlocklist(ctx)
@@ -682,7 +682,14 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 	return b
 }
 
-func cutTestBlocks(t testing.TB, ctx context.Context, w *tempoDB, tenantID string, blockCount int, recordCount int) []common.BackendBlock {
+func cutTestBlocks(
+	ctx context.Context,
+	t testing.TB,
+	w *tempoDB,
+	tenantID string,
+	blockCount int,
+	recordCount int,
+) []common.BackendBlock {
 	blocks := make([]common.BackendBlock, 0)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -764,7 +771,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	blockCount := 8
 
 	// Cut input blocks
-	blocks := cutTestBlocks(b, ctx, db, testTenantID, blockCount, traceCount)
+	blocks := cutTestBlocks(ctx, b, db, testTenantID, blockCount, traceCount)
 	metas := make([]*backend.BlockMeta, 0)
 	for _, b := range blocks {
 		metas = append(metas, b.BlockMeta())
