@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/prometheus/prometheus/model/labels"
@@ -101,6 +103,8 @@ func TestServiceGraphs(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToRecorderLabels))
 	assert.InDelta(t, 0.000693, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToRecorderLabels), 0.001)
+
+	fmt.Println("Cardinality", testRegistry.Cardinality())
 }
 
 func TestServiceGraphs_prefixDimensions(t *testing.T) {
@@ -226,6 +230,70 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestWithoutHistograms(t *testing.T) {
+	fmt.Println(prometheus.ExponentialBuckets(0.1, 3, 4))
+
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.UseHistograms = false
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	requesterToServerLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-server",
+		"connection_type": "",
+		"beast":           "manticore",
+		"god":             "zeus",
+	})
+	serverToDatabaseLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgres",
+		"connection_type": "database",
+		"beast":           "",
+		"god":             "",
+	})
+	requesterToRecorderLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-recorder",
+		"connection_type": "messaging_system",
+		"beast":           "",
+		"god":             "",
+	})
+
+	fmt.Println(testRegistry)
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToServerLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToRecorderLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToRecorderLabels))
+
+	// latency
+	assert.InDelta(t, 0.029, testRegistry.Query(`traces_service_graph_request_latency_seconds`, requesterToServerLabels), 0.001)
+
+	assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_latency_seconds`, serverToDatabaseLabels), 0.001)
+
+	assert.InDelta(t, 0.000693, testRegistry.Query(`traces_service_graph_request_latency_seconds`, requesterToRecorderLabels), 0.001)
+
+	assert.Equal(t, 6, testRegistry.Cardinality()) // vs 26 with cfg.UseHistograms = true
 }
 
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {

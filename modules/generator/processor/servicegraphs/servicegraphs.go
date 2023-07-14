@@ -38,6 +38,11 @@ var (
 		Name:      "metrics_generator_processor_service_graphs_edges",
 		Help:      "Total number of unique edges",
 	}, []string{"tenant"})
+	metricCompletedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_processor_service_graphs_completed_edges",
+		Help:      "Total number of unique edges",
+	}, []string{"tenant"})
 	metricExpiredEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_processor_service_graphs_expired_edges",
@@ -46,10 +51,11 @@ var (
 )
 
 const (
-	metricRequestTotal         = "traces_service_graph_request_total"
-	metricRequestFailedTotal   = "traces_service_graph_request_failed_total"
-	metricRequestServerSeconds = "traces_service_graph_request_server_seconds"
-	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
+	metricRequestTotal          = "traces_service_graph_request_total"
+	metricRequestFailedTotal    = "traces_service_graph_request_failed_total"
+	metricRequestServerSeconds  = "traces_service_graph_request_server_seconds"
+	metricRequestClientSeconds  = "traces_service_graph_request_client_seconds"
+	metricRequestLatencySeconds = "traces_service_graph_request_latency_seconds"
 )
 
 var defaultPeerAttributes = []attribute.Key{
@@ -77,11 +83,13 @@ type Processor struct {
 	serviceGraphRequestFailedTotal            registry.Counter
 	serviceGraphRequestServerSecondsHistogram registry.Histogram
 	serviceGraphRequestClientSecondsHistogram registry.Histogram
+	serviceGraphRequestLatencySeconds         registry.Counter
 
-	metricDroppedSpans prometheus.Counter
-	metricTotalEdges   prometheus.Counter
-	metricExpiredEdges prometheus.Counter
-	logger             log.Logger
+	metricDroppedSpans   prometheus.Counter
+	metricTotalEdges     prometheus.Counter
+	metricCompletedEdges prometheus.Counter
+	metricExpiredEdges   prometheus.Counter
+	logger               log.Logger
 }
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
@@ -104,11 +112,13 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal),
 		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
 		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestLatencySeconds:         registry.NewCounter(metricRequestLatencySeconds),
 
-		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
-		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
-		metricExpiredEdges: metricExpiredEdges.WithLabelValues(tenant),
-		logger:             log.With(logger, "component", "service-graphs"),
+		metricDroppedSpans:   metricDroppedSpans.WithLabelValues(tenant),
+		metricTotalEdges:     metricTotalEdges.WithLabelValues(tenant),
+		metricCompletedEdges: metricCompletedEdges.WithLabelValues(tenant),
+		metricExpiredEdges:   metricExpiredEdges.WithLabelValues(tenant),
+		logger:               log.With(logger, "component", "service-graphs"),
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire)
@@ -265,6 +275,8 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
+	p.metricCompletedEdges.Inc()
+
 	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
 
@@ -283,8 +295,12 @@ func (p *Processor) onComplete(e *store.Edge) {
 		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	if p.Cfg.UseHistograms {
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	} else {
+		p.serviceGraphRequestLatencySeconds.Inc(registryLabelValues, e.ServerLatencySec)
+	}
 }
 
 func (p *Processor) onExpire(e *store.Edge) {

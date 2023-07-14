@@ -39,6 +39,9 @@ type Config struct {
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+
+	// UseHistograms
+	UseHistograms bool `yaml:"use_histograms"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -47,6 +50,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Workers = 10
 	// TODO: Revisit this default value.
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.1, 2, 8)
+
+	cfg.UseHistograms = true
 
 	peerAttr := make([]string, 0, len(defaultPeerAttributes))
 	for _, attr := range defaultPeerAttributes {

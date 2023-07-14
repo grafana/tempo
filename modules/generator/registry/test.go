@@ -82,6 +82,8 @@ func (t *TestRegistry) String() string {
 	return strings.Join(metrics, "\n")
 }
 
+func (t *TestRegistry) Cardinality() int { return len(t.metrics) }
+
 type testCounter struct {
 	name     string
 	registry *TestRegistry
