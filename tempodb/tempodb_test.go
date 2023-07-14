@@ -37,7 +37,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 	tempDir := t.TempDir()
 
 	cfg := &Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -227,7 +227,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		assert.Equal(t, expectedID, blocklist[0].BlockID)
 	}
 
-	//confirm blocklists are in starttime ascending order
+	// confirm blocklists are in starttime ascending order
 	lastTime := time.Time{}
 	for _, b := range blocklist {
 		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
@@ -653,7 +653,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	tempDir := t.TempDir()
 
 	_, w, _, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -701,7 +701,7 @@ func TestShouldCache(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, _, _, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -789,7 +789,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 
 	tempDir := b.TempDir()
 	_, w, _, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},

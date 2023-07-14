@@ -4,13 +4,15 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestLoadConfig(t *testing.T) {
 	os.Setenv("TEMPO_GCS_BUCKET_NAME", "some-random-gcs-bucket")
 	os.Setenv("TEMPO_GCS_CHUNK_BUFFER_SIZE", "10")
 	os.Setenv("TEMPO_GCS_HEDGE_REQUESTS_AT", "400ms")
-	os.Setenv("TEMPO_BACKEND", "gcs")
+	os.Setenv("TEMPO_BACKEND", backend.GCS)
 
 	// purposefully not using testfiy to reduce dependencies and keep the serverless packages small
 	cfg, err := loadConfig()
@@ -18,7 +20,7 @@ func TestLoadConfig(t *testing.T) {
 		t.Error("failed to load config:", err)
 		return
 	}
-	if cfg.Backend != "gcs" {
+	if cfg.Backend != backend.GCS {
 		t.Error("backend should be gcs", cfg.Backend)
 	}
 	if cfg.GCS.BucketName != "some-random-gcs-bucket" {
@@ -35,7 +37,7 @@ func TestLoadConfig(t *testing.T) {
 func TestLoadConfigS3(t *testing.T) {
 	os.Setenv("TEMPO_S3_BUCKET", "tempo")
 	os.Setenv("TEMPO_S3_ENDPOINT", "glerg")
-	os.Setenv("TEMPO_BACKEND", "s3")
+	os.Setenv("TEMPO_BACKEND", backend.S3)
 	os.Setenv("TEMPO_S3_ACCESS_KEY", "access")
 	os.Setenv("TEMPO_S3_SECRET_KEY", "secret")
 
@@ -44,7 +46,7 @@ func TestLoadConfigS3(t *testing.T) {
 		t.Error("failed to load config", err)
 		return
 	}
-	if cfg.Backend != "s3" {
+	if cfg.Backend != backend.S3 {
 		t.Error("backend should be s3", cfg.Backend)
 	}
 	if cfg.S3.Bucket != "tempo" {
@@ -62,7 +64,7 @@ func TestLoadConfigS3(t *testing.T) {
 }
 
 func TestLoadConfigAzure(t *testing.T) {
-	os.Setenv("TEMPO_BACKEND", "azure")
+	os.Setenv("TEMPO_BACKEND", backend.Azure)
 	os.Setenv("TEMPO_AZURE_MAX_BUFFERS", "3")
 
 	cfg, err := loadConfig()
@@ -70,7 +72,7 @@ func TestLoadConfigAzure(t *testing.T) {
 		t.Error("failed to load config", err)
 		return
 	}
-	if cfg.Backend != "azure" {
+	if cfg.Backend != backend.Azure {
 		t.Error("backend should be azure", cfg.Backend)
 	}
 	if cfg.Azure.MaxBuffers != 3 {
