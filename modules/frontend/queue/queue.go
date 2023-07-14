@@ -132,13 +132,9 @@ FindQueue:
 		return nil, last, err
 	}
 
-	for {
-		queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
-		last.last = idx
-		if queue == nil {
-			break
-		}
-
+	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
+	last.last = idx
+	if queue != nil {
 		// Pick next request from the queue.
 		request := <-queue
 		if len(queue) == 0 {
