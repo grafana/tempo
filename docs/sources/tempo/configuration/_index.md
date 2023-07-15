@@ -524,15 +524,6 @@ querier:
             # The default value of "" disables this feature.
             [external_endpoints: <list of strings> | default = <empty list>]
 
-            # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of external search requests to reduce long tail latency.
-            # (default: 8s)
-            [external_hedge_requests_at: <list of strings> | default = <empty list>]
-
-            # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-            # (default: 2)
-            [external_hedge_requests_up_to: <list of strings> | default = <empty list>]
-
     # config of the worker that connects to the query frontend
     frontend_worker:
 

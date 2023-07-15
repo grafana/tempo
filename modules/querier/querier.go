@@ -111,10 +111,11 @@ func New(
 		Backend:        cfg.Search.ExternalBackend,
 		CloudRunConfig: cfg.Search.CloudRun,
 
+		HedgeRequestsAt:   cfg.Search.HedgeRequestsAt,
+		HedgeRequestsUpTo: cfg.Search.HedgeRequestsUpTo,
+
 		HTTPConfig: &external.HTTPConfig{
-			Endpoints:         cfg.Search.ExternalEndpoints,
-			HedgeRequestsAt:   cfg.Search.HedgeRequestsAt,
-			HedgeRequestsUpTo: cfg.Search.HedgeRequestsUpTo,
+			Endpoints: cfg.Search.ExternalEndpoints,
 		},
 	})
 	if err != nil {

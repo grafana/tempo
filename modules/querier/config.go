@@ -23,18 +23,18 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	QueryTimeout time.Duration `yaml:"query_timeout"`
-	PreferSelf   int           `yaml:"prefer_self"`
+	QueryTimeout      time.Duration `yaml:"query_timeout"`
+	PreferSelf        int           `yaml:"prefer_self"`
+	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
+	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
 
 	// backends
 	ExternalBackend string                   `yaml:"external_backend"`
 	CloudRun        *external.CloudRunConfig `yaml:"google_cloud_run"`
 
-	// TODO: Consolidate these configs under the external.HTTPConfig struct.
-	// Note that it will be a breaking change:
-	ExternalEndpoints []string      `yaml:"external_endpoints"`
-	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
+	// Ideally this config should be under the external.HTTPConfig struct, but
+	// it will require a breaking change.
+	ExternalEndpoints []string `yaml:"external_endpoints"`
 }
 
 type TraceByIDConfig struct {

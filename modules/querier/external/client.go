@@ -41,6 +41,9 @@ type Config struct {
 
 	HTTPConfig     *HTTPConfig
 	CloudRunConfig *CloudRunConfig
+
+	HedgeRequestsAt   time.Duration
+	HedgeRequestsUpTo int
 }
 
 type Client struct {
@@ -50,15 +53,11 @@ type Client struct {
 }
 
 type CloudRunConfig struct {
-	Endpoints         []string      `yaml:"external_endpoints"`
-	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
+	Endpoints []string `yaml:"external_endpoints"`
 }
 
 type HTTPConfig struct {
-	Endpoints         []string
-	HedgeRequestsAt   time.Duration
-	HedgeRequestsUpTo int
+	Endpoints []string
 }
 
 type tokenProvider interface {
@@ -87,8 +86,8 @@ func NewClient(cfg *Config) (*Client, error) {
 		// For backwards compatibility, use unauthenticated http as the default.
 		return newClientWithOpts(&commonConfig{
 			endpoints:         cfg.HTTPConfig.Endpoints,
-			hedgeRequestsAt:   cfg.HTTPConfig.HedgeRequestsAt,
-			hedgeRequestsUpTo: cfg.HTTPConfig.HedgeRequestsUpTo,
+			hedgeRequestsAt:   cfg.HedgeRequestsAt,
+			hedgeRequestsUpTo: cfg.HedgeRequestsUpTo,
 		})
 	case "google_cloud_run":
 		provider, err := newGoogleProvider(ctx, cfg.CloudRunConfig.Endpoints)
@@ -97,8 +96,8 @@ func NewClient(cfg *Config) (*Client, error) {
 		}
 		return newClientWithOpts(&commonConfig{
 			endpoints:         cfg.CloudRunConfig.Endpoints,
-			hedgeRequestsAt:   cfg.CloudRunConfig.HedgeRequestsAt,
-			hedgeRequestsUpTo: cfg.CloudRunConfig.HedgeRequestsUpTo,
+			hedgeRequestsAt:   cfg.HedgeRequestsAt,
+			hedgeRequestsUpTo: cfg.HedgeRequestsUpTo,
 		}, withTokenProvider(provider))
 
 	case "aws_lambda":
