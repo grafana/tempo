@@ -33,11 +33,7 @@ func TestCachedTokenProvider(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		getTokenSource := func(ctx context.Context, endpoint string) (oauth2.TokenSource, error) {
-			return getDummyTokenSource(fmt.Sprintf("%s-token", endpoint)), nil
-		}
-
-		tp, err := newTokenProvider(context.Background(), tc.endpoints, getTokenSource)
+		tp, err := newCachedTokenProvider(context.Background(), tc.endpoints, &stubbedTokenProvider{})
 		require.NoError(t, err)
 
 		actual, err := tp.getToken(context.Background(), tc.testEndpoint)
@@ -46,16 +42,24 @@ func TestCachedTokenProvider(t *testing.T) {
 	}
 }
 
-type dummyTokenSource struct {
+type stubbedTokenSource struct {
 	dummyToken string
 }
 
-func (t *dummyTokenSource) Token() (*oauth2.Token, error) {
+func (t *stubbedTokenSource) Token() (*oauth2.Token, error) {
 	return &oauth2.Token{
 		AccessToken: t.dummyToken,
 	}, nil
 }
 
-func getDummyTokenSource(dummyToken string) oauth2.TokenSource {
-	return &dummyTokenSource{dummyToken: dummyToken}
+type stubbedTokenProvider struct {
+}
+
+func (t *stubbedTokenProvider) getToken(_ context.Context, _ string) (*oauth2.Token, error) {
+	return nil, fmt.Errorf("this is a stubbed function")
+}
+func (t *stubbedTokenProvider) getTokenSource(_ context.Context, endpoint string) (oauth2.TokenSource, error) {
+	return &stubbedTokenSource{
+		dummyToken: fmt.Sprintf("%s-token", endpoint),
+	}, nil
 }

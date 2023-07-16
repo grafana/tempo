@@ -17,7 +17,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
-	"golang.org/x/oauth2"
 )
 
 var (
@@ -60,14 +59,6 @@ type HTTPConfig struct {
 	Endpoints []string
 }
 
-type tokenProvider interface {
-	// Returns an oauth2 token, leveraging a cache unless the token is expired.
-	// If expired, the token is renewed and added to the cache.
-	//
-	// If this returns nil, the request will be unauthenticated.
-	getToken(ctx context.Context, endpoint string) (*oauth2.Token, error)
-}
-
 type option func(client *Client) error
 
 func withTokenProvider(provider tokenProvider) option {
@@ -90,7 +81,7 @@ func NewClient(cfg *Config) (*Client, error) {
 			hedgeRequestsUpTo: cfg.HedgeRequestsUpTo,
 		})
 	case "google_cloud_run":
-		provider, err := newGoogleProvider(ctx, cfg.CloudRunConfig.Endpoints)
+		provider, err := newCachedTokenProvider(ctx, cfg.CloudRunConfig.Endpoints, &googleTokenProvider{})
 		if err != nil {
 			return nil, err
 		}

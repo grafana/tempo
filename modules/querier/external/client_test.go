@@ -3,6 +3,7 @@ package external
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -62,7 +63,7 @@ func TestAuthHeader(t *testing.T) {
 				endpoints: []string{srv.URL},
 			},
 			options: []option{
-				withTokenProvider(getDummyTokenProvider("dummytoken")),
+				withTokenProvider(&stubbedProvider{token: "dummytoken"}),
 			},
 
 			authHeaderExpected: "Bearer dummytoken",
@@ -84,15 +85,15 @@ func TestAuthHeader(t *testing.T) {
 	}
 }
 
-type dummyProvider struct {
-	dummyToken string
+type stubbedProvider struct {
+	token string
 }
 
-func (t *dummyProvider) getToken(ctx context.Context, endpoint string) (*oauth2.Token, error) {
+func (t *stubbedProvider) getToken(_ context.Context, _ string) (*oauth2.Token, error) {
 	return &oauth2.Token{
-		AccessToken: t.dummyToken,
+		AccessToken: t.token,
 	}, nil
 }
-func getDummyTokenProvider(dummyToken string) tokenProvider {
-	return &dummyProvider{dummyToken: dummyToken}
+func (t *stubbedProvider) getTokenSource(_ context.Context, _ string) (oauth2.TokenSource, error) {
+	return nil, fmt.Errorf("this is a stubbed function")
 }
