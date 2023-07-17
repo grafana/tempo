@@ -40,8 +40,8 @@ var nonTraceQLAttributes = map[string]string{
 	LabelRootSpanName:    columnPathRootSpanName,
 }
 
-func (b *BackendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.BackendBlock.SearchTags",
+func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
 			"tenantID":  b.meta.TenantID,
@@ -181,7 +181,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 	return nil
 }
 
-func (b *BackendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
 
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
@@ -197,8 +197,8 @@ func (b *BackendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	return b.SearchTagValuesV2(ctx, att, cb2, opts)
 }
 
-func (b *BackendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.BackendBlock.SearchTagValuesV2",
+func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValuesV2",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
 			"tenantID":  b.meta.TenantID,

@@ -55,7 +55,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			maxBlockEnd = blockMeta.EndTime
 		}
 
-		block := NewBackendBlock(blockMeta, r)
+		block := newBackendBlock(blockMeta, r)
 
 		span, derivedCtx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.iterator")
 		defer span.Finish()

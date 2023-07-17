@@ -620,7 +620,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 }
 
 func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	// todo: this same method is called in BackendBlock.Fetch. is there anyway to share this?
+	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")

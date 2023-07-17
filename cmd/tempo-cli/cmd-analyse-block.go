@@ -11,6 +11,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
+
 	"github.com/segmentio/parquet-go"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
@@ -75,15 +77,11 @@ func resourcePathsForVersion(v string) (string, []string) {
 	return "", nil
 }
 
-type parquetBlock interface {
-	Open(ctx context.Context) (*parquet.File, *parquet.Reader, error) //nolint:all //deprecated
-}
-
 type analyseBlockCmd struct {
 	backendOptions
 
-	BlockID  string `arg:"" help:"block ID to list"`
 	TenantID string `arg:"" help:"tenant-id within the bucket"`
+	BlockID  string `arg:"" help:"block ID to list"`
 	NumAttr  int    `help:"Number of attributes to display" default:"15"`
 }
 
@@ -113,40 +111,34 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 		return nil, err
 	}
 
-	// TODO: Include compacted blocks? We could be processing block data multiple times
-	//compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	//if err != nil && err != backend.ErrDoesNotExist {
-	//	return err
-	//}
-
 	if meta == nil {
 		fmt.Println("Unable to load any meta for block", blockID)
 		return nil, nil
 	}
 
-	// unifiedMeta := getMeta(meta, compactedMeta, windowRange)
-
 	if meta.CompactionLevel < minCompactionLvl {
 		return nil, nil
 	}
 
-	var block parquetBlock
+	var reader io.ReaderAt
 	switch meta.Version {
 	case vparquet.VersionString:
-		block = vparquet.NewBackendBlock(meta, r)
+		reader = vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
 	case vparquet2.VersionString:
-		block = vparquet2.NewBackendBlock(meta, r)
+		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta.BlockID, meta.TenantID)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
 	}
 
-	fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
+	br := tempo_io.NewBufferedReaderAt(reader, int64(meta.Size), 2*1024*1024, 64) // 128 MB memory buffering
 
-	pf, _, err := block.Open(context.Background())
+	pf, err := parquet.OpenFile(br, int64(meta.Size), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
 
 	// Aggregate span attributes
 	spanKey, spanVals := spanPathsForVersion(meta.Version)

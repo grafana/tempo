@@ -26,7 +26,7 @@ func TestRawIteratorReadsAllRows(t *testing.T) {
 	meta, err := r.BlockMeta(ctx, blocks[0], "single-tenant")
 	require.NoError(t, err)
 
-	b := NewBackendBlock(meta, r)
+	b := newBackendBlock(meta, r)
 
 	iter, err := b.rawIter(context.Background(), newRowPool(10))
 	require.NoError(t, err)

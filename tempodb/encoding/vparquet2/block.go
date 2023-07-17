@@ -11,22 +11,22 @@ const (
 	DataFileName = "data.parquet"
 )
 
-type BackendBlock struct {
+type backendBlock struct {
 	meta *backend.BlockMeta
 	r    backend.Reader
 
 	openMtx sync.Mutex
 }
 
-var _ common.BackendBlock = (*BackendBlock)(nil)
+var _ common.BackendBlock = (*backendBlock)(nil)
 
-func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) *BackendBlock {
-	return &BackendBlock{
+func newBackendBlock(meta *backend.BlockMeta, r backend.Reader) *backendBlock {
+	return &backendBlock{
 		meta: meta,
 		r:    r,
 	}
 }
 
-func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
+func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }

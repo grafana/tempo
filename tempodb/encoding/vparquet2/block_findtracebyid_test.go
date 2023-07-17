@@ -91,7 +91,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b := NewBackendBlock(s.meta, r)
+	b := newBackendBlock(s.meta, r)
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
@@ -119,7 +119,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	meta, err := r.BlockMeta(ctx, blocks[0], "single-tenant")
 	require.NoError(t, err)
 
-	b := NewBackendBlock(meta, r)
+	b := newBackendBlock(meta, r)
 
 	iter, err := b.rawIter(context.Background(), newRowPool(10))
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	// traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
 	// require.NoError(b, err)
 
-	block := NewBackendBlock(meta, rr)
+	block := newBackendBlock(meta, rr)
 
 	b.ResetTimer()
 

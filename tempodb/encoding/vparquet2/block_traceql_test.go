@@ -506,7 +506,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	opts.StartPage = 10
 	opts.TotalPages = 10
 
-	block := NewBackendBlock(meta, rr)
+	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
@@ -562,7 +562,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	opts.StartPage = 10
 	opts.TotalPages = 10
 
-	block := NewBackendBlock(meta, rr)
+	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
