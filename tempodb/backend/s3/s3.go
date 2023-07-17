@@ -33,6 +33,11 @@ type readerWriter struct {
 	hedgedCore *minio.Core
 }
 
+var _ backend.RawReader = (*readerWriter)(nil)
+var _ backend.RawWriter = (*readerWriter)(nil)
+var _ backend.Compactor = (*readerWriter)(nil)
+var _ backend.VersionedReaderWriter = (*readerWriter)(nil)
+
 // appendTracker is a struct used to track multipart uploads
 type appendTracker struct {
 	uploadID   string
@@ -65,36 +70,42 @@ func (s *overrideSignatureVersion) IsExpired() bool {
 
 // NewNoConfirm gets the S3 backend without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	return internalNew(cfg, false)
+	rw, err := internalNew(cfg, false)
+	return rw, rw, rw, err
 }
 
 // New gets the S3 backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	rw, err := internalNew(cfg, true)
+	return rw, rw, rw, err
+}
+
+func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
 	return internalNew(cfg, true)
 }
 
-func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	if cfg == nil {
-		return nil, nil, nil, fmt.Errorf("config is nil")
+		return nil, fmt.Errorf("config is nil")
 	}
 
 	l := log.Logger
 
 	core, err := createCore(cfg, false)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unexpected error creating core: %w", err)
+		return nil, fmt.Errorf("unexpected error creating core: %w", err)
 	}
 
 	hedgedCore, err := createCore(cfg, true)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("unexpected error creating hedgedCore: %w", err)
+		return nil, fmt.Errorf("unexpected error creating hedgedCore: %w", err)
 	}
 
 	// try listing objects
 	if confirm {
 		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 0)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
+			return nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
 	}
 
@@ -104,7 +115,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 		core:       core,
 		hedgedCore: hedgedCore,
 	}
-	return rw, rw, rw, nil
+	return rw, nil
 }
 
 func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
@@ -289,6 +300,40 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
+}
+
+func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+	// Note there is a potential data race here because S3 does not support conditional headers. If
+	// another process writes to the same object in between ReadVersioned and Write its changes will
+	// be overwritten.
+	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
+	if err != nil {
+		return "", err
+	}
+	if currentVersion != version {
+		return "", backend.ErrVersionDoesNotMatch
+	}
+
+	err = rw.Write(ctx, name, keypath, data, -1, false)
+	if err != nil {
+		return "", err
+	}
+
+	_, currentVersion, err = rw.ReadVersioned(ctx, name, keypath)
+	return currentVersion, err
+}
+
+func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.ReadVersioned")
+	defer span.Finish()
+
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	b, objectInfo, err := rw.readAllWithObjInfo(derivedCtx, backend.ObjectFileName(keypath, name))
+	if err != nil {
+		return nil, "", readError(err)
+	}
+
+	return io.NopCloser(bytes.NewReader(b)), backend.Version(objectInfo.ETag), nil
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {

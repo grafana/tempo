@@ -37,10 +37,11 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	limits := &UserConfigurableLimits{
 		Forwarders: &[]string{"my-forwarder"},
 	}
-	assert.NoError(t, client.Set(ctx, tenant, limits))
+	_, err = client.Set(ctx, tenant, limits, "")
+	assert.NoError(t, err)
 
 	// Get
-	retrievedLimits, err := client.Get(ctx, tenant)
+	retrievedLimits, _, err := client.Get(ctx, tenant)
 	assert.NoError(t, err)
 	assert.Equal(t, limits, retrievedLimits)
 
@@ -50,10 +51,9 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	assert.Equal(t, []string{tenant}, list)
 
 	// Delete
-	assert.NoError(t, client.Delete(ctx, tenant))
+	assert.NoError(t, client.Delete(ctx, tenant, ""))
 
 	// Get - does not exist
-	retrievedLimits, err = client.Get(ctx, tenant)
-	assert.NoError(t, err)
-	assert.Nil(t, retrievedLimits)
+	_, _, err = client.Get(ctx, tenant)
+	assert.ErrorIs(t, err, backend.ErrDoesNotExist)
 }
