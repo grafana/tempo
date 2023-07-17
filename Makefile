@@ -138,8 +138,8 @@ test-bench: tools docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
-fmt:
-	@gofmt -s -w $(FILES_TO_FMT)
+fmt: tools
+	@gofumpt -w $(FILES_TO_FMT)
 	@goimports -w $(FILES_TO_FMT)
 
 check-fmt: fmt
