@@ -279,7 +279,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 }
 
 func (rw *readerWriter) ListBlocks(
-	ctx context.Context,
+	_ context.Context,
 	keypath backend.KeyPath,
 ) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)

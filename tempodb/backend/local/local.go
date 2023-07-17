@@ -150,7 +150,7 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 }
 
 // ListBlocks implements backend.Reader
-func (rw *Backend) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
+func (rw *Backend) ListBlocks(_ context.Context, _ backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 

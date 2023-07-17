@@ -188,7 +188,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // ListBlocks implements backend.Reader
-func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
+func (rw *readerWriter) ListBlocks(_ context.Context, _ backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
 	// TODO: implement
 	return nil, nil, fmt.Errorf("not implemented")
 }
