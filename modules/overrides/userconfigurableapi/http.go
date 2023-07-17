@@ -1,8 +1,10 @@
 package userconfigurableapi
 
 import (
+	"io"
 	"net/http"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-kit/log/level"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
@@ -98,6 +100,56 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (a *UserConfigOverridesAPI) PatchOverridesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.PatchOverridesHandler")
+	defer span.Finish()
+
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
+	logRequest(userID, r)
+
+	patch, err := io.ReadAll(r.Body)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
+
+	var patchedBytes []byte
+	err = a.client.Update(ctx, userID, func(current io.ReadCloser) ([]byte, error) {
+		if current != nil {
+			currBytes, err := io.ReadAll(current)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to fetch current user-configurable limits")
+			}
+
+			patchedBytes, err = jsonpatch.MergePatch(currBytes, patch)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// No limits have been stored yet, the patch is the new limits
+			patchedBytes = patch
+		}
+
+		// TODO validate the received data
+
+		return patchedBytes, nil
+	})
+	if err != nil {
+		// TODO if the patch was invalid we should return http.StatusBadRequest
+		handleError(span, userID, r, w, http.StatusInternalServerError, err)
+		return
+	}
+
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(patchedBytes)
 }
 
 func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r *http.Request) {

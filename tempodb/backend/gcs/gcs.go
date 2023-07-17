@@ -40,6 +40,15 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return internalNew(cfg, true)
 }
 
+func NewVersionedWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
+	rw, _, _, err := internalNew(cfg, true)
+	if err != nil {
+		return nil, err
+	}
+	// TODO refactor cleanly
+	return rw.(*readerWriter), nil
+}
+
 func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	ctx := context.Background()
 
@@ -77,7 +86,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 	span.SetTag("object", name)
 
-	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name))
+	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), nil)
 
 	_, err := io.Copy(w, data)
 	if err != nil {
@@ -99,7 +108,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 
 	var w *storage.Writer
 	if tracker == nil {
-		w = rw.writer(ctx, backend.ObjectFileName(keypath, name))
+		w = rw.writer(ctx, backend.ObjectFileName(keypath, name), nil)
 	} else {
 		w = tracker.(*storage.Writer)
 	}
@@ -192,8 +201,50 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
+func (rw *readerWriter) Update(ctx context.Context, name string, keypath backend.KeyPath, updateFn backend.UpdateFn) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Update", opentracing.Tags{
+		"object": name,
+	})
+	defer span.Finish()
+
+	b, generation, err := rw.readAllWithGeneration(derivedCtx, backend.ObjectFileName(keypath, name))
+	if err != nil && err != storage.ErrObjectNotExist {
+		span.SetTag("error", true)
+		return err
+	}
+
+	var current io.ReadCloser
+	if err != nil {
+		current = io.NopCloser(bytes.NewReader(b))
+	}
+
+	b, err = updateFn(current)
+	if err != nil {
+		span.SetTag("error", true)
+		return err
+	}
+
+	precondition := storage.Conditions{
+		GenerationMatch: generation,
+	}
+	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), &precondition)
+
+	_, err = io.Copy(w, bytes.NewReader(b))
+	if err != nil {
+		w.Close()
+		span.SetTag("error", true)
+		return errors.Wrap(err, "failed to write")
+	}
+
+	return w.Close()
+}
+
+func (rw *readerWriter) writer(ctx context.Context, name string, conditions *storage.Conditions) *storage.Writer {
 	o := rw.bucket.Object(name)
+	if conditions != nil {
+		o = o.If(*conditions)
+	}
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 
@@ -231,6 +282,22 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	}
 
 	return buf, r.Attrs.LastModified, nil
+}
+
+func (rw *readerWriter) readAllWithGeneration(ctx context.Context, name string) ([]byte, int64, error) {
+	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer r.Close()
+
+	buf, err := tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return buf, r.Attrs.Generation, nil
+
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {

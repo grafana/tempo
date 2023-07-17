@@ -59,50 +59,59 @@ type Client interface {
 	List(ctx context.Context) ([]string, error)
 	Get(context.Context, string) (*UserConfigurableLimits, error)
 	Set(context.Context, string, *UserConfigurableLimits) error
+	Update(context.Context, string, backend.UpdateFn) error
 	Delete(context.Context, string) error
 }
 
 type userConfigOverridesClient struct {
-	r backend.RawReader
-	w backend.RawWriter
+	rw backend.VersionedReaderWriter
 }
 
 var _ Client = (*userConfigOverridesClient)(nil)
 
 func NewUserConfigOverridesClient(cfg *UserConfigurableOverridesClientConfig) (Client, error) {
-	r, w, err := initBackend(cfg)
+	rw, err := initBackend(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &userConfigOverridesClient{r, w}, nil
+	return &userConfigOverridesClient{rw}, nil
 }
 
-func initBackend(cfg *UserConfigurableOverridesClientConfig) (reader backend.RawReader, writer backend.RawWriter, err error) {
+func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.VersionedReaderWriter, err error) {
 	switch cfg.Backend {
 	case backend.Local:
-		reader, writer, _, err = local.New(cfg.Local)
+		reader, writer, _, err := local.New(cfg.Local)
 		if err != nil {
-			return
+			return nil, err
 		}
+		rw = backend.NewUncheckedVersionedReaderWriter(reader, writer)
 		// Create overrides directory with necessary permissions
 		err = os.MkdirAll(path.Join(cfg.Local.Path, OverridesKeyPath), os.ModePerm)
 	case backend.GCS:
-		reader, writer, _, err = gcs.New(cfg.GCS)
+		rw, err = gcs.NewVersionedWriter(cfg.GCS)
 	case backend.S3:
-		reader, writer, _, err = s3.New(cfg.S3)
+		reader, writer, _, err := s3.New(cfg.S3)
+		if err != nil {
+			return nil, err
+		}
+		rw = backend.NewUncheckedVersionedReaderWriter(reader, writer)
 	case backend.Azure:
-		reader, writer, _, err = azure.New(cfg.Azure)
+		reader, writer, _, err := azure.New(cfg.Azure)
+		if err != nil {
+			return nil, err
+		}
+		rw = backend.NewUncheckedVersionedReaderWriter(reader, writer)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
-	return
+	return rw, err
 }
 
 func (o *userConfigOverridesClient) List(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.List")
 	defer span.Finish()
 
-	return o.r.List(ctx, []string{OverridesKeyPath})
+	return o.rw.List(ctx, []string{OverridesKeyPath})
 }
 
 // Get downloads the tenant limits from the backend. Returns nil, nil if no limits are set.
@@ -118,7 +127,7 @@ func (o *userConfigOverridesClient) Get(ctx context.Context, userID string) (ten
 		}
 	}()
 
-	reader, _, err := o.r.Read(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, false)
+	reader, _, err := o.rw.Read(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, false)
 	if err == backend.ErrDoesNotExist {
 		return nil, nil
 	}
@@ -144,7 +153,11 @@ func (o *userConfigOverridesClient) Set(ctx context.Context, userID string, limi
 	}
 
 	// Store on the bucket
-	return o.w.Write(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, bytes.NewReader(data), -1, false)
+	return o.rw.Write(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, bytes.NewReader(data), -1, false)
+}
+
+func (o *userConfigOverridesClient) Update(ctx context.Context, userID string, updateFn backend.UpdateFn) error {
+	return o.rw.Update(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, updateFn)
 }
 
 // Delete will clear all user-configurable limits for the given tenant.
@@ -153,5 +166,5 @@ func (o *userConfigOverridesClient) Delete(ctx context.Context, userID string) e
 	defer span.Finish()
 	span.SetTag("tenant", userID)
 
-	return o.w.Delete(ctx, OverridesFileName, []string{OverridesKeyPath, userID})
+	return o.rw.Delete(ctx, OverridesFileName, []string{OverridesKeyPath, userID})
 }

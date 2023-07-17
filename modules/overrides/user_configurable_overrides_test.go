@@ -124,7 +124,7 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
 	// replace reader by this uncooperative fella
-	mgr.client = badClient{}
+	mgr.client = &badClient{}
 
 	// reloading fails
 	assert.Error(t, mgr.reloadAllTenantLimits(context.Background()))
@@ -214,18 +214,24 @@ func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant st
 
 type badClient struct{}
 
-func (b badClient) List(context.Context) ([]string, error) {
+var _ api.Client = (*badClient)(nil)
+
+func (b *badClient) List(context.Context) ([]string, error) {
 	return nil, errors.New("no")
 }
 
-func (b badClient) Get(context.Context, string) (*api.UserConfigurableLimits, error) {
+func (b *badClient) Get(context.Context, string) (*api.UserConfigurableLimits, error) {
 	return nil, errors.New("no")
 }
 
-func (b badClient) Set(context.Context, string, *api.UserConfigurableLimits) error {
+func (b *badClient) Set(context.Context, string, *api.UserConfigurableLimits) error {
 	return errors.New("no")
 }
 
-func (b badClient) Delete(context.Context, string) error {
+func (b *badClient) Update(ctx context.Context, s string, fn backend.UpdateFn) error {
+	return errors.New("no")
+}
+
+func (b *badClient) Delete(context.Context, string) error {
 	return errors.New("no")
 }
