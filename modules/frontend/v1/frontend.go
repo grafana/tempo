@@ -31,6 +31,7 @@ var (
 type Config struct {
 	MaxOutstandingPerTenant int           `yaml:"max_outstanding_per_tenant"`
 	QuerierForgetDelay      time.Duration `yaml:"querier_forget_delay"`
+	MaxBatchSize            int           `yaml:"max_batch_size"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet.
@@ -61,12 +62,11 @@ type Frontend struct {
 	subservicesWatcher *services.FailureWatcher
 
 	// Metrics.
-	queueLength        *prometheus.GaugeVec
-	discardedRequests  *prometheus.CounterVec
-	numClients         prometheus.GaugeFunc
-	queueDuration      prometheus.Histogram
-	actualBatchSize    prometheus.Histogram // jpe - keep?
-	requestedBatchSize prometheus.Histogram
+	queueLength       *prometheus.GaugeVec
+	discardedRequests *prometheus.CounterVec
+	numClients        prometheus.GaugeFunc
+	queueDuration     prometheus.Histogram
+	actualBatchSize   prometheus.Histogram
 }
 
 type request struct {
@@ -103,11 +103,6 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 			Help:    "Batch size.",
 			Buckets: prometheus.LinearBuckets(1, 1, 10),
 		}),
-		requestedBatchSize: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
-			Name:    "tempo_query_frontend_requested_batch_size",
-			Help:    "Batch size.",
-			Buckets: prometheus.LinearBuckets(1, 1, 10),
-		}),
 	}
 
 	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, cfg.QuerierForgetDelay, f.queueLength, f.discardedRequests)
@@ -117,6 +112,10 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 	f.subservices, err = services.NewManager(f.requestQueue, f.activeUsers)
 	if err != nil {
 		return nil, err
+	}
+
+	if f.cfg.MaxBatchSize <= 0 { // jpe test?
+		return nil, errors.New("max_batch_size must be positive")
 	}
 
 	f.numClients = promauto.With(registerer).NewGaugeFunc(prometheus.GaugeOpts{
@@ -219,7 +218,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	reqBatch := &requestBatch{}
 	batchSize := 1
 	if querierSupportsBatching(querierFeatures) {
-		batchSize = 5 // jpe configurable
+		batchSize = f.cfg.MaxBatchSize
 	}
 	for {
 		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, batchSize) // jpe pass in reusable slice?
@@ -228,7 +227,6 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		}
 		lastUserIndex = idx
 
-		f.requestedBatchSize.Observe(float64(batchSize))
 		reqBatch.clear()
 		for _, reqWrapper := range reqSlice {
 			req := reqWrapper.(*request)
