@@ -81,6 +81,7 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
 func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int) error {
 	q.mtx.RLock()
+	// don't defer a release. we won't know what we need to release until we call getQueueUnderRlock
 
 	if q.stopped {
 		q.mtx.RUnlock()
@@ -105,9 +106,12 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 	}
 }
 
+// getQueueUnderRlock attempts to get the queue for the given user under read lock. if it is not
+// possible it upgrades the RLock to a Lock. This method also returns a cleanup function that
+// will release whichever lock it had to acquire to get the queue.
 func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan Request, func(), error) {
 	cleanup := func() {
-		q.mtx.RUnlock() // jpe htis unlocks the enqueue request lock. make not dumb
+		q.mtx.RUnlock()
 	}
 
 	uq := q.queues.userQueues[userID]
@@ -121,7 +125,7 @@ func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan 
 	q.mtx.Lock()
 
 	cleanup = func() {
-		q.mtx.Unlock() // jpe - THE PROBLEM IS HERE - when swapping write -> read lock it allows GetNextRequsetForQuerier to delete the queue and now this queue is no longer tracked
+		q.mtx.Unlock()
 	}
 
 	queue := q.queues.getOrAddQueue(userID, maxQueriers)
