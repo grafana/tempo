@@ -115,7 +115,6 @@ func BenchmarkProtoToParquet(b *testing.B) {
 
 	for _, spanCount := range spanCounts {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
-
 			id := test.ValidTraceID(nil)
 			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
 
@@ -166,7 +165,6 @@ func BenchmarkEventToParquet(b *testing.B) {
 }
 
 func BenchmarkDeconstruct(b *testing.B) {
-
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000,
@@ -183,7 +181,6 @@ func BenchmarkDeconstruct(b *testing.B) {
 			ss := humanize.SI(float64(batchCount*spanCount), "")
 			ps := humanize.SI(float64(poolSize), "")
 			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
-
 				id := test.ValidTraceID(nil)
 				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 				sch := parquet.SchemaOf(tr)
@@ -211,7 +208,7 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 }
 
 func estimateRowSize(t *testing.T, name string) {
-	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(name, os.O_RDONLY, 0o644)
 	require.NoError(t, err)
 
 	fi, err := f.Stat()

@@ -19,13 +19,11 @@ const (
 	Regex  MatchType = "regex"
 )
 
-var (
-	supportedIntrinsics = []traceql.Intrinsic{
-		traceql.IntrinsicKind,
-		traceql.IntrinsicName,
-		traceql.IntrinsicStatus,
-	}
-)
+var supportedIntrinsics = []traceql.Intrinsic{
+	traceql.IntrinsicKind,
+	traceql.IntrinsicName,
+	traceql.IntrinsicStatus,
+}
 
 type PolicyMatch struct {
 	MatchType  MatchType              `yaml:"match_type"`

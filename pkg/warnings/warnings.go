@@ -7,10 +7,8 @@ import (
 
 const ReasonOutsideIngestionSlack = "outside_ingestion_time_slack"
 
-var (
-	Metric = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "warnings_total",
-		Help:      "The total number of warnings per tenant with reason.",
-	}, []string{"tenant", "reason"})
-)
+var Metric = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "warnings_total",
+	Help:      "The total number of warnings per tenant with reason.",
+}, []string{"tenant", "reason"})

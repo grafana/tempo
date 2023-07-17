@@ -332,6 +332,7 @@ func assertChanReceived(t *testing.T, c chan struct{}, timeout time.Duration, ms
 		t.Fatalf(msg)
 	}
 }
+
 func assertChanNotReceived(t *testing.T, c chan struct{}, wait time.Duration, msg string, args ...interface{}) {
 	t.Helper()
 

@@ -302,7 +302,7 @@ func benchmarkColumnIterator(b *testing.B, makeIter makeTestIterFn) {
 		}
 		iter.Close()
 		require.Equal(b, count, actualCount)
-		//fmt.Println(actualCount)
+		// fmt.Println(actualCount)
 	}
 }
 

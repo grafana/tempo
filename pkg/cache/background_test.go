@@ -26,7 +26,6 @@ func TestBackground(t *testing.T) {
 }
 
 func fillCache(cache cache.Cache) ([]string, [][]byte) {
-
 	// put a set of chunks, larger than background batch size, with varying timestamps and values
 	keys := []string{}
 	bufs := [][]byte{}

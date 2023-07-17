@@ -15,7 +15,6 @@ import (
 )
 
 func TestCombineProtoTotals(t *testing.T) {
-
 	methods := []func(a, b *tempopb.Trace) (*tempopb.Trace, int){
 		func(a, b *tempopb.Trace) (*tempopb.Trace, int) {
 			c := NewCombiner()
@@ -62,7 +61,6 @@ func TestCombineProtoTotals(t *testing.T) {
 }
 
 func TestTokenForIDCollision(t *testing.T) {
-
 	// Estimate the hash collision rate of tokenForID.
 
 	n := 1_000_000

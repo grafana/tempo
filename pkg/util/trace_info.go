@@ -52,7 +52,6 @@ func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 }
 
 func (t *TraceInfo) Ready(now time.Time, writeBackoff, longWriteBackoff time.Duration) bool {
-
 	// Don't use the last time interval to allow the write loop to finish before
 	// we try to read it.
 	if t.timestamp.After(now.Add(-writeBackoff)) {
@@ -156,7 +155,7 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 }
 
 func (t *TraceInfo) generateRandomString() string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 	s := make([]rune, t.generateRandomInt(5, 20))
 	for i := range s {

@@ -10,7 +10,6 @@ import (
 )
 
 func TestBufferedReaderAtCalculateBounds(t *testing.T) {
-
 	testCases := []struct {
 		readerAtSize                   int64
 		offset, length                 int64

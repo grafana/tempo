@@ -374,7 +374,6 @@ func searchTag(client *httpclient.Client, seed time.Time) (traceMetrics, error) 
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
 	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
-
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -438,7 +437,6 @@ func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, err
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
 	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
-
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++

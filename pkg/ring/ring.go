@@ -50,8 +50,7 @@ func newEventuallyConsistentRing(cfg ring.Config, name, key string, reg promethe
 
 // EventuallyConsistentStrategy represents a repl strategy with a consistency of 1 on read and
 // write.  Note this is NOT strongly consistent!  It is _eventually_ consistent :)
-type EventuallyConsistentStrategy struct {
-}
+type EventuallyConsistentStrategy struct{}
 
 // Filter decides, given the set of ingesters eligible for a key,
 // which ingesters you will try and write to and how many failures you will

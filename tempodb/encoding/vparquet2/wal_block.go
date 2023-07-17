@@ -210,7 +210,7 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 // file() opens the parquet file and returns it. previously this method cached the file on first open
 // but the memory cost of this was quite high. so instead we open it fresh every time
 func (w *walBlockFlush) file() (*pageFile, error) {
-	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(w.path, os.O_RDONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
 	}
@@ -367,11 +367,10 @@ func (b *walBlock) filepathOf(page int) string {
 }
 
 func (b *walBlock) openWriter() (err error) {
-
 	nextFile := len(b.flushed) + 1
 	filename := b.filepathOf(nextFile)
 
-	b.file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
+	b.file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
@@ -391,7 +390,6 @@ func (b *walBlock) openWriter() (err error) {
 }
 
 func (b *walBlock) Flush() (err error) {
-
 	if b.ids.Len() == 0 {
 		return nil
 	}
@@ -406,7 +404,7 @@ func (b *walBlock) Flush() (err error) {
 	}
 
 	metaPath := filepath.Join(b.walPath(), backend.MetaName)
-	err = os.WriteFile(metaPath, metaBytes, 0600)
+	err = os.WriteFile(metaPath, metaBytes, 0o600)
 	if err != nil {
 		return fmt.Errorf("error writing meta json: %w", err)
 	}

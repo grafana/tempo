@@ -5,9 +5,8 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"math/rand"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"

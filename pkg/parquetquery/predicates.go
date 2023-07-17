@@ -246,7 +246,6 @@ func (p *IntBetweenPredicate) String() string {
 }
 
 func (p *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
-
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Int64()
@@ -318,7 +317,6 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
 }
 
 func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
-
 	if p.RangeFn != nil {
 		if min, max, ok := page.Bounds(); ok {
 			return p.RangeFn(p.Extract(min), p.Extract(max))
@@ -369,7 +367,6 @@ func (p *FloatBetweenPredicate) String() string {
 }
 
 func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
-
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Double()
@@ -560,8 +557,7 @@ func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Val
 	return d.keepPagesInRowGroup
 }
 
-type SkipNilsPredicate struct {
-}
+type SkipNilsPredicate struct{}
 
 var _ Predicate = (*SkipNilsPredicate)(nil)
 

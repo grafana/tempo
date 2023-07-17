@@ -163,7 +163,6 @@ func blobStorageError(serviceCode string) error {
 }
 
 func TestObjectWithPrefix(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		prefix      string

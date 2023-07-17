@@ -19,10 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const getMethod = "GET"
-const putMethod = "PUT"
-const tagHeader = "X-Amz-Tagging"
-const storageClassHeader = "X-Amz-Storage-Class"
+const (
+	getMethod          = "GET"
+	putMethod          = "PUT"
+	tagHeader          = "X-Amz-Tagging"
+	storageClassHeader = "X-Amz-Storage-Class"
+)
 
 func TestHedge(t *testing.T) {
 	tests := []struct {
@@ -152,7 +154,6 @@ func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string
 		<ListBucketResult>
 		</ListBucketResult>`))
 		}
-
 	}))
 	t.Cleanup(server.Close)
 
@@ -160,7 +161,6 @@ func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string
 }
 
 func TestObjectBlockTags(t *testing.T) {
-
 	tests := []struct {
 		name string
 		tags map[string]string
@@ -201,7 +201,6 @@ func TestObjectBlockTags(t *testing.T) {
 }
 
 func TestObjectWithPrefix(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		prefix      string
@@ -273,7 +272,6 @@ func TestObjectWithPrefix(t *testing.T) {
 }
 
 func TestObjectStorageClass(t *testing.T) {
-
 	tests := []struct {
 		name         string
 		StorageClass string

@@ -32,8 +32,7 @@ func init() {
 }
 
 // gogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger/etcd structs
-type gogoCodec struct {
-}
+type gogoCodec struct{}
 
 var _ encoding.Codec = (*gogoCodec)(nil)
 

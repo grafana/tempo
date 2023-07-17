@@ -22,7 +22,6 @@ const (
 )
 
 func TestServerless(t *testing.T) {
-
 	testClouds := []struct {
 		name       string
 		serverless *e2e.HTTPService
@@ -119,10 +118,8 @@ func TestServerless(t *testing.T) {
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-
 		})
 	}
-
 }
 
 func newTempoServerlessGCR() *e2e.HTTPService {

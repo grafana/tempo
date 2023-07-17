@@ -29,11 +29,11 @@ import (
 func TestInstanceSearch(t *testing.T) {
 	i, ingester, tempDir := defaultInstanceAndTmpDir(t)
 
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := "foo"
+	tagValue := "bar"
 	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
 	}
 	req.Tags[tagKey] = tagValue
@@ -164,8 +164,8 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	i, ingester, _ := defaultInstanceAndTmpDir(t)
 
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := "foo"
+	tagValue := "bar"
 	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
@@ -196,7 +196,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 	}
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
 	}
 	req.Tags[tagKey] = tagValue
@@ -240,8 +240,8 @@ func TestInstanceSearchTags(t *testing.T) {
 	i, _ := defaultInstance(t)
 
 	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := "foo"
+	tagValue := "bar"
 
 	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
 
@@ -373,8 +373,8 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	i, err := ingester.getOrCreateInstance("fake")
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := "foo"
+	tagValue := "bar"
 
 	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
 
@@ -487,7 +487,7 @@ func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue str
 func TestInstanceSearchNoData(t *testing.T) {
 	i, _ := defaultInstance(t)
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
 	}
 
@@ -506,10 +506,10 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := "foo"
+	tagValue := "bar"
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{tagKey: tagValue},
 	}
 
@@ -783,7 +783,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
 			// time.Sleep(1 * time.Millisecond)
-			var req = &tempopb.SearchRequest{}
+			req := &tempopb.SearchRequest{}
 			resp, err := i.Search(ctx, req)
 			require.NoError(b, err)
 			searches.Inc()

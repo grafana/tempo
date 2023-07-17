@@ -11,8 +11,7 @@ import (
 
 const Encoding = "v1"
 
-type ObjectDecoder struct {
-}
+type ObjectDecoder struct{}
 
 var staticDecoder = &ObjectDecoder{}
 

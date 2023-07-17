@@ -114,7 +114,6 @@ func TestKeyPathForBlock(t *testing.T) {
 }
 
 func TestMetaFileName(t *testing.T) {
-
 	// WithoutPrefix
 	b := uuid.New()
 	tid := tenantID
@@ -131,7 +130,6 @@ func TestMetaFileName(t *testing.T) {
 }
 
 func TestCompactedMetaFileName(t *testing.T) {
-
 	// WithoutPrefix
 	b := uuid.New()
 	tid := tenantID
@@ -148,7 +146,6 @@ func TestCompactedMetaFileName(t *testing.T) {
 }
 
 func TestRootPath(t *testing.T) {
-
 	// WithoutPrefix
 	b := uuid.New()
 	tid := tenantID

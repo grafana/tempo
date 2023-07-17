@@ -23,9 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 )
 
-var (
-	errTooManyRequest = httpgrpc.Errorf(http.StatusTooManyRequests, "too many outstanding requests")
-)
+var errTooManyRequest = httpgrpc.Errorf(http.StatusTooManyRequests, "too many outstanding requests")
 
 // Config for a Frontend.
 type Config struct {
@@ -291,7 +289,6 @@ func getQuerierID(server frontendv1pb.Frontend_ProcessServer) (string, error) {
 			Url:    "/invalid_request_sent_by_frontend",
 		},
 	})
-
 	if err != nil {
 		return "", err
 	}
