@@ -433,7 +433,7 @@ func (b *walBlock) Flush() (err error) {
 	b.unflushedSize = 0
 	b.ids = common.NewIDMap[int64]()
 
-	// open next one
+	// Open next one
 	return b.openWriter()
 }
 

@@ -49,7 +49,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			compactionLevel = blockMeta.CompactionLevel
 		}
 
-		// open iterator
+		// Open iterator
 		block, err := NewBackendBlock(blockMeta, r)
 		if err != nil {
 			return nil, err
