@@ -383,6 +383,7 @@ ingester:
     max_block_bytes: 524288000
     complete_block_timeout: 15m0s
     override_ring_key: ring
+    flush_all_on_shutdown: false
 metrics_generator:
     ring:
         kvstore:
@@ -439,6 +440,7 @@ metrics_generator:
                 - 6.4
                 - 12.8
             dimensions: []
+            enable_client_server_prefix: false
             peer_attributes:
                 - peer.service
                 - db.name
@@ -485,6 +487,7 @@ metrics_generator:
                 v2_index_page_size_bytes: 256000
                 v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
+                dedicated_columns: []
             search:
                 chunk_size_bytes: 1000000
                 prefetch_trace_count: 1000
@@ -526,6 +529,7 @@ metrics_generator:
         version: vParquet2
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
+    override_ring_key: metrics-generator
 storage:
     trace:
         pool:
@@ -549,6 +553,7 @@ storage:
             v2_index_page_size_bytes: 256000
             v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
+            dedicated_columns: []
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -641,6 +646,7 @@ overrides:
     metrics_generator_processor_service_graphs_histogram_buckets: []
     metrics_generator_processor_service_graphs_dimensions: []
     metrics_generator_processor_service_graphs_peer_attributes: []
+    metrics_generator_processor_service_graphs_enable_client_server_prefix: false
     metrics_generator_processor_span_metrics_histogram_buckets: []
     metrics_generator_processor_span_metrics_dimensions: []
     metrics_generator_processor_span_metrics_intrinsic_dimensions: {}
@@ -658,6 +664,7 @@ overrides:
     max_blocks_per_tag_values_query: 0
     max_search_duration: 0s
     max_bytes_per_trace: 5000000
+    dedicated_columns: []
     per_tenant_override_config: ""
     per_tenant_override_period: 10s
 memberlist:

@@ -1083,6 +1083,17 @@ storage:
             #  create larger footers but will be harder to shard when searching. It is difficult to calculate
             #  this field directly and it may vary based on workload. This is roughly a lower bound.
             [parquet_row_group_size_bytes: <int> | default = 100MB]
+
+            # *vParquet3-only configuration*
+            # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+            # generic attribute key-value list. This allows for more efficient searching of these attributes.
+            # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+            dedicated_columns:
+                [ 
+                  name: <string>, # name of the attribute
+                  type: <string>, # type of the attribute. options: string
+                  scope: <string> # scope of the attribute. options: resource, span
+                ]
 ```
 
 ## Memberlist
@@ -1311,6 +1322,17 @@ overrides:
     # Per-user max search duration. If this value is set to 0 (default), then max_duration
     #  in the front-end configuration is used.
     [max_search_duration: <duration> | default = 0s]
+
+    # *vParquet3-only configuration*
+    # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+    # generic attribute key-value list. This allows for more efficient searching of these attributes.
+    # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+    dedicated_columns:
+        [
+          name: <string>, # name of the attribute
+          type: <string>, # type of the attribute. options: string
+          scope: <string> # scope of the attribute. options: resource, span
+        ]
 
     # Tenant-specific overrides settings configuration file. The empty string (default
     # value) disables using an overrides file.
