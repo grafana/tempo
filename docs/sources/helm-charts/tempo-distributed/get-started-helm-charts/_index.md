@@ -90,17 +90,21 @@ For more details, see the Kubernetes documentation about [Creating a new namespa
 
 ## Set Helm chart values
 
-Your Helm chart values are set in the `custom.yaml` file.
-The Tempo Helm char values example `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main.
+The Helm Chart for Tempo includes a file called "values.yaml", containing default configuration options. In our case, you will create a local file called "custom.yaml" in a working directory - this is detailed in the set of steps below.
+
+After creating the file, you will have the option to make changes in that file as needed for your deployment environment.
+
+When you use Helm to deploy the chart, you will specify that Helm will use your custom.yaml instead of values.yaml.
+The `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main.
 The `traces` configure the distributor's receiver protocols.
 
 To customize your Helm chart values:
 
-1. Create a `custom.yaml` file.
-1. Copy and paste either the Tempo Helm chart values or the GET Helm chart values into your file.
-1. Save the file in your working directory.
-1. Set your storage values, the example helm chart values points to the MinIO instance configured by the chart.
-1. Set your traces values to configure the receivers on the Tempo distributor.
+1. Create a `custom.yaml` file in your working directory.
+1. From the examples below, copy and paste either the Tempo Helm chart values or the Grafana Enterprise Traces Helm chart values into your file.
+1. Save your `custom.yaml` file.
+1. For simple deployments, leave the `storage` and `minio` sections as they are; MinIO will be deployed for you by the Helm chart and Tempo will use it to store traces (and other information if you are running GET). Further down this page, you will find instructions for customizing your trace storage configuration options, if the provided defaults are not what you are looking to test.
+1. Set your traces values to configure the receivers on the Tempo distributor. (More detail on this is further down on this page.)
 1. Save the changes to your file.
 
 ### Tempo Helm chart values
