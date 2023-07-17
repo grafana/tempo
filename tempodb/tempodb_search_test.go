@@ -179,26 +179,30 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		// that always match multiple spans. The only way to keep these tests from being brittle
 		// is to ensure that all spans are selected.  It's ok if a span still shows up in multiple
 		// filters (because of traceDuration > 0 for example) because the && operator ensures final uniqueness.
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } | avg(duration) = %dns",
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } && { %s && %s } | avg(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
 			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
-			(durationBySpan[0]+durationBySpan[1]+durationBySpan[2])/3)},
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } | min(duration) = %dns",
+			rando(trueConditionsBySpan[3]), rando(trueConditionsBySpan[3]),
+			(durationBySpan[0]+durationBySpan[1]+durationBySpan[2]+durationBySpan[3])/4)},
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } && { %s && %s } | min(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
 			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
-			math.Min64(math.Min64(int64(durationBySpan[0]), int64(durationBySpan[1])), int64(durationBySpan[2])))},
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s }  && { %s && %s } | max(duration) = %dns",
+			rando(trueConditionsBySpan[3]), rando(trueConditionsBySpan[3]),
+			math.Min64(durationBySpan[0], durationBySpan[1], durationBySpan[2], durationBySpan[3]))},
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s }  && { %s && %s } && { %s && %s } | max(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
 			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
-			math.Max64(math.Max64(int64(durationBySpan[0]), int64(durationBySpan[1])), int64(durationBySpan[2])))},
-		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s } | sum(duration) = %dns",
+			rando(trueConditionsBySpan[3]), rando(trueConditionsBySpan[3]),
+			math.Max64(durationBySpan[0], durationBySpan[1], durationBySpan[2], durationBySpan[3]))},
+		{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } && { %s && %s }  && { %s && %s }| sum(duration) = %dns",
 			rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
 			rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
 			rando(trueConditionsBySpan[2]), rando(trueConditionsBySpan[2]),
-			durationBySpan[0]+durationBySpan[1]+durationBySpan[2])},
+			rando(trueConditionsBySpan[3]), rando(trueConditionsBySpan[3]),
+			durationBySpan[0]+durationBySpan[1]+durationBySpan[2]+durationBySpan[3])},
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 2"},
 		{Query: "{} | by(resource.service.name) | count() = 1"},
@@ -365,6 +369,24 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
 							},
 						},
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000000000",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "BrokenService"}}},
+									},
+								},
+							},
+							Matched: 1,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(resource.service.name)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "BrokenService"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+							},
+						},
 					},
 				},
 			},
@@ -519,6 +541,13 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{ .child } >> { .parent }"},
 		{Query: "{ .child } > { .parent }"},
 		{Query: "{ .child } ~ { .parent }"},
+		{Query: "{ .child } ~ { .child }"},
+		{Query: "{ .broken} >> {}"},
+		{Query: "{ .broken} > {}"},
+		{Query: "{ .broken} ~ {}"},
+		{Query: "{} >> {.broken}"},
+		{Query: "{} > {.broken}"},
+		{Query: "{} ~ {.broken}"},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -732,10 +761,10 @@ func intKV(k string, v int) *v1_common.KeyValue {
 	}
 }
 
-func boolKV(k string, v bool) *v1_common.KeyValue {
+func boolKV(k string) *v1_common.KeyValue {
 	return &v1_common.KeyValue{
 		Key:   k,
-		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: v}},
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}},
 	}
 }
 
@@ -846,7 +875,7 @@ func searchTestSuite() (
 									stringKV("http.url", "url/Hello/World"),
 									intKV("http.status_code", 500),
 									stringKV("foo", "Bar"),
-									boolKV("child", true),
+									boolKV("child"),
 								},
 							},
 						},
@@ -872,7 +901,7 @@ func searchTestSuite() (
 								Kind:              v1.Span_SPAN_KIND_CLIENT,
 								Attributes: []*v1_common.KeyValue{
 									stringKV("foo", "Bar"),
-									boolKV("parent", true),
+									boolKV("parent"),
 								},
 							},
 						},
@@ -897,7 +926,32 @@ func searchTestSuite() (
 								Kind:              v1.Span_SPAN_KIND_PRODUCER,
 								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
 								Attributes: []*v1_common.KeyValue{
-									boolKV("child2", true),
+									boolKV("child2"),
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: &v1_resource.Resource{
+					Attributes: []*v1_common.KeyValue{
+						stringKV("service.name", "BrokenService"),
+					},
+				},
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{
+								Name:              "BrokenSpan",
+								TraceId:           id,
+								SpanId:            []byte{0, 0, 0},
+								ParentSpanId:      []byte{0, 0, 0},
+								StartTimeUnixNano: uint64(1000 * time.Second),
+								EndTimeUnixNano:   uint64(1001 * time.Second),
+								Status:            &v1.Status{Code: v1.Status_STATUS_CODE_OK},
+								Attributes: []*v1_common.KeyValue{
+									boolKV("broken"),
 								},
 							},
 						},
