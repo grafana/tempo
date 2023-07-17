@@ -11,7 +11,7 @@ import (
 )
 
 // retentionLoop watches a timer to clean up blocks that are past retention.
-func (db *tempoDB) retentionLoop(ctx context.Context) {
+func (db *TempoDB) retentionLoop(ctx context.Context) {
 	ticker := time.NewTicker(db.cfg.BlocklistPoll)
 	for {
 		select {
@@ -29,7 +29,7 @@ func (db *tempoDB) retentionLoop(ctx context.Context) {
 	}
 }
 
-func (db *tempoDB) doRetention(ctx context.Context) {
+func (db *TempoDB) doRetention(ctx context.Context) {
 	tenants := db.blocklist.Tenants()
 
 	bg := boundedwaitgroup.New(db.compactorCfg.RetentionConcurrency)
@@ -45,7 +45,7 @@ func (db *tempoDB) doRetention(ctx context.Context) {
 	bg.Wait()
 }
 
-func (db *tempoDB) retainTenant(ctx context.Context, tenantID string) {
+func (db *TempoDB) retainTenant(ctx context.Context, tenantID string) {
 	start := time.Now()
 	defer func() { metricRetentionDuration.Observe(time.Since(start).Seconds()) }()
 

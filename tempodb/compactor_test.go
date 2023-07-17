@@ -685,7 +685,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 func cutTestBlocks(
 	ctx context.Context,
 	t testing.TB,
-	w *tempoDB,
+	w *TempoDB,
 	tenantID string,
 	blockCount int,
 	recordCount int,

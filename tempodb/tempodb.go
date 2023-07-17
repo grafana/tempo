@@ -107,7 +107,7 @@ type WriteableBlock interface {
 	Write(ctx context.Context, w backend.Writer) error
 }
 
-type tempoDB struct {
+type TempoDB struct {
 	r backend.Reader
 	w backend.Writer
 	c backend.Compactor
@@ -131,7 +131,7 @@ type tempoDB struct {
 }
 
 // New creates a new tempodb
-func New(cfg *Config, logger gkLog.Logger) (*tempoDB, error) {
+func New(cfg *Config, logger gkLog.Logger) (*TempoDB, error) {
 	var rawR backend.RawReader
 	var rawW backend.RawWriter
 	var c backend.Compactor
@@ -179,7 +179,7 @@ func New(cfg *Config, logger gkLog.Logger) (*tempoDB, error) {
 
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
-	db := &tempoDB{
+	db := &TempoDB{
 		c:              c,
 		r:              r,
 		uncachedReader: uncachedReader,
@@ -199,19 +199,19 @@ func New(cfg *Config, logger gkLog.Logger) (*tempoDB, error) {
 	return db, nil
 }
 
-func (db *tempoDB) WriteBlock(ctx context.Context, c WriteableBlock) error {
+func (db *TempoDB) WriteBlock(ctx context.Context, c WriteableBlock) error {
 	w := db.getWriterForBlock(c.BlockMeta(), time.Now())
 	return c.Write(ctx, w)
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
-func (db *tempoDB) CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error) {
+func (db *TempoDB) CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error) {
 	return db.CompleteBlockWithBackend(ctx, block, db.r, db.w)
 }
 
 // CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
 // new block will have the same ID as the input block.
-func (db *tempoDB) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
+func (db *TempoDB) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 	// The destination block format:
 	vers, err := encoding.FromVersion(db.cfg.Block.Version)
 	if err != nil {
@@ -258,15 +258,15 @@ func (db *tempoDB) CompleteBlockWithBackend(ctx context.Context, block common.WA
 	return backendBlock, nil
 }
 
-func (db *tempoDB) WAL() *wal.WAL {
+func (db *TempoDB) WAL() *wal.WAL {
 	return db.wal
 }
 
-func (db *tempoDB) BlockMetas(tenantID string) []*backend.BlockMeta {
+func (db *TempoDB) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return db.blocklist.Metas(tenantID)
 }
 
-func (db *tempoDB) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
+func (db *TempoDB) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -351,7 +351,7 @@ func (db *tempoDB) Find(ctx context.Context, tenantID string, id common.ID, bloc
 
 // Search the given block.  This method takes the pre-loaded block meta instead of a block ID, which
 // eliminates a read per search request.
-func (db *tempoDB) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+func (db *TempoDB) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
 	block, err := encoding.OpenBlock(meta, db.r)
 	if err != nil {
 		return nil, err
@@ -361,7 +361,7 @@ func (db *tempoDB) Search(ctx context.Context, meta *backend.BlockMeta, req *tem
 	return block.Search(ctx, req, opts)
 }
 
-func (db *tempoDB) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+func (db *TempoDB) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	block, err := encoding.OpenBlock(meta, db.r)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
@@ -371,14 +371,14 @@ func (db *tempoDB) Fetch(ctx context.Context, meta *backend.BlockMeta, req trace
 	return block.Fetch(ctx, req, opts)
 }
 
-func (db *tempoDB) Shutdown() {
+func (db *TempoDB) Shutdown() {
 	// todo: stop blocklist poll
 	db.pool.Shutdown()
 	db.r.Shutdown()
 }
 
 // EnableCompaction activates the compaction/retention loops
-func (db *tempoDB) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
+func (db *TempoDB) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
 	// If compactor configuration is not as expected, no need to go any further
 	err := cfg.validate()
 	if err != nil {
@@ -411,7 +411,7 @@ func (db *tempoDB) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (db *tempoDB) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
+func (db *TempoDB) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
@@ -448,14 +448,14 @@ func (db *tempoDB) EnablePolling(ctx context.Context, sharder blocklist.JobShard
 	go db.pollingLoop(ctx)
 }
 
-func (db *tempoDB) pollingLoop(ctx context.Context) {
+func (db *TempoDB) pollingLoop(ctx context.Context) {
 	ticker := time.NewTicker(db.cfg.BlocklistPoll)
 	for range ticker.C {
 		db.pollBlocklist(ctx)
 	}
 }
 
-func (db *tempoDB) pollBlocklist(ctx context.Context) {
+func (db *TempoDB) pollBlocklist(ctx context.Context) {
 	blocklist, compactedBlocklist, err := db.blocklistPoller.Do(ctx)
 	if err != nil {
 		level.Error(db.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
@@ -465,7 +465,7 @@ func (db *tempoDB) pollBlocklist(ctx context.Context) {
 	db.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
 }
 
-func (db *tempoDB) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
+func (db *TempoDB) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
 	// compaction level is _atleast_ CacheMinCompactionLevel
 	if db.cfg.CacheMinCompactionLevel > 0 && meta.CompactionLevel < db.cfg.CacheMinCompactionLevel {
 		return false
@@ -479,7 +479,7 @@ func (db *tempoDB) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool 
 	return true
 }
 
-func (db *tempoDB) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Reader {
+func (db *TempoDB) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Reader {
 	if db.shouldCache(meta, curTime) {
 		return db.r
 	}
@@ -487,7 +487,7 @@ func (db *tempoDB) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time)
 	return db.uncachedReader
 }
 
-func (db *tempoDB) getWriterForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Writer {
+func (db *TempoDB) getWriterForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Writer {
 	if db.shouldCache(meta, curTime) {
 		return db.w
 	}

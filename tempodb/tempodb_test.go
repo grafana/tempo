@@ -38,7 +38,7 @@ func testConfig(
 	enc backend.Encoding,
 	blocklistPoll time.Duration,
 	opts ...testConfigOption,
-) (*tempoDB, string) {
+) (*TempoDB, string) {
 	tempDir := t.TempDir()
 
 	cfg := &Config{
@@ -224,7 +224,7 @@ func TestBlockCleanup(t *testing.T) {
 	assert.Equal(t, 0, len(m))
 }
 
-func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, db *tempoDB) {
+func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, db *TempoDB) {
 	db.pollBlocklist(context.Background())
 
 	blocklist := db.blocklist.Metas(testTenantID)

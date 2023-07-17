@@ -61,7 +61,7 @@ var (
 	}, []string{"tenant"})
 )
 
-func (db *tempoDB) compactionLoop(ctx context.Context) {
+func (db *TempoDB) compactionLoop(ctx context.Context) {
 	compactionCycle := DefaultCompactionCycle
 	if db.compactorCfg.CompactionCycle > 0 {
 		compactionCycle = db.compactorCfg.CompactionCycle
@@ -86,7 +86,7 @@ func (db *tempoDB) compactionLoop(ctx context.Context) {
 }
 
 // doCompaction runs a compaction cycle every 30s
-func (db *tempoDB) doCompaction(ctx context.Context) {
+func (db *TempoDB) doCompaction(ctx context.Context) {
 	// List of all tenants in the block list
 	// The block list is updated by constant polling the storage for tenant indexes and/or tenant blocks (and building the index)
 	tenants := db.blocklist.Tenants()
@@ -160,7 +160,7 @@ func (db *tempoDB) doCompaction(ctx context.Context) {
 	}
 }
 
-func (db *tempoDB) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+func (db *TempoDB) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(db.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
@@ -256,7 +256,7 @@ func (db *tempoDB) compact(ctx context.Context, blockMetas []*backend.BlockMeta,
 	return nil
 }
 
-func markCompacted(db *tempoDB, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) error {
+func markCompacted(db *TempoDB, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) error {
 	// Check if we have any errors, but continue marking the blocks as compacted
 	var errCount int
 	for _, meta := range oldBlocks {
