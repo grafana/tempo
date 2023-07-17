@@ -137,10 +137,14 @@ func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan 
 	return queue, cleanup, nil
 }
 
-// GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
-// By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
-// If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string, count int) ([]Request, UserIndex, error) {
+// GetNextRequestForQuerier find next user queue and attempts to dequeue N requests as defined by the length of
+// batchBuffer. This slice is a reusable buffer to fill up with requests
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string, batchBuffer []Request) ([]Request, UserIndex, error) {
+	requestedCount := len(batchBuffer)
+	if requestedCount == 0 {
+		return nil, last, errors.New("batch buffer must have len > 0")
+	}
+
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -161,11 +165,6 @@ FindQueue:
 		return nil, last, err
 	}
 
-	// always grab at least one request
-	if count < 1 {
-		count = 1
-	}
-
 	for {
 		queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
 		last.last = idx
@@ -174,14 +173,14 @@ FindQueue:
 		}
 
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
-		if len(queue) < count {
-			count = len(queue)
+		if len(queue) < requestedCount {
+			requestedCount = len(queue)
 		}
 
 		// Pick next requests from the queue.
-		requests := make([]Request, 0, count)
-		for i := 0; i < count; i++ {
-			requests = append(requests, <-queue)
+		batchBuffer = batchBuffer[:requestedCount]
+		for i := 0; i < requestedCount; i++ {
+			batchBuffer[i] = <-queue
 		}
 
 		qLen := len(queue)
@@ -193,7 +192,7 @@ FindQueue:
 		// Tell close() we've processed a request.
 		q.cond.Broadcast()
 
-		return requests, last, nil
+		return batchBuffer, last, nil
 	}
 
 	// There are no unexpired requests, so we can get back

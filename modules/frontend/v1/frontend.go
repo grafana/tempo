@@ -221,7 +221,8 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		batchSize = f.cfg.MaxBatchSize
 	}
 	for {
-		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, batchSize) // jpe pass in reusable slice?
+		reqSlice := make([]queue.Request, batchSize)
+		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, reqSlice) // jpe pass in reusable slice?
 		if err != nil {
 			return err
 		}

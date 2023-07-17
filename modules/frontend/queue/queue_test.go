@@ -171,8 +171,9 @@ func queueWithListeners(ctx context.Context, listeners int, batchSize int, liste
 
 			<-start
 
+			batchBuffer := make([]Request, batchSize)
 			for {
-				r, last, err = q.GetNextRequestForQuerier(ctx, last, "", batchSize)
+				r, last, err = q.GetNextRequestForQuerier(ctx, last, "", batchBuffer)
 				if err != nil {
 					return
 				}
@@ -209,7 +210,7 @@ func TestRequestQueue_GetNextRequestForQuerier_ShouldGetRequestAfterReshardingBe
 	querier2wg.Add(1)
 	go func() {
 		defer querier2wg.Done()
-		_, _, err := queue.GetNextRequestForQuerier(ctx, FirstUser(), "querier-2", 1)
+		_, _, err := queue.GetNextRequestForQuerier(ctx, FirstUser(), "querier-2", make([]Request, 1))
 		require.NoError(t, err)
 	}()
 
