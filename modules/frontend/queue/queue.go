@@ -79,7 +79,7 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 // between calls.
 //
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
-func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int, successFn func()) error { // jpe ditch successFn
+func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int) error {
 	q.mtx.RLock()
 
 	if q.stopped {
@@ -98,10 +98,6 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 	case queue <- req:
 		q.queueLength.WithLabelValues(userID).Inc()
 		q.cond.Broadcast()
-		// Call this function while holding a lock. This guarantees that no querier can fetch the request before function returns.
-		if successFn != nil {
-			successFn()
-		}
 		return nil
 	default:
 		q.discardedRequests.WithLabelValues(userID).Inc()

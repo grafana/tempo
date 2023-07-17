@@ -37,7 +37,7 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 	close(start)
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest("test", &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest("test", &mockRequest{}, 0)
 		require.NoError(t, err)
 	}
 
@@ -65,7 +65,7 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	close(start)
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest(test.RandomString(), &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest(test.RandomString(), &mockRequest{}, 0)
 		require.NoError(t, err)
 	}
 
@@ -93,7 +93,7 @@ func TestGetNextBatches(t *testing.T) {
 	close(start)
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest("user", &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest("user", &mockRequest{}, 0)
 		require.NoError(t, err)
 	}
 
@@ -136,7 +136,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < messages; j++ {
-			err := q.EnqueueRequest(user, req, 0, nil)
+			err := q.EnqueueRequest(user, req, 0)
 			if err != nil {
 				panic(err)
 			}
@@ -218,7 +218,7 @@ func TestRequestQueue_GetNextRequestForQuerier_ShouldGetRequestAfterReshardingBe
 
 	// Enqueue a request from an user which would be assigned to querier-1.
 	// NOTE: "user-1" hash falls in the querier-1 shard.
-	require.NoError(t, queue.EnqueueRequest("user-1", "request", 1, nil))
+	require.NoError(t, queue.EnqueueRequest("user-1", "request", 1))
 
 	startTime := time.Now()
 	querier2wg.Wait()
