@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func (b *backendBlock) Open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
+func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// 128 MB memory buffering
@@ -29,7 +29,7 @@ func (b *backendBlock) Open(ctx context.Context) (*parquet.File, *parquet.Reader
 }
 
 func (b *backendBlock) rawIter(ctx context.Context, pool *rowPool) (*rawIterator, error) {
-	pf, r, err := b.Open(ctx)
+	pf, r, err := b.open(ctx)
 	if err != nil {
 		return nil, err
 	}

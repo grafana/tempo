@@ -207,8 +207,8 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 	}
 }
 
-// file() opens the parquet file and returns it. previously this method cached the file on first Open
-// but the memory cost of this was quite high. so instead we Open it fresh every time
+// file() opens the parquet file and returns it. previously this method cached the file on first open
+// but the memory cost of this was quite high. so instead we open it fresh every time
 func (w *walBlockFlush) file() (*pageFile, error) {
 	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
 	if err != nil {
@@ -433,7 +433,7 @@ func (b *walBlock) Flush() (err error) {
 	b.unflushedSize = 0
 	b.ids = common.NewIDMap[int64]()
 
-	// Open next one
+	// open next one
 	return b.openWriter()
 }
 
