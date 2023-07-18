@@ -13,7 +13,7 @@ type ColumnChunkHelper struct {
 	err       error
 }
 
-// Dictionary makes is easier to access the dictionary for this column chunk which
+// Dictionary makes it easier to access the dictionary for this column chunk which
 // is only accessible through the first page. Internally keeps some open buffers
 // to reuse later which are accessed through the other methods. If there is no dictionary
 // for this column chunk or an error occurs, return nil.
@@ -34,6 +34,7 @@ func (h *ColumnChunkHelper) Dictionary() parquet.Dictionary {
 	return h.firstPage.Dictionary()
 }
 
+// NextPage wraps pages.ReadPage and helps reuse already open buffers.
 func (h *ColumnChunkHelper) NextPage() (parquet.Page, error) {
 	if h.err != nil {
 		return nil, h.err

@@ -480,6 +480,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
 		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
+		{"unscopedMatch", "{ .service.name = `tempo-query-frontend` }"},
 
 		// mixed
 		{"mixedNameNoMatch", "{ .foo = `bar` }"},

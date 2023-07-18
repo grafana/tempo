@@ -31,13 +31,10 @@ func newAlwaysFalsePredicate() *mockPredicate {
 	return &mockPredicate{ret: false}
 }
 
-func (p *mockPredicate) String() string               { return "mockPredicate{}" }
-func (p *mockPredicate) KeepValue(parquet.Value) bool { p.valCalled = true; return p.ret }
-func (p *mockPredicate) KeepPage(parquet.Page) bool   { p.pageCalled = true; return p.ret }
-func (p *mockPredicate) KeepColumnChunk(*ColumnChunkHelper) bool {
-	p.chunkCalled = true
-	return p.ret
-}
+func (p *mockPredicate) String() string                          { return "mockPredicate{}" }
+func (p *mockPredicate) KeepValue(parquet.Value) bool            { p.valCalled = true; return p.ret }
+func (p *mockPredicate) KeepPage(parquet.Page) bool              { p.pageCalled = true; return p.ret }
+func (p *mockPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { p.chunkCalled = true; return p.ret }
 
 type predicateTestCase struct {
 	testName   string
