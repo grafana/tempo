@@ -20,3 +20,7 @@ type Config struct {
 	HedgeRequestsAt    time.Duration  `yaml:"hedge_requests_at"`
 	HedgeRequestsUpTo  int            `yaml:"hedge_requests_up_to"`
 }
+
+func (c *Config) PathMatches(other *Config) bool {
+	return c.StorageAccountName == other.StorageAccountName && c.ContainerName == other.ContainerName && c.Prefix == other.Prefix
+}
