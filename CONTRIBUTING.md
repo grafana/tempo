@@ -26,6 +26,8 @@ Before submitting please run the following to verify that all dependencies and p
 make vendor-check
 ```
 
+Additionally, this project uses `gofumpt` for code formatting.  Contributors may wish to configure editors based on the [gofumpt documentation](https://github.com/mvdan/gofumpt), or alternatively run `make fmt` before committing changes for submission.
+
 # Project structure
 
 ```
