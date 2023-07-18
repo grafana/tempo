@@ -21,6 +21,7 @@ Dedicated columns can be configured in the storage block or via overrides.
 storage:
   trace:
     block:
+      version: vParquet3
       # Default dedicated columns for all blocks
       dedicated_columns:
         - name: <string>, # name of the attribute
@@ -58,7 +59,7 @@ Similarly, default overrides take precedence over storage block configuration.
 
 ## Usage
 
-Dedicated columns are limited to 10 span attributes and 10 resource attributes.
+Dedicated columns are limited to 10 span attributes and 10 resource attributes with string values.
 As a rule of thumb, good candidates for dedicated columns are attributes that contribute the most to the block size,
 even if they are not frequently queried.
 Reducing the generic attribute key-value list size significantly improves query performance.
