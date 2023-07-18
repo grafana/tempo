@@ -326,13 +326,13 @@ Analyses all blocks in a given time range and outputs a summary of the blocks' g
 It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID.  Use `single-tenant` for single-tenant setups.
 
 Options:
 - [Backend options](#backend-options)
 - `--num-attr <value>` Number of attributes to output (default: 10)
 - `--min-compaction-level <value>` Minimum compaction level to include in the analysis (default: 3)
-- `--max-blocks <value>` Maximum number of blocks to analyse (default: 10)
+- `--max-blocks <value>` Maximum number of blocks to analyze (default: 10)
 
 **Example:**
 ```bash
