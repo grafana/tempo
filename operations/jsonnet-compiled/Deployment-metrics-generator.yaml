@@ -51,8 +51,8 @@ spec:
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
-        - mountPath: /var/tempo/generator_wal
-          name: metrics-generator-wal-data
+        - mountPath: /var/tempo
+          name: metrics-generator-data
         - mountPath: /overrides
           name: overrides
       volumes:
@@ -63,4 +63,4 @@ spec:
           name: tempo-overrides
         name: overrides
       - emptyDir: {}
-        name: metrics-generator-wal-data
+        name: metrics-generator-data

@@ -4,13 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig_CheckConfig(t *testing.T) {
@@ -30,7 +32,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				Target: MetricsGenerator,
 				StorageConfig: storage.Config{
 					Trace: tempodb.Config{
-						Backend:       "s3",
+						Backend:       backend.S3,
 						BlocklistPoll: time.Minute,
 						Block: &common.BlockConfig{
 							Version: "v2",
@@ -55,7 +57,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 			config: func() *Config {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace = tempodb.Config{
-					Backend:                  "local",
+					Backend:                  backend.Local,
 					BlocklistPollConcurrency: 1,
 					Block: &common.BlockConfig{
 						Version: "v2",
@@ -96,6 +98,44 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg.Compactor.Compactor.ChunkSizeBytes = 1
 				cfg.Compactor.Compactor.FlushSizeBytes = 1
 				cfg.Compactor.Compactor.IteratorBufferSize = 1
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
+			name: "trace storage conflicts with overrides storage - local",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.Local
+				cfg.StorageConfig.Trace.Local.Path = "/var/tempo"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.Local
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Local.Path = "/var/tempo"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - gcs",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.GCS
+				cfg.StorageConfig.Trace.GCS.BucketName = "bucketname"
+				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.GCS
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "bucketname"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.Prefix = "tempo"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - different backends",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.GCS
+				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.S3
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.S3.Bucket = "my-bucket"
 				return cfg
 			}(),
 			expect: nil,

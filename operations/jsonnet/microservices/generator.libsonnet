@@ -12,7 +12,6 @@
 
   local target_name = 'metrics-generator',
   local tempo_config_volume = 'tempo-conf',
-  local tempo_generator_wal_volume = 'metrics-generator-wal-data',
   local tempo_data_volume = 'metrics-generator-data',
   local tempo_overrides_config_volume = 'overrides',
 
@@ -51,13 +50,7 @@
     deployment.new(
       target_name,
       0,
-      $.tempo_metrics_generator_container
-      +
-      container.withVolumeMounts([
-        volumeMount.new(tempo_config_volume, '/conf'),
-        volumeMount.new(tempo_generator_wal_volume, $.tempo_metrics_generator_config.metrics_generator.storage.path),
-        volumeMount.new(tempo_overrides_config_volume, '/overrides'),
-      ]),
+      $.tempo_metrics_generator_container,
       {
         app: target_name,
         [$._config.gossip_member_label]: 'true',
@@ -71,7 +64,7 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_metrics_generator_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-      volume.fromEmptyDir(tempo_generator_wal_volume),
+      volume.fromEmptyDir(tempo_data_volume),
     ])
   ,
 

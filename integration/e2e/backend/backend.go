@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 )
 
@@ -32,7 +33,7 @@ func parsePort(endpoint string) (int, error) {
 func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 	var backendService *e2e.HTTPService
 	switch cfg.StorageConfig.Trace.Backend {
-	case "s3":
+	case backend.S3:
 		port, err := parsePort(cfg.StorageConfig.Trace.S3.Endpoint)
 		if err != nil {
 			return nil, err
@@ -45,7 +46,7 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 		if err != nil {
 			return nil, err
 		}
-	case "azure":
+	case backend.Azure:
 		port, err := parsePort(cfg.StorageConfig.Trace.Azure.Endpoint)
 		if err != nil {
 			return nil, err
@@ -60,7 +61,7 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 		if err != nil {
 			return nil, err
 		}
-	case "gcs":
+	case backend.GCS:
 		port, err := parsePort(cfg.StorageConfig.Trace.GCS.Endpoint)
 		if err != nil {
 			return nil, err
@@ -83,7 +84,7 @@ func NewAzurite(port int) *e2e.HTTPService {
 		"azurite",
 		azuriteImage, // Create the the azurite container
 		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
-		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), //If we get 403 the Azurite is ready
+		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), // If we get 403 the Azurite is ready
 		port, // blob storage port
 	)
 

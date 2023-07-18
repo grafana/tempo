@@ -190,15 +190,17 @@ func TestGroup(t *testing.T) {
 				}},
 			},
 			[]*Spanset{
-				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
-				},
+				{
+					Spans: []Span{
+						&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					},
 					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("a")}},
 				},
-				{Spans: []Span{
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
-					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
-				},
+				{
+					Spans: []Span{
+						&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+						&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					},
 					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("b")}},
 				},
 			},
@@ -213,19 +215,22 @@ func TestGroup(t *testing.T) {
 				}},
 			},
 			[]*Spanset{
-				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a"), NewAttribute("bar"): NewStaticString("1")}},
-				},
+				{
+					Spans: []Span{
+						&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a"), NewAttribute("bar"): NewStaticString("1")}},
+					},
 					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("a")}, {Name: "by(.bar)", Val: NewStaticString("1")}},
 				},
-				{Spans: []Span{
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("1")}},
-				},
+				{
+					Spans: []Span{
+						&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("1")}},
+					},
 					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("b")}, {Name: "by(.bar)", Val: NewStaticString("1")}},
 				},
-				{Spans: []Span{
-					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("2")}},
-				},
+				{
+					Spans: []Span{
+						&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b"), NewAttribute("bar"): NewStaticString("2")}},
+					},
 					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("b")}, {Name: "by(.bar)", Val: NewStaticString("2")}},
 				},
 			},
@@ -245,10 +250,11 @@ func TestCoalesce(t *testing.T) {
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
-				{Spans: []Span{
-					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
-					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
-				},
+				{
+					Spans: []Span{
+						&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+						&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					},
 					// coalesce() should drop attributes
 					Attributes: []*SpansetAttribute{{Name: "by(.foo)", Val: NewStaticString("a")}},
 				},
@@ -339,6 +345,58 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 				}},
 			},
 		},
+		{
+			"{ .parent } >> { .child }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent", true).WithNestedSetInfo(0, 1, 4),
+					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+		},
+		{
+			"{ .parent } > { .child }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent", true).WithNestedSetInfo(0, 1, 4),
+					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+		},
+		{
+			"{ .child1 } ~ { .child2 }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("child1", true).WithNestedSetInfo(1, 2, 3),
+					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
+				}},
+			},
+		},
+		{ // tests that child operators do not modify the spanset
+			"{ } > { } > { } > { }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("child1", true).WithNestedSetInfo(1, 2, 3),
+					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
+				}},
+			},
+			[]*Spanset{},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -378,24 +436,32 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					// Avg duration = 5ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond),
+						},
 					},
 				}},
 				{Spans: []Span{
 					// Avg duration = 10ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond),
+						},
 					},
 				}},
 			},
@@ -403,13 +469,17 @@ func TestScalarFilterEvaluate(t *testing.T) {
 				{
 					Scalar: NewStaticDuration(10.0 * time.Millisecond),
 					Spans: []Span{
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond),
+							},
 						},
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond),
+							},
 						},
 					},
 					Attributes: []*SpansetAttribute{{Name: "avg(duration)", Val: NewStaticDuration(10 * time.Millisecond)}},
@@ -422,24 +492,32 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					// max duration = 8ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond),
+						},
 					},
 				}},
 				{Spans: []Span{
 					// max duration = 15ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond),
+						},
 					},
 				}},
 			},
@@ -447,13 +525,17 @@ func TestScalarFilterEvaluate(t *testing.T) {
 				{
 					Scalar: NewStaticDuration(15 * time.Millisecond),
 					Spans: []Span{
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond),
+							},
 						},
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond),
+							},
 						},
 					},
 					Attributes: []*SpansetAttribute{{Name: "max(duration)", Val: NewStaticDuration(15 * time.Millisecond)}},
@@ -466,24 +548,32 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					// min duration = 2ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond),
+						},
 					},
 				}},
 				{Spans: []Span{
 					// min duration = 5ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(12 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(12 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond),
+						},
 					},
 				}},
 			},
@@ -491,13 +581,17 @@ func TestScalarFilterEvaluate(t *testing.T) {
 				{
 					Scalar: NewStaticDuration(2 * time.Millisecond),
 					Spans: []Span{
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond),
+							},
 						},
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond),
+							},
 						},
 					},
 					Attributes: []*SpansetAttribute{{Name: "min(duration)", Val: NewStaticDuration(2 * time.Millisecond)}},
@@ -510,24 +604,32 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					// sum duration = 10ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond),
+						},
 					},
 				}},
 				{Spans: []Span{
 					// sum duration = 27ms
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(12 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(12 * time.Millisecond),
+						},
 					},
-					&mockSpan{attributes: map[Attribute]Static{
-						NewAttribute("foo"):             NewStaticString("a"),
-						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					&mockSpan{
+						attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond),
+						},
 					},
 				}},
 			},
@@ -535,13 +637,17 @@ func TestScalarFilterEvaluate(t *testing.T) {
 				{
 					Scalar: NewStaticDuration(10 * time.Millisecond),
 					Spans: []Span{
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond),
+							},
 						},
-						&mockSpan{attributes: map[Attribute]Static{
-							NewAttribute("foo"):             NewStaticString("a"),
-							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+						&mockSpan{
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"):             NewStaticString("a"),
+								NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond),
+							},
 						},
 					},
 					Attributes: []*SpansetAttribute{{Name: "sum(duration)", Val: NewStaticDuration(10 * time.Millisecond)}},

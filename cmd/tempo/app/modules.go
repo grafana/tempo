@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/weaveworks/common/middleware"
@@ -26,6 +27,7 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -179,16 +181,36 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig)
+	o, err := overrides.NewOverrides(t.cfg.LimitsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
-	t.Overrides = overrides
+	t.Overrides = o
 
 	prometheus.MustRegister(&t.cfg.LimitsConfig)
 
 	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
 		prometheus.MustRegister(t.Overrides)
+	}
+
+	// User-configurable overrides API
+	userConfigOverridesCfg := t.cfg.LimitsConfig.UserConfigurableOverridesConfig
+
+	// only run API on query-frontend
+	if userConfigOverridesCfg.Enabled && t.isModuleActive(QueryFrontend) {
+		userConfigOverridesAPI, err := userconfigurableapi.NewUserConfigOverridesAPI(&userConfigOverridesCfg.ClientConfig)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
+		}
+
+		overridesPath := addHTTPAPIPrefix(&t.cfg, api.PathOverrides)
+		wrapHandler := func(h http.HandlerFunc) http.Handler {
+			return t.HTTPAuthMiddleware.Wrap(h)
+		}
+
+		t.Server.HTTP.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetOverridesHandler))
+		t.Server.HTTP.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostOverridesHandler))
+		t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteOverridesHandler))
 	}
 
 	return t.Overrides, nil
@@ -451,13 +473,13 @@ func (t *App) initUsageReport() (services.Service, error) {
 	var writer backend.RawWriter
 
 	switch t.cfg.StorageConfig.Trace.Backend {
-	case "local":
+	case backend.Local:
 		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
-	case "gcs":
+	case backend.GCS:
 		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
-	case "s3":
+	case backend.S3:
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
-	case "azure":
+	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
