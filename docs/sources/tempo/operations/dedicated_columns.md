@@ -6,10 +6,14 @@ weight: 42
 
 # Dedicated columns
 
-Dedicated columns are a way to improve query performance by storing the most frequently used columns in dedicated columns,
+{{% admonition type="warning" %}}
+Dedicated columns is part of Parquetv3, an [experimental feature](/docs/release-life-cycle/). Engineering and on-call support is not available. Documentation is either limited or not provided outside of code comments. No SLA is provided.  
+{{% /admonition %}}
+
+Dedicated columns improve query performance by storing the most frequently used columns in dedicated columns,
 rather than in the generic attribute key-value list.
 
-This is a feature introduced with `vParquet3`, and is only available when using this Parquet storage format.
+Introduced with `vParquet3`, dedicated columns are only available when using this storage format.
 To read more about the design of `vParquet3`, see [the design proposal](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-05%20vParquet3.md).
 
 ## Configuration
@@ -45,7 +49,7 @@ overrides:
         type: <string>, # type of the attribute. options: string
         scope: <string> # scope of the attribute. options: resource, span
 
-  # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
+  # A "wildcard" override can be used that will apply to all tenants if a match is not found.
   "*":
     dedicated_columns:
       - name: <string>, # name of the attribute
@@ -65,8 +69,8 @@ Reducing the generic attribute key-value list size significantly improves query 
 
 ### Tempo-cli
 
-In order to find good candidates for dedicated columns, the `tempo-cli` tool can be used.
-It provides the commands `analyse block <tenant-id> <block-id>` and `analyse blocks <tenant-id>` that will output the
+You can use  the `tempo-cli` tool to find good candidates for dedicated columns.
+The `tempo-cli` provides the commands `analyse block <tenant-id> <block-id>` and `analyse blocks <tenant-id>` that will output the
 top N attributes by size for a given block or all blocks in a tenant.
 
 Refer to the [tempo-cli documentation]({{< relref "./tempo_cli" >}}) for more information.
