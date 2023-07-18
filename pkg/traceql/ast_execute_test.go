@@ -377,15 +377,25 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			"{ .child1 } ~ { .child2 }",
 			[]*Spanset{
 				{Spans: []Span{
-					newMockSpan([]byte{1}).WithAttrBool("child1", true).WithNestedSetInfo(1, 1, 2),
-					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 3, 4),
+					newMockSpan([]byte{1}).WithAttrBool("child1", true).WithNestedSetInfo(1, 2, 3),
+					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
 				}},
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 3, 4),
+					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
 				}},
 			},
+		},
+		{ // tests that child operators do not modify the spanset
+			"{ } > { } > { } > { }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("child1", true).WithNestedSetInfo(1, 2, 3),
+					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
+				}},
+			},
+			[]*Spanset{},
 		},
 	}
 
