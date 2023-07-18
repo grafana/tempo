@@ -1,6 +1,9 @@
 package httpclient
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +15,10 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all
 	"github.com/klauspost/compress/gzhttp"
 
+	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -24,6 +30,10 @@ const (
 	acceptHeader        = "Accept"
 	applicationProtobuf = "application/protobuf"
 	applicationJSON     = "application/json"
+)
+
+var (
+	ErrNotFound = errors.New("resource not found")
 )
 
 // Client is client to the Tempo API.
@@ -55,14 +65,11 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return c.client.Do(req)
 }
 
+// getFor sends a GET request and attempts to unmarshal the response.
 func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(c.OrgID) > 0 {
-		req.Header.Set(orgIDHeader, c.OrgID)
 	}
 
 	marshallingFormat := applicationJSON
@@ -74,24 +81,10 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	// JSON lost backwards compatibility with the upgrade to `opentelemetry-proto` v0.18.0.
 	req.Header.Set(acceptHeader, marshallingFormat)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, body, err := c.doRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("error searching tempo for tag %v", err)
+		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := io.ReadAll(resp.Body)
-		return resp, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response body: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
 
 	switch marshallingFormat {
 	case applicationJSON:
@@ -106,6 +99,33 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+// doRequest sends the given request, it injects X-Scope-OrgID and handles bad status codes.
+func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
+	if len(c.OrgID) > 0 {
+		req.Header.Set(orgIDHeader, c.OrgID)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error querying Tempo %v", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
+		body, _ := io.ReadAll(resp.Body)
+		return resp, body, fmt.Errorf("%s request to %s failed with response: %d body: %s", req.Method, req.URL.String(), resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	return resp, body, nil
 }
 
 func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
@@ -195,4 +215,51 @@ func (c *Client) buildQueryURL(queryType string, query string, start int64, end 
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) GetOverrides() (*api.UserConfigurableLimits, error) {
+	req, err := http.NewRequest("GET", c.BaseURL+tempo_api.PathOverrides, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set(acceptHeader, applicationJSON)
+
+	resp, body, err := c.doRequest(req)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	limits := &api.UserConfigurableLimits{}
+	if err = json.Unmarshal(body, limits); err != nil {
+		return nil, fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
+	}
+	return limits, err
+}
+
+func (c *Client) SetOverrides(limits *api.UserConfigurableLimits) error {
+	b, err := json.Marshal(limits)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", c.BaseURL+tempo_api.PathOverrides, bytes.NewBuffer(b))
+	if err != nil {
+		return err
+	}
+
+	_, _, err = c.doRequest(req)
+	return err
+}
+
+func (c *Client) DeleteOverrides() error {
+	req, err := http.NewRequest("DELETE", c.BaseURL+tempo_api.PathOverrides, nil)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = c.doRequest(req)
+	return err
 }

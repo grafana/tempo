@@ -15,3 +15,8 @@ type Config struct {
 	ObjectCacheControl string            `yaml:"object_cache_control"`
 	ObjectMetadata     map[string]string `yaml:"object_metadata"`
 }
+
+func (c *Config) PathMatches(other *Config) bool {
+	// GCS bucket names are globally unique
+	return c.BucketName == other.BucketName && c.Prefix == other.Prefix
+}

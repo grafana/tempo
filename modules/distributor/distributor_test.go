@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -666,7 +667,7 @@ func TestDistributor(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
 			limits := &overrides.Limits{}
-			flagext.DefaultValues(limits)
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
 			d := prepare(t, limits, nil, nil)
@@ -865,7 +866,7 @@ func TestLogSpans(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
 			limits := &overrides.Limits{}
-			flagext.DefaultValues(limits)
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			buf := &bytes.Buffer{}
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))

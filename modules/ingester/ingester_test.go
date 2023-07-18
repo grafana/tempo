@@ -3,6 +3,7 @@ package ingester
 import (
 	"context"
 	"crypto/rand"
+	"flag"
 	"os"
 	"testing"
 	"time"
@@ -432,7 +433,7 @@ func defaultIngesterTestConfig() Config {
 
 func defaultLimitsTestConfig() overrides.Limits {
 	limits := overrides.Limits{}
-	flagext.DefaultValues(&limits)
+	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 	return limits
 }
 
