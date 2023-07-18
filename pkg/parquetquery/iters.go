@@ -503,8 +503,7 @@ type SyncIterator struct {
 	currRowGroup    pq.RowGroup
 	currRowGroupMin RowNumber
 	currRowGroupMax RowNumber
-	currChunk       pq.ColumnChunk
-	currPages       pq.Pages
+	currChunk       *ColumnChunkHelper
 	currPage        pq.Page
 	currPageMax     RowNumber
 	currValues      pq.ValueReader
@@ -633,25 +632,15 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 			continue
 		}
 
-		if c.filter == nil {
-			c.setRowGroup(rg, min, max, nil, nil, nil)
-			continue
-		}
+		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
 
-		cc := rg.ColumnChunks()[c.column]
-		keep, pgs, pg := c.filter.KeepColumnChunk(cc)
-		if !keep {
-			if pg != nil {
-				pq.Release(pg)
-			}
-			if pgs != nil {
-				pgs.Close()
-			}
+		if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+			cc.Close()
 			continue
 		}
 
 		// This row group matches both row number and filter.
-		c.setRowGroup(rg, min, max, cc, pgs, pg)
+		c.setRowGroup(rg, min, max, cc)
 	}
 
 	return c.currRowGroup == nil
@@ -684,7 +673,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 			}*/
 
 		for c.currPage == nil {
-			pg, err := c.currPages.ReadPage()
+			pg, err := c.currChunk.NextPage()
 			if pg == nil || err != nil {
 				// No more pages in this column chunk,
 				// cleanup and exit.
@@ -732,37 +721,18 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				return EmptyRowNumber(), nil, nil
 			}
 
-			if c.filter == nil {
-				c.setRowGroup(rg, min, max, nil, nil, nil)
+			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
+
+			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+				cc.Close()
 				continue
 			}
 
-			cc := rg.ColumnChunks()[c.column]
-			keep, pgs, pg := c.filter.KeepColumnChunk(cc)
-			if !keep {
-				if pg != nil {
-					pq.Release(pg)
-				}
-				if pgs != nil {
-					pgs.Close()
-				}
-				continue
-			}
-
-			if pg != nil {
-				if c.filter != nil && !c.filter.KeepPage(pg) {
-					// This page filtered out
-					c.curr.Skip(pg.NumRows())
-					pq.Release(pg)
-					pg = nil
-				}
-			}
-
-			c.setRowGroup(rg, min, max, cc, pgs, pg)
+			c.setRowGroup(rg, min, max, cc)
 		}
 
 		if c.currPage == nil {
-			pg, err := c.currPages.ReadPage()
+			pg, err := c.currChunk.NextPage()
 			if pg == nil || err == io.EOF {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
@@ -817,26 +787,13 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	}
 }
 
-func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc pq.ColumnChunk, pages pq.Pages, firstPage pq.Page) {
+func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) {
 	c.closeCurrRowGroup()
 	c.curr = min
 	c.currRowGroup = rg
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
-
 	c.currChunk = cc
-	if c.currChunk == nil {
-		c.currChunk = rg.ColumnChunks()[c.column]
-	}
-
-	c.currPages = pages
-	if c.currPages == nil {
-		c.currPages = c.currChunk.Pages()
-	}
-
-	if firstPage != nil {
-		c.setPage(firstPage)
-	}
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
@@ -870,15 +827,14 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 }
 
 func (c *SyncIterator) closeCurrRowGroup() {
-	if c.currPages != nil {
-		c.currPages.Close()
+	if c.currChunk != nil {
+		c.currChunk.Close()
 	}
 
 	c.currRowGroup = nil
 	c.currRowGroupMin = EmptyRowNumber()
 	c.currRowGroupMax = EmptyRowNumber()
 	c.currChunk = nil
-	c.currPages = nil
 	c.setPage(nil)
 }
 
@@ -1008,36 +964,22 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			continue
 		}
 
-		var (
-			col  = rg.ColumnChunks()[c.col]
-			pgs  pq.Pages
-			pg   pq.Page
-			keep bool
-		)
+		col := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.col]}
 
-		if c.filter != nil {
-			keep, pgs, pg = c.filter.KeepColumnChunk(col)
-			if !keep {
-				// Skip column chunk
-				rn.Skip(rg.NumRows())
-				continue
-			}
+		if c.filter != nil && !c.filter.KeepColumnChunk(col) {
+			// Skip column chunk
+			rn.Skip(rg.NumRows())
+			col.Close()
+			continue
 		}
 		func() {
-			if pgs == nil {
-				pgs = col.Pages()
-			}
 			defer func() {
-				if err := pgs.Close(); err != nil {
+				if err := col.Close(); err != nil {
 					c.storeErr("column iterator pages close", err)
 				}
 			}()
 			for {
-				var err error
-				if pg == nil {
-					pg, err = pgs.ReadPage()
-				}
-
+				pg, err := col.NextPage()
 				if pg == nil || err == io.EOF {
 					break
 				}
@@ -1119,7 +1061,6 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					}
 					return
 				}(pg)
-				pg = nil
 				if stop {
 					break
 				}

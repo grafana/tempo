@@ -34,9 +34,9 @@ func newAlwaysFalsePredicate() *mockPredicate {
 func (p *mockPredicate) String() string               { return "mockPredicate{}" }
 func (p *mockPredicate) KeepValue(parquet.Value) bool { p.valCalled = true; return p.ret }
 func (p *mockPredicate) KeepPage(parquet.Page) bool   { p.pageCalled = true; return p.ret }
-func (p *mockPredicate) KeepColumnChunk(parquet.ColumnChunk) (bool, parquet.Pages, parquet.Page) {
+func (p *mockPredicate) KeepColumnChunk(*ColumnChunkHelper) bool {
 	p.chunkCalled = true
-	return p.ret, nil, nil
+	return p.ret
 }
 
 type predicateTestCase struct {
