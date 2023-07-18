@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/grafana/tempo/pkg/sharedconfig"
 )
 
-func TestOverrides(t *testing.T) {
+func TestRuntimeConfigOverrides(t *testing.T) {
 
 	tests := []struct {
 		name                        string
@@ -126,7 +127,7 @@ func TestOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(tt.limits)
+			overrides, err := newRuntimeConfigOverrides(tt.limits)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -151,10 +152,10 @@ func TestOverrides(t *testing.T) {
 				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
 			}
 
-			//if srv != nil {
+			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
-			//}
+			// }
 		})
 	}
 }
@@ -309,7 +310,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(tt.limits)
+			overrides, err := newRuntimeConfigOverrides(tt.limits)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -322,10 +323,10 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(user))
 			}
 
-			//if srv != nil {
+			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
-			//}
+			// }
 		})
 	}
 }
