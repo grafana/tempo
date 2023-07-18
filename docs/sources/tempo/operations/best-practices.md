@@ -70,7 +70,8 @@ However, adding a span for each method or function call in that loop might not, 
 
 ## Span length
 
-While there are some (high) default limits to the length that a span (and by definition, the traces they belong to) can be, these can be adjusted by [these configurations]({{< relref "../configuration#ingestion-limits" >}}). Bear in mind though that traces that include a large number of spans and/or long-running spans can have an impact on the time taken to query them once stored.
+While there are some (high) default limits to the length that a span (and by definition, the traces they belong to) can be, these can be adjusted by [these configurations]({{< relref "../configuration#ingestion-limits" >}}). 
+Traces that include a large number of spans and/or long-running spans can have an impact on the time taken to query them once stored.
 
 For long-running spans and traces, the best way to see this impact on requests is to send a few test cases and see what the performance looks like (and evaluate the trace size).
 
