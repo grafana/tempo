@@ -109,6 +109,7 @@ storage:
 * [CHANGE] Start flush queue worker after wal replay and block rediscovery [#2456](https://github.com/grafana/tempo/pull/2456) (@ie-pham)
 * [CHANGE] Update Go to 1.20.4 to match GET [#2486](https://github.com/grafana/tempo/pull/2486) (@ie-pham)
 * [BUGFIX] Fix issue where metrics-generator was setting wrong labels for traces_target_info [#2546](https://github.com/grafana/tempo/pull/2546) (@ie-pham)
+* [CHANGE] Allow to disable client metrics in service graphs processor [#2667](https://github.com/grafana/tempo/pull/2667) (@mapno)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)
