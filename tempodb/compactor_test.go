@@ -148,14 +148,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(
-		blocklist,
-		rw.compactorCfg.MaxCompactionRange,
-		10000,
-		1024*1024*1024,
-		defaultMinInputBlocks,
-		2,
-	)
+	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -321,14 +314,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(
-		list,
-		rw.compactorCfg.MaxCompactionRange,
-		10000,
-		1024*1024*1024,
-		defaultMinInputBlocks,
-		blockCount,
-	)
+	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
@@ -513,11 +499,7 @@ func TestCompactionMetrics(t *testing.T) {
 
 	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
-	assert.Greater(
-		t,
-		bytesEnd,
-		bytesStart,
-	) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
+	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
@@ -682,14 +664,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 	return b
 }
 
-func cutTestBlocks(
-	ctx context.Context,
-	t testing.TB,
-	w *TempoDB,
-	tenantID string,
-	blockCount int,
-	recordCount int,
-) []common.BackendBlock {
+func cutTestBlocks(ctx context.Context, t testing.TB, w *TempoDB, tenantID string, blockCount int, recordCount int) []common.BackendBlock {
 	blocks := make([]common.BackendBlock, 0)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 

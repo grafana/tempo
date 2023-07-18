@@ -34,18 +34,8 @@ type Config struct {
 
 // RegisterFlags adds the flags required to config this to the given FlagSet.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	f.IntVar(
-		&cfg.MaxOutstandingPerTenant,
-		"querier.max-outstanding-requests-per-tenant",
-		2000,
-		"Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.",
-	)
-	f.DurationVar(
-		&cfg.QuerierForgetDelay,
-		"query-frontend.querier-forget-delay",
-		0,
-		"If a querier disconnects without sending notification about graceful shutdown, the query-frontend will keep the querier in the tenant's shard until the forget delay has passed. This feature is useful to reduce the blast radius when shuffle-sharding is enabled.",
-	)
+	f.IntVar(&cfg.MaxOutstandingPerTenant, "querier.max-outstanding-requests-per-tenant", 2000, "Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.")
+	f.DurationVar(&cfg.QuerierForgetDelay, "query-frontend.querier-forget-delay", 0, "If a querier disconnects without sending notification about graceful shutdown, the query-frontend will keep the querier in the tenant's shard until the forget delay has passed. This feature is useful to reduce the blast radius when shuffle-sharding is enabled.")
 }
 
 type Limits interface {
@@ -88,13 +78,7 @@ type request struct {
 }
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
-func New(
-	cfg Config,
-	limits Limits,
-	log log.Logger,
-	registerer prometheus.Registerer,
-	poller tempodb.Poller,
-) (*Frontend, error) {
+func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer, poller tempodb.Poller) (*Frontend, error) {
 	f := &Frontend{
 		cfg:    cfg,
 		log:    log,
@@ -115,12 +99,7 @@ func New(
 		}),
 	}
 
-	f.requestQueue = queue.NewRequestQueue(
-		cfg.MaxOutstandingPerTenant,
-		cfg.QuerierForgetDelay,
-		f.queueLength,
-		f.discardedRequests,
-	)
+	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, cfg.QuerierForgetDelay, f.queueLength, f.discardedRequests)
 	f.activeUsers = util.NewActiveUsersCleanupWithDefaultValues(f.cleanupInactiveUserMetrics)
 
 	var err error
@@ -297,10 +276,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	}
 }
 
-func (f *Frontend) NotifyClientShutdown(
-	_ context.Context,
-	req *frontendv1pb.NotifyClientShutdownRequest,
-) (*frontendv1pb.NotifyClientShutdownResponse, error) {
+func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.NotifyClientShutdownRequest) (*frontendv1pb.NotifyClientShutdownResponse, error) {
 	level.Info(f.log).Log("msg", "received shutdown notification from querier", "querier", req.GetClientID())
 	f.requestQueue.NotifyQuerierShutdown(req.GetClientID())
 

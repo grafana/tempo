@@ -33,12 +33,7 @@ const (
 
 type testConfigOption func(*Config)
 
-func testConfig(
-	t *testing.T,
-	enc backend.Encoding,
-	blocklistPoll time.Duration,
-	opts ...testConfigOption,
-) (*TempoDB, string) {
+func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration, opts ...testConfigOption) (*TempoDB, string) {
 	tempDir := t.TempDir()
 
 	cfg := &Config{
@@ -758,23 +753,12 @@ func TestShouldCache(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(
-				t,
-				tt.cache,
-				db.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()),
-			)
+			assert.Equal(t, tt.cache, db.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()))
 		})
 	}
 }
 
-func writeTraceToWal(
-	t require.TestingT,
-	b common.WALBlock,
-	dec model.SegmentDecoder,
-	id common.ID,
-	tr *tempopb.Trace,
-	start, end uint32,
-) {
+func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
 	b1, err := dec.PrepareForWrite(tr, 0, 0)
 	require.NoError(t, err)
 

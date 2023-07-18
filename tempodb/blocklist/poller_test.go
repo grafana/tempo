@@ -9,8 +9,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 var (
@@ -239,14 +240,12 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, nil, false)
 			w := &backend.MockWriter{}
 
-			r.(*backend.MockReader).TenantIndexFn = func(ctx context.Context, tenantID string) (*backend.TenantIndex, error) {
+			r.(*backend.MockReader).TenantIndexFn = func(_ context.Context, _ string) (*backend.TenantIndex, error) {
 				if tc.errorOnCreateTenantIndex {
 					return nil, errors.New("err")
 				}
 				return &backend.TenantIndex{
-					CreatedAt: time.Now().
-						Add(-5 * time.Minute),
-					// always make the tenant index 5 minutes old so the above tests can use that for fallback testing
+					CreatedAt: time.Now().Add(-5 * time.Minute), // always make the tenant index 5 minutes old so the above tests can use that for fallback testing
 				}, nil
 			}
 
@@ -531,15 +530,9 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:     "too many errors",
-			tolerate: 2,
-			tenantErrors: []error{
-				nil,
-				errors.New("tenant 1 err"),
-				errors.New("tenant 2 err"),
-				errors.New("tenant 3 err"),
-				nil,
-			},
+			name:          "too many errors",
+			tolerate:      2,
+			tenantErrors:  []error{nil, errors.New("tenant 1 err"), errors.New("tenant 2 err"), errors.New("tenant 3 err"), nil},
 			expectedError: errors.New("tenant 3 err"),
 		},
 	}

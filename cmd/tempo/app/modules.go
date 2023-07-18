@@ -167,11 +167,7 @@ func (t *App) initSecondaryIngesterRing() (services.Service, error) {
 	}
 
 	// note that this is using the same cnofig as above. both rings have to be configured the same
-	return t.initReadRing(
-		t.cfg.Ingester.LifecyclerConfig.RingConfig,
-		ringSecondaryIngester,
-		t.cfg.Querier.SecondaryIngesterRing,
-	)
+	return t.initReadRing(t.cfg.Ingester.LifecyclerConfig.RingConfig, ringSecondaryIngester, t.cfg.Querier.SecondaryIngesterRing)
 }
 
 func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error) {
@@ -263,8 +259,7 @@ func (t *App) initIngester() (services.Service, error) {
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
-	if err == generator.ErrUnconfigured &&
-		t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+	if err == generator.ErrUnconfigured && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
 	}
@@ -330,22 +325,13 @@ func (t *App) initQuerier() (services.Service, error) {
 	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
 
 	searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.Server.HTTP.Handle(
-		path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)),
-		searchTagValuesHandler,
-	)
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
 
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
-	t.Server.HTTP.Handle(
-		path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)),
-		searchTagValuesV2Handler,
-	)
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
 
 	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
-	t.Server.HTTP.Handle(
-		path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)),
-		spanMetricsSummaryHandler,
-	)
+	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
 
 	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
 }
@@ -353,28 +339,14 @@ func (t *App) initQuerier() (services.Service, error) {
 func (t *App) initQueryFrontend() (services.Service, error) {
 	// frontendRoundTripper is a bridge between http and httpgrpc.
 	// It does the job of passing data to the cortex frontend code.
-	frontendRoundTripper, v1, err := frontend.InitFrontend(
-		t.cfg.Frontend.Config,
-		frontend.CortexNoQuerierLimits{},
-		log.Logger,
-		prometheus.DefaultRegisterer,
-		t.poller,
-	)
+	frontendRoundTripper, v1, err := frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, log.Logger, prometheus.DefaultRegisterer, t.poller)
 	if err != nil {
 		return nil, err
 	}
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(
-		t.cfg.Frontend,
-		frontendRoundTripper,
-		t.Overrides,
-		t.store,
-		t.cfg.HTTPAPIPrefix,
-		log.Logger,
-		prometheus.DefaultRegisterer,
-	)
+	queryFrontend, err := frontend.New(t.cfg.Frontend, frontendRoundTripper, t.Overrides, t.store, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -516,14 +488,7 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(
-		t.cfg.UsageReport,
-		t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore,
-		reader,
-		writer,
-		util_log.Logger,
-		prometheus.DefaultRegisterer,
-	)
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil

@@ -86,13 +86,7 @@ func (CortexNoQuerierLimits) MaxQueriersPerUser(string) int { return 0 }
 // Returned RoundTripper can be wrapped in more round-tripper middlewares, and then eventually registered
 // into HTTP server using the Handler from this package. Returned RoundTripper is always non-nil
 // (if there are no errors), and it uses the returned frontend (if any).
-func InitFrontend(
-	cfg v1.Config,
-	limits v1.Limits,
-	log log.Logger,
-	reg prometheus.Registerer,
-	poller tempodb.Poller,
-) (http.RoundTripper, *v1.Frontend, error) {
+func InitFrontend(cfg v1.Config, limits v1.Limits, log log.Logger, reg prometheus.Registerer, poller tempodb.Poller) (http.RoundTripper, *v1.Frontend, error) {
 	statVersion.Set("v1")
 	// No scheduler = use original frontend.
 	fr, err := v1.New(cfg, limits, log, reg, poller)
