@@ -181,16 +181,12 @@ func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, eval func(l, r
 
 	o.matchingSpansBuffer = o.matchingSpansBuffer[:0]
 
-	for _, l := range lhs {
-		for i, r := range rhs {
-			if r == nil {
-				// Already matched
-				continue
-			}
+	for _, r := range rhs {
+		for _, l := range lhs {
 			if eval(l, r) {
 				// Returns RHS
 				o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
-				rhs[i] = nil // No need to check this span again
+				break
 			}
 		}
 	}
