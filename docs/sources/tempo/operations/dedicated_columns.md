@@ -70,4 +70,9 @@ You can use  the `tempo-cli` tool to find good candidates for dedicated columns.
 The `tempo-cli` provides the commands `analyse block <tenant-id> <block-id>` and `analyse blocks <tenant-id>` that will output the
 top N attributes by size for a given block or all blocks in a tenant.
 
+**Example:**
+```bash
+tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
+```
+
 Refer to the [tempo-cli documentation]({{< relref "./tempo_cli" >}}) for more information.
