@@ -6,10 +6,6 @@ weight: 42
 
 # Dedicated columns
 
-{{% admonition type="warning" %}}
-Dedicated columns is part of Parquetv3, an [experimental feature](/docs/release-life-cycle/). Engineering and on-call support is not available. Documentation is either limited or not provided outside of code comments. No SLA is provided.  
-{{% /admonition %}}
-
 Dedicated columns improve query performance by storing the most frequently used columns in dedicated columns,
 rather than in the generic attribute key-value list.
 
