@@ -40,19 +40,20 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string
+	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableClientMetrics(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []config.FilterPolicy
+	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
+	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64
 	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration
-	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
-	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
-	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
 

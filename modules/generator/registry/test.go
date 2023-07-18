@@ -65,10 +65,16 @@ func (t *TestRegistry) setMetric(name string, lbls labels.Labels, value float64)
 	t.metrics[name+lbls.String()] = value
 }
 
-// Query returns the value of the given metric. Note this is a rather naive query engine, it's only
+// QueryExact returns the value of the given metric. Note this is a rather naive query engine, it's only
 // possible to query metrics by using the exact same labels as they were stored with.
-func (t *TestRegistry) Query(name string, lbls labels.Labels) float64 {
+func (t *TestRegistry) QueryExact(name string, lbls labels.Labels) float64 {
 	return t.metrics[name+lbls.String()]
+}
+
+// Query return the value of the given metric and a boolean indicating if the metric was found.
+func (t *TestRegistry) Query(name string, lbls labels.Labels) (float64, bool) {
+	value, ok := t.metrics[name+lbls.String()]
+	return value, ok
 }
 
 func (t *TestRegistry) String() string {

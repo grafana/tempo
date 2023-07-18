@@ -13,6 +13,7 @@ type mockOverrides struct {
 	serviceGraphsDimensions               []string
 	serviceGraphsPeerAttributes           []string
 	serviceGraphsEnableClientServerPrefix bool
+	serviceGraphsEnableClientMetrics      bool
 	spanMetricsHistogramBuckets           []float64
 	spanMetricsDimensions                 []string
 	spanMetricsIntrinsicDimensions        map[string]bool
@@ -109,4 +110,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(str
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(string) bool {
 	return m.serviceGraphsEnableClientServerPrefix
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientMetrics(string) bool {
+	return m.serviceGraphsEnableClientMetrics
 }

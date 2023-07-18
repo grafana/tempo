@@ -21,6 +21,14 @@ import (
 )
 
 func TestServiceGraphs(t *testing.T) {
+	testServiceGraphs(t, true)
+}
+
+func TestServiceGraphsWithoutClientMetrics(t *testing.T) {
+	testServiceGraphs(t, false)
+}
+
+func testServiceGraphs(t *testing.T, clientMetrics bool) {
 	testRegistry := registry.NewTestRegistry()
 
 	cfg := Config{}
@@ -28,6 +36,7 @@ func TestServiceGraphs(t *testing.T) {
 
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableClientMetrics = clientMetrics
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
@@ -62,45 +71,51 @@ func TestServiceGraphs(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	// counters
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToServerLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, requesterToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, requesterToServerLabels))
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, serverToDatabaseLabels))
+	assert.Equal(t, 0.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToRecorderLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToRecorderLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, requesterToRecorderLabels))
+	assert.Equal(t, 0.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, requesterToRecorderLabels))
 
 	// histograms
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToServerLabels, 0.04)))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToServerLabels, math.Inf(1))))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServerLabels))
-	assert.InDelta(t, 0.045, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, requesterToServerLabels), 0.001)
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToServerLabels, 0.04)))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToServerLabels, math.Inf(1))))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToServerLabels))
-	assert.InDelta(t, 0.029, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToServerLabels), 0.001)
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToServerLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToServerLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_count`, requesterToServerLabels))
+	assert.InDelta(t, 0.029, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_sum`, requesterToServerLabels), 0.001)
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(serverToDatabaseLabels, 0.04)))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(serverToDatabaseLabels, math.Inf(1))))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, serverToDatabaseLabels))
-	assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, serverToDatabaseLabels), 0.001)
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_bucket`, withLe(serverToDatabaseLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_bucket`, withLe(serverToDatabaseLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_count`, serverToDatabaseLabels))
+	assert.InDelta(t, 0.023, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_sum`, serverToDatabaseLabels), 0.001)
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(serverToDatabaseLabels, 0.04)))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(serverToDatabaseLabels, math.Inf(1))))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, serverToDatabaseLabels))
-	assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, serverToDatabaseLabels), 0.001)
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_count`, requesterToRecorderLabels))
+	assert.InDelta(t, 0.000693, testRegistry.QueryExact(`traces_service_graph_request_server_seconds_sum`, requesterToRecorderLabels), 0.001)
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToRecorderLabels))
-	assert.InDelta(t, 0.000068, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, requesterToRecorderLabels), 0.001)
+	if clientMetrics {
+		assert.Equal(t, 0.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToServerLabels, 0.04)))
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToServerLabels, math.Inf(1))))
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_count`, requesterToServerLabels))
+		assert.InDelta(t, 0.045, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_sum`, requesterToServerLabels), 0.001)
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToRecorderLabels))
-	assert.InDelta(t, 0.000693, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToRecorderLabels), 0.001)
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_bucket`, withLe(serverToDatabaseLabels, 0.04)))
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_bucket`, withLe(serverToDatabaseLabels, math.Inf(1))))
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_count`, serverToDatabaseLabels))
+		assert.InDelta(t, 0.023, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_sum`, serverToDatabaseLabels), 0.001)
+
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
+		assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_count`, requesterToRecorderLabels))
+		assert.InDelta(t, 0.000068, testRegistry.QueryExact(`traces_service_graph_request_client_seconds_sum`, requesterToRecorderLabels), 0.001)
+	} else {
+		_, exists := testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServerLabels)
+		assert.False(t, exists)
+	}
 }
 
 func TestServiceGraphs_prefixDimensions(t *testing.T) {
@@ -134,8 +149,7 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	// counters
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
-
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, requesterToServerLabels))
 }
 
 func TestServiceGraphs_failedRequests(t *testing.T) {
@@ -166,11 +180,11 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	// counters
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToServerLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, requesterToServerLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, requesterToServerLabels))
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, serverToDatabaseLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
 }
 
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
@@ -221,11 +235,11 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 	})
 
 	// counters
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, userToServerLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, userToServerLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, userToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, userToServerLabels))
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+	assert.Equal(t, 1.0, testRegistry.QueryExact(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
+	assert.Equal(t, 0.0, testRegistry.QueryExact(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
 }
 
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {

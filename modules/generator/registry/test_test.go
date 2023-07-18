@@ -22,7 +22,7 @@ func TestTestRegistry_counter(t *testing.T) {
 		"foo": "foo-value",
 		"bar": "bar-value",
 	})
-	assert.Equal(t, 4.5, testRegistry.Query("counter", lbls))
+	assert.Equal(t, 4.5, testRegistry.QueryExact("counter", lbls))
 }
 
 func TestTestRegistry_histogram(t *testing.T) {
@@ -39,9 +39,9 @@ func TestTestRegistry_histogram(t *testing.T) {
 		"foo": "foo-value",
 		"bar": "bar-value",
 	})
-	assert.Equal(t, 1.0, testRegistry.Query("histogram_bucket", withLe(lbls, 1.0)))
-	assert.Equal(t, 2.0, testRegistry.Query("histogram_bucket", withLe(lbls, 2.0)))
-	assert.Equal(t, 3.0, testRegistry.Query("histogram_bucket", withLe(lbls, math.Inf(1))))
-	assert.Equal(t, 3.0, testRegistry.Query("histogram_count", lbls))
-	assert.Equal(t, 5.5, testRegistry.Query("histogram_sum", lbls))
+	assert.Equal(t, 1.0, testRegistry.QueryExact("histogram_bucket", withLe(lbls, 1.0)))
+	assert.Equal(t, 2.0, testRegistry.QueryExact("histogram_bucket", withLe(lbls, 2.0)))
+	assert.Equal(t, 3.0, testRegistry.QueryExact("histogram_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 3.0, testRegistry.QueryExact("histogram_count", lbls))
+	assert.Equal(t, 5.5, testRegistry.QueryExact("histogram_sum", lbls))
 }

@@ -103,12 +103,15 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal),
 		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal),
 		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
 		metricExpiredEdges: metricExpiredEdges.WithLabelValues(tenant),
 		logger:             log.With(logger, "component", "service-graphs"),
+	}
+
+	if cfg.EnableClientMetrics {
+		p.serviceGraphRequestClientSecondsHistogram = registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets)
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire)
@@ -284,7 +287,9 @@ func (p *Processor) onComplete(e *store.Edge) {
 	}
 
 	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	if p.Cfg.EnableClientMetrics {
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	}
 }
 
 func (p *Processor) onExpire(e *store.Edge) {

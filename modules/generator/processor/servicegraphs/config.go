@@ -39,6 +39,9 @@ type Config struct {
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+
+	// If enabled, the processor will generate a histogram from the client's point of view
+	EnableClientMetrics bool `yaml:"enable_client_metrics"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -47,6 +50,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Workers = 10
 	// TODO: Revisit this default value.
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.1, 2, 8)
+
+	// TODO: Disable by default
+	cfg.EnableClientMetrics = true
 
 	peerAttr := make([]string, 0, len(defaultPeerAttributes))
 	for _, attr := range defaultPeerAttributes {
