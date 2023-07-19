@@ -386,10 +386,16 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
+    # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
+    # (default: 2000)
+    [max_outstanding_per_tenant: <int>]
+
+    # The number of jobs to batch together in one http request to the querier. Set to 1 to
+    # disable.
+    # (default: 5)
+    [max_batch_size: <int>]
+
     search:
-        # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
-        # (default: 2000)
-        [max_outstanding_per_tenant: <int>]
 
         # The number of concurrent jobs to execute when searching the backend.
         # (default: 1000)
