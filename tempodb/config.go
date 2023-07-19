@@ -65,6 +65,13 @@ type Config struct {
 	Redis                   *redis.Config           `yaml:"redis"`
 }
 
+func (c *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
+	c.BlocklistPollFallback = true
+	c.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
+	c.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
+	c.BlocklistPollTolerateConsecutiveErrors = DefaultTolerateConsecutiveErrors
+}
+
 type SearchConfig struct {
 	// v2 blocks
 	ChunkSizeBytes     uint32 `yaml:"chunk_size_bytes"`
