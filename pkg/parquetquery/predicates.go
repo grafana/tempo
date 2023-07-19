@@ -13,7 +13,7 @@ import (
 type Predicate interface {
 	fmt.Stringer
 
-	KeepColumnChunk(cc *ColumnChunkHelper) bool
+	KeepColumnChunk(*ColumnChunkHelper) bool
 	KeepPage(page pq.Page) bool
 	KeepValue(pq.Value) bool
 }
@@ -241,8 +241,8 @@ func (p *IntBetweenPredicate) String() string {
 	return fmt.Sprintf("IntBetweenPredicate{%d,%d}", p.min, p.max)
 }
 
-func (p *IntBetweenPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	if ci := cc.ColumnIndex(); ci != nil {
+func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Int64()
 			max := ci.MaxValue(i).Int64()
@@ -289,12 +289,12 @@ func (p *GenericPredicate[T]) String() string {
 	return "GenericPredicate{}"
 }
 
-func (p *GenericPredicate[T]) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	if p.RangeFn == nil {
 		return true
 	}
 
-	if ci := cc.ColumnIndex(); ci != nil {
+	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := p.Extract(ci.MinValue(i))
 			max := p.Extract(ci.MaxValue(i))
@@ -305,7 +305,7 @@ func (p *GenericPredicate[T]) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 		return false
 	}
 
-	if d := cc.Dictionary(); d != nil {
+	if d := c.Dictionary(); d != nil {
 		return keepDictionary(d, p.KeepValue)
 	}
 
@@ -362,8 +362,8 @@ func (p *FloatBetweenPredicate) String() string {
 	return fmt.Sprintf("FloatBetweenPredicate{%f,%f}", p.min, p.max)
 }
 
-func (p *FloatBetweenPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	if ci := cc.ColumnIndex(); ci != nil {
+func (p *FloatBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Double()
 			max := ci.MaxValue(i).Double()
@@ -413,7 +413,7 @@ func (p *OrPredicate) String() string {
 	return fmt.Sprintf("OrPredicate{%s}", preds)
 }
 
-func (p *OrPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+func (p *OrPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ret := false
 	for _, p := range p.preds {
 		if p == nil {
@@ -421,7 +421,7 @@ func (p *OrPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 			ret = ret || true
 			continue
 		}
-		if p.KeepColumnChunk(cc) {
+		if p.KeepColumnChunk(c) {
 			ret = ret || true
 		}
 	}
@@ -476,10 +476,10 @@ func (p *InstrumentedPredicate) String() string {
 	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.pred)
 }
 
-func (p *InstrumentedPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+func (p *InstrumentedPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	p.InspectedColumnChunks++
 
-	if p.pred == nil || p.pred.KeepColumnChunk(cc) {
+	if p.pred == nil || p.pred.KeepColumnChunk(c) {
 		p.KeptColumnChunks++
 		return true
 	}

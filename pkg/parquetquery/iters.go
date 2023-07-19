@@ -966,13 +966,15 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 		col := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.col]}
 
-		if c.filter != nil && !c.filter.KeepColumnChunk(col) {
-			// Skip column chunk
-			rn.Skip(rg.NumRows())
-			col.Close()
-			continue
+		if c.filter != nil {
+			if !c.filter.KeepColumnChunk(col) {
+				// Skip column chunk
+				rn.Skip(rg.NumRows())
+				col.Close()
+				continue
+			}
 		}
-		func() {
+		func(col *ColumnChunkHelper) {
 			defer func() {
 				if err := col.Close(); err != nil {
 					c.storeErr("column iterator pages close", err)
@@ -1065,7 +1067,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					break
 				}
 			}
-		}()
+		}(col)
 	}
 }
 
@@ -1528,8 +1530,6 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 	if err != nil {
 		return nil, err
 	}
-
-	// fmt.Printf("result:%+v\n", result)
 
 	return result, nil
 }
