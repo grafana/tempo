@@ -39,7 +39,7 @@ func newTokenProvider(
 			if err != nil {
 				tsErr = multierr.Combine(tsErr, err)
 			}
-			sources[ep] = ts
+			sources[ep] = oauth2.ReuseTokenSource(nil, ts)
 		}(endpoint)
 	}
 	wg.Wait()
