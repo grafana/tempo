@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb"
 )
 
 const (
@@ -41,6 +42,7 @@ type Compactor struct {
 
 	cfg       *Config
 	store     storage.Store
+	poller    tempodb.Poller
 	overrides overrides.Interface
 
 	// Ring used for sharding compactions.
@@ -52,11 +54,12 @@ type Compactor struct {
 }
 
 // New makes a new Compactor.
-func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Compactor, error) {
+func New(cfg Config, store storage.Store, poller tempodb.Poller, overrides overrides.Interface, reg prometheus.Registerer) (*Compactor, error) {
 	c := &Compactor{
 		cfg:       &cfg,
 		store:     store,
 		overrides: overrides,
+		poller:    poller,
 	}
 
 	if c.isSharded() {
@@ -150,7 +153,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 	}
 
 	// this will block until one poll cycle is complete
-	c.store.EnablePolling(ctx, c)
+	c.poller.EnablePolling(ctx, c)
 
 	return nil
 }

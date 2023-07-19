@@ -398,7 +398,7 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.poller, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
 	}
@@ -552,7 +552,7 @@ func (t *App) setupModuleManager() error {
 		Ingester:         {Common, Store, MemberlistKV},
 		MetricsGenerator: {Common, MemberlistKV},
 		Querier:          {Common, Store, Poller, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
-		Compactor:        {Common, Store, MemberlistKV},
+		Compactor:        {Common, Store, Poller, MemberlistKV},
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
