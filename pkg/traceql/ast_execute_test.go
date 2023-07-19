@@ -1002,6 +1002,75 @@ func TestArithmetic(t *testing.T) {
 	}
 }
 
+func TestSpansetExistence(t *testing.T) {
+	tests := []struct {
+		query   string
+		span    Span
+		matches bool
+	}{
+		// return traces where .foo exists
+		{
+			query: `{ .foo != nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("bar"): NewStaticString("bzz"),
+				},
+			},
+			matches: false,
+		},
+		{
+			query: `{ .bar != nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("bar"): NewStaticString("bzz"),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ .int != nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("int"): NewStaticInt(1),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ .duration != nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("duration"): NewStaticDuration(time.Minute),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ .float != nil }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("float"): NewStaticFloat(2.0),
+				},
+			},
+			matches: true,
+		},
+	}
+	for _, tt := range tests {
+		// create a evalTC and use testEvaluator
+		tc := evalTC{
+			query: tt.query,
+			input: []*Spanset{
+				{Spans: []Span{tt.span}},
+			},
+			output: []*Spanset{},
+		}
+		if tt.matches {
+			tc.output = tc.input
+		}
+		testEvaluator(t, tc)
+	}
+}
+
 func BenchmarkBinOp(b *testing.B) {
 	ops := []struct {
 		op BinaryOperation

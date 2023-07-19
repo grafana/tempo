@@ -348,6 +348,36 @@ func NewBoolPredicate(b bool) *GenericPredicate[bool] {
 	)
 }
 
+func NewNilPredicate(isNil bool)  *GenericPredicate[string] {
+	if !isNil{
+		return NewGenericPredicate(
+			func(v string) bool { 
+				return v != ""
+			},
+			func(min, max string) bool {
+				return min == "" || max == ""
+			},
+			func(v pq.Value) string {
+				fmt.Printf("predicate value v: %s", v)
+				return v.String()
+			},
+		)
+	}else{
+		return NewGenericPredicate(
+			func(v string) bool { 
+				return v == ""
+			},
+			func(min, max string) bool {
+				return min != "" || max != ""
+			},
+			func(v pq.Value) string {
+				fmt.Printf("predicate value v: %s", v)
+				return v.String()
+			},
+		)
+	}
+}
+
 type FloatBetweenPredicate struct {
 	min, max float64
 }

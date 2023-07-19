@@ -122,6 +122,7 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 		if api.IsTraceQLQuery(req) {
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
+			fmt.Println("instance_search 126")
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return e.Fetch(ctx, req, opts)
 			}))

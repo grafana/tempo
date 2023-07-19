@@ -358,6 +358,15 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
+	if rhsT == TypeNil {
+		switch o.Op {
+		case OpNotEqual:
+			return NewStaticBool(lhsT != TypeNil), nil
+		default:
+			return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
+		}
+	}
+
 	switch o.Op {
 	case OpAdd:
 		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
