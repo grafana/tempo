@@ -28,6 +28,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	"github.com/grafana/tempo/modules/poller"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -411,8 +412,13 @@ func (t *App) initCompactor() (services.Service, error) {
 }
 
 func (t *App) initPoller() (services.Service, error) {
-	t.poller = t.store
-	return nil, nil
+	poller, err := poller.New(t.cfg.PollerConfig, t.store)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create poller %w", err)
+	}
+	t.poller = poller
+
+	return t.poller, nil
 }
 
 func (t *App) initStore() (services.Service, error) {
