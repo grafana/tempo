@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/poller"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
 	internalserver "github.com/grafana/tempo/pkg/server"
@@ -49,6 +50,7 @@ type Config struct {
 	Ingester        ingester.Config         `yaml:"ingester,omitempty"`
 	Generator       generator.Config        `yaml:"metrics_generator,omitempty"`
 	StorageConfig   storage.Config          `yaml:"storage,omitempty"`
+	PollerConfig    poller.Config           `yaml:"poller,omitempty"`
 	LimitsConfig    overrides.Limits        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
@@ -126,6 +128,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "frontend"), f)
 	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
+	c.PollerConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "poller"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
 }
 
@@ -198,7 +201,6 @@ func (c *Config) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Config) Collect(ch chan<- prometheus.Metric) {
-
 	features := map[string]int{
 		"search_external_endpoints": 0,
 	}
