@@ -571,7 +571,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedTraces: 1,
 					TotalBlocks:     2,
 					InspectedBytes:  3,
-				}},
+				},
+			},
 			status2: 200,
 			response2: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
@@ -584,7 +585,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedTraces: 5,
 					TotalBlocks:     6,
 					InspectedBytes:  7,
-				}},
+				},
+			},
 			expectedStatus: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
@@ -604,7 +606,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					CompletedJobs:   2,
 					TotalJobs:       2,
 					TotalBlockBytes: defaultTargetBytesPerRequest * 2,
-				}},
+				},
+			},
 		},
 		{
 			name:          "200+err",
@@ -809,7 +812,9 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Config{
 		DefaultLimits: overrides.Limits{
-			MaxSearchDuration: model.Duration(time.Minute),
+			Read: overrides.ReadConfig{
+				MaxSearchDuration: model.Duration(time.Minute),
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -857,7 +862,9 @@ func TestMaxDuration(t *testing.T) {
 
 	o, err = overrides.NewOverrides(overrides.Config{
 		DefaultLimits: overrides.Limits{
-			MaxSearchDuration: model.Duration(10 * time.Minute),
+			Read: overrides.ReadConfig{
+				MaxSearchDuration: model.Duration(10 * time.Minute),
+			},
 		},
 	})
 	require.NoError(t, err)

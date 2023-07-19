@@ -12,7 +12,7 @@ import (
 
 // Copied from Cortex
 func TestLimitsTagsYamlMatchJson(t *testing.T) {
-	limits := reflect.TypeOf(Limits{})
+	limits := reflect.TypeOf(LegacyLimits{})
 	n := limits.NumField()
 	var mismatch []string
 
@@ -74,11 +74,11 @@ max_search_duration: 5m
 	"max_search_duration": "5m"
 }`
 
-	limitsYAML := Limits{}
+	limitsYAML := LegacyLimits{}
 	err := yaml.Unmarshal([]byte(inputYAML), &limitsYAML)
 	require.NoError(t, err, "expected to be able to unmarshal from YAML")
 
-	limitsJSON := Limits{}
+	limitsJSON := LegacyLimits{}
 	err = json.Unmarshal([]byte(inputJSON), &limitsJSON)
 	require.NoError(t, err, "expected to be able to unmarshal from JSON")
 

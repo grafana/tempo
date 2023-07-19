@@ -45,9 +45,242 @@ var (
 	)
 )
 
-// Limits describe all the limits for users; can be used to describe global default
-// limits via flags, or per-user limits via yaml config.
+type IngestionConfig struct {
+	// Distributor enforced limits.
+	RateStrategy   string `yaml:"rate_strategy" json:"rate_strategy"`
+	RateLimitBytes int    `yaml:"rate_limit_bytes" json:"rate_limit_bytes"`
+	BurstSizeBytes int    `yaml:"burst_size_bytes" json:"burst_size_bytes"`
+
+	// Ingester enforced limits.
+	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
+	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
+}
+
+type ForwarderConfig struct {
+	QueueSize int `yaml:"queue_size" json:"queue_size"`
+	Workers   int `yaml:"workers" json:"workers"`
+}
+
+type ServiceGraphsConfig struct {
+	HistogramBuckets         []float64 `yaml:"histogram_buckets" json:"histogram_buckets"`
+	Dimensions               []string  `yaml:"dimensions" json:"dimensions"`
+	PeerAttributes           []string  `yaml:"peer_attributes" json:"peer_attributes"`
+	EnableClientServerPrefix bool      `yaml:"enable_client_server_prefix" json:"enable_client_server_prefix"`
+}
+
+type SpanMetricsConfig struct {
+	HistogramBuckets    []float64                        `yaml:"histogram_buckets" json:"histogram_buckets"`
+	Dimensions          []string                         `yaml:"dimensions" json:"dimensions"`
+	IntrinsicDimensions map[string]bool                  `yaml:"intrinsic_dimensions" json:"intrinsic_dimensions"`
+	FilterPolicies      []filterconfig.FilterPolicy      `yaml:"filter_policies" json:"filter_policies"`
+	DimensionMappings   []sharedconfig.DimensionMappings `yaml:"dimension_mappings" json:"dimension_mapings"`
+	EnableTargetInfo    bool                             `yaml:"enable_target_info" json:"enable_target_info"`
+}
+
+type LocalBlocksConfig struct {
+	MaxLiveTraces        uint64        `yaml:"max_live_traces" json:"max_live_traces"`
+	MaxBlockDuration     time.Duration `yaml:"max_block_duration" json:"max_block_duration"`
+	MaxBlockBytes        uint64        `yaml:"max_block_bytes" json:"max_block_bytes"`
+	FlushCheckPeriod     time.Duration `yaml:"flush_check_period" json:"flush_check_period"`
+	TraceIdlePeriod      time.Duration `yaml:"trace_idle_period" json:"trace_idle_period"`
+	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout" json:"complete_block_timeout"`
+}
+
+type ProcessorConfig struct {
+	ServiceGraphs ServiceGraphsConfig `yaml:"service_graphs" json:"service_graphs"`
+
+	SpanMetrics SpanMetricsConfig `yaml:"span_metrics" json:"span_metrics"`
+
+	LocalBlocks LocalBlocksConfig `yaml:"local_blocks" json:"local_blocks"`
+}
+
+type MetricsGeneratorConfig struct {
+	RingSize           int           `yaml:"ring_size" json:"ring_size"`
+	Processors         ListToMap     `yaml:"processors" json:"processors"`
+	MaxActiveSeries    uint32        `yaml:"max_active_series" json:"max_active_series"`
+	CollectionInterval time.Duration `yaml:"collection_interval" json:"collection_interval"`
+	DisableCollection  bool          `yaml:"disable_collection" json:"disable_collection"`
+
+	Forwarder ForwarderConfig `yaml:"forwarder" json:"forwarder"`
+
+	Processor ProcessorConfig `yaml:"processor" json:"processor"`
+}
+
+type ReadConfig struct {
+	// Querier and Ingester enforced limits.
+	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
+
+	// QueryFrontend enforced limits
+	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+}
+
+type CompactionConfig struct {
+	// Compactor enforced limits.
+	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
+}
+
+// TODO: Ingestion limit instead?
+type GlobalLimitsConfig struct {
+	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
+	//  is not used when doing a trace by id lookup.
+	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+}
+
 type Limits struct {
+	// Ingestion enforced limits.
+	Ingestion IngestionConfig `yaml:"ingestion" json:"ingestion"`
+	// Read enforced limits.
+	Read ReadConfig `yaml:"read" json:"read"`
+	// Compaction enforced limits.
+	Compaction CompactionConfig `yaml:"compaction" json:"compaction"`
+	// MetricsGenerator enforced limits.
+	MetricsGenerator MetricsGeneratorConfig `yaml:"metrics_generator" json:"metrics_generator"`
+	// Forwarders
+	Forwarders []string `yaml:"forwarders" json:"forwarders"`
+	// Global enforced limits.
+	Global GlobalLimitsConfig `yaml:"global" json:"global"`
+}
+
+// RegisterFlags adds the flags required to config this to the given FlagSet
+func (l *Limits) RegisterFlags(f *flag.FlagSet) {
+	// Distributor LegacyLimits
+	f.StringVar(&l.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
+	f.IntVar(&l.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
+	f.IntVar(&l.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
+
+	// Ingester limits
+	f.IntVar(&l.Ingestion.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
+	f.IntVar(&l.Ingestion.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
+	f.IntVar(&l.Global.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
+
+	// Querier limits
+	f.IntVar(&l.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
+	f.IntVar(&l.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+}
+
+func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
+	ch <- metricLimitsDesc
+}
+
+func (l *Limits) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Ingestion.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Ingestion.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Ingestion.RateLimitBytes), MetricIngestionRateLimitBytes)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Ingestion.BurstSizeBytes), MetricIngestionBurstSizeBytes)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Read.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Read.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Compaction.BlockRetention), MetricBlockRetention)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
+}
+
+func (l *Limits) toLegacy() LegacyLimits {
+	return LegacyLimits{
+		IngestionRateStrategy:   l.Ingestion.RateStrategy,
+		IngestionRateLimitBytes: l.Ingestion.RateLimitBytes,
+		IngestionBurstSizeBytes: l.Ingestion.BurstSizeBytes,
+		MaxLocalTracesPerUser:   l.Ingestion.MaxLocalTracesPerUser,
+		MaxGlobalTracesPerUser:  l.Ingestion.MaxGlobalTracesPerUser,
+
+		Forwarders: l.Forwarders,
+
+		MetricsGeneratorRingSize:                                       l.MetricsGenerator.RingSize,
+		MetricsGeneratorProcessors:                                     l.MetricsGenerator.Processors,
+		MetricsGeneratorMaxActiveSeries:                                l.MetricsGenerator.MaxActiveSeries,
+		MetricsGeneratorCollectionInterval:                             l.MetricsGenerator.CollectionInterval,
+		MetricsGeneratorDisableCollection:                              l.MetricsGenerator.DisableCollection,
+		MetricsGeneratorForwarderQueueSize:                             l.MetricsGenerator.Forwarder.QueueSize,
+		MetricsGeneratorForwarderWorkers:                               l.MetricsGenerator.Forwarder.Workers,
+		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:         l.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
+		MetricsGeneratorProcessorServiceGraphsDimensions:               l.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
+		MetricsGeneratorProcessorServiceGraphsPeerAttributes:           l.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
+		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix: l.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
+		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:           l.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
+		MetricsGeneratorProcessorSpanMetricsDimensions:                 l.MetricsGenerator.Processor.SpanMetrics.Dimensions,
+		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:        l.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
+		MetricsGeneratorProcessorSpanMetricsFilterPolicies:             l.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
+		MetricsGeneratorProcessorSpanMetricsDimensionMappings:          l.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
+		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:           l.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
+		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:              l.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
+		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:           l.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
+		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:              l.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
+		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:           l.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
+		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:            l.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
+		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:       l.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
+
+		BlockRetention: l.Compaction.BlockRetention,
+
+		MaxBytesPerTagValuesQuery:  l.Read.MaxBytesPerTagValuesQuery,
+		MaxBlocksPerTagValuesQuery: l.Read.MaxBlocksPerTagValuesQuery,
+		MaxSearchDuration:          l.Read.MaxSearchDuration,
+
+		MaxBytesPerTrace: l.Global.MaxBytesPerTrace,
+	}
+}
+
+func fromLegacyLimits(l LegacyLimits) Limits {
+	return Limits{
+		Ingestion: IngestionConfig{
+			RateStrategy:           l.IngestionRateStrategy,
+			RateLimitBytes:         l.IngestionRateLimitBytes,
+			BurstSizeBytes:         l.IngestionBurstSizeBytes,
+			MaxLocalTracesPerUser:  l.MaxLocalTracesPerUser,
+			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
+		},
+		Read: ReadConfig{
+			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
+			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
+			MaxSearchDuration:          l.MaxSearchDuration,
+		},
+		Compaction: CompactionConfig{
+			BlockRetention: l.BlockRetention,
+		},
+		MetricsGenerator: MetricsGeneratorConfig{
+			RingSize:           l.MetricsGeneratorRingSize,
+			Processors:         l.MetricsGeneratorProcessors,
+			MaxActiveSeries:    l.MetricsGeneratorMaxActiveSeries,
+			CollectionInterval: l.MetricsGeneratorCollectionInterval,
+			DisableCollection:  l.MetricsGeneratorDisableCollection,
+			Forwarder: ForwarderConfig{
+				QueueSize: l.MetricsGeneratorForwarderQueueSize,
+				Workers:   l.MetricsGeneratorForwarderWorkers,
+			},
+			Processor: ProcessorConfig{
+				ServiceGraphs: ServiceGraphsConfig{
+					HistogramBuckets:         l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
+					Dimensions:               l.MetricsGeneratorProcessorServiceGraphsDimensions,
+					PeerAttributes:           l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
+					EnableClientServerPrefix: l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
+				},
+				SpanMetrics: SpanMetricsConfig{
+					HistogramBuckets:    l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
+					Dimensions:          l.MetricsGeneratorProcessorSpanMetricsDimensions,
+					IntrinsicDimensions: l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
+					FilterPolicies:      l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
+					DimensionMappings:   l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
+					EnableTargetInfo:    l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
+				},
+				LocalBlocks: LocalBlocksConfig{
+					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,
+					MaxBlockDuration:     l.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration,
+					MaxBlockBytes:        l.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes,
+					FlushCheckPeriod:     l.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod,
+					TraceIdlePeriod:      l.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod,
+					CompleteBlockTimeout: l.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout,
+				},
+			},
+		},
+		Forwarders: l.Forwarders,
+		Global: GlobalLimitsConfig{
+			MaxBytesPerTrace: l.MaxBytesPerTrace,
+		},
+	}
+}
+
+// LegacyLimits describe all the limits for users; can be used to describe global default
+// limits via flags, or per-user limits via yaml config.
+type LegacyLimits struct {
 	// Distributor enforced limits.
 	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
 	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
@@ -98,37 +331,4 @@ type Limits struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
-}
-
-// RegisterFlags adds the flags required to config this to the given FlagSet
-func (l *Limits) RegisterFlags(f *flag.FlagSet) {
-	// Distributor Limits
-	f.StringVar(&l.IngestionRateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
-	f.IntVar(&l.IngestionRateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
-	f.IntVar(&l.IngestionBurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
-
-	// Ingester limits
-	f.IntVar(&l.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
-	f.IntVar(&l.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
-	f.IntVar(&l.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
-
-	// Querier limits
-	f.IntVar(&l.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
-	f.IntVar(&l.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
-}
-
-func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
-	ch <- metricLimitsDesc
-}
-
-func (l *Limits) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTrace), MetricMaxBytesPerTrace)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), MetricIngestionRateLimitBytes)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), MetricBlockRetention)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MetricsGeneratorMaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }

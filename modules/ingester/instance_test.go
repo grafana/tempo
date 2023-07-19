@@ -212,8 +212,12 @@ func TestInstanceDoesNotRace(t *testing.T) {
 func TestInstanceLimits(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
 		DefaultLimits: overrides.Limits{
-			MaxBytesPerTrace:      1000,
-			MaxLocalTracesPerUser: 4,
+			Global: overrides.GlobalLimitsConfig{
+				MaxBytesPerTrace: 1000,
+			},
+			Ingestion: overrides.IngestionConfig{
+				MaxLocalTracesPerUser: 4,
+			},
 		},
 	})
 	require.NoError(t, err, "unexpected error creating limits")
@@ -507,7 +511,9 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 
 	limits, err := overrides.NewOverrides(overrides.Config{
 		DefaultLimits: overrides.Limits{
-			MaxBytesPerTrace: maxTraceBytes,
+			Global: overrides.GlobalLimitsConfig{
+				MaxBytesPerTrace: maxTraceBytes,
+			},
 		},
 	})
 	require.NoError(t, err)

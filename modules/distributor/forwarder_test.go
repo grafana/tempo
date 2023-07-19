@@ -62,7 +62,7 @@ func TestForwarder(t *testing.T) {
 func TestForwarder_shutdown(t *testing.T) {
 	oCfg := overrides.Config{}
 	oCfg.RegisterFlags(&flag.FlagSet{})
-	oCfg.DefaultLimits.MetricsGeneratorForwarderQueueSize = 200
+	oCfg.DefaultLimits.MetricsGenerator.Forwarder.QueueSize = 200
 
 	id, err := util.HexStringToTraceID("1234567890abcdef")
 	require.NoError(t, err)

@@ -362,7 +362,9 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
 		DefaultLimits: overrides.Limits{
-			MaxBytesPerTagValuesQuery: 10,
+			Read: overrides.ReadConfig{
+				MaxBytesPerTagValuesQuery: 10,
+			},
 		},
 	})
 	assert.NoError(t, err, "unexpected error creating limits")
@@ -391,7 +393,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
 		DefaultLimits: overrides.Limits{
-			MaxBlocksPerTagValuesQuery: 1,
+			Read: overrides.ReadConfig{
+				MaxBlocksPerTagValuesQuery: 1,
+			},
 		},
 	})
 	assert.NoError(t, err, "unexpected error creating limits")

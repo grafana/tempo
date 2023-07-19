@@ -20,9 +20,11 @@ func TestIngestionRateStrategy(t *testing.T) {
 	}{
 		"local rate limiter should just return configured limits": {
 			limits: overrides.Limits{
-				IngestionRateStrategy:   overrides.LocalIngestionRateStrategy,
-				IngestionRateLimitBytes: 5,
-				IngestionBurstSizeBytes: 2,
+				Ingestion: overrides.IngestionConfig{
+					RateStrategy:   overrides.LocalIngestionRateStrategy,
+					RateLimitBytes: 5,
+					BurstSizeBytes: 2,
+				},
 			},
 			ring:          nil,
 			expectedLimit: 5,
@@ -30,9 +32,11 @@ func TestIngestionRateStrategy(t *testing.T) {
 		},
 		"global rate limiter should share the limit across the number of distributors": {
 			limits: overrides.Limits{
-				IngestionRateStrategy:   overrides.GlobalIngestionRateStrategy,
-				IngestionRateLimitBytes: 5,
-				IngestionBurstSizeBytes: 2,
+				Ingestion: overrides.IngestionConfig{
+					RateStrategy:   overrides.GlobalIngestionRateStrategy,
+					RateLimitBytes: 5,
+					BurstSizeBytes: 2,
+				},
 			},
 			ring: func() ReadLifecycler {
 				ring := newReadLifecyclerMock()
@@ -57,7 +61,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			require.NoError(t, err)
 
 			// Instance the strategy
-			switch testData.limits.IngestionRateStrategy {
+			switch testData.limits.Ingestion.RateStrategy {
 			case overrides.LocalIngestionRateStrategy:
 				strategy = newLocalIngestionRateStrategy(o)
 			case overrides.GlobalIngestionRateStrategy:

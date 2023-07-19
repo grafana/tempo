@@ -33,11 +33,15 @@ func TestOverrides(t *testing.T) {
 		{
 			name: "limits only",
 			defaultLimits: Limits{
-				MaxGlobalTracesPerUser:  1,
-				MaxLocalTracesPerUser:   2,
-				MaxBytesPerTrace:        3,
-				IngestionBurstSizeBytes: 4,
-				IngestionRateLimitBytes: 5,
+				Ingestion: IngestionConfig{
+					MaxGlobalTracesPerUser: 1,
+					MaxLocalTracesPerUser:  2,
+					BurstSizeBytes:         4,
+					RateLimitBytes:         5,
+				},
+				Global: GlobalLimitsConfig{
+					MaxBytesPerTrace: 3,
+				},
 			},
 			expectedMaxGlobalTraces:     map[string]int{"user1": 1, "user2": 1},
 			expectedMaxLocalTraces:      map[string]int{"user1": 2, "user2": 2},
@@ -49,21 +53,33 @@ func TestOverrides(t *testing.T) {
 		{
 			name: "basic overrides",
 			defaultLimits: Limits{
-				MaxGlobalTracesPerUser:  1,
-				MaxLocalTracesPerUser:   2,
-				MaxBytesPerTrace:        3,
-				IngestionBurstSizeBytes: 4,
-				IngestionRateLimitBytes: 5,
+				Ingestion: IngestionConfig{
+
+					MaxGlobalTracesPerUser: 1,
+					MaxLocalTracesPerUser:  2,
+					BurstSizeBytes:         4,
+					RateLimitBytes:         5,
+				},
+				Global: GlobalLimitsConfig{
+					MaxBytesPerTrace: 3,
+				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
-						MaxGlobalTracesPerUser:  6,
-						MaxLocalTracesPerUser:   7,
-						MaxBytesPerTrace:        8,
-						IngestionBurstSizeBytes: 9,
-						IngestionRateLimitBytes: 10,
-						MaxSearchDuration:       model.Duration(11 * time.Second),
+						Ingestion: IngestionConfig{
+
+							MaxGlobalTracesPerUser: 6,
+							MaxLocalTracesPerUser:  7,
+							BurstSizeBytes:         9,
+							RateLimitBytes:         10,
+						},
+						Global: GlobalLimitsConfig{
+							MaxBytesPerTrace: 8,
+						},
+						Read: ReadConfig{
+							MaxSearchDuration: model.Duration(11 * time.Second),
+						},
 					},
 				},
 			},
@@ -77,28 +93,45 @@ func TestOverrides(t *testing.T) {
 		{
 			name: "wildcard override",
 			defaultLimits: Limits{
-				MaxGlobalTracesPerUser:  1,
-				MaxLocalTracesPerUser:   2,
-				MaxBytesPerTrace:        3,
-				IngestionBurstSizeBytes: 4,
-				IngestionRateLimitBytes: 5,
+				Ingestion: IngestionConfig{
+
+					MaxGlobalTracesPerUser: 1,
+					MaxLocalTracesPerUser:  2,
+					BurstSizeBytes:         4,
+					RateLimitBytes:         5,
+				},
+				Global: GlobalLimitsConfig{
+					MaxBytesPerTrace: 3,
+				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
-						MaxGlobalTracesPerUser:  6,
-						MaxLocalTracesPerUser:   7,
-						MaxBytesPerTrace:        8,
-						IngestionBurstSizeBytes: 9,
-						IngestionRateLimitBytes: 10,
+						Ingestion: IngestionConfig{
+
+							MaxGlobalTracesPerUser: 6,
+							MaxLocalTracesPerUser:  7,
+							BurstSizeBytes:         9,
+							RateLimitBytes:         10,
+						},
+						Global: GlobalLimitsConfig{
+							MaxBytesPerTrace: 8,
+						},
 					},
 					"*": {
-						MaxGlobalTracesPerUser:  11,
-						MaxLocalTracesPerUser:   12,
-						MaxBytesPerTrace:        13,
-						IngestionBurstSizeBytes: 14,
-						IngestionRateLimitBytes: 15,
-						MaxSearchDuration:       model.Duration(16 * time.Second),
+						Ingestion: IngestionConfig{
+
+							MaxGlobalTracesPerUser: 11,
+							MaxLocalTracesPerUser:  12,
+							BurstSizeBytes:         14,
+							RateLimitBytes:         15,
+						},
+						Global: GlobalLimitsConfig{
+							MaxBytesPerTrace: 13,
+						},
+						Read: ReadConfig{
+							MaxSearchDuration: model.Duration(16 * time.Second),
+						},
 					},
 				},
 			},
@@ -176,12 +209,18 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		{
 			name: "limits only",
 			defaultLimits: Limits{
-				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
-				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
-					{
-						Name:        "test-name",
-						SourceLabel: []string{"service.name"},
-						Join:        "/",
+				MetricsGenerator: MetricsGeneratorConfig{
+					Processor: ProcessorConfig{
+						SpanMetrics: SpanMetricsConfig{
+							EnableTargetInfo: true,
+							DimensionMappings: []sharedconfig.DimensionMappings{
+								{
+									Name:        "test-name",
+									SourceLabel: []string{"service.name"},
+									Join:        "/",
+								},
+							},
+						},
 					},
 				},
 			},
@@ -209,12 +248,18 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
-						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
-						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
-							{
-								Name:        "test-name",
-								SourceLabel: []string{"service.name"},
-								Join:        "/",
+						MetricsGenerator: MetricsGeneratorConfig{
+							Processor: ProcessorConfig{
+								SpanMetrics: SpanMetricsConfig{
+									EnableTargetInfo: true,
+									DimensionMappings: []sharedconfig.DimensionMappings{
+										{
+											Name:        "test-name",
+											SourceLabel: []string{"service.name"},
+											Join:        "/",
+										},
+									},
+								},
 							},
 						},
 					},
@@ -235,39 +280,57 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		{
 			name: "wildcard override",
 			defaultLimits: Limits{
-				MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: false,
-				MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
-					{
-						Name:        "test-name",
-						SourceLabel: []string{"service.name"},
-						Join:        "/",
+				MetricsGenerator: MetricsGeneratorConfig{
+					Processor: ProcessorConfig{
+						SpanMetrics: SpanMetricsConfig{
+							EnableTargetInfo: false,
+							DimensionMappings: []sharedconfig.DimensionMappings{
+								{
+									Name:        "test-name",
+									SourceLabel: []string{"service.name"},
+									Join:        "/",
+								},
+							},
+						},
 					},
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
 					"user1": {
-						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: true,
-						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
-							{
-								Name:        "another-name",
-								SourceLabel: []string{"service.namespace"},
-								Join:        "/",
+						MetricsGenerator: MetricsGeneratorConfig{
+							Processor: ProcessorConfig{
+								SpanMetrics: SpanMetricsConfig{
+									EnableTargetInfo: true,
+									DimensionMappings: []sharedconfig.DimensionMappings{
+										{
+											Name:        "another-name",
+											SourceLabel: []string{"service.namespace"},
+											Join:        "/",
+										},
+									},
+								},
 							},
 						},
 					},
 					"*": {
-						MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: false,
-						MetricsGeneratorProcessorSpanMetricsDimensionMappings: []sharedconfig.DimensionMappings{
-							{
-								Name:        "id-name",
-								SourceLabel: []string{"service.instance.id"},
-								Join:        "/",
-							},
-							{
-								Name:        "job",
-								SourceLabel: []string{"service.namespace", "service.name"},
-								Join:        "/",
+						MetricsGenerator: MetricsGeneratorConfig{
+							Processor: ProcessorConfig{
+								SpanMetrics: SpanMetricsConfig{
+									EnableTargetInfo: false,
+									DimensionMappings: []sharedconfig.DimensionMappings{
+										{
+											Name:        "id-name",
+											SourceLabel: []string{"service.instance.id"},
+											Join:        "/",
+										},
+										{
+											Name:        "job",
+											SourceLabel: []string{"service.namespace", "service.name"},
+											Join:        "/",
+										},
+									},
+								},
 							},
 						},
 					},

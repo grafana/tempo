@@ -25,13 +25,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// Try to unmarshal inline limits
 	type legacyConfig struct {
-		DefaultLimits Limits `yaml:",inline"`
+		DefaultLimits LegacyLimits `yaml:",inline"`
 
 		PerTenantOverrideConfig string         `yaml:"per_tenant_override_config"`
 		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
 	}
 	var legacyCfg legacyConfig
-	legacyCfg.DefaultLimits = c.DefaultLimits
+	legacyCfg.DefaultLimits = c.DefaultLimits.toLegacy()
 	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 
@@ -39,7 +39,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	c.DefaultLimits = legacyCfg.DefaultLimits
+	c.DefaultLimits = fromLegacyLimits(legacyCfg.DefaultLimits)
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	return nil
