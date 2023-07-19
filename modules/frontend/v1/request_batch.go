@@ -58,7 +58,6 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 		return b.pipelineRequests[0].originalCtx.Done()
 	}
 
-	// jpe - does this work?
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
