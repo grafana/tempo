@@ -123,6 +123,9 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 
 // Do does the doing of getting a blocklist
 func (p *Poller) Do(ctx context.Context) (PerTenant, PerTenantCompacted, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Poller.Do")
+	defer span.Finish()
+
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
