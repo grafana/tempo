@@ -154,7 +154,7 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+	blockID := uuid.MustParse("735a37ac-75c7-4bfc-96b2-f525c904b2b9")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/Users/marty/src/tmp/"),
