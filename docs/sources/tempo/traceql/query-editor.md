@@ -1,6 +1,6 @@
 ---
-title: Create TraceQL queries in Grafana
-menuTitle: Create TraceQL queries in Grafana
+title: Write TraceQL queries in Grafana
+menuTitle: Write TraceQL queries in Grafana
 description: Learn how to create TraceQL queries in Grafana using the query editor and search.
 aliases:
   - /docs/tempo/latest/traceql/construct-query
