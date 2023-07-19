@@ -161,7 +161,7 @@ func TestBlockMetaParsing(t *testing.T) {
 	}
 }
 
-func TestDedicateColumnsFromTempopb(t *testing.T) {
+func TestDedicatedColumnsFromTempopb(t *testing.T) {
 	tests := []struct {
 		name        string
 		cols        []*tempopb.DedicatedColumn
@@ -201,7 +201,7 @@ func TestDedicateColumnsFromTempopb(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cols, err := DedicateColumnsFromTempopb(tc.cols)
+			cols, err := DedicatedColumnsFromTempopb(tc.cols)
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				assert.EqualError(t, err, tc.expectedErr.Error())

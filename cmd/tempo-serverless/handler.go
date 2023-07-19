@@ -82,7 +82,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("parsing encoding", err, http.StatusBadRequest)
 	}
 
-	dc, err := backend.DedicateColumnsFromTempopb(searchReq.DedicatedColumns)
+	dc, err := backend.DedicatedColumnsFromTempopb(searchReq.DedicatedColumns)
 	if err != nil {
 		return nil, httpError("parsing dedicated columns", err, http.StatusBadRequest)
 	}

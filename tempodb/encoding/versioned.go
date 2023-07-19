@@ -76,6 +76,11 @@ func DefaultEncoding() VersionedEncoding {
 	return vparquet2.Encoding{}
 }
 
+// LatestEncoding returns the most recent encoding.
+func LatestEncoding() VersionedEncoding {
+	return vparquet3.Encoding{}
+}
+
 // AllEncodings returns all encodings
 func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{

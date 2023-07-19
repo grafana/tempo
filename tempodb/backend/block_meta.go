@@ -180,19 +180,11 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 	b.TotalObjects++
 }
 
-// TODO: Find a way to not compute the hash every time
-//  Storing it bring some issues:
-//    * It's not clear how to keep BlockMeta.DedicatedColumns and the hash in sync.
-//    * BlockMeta can be initialized directly, without going through NewBlockMetaWithDedicatedColumns
-//      (e.g. when loading from disk). We can do a lazy init, but we'd have little control over when
-//      the hash is computed and that the field is not accessed directly.
-//    * We could make the field private and add a method to access it, but that doesn't work well with JSON tags.
-
 func (b *BlockMeta) DedicatedColumnsHash() uint64 {
 	return b.DedicatedColumns.Hash()
 }
 
-func DedicateColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {
+func DedicatedColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {
 	cols := make(DedicatedColumns, 0, len(tempopbCols))
 
 	for _, c := range tempopbCols {

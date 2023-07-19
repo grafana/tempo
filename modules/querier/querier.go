@@ -749,7 +749,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		return nil, err
 	}
 
-	dc, err := backend.DedicateColumnsFromTempopb(req.DedicatedColumns)
+	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
 		return nil, err
 	}

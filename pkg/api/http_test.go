@@ -367,7 +367,7 @@ func TestParseSearchBlockRequest(t *testing.T) {
 			},
 		},
 		{
-			url: "/?tags=foo%3Dbar&start=10&end=20&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dedicatedColumns=%5B%7B%22type%22%3A0%2C%22name%22%3A%22net.sock.host.addr%22%2C%22scope%22%3A0%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
+			url: "/?tags=foo%3Dbar&start=10&end=20&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dc=%5B%7B%22type%22%3A0%2C%22name%22%3A%22net.sock.host.addr%22%2C%22scope%22%3A0%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
 			expected: &tempopb.SearchBlockRequest{
 				SearchReq: &tempopb.SearchRequest{
 					Tags: map[string]string{
@@ -485,7 +485,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				},
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dedicatedColumns=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dc=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
 		},
 	}
 

@@ -30,8 +30,8 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -420,7 +420,7 @@ func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Limit
 				IndexDownsampleBytes: 2,
 				BloomFP:              0.01,
 				BloomShardSizeBytes:  100_000,
-				Version:              vparquet3.VersionString, // TODO change to encoding.DefaultEncoding().Version() when vParquet3 is the default
+				Version:              encoding.LatestEncoding().Version(),
 				Encoding:             backend.EncLZ4_1M,
 				IndexPageSizeBytes:   1000,
 			},

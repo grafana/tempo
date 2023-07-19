@@ -44,7 +44,7 @@ const (
 	urlParamVersion          = "version"
 	urlParamSize             = "size"
 	urlParamFooterSize       = "footerSize"
-	urlParamDedicatedColumns = "dedicatedColumns"
+	urlParamDedicatedColumns = "dc"
 
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
