@@ -7,8 +7,6 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 )
 
-// jpe -test
-
 type requestBatch struct {
 
 	// requests that represent that communicate back with the upstream pipeline

@@ -114,7 +114,7 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 		return nil, err
 	}
 
-	if f.cfg.MaxBatchSize <= 0 { // jpe test?
+	if f.cfg.MaxBatchSize <= 0 {
 		return nil, errors.New("max_batch_size must be positive")
 	}
 
@@ -222,7 +222,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	}
 	for {
 		reqSlice := make([]queue.Request, batchSize)
-		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, reqSlice) // jpe pass in reusable slice?
+		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, reqSlice)
 		if err != nil {
 			return err
 		}
@@ -322,7 +322,7 @@ func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan 
 			err = reqBatch.reportResultsToPipeline(resp.HttpResponseBatch)
 		}
 		if err != nil {
-			return err // jpe this should never happen, but what if it does?
+			return errors.Wrap(err, "unexpected error reporting results upstream")
 		}
 	}
 

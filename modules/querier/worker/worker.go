@@ -23,8 +23,8 @@ type Config struct {
 	FrontendAddress string        `yaml:"frontend_address"`
 	DNSLookupPeriod time.Duration `yaml:"dns_lookup_duration"`
 
-	Parallelism           int  `yaml:"parallelism"`          // jpe remove
-	MatchMaxConcurrency   bool `yaml:"match_max_concurrent"` // jpe remove - enforce
+	Parallelism           int  `yaml:"parallelism"`
+	MatchMaxConcurrency   bool `yaml:"match_max_concurrent"`
 	MaxConcurrentRequests int  `yaml:"-"`
 
 	QuerierID string `yaml:"id"`
