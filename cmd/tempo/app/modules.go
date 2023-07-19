@@ -36,7 +36,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
-	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -494,9 +493,9 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
-		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
+		level.Info(log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
 	}
 	t.usageReport = ur
