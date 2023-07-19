@@ -139,7 +139,7 @@ func (fp *frontendProcessor) runRequests(ctx context.Context, requests []*httpgr
 	for i, request := range requests {
 		wg.Add(1)
 		go func(i int, request *httpgrpc.HTTPRequest) {
-			responses[i] = fp.runRequest(ctx, request) // jpe i don't think this requires locking
+			responses[i] = fp.runRequest(ctx, request)
 			wg.Done()
 		}(i, request)
 	}
@@ -178,7 +178,6 @@ func (fp *frontendProcessor) handleSendError(err error) error {
 		return nil
 	}
 
-	// jpe test
 	if errors.Is(err, context.Canceled) {
 		level.Debug(fp.log).Log("msg", "error processing requests", "err", err)
 		return nil
