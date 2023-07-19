@@ -67,7 +67,7 @@ func TestRequestBatchContextError(t *testing.T) {
 	require.Error(t, rb.contextError())
 }
 
-func TestDoneChanCloses(t *testing.T) {
+func TestDoneChanCloses(_ *testing.T) {
 	rb := &requestBatch{}
 
 	const totalRequests = 3
@@ -93,7 +93,7 @@ func TestDoneChanCloses(t *testing.T) {
 	// this test won't return unless doneChan closes
 }
 
-func TestDoneChanClosesOnStop(t *testing.T) {
+func TestDoneChanClosesOnStop(_ *testing.T) {
 	rb := &requestBatch{}
 
 	const totalRequests = 3

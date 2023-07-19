@@ -165,13 +165,9 @@ FindQueue:
 		return nil, last, err
 	}
 
-	for {
-		queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
-		last.last = idx
-		if queue == nil {
-			break
-		}
-
+	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
+	last.last = idx
+	if queue != nil {
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
 		if len(queue) < requestedCount {
 			requestedCount = len(queue)
