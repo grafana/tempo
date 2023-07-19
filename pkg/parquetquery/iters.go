@@ -633,7 +633,6 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 		}
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-
 		if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
 			cc.Close()
 			continue
@@ -722,7 +721,6 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-
 			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
 				cc.Close()
 				continue
@@ -965,7 +963,6 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 		}
 
 		col := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.col]}
-
 		if c.filter != nil {
 			if !c.filter.KeepColumnChunk(col) {
 				// Skip column chunk

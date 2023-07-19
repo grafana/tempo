@@ -75,7 +75,7 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (p *StringInPredicate) KeepPage(page pq.Page) bool {
+func (p *StringInPredicate) KeepPage(pq.Page) bool {
 	// todo: check bounds
 	return true
 }
@@ -173,7 +173,7 @@ func (p *regexPredicate) KeepValue(v pq.Value) bool {
 	return p.keep(&v)
 }
 
-func (p *regexPredicate) KeepPage(page pq.Page) bool {
+func (p *regexPredicate) KeepPage(pq.Page) bool {
 	return true
 }
 
@@ -222,7 +222,7 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 	return matched
 }
 
-func (p *SubstringPredicate) KeepPage(page pq.Page) bool {
+func (p *SubstringPredicate) KeepPage(pq.Page) bool {
 	return true
 }
 

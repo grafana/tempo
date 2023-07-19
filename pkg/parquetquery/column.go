@@ -1,8 +1,6 @@
 package parquetquery
 
 import (
-	"io"
-
 	"github.com/segmentio/parquet-go"
 )
 
@@ -52,11 +50,7 @@ func (h *ColumnChunkHelper) NextPage() (parquet.Page, error) {
 		h.pages = h.ColumnChunk.Pages()
 	}
 
-	pg, err := h.pages.ReadPage()
-	if err == io.EOF {
-		return nil, nil
-	}
-	return pg, err
+	return h.pages.ReadPage()
 }
 
 func (h *ColumnChunkHelper) Close() error {
