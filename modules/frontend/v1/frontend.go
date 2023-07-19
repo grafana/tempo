@@ -214,7 +214,6 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 
 	lastUserIndex := queue.FirstUser()
 
-	// jpe - todo: add the ability for the upstream channel to signal no batching and total job size
 	reqBatch := &requestBatch{}
 	batchSize := 1
 	if querierSupportsBatching(querierFeatures) {
