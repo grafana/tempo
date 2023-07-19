@@ -34,6 +34,7 @@ cmd/
   tempo-cli/          - cli tool for directly inspecting blocks in the backend
   tempo-vulture/      - bird-themed consistency checker.  optional.
   tempo-query/        - jaeger-query GRPC plugin (Apache2 licensed)
+  tempo-serverless/   - serverless handler for searching backend storage for traces
 docs/
 example/              - great place to get started running Tempo
   docker-compose/
@@ -60,9 +61,11 @@ vendor/
 ## Coding Standards
 
 ### go imports
+
 imports should follow `std libs`, `externals libs` and `local packages` format
 
 Example
+
 ```
 import (
 	"context"
@@ -151,17 +154,17 @@ Tempo documentation is located in the `docs` directory. The `docs` directory has
 - `design-proposals`: Used for project and feature proposals. This content is not published with the product documentation.
 - `internal`: Used for internal process-related conteint, including diagrams.
 - `sources`: All of the product documentation resides here.
-   - The `helm-charts` folder contains the documentation for the `tempo-distributed` Helm chart, https://grafana.com/docs/helm-charts/tempo-distributed/next/
-   - The `tempo` folder contains the product documentation, https://grafana.com/docs/tempo/latest/
+  - The `helm-charts` folder contains the documentation for the `tempo-distributed` Helm chart, https://grafana.com/docs/helm-charts/tempo-distributed/next/
+  - The `tempo` folder contains the product documentation, https://grafana.com/docs/tempo/latest/
 
 ### Contribute to documentation
 
 Once you know what you would like to write, use the [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/writing-guide/contribute-documentation/) for information on creating good documentation.
 The toolkit also provides [document templates](https://github.com/grafana/writers-toolkit/tree/main/docs/static/templates) to help get started.
 
-When you create a PR for documentation, add the `types/doc` label to identify the PR as contributing documentation. 
+When you create a PR for documentation, add the `types/doc` label to identify the PR as contributing documentation.
 
-If your content needs to be added to a previous release, use the `backport` label for the version. When your PR is merged, the backport label triggers an automatic process to create an additional PR to merge the content into the version's branch. Check the PR for content that might not be appropriate for the version. For example, if you fix a broken link on a page and then backport to Tempo 1.5, you would not want any TraceQL information to appear.  
+If your content needs to be added to a previous release, use the `backport` label for the version. When your PR is merged, the backport label triggers an automatic process to create an additional PR to merge the content into the version's branch. Check the PR for content that might not be appropriate for the version. For example, if you fix a broken link on a page and then backport to Tempo 1.5, you would not want any TraceQL information to appear.
 
 ### Preview documentation
 
@@ -169,7 +172,7 @@ To preview the documentation locally, run `make docs` from the root folder of th
 the `grafana/docs` image which internally uses Hugo to generate the static site. The site is available on `localhost:3002/docs/`.
 
 > **Note** The `make docs` command uses a lot of memory. If its crashing make sure to increase the memory allocated to Docker
-and try again.
+> and try again.
 
 ### Publishing process
 

@@ -21,7 +21,7 @@ const tenantID = "tenant-id"
 
 func TestForwarder(t *testing.T) {
 	oCfg := overrides.Limits{}
-	oCfg.RegisterFlags(&flag.FlagSet{})
+	oCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 	id, err := util.HexStringToTraceID("1234567890abcdef")
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestForwarder(t *testing.T) {
 
 func TestForwarder_shutdown(t *testing.T) {
 	oCfg := overrides.Limits{}
-	oCfg.RegisterFlags(&flag.FlagSet{})
+	oCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 	oCfg.MetricsGeneratorForwarderQueueSize = 200
 
 	id, err := util.HexStringToTraceID("1234567890abcdef")

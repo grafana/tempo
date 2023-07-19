@@ -70,6 +70,9 @@ const (
 	PathSpanMetrics        = "/api/metrics"
 	PathSpanMetricsSummary = "/api/metrics/summary"
 
+	// PathOverrides user configurable overrides
+	PathOverrides = "/api/overrides"
+
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
 

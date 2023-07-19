@@ -102,6 +102,44 @@ func TestConfig_CheckConfig(t *testing.T) {
 			}(),
 			expect: nil,
 		},
+		{
+			name: "trace storage conflicts with overrides storage - local",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.Local
+				cfg.StorageConfig.Trace.Local.Path = "/var/tempo"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.Local
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Local.Path = "/var/tempo"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - gcs",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.GCS
+				cfg.StorageConfig.Trace.GCS.BucketName = "bucketname"
+				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.GCS
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "bucketname"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.Prefix = "tempo"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - different backends",
+			config: func() *Config {
+				cfg := newDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.GCS
+				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.S3
+				cfg.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig.S3.Bucket = "my-bucket"
+				return cfg
+			}(),
+			expect: nil,
+		},
 	}
 
 	for _, tc := range tt {

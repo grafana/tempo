@@ -29,3 +29,8 @@ type Config struct {
 	StorageClass     string            `yaml:"storage_class"`
 	Metadata         map[string]string `yaml:"metadata"`
 }
+
+func (c *Config) PathMatches(other *Config) bool {
+	// S3 bucket names are globally unique
+	return c.Bucket == other.Bucket && c.Prefix == other.Prefix
+}

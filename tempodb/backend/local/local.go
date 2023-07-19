@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type Backend struct {
@@ -99,6 +100,11 @@ func (rw *Backend) CloseAppend(_ context.Context, tracker backend.AppendTracker)
 
 	var dst *os.File = tracker.(*os.File)
 	return dst.Close()
+}
+
+func (rw *Backend) Delete(_ context.Context, name string, keypath backend.KeyPath) error {
+	path := rw.rootPath(append(keypath, name))
+	return os.RemoveAll(path)
 }
 
 // List implements backend.Reader
