@@ -916,7 +916,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		}
 
 		// Attributes stored in dedicated columns
-		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
+		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
@@ -1046,7 +1046,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		}
 
 		// Attributes stored in dedicated columns
-		if c, ok := columnMapping.Get(cond.Attribute.Name); ok {
+		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name

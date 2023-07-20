@@ -141,7 +141,6 @@ type Event struct {
 	Name                   string           `parquet:",snappy"`
 	Attrs                  []EventAttribute `parquet:",list"`
 	DroppedAttributesCount int32            `parquet:",snappy,delta"`
-	Test                   string           `parquet:",snappy,dict,optional"` // Always empty for testing
 }
 
 // nolint:revive
@@ -193,9 +192,6 @@ type ScopeSpans struct {
 
 type Resource struct {
 	Attrs []Attribute `parquet:",list"`
-
-	// Always empty for testing
-	Test string `parquet:",snappy,dict,optional"`
 
 	// Static dedicated attribute columns
 	ServiceName      string  `parquet:",snappy,dict"`
@@ -330,7 +326,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 				if !written {
 					// Dynamically assigned dedicated resource attribute columns
-					if spareColumn, exists := dedicatedResourceAttributes.Get(a.Key); exists {
+					if spareColumn, exists := dedicatedResourceAttributes.get(a.Key); exists {
 						written = spareColumn.writeValue(&ob.Resource.DedicatedAttributes, a.Value)
 					}
 				}
@@ -436,7 +432,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 					if !written {
 						// Dynamically assigned dedicated span attribute columns
-						if spareColumn, exists := dedicatedSpanAttributes.Get(a.Key); exists {
+						if spareColumn, exists := dedicatedSpanAttributes.get(a.Key); exists {
 							written = spareColumn.writeValue(&ss.DedicatedAttributes, a.Value)
 						}
 					}
@@ -581,7 +577,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 		}
 
 		// dynamically assigned dedicated resource attribute columns
-		dedicatedResourceAttributes.ForEach(func(attr string, col dedicatedColumn) {
+		dedicatedResourceAttributes.forEach(func(attr string, col dedicatedColumn) {
 			val := col.readValue(&rs.Resource.DedicatedAttributes)
 			if val != nil {
 				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
@@ -668,7 +664,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 				}
 
 				// dynamically assigned dedicated resource attribute columns
-				dedicatedSpanAttributes.ForEach(func(attr string, col dedicatedColumn) {
+				dedicatedSpanAttributes.forEach(func(attr string, col dedicatedColumn) {
 					val := col.readValue(&span.DedicatedAttributes)
 					if val != nil {
 						protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{

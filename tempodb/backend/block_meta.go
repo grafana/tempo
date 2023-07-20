@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -24,6 +25,12 @@ const (
 
 	DedicatedColumnScopeResource DedicatedColumnScope = "resource"
 	DedicatedColumnScopeSpan     DedicatedColumnScope = "span"
+
+	DefaultDedicatedColumnType  = DedicatedColumnTypeString
+	DefaultDedicatedColumnScope = DedicatedColumnScopeSpan
+
+	maxSupportedSpanColumns     = 10
+	maxSupportedResourceColumns = 10
 )
 
 func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedColumnType, error) {
@@ -124,11 +131,40 @@ type BlockMeta struct {
 // be stored in a dedicated column instead of the generic attribute column.
 type DedicatedColumn struct {
 	// The Scope of the attribute
-	Scope DedicatedColumnScope `yaml:"scope" json:"scope"`
+	Scope DedicatedColumnScope `yaml:"scope" json:"s,omitempty"`
 	// The Name of the attribute stored in the dedicated column
-	Name string `yaml:"name" json:"name"`
+	Name string `yaml:"name" json:"n"`
 	// The Type of attribute value
-	Type DedicatedColumnType `yaml:"type" json:"type"`
+	Type DedicatedColumnType `yaml:"type" json:"t,omitempty"`
+}
+
+func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
+	type dcAlias DedicatedColumn // alias required to avoid recursive calls of MarshalJSON
+
+	cpy := (dcAlias)(*dc)
+	if cpy.Scope == DefaultDedicatedColumnScope {
+		cpy.Scope = ""
+	}
+	if cpy.Type == DefaultDedicatedColumnType {
+		cpy.Type = ""
+	}
+	return json.Marshal(&cpy)
+}
+
+func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
+	type dcAlias DedicatedColumn // alias required to avoid recursive calls of UnmarshalJSON
+
+	err := json.Unmarshal(b, (*dcAlias)(dc))
+	if err != nil {
+		return err
+	}
+	if dc.Scope == "" {
+		dc.Scope = DefaultDedicatedColumnScope
+	}
+	if dc.Type == "" {
+		dc.Type = DefaultDedicatedColumnType
+	}
+	return nil
 }
 
 // DedicatedColumns represents a set of configured dedicated columns.
@@ -233,11 +269,24 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 }
 
 func (dcs DedicatedColumns) Validate() error {
+	var countSpan, countRes int
 	for _, dc := range dcs {
 		err := dc.Validate()
 		if err != nil {
 			return err
 		}
+		switch dc.Scope {
+		case DedicatedColumnScopeSpan:
+			countSpan++
+		case DedicatedColumnScopeResource:
+			countRes++
+		}
+	}
+	if countSpan > maxSupportedSpanColumns {
+		return errors.Errorf("number of dedicated columns with scope 'span' must be <= %d but was %d", maxSupportedSpanColumns, countSpan)
+	}
+	if countRes > maxSupportedResourceColumns {
+		return errors.Errorf("number of dedicated columns with scope 'resource' must be <= %d but was %d", maxSupportedResourceColumns, countRes)
 	}
 	return nil
 }

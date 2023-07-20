@@ -39,7 +39,7 @@ const (
 	KindProducer    = "producer"
 	KindConsumer    = "consumer"
 
-	EnvVarAsyncIteratorName  = "VPARQUET2_ASYNC_ITERATOR"
+	EnvVarAsyncIteratorName  = "VPARQUET_ASYNC_ITERATOR"
 	EnvVarAsyncIteratorValue = "1"
 )
 
@@ -145,7 +145,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	for k, v := range req.Tags {
 		// dedicated attribute columns
-		if c, ok := spanAndResourceColumnMapping.Get(k); ok {
+		if c, ok := spanAndResourceColumnMapping.get(k); ok {
 			resourceIters = append(resourceIters, makeIter(c.ColumnPath, pq.NewSubstringPredicate(v), ""))
 			continue
 		}

@@ -129,17 +129,17 @@ type dedicatedColumnMapping struct {
 	keys    []string
 }
 
-func (dm *dedicatedColumnMapping) Put(attr string, col dedicatedColumn) {
+func (dm *dedicatedColumnMapping) put(attr string, col dedicatedColumn) {
 	dm.mapping[attr] = col
 	dm.keys = append(dm.keys, attr)
 }
 
-func (dm *dedicatedColumnMapping) Get(attr string) (dedicatedColumn, bool) {
+func (dm *dedicatedColumnMapping) get(attr string) (dedicatedColumn, bool) {
 	col, ok := dm.mapping[attr]
 	return col, ok
 }
 
-func (dm *dedicatedColumnMapping) ForEach(callback func(attr string, column dedicatedColumn)) {
+func (dm *dedicatedColumnMapping) forEach(callback func(attr string, column dedicatedColumn)) {
 	for _, k := range dm.keys {
 		callback(k, dm.mapping[k])
 	}
@@ -177,7 +177,7 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 				continue // skip if there are not enough spare columns
 			}
 
-			mapping.Put(c.Name, dedicatedColumn{
+			mapping.put(c.Name, dedicatedColumn{
 				Type:        c.Type,
 				ColumnPath:  spareColumnPaths[i],
 				ColumnIndex: i,

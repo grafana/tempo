@@ -359,7 +359,7 @@ func TestTempoDBOverrides(t *testing.T) {
 			overrides: `
 overrides:
   user2:
-    dedicated_columns:
+    parquet_dedicated_columns:
       - scope: "span"
         name: "http.status"
         type: "int"
@@ -380,7 +380,7 @@ overrides:
 overrides:
   user1:
   user2:
-    dedicated_columns: []
+    parquet_dedicated_columns: []
 `,
 			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
 				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
