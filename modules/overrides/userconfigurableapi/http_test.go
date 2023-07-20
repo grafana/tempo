@@ -162,7 +162,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			require.NoError(t, err)
 
 			if tc.current != "" {
-				_, err := overridesAPI.client.Set(context.Background(), tenant, parseJson(t, tc.current), backend.VersionNew)
+				_, err := overridesAPI.client.Set(context.Background(), tenant, parseJSON(t, tc.current), backend.VersionNew)
 				assert.NoError(t, err)
 			}
 
@@ -270,7 +270,7 @@ func prepareRequest(tenant, method string, payload []byte) *http.Request {
 	return r
 }
 
-func parseJson(t *testing.T, s string) *UserConfigurableLimits {
+func parseJSON(t *testing.T, s string) *UserConfigurableLimits {
 	var limits UserConfigurableLimits
 	err := jsoniter.Unmarshal([]byte(s), &limits)
 	require.NoError(t, err)
