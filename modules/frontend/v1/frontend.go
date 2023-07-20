@@ -29,6 +29,7 @@ var errTooManyRequest = httpgrpc.Errorf(http.StatusTooManyRequests, "too many ou
 type Config struct {
 	MaxOutstandingPerTenant int           `yaml:"max_outstanding_per_tenant"`
 	QuerierForgetDelay      time.Duration `yaml:"querier_forget_delay"`
+	MaxBatchSize            int           `yaml:"max_batch_size"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet.
@@ -63,6 +64,7 @@ type Frontend struct {
 	discardedRequests *prometheus.CounterVec
 	numClients        prometheus.GaugeFunc
 	queueDuration     prometheus.Histogram
+	actualBatchSize   prometheus.Histogram
 }
 
 type request struct {
@@ -77,6 +79,12 @@ type request struct {
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
 func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
+	const batchBucketCount = 5
+	if cfg.MaxBatchSize <= 0 {
+		return nil, errors.New("max_batch_size must be positive")
+	}
+	batchBucketSize := float64(cfg.MaxBatchSize) / float64(batchBucketCount)
+
 	f := &Frontend{
 		cfg:    cfg,
 		log:    log,
@@ -93,6 +101,11 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 			Name:    "tempo_query_frontend_queue_duration_seconds",
 			Help:    "Time spend by requests queued.",
 			Buckets: prometheus.DefBuckets,
+		}),
+		actualBatchSize: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
+			Name:    "tempo_query_frontend_actual_batch_size",
+			Help:    "Batch size.",
+			Buckets: prometheus.LinearBuckets(1, batchBucketSize, batchBucketCount),
 		}),
 	}
 
@@ -191,7 +204,7 @@ func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest)
 
 // Process allows backends to pull requests from the frontend.
 func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
-	querierID, err := getQuerierID(server)
+	querierID, querierFeatures, err := getQuerierInfo(server)
 	if err != nil {
 		return err
 	}
@@ -201,43 +214,62 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 
 	lastUserIndex := queue.FirstUser()
 
+	reqBatch := &requestBatch{}
+	batchSize := 1
+	if querierSupportsBatching(querierFeatures) {
+		batchSize = f.cfg.MaxBatchSize
+	}
 	for {
-		reqWrapper, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID)
+		reqSlice := make([]queue.Request, batchSize)
+		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, reqSlice)
 		if err != nil {
 			return err
 		}
 		lastUserIndex = idx
 
-		req := reqWrapper.(*request)
+		reqBatch.clear()
+		for _, reqWrapper := range reqSlice {
+			req := reqWrapper.(*request)
 
-		f.queueDuration.Observe(time.Since(req.enqueueTime).Seconds())
-		req.queueSpan.Finish()
+			f.queueDuration.Observe(time.Since(req.enqueueTime).Seconds())
+			req.queueSpan.Finish()
 
-		/*
-		  We want to dequeue the next unexpired request from the chosen tenant queue.
-		  The chance of choosing a particular tenant for dequeueing is (1/active_tenants).
-		  This is problematic under load, especially with other middleware enabled such as
-		  querier.split-by-interval, where one request may fan out into many.
-		  If expired requests aren't exhausted before checking another tenant, it would take
-		  n_active_tenants * n_expired_requests_at_front_of_queue requests being processed
-		  before an active request was handled for the tenant in question.
-		  If this tenant meanwhile continued to queue requests,
-		  it's possible that it's own queue would perpetually contain only expired requests.
-		*/
-		if req.originalCtx.Err() != nil {
+			// only add if not expired
+			if req.originalCtx.Err() != nil {
+				continue
+			}
+
+			reqBatch.add(req)
+		}
+
+		// if all requests are expired then continue requesting jobs for this user. this nicely
+		// drains a large expired query for a tenant and allows them to execute a real query
+		if reqBatch.len() == 0 {
 			lastUserIndex = lastUserIndex.ReuseLastUser()
 			continue
 		}
+
+		f.actualBatchSize.Observe(float64(reqBatch.len()))
 
 		// Handle the stream sending & receiving on a goroutine so we can
 		// monitoring the contexts in a select and cancel things appropriately.
 		resps := make(chan *frontendv1pb.ClientToFrontend, 1)
 		errs := make(chan error, 1)
 		go func() {
-			err = server.Send(&frontendv1pb.FrontendToClient{
-				Type:        frontendv1pb.Type_HTTP_REQUEST,
-				HttpRequest: req.request,
-			})
+			// todo: we are still sending the old Type_HTTP_REQUEST for backwards compat
+			// with queriers that don't support the new Type_HTTP_REQUEST_BATCH. this feature
+			// was introduced in 2.2. We should remove this in a few versions
+			if reqBatch.len() == 1 {
+				err = server.Send(&frontendv1pb.FrontendToClient{
+					Type:        frontendv1pb.Type_HTTP_REQUEST,
+					HttpRequest: reqBatch.httpGrpcRequests()[0],
+				})
+			} else {
+				err = server.Send(&frontendv1pb.FrontendToClient{
+					Type:             frontendv1pb.Type_HTTP_REQUEST_BATCH,
+					HttpRequestBatch: reqBatch.httpGrpcRequests(),
+				})
+			}
 			if err != nil {
 				errs <- err
 				return
@@ -252,24 +284,48 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			resps <- resp
 		}()
 
-		select {
-		// If the upstream request is cancelled, we need to cancel the
-		// downstream req.  Only way we can do that is to close the stream.
-		// The worker client is expecting this semantics.
-		case <-req.originalCtx.Done():
-			return req.originalCtx.Err()
-
-		// Is there was an error handling this request due to network IO,
-		// then error out this upstream request _and_ stream.
-		case err := <-errs:
-			req.err <- err
+		err = reportResponseUpstream(reqBatch, errs, resps)
+		if err != nil {
 			return err
-
-		// Happy path: merge the stats and propagate the response.
-		case resp := <-resps:
-			req.response <- resp.HttpResponse
 		}
 	}
+}
+
+func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan *frontendv1pb.ClientToFrontend) error {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	select {
+	// If the upstream request is cancelled, we need to cancel the
+	// downstream req.  Only way we can do that is to close the stream.
+	// The worker client is expecting this semantics.
+	case <-reqBatch.doneChan(stopCh):
+		return reqBatch.contextError()
+
+	// Is there was an error handling this request due to network IO,
+	// then error out this upstream request _and_ stream.
+	// The assumption appears to be that the querier will reestablish in the event of this kind
+	// of error.
+	case err := <-errs:
+		reqBatch.reportErrorToPipeline(err)
+		return err
+
+	// Happy path :D
+	case resp := <-resps:
+		// todo: like above support for batches and single requests
+		// can be removed in a few versions once all queriers support batching
+		var err error
+		if len(resp.HttpResponseBatch) == 0 {
+			err = reqBatch.reportResultsToPipeline([]*httpgrpc.HTTPResponse{resp.HttpResponse})
+		} else {
+			err = reqBatch.reportResultsToPipeline(resp.HttpResponseBatch)
+		}
+		if err != nil {
+			return errors.Wrap(err, "unexpected error reporting results upstream")
+		}
+	}
+
+	return nil
 }
 
 func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.NotifyClientShutdownRequest) (*frontendv1pb.NotifyClientShutdownResponse, error) {
@@ -279,7 +335,7 @@ func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.Not
 	return &frontendv1pb.NotifyClientShutdownResponse{}, nil
 }
 
-func getQuerierID(server frontendv1pb.Frontend_ProcessServer) (string, error) {
+func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (string, int32, error) {
 	err := server.Send(&frontendv1pb.FrontendToClient{
 		Type: frontendv1pb.Type_GET_ID,
 		// Old queriers don't support GET_ID, and will try to use the request.
@@ -290,15 +346,18 @@ func getQuerierID(server frontendv1pb.Frontend_ProcessServer) (string, error) {
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", int32(frontendv1pb.Feature_NONE), err
 	}
 
 	resp, err := server.Recv()
+	if err != nil {
+		return "", int32(frontendv1pb.Feature_NONE), err
+	}
 
 	// Old queriers will return empty string, which is fine. All old queriers will be
 	// treated as single querier with lot of connections.
 	// (Note: if resp is nil, GetClientID() returns "")
-	return resp.GetClientID(), err
+	return resp.GetClientID(), resp.Features, err
 }
 
 func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
@@ -317,7 +376,7 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
 	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
 
-	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers, nil)
+	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
 	if err == queue.ErrTooManyRequests {
 		return errTooManyRequest
 	}
@@ -336,4 +395,8 @@ func (f *Frontend) CheckReady(_ context.Context) error {
 	msg := fmt.Sprintf("not ready: number of queriers connected to query-frontend is %d", int64(connectedClients))
 	level.Info(f.log).Log("msg", msg)
 	return errors.New(msg)
+}
+
+func querierSupportsBatching(features int32) bool {
+	return features&int32(frontendv1pb.Feature_REQUEST_BATCHING) != 0
 }
