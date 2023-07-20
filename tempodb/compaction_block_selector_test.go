@@ -414,7 +414,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					TotalObjects: 50,
 					EndTime:      now,
-				}},
+				},
+			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -449,7 +450,8 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					Size:    1,
 					EndTime: now,
-				}},
+				},
+			},
 			expected: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -700,7 +702,6 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			min := defaultMinInputBlocks
 			if tt.minInputBlocks > 0 {
 				min = tt.minInputBlocks

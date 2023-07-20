@@ -217,7 +217,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 	}
 
 	// this goroutine constantly creates new series
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	go accessor(func() {
 		s := make([]rune, 6)
 		for i := range s {

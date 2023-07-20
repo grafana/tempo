@@ -21,12 +21,13 @@ type BackendBlock struct {
 	reader backend.Reader
 }
 
-var _ common.Finder = (*BackendBlock)(nil)
-var _ common.Searcher = (*BackendBlock)(nil)
+var (
+	_ common.Finder   = (*BackendBlock)(nil)
+	_ common.Searcher = (*BackendBlock)(nil)
+)
 
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
-
 	return &BackendBlock{
 		meta:   meta,
 		reader: r,
@@ -82,7 +83,6 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
 	finder := newPagedFinder(indexReader, dataReader, nil, NewObjectReaderWriter(), b.meta.DataEncoding)
 	objectBytes, err := finder.Find(ctx, id)
-
 	if err != nil {
 		return nil, fmt.Errorf("error using pageFinder (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}

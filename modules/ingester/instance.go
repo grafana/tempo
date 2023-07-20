@@ -474,7 +474,6 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
-
 	// Reset trace sizes when cutting block
 	i.tracesMtx.Lock()
 	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))

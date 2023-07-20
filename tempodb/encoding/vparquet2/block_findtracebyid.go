@@ -155,7 +155,6 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		// Must be in this group
 		return 0, nil
 	})
-
 	if err != nil {
 		return nil, errors.Wrap(err, "error binary searching row groups")
 	}

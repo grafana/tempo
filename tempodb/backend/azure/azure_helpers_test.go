@@ -126,7 +126,7 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 	mockedServicePrincipalToken := new(adal.ServicePrincipalToken)
 
 	tmpDir := t.TempDir()
-	_ = os.WriteFile(tmpDir+"/jwtToken", []byte("myJwtToken"), 0666)
+	_ = os.WriteFile(tmpDir+"/jwtToken", []byte("myJwtToken"), 0o666)
 	os.Setenv("AZURE_FEDERATED_TOKEN_FILE", tmpDir+"/jwtToken")
 	defer os.Unsetenv("AZURE_FEDERATED_TOKEN_FILE")
 

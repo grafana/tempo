@@ -40,7 +40,6 @@ type store struct {
 
 // NewStore creates a new Tempo Store using configuration supplied.
 func NewStore(cfg Config, logger log.Logger) (Store, error) {
-
 	statCache.Set(cfg.Trace.Cache)
 	statBackend.Set(cfg.Trace.Backend)
 	statWalEncoding.Set(cfg.Trace.WAL.Encoding.String())

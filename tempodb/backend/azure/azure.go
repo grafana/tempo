@@ -144,7 +144,6 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 		})
 		if err != nil {
 			return objects, errors.Wrap(err, "iterating tenants")
-
 		}
 		marker = list.NextMarker
 

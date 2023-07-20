@@ -35,7 +35,6 @@ func (l *listBlocksCmd) Run(ctx *globalOptions) error {
 }
 
 func displayResults(results []blockStats, windowDuration time.Duration, includeCompacted bool) {
-
 	columns := []string{"id", "lvl", "objects", "size", "encoding", "vers", "window", "start", "end", "duration", "age"}
 	if includeCompacted {
 		columns = append(columns, "cmp")

@@ -152,7 +152,6 @@ func policyMatchIntrinsicAttrs(policy *config.PolicyMatch, span *v1_trace.Span) 
 
 // policyMatchAttrs returns true if all attributes in the policy match the attributes in the span.  String, bool, int, and floats are supported.  Regex MatchType may be applied to string span attributes.
 func policyMatchAttrs(policy *config.PolicyMatch, attrs []*v1_common.KeyValue) bool {
-
 	matches := 0
 	var v *v1_common.AnyValue
 	var pAttrValueType string

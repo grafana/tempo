@@ -9,7 +9,6 @@ import (
 )
 
 func TestPercentile(t *testing.T) {
-
 	testCases := []struct {
 		name      string
 		durations []uint64
@@ -90,7 +89,6 @@ func TestMetricsResultsCombine(t *testing.T) {
 }
 
 func TestGetMetrics(t *testing.T) {
-
 	var (
 		ctx     = context.TODO()
 		query   = "{}"
@@ -139,7 +137,6 @@ func TestGetMetrics(t *testing.T) {
 }
 
 func TestGetMetricsTimeRange(t *testing.T) {
-
 	var (
 		ctx     = context.TODO()
 		query   = "{}"

@@ -518,7 +518,6 @@ func TestValidateAndSanitizeRequest(t *testing.T) {
 		assert.Equal(t, tc.startTime, startTime)
 		assert.Equal(t, tc.endTime, endTime)
 	}
-
 }
 
 func TestBuildSearchRequest(t *testing.T) {

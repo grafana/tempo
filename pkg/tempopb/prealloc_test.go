@@ -9,7 +9,7 @@ import (
 )
 
 func TestUnmarshal(t *testing.T) {
-	var dummyData = make([]byte, 10)
+	dummyData := make([]byte, 10)
 	_, err := crand.Read(dummyData)
 	require.NoError(t, err)
 
@@ -27,7 +27,7 @@ func TestMarshal(t *testing.T) {
 	_, err := crand.Read(preallocReq.Slice)
 	require.NoError(t, err)
 
-	var dummyData = make([]byte, 10)
+	dummyData := make([]byte, 10)
 	_, err = preallocReq.MarshalTo(dummyData)
 	assert.NoError(t, err)
 

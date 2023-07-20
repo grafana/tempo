@@ -34,9 +34,7 @@ const (
 	reasonCompactorDiscardedSpans = "trace_too_large_to_compact"
 )
 
-var (
-	ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
-)
+var ringOp = ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil)
 
 type Compactor struct {
 	services.Service

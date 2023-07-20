@@ -571,7 +571,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedTraces: 1,
 					TotalBlocks:     2,
 					InspectedBytes:  3,
-				}},
+				},
+			},
 			status2: 200,
 			response2: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
@@ -584,7 +585,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedTraces: 5,
 					TotalBlocks:     6,
 					InspectedBytes:  7,
-				}},
+				},
+			},
 			expectedStatus: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
@@ -604,7 +606,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					CompletedJobs:   2,
 					TotalJobs:       2,
 					TotalBlockBytes: defaultTargetBytesPerRequest * 2,
-				}},
+				},
+			},
 		},
 		{
 			name:          "200+err",

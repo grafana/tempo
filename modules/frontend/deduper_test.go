@@ -195,7 +195,6 @@ func TestDedupeSpanIDs(t *testing.T) {
 			assert.Equal(t, tt.expectedRes, s.trace)
 		})
 	}
-
 }
 
 func BenchmarkDeduper100(b *testing.B) {
@@ -205,6 +204,7 @@ func BenchmarkDeduper100(b *testing.B) {
 func BenchmarkDeduper1000(b *testing.B) {
 	benchmarkDeduper(b, 1000)
 }
+
 func BenchmarkDeduper10000(b *testing.B) {
 	benchmarkDeduper(b, 10000)
 }

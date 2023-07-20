@@ -52,7 +52,6 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 }
 
 func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, bloom *common.ShardedBloomFilter) error {
-
 	// bloom
 	blooms, err := bloom.Marshal()
 	if err != nil {
