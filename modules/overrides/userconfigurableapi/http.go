@@ -17,7 +17,9 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-type Validator func(limits *UserConfigurableLimits) error
+type Validator interface {
+	Validate(limits *UserConfigurableLimits) error
+}
 
 // UserConfigOverridesAPI manages the API to retrieve, update and delete user-configurable overrides
 // from the backend.
@@ -113,7 +115,7 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	err = a.validator(limits)
+	err = a.validator.Validate(limits)
 	if err != nil {
 		handleError(span, userID, r, w, http.StatusBadRequest, err)
 		return

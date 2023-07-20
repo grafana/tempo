@@ -51,9 +51,9 @@ func Test_overridesValidator(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			validator := overridesValidator(tc.cfg)
+			validator := overridesValidator{tc.cfg}
 
-			err := validator(&tc.limits)
+			err := validator.Validate(&tc.limits)
 			if tc.expErr != "" {
 				assert.EqualError(t, err, tc.expErr)
 			} else {

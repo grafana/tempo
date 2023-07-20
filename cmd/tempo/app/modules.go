@@ -204,7 +204,7 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	userConfigOverridesAPI, err := userconfigurableapi.NewUserConfigOverridesAPI(&cfg.ClientConfig, overridesValidator(t.cfg))
+	userConfigOverridesAPI, err := userconfigurableapi.NewUserConfigOverridesAPI(&cfg.ClientConfig, &overridesValidator{t.cfg})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
 	}

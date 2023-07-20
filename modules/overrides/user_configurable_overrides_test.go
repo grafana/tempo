@@ -229,3 +229,6 @@ func (b badClient) Set(context.Context, string, *api.UserConfigurableLimits) err
 func (b badClient) Delete(context.Context, string) error {
 	return errors.New("no")
 }
+
+func (b badClient) Shutdown() {
+}
