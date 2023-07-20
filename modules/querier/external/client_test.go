@@ -93,6 +93,7 @@ func (t *stubbedProvider) getToken(_ context.Context, _ string) (*oauth2.Token, 
 		AccessToken: t.dummyToken,
 	}, nil
 }
+
 func getStubbedTokenProvider(dummyToken string) tokenProvider {
 	return &stubbedProvider{dummyToken: dummyToken}
 }
