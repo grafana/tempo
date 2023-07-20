@@ -46,7 +46,6 @@ func NewSegmentDecoder(dataEncoding string) (SegmentDecoder, error) {
 // MustNewSegmentDecoder creates a new encoding or it panics
 func MustNewSegmentDecoder(dataEncoding string) SegmentDecoder {
 	decoder, err := NewSegmentDecoder(dataEncoding)
-
 	if err != nil {
 		panic(err)
 	}

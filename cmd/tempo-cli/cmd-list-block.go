@@ -200,6 +200,7 @@ func printKVPairs(kvp kvPairs) {
 func relativeValue(v values) float64 {
 	return (float64(v.count) * float64(v.count)) / float64(len(v.all))
 }
+
 func extractKVPairs(t *tempopb.Trace) kvPairs {
 	kvp := kvPairs{}
 	for _, b := range t.Batches {
@@ -228,6 +229,7 @@ func extractKVPairs(t *tempopb.Trace) kvPairs {
 	}
 	return kvp
 }
+
 func addKey(kvp kvPairs, key string, count int) {
 	v, ok := kvp[key]
 	if !ok {
@@ -239,6 +241,7 @@ func addKey(kvp kvPairs, key string, count int) {
 	v.count += count
 	kvp[key] = v
 }
+
 func addVal(kvp kvPairs, key string, val string, count int) {
 	v := kvp[key]
 	stats, ok := v.all[val]

@@ -15,12 +15,10 @@ import (
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 )
 
-var (
-	processorBackoffConfig = backoff.Config{
-		MinBackoff: 50 * time.Millisecond,
-		MaxBackoff: 1 * time.Second,
-	}
-)
+var processorBackoffConfig = backoff.Config{
+	MinBackoff: 50 * time.Millisecond,
+	MaxBackoff: 1 * time.Second,
+}
 
 func newFrontendProcessor(cfg Config, handler RequestHandler, log log.Logger) processor {
 	return &frontendProcessor{

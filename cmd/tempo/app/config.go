@@ -198,7 +198,6 @@ func (c *Config) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Config) Collect(ch chan<- prometheus.Metric) {
-
 	features := map[string]int{
 		"search_external_endpoints": 0,
 	}

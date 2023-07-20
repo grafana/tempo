@@ -29,8 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-type mockSharder struct {
-}
+type mockSharder struct{}
 
 func (m *mockSharder) Owns(string) bool {
 	return true

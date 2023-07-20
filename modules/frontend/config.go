@@ -13,9 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 )
 
-var (
-	statVersion = usagestats.NewString("frontend_version")
-)
+var statVersion = usagestats.NewString("frontend_version")
 
 type Config struct {
 	Config     v1.Config       `yaml:",inline"`

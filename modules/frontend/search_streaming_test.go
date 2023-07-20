@@ -133,7 +133,8 @@ func TestStreamingSearchHandlerStreams(t *testing.T) {
 							CompletedJobs:   r.Metrics.CompletedJobs,
 							TotalJobs:       2,
 							TotalBlockBytes: 209715200,
-						}},
+						},
+					},
 				)
 			}
 		},
@@ -349,5 +350,4 @@ func TestDiffSearchProgress(t *testing.T) {
 			InspectedBytes:  6,
 		},
 	}, diffProgress.result().response)
-
 }

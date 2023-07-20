@@ -14,7 +14,6 @@ import (
 )
 
 func TestSpanFilter_NewSpanFilter(t *testing.T) {
-
 	cases := []struct {
 		name   string
 		cfg    []config.FilterPolicy
@@ -47,7 +46,6 @@ func TestSpanFilter_NewSpanFilter(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-
 }
 
 func TestSpanFilter_policyMatch(t *testing.T) {
@@ -448,7 +446,6 @@ func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
 			require.Equal(t, tc.expect, r)
 		})
 	}
-
 }
 
 func TestSpanFilter_policyMatchAttrs(t *testing.T) {
@@ -1047,7 +1044,6 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			require.Equal(t, tc.expect, x)
 		})
 	}
-
 }
 
 func TestSpanFilter_stringMatch(t *testing.T) {
@@ -1149,7 +1145,6 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 			if tc.split.ResourceMatch != nil {
 				require.Equal(t, tc.split.ResourceMatch, s.ResourceMatch)
 			}
-
 		})
 	}
 }

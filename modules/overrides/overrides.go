@@ -6,13 +6,11 @@ import (
 
 const wildcardTenant = "*"
 
-var (
-	metricOverridesLimitsDesc = prometheus.NewDesc(
-		"tempo_limits_overrides",
-		"Resource limit overrides applied to tenants",
-		[]string{"limit_name", "user"},
-		nil,
-	)
+var metricOverridesLimitsDesc = prometheus.NewDesc(
+	"tempo_limits_overrides",
+	"Resource limit overrides applied to tenants",
+	[]string{"limit_name", "user"},
+	nil,
 )
 
 // NewOverrides makes a new Overrides.

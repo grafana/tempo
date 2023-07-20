@@ -303,8 +303,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}, nil
 }
 
-type forEachFn func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error)
-type replicationSetFn func(r ring.ReadRing) (ring.ReplicationSet, error)
+type (
+	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error)
+	replicationSetFn func(r ring.ReadRing) (ring.ReplicationSet, error)
+)
 
 // forIngesterRings runs f, in parallel, for given ingesters
 func (q *Querier) forIngesterRings(ctx context.Context, getReplicationSet replicationSetFn, f forEachFn) ([]responseFromIngesters, error) {

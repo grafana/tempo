@@ -45,7 +45,6 @@ func NewObjectDecoder(dataEncoding string) (ObjectDecoder, error) {
 // MustNewObjectDecoder creates a new encoding or it panics
 func MustNewObjectDecoder(dataEncoding string) ObjectDecoder {
 	decoder, err := NewObjectDecoder(dataEncoding)
-
 	if err != nil {
 		panic(err)
 	}

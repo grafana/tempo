@@ -7,8 +7,10 @@ import (
 
 type noopTracer struct{}
 
-type noopSpan struct{}
-type noopSpanContext struct{}
+type (
+	noopSpan        struct{}
+	noopSpanContext struct{}
+)
 
 var (
 	defaultNoopSpanContext = noopSpanContext{}

@@ -32,9 +32,7 @@ const (
 	applicationJSON     = "application/json"
 )
 
-var (
-	ErrNotFound = errors.New("resource not found")
-)
+var ErrNotFound = errors.New("resource not found")
 
 // Client is client to the Tempo API.
 type Client struct {

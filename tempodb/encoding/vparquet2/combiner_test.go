@@ -9,7 +9,6 @@ import (
 )
 
 func TestCombiner(t *testing.T) {
-
 	methods := []func(a, b *Trace) (*Trace, int){
 		func(a, b *Trace) (*Trace, int) {
 			c := NewCombiner()
@@ -231,7 +230,6 @@ func TestCombiner(t *testing.T) {
 }
 
 func BenchmarkCombine(b *testing.B) {
-
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000, 10000,
@@ -258,7 +256,6 @@ func BenchmarkCombine(b *testing.B) {
 }
 
 func BenchmarkSortTrace(b *testing.B) {
-
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000, 10000,
@@ -266,7 +263,6 @@ func BenchmarkSortTrace(b *testing.B) {
 
 	for _, spanCount := range spanCounts {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
-
 			id := test.ValidTraceID(nil)
 			tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 

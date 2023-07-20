@@ -135,7 +135,6 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
-
 }
 
 func TestServiceGraphs_failedRequests(t *testing.T) {

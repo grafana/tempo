@@ -515,7 +515,6 @@ type SyncIterator struct {
 var _ Iterator = (*SyncIterator)(nil)
 
 func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
-
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -570,7 +569,6 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 // SeekTo moves this iterator to the next result that is greater than
 // or equal to the given row number (and based on the given definition level)
 func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
-
 	if c.seekRowGroup(to, definitionLevel) {
 		return nil, nil
 	}
@@ -656,7 +654,6 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 	}
 
 	if c.currPage == nil {
-
 		// TODO (mdisibio)   :((((((((
 		//    pages.SeekToRow is more costly than expected.  It doesn't reuse existing i/o
 		// so it can't be called naively every time we swap pages. We need to figure out
@@ -798,7 +795,6 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber) {
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
-
 	// Handle an outgoing page
 	if c.currPage != nil {
 		c.curr = c.currPageMax.Preceding() // Reposition current row number to end of this page.
@@ -1386,7 +1382,6 @@ func (j *LeftJoinIterator) String() string {
 }
 
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
-
 	// Here is the algorithm for joins:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest rows. If all
 	// are the lowest (and therefore pointing at the same thing) then
@@ -1536,7 +1531,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 		return nil, err
 	}
 
-	//fmt.Printf("result:%+v\n", result)
+	// fmt.Printf("result:%+v\n", result)
 
 	return result, nil
 }

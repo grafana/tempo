@@ -18,7 +18,6 @@ import (
 )
 
 func TestRuntimeConfigOverrides(t *testing.T) {
-
 	tests := []struct {
 		name                        string
 		limits                      Limits
@@ -161,7 +160,6 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 }
 
 func TestMetricsGeneratorOverrides(t *testing.T) {
-
 	tests := []struct {
 		name                      string
 		limits                    Limits

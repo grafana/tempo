@@ -34,7 +34,7 @@ func (o *perTenantOverrides) forUser(userID string) *Limits {
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
 func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
-	var overrides = &perTenantOverrides{}
+	overrides := &perTenantOverrides{}
 
 	decoder := yaml.NewDecoder(r)
 	decoder.SetStrict(true)

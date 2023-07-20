@@ -339,7 +339,6 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 }
 
 func parse(t *testing.T, q string) traceql.Condition {
-
 	req, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err, "query:", q)
 
@@ -510,7 +509,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	require.NoError(b, err)
 
 	for _, tc := range testCases {
-
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
 			bytesRead := 0

@@ -118,7 +118,6 @@ func TestIngestionSlack(t *testing.T) {
 }
 
 func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
-
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
 		Encoding:       backend.EncNone,
@@ -358,11 +357,11 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	}
 
 	// create unparseable filename
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0o644)
 	require.NoError(t, err)
 
 	// create empty block
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0o644)
 	require.NoError(t, err)
 
 	// create unparseable block
@@ -532,7 +531,6 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 }
 
 func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int, appendTrace bool, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
-
 	wal, err := New(&Config{
 		Filepath: b.TempDir(),
 		Encoding: backend.EncNone,
