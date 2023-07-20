@@ -139,8 +139,8 @@ func (fp *frontendProcessor) runRequests(ctx context.Context, requests []*httpgr
 	for i, request := range requests {
 		wg.Add(1)
 		go func(i int, request *httpgrpc.HTTPRequest) {
+			defer wg.Done()
 			responses[i] = fp.runRequest(ctx, request)
-			wg.Done()
 		}(i, request)
 	}
 	wg.Wait()

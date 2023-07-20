@@ -81,6 +81,12 @@ type request struct {
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
 func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
+	const batchBucketCount = 10
+	if cfg.MaxBatchSize <= 0 {
+		return nil, errors.New("max_batch_size must be positive")
+	}
+	batchBucketSize := float64(cfg.MaxBatchSize) / float64(10)
+
 	f := &Frontend{
 		cfg:    cfg,
 		log:    log,
@@ -101,7 +107,7 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 		actualBatchSize: promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 			Name:    "tempo_query_frontend_actual_batch_size",
 			Help:    "Batch size.",
-			Buckets: prometheus.LinearBuckets(1, 1, 10),
+			Buckets: prometheus.LinearBuckets(1, batchBucketSize, batchBucketCount),
 		}),
 	}
 
@@ -112,10 +118,6 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 	f.subservices, err = services.NewManager(f.requestQueue, f.activeUsers)
 	if err != nil {
 		return nil, err
-	}
-
-	if f.cfg.MaxBatchSize <= 0 {
-		return nil, errors.New("max_batch_size must be positive")
 	}
 
 	f.numClients = promauto.With(registerer).NewGaugeFunc(prometheus.GaugeOpts{

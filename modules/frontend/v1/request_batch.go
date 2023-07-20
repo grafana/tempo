@@ -59,6 +59,9 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		// tests each request context and only closes done if all are done.
+		// technically it is only testing one a time, but the loop will only complete
+		// if all are done.
 		for _, r := range b.pipelineRequests {
 			select {
 			case <-r.originalCtx.Done():
