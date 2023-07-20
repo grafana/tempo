@@ -31,10 +31,12 @@ type readerWriter struct {
 	hedgedContainerURL blob.ContainerURL
 }
 
-var _ backend.RawReader = (*readerWriter)(nil)
-var _ backend.RawWriter = (*readerWriter)(nil)
-var _ backend.Compactor = (*readerWriter)(nil)
-var _ backend.VersionedReaderWriter = (*readerWriter)(nil)
+var (
+	_ backend.RawReader             = (*readerWriter)(nil)
+	_ backend.RawWriter             = (*readerWriter)(nil)
+	_ backend.Compactor             = (*readerWriter)(nil)
+	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
+)
 
 type appendTracker struct {
 	Name string
@@ -228,10 +230,23 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	return currentVersion, err
 }
 
+func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	// TODO use conditional if-match API
+	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
+	if err != nil {
+		return err
+	}
+	if currentVersion != version {
+		return backend.ErrVersionDoesNotMatch
+	}
+
+	return rw.Delete(ctx, name, keypath)
+}
+
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
-	// TODO
+	// TODO properly extract version from object
 	readCloser, _, err := rw.Read(ctx, name, keypath, false)
-	return readCloser, "", err
+	return readCloser, backend.VersionNew, err
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {

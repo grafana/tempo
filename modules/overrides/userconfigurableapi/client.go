@@ -155,10 +155,9 @@ func (o *userConfigOverridesClient) Set(ctx context.Context, userID string, limi
 	return o.rw.WriteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, bytes.NewReader(data), version)
 }
 
-func (o *userConfigOverridesClient) Delete(ctx context.Context, userID string, _ backend.Version) error {
+func (o *userConfigOverridesClient) Delete(ctx context.Context, userID string, version backend.Version) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.Delete", opentracing.Tag{Key: "tenant", Value: userID})
 	defer span.Finish()
 
-	// TODO pass in version
-	return o.rw.Delete(ctx, OverridesFileName, []string{OverridesKeyPath, userID})
+	return o.rw.DeleteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, version)
 }

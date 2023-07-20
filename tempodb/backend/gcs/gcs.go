@@ -31,10 +31,12 @@ type readerWriter struct {
 	hedgedBucket *storage.BucketHandle
 }
 
-var _ backend.RawReader = (*readerWriter)(nil)
-var _ backend.RawWriter = (*readerWriter)(nil)
-var _ backend.Compactor = (*readerWriter)(nil)
-var _ backend.VersionedReaderWriter = (*readerWriter)(nil)
+var (
+	_ backend.RawReader             = (*readerWriter)(nil)
+	_ backend.RawWriter             = (*readerWriter)(nil)
+	_ backend.Compactor             = (*readerWriter)(nil)
+	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
+)
 
 // NewNoConfirm gets the GCS backend without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
@@ -149,8 +151,8 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
-	handle := rw.bucket.Object(backend.ObjectFileName(keypath, name))
-	return handle.Delete(ctx)
+	return rw.bucket.Object(backend.ObjectFileName(keypath, name)).
+		Delete(ctx)
 }
 
 // List implements backend.Reader
@@ -248,6 +250,21 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	}
 
 	return toVersion(w.Attrs().Generation), nil
+}
+
+func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	generation, err := strconv.ParseInt(string(version), 10, 64)
+	if err != nil {
+		return errors.New("invalid version number")
+	}
+
+	preconditions := storage.Conditions{
+		GenerationMatch: generation,
+	}
+
+	return rw.bucket.Object(backend.ObjectFileName(keypath, name)).
+		If(preconditions).
+		Delete(ctx)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {

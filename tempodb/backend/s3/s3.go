@@ -33,10 +33,12 @@ type readerWriter struct {
 	hedgedCore *minio.Core
 }
 
-var _ backend.RawReader = (*readerWriter)(nil)
-var _ backend.RawWriter = (*readerWriter)(nil)
-var _ backend.Compactor = (*readerWriter)(nil)
-var _ backend.VersionedReaderWriter = (*readerWriter)(nil)
+var (
+	_ backend.RawReader             = (*readerWriter)(nil)
+	_ backend.RawWriter             = (*readerWriter)(nil)
+	_ backend.Compactor             = (*readerWriter)(nil)
+	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
+)
 
 // appendTracker is a struct used to track multipart uploads
 type appendTracker struct {
@@ -321,6 +323,21 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 
 	_, currentVersion, err = rw.ReadVersioned(ctx, name, keypath)
 	return currentVersion, err
+}
+
+func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	// Note there is a potential data race here because S3 does not support conditional headers. If
+	// another process writes to the same object in between ReadVersioned and Delete its changes will
+	// be overwritten.
+	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
+	if err != nil {
+		return err
+	}
+	if currentVersion != version {
+		return backend.ErrVersionDoesNotMatch
+	}
+
+	return rw.Delete(ctx, name, keypath)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
