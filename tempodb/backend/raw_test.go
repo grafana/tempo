@@ -57,8 +57,8 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", nil, nil)
 	assert.NoError(t, err)
 
-	expectedDeletMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
-	assert.Equal(t, expectedDeletMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
+	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
+	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
 }
 
 func TestReader(t *testing.T) {
