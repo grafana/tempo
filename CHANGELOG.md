@@ -15,6 +15,7 @@
 * [ENHANCEMENT] log client ip to help identify which client is no org id [#2436](https://github.com/grafana/tempo/pull/2436)
 * [ENHANCEMENT] Add `spss` parameter to `/api/search/tags`[#2308] to configure the spans per span set in response
 * [ENHANCEMENT] Continue polling tenants on error with configurable threshold [#2540](https://github.com/grafana/tempo/pull/2540) (@mdisibio)
+* [ENHANCEMENT] Fully skip over parquet row groups with no matches in the column dictionaries [#2676](https://github.com/grafana/tempo/pull/2676) (@mdisibio)
 * [BUGFIX] Fix Search SLO by routing tags to a new handler. [#2468](https://github.com/grafana/tempo/issues/2468) (@electron0zero)
 * [CHANGE] Change log level of two compactor messages from `debug` to `info`. [#2443](https://github.com/grafana/tempo/pull/2443) (@dylanguedes)
 * [CHANGE] Remove `tenant_header_key` option from `tempo-query` config [#2414](https://github.com/grafana/tempo/pull/2414) (@kousikmitra)

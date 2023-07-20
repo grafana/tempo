@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
-	"strings"
 
 	pq "github.com/segmentio/parquet-go"
 )
@@ -14,7 +13,7 @@ import (
 type Predicate interface {
 	fmt.Stringer
 
-	KeepColumnChunk(cc pq.ColumnChunk) bool
+	KeepColumnChunk(*ColumnChunkHelper) bool
 	KeepPage(page pq.Page) bool
 	KeepValue(pq.Value) bool
 }
@@ -23,8 +22,6 @@ type Predicate interface {
 // Case sensitive exact byte matching
 type StringInPredicate struct {
 	ss [][]byte
-
-	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*StringInPredicate)(nil)
@@ -47,9 +44,7 @@ func (p *StringInPredicate) String() string {
 	return fmt.Sprintf("StringInPredicate{%s}", strings)
 }
 
-func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
-
+func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	if ci := cc.ColumnIndex(); ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
@@ -62,6 +57,11 @@ func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 		}
 		return false
 	}
+
+	if d := cc.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
 	return true
 }
 
@@ -75,19 +75,15 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (p *StringInPredicate) KeepPage(page pq.Page) bool {
-	//
-
+func (p *StringInPredicate) KeepPage(pq.Page) bool {
 	// todo: check bounds
-	return p.helper.keepPage(page, p.KeepValue)
+	return true
 }
 
 type regexPredicate struct {
 	regs        []*regexp.Regexp
 	matches     map[string]bool
 	shouldMatch bool
-
-	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*regexPredicate)(nil)
@@ -154,10 +150,22 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 	return matched
 }
 
-func (p *regexPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
+func (p *regexPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
+	d := cc.Dictionary()
 
-	// Can we do any filtering here?
+	// Reset match cache on each row group change
+	// Use exact size of the incoming dictionary
+	// if present and larger.
+	count := len(p.matches)
+	if d != nil && d.Len() > count {
+		count = d.Len()
+	}
+	p.matches = make(map[string]bool, count)
+
+	if d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
 	return true
 }
 
@@ -165,36 +173,20 @@ func (p *regexPredicate) KeepValue(v pq.Value) bool {
 	return p.keep(&v)
 }
 
-func (p *regexPredicate) KeepPage(page pq.Page) bool {
-	if p.helper.newRowGroup {
-		// Reset match cache on each row group change
-		// We delay until the first page is received
-		// so we can get an accurate count of the number
-		// of distinct values for dictionary columns.
-		count := len(p.matches)
-		if d := page.Dictionary(); d != nil {
-			if d.Len() > count {
-				count = d.Len()
-			}
-		}
-		p.matches = make(map[string]bool, count)
-	}
-
-	return p.helper.keepPage(page, p.KeepValue)
+func (p *regexPredicate) KeepPage(pq.Page) bool {
+	return true
 }
 
 type SubstringPredicate struct {
-	substring string
+	substring []byte
 	matches   map[string]bool
-
-	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*SubstringPredicate)(nil)
 
 func NewSubstringPredicate(substring string) *SubstringPredicate {
 	return &SubstringPredicate{
-		substring: substring,
+		substring: []byte(substring),
 		matches:   map[string]bool{},
 	}
 }
@@ -203,31 +195,35 @@ func (p *SubstringPredicate) String() string {
 	return fmt.Sprintf("SubstringPredicate{%s}", p.substring)
 }
 
-func (p *SubstringPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
-
+func (p *SubstringPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
 
-	// Is there any filtering possible here?
-	// Column chunk contains a bloom filter and min/max bounds,
-	// but those can't be inspected for a substring match.
+	if d := cc.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
 	return true
 }
 
 func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
-	vs := v.String()
-	if m, ok := p.matches[vs]; ok {
-		return m
+	b := v.ByteArray()
+
+	// Check uses zero alloc optimization of map[string([]byte)]
+	if matched, ok := p.matches[string(b)]; ok {
+		return matched
 	}
 
-	m := strings.Contains(vs, p.substring)
-	p.matches[vs] = m
-	return m
+	matched := bytes.Contains(b, p.substring)
+
+	// Only alloc the string when updating the map
+	p.matches[string(b)] = matched
+
+	return matched
 }
 
-func (p *SubstringPredicate) KeepPage(page pq.Page) bool {
-	return p.helper.keepPage(page, p.KeepValue)
+func (p *SubstringPredicate) KeepPage(pq.Page) bool {
+	return true
 }
 
 // IntBetweenPredicate checks for int between the bounds [min,max] inclusive
@@ -245,7 +241,7 @@ func (p *IntBetweenPredicate) String() string {
 	return fmt.Sprintf("IntBetweenPredicate{%d,%d}", p.min, p.max)
 }
 
-func (p *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Int64()
@@ -281,8 +277,6 @@ type GenericPredicate[T any] struct {
 	Fn      func(T) bool
 	RangeFn func(min, max T) bool
 	Extract func(pq.Value) T
-
-	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*GenericPredicate[int64])(nil)
@@ -295,9 +289,7 @@ func (p *GenericPredicate[T]) String() string {
 	return "GenericPredicate{}"
 }
 
-func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
-
+func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	if p.RangeFn == nil {
 		return true
 	}
@@ -313,6 +305,10 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
 		return false
 	}
 
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
 	return true
 }
 
@@ -323,7 +319,7 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 		}
 	}
 
-	return p.helper.keepPage(page, p.KeepValue)
+	return true
 }
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
@@ -366,7 +362,7 @@ func (p *FloatBetweenPredicate) String() string {
 	return fmt.Sprintf("FloatBetweenPredicate{%f,%f}", p.min, p.max)
 }
 
-func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *FloatBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Double()
@@ -417,7 +413,7 @@ func (p *OrPredicate) String() string {
 	return fmt.Sprintf("OrPredicate{%s}", preds)
 }
 
-func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *OrPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	ret := false
 	for _, p := range p.preds {
 		if p == nil {
@@ -480,7 +476,7 @@ func (p *InstrumentedPredicate) String() string {
 	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.pred)
 }
 
-func (p *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (p *InstrumentedPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	p.InspectedColumnChunks++
 
 	if p.pred == nil || p.pred.KeepColumnChunk(c) {
@@ -513,48 +509,18 @@ func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-// DictionaryPredicateHelper is a helper for a predicate that uses a dictionary
-// for filtering.
-//
-// There is one dictionary per ColumnChunk/RowGroup, but it is not accessible in
-// KeepColumnChunk. This helper saves the result of KeepPage and uses it for
-// all pages in the row group. It also has a basic heuristic for choosing not
-// to check the dictionary at all if the cardinality is too high.
-type DictionaryPredicateHelper struct {
-	newRowGroup         bool
-	keepPagesInRowGroup bool
-}
-
-func (d *DictionaryPredicateHelper) setNewRowGroup() {
-	d.newRowGroup = true
-}
-
-func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Value) bool) bool {
-	if !d.newRowGroup {
-		return d.keepPagesInRowGroup
-	}
-
-	d.newRowGroup = false
-	d.keepPagesInRowGroup = true
-
-	// If a dictionary column then ensure at least one matching
-	// value exists in the dictionary
-	dict := page.Dictionary()
-	if dict == nil {
-		return d.keepPagesInRowGroup
-	}
-
+// keepDictionary inspects all values using the callback and returns if any
+// matches were found.
+func keepDictionary(dict pq.Dictionary, keepValue func(pq.Value) bool) bool {
 	l := dict.Len()
-	d.keepPagesInRowGroup = false
 	for i := 0; i < l; i++ {
 		dictionaryEntry := dict.Index(int32(i))
 		if keepValue(dictionaryEntry) {
-			d.keepPagesInRowGroup = true
-			break
+			return true
 		}
 	}
 
-	return d.keepPagesInRowGroup
+	return false
 }
 
 type SkipNilsPredicate struct{}
@@ -569,7 +535,7 @@ func (p *SkipNilsPredicate) String() string {
 	return "SkipNilsPredicate{}"
 }
 
-func (p *SkipNilsPredicate) KeepColumnChunk(pq.ColumnChunk) bool {
+func (p *SkipNilsPredicate) KeepColumnChunk(*ColumnChunkHelper) bool {
 	return true
 }
 

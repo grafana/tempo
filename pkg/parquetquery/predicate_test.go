@@ -31,10 +31,10 @@ func newAlwaysFalsePredicate() *mockPredicate {
 	return &mockPredicate{ret: false}
 }
 
-func (p *mockPredicate) String() string                           { return "mockPredicate{}" }
-func (p *mockPredicate) KeepValue(parquet.Value) bool             { p.valCalled = true; return p.ret }
-func (p *mockPredicate) KeepPage(parquet.Page) bool               { p.pageCalled = true; return p.ret }
-func (p *mockPredicate) KeepColumnChunk(parquet.ColumnChunk) bool { p.chunkCalled = true; return p.ret }
+func (p *mockPredicate) String() string                          { return "mockPredicate{}" }
+func (p *mockPredicate) KeepValue(parquet.Value) bool            { p.valCalled = true; return p.ret }
+func (p *mockPredicate) KeepPage(parquet.Page) bool              { p.pageCalled = true; return p.ret }
+func (p *mockPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { p.chunkCalled = true; return p.ret }
 
 type predicateTestCase struct {
 	testName   string
@@ -63,7 +63,7 @@ func TestSubstringPredicate(t *testing.T) {
 		{
 			testName:   "dictionary in the page header allows for skipping a page",
 			predicate:  NewSubstringPredicate("x"), // Not present in any values
-			keptChunks: 1,
+			keptChunks: 0,
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
@@ -103,14 +103,14 @@ func TestNewRegexInPredicate(t *testing.T) {
 			},
 		},
 		{
-			testName: "dictionary in the page header allows for skipping a page",
+			testName: "dictionary in the page header allows for skipping a column chunk",
 			predicate: func() Predicate {
 				pred, err := NewRegexInPredicate([]string{"x.*"})
 				require.NoError(t, err)
 
 				return pred
 			}(), // Not present in any values
-			keptChunks: 1,
+			keptChunks: 0,
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
@@ -148,14 +148,14 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 			},
 		},
 		{
-			testName: "dictionary in the page header allows for skipping a page",
+			testName: "dictionary in the page header allows for skipping a column chunk",
 			predicate: func() Predicate {
 				pred, err := NewRegexNotInPredicate([]string{"x.*"})
 				require.NoError(t, err)
 
 				return pred
 			}(), // Not present in any values
-			keptChunks: 1,
+			keptChunks: 0,
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
