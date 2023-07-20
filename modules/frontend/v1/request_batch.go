@@ -8,7 +8,6 @@ import (
 )
 
 type requestBatch struct {
-
 	// requests that represent that communicate back with the upstream pipeline
 	pipelineRequests []*request
 	// requests that are actually sent to the queriers
