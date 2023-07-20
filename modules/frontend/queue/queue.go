@@ -119,7 +119,7 @@ func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan 
 		return uq.ch, cleanup, nil
 	}
 
-	// trace the read lock for a rw lock and then defer the opposite
+	// trade the read lock for a rw lock and then defer the opposite
 	// this method should be called under RLock() and return under RLock()
 	q.mtx.RUnlock()
 	q.mtx.Lock()
