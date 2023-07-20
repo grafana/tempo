@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 	"golang.org/x/oauth2"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 func TestAuthHeader(t *testing.T) {
@@ -93,6 +94,7 @@ func (t *stubbedProvider) getToken(_ context.Context, _ string) (*oauth2.Token, 
 		AccessToken: t.dummyToken,
 	}, nil
 }
+
 func getStubbedTokenProvider(dummyToken string) tokenProvider {
 	return &stubbedProvider{dummyToken: dummyToken}
 }
