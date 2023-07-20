@@ -81,11 +81,11 @@ type request struct {
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
 func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
-	const batchBucketCount = 10
+	const batchBucketCount = 5
 	if cfg.MaxBatchSize <= 0 {
 		return nil, errors.New("max_batch_size must be positive")
 	}
-	batchBucketSize := float64(cfg.MaxBatchSize) / float64(10)
+	batchBucketSize := float64(cfg.MaxBatchSize) / float64(batchBucketCount)
 
 	f := &Frontend{
 		cfg:    cfg,

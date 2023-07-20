@@ -94,7 +94,7 @@ query_frontend:
 
   # The number of jobs the query-frontend will batch together when passing jobs to the queriers. This value
   # This value * querier.max_concurrent_queries is your the max number of jobs a given querier will try at once.
-  max_batch_size: 5
+  max_batch_size: 3
 
   search:
     # At larger scales, increase the number of jobs attempted simultaneously,
