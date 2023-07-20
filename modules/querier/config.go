@@ -50,7 +50,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search.PreferSelf = 10
 	cfg.Search.HedgeRequestsAt = 8 * time.Second
 	cfg.Search.HedgeRequestsUpTo = 2
-	cfg.Search.QueryTimeout = 30 * time.Second
+	cfg.Search.QueryTimeout = 10 * time.Second
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,

@@ -214,7 +214,7 @@ metrics_generator_client:
         tls_min_version: ""
 querier:
     search:
-        query_timeout: 30s
+        query_timeout: 10s
         prefer_self: 10
         external_endpoints: []
         external_hedge_requests_at: 8s
