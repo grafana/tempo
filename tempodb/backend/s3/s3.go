@@ -309,10 +309,10 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	// another process writes to the same object in between ReadVersioned and Write its changes will
 	// be overwritten.
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return "", err
 	}
-	if currentVersion != version {
+	if err != backend.ErrDoesNotExist && currentVersion != version {
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
@@ -330,10 +330,10 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	// another process writes to the same object in between ReadVersioned and Delete its changes will
 	// be overwritten.
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return err
 	}
-	if currentVersion != version {
+	if err != backend.ErrDoesNotExist && currentVersion != version {
 		return backend.ErrVersionDoesNotMatch
 	}
 

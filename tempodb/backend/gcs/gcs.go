@@ -50,22 +50,24 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return rw, rw, rw, err
 }
 
-func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
+func NewVersionedReaderWriter(cfg *Config, confirmVersioning bool) (backend.VersionedReaderWriter, error) {
 	rw, err := internalNew(cfg, true)
 	if err != nil {
 		return nil, err
 	}
 
-	bucketAttrs, err := rw.bucket.Attrs(context.Background())
-	if err != nil {
-		return nil, errors.Wrap(err, "getting bucket attrs")
+	if confirmVersioning {
+		bucketAttrs, err := rw.bucket.Attrs(context.Background())
+		if err != nil {
+			return nil, errors.Wrap(err, "getting bucket attrs")
+		}
+
+		if !bucketAttrs.VersioningEnabled {
+			return nil, errors.New("versioning is not enabled on bucket")
+		}
 	}
 
-	if !bucketAttrs.VersioningEnabled {
-		return nil, errors.New("versioning is not enabled on bucket")
-	}
-
-	return rw, err
+	return rw, nil
 }
 
 func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
@@ -253,18 +255,21 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
-	generation, err := strconv.ParseInt(string(version), 10, 64)
-	if err != nil {
-		return errors.New("invalid version number")
+	object := rw.bucket.Object(backend.ObjectFileName(keypath, name))
+
+	if version != backend.VersionNew {
+		generation, err := strconv.ParseInt(string(version), 10, 64)
+		if err != nil {
+			return errors.New("invalid version number")
+		}
+
+		preconditions := storage.Conditions{
+			GenerationMatch: generation,
+		}
+		object.If(preconditions)
 	}
 
-	preconditions := storage.Conditions{
-		GenerationMatch: generation,
-	}
-
-	return rw.bucket.Object(backend.ObjectFileName(keypath, name)).
-		If(preconditions).
-		Delete(ctx)
+	return object.Delete(ctx)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
@@ -275,8 +280,9 @@ func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath 
 	defer span.Finish()
 
 	b, attrs, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
-	if err != nil && err != storage.ErrObjectNotExist {
+	if err != nil {
 		span.SetTag("error", true)
+		return nil, "", readError(err)
 	}
 	return io.NopCloser(bytes.NewReader(b)), toVersion(attrs.Generation), nil
 }
@@ -287,7 +293,7 @@ func toVersion(generation int64) backend.Version {
 
 func (rw *readerWriter) writer(ctx context.Context, name string, conditions *storage.Conditions) *storage.Writer {
 	o := rw.bucket.Object(name)
-	if conditions != nil {
+	if (conditions != nil && *conditions != storage.Conditions{}) {
 		o = o.If(*conditions)
 	}
 	w := o.NewWriter(ctx)

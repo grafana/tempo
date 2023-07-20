@@ -63,12 +63,12 @@ func TestOverrides(t *testing.T) {
 
 			// Modify overrides
 			fmt.Println("* Setting overrides.forwarders")
-			err = apiClient.SetOverrides(&userconfigurableapi.UserConfigurableLimits{
+			_, err = apiClient.SetOverrides(&userconfigurableapi.UserConfigurableLimits{
 				Forwarders: &[]string{"my-forwarder"},
-			})
+			}, "0")
 			require.NoError(t, err)
 
-			limits, err := apiClient.GetOverrides()
+			limits, version, err := apiClient.GetOverrides()
 			printLimits(limits)
 			require.NoError(t, err)
 
@@ -81,10 +81,10 @@ func TestOverrides(t *testing.T) {
 
 			// Clear overrides
 			fmt.Println("* Deleting overrides")
-			err = apiClient.DeleteOverrides()
+			err = apiClient.DeleteOverrides(version)
 			require.NoError(t, err)
 
-			_, err = apiClient.GetOverrides()
+			_, _, err = apiClient.GetOverrides()
 			require.ErrorIs(t, err, httpclient.ErrNotFound)
 		})
 	}

@@ -47,6 +47,10 @@ var (
 type UserConfigurableOverridesClientConfig struct {
 	Backend string `yaml:"backend"`
 
+	// ConfirmVersioning is enabled when creating the backend client. If versioning is disabled no
+	// checks against concurrent writes will be performed.
+	ConfirmVersioning bool `yaml:"confirm_versioning"`
+
 	Local *local.Config `yaml:"local"`
 	GCS   *gcs.Config   `yaml:"gcs"`
 	S3    *s3.Config    `yaml:"s3"`
@@ -54,6 +58,8 @@ type UserConfigurableOverridesClientConfig struct {
 }
 
 func (c *UserConfigurableOverridesClientConfig) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
+	c.ConfirmVersioning = true
+
 	c.Local = &local.Config{}
 	c.GCS = &gcs.Config{}
 	c.S3 = &s3.Config{}
@@ -101,7 +107,7 @@ func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.Version
 		}
 		rw = backend.NewFakeVersionedReaderWriter(r, w)
 	case backend.GCS:
-		rw, err = gcs.NewVersionedReaderWriter(cfg.GCS)
+		rw, err = gcs.NewVersionedReaderWriter(cfg.GCS, cfg.ConfirmVersioning)
 	case backend.S3:
 		rw, err = s3.NewVersionedReaderWriter(cfg.S3)
 	case backend.Azure:

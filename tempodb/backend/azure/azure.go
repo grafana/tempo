@@ -214,10 +214,10 @@ func (rw *readerWriter) Shutdown() {
 func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return "", err
 	}
-	if currentVersion != version {
+	if err != backend.ErrDoesNotExist && currentVersion != version {
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
@@ -233,10 +233,10 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil {
+	if err != nil && err != backend.ErrDoesNotExist {
 		return err
 	}
-	if currentVersion != version {
+	if err != backend.ErrDoesNotExist && currentVersion != version {
 		return backend.ErrVersionDoesNotMatch
 	}
 

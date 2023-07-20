@@ -206,7 +206,7 @@ func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r
 
 	err = a.client.Delete(ctx, userID, backend.Version(ifMatchVersion))
 	if err != nil {
-		handleError(span, userID, nil, w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete user-configurable limits"))
+		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete user-configurable limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)
