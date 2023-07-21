@@ -13,7 +13,7 @@ keywords:
 
 # Write TraceQL queries in Grafana
 
-You can use compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source. You can use either the **Query type** > **Search** or the **TraceQL** tab.
+You can compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source. You can use either the **Query type** > **Search** or the **TraceQL** tab.
 Both of these methods let you build queries and drill-down into result sets.
 
 To add TraceQL panels to your dashboard, refer to the [Traces panel documentation](/docs/grafana/latest/panels-visualizations/visualizations/traces/).
@@ -45,7 +45,7 @@ To access the query editor, follow these steps:
 
 ### Query by TraceID
 
-To query a particular trace:
+To query a particular trace by its trace ID:
 
 1. From the menu, choose **Explore**, select the desired Tempo data source, and navigate to the **TraceQL** tab.
 1. Enter the trace ID into the query field. For example: `1f187d8363b5a9b30cedd8e0ce9ccb43`
