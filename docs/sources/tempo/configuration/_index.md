@@ -1088,7 +1088,7 @@ storage:
             # generic attribute key-value list. This allows for more efficient searching of these attributes.
             # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
             # Requires vParquet3
-            dedicated_columns:
+            parquet_dedicated_columns:
                 [ 
                   name: <string>, # name of the attribute
                   type: <string>, # type of the attribute. options: string
@@ -1327,7 +1327,7 @@ overrides:
     # generic attribute key-value list. This allows for more efficient searching of these attributes.
     # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
     # Requires vParquet3
-    dedicated_columns:
+    parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
           type: <string>, # type of the attribute. options: string
