@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -278,10 +279,8 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	return objects, nil
 }
 
-func (rw *readerWriter) ListBlocks(
-	_ context.Context,
-	keypath backend.KeyPath,
-) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+// ListBlocks implements backend.Reader
+func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 
@@ -306,7 +305,7 @@ func (rw *readerWriter) ListBlocks(
 		isTruncated = res.IsTruncated
 		nextMarker = res.NextMarker
 
-		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", path.Join(keypath...)+"/",
+		level.Debug(rw.logger).Log("msg", "block list", "keypath", path.Join(keypath...)+"/",
 			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
 
 		if len(res.CommonPrefixes) > 0 {
