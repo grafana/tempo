@@ -188,9 +188,51 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // ListBlocks implements backend.Reader
-func (rw *readerWriter) ListBlocks(_ context.Context, _ backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
-	// TODO: implement
-	return nil, nil, fmt.Errorf("not implemented")
+func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Prefix:    prefix,
+		Delimiter: ".json",
+		Versions:  false,
+	})
+
+	var parts []string
+	var id uuid.UUID
+
+	for {
+		attrs, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "iterating blocks")
+		}
+
+		obj := strings.TrimPrefix(attrs.Prefix, prefix)
+		parts = strings.Split(obj, "/")
+		// ie: <blockID>/meta.json
+		if len(parts) != 2 {
+			continue
+		}
+
+		id, err = uuid.Parse(parts[0])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		switch parts[1] {
+		case backend.MetaName:
+			blockIDs = append(blockIDs, id)
+		case backend.CompactedMetaName:
+			compactedBlockIDs = append(compactedBlockIDs, id)
+		}
+	}
+
+	return
 }
 
 // Read implements backend.Reader
