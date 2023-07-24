@@ -1039,6 +1039,14 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 				continue
 			}
 
+			if cond.Op == traceql.OpNotEqual && cond.Operands[0].Type == 0 {
+				fmt.Println("wala")
+				pred, _ := createNilPredicate(cond.Op, cond.Operands)
+				addPredicate(entry.columnPath, pred) // No filtering
+				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+				continue
+			}
+
 			// Compatible type?
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
@@ -1058,6 +1066,8 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
+	fmt.Printf("iter before length: %d \n", len(iters))
+
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
 	if err != nil {
@@ -1066,7 +1076,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
-
+	fmt.Printf("iter after length: %d \n", len(iters))
 	minCount := 0
 	if requireAtLeastOneMatch {
 		minCount = 1
@@ -1410,8 +1420,7 @@ func createNilPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 
 	switch op {
 	case traceql.OpNotEqual:
-		fmt.Println("yalla")
-		return parquetquery.NewNilPredicate(false), nil
+		return parquetquery.NewSkipNilsPredicate(), nil
 	case traceql.OpEqual:
 		return parquetquery.NewNilPredicate(true), nil
 	default:
@@ -1480,7 +1489,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
-			boolPreds = append(boolPreds, pred)
+			attrStringPreds = append(attrStringPreds, pred)
 		}
 	}
 
