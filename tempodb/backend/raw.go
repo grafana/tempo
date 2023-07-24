@@ -89,6 +89,11 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 }
 
 func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	// If meta and compactedMeta are empty, call delete the tenant index.
+	if len(meta) == 0 && len(compactedMeta) == 0 {
+		return w.w.Delete(ctx, TenantIndexName, KeyPath([]string{tenantID}))
+	}
+
 	b := newTenantIndex(meta, compactedMeta)
 
 	indexBytes, err := b.marshal()

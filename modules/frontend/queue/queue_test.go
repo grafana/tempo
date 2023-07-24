@@ -21,21 +21,23 @@ type mockRequest struct{}
 func (r *mockRequest) Invalid() bool { return false }
 
 func TestGetNextForQuerierOneUser(t *testing.T) {
-	messages := 100
+	messages := 10
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q := queueWithListeners(ctx, 100, func(r Request) {
-		if requestsPulled.Inc() == int32(messages) {
+	q, start := queueWithListeners(ctx, 100, 1, func(r []Request) {
+		i := requestsPulled.Inc()
+		if i == int32(messages) {
 			close(stop)
 		}
 	})
+	close(start)
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest("test", &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest("test", &mockRequest{}, 0)
 		require.NoError(t, err)
 	}
 
@@ -55,14 +57,43 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q := queueWithListeners(ctx, 100, func(r Request) {
+	q, start := queueWithListeners(ctx, 100, 1, func(r []Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			close(stop)
 		}
 	})
+	close(start)
 
 	for j := 0; j < messages; j++ {
-		err := q.EnqueueRequest(test.RandomString(), &mockRequest{}, 0, nil)
+		err := q.EnqueueRequest(test.RandomString(), &mockRequest{}, 0)
+		require.NoError(t, err)
+	}
+
+	<-stop
+
+	require.Equal(t, int32(messages), requestsPulled.Load())
+
+	err := q.stopping(nil)
+	require.NoError(t, err)
+}
+
+func TestGetNextBatches(t *testing.T) {
+	messages := 10
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := make(chan struct{})
+	requestsPulled := atomic.NewInt32(0)
+
+	q, start := queueWithListeners(ctx, 100, 3, func(r []Request) {
+		if requestsPulled.Add(int32(len(r))) == int32(messages) {
+			close(stop)
+		}
+	})
+	close(start)
+
+	for j := 0; j < messages; j++ {
+		err := q.EnqueueRequest("user", &mockRequest{}, 0)
 		require.NoError(t, err)
 	}
 
@@ -94,17 +125,18 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q := queueWithListeners(ctx, listeners, func(r Request) {
+	q, start := queueWithListeners(ctx, listeners, 1, func(r []Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			stop <- struct{}{}
 		}
 	})
+	close(start)
 
 	req := &mockRequest{}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < messages; j++ {
-			err := q.EnqueueRequest(user, req, 0, nil)
+			err := q.EnqueueRequest(user, req, 0)
 			if err != nil {
 				panic(err)
 			}
@@ -120,7 +152,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	}
 }
 
-func queueWithListeners(ctx context.Context, listeners int, listenerFn func(r Request)) *RequestQueue {
+func queueWithListeners(ctx context.Context, listeners int, batchSize int, listenerFn func(r []Request)) (*RequestQueue, chan struct{}) {
 	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "test_len",
 	}, []string{"user"})
@@ -129,25 +161,30 @@ func queueWithListeners(ctx context.Context, listeners int, listenerFn func(r Re
 	}, []string{"user"})
 
 	q := NewRequestQueue(100_000, 0, g, c)
+	start := make(chan struct{})
 
 	for i := 0; i < listeners; i++ {
 		go func() {
-			var r Request
+			var r []Request
 			var err error
 			var last UserIndex
+
+			<-start
+
+			batchBuffer := make([]Request, batchSize)
 			for {
-				r, last, err = q.GetNextRequestForQuerier(ctx, last, "")
-				if listenerFn != nil {
-					listenerFn(r)
-				}
+				r, last, err = q.GetNextRequestForQuerier(ctx, last, "", batchBuffer)
 				if err != nil {
 					return
+				}
+				if listenerFn != nil {
+					listenerFn(r)
 				}
 			}
 		}()
 	}
 
-	return q
+	return q, start
 }
 
 func TestRequestQueue_GetNextRequestForQuerier_ShouldGetRequestAfterReshardingBecauseQuerierHasBeenForgotten(t *testing.T) {
@@ -173,7 +210,7 @@ func TestRequestQueue_GetNextRequestForQuerier_ShouldGetRequestAfterReshardingBe
 	querier2wg.Add(1)
 	go func() {
 		defer querier2wg.Done()
-		_, _, err := queue.GetNextRequestForQuerier(ctx, FirstUser(), "querier-2")
+		_, _, err := queue.GetNextRequestForQuerier(ctx, FirstUser(), "querier-2", make([]Request, 1))
 		require.NoError(t, err)
 	}()
 
@@ -182,7 +219,7 @@ func TestRequestQueue_GetNextRequestForQuerier_ShouldGetRequestAfterReshardingBe
 
 	// Enqueue a request from an user which would be assigned to querier-1.
 	// NOTE: "user-1" hash falls in the querier-1 shard.
-	require.NoError(t, queue.EnqueueRequest("user-1", "request", 1, nil))
+	require.NoError(t, queue.EnqueueRequest("user-1", "request", 1))
 
 	startTime := time.Now()
 	querier2wg.Wait()

@@ -51,7 +51,7 @@ type RequestQueue struct {
 
 	connectedQuerierWorkers *atomic.Int32
 
-	mtx     sync.Mutex
+	mtx     sync.RWMutex
 	cond    contextCond // Notified when request is enqueued or dequeued, or querier is disconnected.
 	queues  *queues
 	stopped bool
@@ -79,28 +79,26 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 // between calls.
 //
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
-func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int, successFn func()) error {
-	q.mtx.Lock()
-	defer q.mtx.Unlock()
+func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers int) error {
+	q.mtx.RLock()
+	// don't defer a release. we won't know what we need to release until we call getQueueUnderRlock
 
 	if q.stopped {
+		q.mtx.RUnlock()
 		return ErrStopped
 	}
 
-	queue := q.queues.getOrAddQueue(userID, maxQueriers)
-	if queue == nil {
-		// This can only happen if userID is "".
-		return errors.New("no queue found")
+	// try to grab the user queue under read lock
+	queue, cleanup, err := q.getQueueUnderRlock(userID, maxQueriers)
+	defer cleanup()
+	if err != nil {
+		return err
 	}
 
 	select {
 	case queue <- req:
 		q.queueLength.WithLabelValues(userID).Inc()
 		q.cond.Broadcast()
-		// Call this function while holding a lock. This guarantees that no querier can fetch the request before function returns.
-		if successFn != nil {
-			successFn()
-		}
 		return nil
 	default:
 		q.discardedRequests.WithLabelValues(userID).Inc()
@@ -108,10 +106,45 @@ func (q *RequestQueue) EnqueueRequest(userID string, req Request, maxQueriers in
 	}
 }
 
-// GetNextRequestForQuerier find next user queue and takes the next request off of it. Will block if there are no requests.
-// By passing user index from previous call of this method, querier guarantees that it iterates over all users fairly.
-// If querier finds that request from the user is already expired, it can get a request for the same user by using UserIndex.ReuseLastUser.
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string) (Request, UserIndex, error) {
+// getQueueUnderRlock attempts to get the queue for the given user under read lock. if it is not
+// possible it upgrades the RLock to a Lock. This method also returns a cleanup function that
+// will release whichever lock it had to acquire to get the queue.
+func (q *RequestQueue) getQueueUnderRlock(userID string, maxQueriers int) (chan Request, func(), error) {
+	cleanup := func() {
+		q.mtx.RUnlock()
+	}
+
+	uq := q.queues.userQueues[userID]
+	if uq != nil {
+		return uq.ch, cleanup, nil
+	}
+
+	// trade the read lock for a rw lock and then defer the opposite
+	// this method should be called under RLock() and return under RLock()
+	q.mtx.RUnlock()
+	q.mtx.Lock()
+
+	cleanup = func() {
+		q.mtx.Unlock()
+	}
+
+	queue := q.queues.getOrAddQueue(userID, maxQueriers)
+	if queue == nil {
+		// This can only happen if userID is "".
+		return nil, cleanup, errors.New("no queue found")
+	}
+
+	return queue, cleanup, nil
+}
+
+// GetNextRequestForQuerier find next user queue and attempts to dequeue N requests as defined by the length of
+// batchBuffer. This slice is a reusable buffer to fill up with requests
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string, batchBuffer []Request) ([]Request, UserIndex, error) {
+	requestedCount := len(batchBuffer)
+	if requestedCount == 0 {
+		return nil, last, errors.New("batch buffer must have len > 0")
+	}
+
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -135,18 +168,27 @@ FindQueue:
 	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
 	last.last = idx
 	if queue != nil {
-		// Pick next request from the queue.
-		request := <-queue
-		if len(queue) == 0 {
-			q.queues.deleteQueue(userID)
+		// this is all threadsafe b/c all users queues are blocked by q.mtx
+		if len(queue) < requestedCount {
+			requestedCount = len(queue)
 		}
 
-		q.queueLength.WithLabelValues(userID).Dec()
+		// Pick next requests from the queue.
+		batchBuffer = batchBuffer[:requestedCount]
+		for i := 0; i < requestedCount; i++ {
+			batchBuffer[i] = <-queue
+		}
+
+		qLen := len(queue)
+		if qLen == 0 {
+			q.queues.deleteQueue(userID)
+		}
+		q.queueLength.WithLabelValues(userID).Set(float64(qLen))
 
 		// Tell close() we've processed a request.
 		q.cond.Broadcast()
 
-		return request, last, nil
+		return batchBuffer, last, nil
 	}
 
 	// There are no unexpired requests, so we can get back

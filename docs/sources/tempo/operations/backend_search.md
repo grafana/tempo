@@ -18,6 +18,24 @@ while additional compactors will more aggressively reduce the length of your blo
 >**Note:** All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}})
 can only be used for trace by id lookup.
 
+## General guidelines
+
+Tuning the search pipeline can be difficult as it requires balancing a number of different configuration parameters. The below tips
+can you get your head around the general problem, but the specifics require experimentation.
+
+- Review the query-frontend logs for lines like the following to get a feeling for how many jobs your queries are creating:
+  ```
+  level=info ts=2023-07-19T19:38:01.354220385Z caller=searchsharding.go:236 msg="sharded search query request stats and SearchMetrics" ...
+  ```
+
+- For a single TraceQL query the maximum number of parallel jobs is constrained by:
+  - `query_frontend.search.concurrent_jobs`: This is the maximum number of jobs the frontend will dispatch for one TraceQL query.
+  - `# queriers * querier.max_concurrent_queries * query_frontend.max_batch_size`: This is the maximum job capacity of your Tempo cluster.
+  If a given TraceQL query produces less jobs then these two values it should be executed entirely in parallel on the queriers.
+
+- Increasing `querier.max_concurrent_queries` is a great way to get more out of your queriers. However, if queriers are OOMing or saturating other
+  resources then this should be lowered. Lowering `query_frontend.max_batch_size` will also reduce the total work attempted by one querier.
+
 ## Configuration
 
 Queriers and query frontends have additional configuration related
@@ -25,21 +43,19 @@ to search of the backend datastore.
 
 ### Querier
 
-Without serverless technologies:
-
 ```
 querier:
-  # Greatly increase the amount of work each querier will attempt
+  # Control the amount of work each querier will attempt. The total number of
+  # jobs a querier will attempt this is this value * query_frontend.max_batch_size
   max_concurrent_queries: 20
 ```
 
 With serverless technologies:
 
+>**Note:** Serverless can be a nice way to reduce cost by using it as spare query capacity. However, serverless tends to have higher variance then simply allowing the queriers to perform the searches themselves.
+
 ```
 querier:
-  # The querier is only a proxy to the serverless endpoint.
-  # Increase this greatly to permit needed throughput.
-  max_concurrent_queries: 100
 
   search:
     # A list of endpoints to query. Load will be spread evenly across
@@ -54,6 +70,7 @@ querier:
     # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
     external_hedge_requests_up_to: 2
 ```
+
 
 ### Query frontend
 
@@ -71,8 +88,13 @@ server:
 
 query_frontend:
   # When increasing concurrent_jobs, also increase the queue size per tenant,
-  # or search requests will be cause 429 errors.
+  # or search requests will be cause 429 errors. This is the total number of jobs
+  # per tenant allowed in the queue.
   max_outstanding_per_tenant: 2000
+
+  # The number of jobs the query-frontend will batch together when passing jobs to the queriers. This value
+  # This value * querier.max_concurrent_queries is your the max number of jobs a given querier will try at once.
+  max_batch_size: 3
 
   search:
     # At larger scales, increase the number of jobs attempted simultaneously,
@@ -87,10 +109,7 @@ query_frontend:
 
 ## Serverless environment
 
-Serverless is not required, but with larger loads, serverless is recommended to reduce costs and
-improve performance. If you find that you are scaling up your quantity of queriers, yet are not
-achieving the latencies you would like, switch to serverless.
-
+Serverless is not required, but with larger loads, serverless can be used to reduce costs. 
 Tempo has support for Google Cloud Run and AWS Lambda. In both cases, you will use the following
 settings to configure Tempo to use a serverless environment:
 
