@@ -77,7 +77,8 @@ var cli struct {
 	} `cmd:""`
 
 	Migrate struct {
-		Tenant migrateTenantCmd `cmd:"" help:"migrate tenant between two backends"`
+		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
+		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
 	} `cmd:""`
 }
 
@@ -85,7 +86,7 @@ func main() {
 	ctx := kong.Parse(&cli,
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
-			//Compact: true,
+			// Compact: true,
 		}),
 	)
 	err := ctx.Run(&cli.globalOptions)

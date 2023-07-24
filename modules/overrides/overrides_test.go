@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,6 @@ import (
 )
 
 func TestOverrides(t *testing.T) {
-
 	tests := []struct {
 		name                        string
 		defaultLimits               Limits
@@ -51,10 +51,9 @@ func TestOverrides(t *testing.T) {
 			expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": 0},
 		},
 		{
-			name: "basic overrides",
+			name: "basic Overrides",
 			defaultLimits: Limits{
 				Ingestion: IngestionConfig{
-
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
 					BurstSizeBytes:         4,
@@ -68,7 +67,6 @@ func TestOverrides(t *testing.T) {
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						Ingestion: IngestionConfig{
-
 							MaxGlobalTracesPerUser: 6,
 							MaxLocalTracesPerUser:  7,
 							BurstSizeBytes:         9,
@@ -94,7 +92,6 @@ func TestOverrides(t *testing.T) {
 			name: "wildcard override",
 			defaultLimits: Limits{
 				Ingestion: IngestionConfig{
-
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
 					BurstSizeBytes:         4,
@@ -108,7 +105,6 @@ func TestOverrides(t *testing.T) {
 				TenantLimits: map[string]*Limits{
 					"user1": {
 						Ingestion: IngestionConfig{
-
 							MaxGlobalTracesPerUser: 6,
 							MaxLocalTracesPerUser:  7,
 							BurstSizeBytes:         9,
@@ -120,7 +116,6 @@ func TestOverrides(t *testing.T) {
 					},
 					"*": {
 						Ingestion: IngestionConfig{
-
 							MaxGlobalTracesPerUser: 11,
 							MaxLocalTracesPerUser:  12,
 							BurstSizeBytes:         14,
@@ -151,7 +146,7 @@ func TestOverrides(t *testing.T) {
 			}
 
 			if tt.perTenantOverrides != nil {
-				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
+				overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 
 				buff, err := yaml.Marshal(tt.perTenantOverrides)
 				require.NoError(t, err)
@@ -189,16 +184,66 @@ func TestOverrides(t *testing.T) {
 				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
 			}
 
-			// if srv != nil {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
-			// }
+		})
+		t.Run(fmt.Sprintf("%s (legacy)", tt.name), func(t *testing.T) {
+			cfg := Config{
+				DefaultLimits: tt.defaultLimits,
+			}
+
+			if tt.perTenantOverrides != nil {
+				overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+
+				legacyOverrides := &perTenantLegacyOverrides{}
+				legacyOverrides.TenantLimits = make(map[string]*LegacyLimits)
+				for tenantID, limits := range tt.perTenantOverrides.TenantLimits {
+					legacyLimits := limits.toLegacy()
+					legacyOverrides.TenantLimits[tenantID] = &legacyLimits
+				}
+				buff, err := yaml.Marshal(legacyOverrides)
+				require.NoError(t, err)
+
+				err = os.WriteFile(overridesFile, buff, os.ModePerm)
+				require.NoError(t, err)
+
+				cfg.PerTenantOverrideConfig = overridesFile
+				cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
+			}
+
+			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
+			overrides, err := NewOverrides(cfg)
+			require.NoError(t, err)
+			err = services.StartAndAwaitRunning(context.TODO(), overrides)
+			require.NoError(t, err)
+
+			for user, expectedVal := range tt.expectedMaxLocalTraces {
+				assert.Equal(t, expectedVal, overrides.MaxLocalTracesPerUser(user))
+			}
+
+			for user, expectedVal := range tt.expectedMaxGlobalTraces {
+				assert.Equal(t, expectedVal, overrides.MaxGlobalTracesPerUser(user))
+			}
+
+			for user, expectedVal := range tt.expectedIngestionBurstSpans {
+				assert.Equal(t, expectedVal, overrides.IngestionBurstSizeBytes(user))
+			}
+
+			for user, expectedVal := range tt.expectedIngestionRateSpans {
+				assert.Equal(t, float64(expectedVal), overrides.IngestionRateLimitBytes(user))
+			}
+
+			for user, expectedVal := range tt.expectedMaxSearchDuration {
+				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
+			}
+
+			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
 		})
 	}
 }
 
 func TestMetricsGeneratorOverrides(t *testing.T) {
-
 	tests := []struct {
 		name                      string
 		defaultLimits             Limits
@@ -243,7 +288,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:          "basic overrides",
+			name:          "basic Overrides",
 			defaultLimits: Limits{},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Limits{
@@ -368,7 +413,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			}
 
 			if tt.perTenantOverrides != nil {
-				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
+				overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 
 				buff, err := yaml.Marshal(tt.perTenantOverrides)
 				require.NoError(t, err)

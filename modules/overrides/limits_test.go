@@ -45,7 +45,7 @@ max_bytes_per_trace: 100_000
 
 block_retention: 24h
 
-per_tenant_override_config: /etc/overrides.yaml
+per_tenant_override_config: /etc/Overrides.yaml
 per_tenant_override_period: 1m
 
 metrics_generator_send_queue_size: 10
@@ -65,7 +65,7 @@ max_search_duration: 5m
 
 	"block_retention": "24h",
 
-	"per_tenant_override_config": "/etc/overrides.yaml",
+	"per_tenant_override_config": "/etc/Overrides.yaml",
 	"per_tenant_override_period": "1m",
 
 	"metrics_generator_send_queue_size": 10,

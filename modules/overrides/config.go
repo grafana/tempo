@@ -49,7 +49,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	c.DefaultLimits.RegisterFlags(f)
 
-	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user overrides.")
+	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
-	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the overrides.")
+	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the Overrides.")
 }

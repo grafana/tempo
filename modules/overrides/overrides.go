@@ -21,18 +21,44 @@ import (
 
 const wildcardTenant = "*"
 
-var (
-	metricOverridesLimitsDesc = prometheus.NewDesc(
-		"tempo_limits_overrides",
-		"Resource limit overrides applied to tenants",
-		[]string{"limit_name", "user"},
-		nil,
-	)
+var metricOverridesLimitsDesc = prometheus.NewDesc(
+	"tempo_limits_overrides",
+	"Resource limit Overrides applied to tenants",
+	[]string{"limit_name", "user"},
+	nil,
 )
 
-// perTenantOverrides represents the overrides config file
+// perTenantLegacyOverrides represents the Overrides config file with the legacy representation
+type perTenantLegacyOverrides struct {
+	TenantLimits map[string]*LegacyLimits `yaml:"overrides"`
+}
+
+// perTenantOverrides represents the Overrides config file
 type perTenantOverrides struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
+}
+
+func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Note: this implementation relies on callers using yaml.UnmarshalStrict. In non-strict mode
+	// unmarshal() will not return an error for legacy configuration and we return immediately.
+
+	// Try to unmarshal it normally
+	type rawConfig perTenantOverrides
+	if err := unmarshal((*rawConfig)(o)); err == nil {
+		return nil
+	}
+
+	var legacyConfig perTenantLegacyOverrides
+	if err := unmarshal(&legacyConfig); err != nil {
+		return err
+	}
+
+	for tenantID, legacyLimits := range legacyConfig.TenantLimits {
+		limits := fromLegacyLimits(*legacyLimits)
+		o.TenantLimits[tenantID] = &limits
+	}
+
+	return nil
 }
 
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
@@ -46,7 +72,7 @@ func (o *perTenantOverrides) forUser(userID string) *Limits {
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
 func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
-	var overrides = &perTenantOverrides{}
+	overrides := &perTenantOverrides{}
 
 	decoder := yaml.NewDecoder(r)
 	decoder.SetStrict(true)
@@ -57,9 +83,9 @@ func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
 	return overrides, nil
 }
 
-// overrides periodically fetch a set of per-user overrides, and provides convenience
+// Overrides periodically fetch a set of per-user Overrides, and provides convenience
 // functions for fetching the correct value.
-type overrides struct {
+type Overrides struct {
 	services.Service
 
 	defaultLimits    *Limits
@@ -74,7 +100,7 @@ type overrides struct {
 // We store the supplied limits in a global variable to ensure per-tenant limits
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
-func NewOverrides(config Config) (Service, error) {
+func NewOverrides(config Config) (*Overrides, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -92,7 +118,7 @@ func NewOverrides(config Config) (Service, error) {
 		subservices = append(subservices, runtimeCfgMgr)
 	}
 
-	o := &overrides{
+	o := &Overrides{
 		runtimeConfigMgr: manager,
 		defaultLimits:    &config.DefaultLimits,
 	}
@@ -112,7 +138,7 @@ func NewOverrides(config Config) (Service, error) {
 	return o, nil
 }
 
-func (o *overrides) starting(ctx context.Context) error {
+func (o *Overrides) starting(ctx context.Context) error {
 	if o.subservices != nil {
 		err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
 		if err != nil {
@@ -123,39 +149,42 @@ func (o *overrides) starting(ctx context.Context) error {
 	return nil
 }
 
-func (o *overrides) running(ctx context.Context) error {
+func (o *Overrides) running(ctx context.Context) error {
 	if o.subservices != nil {
 		select {
 		case <-ctx.Done():
 			return nil
 		case err := <-o.subservicesWatcher.Chan():
-			return fmt.Errorf("overrides subservices failed %w", err)
+			return fmt.Errorf("Overrides subservices failed %w", err)
 		}
 	}
 	<-ctx.Done()
 	return nil
 }
 
-func (o *overrides) stopping(_ error) error {
+func (o *Overrides) stopping(_ error) error {
 	if o.subservices != nil {
 		return services.StopManagerAndAwaitStopped(context.Background(), o.subservices)
 	}
 	return nil
 }
 
-func (o *overrides) tenantOverrides() *perTenantOverrides {
+func (o *Overrides) tenantOverrides() *perTenantOverrides {
 	if o.runtimeConfigMgr == nil {
 		return nil
 	}
-	cfg, ok := o.runtimeConfigMgr.GetConfig().(*perTenantOverrides)
-	if !ok || cfg == nil {
+	cfg := o.runtimeConfigMgr.GetConfig()
+	switch typedCfg := cfg.(type) {
+	case *perTenantOverrides:
+		return typedCfg
+	case nil:
 		return nil
 	}
 
-	return cfg
+	return nil
 }
 
-func (o *overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
+func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error {
 	var tenantOverrides perTenantOverrides
 	if o.tenantOverrides() != nil {
 		tenantOverrides = *o.tenantOverrides()
@@ -215,7 +244,7 @@ func (o *overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
 // to each distributor instance (local) or evenly shared across the cluster (global).
-func (o *overrides) IngestionRateStrategy() string {
+func (o *Overrides) IngestionRateStrategy() string {
 	// The ingestion rate strategy can't be overridden on a per-tenant basis,
 	// so here we just pick the value for a not-existing user ID (empty string).
 	return o.getOverridesForUser("").Ingestion.RateStrategy
@@ -223,175 +252,175 @@ func (o *overrides) IngestionRateStrategy() string {
 
 // MaxLocalTracesPerUser returns the maximum number of traces a user is allowed to store
 // in a single ingester.
-func (o *overrides) MaxLocalTracesPerUser(userID string) int {
+func (o *Overrides) MaxLocalTracesPerUser(userID string) int {
 	return o.getOverridesForUser(userID).Ingestion.MaxLocalTracesPerUser
 }
 
 // MaxGlobalTracesPerUser returns the maximum number of traces a user is allowed to store
 // across the cluster.
-func (o *overrides) MaxGlobalTracesPerUser(userID string) int {
+func (o *Overrides) MaxGlobalTracesPerUser(userID string) int {
 	return o.getOverridesForUser(userID).Ingestion.MaxGlobalTracesPerUser
 }
 
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
-func (o *overrides) IngestionRateLimitBytes(userID string) float64 {
+func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).Ingestion.RateLimitBytes)
 }
 
 // IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
-func (o *overrides) IngestionBurstSizeBytes(userID string) int {
+func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).Ingestion.BurstSizeBytes
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
-func (o *overrides) MaxBytesPerTrace(userID string) int {
+func (o *Overrides) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace
 }
 
 // Forwarders returns the list of forwarder IDs for a user.
-func (o *overrides) Forwarders(userID string) []string {
+func (o *Overrides) Forwarders(userID string) []string {
 	return o.getOverridesForUser(userID).Forwarders
 }
 
 // MaxBytesPerTagValuesQuery returns the maximum size of a response to a tag-values query allowed for a user.
-func (o *overrides) MaxBytesPerTagValuesQuery(userID string) int {
+func (o *Overrides) MaxBytesPerTagValuesQuery(userID string) int {
 	return o.getOverridesForUser(userID).Read.MaxBytesPerTagValuesQuery
 }
 
 // MaxBlocksPerTagValuesQuery returns the maximum number of blocks to query for a tag-values query allowed for a user.
-func (o *overrides) MaxBlocksPerTagValuesQuery(userID string) int {
+func (o *Overrides) MaxBlocksPerTagValuesQuery(userID string) int {
 	return o.getOverridesForUser(userID).Read.MaxBlocksPerTagValuesQuery
 }
 
 // MaxSearchDuration is the duration of the max search duration for this tenant.
-func (o *overrides) MaxSearchDuration(userID string) time.Duration {
+func (o *Overrides) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Read.MaxSearchDuration)
 }
 
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.
 // Using shuffle sharding, a tenant can use a smaller ring than the entire ring.
-func (o *overrides) MetricsGeneratorRingSize(userID string) int {
+func (o *Overrides) MetricsGeneratorRingSize(userID string) int {
 	return o.getOverridesForUser(userID).MetricsGenerator.RingSize
 }
 
 // MetricsGeneratorProcessors returns the metrics-generator processors enabled for this tenant.
-func (o *overrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
+func (o *Overrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processors.GetMap()
 }
 
 // MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
 // registry for this tenant. Note this is a local limit enforced in every instance separately.
-func (o *overrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
+func (o *Overrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGenerator.MaxActiveSeries
 }
 
 // MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
 // for this tenant.
-func (o *overrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+func (o *Overrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.CollectionInterval
 }
 
 // MetricsGeneratorDisableCollection controls whether metrics are remote written for this tenant.
-func (o *overrides) MetricsGeneratorDisableCollection(userID string) bool {
+func (o *Overrides) MetricsGeneratorDisableCollection(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
 // MetricsGeneratorForwarderQueueSize is the size of the buffer of requests to send to the metrics-generator
 // from the distributor for this tenant.
-func (o *overrides) MetricsGeneratorForwarderQueueSize(userID string) int {
+func (o *Overrides) MetricsGeneratorForwarderQueueSize(userID string) int {
 	return o.getOverridesForUser(userID).MetricsGenerator.Forwarder.QueueSize
 }
 
 // MetricsGeneratorForwarderWorkers is the number of workers to send metrics to the metrics-generator
-func (o *overrides) MetricsGeneratorForwarderWorkers(userID string) int {
+func (o *Overrides) MetricsGeneratorForwarderWorkers(userID string) int {
 	return o.getOverridesForUser(userID).MetricsGenerator.Forwarder.Workers
 }
 
 // MetricsGeneratorProcessorServiceGraphsHistogramBuckets controls the histogram buckets to be used
 // by the service graphs processor.
-func (o *overrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 }
 
 // MetricsGeneratorProcessorServiceGraphsDimensions controls the dimensions that are added to the
 // service graphs processor.
-func (o *overrides) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.Dimensions
 }
 
 // MetricsGeneratorProcessorServiceGraphsPeerAttributes controls the attributes that are used to build virtual nodes
-func (o *overrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.PeerAttributes
 }
 
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
-func (o *overrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
 }
 
 // MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
 // by the span metrics processor.
-func (o *overrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.HistogramBuckets
 }
 
 // MetricsGeneratorProcessorSpanMetricsDimensions controls the dimensions that are added to the
 // span metrics processor.
-func (o *overrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.Dimensions
 }
 
 // MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions controls the intrinsic dimensions such as service, span_kind, or
 // span_name that are activated or deactivated on the span metrics processor.
-func (o *overrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions
 }
 
 // MetricsGeneratorProcessorSpanMetricsFilterPolicies controls the filter policies that are added to the spanmetrics processor.
-func (o *overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.FilterPolicies
 }
 
 // MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
-func (o *overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.DimensionMappings
 }
 
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
-func (o *overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo
 }
 
-func (o *overrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces
 }
 
-func (o *overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration
 }
 
-func (o *overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64 {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes
 }
 
-func (o *overrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod
 }
 
-func (o *overrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod
 }
 
-func (o *overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
+func (o *Overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout
 }
 
 // BlockRetention is the duration of the block retention for this tenant.
-func (o *overrides) BlockRetention(userID string) time.Duration {
+func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
 }
 
-func (o *overrides) getOverridesForUser(userID string) *Limits {
+func (o *Overrides) getOverridesForUser(userID string) *Limits {
 	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
 		l := tenantOverrides.forUser(userID)
 		if l != nil {
@@ -407,11 +436,11 @@ func (o *overrides) getOverridesForUser(userID string) *Limits {
 	return o.defaultLimits
 }
 
-func (o *overrides) Describe(ch chan<- *prometheus.Desc) {
+func (o *Overrides) Describe(ch chan<- *prometheus.Desc) {
 	ch <- metricOverridesLimitsDesc
 }
 
-func (o *overrides) Collect(ch chan<- prometheus.Metric) {
+func (o *Overrides) Collect(ch chan<- prometheus.Metric) {
 	overrides := o.tenantOverrides()
 	if overrides == nil {
 		return

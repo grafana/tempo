@@ -12,7 +12,7 @@ func TestConfig_inlineLimits(t *testing.T) {
 	rawYaml := `
 max_bytes_per_trace: 100
 max_traces_per_user: 1
-per_tenant_override_config: /overrides/overrides.yaml`
+per_tenant_override_config: /Overrides/Overrides.yaml`
 
 	cfg := Config{}
 	cfg.RegisterFlags(&flag.FlagSet{})
@@ -22,7 +22,7 @@ per_tenant_override_config: /overrides/overrides.yaml`
 	expected.RegisterFlags(&flag.FlagSet{})
 	expected.DefaultLimits.Global.MaxBytesPerTrace = 100
 	expected.DefaultLimits.Ingestion.MaxLocalTracesPerUser = 1
-	expected.PerTenantOverrideConfig = "/overrides/overrides.yaml"
+	expected.PerTenantOverrideConfig = "/Overrides/Overrides.yaml"
 	assert.Equal(t, expected, cfg)
 }
 
@@ -33,7 +33,7 @@ default_limits:
     max_bytes_per_trace: 100
   ingestion:  
     max_traces_per_user: 1
-per_tenant_override_config: /overrides/overrides.yaml`
+per_tenant_override_config: /Overrides/Overrides.yaml`
 
 	cfg := Config{}
 	cfg.RegisterFlags(&flag.FlagSet{})
@@ -43,7 +43,7 @@ per_tenant_override_config: /overrides/overrides.yaml`
 	expected.RegisterFlags(&flag.FlagSet{})
 	expected.DefaultLimits.Global.MaxBytesPerTrace = 100
 	expected.DefaultLimits.Ingestion.MaxLocalTracesPerUser = 1
-	expected.PerTenantOverrideConfig = "/overrides/overrides.yaml"
+	expected.PerTenantOverrideConfig = "/Overrides/Overrides.yaml"
 	assert.Equal(t, expected, cfg)
 }
 
@@ -52,11 +52,11 @@ func TestConfig_mixInlineAndDefaultLimits(t *testing.T) {
 default_limits:
   max_bytes_per_trace: 100
 max_traces_per_user: 1
-per_tenant_override_config: /overrides/overrides.yaml`
+per_tenant_override_config: /Overrides/Overrides.yaml`
 
 	cfg := Config{}
 	cfg.RegisterFlags(&flag.FlagSet{})
-	// TODO this error isn't helpful "line 2: field default_limits not found in type overrides.legacyConfig"
+	// TODO this error isn't helpful "line 2: field default_limits not found in type Overrides.legacyConfig"
 	assert.Error(t, yaml.UnmarshalStrict([]byte(rawYaml), &cfg))
 }
 
@@ -106,7 +106,7 @@ max_bytes_per_tag_values_query: 15
 max_blocks_per_tag_values_query: 16
 max_search_duration: 17s
 max_bytes_per_trace: 18
-per_tenant_override_config: /overrides/overrides.yaml
+per_tenant_override_config: /Overrides/Overrides.yaml
 per_tenant_override_period: 19s
 `
 
@@ -179,7 +179,7 @@ default_limits:
   - foo
   global:
     max_bytes_per_trace: 18
-per_tenant_override_config: /overrides/overrides.yaml
+per_tenant_override_config: /Overrides/Overrides.yaml
 per_tenant_override_period: 19s
 `
 	cfg := Config{}
