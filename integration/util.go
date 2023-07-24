@@ -3,8 +3,10 @@ package integration
 // Collection of utilities to share between our various load tests
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"path/filepath"
@@ -215,27 +217,46 @@ func NewTempoQuery() *e2e.HTTPService {
 	return s
 }
 
-func WriteFileToSharedDir(s *e2e.Scenario, dst string, content []byte) error {
-	dst = filepath.Join(s.SharedDir(), dst)
-
-	// Ensure the entire path of directories exist.
-	if err := os.MkdirAll(filepath.Dir(dst), os.ModePerm); err != nil {
-		return err
-	}
-
-	return os.WriteFile(
-		dst,
-		content,
-		os.ModePerm)
-}
-
 func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	content, err := os.ReadFile(src)
 	if err != nil {
 		return errors.Wrapf(err, "unable to read local file %s", src)
 	}
 
-	return WriteFileToSharedDir(s, dst, content)
+	_, err = writeFileToSharedDir(s, dst, content)
+	return err
+}
+
+func CopyTemplateToSharedDir(s *e2e.Scenario, src, dst string, data any) (string, error) {
+	tmpl, err := template.ParseFiles(src)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, data)
+	if err != nil {
+		return "", err
+	}
+
+	return writeFileToSharedDir(s, dst, buf.Bytes())
+}
+
+func writeFileToSharedDir(s *e2e.Scenario, dst string, content []byte) (string, error) {
+	dst = filepath.Join(s.SharedDir(), dst)
+
+	// Ensure the entire path of directories exists
+	err := os.MkdirAll(filepath.Dir(dst), os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+
+	err = os.WriteFile(dst, content, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+
+	return dst, nil
 }
 
 func TempoBackoff() backoff.Config {
@@ -336,7 +357,7 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
-func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
+func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
