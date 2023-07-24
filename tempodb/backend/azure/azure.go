@@ -113,7 +113,7 @@ func (rw *readerWriter) CloseAppend(context.Context, backend.AppendTracker) erro
 	return nil
 }
 
-func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", backend.ObjectFileName(keypath, name))

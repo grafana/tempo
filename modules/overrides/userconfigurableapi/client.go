@@ -158,5 +158,5 @@ func (o *userConfigOverridesClient) Delete(ctx context.Context, userID string) e
 	defer span.Finish()
 	span.SetTag("tenant", userID)
 
-	return o.w.Delete(ctx, OverridesFileName, []string{OverridesKeyPath, userID})
+	return o.w.Delete(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, false)
 }
