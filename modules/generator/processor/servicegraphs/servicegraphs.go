@@ -183,7 +183,15 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						p.upsertPeerNode(e, span.Attributes)
 
 						// A database request will only have one span, we don't wait for the server
-						// span but just copy details from the client span
+						// span but just copy details from the client span.
+						// As per the OTel spec, db.system is the only required attribute, but not guaranteed to be present
+						// due to varying maturity of OTel instrumentation let's be flexible here and go from unspecific to specific
+						if dbSystem, ok := processor_util.FindAttributeValue("db.system", rs.Resource.Attributes, span.Attributes); ok {
+							e.ConnectionType = store.Database
+							e.ServerService = dbName
+							e.ServerLatencySec = spanDurationSec(span)
+						}
+						// db.name can be present, but is not guranteed to be
 						if dbName, ok := processor_util.FindAttributeValue("db.name", rs.Resource.Attributes, span.Attributes); ok {
 							e.ConnectionType = store.Database
 							e.ServerService = dbName
