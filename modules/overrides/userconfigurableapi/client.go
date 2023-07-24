@@ -60,6 +60,7 @@ type Client interface {
 	Get(context.Context, string) (*UserConfigurableLimits, error)
 	Set(context.Context, string, *UserConfigurableLimits) error
 	Delete(context.Context, string) error
+	Shutdown()
 }
 
 type userConfigOverridesClient struct {
@@ -75,6 +76,10 @@ func NewUserConfigOverridesClient(cfg *UserConfigurableOverridesClientConfig) (C
 		return nil, err
 	}
 	return &userConfigOverridesClient{r, w}, nil
+}
+
+func (o *userConfigOverridesClient) Shutdown() {
+	o.r.Shutdown()
 }
 
 func initBackend(cfg *UserConfigurableOverridesClientConfig) (reader backend.RawReader, writer backend.RawWriter, err error) {
