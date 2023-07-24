@@ -144,7 +144,7 @@ func TestStore_concurrency(t *testing.T) {
 		}
 	}
 
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 	go accessor(func() {
 		key := make([]rune, 6)

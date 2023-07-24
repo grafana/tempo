@@ -122,7 +122,6 @@ func createHTTPClient(cfg *Config) (*http.Client, error) {
 	}
 	transport := &http.Transport{TLSClientConfig: config}
 	return &http.Client{Transport: transport}, nil
-
 }
 
 func mapCipherNamesToIDs(cipherSuiteNames []string) ([]uint16, error) {
@@ -165,7 +164,6 @@ func (b *Backend) apiSchema() string {
 }
 
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-
 	url := fmt.Sprintf("%s://%s/api/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetTrace")
@@ -255,7 +253,6 @@ func (b *Backend) GetOperations(ctx context.Context, _ jaeger_spanstore.Operatio
 	}
 
 	return operations, nil
-
 }
 
 func (b *Backend) FindTraces(ctx context.Context, query *jaeger_spanstore.TraceQueryParameters) ([]*jaeger.Trace, error) {

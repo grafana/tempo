@@ -644,9 +644,11 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 func BenchmarkInstanceSearchCompleteParquet(b *testing.B) {
 	benchmarkInstanceSearch(b)
 }
+
 func TestInstanceSearchCompleteParquet(t *testing.T) {
 	benchmarkInstanceSearch(t)
 }
+
 func benchmarkInstanceSearch(b testing.TB) {
 	instance, _ := defaultInstance(b)
 	for i := 0; i < 1000; i++ {

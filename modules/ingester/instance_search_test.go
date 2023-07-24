@@ -26,14 +26,19 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+const (
+	foo = "foo"
+	bar = "bar"
+)
+
 func TestInstanceSearch(t *testing.T) {
 	i, ingester, tempDir := defaultInstanceAndTmpDir(t)
 
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := foo
+	tagValue := bar
 	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
 	}
 	req.Tags[tagKey] = tagValue
@@ -164,8 +169,8 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	i, ingester, _ := defaultInstanceAndTmpDir(t)
 
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := foo
+	tagValue := bar
 	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
@@ -196,7 +201,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 	}
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
 	}
 	req.Tags[tagKey] = tagValue
@@ -240,8 +245,8 @@ func TestInstanceSearchTags(t *testing.T) {
 	i, _ := defaultInstance(t)
 
 	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := "foo"
+	tagValue := bar
 
 	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
 
@@ -276,7 +281,11 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 	sr, err = i.SearchTags(ctx, "resource")
 	require.NoError(t, err)
-	assert.NotContains(t, sr.TagNames, tagName) // tags are added to h the spans and not resources so they should not be returned
+	assert.NotContains(
+		t,
+		sr.TagNames,
+		tagName,
+	) // tags are added to h the spans and not resources so they should not be returned
 
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
@@ -292,8 +301,8 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// add dummy search data
 	var (
-		tagKey                = "foo"
-		tagValue              = "bar"
+		tagKey                = foo
+		tagValue              = bar
 		queryThatMatches      = `{ .service.name = "test-service" }`
 		queryThatDoesNotMatch = `{ .uuuuu = "aaaaa" }`
 	)
@@ -304,7 +313,14 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// Test after appending to WAL
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues) // Matches the expected tag values
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatDoesNotMatch, []string{})   // Does not match the expected tag values
+	testSearchTagsAndValuesV2(
+		t,
+		userCtx,
+		i,
+		tagKey,
+		queryThatDoesNotMatch,
+		[]string{},
+	) // Does not match the expected tag values
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -321,7 +337,13 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 }
 
 // nolint:revive,unparam
-func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName, query string, expectedTagValues []string) {
+func testSearchTagsAndValuesV2(
+	t *testing.T,
+	ctx context.Context,
+	i *instance,
+	tagName, query string,
+	expectedTagValues []string,
+) {
 	tagsResp, err := i.SearchTags(ctx, "none")
 	require.NoError(t, err)
 
@@ -354,7 +376,11 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 
 	resp, err = i.SearchTags(userCtx, "intrinsic")
 	require.NoError(t, err)
-	require.Equal(t, []string{"duration", "kind", "name", "status", "traceDuration", "rootServiceName", "rootName"}, resp.TagNames)
+	require.Equal(
+		t,
+		[]string{"duration", "kind", "name", "status", "traceDuration", "rootServiceName", "rootName"},
+		resp.TagNames,
+	)
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
@@ -373,8 +399,8 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	i, err := ingester.getOrCreateInstance("fake")
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := foo
+	tagValue := bar
 
 	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
 
@@ -400,9 +426,10 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	i, err := ingester.getOrCreateInstance("fake")
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	tagKey := "foo"
+	tagKey := foo
+	tagValue := bar
 
-	_, _ = writeTracesForSearch(t, i, tagKey, "bar", true)
+	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
 
 	// Cut the headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -464,7 +491,10 @@ func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue str
 		ids = append(ids, id)
 
 		testTrace := test.MakeTrace(10, id)
-		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes, kv)
+		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(
+			testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes,
+			kv,
+		)
 		trace.SortTrace(testTrace)
 
 		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
@@ -487,7 +517,7 @@ func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue str
 func TestInstanceSearchNoData(t *testing.T) {
 	i, _ := defaultInstance(t)
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
 	}
 
@@ -506,10 +536,10 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
+	tagKey := foo
+	tagValue := "bar"
 
-	var req = &tempopb.SearchRequest{
+	req := &tempopb.SearchRequest{
 		Tags: map[string]string{tagKey: tagValue},
 	}
 
@@ -783,7 +813,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
 			// time.Sleep(1 * time.Millisecond)
-			var req = &tempopb.SearchRequest{}
+			req := &tempopb.SearchRequest{}
 			resp, err := i.Search(ctx, req)
 			require.NoError(b, err)
 			searches.Inc()
@@ -797,7 +827,8 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	time.Sleep(time.Duration(b.N) * time.Millisecond)
 	elapsed := time.Since(start)
 
-	fmt.Printf("Instance search throughput under load: %v elapsed %.2f MB = %.2f MiB/s throughput inspected %.2f traces/s pushed %.2f traces/s %.2f searches/s %.2f cuts/s\n",
+	fmt.Printf(
+		"Instance search throughput under load: %v elapsed %.2f MB = %.2f MiB/s throughput inspected %.2f traces/s pushed %.2f traces/s %.2f searches/s %.2f cuts/s\n",
 		elapsed,
 		float64(bytesInspected.Load())/(1024*1024),
 		float64(bytesInspected.Load())/(elapsed.Seconds())/(1024*1024),

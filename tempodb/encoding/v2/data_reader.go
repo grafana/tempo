@@ -160,7 +160,6 @@ func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 		return nil, 0, err
 	}
 	return buffer, page.totalLength, nil
-
 }
 
 func (r *dataReader) getCompressedReader(page []byte) (io.Reader, error) {

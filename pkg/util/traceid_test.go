@@ -248,7 +248,6 @@ func TestEqualHexStringTraceIDs(t *testing.T) {
 }
 
 func TestPadTraceIDTo16Bytes(t *testing.T) {
-
 	tc := []struct {
 		name     string
 		tid      []byte

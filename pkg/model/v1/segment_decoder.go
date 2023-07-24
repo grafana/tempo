@@ -9,8 +9,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-type SegmentDecoder struct {
-}
+type SegmentDecoder struct{}
 
 var segmentDecoder = &SegmentDecoder{}
 

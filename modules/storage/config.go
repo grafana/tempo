@@ -25,7 +25,6 @@ type Config struct {
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-
 	cfg.Trace.BlocklistPollFallback = true
 	cfg.Trace.BlocklistPollConcurrency = tempodb.DefaultBlocklistPollConcurrency
 	cfg.Trace.BlocklistPollTenantIndexBuilders = tempodb.DefaultTenantIndexBuilders

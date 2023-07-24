@@ -13,9 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var (
-	tenantID = "single-tenant"
-)
+var tenantID = "single-tenant"
 
 type dummyReader struct {
 	r           io.ReaderAt

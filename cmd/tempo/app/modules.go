@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/weaveworks/common/middleware"
@@ -26,6 +27,7 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -50,6 +52,7 @@ const (
 	MemberlistKV   string = "memberlist-kv"
 	UsageReport    string = "usage-report"
 	Overrides      string = "overrides"
+	OverridesAPI   string = "overrides-api"
 	// rings
 	IngesterRing          string = "ring"
 	SecondaryIngesterRing string = "secondary-ring"
@@ -179,11 +182,11 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig)
+	o, err := overrides.NewOverrides(t.cfg.LimitsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
-	t.Overrides = overrides
+	t.Overrides = o
 
 	prometheus.MustRegister(&t.cfg.LimitsConfig)
 
@@ -192,6 +195,30 @@ func (t *App) initOverrides() (services.Service, error) {
 	}
 
 	return t.Overrides, nil
+}
+
+func (t *App) initOverridesAPI() (services.Service, error) {
+	cfg := t.cfg.LimitsConfig.UserConfigurableOverridesConfig
+
+	if !cfg.Enabled {
+		return services.NewIdleService(nil, nil), nil
+	}
+
+	userConfigOverridesAPI, err := userconfigurableapi.NewUserConfigOverridesAPI(&cfg.ClientConfig, NewOverridesValidator(&t.cfg))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
+	}
+
+	overridesPath := addHTTPAPIPrefix(&t.cfg, api.PathOverrides)
+	wrapHandler := func(h http.HandlerFunc) http.Handler {
+		return t.HTTPAuthMiddleware.Wrap(h)
+	}
+
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetOverridesHandler))
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostOverridesHandler))
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteOverridesHandler))
+
+	return userConfigOverridesAPI, nil
 }
 
 func (t *App) initDistributor() (services.Service, error) {
@@ -451,13 +478,13 @@ func (t *App) initUsageReport() (services.Service, error) {
 	var writer backend.RawWriter
 
 	switch t.cfg.StorageConfig.Trace.Backend {
-	case "local":
+	case backend.Local:
 		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
-	case "gcs":
+	case backend.GCS:
 		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
-	case "s3":
+	case backend.S3:
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
-	case "azure":
+	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
@@ -487,6 +514,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
+	mm.RegisterModule(OverridesAPI, t.initOverridesAPI)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
@@ -509,6 +537,7 @@ func (t *App) setupModuleManager() error {
 		// InternalServer: nil,
 		Server:                {InternalServer},
 		Overrides:             {Server},
+		OverridesAPI:          {Server},
 		MemberlistKV:          {Server},
 		UsageReport:           {MemberlistKV},
 		IngesterRing:          {Server, MemberlistKV},
@@ -518,7 +547,7 @@ func (t *App) setupModuleManager() error {
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
-		QueryFrontend:    {Common, Store},
+		QueryFrontend:    {Common, Store, OverridesAPI},
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
 		Ingester:         {Common, Store, MemberlistKV},
 		MetricsGenerator: {Common, MemberlistKV},

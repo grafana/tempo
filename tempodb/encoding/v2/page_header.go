@@ -19,8 +19,7 @@ const DataHeaderLength = 0
 const IndexHeaderLength = int(uint64Size) // 64bit checksum (xxhash)
 
 // dataHeader implements a pageHeader that has no fields
-type dataHeader struct {
-}
+type dataHeader struct{}
 
 func (h *dataHeader) unmarshalHeader(b []byte) error {
 	if len(b) != 0 {

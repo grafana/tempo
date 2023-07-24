@@ -200,7 +200,7 @@ func TestPartialBlock(t *testing.T) {
 	_, err = crand.Read(garbo)
 	require.NoError(t, err)
 
-	appendFile, err := os.OpenFile(v2Block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	appendFile, err := os.OpenFile(v2Block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
 	require.NoError(t, err)
 	_, err = appendFile.Write(garbo)
 	require.NoError(t, err)
@@ -226,7 +226,6 @@ func TestPartialBlock(t *testing.T) {
 		i++
 	}
 	require.Equal(t, numMsgs, i)
-
 }
 
 func TestParseFilename(t *testing.T) {

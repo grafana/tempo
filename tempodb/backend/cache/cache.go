@@ -110,6 +110,10 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 	return r.nextWriter.CloseAppend(ctx, tracker)
 }
 
+func (r *readerWriter) Delete(context.Context, string, backend.KeyPath) error {
+	panic("delete is not supported for cache.Cache backend")
+}
+
 func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
 }

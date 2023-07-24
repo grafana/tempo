@@ -38,3 +38,15 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 1000
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
+    client:
+      backend: gcs
+      gcs:
+        # TODO use separate bucket?
+        bucket_name: tempo
+        endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+        insecure: true

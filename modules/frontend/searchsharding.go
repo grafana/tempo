@@ -397,7 +397,6 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				Size_:         m.Size,
 				FooterSize:    m.FooterSize,
 			})
-
 			if err != nil {
 				reqCh <- &backendReqMsg{err: err}
 				return
