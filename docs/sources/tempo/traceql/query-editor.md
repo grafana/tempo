@@ -21,7 +21,7 @@ To add TraceQL panels to your dashboard, refer to the [Traces panel documentatio
 To learn more about Grafana dashboards, refer to the [Use dashboards documentation](/docs/grafana/latest/dashboards/use-dashboards/).
 
 {{% admonition type="note" %}}
-To use the TraceQL query editor in Grafana 9.3.2 and newer, you need to enable the `traceqlEditor` feature flag.
+To use the TraceQL query editor in Grafana 9.3.2 and newer, you need to enable the `traceqlEditor` feature toggle ([refer to instructions for enabling feature toggles](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).)
 
 To enable the Trace Search in Grafana 10 and newer, you need to enable the `traceqlSearch` feature flag.
 
