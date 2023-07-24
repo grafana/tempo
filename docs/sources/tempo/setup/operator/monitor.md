@@ -1,7 +1,7 @@
 ---
 title: 'Monitor'
 description: Monitor TempoStack instances
-menuTitle: Quickstart
+menuTitle: Monitor
 weight: 300
 aliases:
 - /docs/tempo/operator/monitor
@@ -13,15 +13,11 @@ All Tempo components as well as the [Tempo Gateway](https://github.com/observato
 
 ### Configure tracing of Operands
 
-#### Requirements
+#### Deploy OpenTelemetry collector
 
-* An [OpenTelemetry Operator](https://opentelemetry.io/docs/k8s-operator/#getting-started) installation.
-* *Optional:* Another tracing backend would be ideal - If none exists, a Jaeger instance can be created.
-
-#### Installation
-
-* Deploy the Tempo Operator to your cluster.
+* Deploy [OpenTelemetry Operator](https://opentelemetry.io/docs/k8s-operator/#getting-started) installation.
 * Create an `OpenTelemetryCollector` CR that receives trace data in Jaeger Thrift format and exports data via OTLP to the desired trace backend.
+* *Optional:* Deploy tracing backend to store trace data.
 
 ```yaml
 apiVersion: opentelemetry.io/v1alpha1
