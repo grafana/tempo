@@ -231,3 +231,6 @@ func (b *badClient) Set(context.Context, string, *api.UserConfigurableLimits, ba
 func (b *badClient) Delete(context.Context, string, backend.Version) error {
 	return errors.New("no")
 }
+
+func (b badClient) Shutdown() {
+}

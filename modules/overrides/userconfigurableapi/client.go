@@ -77,6 +77,8 @@ type Client interface {
 	Set(context.Context, string, *UserConfigurableLimits, backend.Version) (backend.Version, error)
 	// Delete the user-configurable overrides.
 	Delete(context.Context, string, backend.Version) error
+	// Shutdown the client.
+	Shutdown()
 }
 
 type userConfigOverridesClient struct {
@@ -91,6 +93,10 @@ func NewUserConfigOverridesClient(cfg *UserConfigurableOverridesClientConfig) (C
 		return nil, err
 	}
 	return &userConfigOverridesClient{rw}, nil
+}
+
+func (o *userConfigOverridesClient) Shutdown() {
+	o.rw.Shutdown()
 }
 
 func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.VersionedReaderWriter, err error) {

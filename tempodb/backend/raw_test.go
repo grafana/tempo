@@ -50,6 +50,15 @@ func TestWriter(t *testing.T) {
 
 	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
 	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
+
+	// When there are no blocks, the tenant index should be deleted
+	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
+
+	err = w.WriteTenantIndex(ctx, "test", nil, nil)
+	assert.NoError(t, err)
+
+	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
+	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
 }
 
 func TestReader(t *testing.T) {

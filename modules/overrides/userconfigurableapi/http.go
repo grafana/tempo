@@ -2,12 +2,14 @@ package userconfigurableapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -25,18 +27,41 @@ const (
 	headerIfMatch = "If-Match"
 )
 
+type Validator interface {
+	Validate(limits *UserConfigurableLimits) error
+}
+
 // UserConfigOverridesAPI manages the API to retrieve, update and delete user-configurable overrides
 // from the backend.
 type UserConfigOverridesAPI struct {
-	client Client
+	services.Service
+
+	client    Client
+	validator Validator
 }
 
-func NewUserConfigOverridesAPI(config *UserConfigurableOverridesClientConfig) (*UserConfigOverridesAPI, error) {
+func NewUserConfigOverridesAPI(config *UserConfigurableOverridesClientConfig, validator Validator) (*UserConfigOverridesAPI, error) {
 	client, err := NewUserConfigOverridesClient(config)
 	if err != nil {
 		return nil, err
 	}
-	return &UserConfigOverridesAPI{client}, nil
+
+	api := &UserConfigOverridesAPI{
+		client:    client,
+		validator: validator,
+	}
+
+	api.Service = services.NewIdleService(api.starting, api.stopping)
+	return api, nil
+}
+
+func (a *UserConfigOverridesAPI) starting(_ context.Context) error {
+	return nil
+}
+
+func (a *UserConfigOverridesAPI) stopping(_ error) error {
+	a.client.Shutdown()
+	return nil
 }
 
 // GetOverridesHandler retrieves the user-configured overrides from the backend.
@@ -104,7 +129,11 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	// TODO validate the received data
+	err = a.validator.Validate(limits)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
 
 	version, err := a.client.Set(ctx, userID, limits, backend.Version(ifMatchVersion))
 	if err == backend.ErrVersionDoesNotMatch {
@@ -166,6 +195,12 @@ func (a *UserConfigOverridesAPI) PatchOverridesHandler(w http.ResponseWriter, r 
 	d.DisallowUnknownFields()
 
 	err = d.Decode(&patchedLimits)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
+
+	err = a.validator.Validate(&patchedLimits)
 	if err != nil {
 		handleError(span, userID, r, w, http.StatusBadRequest, err)
 		return

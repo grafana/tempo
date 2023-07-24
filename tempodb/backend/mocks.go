@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 
@@ -55,6 +56,7 @@ type MockRawWriter struct {
 	writeBuffer       []byte
 	appendBuffer      []byte
 	closeAppendCalled bool
+	deleteCalls       map[string]map[string]int
 }
 
 func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ bool) error {
@@ -73,7 +75,20 @@ func (m *MockRawWriter) CloseAppend(context.Context, AppendTracker) error {
 	return nil
 }
 
-func (m *MockRawWriter) Delete(context.Context, string, KeyPath) error {
+func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath) error {
+	if m.deleteCalls == nil {
+		m.deleteCalls = make(map[string]map[string]int)
+	}
+
+	if _, ok := m.deleteCalls[name]; !ok {
+		m.deleteCalls[name] = make(map[string]int)
+	}
+
+	if _, ok := m.deleteCalls[name][strings.Join(keypath, "/")]; !ok {
+		m.deleteCalls[name][strings.Join(keypath, "/")] = 0
+	}
+
+	m.deleteCalls[name][strings.Join(keypath, "/")]++
 	return nil
 }
 

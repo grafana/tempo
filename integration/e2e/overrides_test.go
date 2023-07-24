@@ -64,7 +64,7 @@ func TestOverrides(t *testing.T) {
 			// Modify overrides
 			fmt.Println("* Setting overrides.forwarders")
 			_, err = apiClient.SetOverrides(&userconfigurableapi.UserConfigurableLimits{
-				Forwarders: &[]string{"my-forwarder"},
+				Forwarders: &[]string{},
 			}, "0")
 			require.NoError(t, err)
 
@@ -74,7 +74,7 @@ func TestOverrides(t *testing.T) {
 
 			require.NotNil(t, limits)
 			require.NotNil(t, limits.Forwarders)
-			assert.ElementsMatch(t, *limits.Forwarders, []string{"my-forwarder"})
+			assert.ElementsMatch(t, *limits.Forwarders, []string{})
 
 			// We fetched the overrides once manually, but we also expect at least one poll_interval to have happened
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(1), "tempo_overrides_user_configurable_overrides_fetch_total"))

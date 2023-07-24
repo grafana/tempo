@@ -3,6 +3,7 @@ package userconfigurableapi
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,10 +21,12 @@ import (
 func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	tenant := "my-tenant"
 
-	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
+	cfg := UserConfigurableOverridesClientConfig{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
-	})
+	}
+	validator := &mockValidator{}
+	overridesAPI, err := NewUserConfigOverridesAPI(&cfg, validator)
 	require.NoError(t, err)
 
 	// Provision some data
@@ -41,6 +44,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		name           string
 		handler        http.HandlerFunc
 		req            *http.Request
+		validatorErr   error
 		expResp        string
 		expContentType string
 		expStatusCode  int
@@ -82,6 +86,15 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			expStatusCode:  400,
 		},
 		{
+			name:           "POST - invalid overrides",
+			handler:        overridesAPI.PostOverridesHandler,
+			req:            prepareRequest(tenant, "POST", postJSON),
+			validatorErr:   errors.New("these limits are invalid"),
+			expResp:        "these limits are invalid\n",
+			expContentType: "text/plain; charset=utf-8",
+			expStatusCode:  400,
+		},
+		{
 			name:          "DELETE",
 			handler:       overridesAPI.DeleteOverridesHandler,
 			req:           prepareRequest(tenant, "DELETE", nil),
@@ -90,15 +103,17 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			validator.err = tc.validatorErr
+
 			w := httptest.NewRecorder()
 			tc.handler(w, tc.req)
 
 			data := w.Body.String()
-			require.Equal(t, tc.expResp, data)
+			assert.Equal(t, tc.expResp, data)
 
 			res := w.Result()
-			require.Equal(t, tc.expContentType, w.Header().Get(api.HeaderContentType))
-			require.Equal(t, tc.expStatusCode, res.StatusCode)
+			assert.Equal(t, tc.expContentType, w.Header().Get(api.HeaderContentType))
+			assert.Equal(t, tc.expStatusCode, res.StatusCode)
 
 			if tc.req.Method == http.MethodPost {
 				limits, _, err := overridesAPI.client.Get(context.Background(), tenant)
@@ -158,7 +173,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
 				Backend: backend.Local,
 				Local:   &local.Config{Path: t.TempDir()},
-			})
+			}, &mockValidator{})
 			require.NoError(t, err)
 
 			if tc.current != "" {
@@ -190,7 +205,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
-	})
+	}, &mockValidator{})
 	require.NoError(t, err)
 
 	// inject our client
@@ -228,7 +243,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing
 	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
-	})
+	}, &mockValidator{})
 	require.NoError(t, err)
 
 	// inject our client
@@ -282,6 +297,8 @@ type testClient struct {
 	set func(context.Context, string, *UserConfigurableLimits, backend.Version) (backend.Version, error)
 }
 
+var _ Client = (*testClient)(nil)
+
 func (t *testClient) List(_ context.Context) ([]string, error) {
 	panic("implement me")
 }
@@ -296,4 +313,15 @@ func (t *testClient) Set(ctx context.Context, userID string, limits *UserConfigu
 
 func (t *testClient) Delete(_ context.Context, _ string, _ backend.Version) error {
 	panic("implement me")
+}
+
+func (t *testClient) Shutdown() {
+}
+
+type mockValidator struct {
+	err error
+}
+
+func (m *mockValidator) Validate(_ *UserConfigurableLimits) error {
+	return m.err
 }

@@ -471,6 +471,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"spanAttValMatch", "{ span.bloom > 0 }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
 		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
+		{"spanAttIntrinsicMatchRegex", "{ name =~ `gcs.ReadRange` }"},
+		{"spanAttIntrinsicNoMatchRegex", "{ name =~ `asdfasdf` }"},
 
 		// resource
 		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
@@ -478,6 +480,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
 		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
+		{"unscopedMatch", "{ .service.name = `tempo-query-frontend` }"},
 
 		// mixed
 		{"mixedNameNoMatch", "{ .foo = `bar` }"},
@@ -489,10 +492,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("149e41d2-cc4d-4f71-b355-3377eabc94c8")
+	blockID := uuid.MustParse("735a37ac-75c7-4bfc-96b2-f525c904b2b9")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/home/joe/testblock/"),
+		Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
