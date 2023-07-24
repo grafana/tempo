@@ -219,7 +219,6 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchOverridesHandler))
 	t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteOverridesHandler))
 
-
 	return userConfigOverridesAPI, nil
 }
 
