@@ -23,8 +23,8 @@ While this approach is powerful, it isn't quite as powerful
 because you know you want to log the trace ID, to enable jumping from logs to
 traces, then read on!
 
-If you merely want to query the system directly, read up on the [TraceQL
-documentation](https://grafana.com/docs/tempo/latest/traceql).  We doubt you'll
+If you want to query the system directly, read the [TraceQL
+documentation]({{< relref "../../traceql" >}}).  We doubt you'll
 be sad.
 
 # Automatic logging: Trace discovery through logs
