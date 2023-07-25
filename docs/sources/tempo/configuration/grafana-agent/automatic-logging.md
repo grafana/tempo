@@ -31,7 +31,7 @@ be sad.
 
 
 Automatic logging provides an easy and fast way of getting trace discovery through logs.
-Automatic logging writes a well formatted log line to a Loki instance or to stdout for each span, root or process that passes through the tracing pipeline.
+Automatic logging writes a well-formatted log line to a Loki instance or to `stdout` for each span, root, or process that passes through the tracing pipeline.
 This allows for automatically building a mechanism for trace discovery.
 On top of that, we also get metrics from traces using Loki.
 
