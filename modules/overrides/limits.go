@@ -45,99 +45,99 @@ var metricLimitsDesc = prometheus.NewDesc(
 
 type IngestionConfig struct {
 	// Distributor enforced limits.
-	RateStrategy   string `yaml:"rate_strategy" json:"rate_strategy"`
-	RateLimitBytes int    `yaml:"rate_limit_bytes" json:"rate_limit_bytes"`
-	BurstSizeBytes int    `yaml:"burst_size_bytes" json:"burst_size_bytes"`
+	RateStrategy   string `yaml:"rate_strategy,omitempty" json:"rate_strategy,omitempty"`
+	RateLimitBytes int    `yaml:"rate_limit_bytes,omitempty" json:"rate_limit_bytes,omitempty"`
+	BurstSizeBytes int    `yaml:"burst_size_bytes,omitempty" json:"burst_size_bytes,omitempty"`
 
 	// Ingester enforced limits.
-	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
-	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
+	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user,omitempty" json:"max_traces_per_user,omitempty"`
+	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user,omitempty" json:"max_global_traces_per_user,omitempty"`
 }
 
 type ForwarderConfig struct {
-	QueueSize int `yaml:"queue_size" json:"queue_size"`
-	Workers   int `yaml:"workers" json:"workers"`
+	QueueSize int `yaml:"queue_size,omitempty" json:"queue_size,omitempty"`
+	Workers   int `yaml:"workers,omitempty" json:"workers,omitempty"`
 }
 
 type ServiceGraphsConfig struct {
-	HistogramBuckets         []float64 `yaml:"histogram_buckets" json:"histogram_buckets"`
-	Dimensions               []string  `yaml:"dimensions" json:"dimensions"`
-	PeerAttributes           []string  `yaml:"peer_attributes" json:"peer_attributes"`
-	EnableClientServerPrefix bool      `yaml:"enable_client_server_prefix" json:"enable_client_server_prefix"`
+	HistogramBuckets         []float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions               []string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	PeerAttributes           []string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
+	EnableClientServerPrefix bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
 }
 
 type SpanMetricsConfig struct {
-	HistogramBuckets    []float64                        `yaml:"histogram_buckets" json:"histogram_buckets"`
-	Dimensions          []string                         `yaml:"dimensions" json:"dimensions"`
-	IntrinsicDimensions map[string]bool                  `yaml:"intrinsic_dimensions" json:"intrinsic_dimensions"`
-	FilterPolicies      []filterconfig.FilterPolicy      `yaml:"filter_policies" json:"filter_policies"`
-	DimensionMappings   []sharedconfig.DimensionMappings `yaml:"dimension_mappings" json:"dimension_mapings"`
-	EnableTargetInfo    bool                             `yaml:"enable_target_info" json:"enable_target_info"`
+	HistogramBuckets    []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions          []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	FilterPolicies      []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	DimensionMappings   []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
+	EnableTargetInfo    bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
 }
 
 type LocalBlocksConfig struct {
-	MaxLiveTraces        uint64        `yaml:"max_live_traces" json:"max_live_traces"`
-	MaxBlockDuration     time.Duration `yaml:"max_block_duration" json:"max_block_duration"`
-	MaxBlockBytes        uint64        `yaml:"max_block_bytes" json:"max_block_bytes"`
-	FlushCheckPeriod     time.Duration `yaml:"flush_check_period" json:"flush_check_period"`
-	TraceIdlePeriod      time.Duration `yaml:"trace_idle_period" json:"trace_idle_period"`
-	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout" json:"complete_block_timeout"`
+	MaxLiveTraces        uint64        `yaml:"max_live_traces,omitempty" json:"max_live_traces,omitempty"`
+	MaxBlockDuration     time.Duration `yaml:"max_block_duration,omitempty" json:"max_block_duration,omitempty"`
+	MaxBlockBytes        uint64        `yaml:"max_block_bytes,omitempty" json:"max_block_bytes,omitempty"`
+	FlushCheckPeriod     time.Duration `yaml:"flush_check_period,omitempty" json:"flush_check_period,omitempty"`
+	TraceIdlePeriod      time.Duration `yaml:"trace_idle_period,omitempty" json:"trace_idle_period,omitempty"`
+	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout,omitempty" json:"complete_block_timeout,omitempty"`
 }
 
 type ProcessorConfig struct {
-	ServiceGraphs ServiceGraphsConfig `yaml:"service_graphs" json:"service_graphs"`
+	ServiceGraphs ServiceGraphsConfig `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
 
-	SpanMetrics SpanMetricsConfig `yaml:"span_metrics" json:"span_metrics"`
+	SpanMetrics SpanMetricsConfig `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
 
-	LocalBlocks LocalBlocksConfig `yaml:"local_blocks" json:"local_blocks"`
+	LocalBlocks LocalBlocksConfig `yaml:"local_blocks,omitempty" json:"local_blocks,omitempty"`
 }
 
 type MetricsGeneratorConfig struct {
-	RingSize           int           `yaml:"ring_size" json:"ring_size"`
-	Processors         ListToMap     `yaml:"processors" json:"processors"`
-	MaxActiveSeries    uint32        `yaml:"max_active_series" json:"max_active_series"`
-	CollectionInterval time.Duration `yaml:"collection_interval" json:"collection_interval"`
-	DisableCollection  bool          `yaml:"disable_collection" json:"disable_collection"`
+	RingSize           int           `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
+	Processors         ListToMap     `yaml:"processors,omitempty" json:"processors,omitempty"`
+	MaxActiveSeries    uint32        `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	CollectionInterval time.Duration `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	DisableCollection  bool          `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 
-	Forwarder ForwarderConfig `yaml:"forwarder" json:"forwarder"`
+	Forwarder ForwarderConfig `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 
-	Processor ProcessorConfig `yaml:"processor" json:"processor"`
+	Processor ProcessorConfig `yaml:"processor,omitempty" json:"processor,omitempty"`
 }
 
 type ReadConfig struct {
 	// Querier and Ingester enforced limits.
-	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
-	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
+	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
+	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxSearchDuration model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
 }
 
 type CompactionConfig struct {
 	// Compactor enforced limits.
-	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
+	BlockRetention model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
 }
 
 // TODO: Ingestion limit instead?
 type GlobalLimitsConfig struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
-	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
 }
 
 type Limits struct {
 	// Ingestion enforced limits.
-	Ingestion IngestionConfig `yaml:"ingestion" json:"ingestion"`
+	Ingestion IngestionConfig `yaml:"ingestion,omitempty" json:"ingestion,omitempty"`
 	// Read enforced limits.
-	Read ReadConfig `yaml:"read" json:"read"`
+	Read ReadConfig `yaml:"read,omitempty" json:"read,omitempty"`
 	// Compaction enforced limits.
-	Compaction CompactionConfig `yaml:"compaction" json:"compaction"`
+	Compaction CompactionConfig `yaml:"compaction,omitempty" json:"compaction,omitempty"`
 	// MetricsGenerator enforced limits.
-	MetricsGenerator MetricsGeneratorConfig `yaml:"metrics_generator" json:"metrics_generator"`
+	MetricsGenerator MetricsGeneratorConfig `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
 	// Forwarders
-	Forwarders []string `yaml:"forwarders" json:"forwarders"`
+	Forwarders []string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
 	// Global enforced limits.
-	Global GlobalLimitsConfig `yaml:"global" json:"global"`
+	Global GlobalLimitsConfig `yaml:"global,omitempty" json:"global,omitempty"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet
@@ -171,162 +171,4 @@ func (l *Limits) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.Compaction.BlockRetention), MetricBlockRetention)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
-}
-
-func (l *Limits) toLegacy() LegacyLimits {
-	return LegacyLimits{
-		IngestionRateStrategy:   l.Ingestion.RateStrategy,
-		IngestionRateLimitBytes: l.Ingestion.RateLimitBytes,
-		IngestionBurstSizeBytes: l.Ingestion.BurstSizeBytes,
-		MaxLocalTracesPerUser:   l.Ingestion.MaxLocalTracesPerUser,
-		MaxGlobalTracesPerUser:  l.Ingestion.MaxGlobalTracesPerUser,
-
-		Forwarders: l.Forwarders,
-
-		MetricsGeneratorRingSize:                                       l.MetricsGenerator.RingSize,
-		MetricsGeneratorProcessors:                                     l.MetricsGenerator.Processors,
-		MetricsGeneratorMaxActiveSeries:                                l.MetricsGenerator.MaxActiveSeries,
-		MetricsGeneratorCollectionInterval:                             l.MetricsGenerator.CollectionInterval,
-		MetricsGeneratorDisableCollection:                              l.MetricsGenerator.DisableCollection,
-		MetricsGeneratorForwarderQueueSize:                             l.MetricsGenerator.Forwarder.QueueSize,
-		MetricsGeneratorForwarderWorkers:                               l.MetricsGenerator.Forwarder.Workers,
-		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:         l.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
-		MetricsGeneratorProcessorServiceGraphsDimensions:               l.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
-		MetricsGeneratorProcessorServiceGraphsPeerAttributes:           l.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix: l.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
-		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:           l.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
-		MetricsGeneratorProcessorSpanMetricsDimensions:                 l.MetricsGenerator.Processor.SpanMetrics.Dimensions,
-		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:        l.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
-		MetricsGeneratorProcessorSpanMetricsFilterPolicies:             l.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
-		MetricsGeneratorProcessorSpanMetricsDimensionMappings:          l.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
-		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:           l.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
-		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:              l.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:           l.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:              l.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
-		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:           l.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
-		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:            l.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
-		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:       l.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
-
-		BlockRetention: l.Compaction.BlockRetention,
-
-		MaxBytesPerTagValuesQuery:  l.Read.MaxBytesPerTagValuesQuery,
-		MaxBlocksPerTagValuesQuery: l.Read.MaxBlocksPerTagValuesQuery,
-		MaxSearchDuration:          l.Read.MaxSearchDuration,
-
-		MaxBytesPerTrace: l.Global.MaxBytesPerTrace,
-	}
-}
-
-// LegacyLimits describe all the limits for users; can be used to describe global default
-// limits via flags, or per-user limits via yaml config.
-type LegacyLimits struct {
-	// Distributor enforced limits.
-	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes int    `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
-
-	// Ingester enforced limits.
-	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
-	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
-
-	// Forwarders
-	Forwarders []string `yaml:"forwarders" json:"forwarders"`
-
-	// Metrics-generator config
-	MetricsGeneratorRingSize                                       int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
-	MetricsGeneratorProcessors                                     ListToMap                        `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
-	MetricsGeneratorMaxActiveSeries                                uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
-	MetricsGeneratorCollectionInterval                             time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
-	MetricsGeneratorDisableCollection                              bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
-	MetricsGeneratorForwarderQueueSize                             int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
-	MetricsGeneratorForwarderWorkers                               int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
-	MetricsGeneratorProcessorServiceGraphsHistogramBuckets         []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
-	MetricsGeneratorProcessorServiceGraphsDimensions               []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
-	MetricsGeneratorProcessorServiceGraphsPeerAttributes           []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
-	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix bool                             `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
-	MetricsGeneratorProcessorSpanMetricsHistogramBuckets           []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
-	MetricsGeneratorProcessorSpanMetricsDimensions                 []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
-	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions        map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
-	MetricsGeneratorProcessorSpanMetricsFilterPolicies             []filterconfig.FilterPolicy      `yaml:"metrics_generator_processor_span_metrics_filter_policies" json:"metrics_generator_processor_span_metrics_filter_policies"`
-	MetricsGeneratorProcessorSpanMetricsDimensionMappings          []sharedconfig.DimensionMappings `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
-	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo           bool                             `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
-	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces              uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
-	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration           time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
-	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes              uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
-	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod           time.Duration                    `yaml:"metrics_generator_processor_local_blocks_flush_check_period" json:"metrics_generator_processor_local_blocks_flush_check_period"`
-	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod            time.Duration                    `yaml:"metrics_generator_processor_local_blocks_trace_idle_period" json:"metrics_generator_processor_local_blocks_trace_idle_period"`
-	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout       time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
-
-	// Compactor enforced limits.
-	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
-
-	// Querier and Ingester enforced limits.
-	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
-	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
-
-	// QueryFrontend enforced limits
-	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
-
-	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
-	//  is not used when doing a trace by id lookup.
-	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
-}
-
-func fromLegacyLimits(l LegacyLimits) Limits {
-	return Limits{
-		Ingestion: IngestionConfig{
-			RateStrategy:           l.IngestionRateStrategy,
-			RateLimitBytes:         l.IngestionRateLimitBytes,
-			BurstSizeBytes:         l.IngestionBurstSizeBytes,
-			MaxLocalTracesPerUser:  l.MaxLocalTracesPerUser,
-			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
-		},
-		Read: ReadConfig{
-			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
-			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
-			MaxSearchDuration:          l.MaxSearchDuration,
-		},
-		Compaction: CompactionConfig{
-			BlockRetention: l.BlockRetention,
-		},
-		MetricsGenerator: MetricsGeneratorConfig{
-			RingSize:           l.MetricsGeneratorRingSize,
-			Processors:         l.MetricsGeneratorProcessors,
-			MaxActiveSeries:    l.MetricsGeneratorMaxActiveSeries,
-			CollectionInterval: l.MetricsGeneratorCollectionInterval,
-			DisableCollection:  l.MetricsGeneratorDisableCollection,
-			Forwarder: ForwarderConfig{
-				QueueSize: l.MetricsGeneratorForwarderQueueSize,
-				Workers:   l.MetricsGeneratorForwarderWorkers,
-			},
-			Processor: ProcessorConfig{
-				ServiceGraphs: ServiceGraphsConfig{
-					HistogramBuckets:         l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
-					Dimensions:               l.MetricsGeneratorProcessorServiceGraphsDimensions,
-					PeerAttributes:           l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
-					EnableClientServerPrefix: l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
-				},
-				SpanMetrics: SpanMetricsConfig{
-					HistogramBuckets:    l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
-					Dimensions:          l.MetricsGeneratorProcessorSpanMetricsDimensions,
-					IntrinsicDimensions: l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
-					FilterPolicies:      l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
-					DimensionMappings:   l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
-					EnableTargetInfo:    l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
-				},
-				LocalBlocks: LocalBlocksConfig{
-					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,
-					MaxBlockDuration:     l.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration,
-					MaxBlockBytes:        l.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes,
-					FlushCheckPeriod:     l.MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod,
-					TraceIdlePeriod:      l.MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod,
-					CompleteBlockTimeout: l.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout,
-				},
-			},
-		},
-		Forwarders: l.Forwarders,
-		Global: GlobalLimitsConfig{
-			MaxBytesPerTrace: l.MaxBytesPerTrace,
-		},
-	}
 }

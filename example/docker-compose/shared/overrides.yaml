@@ -1,0 +1,21 @@
+overrides:
+  "foo":
+    ingestion_rate_strategy: local
+    ingestion_rate_limit_bytes: 12345
+    ingestion_burst_size_bytes: 67890
+    max_traces_per_user: 1
+    max_global_traces_per_user: 2
+    forwarders: [ 'foo' ]
+    metrics_generator_ring_size: 3
+    metrics_generator_processors: [ 'span-metrics' ]
+    metrics_generator_max_active_series: 4
+    metrics_generator_collection_interval: 5s
+    metrics_generator_disable_collection: false
+    metrics_generator_forwarder_queue_size: 6
+    metrics_generator_forwarder_workers: 7
+    metrics_generator_processor_service_graphs_histogram_buckets: [ 1,2 ]
+    metrics_generator_processor_service_graphs_dimensions: [ 'foo' ]
+    metrics_generator_processor_service_graphs_peer_attributes: [ 'foo' ]
+    metrics_generator_processor_service_graphs_enable_client_server_prefix: false
+    metrics_generator_processor_span_metrics_histogram_buckets: [ 3,4 ]
+    metrics_generator_processor_span_metrics_dimensions: [ 'foo' ]

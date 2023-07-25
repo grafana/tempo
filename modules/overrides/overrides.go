@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-kit/log/level"
+
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 
@@ -28,14 +30,11 @@ var metricOverridesLimitsDesc = prometheus.NewDesc(
 	nil,
 )
 
-// perTenantLegacyOverrides represents the Overrides config file with the legacy representation
-type perTenantLegacyOverrides struct {
-	TenantLimits map[string]*LegacyLimits `yaml:"overrides"`
-}
-
 // perTenantOverrides represents the Overrides config file
 type perTenantOverrides struct {
 	TenantLimits map[string]*Limits `yaml:"overrides"`
+
+	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -45,6 +44,7 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	// Try to unmarshal it normally
 	type rawConfig perTenantOverrides
 	if err := unmarshal((*rawConfig)(o)); err == nil {
+		o.ConfigType = ConfigTypeNew
 		return nil
 	}
 
@@ -53,10 +53,8 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 		return err
 	}
 
-	for tenantID, legacyLimits := range legacyConfig.TenantLimits {
-		limits := fromLegacyLimits(*legacyLimits)
-		o.TenantLimits[tenantID] = &limits
-	}
+	*o = legacyConfig.toNewOverrides()
+	o.ConfigType = ConfigTypeLegacy
 
 	return nil
 }
@@ -71,16 +69,23 @@ func (o *perTenantOverrides) forUser(userID string) *Limits {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
-	overrides := &perTenantOverrides{}
+func loadPerTenantOverrides(t ConfigType) func(r io.Reader) (interface{}, error) {
+	return func(r io.Reader) (interface{}, error) {
+		overrides := &perTenantOverrides{}
 
-	decoder := yaml.NewDecoder(r)
-	decoder.SetStrict(true)
-	if err := decoder.Decode(&overrides); err != nil {
-		return nil, err
+		decoder := yaml.NewDecoder(r)
+		decoder.SetStrict(true)
+		if err := decoder.Decode(&overrides); err != nil {
+			return nil, err
+		}
+
+		if overrides.ConfigType != t {
+			// TODO: Return error?
+			level.Warn(log.Logger).Log("msg", "Overrides config type mismatch", "err", "per-tenant overrides config type does not match static overrides config type", "config_type", overrides.ConfigType, "static_config_type", t)
+		}
+
+		return overrides, nil
 	}
-
-	return overrides, nil
 }
 
 // Overrides periodically fetch a set of per-user Overrides, and provides convenience
@@ -94,6 +99,9 @@ type Overrides struct {
 	// Manager for subservices
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	// configType is the type of overrides config we are using: legacy or new
+	configType ConfigType
 }
 
 // NewOverrides makes a new Overrides.
@@ -108,7 +116,7 @@ func NewOverrides(config Config) (*Overrides, error) {
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{config.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(config.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides,
+			Loader:       loadPerTenantOverrides(config.ConfigType),
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
 		if err != nil {
@@ -177,8 +185,9 @@ func (o *Overrides) tenantOverrides() *perTenantOverrides {
 	switch typedCfg := cfg.(type) {
 	case *perTenantOverrides:
 		return typedCfg
-	case nil:
-		return nil
+	case *perTenantLegacyOverrides:
+		o := typedCfg.toNewOverrides()
+		return &o
 	}
 
 	return nil

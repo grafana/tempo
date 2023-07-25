@@ -185,6 +185,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
 	}
 
+	if c.OverridesConfig.ConfigType == overrides.ConfigTypeLegacy {
+		warnings = append(warnings, warnLegacyOverridesConfig)
+	}
+
 	return warnings
 }
 
@@ -193,7 +197,6 @@ func (c *Config) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Config) Collect(ch chan<- prometheus.Metric) {
-
 	features := map[string]int{
 		"search_external_endpoints": 0,
 	}
@@ -239,6 +242,9 @@ var (
 	}
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
+	}
+	warnLegacyOverridesConfig = ConfigWarning{
+		Message: "Inline, unscoped overrides are deprecated. Please use the new overrides config format.",
 	}
 )
 

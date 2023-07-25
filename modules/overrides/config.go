@@ -2,8 +2,16 @@ package overrides
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/prometheus/common/model"
+)
+
+type ConfigType string
+
+const (
+	ConfigTypeLegacy ConfigType = "legacy"
+	ConfigTypeNew    ConfigType = "new"
 )
 
 type Config struct {
@@ -11,6 +19,8 @@ type Config struct {
 
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
+
+	ConfigType ConfigType `yaml:"-" json:"-"`
 }
 
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -19,9 +29,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// Try to unmarshal it normally
 	type rawConfig Config
-	if err := unmarshal((*rawConfig)(c)); err == nil {
+	err := unmarshal((*rawConfig)(c))
+	if err == nil {
+		c.ConfigType = ConfigTypeNew
 		return nil
 	}
+	fmt.Println("unmarshal error: ", err)
 
 	// Try to unmarshal inline limits
 	type legacyConfig struct {
@@ -39,9 +52,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	c.DefaultLimits = fromLegacyLimits(legacyCfg.DefaultLimits)
+	c.DefaultLimits = legacyCfg.DefaultLimits.toNewLimits()
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
+	c.ConfigType = ConfigTypeLegacy
 	return nil
 }
 

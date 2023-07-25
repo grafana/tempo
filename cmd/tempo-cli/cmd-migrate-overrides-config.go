@@ -73,7 +73,15 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		}
 	} else {
 		fmt.Println(cmd.ConfigFile)
-		fmt.Println(string(configBytes))
+		// Only print the overrides block
+		partialCfg := struct {
+			Overrides overrides.Config `yaml:"overrides"`
+		}{Overrides: cfg.OverridesConfig}
+		overridesBytes, err := yaml.Marshal(partialCfg)
+		if err != nil {
+			return fmt.Errorf("failed to marshal overrides: %w", err)
+		}
+		fmt.Println(string(overridesBytes))
 	}
 
 	overridesBytes, err := yaml.Marshal(runtimeConfig.PerTenantOverrides)

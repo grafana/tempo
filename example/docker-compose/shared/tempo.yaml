@@ -43,4 +43,7 @@ storage:
       path: /tmp/tempo/blocks
 
 overrides:
-  metrics_generator_processors: [service-graphs, span-metrics] # enables metrics generator
+  default_limits:
+    global:
+      max_bytes_per_trace: 1000000     # max bytes per trace.  set for demo purposes
+  per_tenant_override_config: "example/docker-compose/shared/overrides.yaml"
