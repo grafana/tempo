@@ -23,7 +23,7 @@ To learn more about Grafana dashboards, refer to the [Use dashboards documentati
 {{% admonition type="note" %}}
 To use the TraceQL query editor in Grafana 9.3.2 and newer, you need to enable the `traceqlEditor` feature toggle ([refer to instructions for enabling feature toggles](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).)
 
-To enable the Trace Search in Grafana 10 and newer, you need to enable the `traceqlSearch` feature flag.
+To enable the Trace Search on self managed instances of Grafana 10 and newer, you need to enable the `traceqlSearch` feature flag.
 
 These features are available in Grafana Cloud without enabling a feature flag.
 {{% /admonition %}}
