@@ -99,9 +99,6 @@ type Overrides struct {
 	// Manager for subservices
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
-
-	// configType is the type of overrides config we are using: legacy or new
-	configType ConfigType
 }
 
 // NewOverrides makes a new Overrides.

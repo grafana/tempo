@@ -122,10 +122,7 @@ default_limits:
     burst_size_bytes: 67890
     max_traces_per_user: 1
     max_global_traces_per_user: 2
-  read:
-    max_bytes_per_tag_values_query: 15
-    max_blocks_per_tag_values_query: 16
-    max_search_duration: 17s
+z
   compaction:
     block_retention: 14s
   metrics_generator:
