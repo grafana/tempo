@@ -7,33 +7,30 @@ aliases:
 - /docs/tempo/grafana-agent/automatic-logging
 ---
 
-# The problem of trace discovery
+# Automatic logging: Trace discovery through logs
 
 Running instrumented distributed systems is a very powerful way to gain
 understanding over a system, but it brings its own challenges. One of them is
-discovering those traces.
+discovering which traces exist.
 
 In the beginning of Tempo, querying for a trace was only possible if you knew
-the ID of the trace you were looking for. The initial solution was
-automatic logging, an approach that includes the trace ID in the log message. 
-The trace ID is identified in the log and lets you jump from log message to trace ID.
+the ID of the trace you were looking for. One solution was automatic logging.
+Automatic logging provides an easy and fast way of discovering trace IDs
+through log messages. Well-formatted log lines are written to a Loki instance
+or to `stdout` for each span, root, or process that passes through the tracing
+pipeline. This allows for automatically building a mechanism for trace
+discovery. On top of that, we also get metrics from traces using Loki, and
+allow quickly jumping from a log message to the trace view in Grafana.
 
-While this approach is useful, it isn't as powerful
-[TraceQL]({{< relref "../../traceql" >}}). If you are here
-because you know you want to log the trace ID, to enable jumping from logs to
-traces, then read on!
+While this approach is useful, it isn't as powerful as [TraceQL]({{< relref
+"../../traceql" >}}). If you are here because you know you want to log the
+trace ID, to enable jumping from logs to traces, then read on!
 
 If you want to query the system directly, read the [TraceQL
 documentation]({{< relref "../../traceql" >}}).  We doubt you'll
 be sad.
 
-# Automatic logging: Trace discovery through logs
-
-
-Automatic logging provides an easy and fast way of getting trace discovery through logs.
-Automatic logging writes a well-formatted log line to a Loki instance or to `stdout` for each span, root, or process that passes through the tracing pipeline.
-This allows for automatically building a mechanism for trace discovery.
-On top of that, we also get metrics from traces using Loki.
+# Configuration
 
 For high throughput systems, logging for every span may generate too much volume.
 In such cases, logging per root span or process is recommended.
