@@ -30,7 +30,7 @@ If you want to query the system directly, read the [TraceQL
 documentation]({{< relref "../../traceql" >}}).  We doubt you'll
 be sad.
 
-# Configuration
+## Configuration
 
 For high throughput systems, logging for every span may generate too much volume.
 In such cases, logging per root span or process is recommended.
