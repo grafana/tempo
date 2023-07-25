@@ -14,12 +14,12 @@ understanding over a system, but it brings its own challenges. One of them is
 discovering those traces.
 
 In the beginning of Tempo, querying for a trace was only possible if you knew
-the ID of the trace you were looking for.  In order to learn the trace ID, an
-approach called "automatic logging" was added so that the trace ID was included
-in the log message, and could jump from log message to trace ID.
+the ID of the trace you were looking for. The initial solution was
+automatic logging, an approach that includes the trace ID in the log message. 
+The trace ID is identified in the log and lets you jump from log message to trace ID.
 
-While this approach is powerful, it isn't quite as powerful
-[TraceQL](https://grafana.com/docs/tempo/latest/traceql).  If you are here
+While this approach is useful, it isn't as powerful
+[TraceQL]({{< relref "../../traceql" >}}). If you are here
 because you know you want to log the trace ID, to enable jumping from logs to
 traces, then read on!
 
