@@ -29,8 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-type mockSharder struct {
-}
+type mockSharder struct{}
 
 func (m *mockSharder) Owns(string) bool {
 	return true
@@ -72,7 +71,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,
@@ -218,7 +217,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,
@@ -362,7 +361,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,
@@ -433,7 +432,7 @@ func TestCompactionMetrics(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,
@@ -507,7 +506,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,
@@ -578,7 +577,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,
@@ -709,7 +708,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	tempDir := b.TempDir()
 
 	_, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
 			QueueDepth: 100,

@@ -106,7 +106,6 @@ type DataWriter interface {
 
 // DataWriterGeneric writes objects instead of byte slices
 type DataWriterGeneric interface {
-
 	// Write writes the passed ID/obj to the current page
 	Write(context.Context, common.ID, interface{}) (int, error)
 

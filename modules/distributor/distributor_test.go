@@ -47,9 +47,7 @@ const (
 	numIngesters = 5
 )
 
-var (
-	ctx = user.InjectOrgID(context.Background(), "test")
-)
+var ctx = user.InjectOrgID(context.Background(), "test")
 
 func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
 	t.Helper()
@@ -119,7 +117,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									TraceId:           traceIDA,
 									StartTimeUnixNano: uint64(10 * time.Second),
 									EndTimeUnixNano:   uint64(20 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
 			expectedTraces: []*tempopb.Trace{
@@ -133,7 +135,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDA,
 											StartTimeUnixNano: uint64(10 * time.Second),
 											EndTimeUnixNano:   uint64(20 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedIDs: [][]byte{
@@ -158,7 +165,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									TraceId:           traceIDB,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
@@ -172,7 +183,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDA,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Batches: []*v1.ResourceSpans{
@@ -184,7 +200,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDB,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedIDs: [][]byte{
@@ -208,7 +229,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									TraceId:           traceIDA,
 									StartTimeUnixNano: uint64(30 * time.Second),
 									EndTimeUnixNano:   uint64(40 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
@@ -220,7 +245,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									TraceId:           traceIDB,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
@@ -237,7 +266,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDA,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Batches: []*v1.ResourceSpans{
@@ -252,7 +286,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDB,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedIDs: [][]byte{
@@ -281,7 +320,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									TraceId:           traceIDB,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
@@ -298,7 +341,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDA,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Batches: []*v1.ResourceSpans{
@@ -313,7 +361,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDB,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedIDs: [][]byte{
@@ -342,7 +395,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									TraceId:           traceIDB,
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
@@ -359,7 +416,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDA,
 											StartTimeUnixNano: uint64(30 * time.Second),
 											EndTimeUnixNano:   uint64(40 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Batches: []*v1.ResourceSpans{
@@ -374,7 +436,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											TraceId:           traceIDB,
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedIDs: [][]byte{
@@ -408,7 +475,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									Name:              "spanB",
 									StartTimeUnixNano: uint64(50 * time.Second),
 									EndTimeUnixNano:   uint64(60 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
@@ -435,7 +506,12 @@ func TestRequestsByTraceID(t *testing.T) {
 											Name:              "spanB",
 											StartTimeUnixNano: uint64(50 * time.Second),
 											EndTimeUnixNano:   uint64(60 * time.Second),
-										}}}}}},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedIDs: [][]byte{
@@ -474,7 +550,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									Name:              "spanE",
 									StartTimeUnixNano: uint64(70 * time.Second),
 									EndTimeUnixNano:   uint64(80 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 				{
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
@@ -496,7 +576,11 @@ func TestRequestsByTraceID(t *testing.T) {
 									Name:              "spanD",
 									StartTimeUnixNano: uint64(60 * time.Second),
 									EndTimeUnixNano:   uint64(80 * time.Second),
-								}}}}},
+								},
+							},
+						},
+					},
+				},
 			},
 			expectedKeys: []uint32{
 				util.TokenFor(util.FakeTenantID, traceIDB),
@@ -526,7 +610,11 @@ func TestRequestsByTraceID(t *testing.T) {
 											Name:              "spanC",
 											StartTimeUnixNano: uint64(20 * time.Second),
 											EndTimeUnixNano:   uint64(50 * time.Second),
-										}}}}},
+										},
+									},
+								},
+							},
+						},
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
@@ -542,7 +630,11 @@ func TestRequestsByTraceID(t *testing.T) {
 											Name:              "spanB",
 											StartTimeUnixNano: uint64(10 * time.Second),
 											EndTimeUnixNano:   uint64(30 * time.Second),
-										}}}}},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 				{
@@ -562,7 +654,11 @@ func TestRequestsByTraceID(t *testing.T) {
 											Name:              "spanE",
 											StartTimeUnixNano: uint64(70 * time.Second),
 											EndTimeUnixNano:   uint64(80 * time.Second),
-										}}}}},
+										},
+									},
+								},
+							},
+						},
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
@@ -578,7 +674,11 @@ func TestRequestsByTraceID(t *testing.T) {
 											Name:              "spanD",
 											StartTimeUnixNano: uint64(60 * time.Second),
 											EndTimeUnixNano:   uint64(80 * time.Second),
-										}}}}},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -666,8 +766,8 @@ func TestDistributor(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
-			limits := overrides.Limits{}
-			limits.RegisterFlags(&flag.FlagSet{})
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
 			d := prepare(t, limits, nil, nil)
@@ -865,8 +965,8 @@ func TestLogSpans(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
-			limits := overrides.Limits{}
-			flagext.DefaultValues(&limits)
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			buf := &bytes.Buffer{}
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
@@ -978,7 +1078,7 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits overrides.Limits, kvStore kv.Client, logger log.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger log.Logger) *Distributor {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -989,7 +1089,7 @@ func prepare(t *testing.T, limits overrides.Limits, kvStore kv.Client, logger lo
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(overrides.Config{DefaultLimits: limits})
+	overrides, err := overrides.NewOverrides(limits)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring

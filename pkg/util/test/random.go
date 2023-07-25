@@ -37,7 +37,6 @@ func NewRandomBatcher() (*RandomBatcher, context.CancelFunc) {
 }
 
 func (r *RandomBatcher) GenerateBatch(spanCount int64) *v1_trace.ResourceSpans {
-
 	batch := &v1_trace.ResourceSpans{
 		Resource: &v1_resource.Resource{
 			Attributes: []*v1_common.KeyValue{
@@ -179,7 +178,7 @@ func (r *RandomBatcher) randomSpanAttributeGenerator(ctx context.Context) {
 }
 
 func (r *RandomBatcher) randomStringGenerator(ctx context.Context, min, max int) {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 
 	rising := true
 	length := min

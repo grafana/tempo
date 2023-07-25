@@ -188,7 +188,7 @@ func (l *lexer) Error(msg string) {
 func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {
 	var sb strings.Builder
 	sb.WriteString(number)
-	//copy the scanner to avoid advancing it in case it's not a duration.
+	// copy the scanner to avoid advancing it in case it's not a duration.
 	s := *l
 	consumed := 0
 	for r := s.Peek(); r != scanner.EOF && !unicode.IsSpace(r); r = s.Peek() {

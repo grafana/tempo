@@ -15,7 +15,6 @@ import (
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/tempodb/backend"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -23,6 +22,7 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // readerWriter can read/write from an s3 backend
@@ -222,6 +222,11 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	}
 
 	return nil
+}
+
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+	filename := backend.ObjectFileName(keypath, name)
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, filename, minio.RemoveObjectOptions{})
 }
 
 // List implements backend.Reader

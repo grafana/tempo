@@ -204,7 +204,7 @@ func ValidTraceID(traceID []byte) []byte {
 }
 
 func RandomString() string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 	s := make([]rune, 10)
 	for i := range s {

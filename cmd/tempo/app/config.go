@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -116,7 +117,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.GeneratorClient)
 	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
-	flagext.DefaultValues(&c.OverridesConfig)
+	c.OverridesConfig.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingester"), f)
@@ -148,7 +149,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnRetentionConcurrency)
 	}
 
-	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
+	if c.StorageConfig.Trace.Backend == backend.S3 && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
 		warnings = append(warnings, warnStorageTraceBackendS3)
 	}
 
@@ -160,7 +161,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnLogReceivedTraces)
 	}
 
-	if c.StorageConfig.Trace.Backend == "local" && c.Target != SingleBinary {
+	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
@@ -183,6 +184,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 
 	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.IteratorBufferSize != tempodb.DefaultIteratorBufferSize {
 		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
+	}
+
+	if c.tracesAndOverridesStorageConflict() {
+		warnings = append(warnings, warnTracesAndUserConfigurableOverridesStorageConflict)
 	}
 
 	if c.OverridesConfig.ConfigType == overrides.ConfigTypeLegacy {
@@ -246,6 +251,10 @@ var (
 	warnLegacyOverridesConfig = ConfigWarning{
 		Message: "Inline, unscoped overrides are deprecated. Please use the new overrides config format.",
 	}
+
+	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{
+		Message: "Trace storage conflicts with user-configurable overrides storage",
+	}
 )
 
 func newV2Warning(setting string) ConfigWarning {
@@ -253,4 +262,26 @@ func newV2Warning(setting string) ConfigWarning {
 		Message: "c.StorageConfig.Trace.Block.Version != \"v2\" but " + setting + " is set",
 		Explain: "This setting is only used in v2 blocks",
 	}
+}
+
+func (c *Config) tracesAndOverridesStorageConflict() bool {
+	traceStorage := c.StorageConfig.Trace
+	overridesStorage := c.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig
+
+	if traceStorage.Backend != overridesStorage.Backend {
+		return false
+	}
+
+	switch traceStorage.Backend {
+	case backend.Local:
+		return traceStorage.Local.PathMatches(overridesStorage.Local)
+	case backend.GCS:
+		return traceStorage.GCS.PathMatches(overridesStorage.GCS)
+	case backend.S3:
+		return traceStorage.S3.PathMatches(overridesStorage.S3)
+	case backend.Azure:
+		return traceStorage.Azure.PathMatches(overridesStorage.Azure)
+	}
+
+	return false
 }

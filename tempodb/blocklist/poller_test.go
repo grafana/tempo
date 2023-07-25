@@ -498,7 +498,6 @@ func TestBlockListBackendMetrics(t *testing.T) {
 }
 
 func TestPollTolerateConsecutiveErrors(t *testing.T) {
-
 	var (
 		c = newMockCompactor(PerTenantCompacted{}, false)
 		w = &backend.MockWriter{}
@@ -539,7 +538,6 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
 				BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {

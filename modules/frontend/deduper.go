@@ -19,9 +19,7 @@ const (
 	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
 )
 
-var (
-	maxSpanID uint64 = 0xffffffffffffffff
-)
+var maxSpanID uint64 = 0xffffffffffffffff
 
 func newDeduper(logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {

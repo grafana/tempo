@@ -37,7 +37,7 @@ func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Fla
 	f.IntVar(&cfg.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-shard-size-bytes"), DefaultBloomShardSizeBytes, "Bloom Filter Shard Size in bytes.")
 	f.IntVar(&cfg.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.v2-index-downsample-bytes"), DefaultIndexDownSampleBytes, "Number of bytes (before compression) per index record.")
 	f.IntVar(&cfg.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-index-page-size-bytes"), DefaultIndexPageSizeBytes, "Number of bytes per index page.")
-	//cfg.Version = encoding.DefaultEncoding().Version() // Cyclic dependency - ugh
+	// cfg.Version = encoding.DefaultEncoding().Version() // Cyclic dependency - ugh
 	cfg.Encoding = backend.EncZstd
 	cfg.SearchEncoding = backend.EncSnappy
 	cfg.SearchPageSizeBytes = 1024 * 1024 // 1 MB

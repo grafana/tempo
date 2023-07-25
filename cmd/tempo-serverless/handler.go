@@ -146,13 +146,13 @@ func loadBackend() (backend.Reader, *tempodb.Config, error) {
 		// standard Tempo components to fail during startup. If permissions are not correct this Lambda
 		// will fail instantly anyway and in a heavy query environment the extra calls will start to add up.
 		switch cfg.Backend {
-		case "local":
+		case backend.Local:
 			err = fmt.Errorf("local backend not supported for serverless functions")
-		case "gcs":
+		case backend.GCS:
 			r, _, _, err = gcs.NewNoConfirm(cfg.GCS)
-		case "s3":
+		case backend.S3:
 			r, _, _, err = s3.NewNoConfirm(cfg.S3)
-		case "azure":
+		case backend.Azure:
 			r, _, _, err = azure.NewNoConfirm(cfg.Azure)
 		default:
 			err = fmt.Errorf("unknown backend %s", cfg.Backend)
@@ -226,7 +226,8 @@ func stringToFlagExt() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}

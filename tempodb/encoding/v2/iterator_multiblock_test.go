@@ -50,7 +50,6 @@ func (i *testIterator) NextBytes(context.Context) (common.ID, []byte, error) {
 func (*testIterator) Close() {}
 
 func TestBookmarkIteration(t *testing.T) {
-
 	recordCount := 100
 	iter := &testIterator{}
 	for i := 0; i < recordCount; i++ {
@@ -127,7 +126,6 @@ func TestMultiblockIteratorCanBeCancelled(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			inner := &testIterator{}
 			for i := 0; i < recordCount; i++ {
 				inner.Add(make([]byte, i), make([]byte, i), nil)

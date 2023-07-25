@@ -32,7 +32,7 @@ func TestManagedRegistry_concurrency(*testing.T) {
 	}
 
 	// this goroutine constantly creates new counters
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	go accessor(func() {
 		s := make([]rune, 6)
 		for i := range s {

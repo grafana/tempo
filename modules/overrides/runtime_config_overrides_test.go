@@ -18,7 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/sharedconfig"
 )
 
-func TestOverrides(t *testing.T) {
+func TestRuntimeConfigOverrides(t *testing.T) {
 	tests := []struct {
 		name                        string
 		defaultLimits               Limits
@@ -212,7 +212,7 @@ func TestOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(cfg)
+			overrides, err := newRuntimeConfigOverrides(cfg)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -426,7 +426,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(cfg)
+			overrides, err := newRuntimeConfigOverrides(cfg)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)

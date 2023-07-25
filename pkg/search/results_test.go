@@ -10,7 +10,6 @@ import (
 )
 
 func TestResultsDoesNotRace(t *testing.T) {
-
 	testCases := []struct {
 		name           string
 		consumeResults bool

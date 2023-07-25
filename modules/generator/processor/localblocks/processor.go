@@ -47,7 +47,6 @@ type Processor struct {
 var _ gen.Processor = (*Processor)(nil)
 
 func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
-
 	if wal == nil {
 		return nil, errors.New("local blocks processor requires traces wal")
 	}
@@ -83,7 +82,6 @@ func (*Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
-
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
@@ -204,7 +202,6 @@ func (p *Processor) metricLoop() {
 }
 
 func (p *Processor) completeBlock() error {
-
 	// Get a wal block
 	var firstWalBlock common.WALBlock
 	p.blocksMtx.RLock()
@@ -603,7 +600,6 @@ func (p *Processor) recordBlockBytes() {
 // but returns a new struct referencing the same input pointers. Returns nil
 // if there were no matching spans.
 func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
-
 	var keepSS []*v1.ScopeSpans
 	for _, ss := range batch.ScopeSpans {
 

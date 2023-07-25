@@ -54,7 +54,6 @@ func mockRedisCache() (*RedisCache, error) {
 	redisServer, err := miniredis.Run()
 	if err != nil {
 		return nil, err
-
 	}
 	redisClient := &RedisClient{
 		expiration: time.Minute,

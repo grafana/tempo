@@ -11,12 +11,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/tempodb/backend"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -154,16 +155,23 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		}
 
 		consecutiveErrors = 0
-		metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+			blocklist[tenantID] = newBlockList
+			compactedBlocklist[tenantID] = newCompactedBlockList
 
-		blocklist[tenantID] = newBlockList
-		compactedBlocklist[tenantID] = newCompactedBlockList
+			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
-		backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-		metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-		metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-		metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-		metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+			metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+			metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+			metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+			metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+			continue
+		}
+		metricBlocklistLength.DeleteLabelValues(tenantID)
+		metricBackendObjects.DeleteLabelValues(tenantID)
+		metricBackendObjects.DeleteLabelValues(tenantID)
+		metricBackendBytes.DeleteLabelValues(tenantID)
 	}
 
 	return blocklist, compactedBlocklist, nil

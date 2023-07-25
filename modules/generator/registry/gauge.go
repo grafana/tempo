@@ -29,11 +29,15 @@ type gaugeSeries struct {
 	lastUpdated *atomic.Int64
 }
 
-var _ Gauge = (*gauge)(nil)
-var _ metric = (*gauge)(nil)
+var (
+	_ Gauge  = (*gauge)(nil)
+	_ metric = (*gauge)(nil)
+)
 
-const add = "add"
-const set = "set"
+const (
+	add = "add"
+	set = "set"
+)
 
 func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *gauge {
 	if onAddSeries == nil {
@@ -62,7 +66,6 @@ func (g *gauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 }
 
 func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string) {
-
 	hash := labelValueCombo.getHash()
 
 	g.seriesMtx.RLock()

@@ -42,7 +42,7 @@ func newStartedQueue[T any](t *testing.T, size, workerCount int, processFunc Pro
 }
 
 func getCounterValue(metric *prometheus.CounterVec) float64 {
-	var m = &dto.Metric{}
+	m := &dto.Metric{}
 	if err := metric.WithLabelValues("testName", "testTenantID").Write(m); err != nil {
 		return 0
 	}

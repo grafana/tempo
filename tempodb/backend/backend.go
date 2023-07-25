@@ -8,6 +8,13 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	Local = "local"
+	GCS   = "gcs"
+	S3    = "s3"
+	Azure = "azure"
+)
+
 var (
 	ErrDoesNotExist  = fmt.Errorf("does not exist")
 	ErrEmptyTenantID = fmt.Errorf("empty tenant id")

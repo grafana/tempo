@@ -3,6 +3,7 @@ package ingester
 import (
 	"context"
 	"crypto/rand"
+	"flag"
 	"os"
 	"testing"
 	"time"
@@ -346,7 +347,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
-			Backend: "local",
+			Backend: backend.Local,
 			Local: &local.Config{
 				Path: tmpDir,
 			},
@@ -432,7 +433,7 @@ func defaultIngesterTestConfig() Config {
 
 func defaultOverridesConfig() overrides.Config {
 	config := overrides.Config{}
-	flagext.DefaultValues(&config)
+	config.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 	return config
 }
 

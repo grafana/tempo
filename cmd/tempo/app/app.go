@@ -40,8 +40,10 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-const metricsNamespace = "tempo"
-const apiDocs = "https://grafana.com/docs/tempo/latest/api_docs/"
+const (
+	metricsNamespace = "tempo"
+	apiDocs          = "https://grafana.com/docs/tempo/latest/api_docs/"
+)
 
 var (
 	metricConfigFeatDesc = prometheus.NewDesc(

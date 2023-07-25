@@ -1,6 +1,6 @@
 ---
-title: TraceQL
-menuTitle: TraceQL
+title: Query with TraceQL
+menuTitle: Query with TraceQL
 description: Learn about TraceQL, Tempo's query language for traces
 weight: 600
 aliases:
@@ -11,7 +11,7 @@ keywords:
   - TraceQL
 ---
 
-# TraceQL
+# Query with TraceQL
 
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following:
 
@@ -175,11 +175,14 @@ In the above example, if a span includes an `.http.method` attribute set to `DEL
 
 ## Combining spansets
 
-Spanset operators let you combine two sets of spans using and (`&&`) as well as union (`||`).
+Spanset operators let you select different sets of spans from a trace and then make a determination between them.
 
-- `{condA} && {condB}`
-- `{condA} || {condB}`
+### Logical
 
+These spanset operators perform logical checks between the sets of spans.
+
+- `{condA} && {condB}` - The and operator (`&&`) checks that both conditions found matches.
+- `{condA} || {condB}` - The union operator (`||`) checks that either condition found matches.
 
 For example, to find a trace that went through two specific `cloud.region`:
 
@@ -194,6 +197,20 @@ Note the difference between the previous example and this one:
 ```
 
 The second expression returns no traces because it's impossible for a single span to have a `resource.cloud.region` attribute that is set to both region values at the same time.
+
+### Structural
+
+These spanset operators look at the structure of a trace and the relationship between the spans.
+
+- `{condA} >> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`
+- `{condA} > {condB}` - The child operator (`>`) looks for spans matching `{condB}` that are direct child spans of a parent matching `{condA}`
+- `{condA} ~ {condB}` - The sibling operator (`~`) checks that spans matching `{condA}` and `{condB}` are siblings of the same parent span.
+
+For example, to find a trace where a specific HTTP API interacted with a specific database:
+
+```
+{ span.http.url = "/path/of/api" } >> { span.db.name = "db-shard-001" }
+```
 
 ## Aggregators
 

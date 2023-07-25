@@ -14,13 +14,13 @@ import (
 
 type Service interface {
 	services.Service
-	prometheus.Collector
 	Interface
-
-	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }
 
 type Interface interface {
+	prometheus.Collector
+
+	// Config
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
@@ -55,4 +55,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
+
+	// API
+	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }
