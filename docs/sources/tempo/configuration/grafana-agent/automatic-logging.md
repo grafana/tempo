@@ -7,12 +7,28 @@ aliases:
 - /docs/tempo/grafana-agent/automatic-logging
 ---
 
+# The problem of trace discovery
+
+Running instrumented distributed systems is a very powerful way to gain
+understanding over a system, but it brings its own challenges. One of them is
+discovering those traces.
+
+In the beginning of Tempo, querying for a trace was only possible if you knew
+the ID of the trace you were looking for.  In order to learn the trace ID, an
+approach called "automatic logging" was added so that the trace ID was included
+in the log message, and could jump from log message to trace ID.
+
+While this approach is powerful, it isn't quite as powerful
+[TraceQL](https://grafana.com/docs/tempo/latest/traceql).  If you are here
+because you know you want to log the trace ID, to enable jumping from logs to
+traces, then read on!
+
+If you merely want to query the system directly, read up on the [TraceQL
+documenation](https://grafana.com/docs/tempo/latest/traceql).  We doubt you'll
+be sad.
+
 # Automatic logging: Trace discovery through logs
 
-Running distributed tracing systems is very powerful, but it brings its own challenges,
-and one of them is trace discovery.
-Tempo supports finding a trace if you know the trace identifier,
-so we leverage other tools like logs and metrics to discover traces.
 
 Automatic logging provides an easy and fast way of getting trace discovery through logs.
 Automatic logging writes a well formatted log line to a Loki instance or to stdout for each span, root or process that passes through the tracing pipeline.
