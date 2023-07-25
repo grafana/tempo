@@ -12,12 +12,12 @@ import (
 
 // Copied from Cortex
 func TestConfigTagsYamlMatchJson(t *testing.T) {
-	limits := reflect.TypeOf(LegacyLimits{})
-	n := limits.NumField()
+	overrides := reflect.TypeOf(LegacyOverrides{})
+	n := overrides.NumField()
 	var mismatch []string
 
 	for i := 0; i < n; i++ {
-		field := limits.Field(i)
+		field := overrides.Field(i)
 
 		// Note that we aren't requiring YAML and JSON tags to match, just that
 		// they either both exist or both don't exist.
@@ -74,11 +74,11 @@ max_search_duration: 5m
 	"max_search_duration": "5m"
 }`
 
-	limitsYAML := LegacyLimits{}
+	limitsYAML := LegacyOverrides{}
 	err := yaml.Unmarshal([]byte(inputYAML), &limitsYAML)
 	require.NoError(t, err, "expected to be able to unmarshal from YAML")
 
-	limitsJSON := LegacyLimits{}
+	limitsJSON := LegacyOverrides{}
 	err = json.Unmarshal([]byte(inputJSON), &limitsJSON)
 	require.NoError(t, err, "expected to be able to unmarshal from JSON")
 

@@ -54,14 +54,14 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 	}
 
 	var runtimeConfig struct {
-		Defaults           overrides.Limits            `yaml:"defaults"`
+		Defaults           overrides.Overrides         `yaml:"defaults"`
 		PerTenantOverrides map[string]overrides.Config `yaml:"overrides"`
 	}
 	if err := yaml.UnmarshalStrict(buffer.Bytes(), &runtimeConfig); err != nil {
 		return fmt.Errorf("failed parsing overrides config: %w", err)
 	}
 
-	cfg.OverridesConfig.DefaultLimits = runtimeConfig.Defaults
+	cfg.OverridesConfig.DefaultOverrides = runtimeConfig.Defaults
 	configBytes, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)

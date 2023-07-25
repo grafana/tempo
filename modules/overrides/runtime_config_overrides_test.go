@@ -21,7 +21,7 @@ import (
 func TestRuntimeConfigOverrides(t *testing.T) {
 	tests := []struct {
 		name                        string
-		defaultLimits               Limits
+		defaultLimits               Overrides
 		perTenantOverrides          *perTenantOverrides
 		expectedMaxLocalTraces      map[string]int
 		expectedMaxGlobalTraces     map[string]int
@@ -32,7 +32,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 	}{
 		{
 			name: "limits only",
-			defaultLimits: Limits{
+			defaultLimits: Overrides{
 				Ingestion: IngestionConfig{
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
@@ -52,7 +52,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		},
 		{
 			name: "basic Overrides",
-			defaultLimits: Limits{
+			defaultLimits: Overrides{
 				Ingestion: IngestionConfig{
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
@@ -64,7 +64,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Limits{
+				TenantLimits: map[string]*Overrides{
 					"user1": {
 						Ingestion: IngestionConfig{
 							MaxGlobalTracesPerUser: 6,
@@ -90,7 +90,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		},
 		{
 			name: "wildcard override",
-			defaultLimits: Limits{
+			defaultLimits: Overrides{
 				Ingestion: IngestionConfig{
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
@@ -102,7 +102,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Limits{
+				TenantLimits: map[string]*Overrides{
 					"user1": {
 						Ingestion: IngestionConfig{
 							MaxGlobalTracesPerUser: 6,
@@ -142,7 +142,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				DefaultLimits: tt.defaultLimits,
+				DefaultOverrides: tt.defaultLimits,
 			}
 
 			if tt.perTenantOverrides != nil {
@@ -189,14 +189,14 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		})
 		t.Run(fmt.Sprintf("%s (legacy)", tt.name), func(t *testing.T) {
 			cfg := Config{
-				DefaultLimits: tt.defaultLimits,
+				DefaultOverrides: tt.defaultLimits,
 			}
 
 			if tt.perTenantOverrides != nil {
 				overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 
 				legacyOverrides := &perTenantLegacyOverrides{}
-				legacyOverrides.TenantLimits = make(map[string]*LegacyLimits)
+				legacyOverrides.TenantLimits = make(map[string]*LegacyOverrides)
 				for tenantID, limits := range tt.perTenantOverrides.TenantLimits {
 					legacyLimits := limits.toLegacy()
 					legacyOverrides.TenantLimits[tenantID] = &legacyLimits
@@ -246,14 +246,14 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 func TestMetricsGeneratorOverrides(t *testing.T) {
 	tests := []struct {
 		name                      string
-		defaultLimits             Limits
+		defaultLimits             Overrides
 		perTenantOverrides        *perTenantOverrides
 		expectedEnableTargetInfo  map[string]bool
 		expectedDimensionMappings map[string][]sharedconfig.DimensionMappings
 	}{
 		{
 			name: "limits only",
-			defaultLimits: Limits{
+			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorConfig{
 					Processor: ProcessorConfig{
 						SpanMetrics: SpanMetricsConfig{
@@ -289,9 +289,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		},
 		{
 			name:          "basic Overrides",
-			defaultLimits: Limits{},
+			defaultLimits: Overrides{},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Limits{
+				TenantLimits: map[string]*Overrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorConfig{
 							Processor: ProcessorConfig{
@@ -324,7 +324,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		},
 		{
 			name: "wildcard override",
-			defaultLimits: Limits{
+			defaultLimits: Overrides{
 				MetricsGenerator: MetricsGeneratorConfig{
 					Processor: ProcessorConfig{
 						SpanMetrics: SpanMetricsConfig{
@@ -341,7 +341,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
-				TenantLimits: map[string]*Limits{
+				TenantLimits: map[string]*Overrides{
 					"user1": {
 						MetricsGenerator: MetricsGeneratorConfig{
 							Processor: ProcessorConfig{
@@ -409,7 +409,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				DefaultLimits: tt.defaultLimits,
+				DefaultOverrides: tt.defaultLimits,
 			}
 
 			if tt.perTenantOverrides != nil {

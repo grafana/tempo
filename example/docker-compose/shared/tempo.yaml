@@ -43,6 +43,6 @@ storage:
       path: /tmp/tempo/blocks
 
 overrides:
-  default_limits:
+  defaults:
     metrics_generator:
       processors: [service-graphs, span-metrics] # enables metrics generator

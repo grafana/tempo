@@ -22,7 +22,7 @@ import (
 
 // perTenantOverrides represents the overrides config file
 type perTenantOverrides struct {
-	TenantLimits map[string]*Limits `yaml:"overrides"`
+	TenantLimits map[string]*Overrides `yaml:"overrides"`
 
 	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
 }
@@ -50,7 +50,7 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 }
 
 // forUser returns limits for a given tenant, or nil if there are no tenant-specific limits.
-func (o *perTenantOverrides) forUser(userID string) *Limits {
+func (o *perTenantOverrides) forUser(userID string) *Overrides {
 	l, ok := o.TenantLimits[userID]
 	if !ok || l == nil {
 		return nil
@@ -88,7 +88,7 @@ func loadPerTenantOverrides(typ ConfigType) func(r io.Reader) (interface{}, erro
 type runtimeConfigOverridesManager struct {
 	services.Service
 
-	defaultLimits    *Limits
+	defaultLimits    *Overrides
 	runtimeConfigMgr *runtimeconfig.Manager
 
 	// Manager for subservices
@@ -116,7 +116,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 
 	o := &runtimeConfigOverridesManager{
 		runtimeConfigMgr: manager,
-		defaultLimits:    &cfg.DefaultLimits,
+		defaultLimits:    &cfg.DefaultOverrides,
 	}
 
 	if len(subservices) > 0 {
@@ -179,7 +179,7 @@ func (o *runtimeConfigOverridesManager) tenantOverrides() *perTenantOverrides {
 
 // statusRuntimeConfig is a struct used to print the complete runtime config (defaults + overrides)
 type statusRuntimeConfig struct {
-	Defaults           *Limits            `yaml:"defaults"`
+	Defaults           *Overrides         `yaml:"defaults"`
 	PerTenantOverrides perTenantOverrides `yaml:",inline"`
 }
 
@@ -199,8 +199,8 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	case "diff":
 		// Default runtime config is just empty struct, but to make diff work,
 		// we set defaultLimits for every tenant that exists in runtime config.
-		defaultCfg := perTenantOverrides{TenantLimits: map[string]*Limits{}}
-		defaultCfg.TenantLimits = map[string]*Limits{}
+		defaultCfg := perTenantOverrides{TenantLimits: map[string]*Overrides{}}
+		defaultCfg.TenantLimits = map[string]*Overrides{}
 		for k, v := range tenantOverrides.TenantLimits {
 			if v != nil {
 				defaultCfg.TenantLimits[k] = o.defaultLimits
@@ -416,7 +416,7 @@ func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Durat
 	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
 }
 
-func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Limits {
+func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
 	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
 		l := tenantOverrides.forUser(userID)
 		if l != nil {

@@ -8,8 +8,8 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-func (c *Limits) toLegacy() LegacyLimits {
-	return LegacyLimits{
+func (c *Overrides) toLegacy() LegacyOverrides {
+	return LegacyOverrides{
 		IngestionRateStrategy:   c.Ingestion.RateStrategy,
 		IngestionRateLimitBytes: c.Ingestion.RateLimitBytes,
 		IngestionBurstSizeBytes: c.Ingestion.BurstSizeBytes,
@@ -52,9 +52,9 @@ func (c *Limits) toLegacy() LegacyLimits {
 	}
 }
 
-// LegacyLimits describe all the limits for users; can be used to describe global default
+// LegacyOverrides describe all the limits for users; can be used to describe global default
 // limits via flags, or per-user limits via yaml config.
-type LegacyLimits struct {
+type LegacyOverrides struct {
 	// Distributor enforced limits.
 	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
 	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
@@ -107,8 +107,8 @@ type LegacyLimits struct {
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 }
 
-func (l *LegacyLimits) toNewLimits() Limits {
-	return Limits{
+func (l *LegacyOverrides) toNewLimits() Overrides {
+	return Overrides{
 		Ingestion: IngestionConfig{
 			RateStrategy:           l.IngestionRateStrategy,
 			RateLimitBytes:         l.IngestionRateLimitBytes,
@@ -168,13 +168,13 @@ func (l *LegacyLimits) toNewLimits() Limits {
 
 // perTenantLegacyOverrides represents the Overrides config file with the legacy representation
 type perTenantLegacyOverrides struct {
-	TenantLimits map[string]*LegacyLimits `yaml:"overrides"`
+	TenantLimits map[string]*LegacyOverrides `yaml:"overrides"`
 }
 
 // Convert to new format
 func (l *perTenantLegacyOverrides) toNewOverrides() perTenantOverrides {
 	overrides := perTenantOverrides{
-		TenantLimits: make(map[string]*Limits, len(l.TenantLimits)),
+		TenantLimits: make(map[string]*Overrides, len(l.TenantLimits)),
 	}
 
 	for tenantID, legacyLimits := range l.TenantLimits {

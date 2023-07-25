@@ -52,12 +52,12 @@ var metricLimitsDesc = prometheus.NewDesc(
 )
 
 type IngestionConfig struct {
-	// Distributor enforced limits.
+	// Distributor enforced overrides.
 	RateStrategy   string `yaml:"rate_strategy,omitempty" json:"rate_strategy,omitempty"`
 	RateLimitBytes int    `yaml:"rate_limit_bytes,omitempty" json:"rate_limit_bytes,omitempty"`
 	BurstSizeBytes int    `yaml:"burst_size_bytes,omitempty" json:"burst_size_bytes,omitempty"`
 
-	// Ingester enforced limits.
+	// Ingester enforced overrides.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user,omitempty" json:"max_traces_per_user,omitempty"`
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user,omitempty" json:"max_global_traces_per_user,omitempty"`
 }
@@ -113,43 +113,43 @@ type MetricsGeneratorConfig struct {
 }
 
 type ReadConfig struct {
-	// Querier and Ingester enforced limits.
+	// Querier and Ingester enforced overrides.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
 	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
 
-	// QueryFrontend enforced limits
+	// QueryFrontend enforced overrides
 	MaxSearchDuration model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
 }
 
 type CompactionConfig struct {
-	// Compactor enforced limits.
+	// Compactor enforced overrides.
 	BlockRetention model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
 }
 
-// TODO: Ingestion limit instead?
+// TODO: Ingestion override instead?
 type GlobalLimitsConfig struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
 }
 
-type Limits struct {
-	// Ingestion enforced limits.
+type Overrides struct {
+	// Ingestion enforced overrides.
 	Ingestion IngestionConfig `yaml:"ingestion,omitempty" json:"ingestion,omitempty"`
-	// Read enforced limits.
+	// Read enforced overrides.
 	Read ReadConfig `yaml:"read,omitempty" json:"read,omitempty"`
-	// Compaction enforced limits.
+	// Compaction enforced overrides.
 	Compaction CompactionConfig `yaml:"compaction,omitempty" json:"compaction,omitempty"`
-	// MetricsGenerator enforced limits.
+	// MetricsGenerator enforced overrides.
 	MetricsGenerator MetricsGeneratorConfig `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
 	// Forwarders
 	Forwarders []string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
-	// Global enforced limits.
+	// Global enforced overrides.
 	Global GlobalLimitsConfig `yaml:"global,omitempty" json:"global,omitempty"`
 }
 
 type Config struct {
-	DefaultLimits Limits `yaml:"default_limits,omitempty" json:"default_limits,omitempty"`
+	DefaultOverrides Overrides `yaml:"defaults,omitempty" json:"default,omitempty"`
 	// Configuration for overrides module, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
@@ -173,13 +173,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// Try to unmarshal inline limits
 	type legacyConfig struct {
-		DefaultLimits LegacyLimits `yaml:",inline"`
+		DefaultOverrides LegacyOverrides `yaml:",inline"`
 
 		PerTenantOverrideConfig string         `yaml:"per_tenant_override_config"`
 		PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period"`
 	}
 	var legacyCfg legacyConfig
-	legacyCfg.DefaultLimits = c.DefaultLimits.toLegacy()
+	legacyCfg.DefaultOverrides = c.DefaultOverrides.toLegacy()
 	legacyCfg.PerTenantOverrideConfig = c.PerTenantOverrideConfig
 	legacyCfg.PerTenantOverridePeriod = c.PerTenantOverridePeriod
 
@@ -187,7 +187,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	c.DefaultLimits = legacyCfg.DefaultLimits.toNewLimits()
+	c.DefaultOverrides = legacyCfg.DefaultOverrides.toNewLimits()
 	c.PerTenantOverrideConfig = legacyCfg.PerTenantOverrideConfig
 	c.PerTenantOverridePeriod = legacyCfg.PerTenantOverridePeriod
 	c.ConfigType = ConfigTypeLegacy
@@ -196,19 +196,19 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
-	// Distributor LegacyLimits
-	f.StringVar(&c.DefaultLimits.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
-	f.IntVar(&c.DefaultLimits.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
-	f.IntVar(&c.DefaultLimits.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
+	// Distributor LegacyOverrides
+	f.StringVar(&c.DefaultOverrides.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
+	f.IntVar(&c.DefaultOverrides.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
+	f.IntVar(&c.DefaultOverrides.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 20e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")
 
 	// Ingester limits
-	f.IntVar(&c.DefaultLimits.Ingestion.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
-	f.IntVar(&c.DefaultLimits.Ingestion.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
-	f.IntVar(&c.DefaultLimits.Global.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
+	f.IntVar(&c.DefaultOverrides.Ingestion.MaxLocalTracesPerUser, "ingester.max-traces-per-user", 10e3, "Maximum number of active traces per user, per ingester. 0 to disable.")
+	f.IntVar(&c.DefaultOverrides.Ingestion.MaxGlobalTracesPerUser, "ingester.max-global-traces-per-user", 0, "Maximum number of active traces per user, across the cluster. 0 to disable.")
+	f.IntVar(&c.DefaultOverrides.Global.MaxBytesPerTrace, "ingester.max-bytes-per-trace", 50e5, "Maximum size of a trace in bytes.  0 to disable.")
 
 	// Querier limits
-	f.IntVar(&c.DefaultLimits.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
-	f.IntVar(&c.DefaultLimits.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+	f.IntVar(&c.DefaultOverrides.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
+	f.IntVar(&c.DefaultOverrides.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
 
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
@@ -222,13 +222,13 @@ func (c *Config) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Config) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Ingestion.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Ingestion.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Ingestion.RateLimitBytes), MetricIngestionRateLimitBytes)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Ingestion.BurstSizeBytes), MetricIngestionBurstSizeBytes)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Read.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Read.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.Compaction.BlockRetention), MetricBlockRetention)
-	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultLimits.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Ingestion.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Ingestion.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Ingestion.RateLimitBytes), MetricIngestionRateLimitBytes)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Ingestion.BurstSizeBytes), MetricIngestionBurstSizeBytes)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Read.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Read.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.Compaction.BlockRetention), MetricBlockRetention)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.DefaultOverrides.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }

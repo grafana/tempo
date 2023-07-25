@@ -811,7 +811,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Config{
-		DefaultLimits: overrides.Limits{
+		DefaultOverrides: overrides.Overrides{
 			Read: overrides.ReadConfig{
 				MaxSearchDuration: model.Duration(time.Minute),
 			},
@@ -861,7 +861,7 @@ func TestMaxDuration(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, actual)
 
 	o, err = overrides.NewOverrides(overrides.Config{
-		DefaultLimits: overrides.Limits{
+		DefaultOverrides: overrides.Overrides{
 			Read: overrides.ReadConfig{
 				MaxSearchDuration: model.Duration(10 * time.Minute),
 			},

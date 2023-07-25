@@ -13,13 +13,13 @@ import (
 
 func TestIngestionRateStrategy(t *testing.T) {
 	tests := map[string]struct {
-		limits        overrides.Limits
+		limits        overrides.Overrides
 		ring          ReadLifecycler
 		expectedLimit float64
 		expectedBurst int
 	}{
 		"local rate limiter should just return configured limits": {
-			limits: overrides.Limits{
+			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionConfig{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
 					RateLimitBytes: 5,
@@ -31,7 +31,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			expectedBurst: 2,
 		},
 		"global rate limiter should share the limit across the number of distributors": {
-			limits: overrides.Limits{
+			limits: overrides.Overrides{
 				Ingestion: overrides.IngestionConfig{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
 					RateLimitBytes: 5,
@@ -56,7 +56,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 
 			// Init limits overrides
 			o, err := overrides.NewOverrides(overrides.Config{
-				DefaultLimits: testData.limits,
+				DefaultOverrides: testData.limits,
 			})
 			require.NoError(t, err)
 
