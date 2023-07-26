@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
