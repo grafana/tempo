@@ -36,6 +36,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add new API to summarize span metrics from generators [#2481](https://github.com/grafana/tempo/pull/2481) (@zalegrala)
 * [FEATURE] Add `select()` to TraceQL [#2494](https://github.com/grafana/tempo/pull/2494) (@joe-elliott)
 * [FEATURE] Add `traceDuration`, `rootName` and `rootServiceName` intrinsics to TraceQL [#2503](https://github.com/grafana/tempo/pull/2503) (@joe-elliott)
+* [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [ENHANCEMENT] Add support for query batching between frontend and queriers to improve throughput [#2677](https://github.com/grafana/tempo/pull/2677) (@joe-elliott)
 * [ENHANCEMENT] Add initial RBAC support for serverless backend queries, limited to Google CloudRun [#2487](https://github.com/grafana/tempo/pull/2593) (@modulitos)
 * [ENHANCEMENT] Add capability to flush all remaining traces to backend when ingester is stopped [#2538](https://github.com/grafana/tempo/pull/2538)
