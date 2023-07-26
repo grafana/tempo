@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -15,7 +17,6 @@ import (
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const (
@@ -26,10 +27,6 @@ func TestEncodings(t *testing.T) {
 	const repeatedSearchCount = 10
 
 	for _, enc := range encoding.AllEncodings() {
-		if enc.Version() == v2.VersionString {
-			continue // v2 does not support querying and must be skipped
-		}
-
 		t.Run(enc.Version(), func(t *testing.T) {
 			s, err := e2e.NewScenario("tempo_e2e")
 			require.NoError(t, err)
@@ -82,11 +79,14 @@ func TestEncodings(t *testing.T) {
 			// flush trace to backend
 			callFlush(t, tempo)
 
-			// search for trace in backend multiple times with different attributes to make sure
-			// we search with different scopes and with attributes from dedicated columns
-			for i := 0; i < repeatedSearchCount; i++ {
-				integration.SearchAndAssertTrace(t, apiClient, info)
-				integration.SearchTraceQLAndAssertTrace(t, apiClient, info)
+			// v2 does not support querying and must be skipped
+			if enc.Version() != v2.VersionString {
+				// search for trace in backend multiple times with different attributes to make sure
+				// we search with different scopes and with attributes from dedicated columns
+				for i := 0; i < repeatedSearchCount; i++ {
+					integration.SearchAndAssertTrace(t, apiClient, info)
+					integration.SearchTraceQLAndAssertTrace(t, apiClient, info)
+				}
 			}
 
 			// sleep
@@ -98,7 +98,9 @@ func TestEncodings(t *testing.T) {
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(20), "tempo_query_frontend_queries_total"))
+			if enc.Version() != v2.VersionString {
+				require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(20), "tempo_query_frontend_queries_total"))
+			}
 
 			// query trace - should fetch from backend
 			queryAndAssertTrace(t, apiClient, info)
@@ -106,6 +108,10 @@ func TestEncodings(t *testing.T) {
 			// create grpc client used for streaming
 			grpcClient, err := integration.NewSearchGRPCClient(tempo.Endpoint(3200))
 			require.NoError(t, err)
+
+			if enc.Version() == v2.VersionString {
+				return // v2 does not support querying and must be skipped
+			}
 
 			// search for trace in backend multiple times with different attributes to make sure
 			// we search with different scopes and with attributes from dedicated columns
