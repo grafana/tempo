@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
+
 ## v2.2.0-rc0 / 2023-07-21
 
 * [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
