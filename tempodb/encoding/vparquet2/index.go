@@ -25,16 +25,16 @@ func (i *index) Marshal() ([]byte, error) {
 	return json.Marshal(i)
 }
 
-func (i *index) Find(id common.ID) (ok bool, rowGroup int) {
+func (i *index) Find(id common.ID) int {
 	n := sort.Search(len(i.RowGroups), func(j int) bool {
 		return bytes.Compare(id, i.RowGroups[j]) <= 0
 	})
 	if n >= len(i.RowGroups) {
 		// Beyond the last row group. This is the only
 		// area where presence can be ruled out.
-		return false, -1
+		return -1
 	}
-	return true, n
+	return n
 }
 
 func unmarshalIndex(b []byte) (*index, error) {

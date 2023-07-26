@@ -53,7 +53,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
-func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (ok bool, rowGroup int, err error) {
+func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkIndex",
 		opentracing.Tags{
 			"blockID":  b.meta.BlockID,
@@ -74,8 +74,13 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (ok bool, r
 		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	ok, rowGroup = index.Find(id)
-	return ok, rowGroup, nil
+	rowGroup := index.Find(id)
+	if rowGroup == -1 {
+		// Ruled out by index
+		return false, -1, nil
+	}
+
+	return true, rowGroup, nil
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
