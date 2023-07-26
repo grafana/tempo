@@ -53,7 +53,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
-func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (rowGroup int, err error) {
+func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (ok bool, rowGroup int, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkIndex",
 		opentracing.Tags{
 			"blockID":  b.meta.BlockID,
@@ -63,18 +63,19 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (rowGroup i
 
 	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, true)
 	if err == backend.ErrDoesNotExist {
-		return -1, nil
+		return true, -1, nil
 	}
 	if err != nil {
-		return -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	index, err := unmarshalIndex(indexBytes)
 	if err != nil {
-		return -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	return index.Find(id), nil
+	ok, rowGroup = index.Find(id)
+	return ok, rowGroup, nil
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
@@ -94,9 +95,12 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, nil
 	}
 
-	rowGroup, err := b.checkIndex(ctx, traceID)
+	ok, rowGroup, err := b.checkIndex(ctx, traceID)
 	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		return nil, nil
 	}
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)

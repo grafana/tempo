@@ -185,8 +185,6 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	require.NoError(b, err)
 
 	traceID := meta.MinID
-	// traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
-	// require.NoError(b, err)
 
 	block := newBackendBlock(meta, rr)
 
