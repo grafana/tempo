@@ -20,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
@@ -43,17 +44,15 @@ var (
 	}
 	vparquet2SpanAttrs = []string{
 		vparquet2.FieldSpanAttrVal,
-		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
-		// vparquet2.FieldSpanAttrValInt,
-		// vparquet2.FieldSpanAttrValDouble,
-		// vparquet2.FieldSpanAttrValBool,
 	}
 	vparquet2ResourceAttrs = []string{
 		vparquet2.FieldResourceAttrVal,
-		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
-		// vparquet2.FieldResourceAttrValInt,
-		// vparquet2.FieldResourceAttrValDouble,
-		// vparquet2.FieldResourceAttrValBool,
+	}
+	vparquet3SpanAttrs = []string{
+		vparquet3.FieldSpanAttrVal,
+	}
+	vparquet3ResourceAttrs = []string{
+		vparquet3.FieldResourceAttrVal,
 	}
 )
 
@@ -63,6 +62,8 @@ func spanPathsForVersion(v string) (string, []string) {
 		return vparquet.FieldSpanAttrKey, vparquetSpanAttrs
 	case vparquet2.VersionString:
 		return vparquet2.FieldSpanAttrKey, vparquet2SpanAttrs
+	case vparquet3.VersionString:
+		return vparquet3.FieldSpanAttrKey, vparquet3SpanAttrs
 	}
 	return "", nil
 }
@@ -73,6 +74,8 @@ func resourcePathsForVersion(v string) (string, []string) {
 		return vparquet.FieldResourceAttrKey, vparquetResourceAttrs
 	case vparquet2.VersionString:
 		return vparquet2.FieldResourceAttrKey, vparquet2ResourceAttrs
+	case vparquet3.VersionString:
+		return vparquet3.FieldResourceAttrKey, vparquet3ResourceAttrs
 	}
 	return "", nil
 }
