@@ -37,7 +37,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 	tempDir := t.TempDir()
 
 	cfg := &Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -227,7 +227,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		assert.Equal(t, expectedID, blocklist[0].BlockID)
 	}
 
-	//confirm blocklists are in starttime ascending order
+	// confirm blocklists are in starttime ascending order
 	lastTime := time.Time{}
 	for _, b := range blocklist {
 		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
@@ -507,7 +507,6 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, tc.start, tc.end))
 		})
 	}
-
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
@@ -649,11 +648,10 @@ func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
 }
 
 func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion string) {
-
 	tempDir := t.TempDir()
 
 	_, w, _, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -697,11 +695,12 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	require.Equal(t, now.Unix(), complete.BlockMeta().StartTime.Unix())
 	require.Equal(t, now.Unix(), complete.BlockMeta().EndTime.Unix())
 }
+
 func TestShouldCache(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, _, _, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -789,7 +788,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 
 	tempDir := b.TempDir()
 	_, w, _, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},

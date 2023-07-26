@@ -191,7 +191,6 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 
 func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		// Check that we are making the call to update the attributes before attempting to decode the request body.
 		if strings.HasPrefix(r.RequestURI, "/upload/storage/v1/b/blerg2") {
 
@@ -226,7 +225,6 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 }
 
 func TestObjectWithPrefix(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		prefix      string

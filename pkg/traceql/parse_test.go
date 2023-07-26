@@ -305,7 +305,8 @@ func TestSelectErrors(t *testing.T) {
 		err error
 	}{
 		{in: "select(.a) && { .b }", err: newParseError("syntax error: unexpected &&", 0, 12)},
-		{in: "select()", err: newParseError("syntax error: unexpected )", 1, 8)}}
+		{in: "select()", err: newParseError("syntax error: unexpected )", 1, 8)},
+	}
 
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {

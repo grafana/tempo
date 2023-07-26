@@ -39,7 +39,6 @@ func TestStringer(t *testing.T) {
 }
 
 func TestStringerRoundtrip(t *testing.T) {
-
 	roundtrippable := []string{
 		"{ duration = 1s }", // Check handling of some tricky parts where intrinsics / attributes overlap
 		"{ .duration = 1s }",

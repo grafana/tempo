@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"testing"
 
+	"github.com/grafana/e2e"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
@@ -22,8 +23,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -157,7 +158,7 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, exporter.Shutdown(context.Background()))
 
 			// query for the trace
-			client := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
+			client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
 			trace, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
 			require.NoError(t, err)
 

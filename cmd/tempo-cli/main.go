@@ -137,13 +137,13 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 	var c backend.Compactor
 
 	switch cfg.StorageConfig.Trace.Backend {
-	case "local":
+	case backend.Local:
 		r, w, c, err = local.New(cfg.StorageConfig.Trace.Local)
-	case "gcs":
+	case backend.GCS:
 		r, w, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
-	case "s3":
+	case backend.S3:
 		r, w, c, err = s3.New(cfg.StorageConfig.Trace.S3)
-	case "azure":
+	case backend.Azure:
 		r, w, c, err = azure.New(cfg.StorageConfig.Trace.Azure)
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.StorageConfig.Trace.Backend)

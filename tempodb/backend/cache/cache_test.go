@@ -40,6 +40,7 @@ func NewMockClient() cache.Cache {
 		client: map[string][]byte{},
 	}
 }
+
 func TestReadWrite(t *testing.T) {
 	tenantID := "test"
 	blockID := uuid.New()

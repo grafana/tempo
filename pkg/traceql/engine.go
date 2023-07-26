@@ -18,8 +18,7 @@ const (
 	DefaultSpansPerSpanSet int = 3
 )
 
-type Engine struct {
-}
+type Engine struct{}
 
 func NewEngine() *Engine {
 	return &Engine{}

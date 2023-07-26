@@ -27,7 +27,6 @@ func NewCompactor(opts common.CompactionOptions) *Compactor {
 }
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
-
 	tenantID := inputs[0].TenantID
 	dataEncoding := inputs[0].DataEncoding // blocks chosen for compaction always have the same data encoding
 

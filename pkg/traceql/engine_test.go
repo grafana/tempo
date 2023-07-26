@@ -378,7 +378,6 @@ func (m *MockSpanSetIterator) Next(context.Context) (*Spanset, error) {
 		r.Spans = ss[0].Spans
 		return r, nil
 	}
-
 }
 
 func (m *MockSpanSetIterator) Close() {}
@@ -558,7 +557,6 @@ func TestExecuteTagValues(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-
 			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
 
@@ -572,5 +570,4 @@ func TestExecuteTagValues(t *testing.T) {
 			assert.Equal(t, tc.expectedValues, values)
 		})
 	}
-
 }

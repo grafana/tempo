@@ -67,7 +67,6 @@ func Test_instance_concurrency(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 	close(end)
-
 }
 
 func Test_instance_updateProcessors(t *testing.T) {
@@ -167,7 +166,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
-		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -198,7 +197,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
-		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -231,7 +230,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
-		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {
@@ -261,7 +260,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
-		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
 		actualProcessors := make([]string, 0, len(instance.processors))
 
 		for name := range instance.processors {

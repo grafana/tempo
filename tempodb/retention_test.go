@@ -23,7 +23,7 @@ func TestRetention(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -86,7 +86,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
@@ -155,7 +155,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
-		Backend: "local",
+		Backend: backend.Local,
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},

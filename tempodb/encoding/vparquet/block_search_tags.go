@@ -182,7 +182,6 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 }
 
 func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
 		att = traceql.NewAttribute(tag)

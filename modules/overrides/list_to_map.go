@@ -8,10 +8,12 @@ import (
 
 type ListToMap map[string]struct{}
 
-var _ yaml.Marshaler = (*ListToMap)(nil)
-var _ yaml.Unmarshaler = (*ListToMap)(nil)
-var _ json.Marshaler = (*ListToMap)(nil)
-var _ json.Unmarshaler = (*ListToMap)(nil)
+var (
+	_ yaml.Marshaler   = (*ListToMap)(nil)
+	_ yaml.Unmarshaler = (*ListToMap)(nil)
+	_ json.Marshaler   = (*ListToMap)(nil)
+	_ json.Unmarshaler = (*ListToMap)(nil)
+)
 
 // MarshalYAML implements the Marshal interface of the yaml pkg.
 func (l ListToMap) MarshalYAML() (interface{}, error) {

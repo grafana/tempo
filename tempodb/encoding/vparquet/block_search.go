@@ -264,7 +264,6 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 }
 
 func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) (*tempopb.SearchResponse, error) {
-
 	// Search happens in 2 phases for an optimization.
 	// Phase 1 is iterate all columns involved in the request.
 	// Only if there are any matches do we enter phase 2, which
@@ -406,8 +405,7 @@ func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
-	cb            common.TagCallbackV2
-	inspectedDict bool
+	cb common.TagCallbackV2
 }
 
 func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
@@ -418,35 +416,29 @@ func (r *reportValuesPredicate) String() string {
 	return "reportValuesPredicate{}"
 }
 
-// KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
-func (r *reportValuesPredicate) KeepColumnChunk(parquet.ColumnChunk) bool {
-	// Reinspect dictionary for each new column chunk
-	r.inspectedDict = false
-	return true
-}
-
-// KeepPage checks to see if the page has a dictionary. if it does then we can report the values contained in it
+// KeepColumnChunk checks to see if the page has a dictionary. if it does then we can report the values contained in it
 // and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
 // true so the iterator will call KeepValue on all values in the column
-func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
-	if r.inspectedDict {
-		// Already inspected dictionary for this column chunk
-		return false
-	}
-
-	if dict := pg.Dictionary(); dict != nil {
-		for i := 0; i < dict.Len(); i++ {
-			v := dict.Index(int32(i))
+func (r *reportValuesPredicate) KeepColumnChunk(cc *pq.ColumnChunkHelper) bool {
+	if d := cc.Dictionary(); d != nil {
+		for i := 0; i < d.Len(); i++ {
+			v := d.Index(int32(i))
 			if callback(r.cb, v) {
 				break
 			}
 		}
 
-		// Only inspect first dictionary per column chunk.
-		r.inspectedDict = true
+		// No need to check the pages since this was a dictionary
+		// column.
 		return false
 	}
 
+	return true
+}
+
+// KeepPage always returns true because if we get this far we need to
+// inspect each individual value.
+func (r *reportValuesPredicate) KeepPage(parquet.Page) bool {
 	return true
 }
 

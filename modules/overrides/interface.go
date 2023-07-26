@@ -10,17 +10,18 @@ import (
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type Service interface {
 	services.Service
-	prometheus.Collector
 	Interface
-
-	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }
 
 type Interface interface {
+	prometheus.Collector
+
+	// Limits
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
@@ -55,4 +56,8 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
+	DedicatedColumns(userID string) backend.DedicatedColumns
+
+	// API
+	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }

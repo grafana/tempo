@@ -1,20 +1,17 @@
 package e2e
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
-	"reflect"
 	"sync"
 	"testing"
-	"text/template"
 	"time"
 
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -24,6 +21,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -93,7 +91,7 @@ func TestAllInOne(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
+			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
 
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
@@ -188,21 +186,15 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 				t.Errorf("unknown KVStore %s", tc.name)
 			}
 
-			tmpl, err := template.New(filepath.Base(configMicroservices)).ParseFiles(configMicroservices)
-			require.NoError(t, err)
-
 			KVStoreConfig := tc.kvconfig("", 0)
 			if kvstore != nil {
 				KVStoreConfig = tc.kvconfig(kvstore.Name(), kvstore.HTTPPort())
 			}
 
-			var buf bytes.Buffer
-			kvconfig := map[string]interface{}{
-				"KVStore": KVStoreConfig,
-			}
-			require.NoError(t, tmpl.Execute(&buf, kvconfig))
-
-			require.NoError(t, util.WriteFileToSharedDir(s, "config.yaml", buf.Bytes()))
+			// copy config template to shared directory and expand template variables
+			tmplConfig := map[string]any{"KVStore": KVStoreConfig}
+			_, err = util.CopyTemplateToSharedDir(s, configMicroservices, "config.yaml", tmplConfig)
+			require.NoError(t, err)
 
 			minio := e2edb.NewMinio(9000, "tempo")
 			require.NotNil(t, minio)
@@ -250,7 +242,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
-			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+			apiClient := httpclient.New("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
@@ -400,7 +392,7 @@ func TestScalableSingleBinary(t *testing.T) {
 		callStatus(t, i)
 	}
 
-	apiClient1 := tempoUtil.NewClient("http://"+tempo1.Endpoint(3200), "")
+	apiClient1 := httpclient.New("http://"+tempo1.Endpoint(3200), "")
 
 	queryAndAssertTrace(t, apiClient1, info)
 
@@ -492,21 +484,22 @@ func assertEcho(t *testing.T, url string) {
 	defer res.Body.Close()
 }
 
-func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+func queryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
 	resp, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	require.True(t, equalTraces(resp, expected))
+	assertEqualTrace(t, resp, expected)
 }
 
-func equalTraces(a, b *tempopb.Trace) bool {
-	trace.SortTrace(a)
-	trace.SortTrace(b)
+func assertEqualTrace(t *testing.T, a, b *tempopb.Trace) {
+	t.Helper()
+	trace.SortTraceAndAttributes(a)
+	trace.SortTraceAndAttributes(b)
 
-	return reflect.DeepEqual(a, b)
+	assert.Equal(t, a, b)
 }
 
 func spanCount(a *tempopb.Trace) float64 {

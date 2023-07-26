@@ -74,7 +74,6 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 }
 
 func callJaegerQuerySearchServicesAssert(t *testing.T, svc *e2e.HTTPService, expected servicesOrOpJaegerQueryResponse) {
-
 	// search for tag values
 	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(16686)+"/api/services", nil)
 	require.NoError(t, err)
@@ -97,7 +96,6 @@ func callJaegerQuerySearchServicesAssert(t *testing.T, svc *e2e.HTTPService, exp
 }
 
 func callJaegerQuerySearchOperationAssert(t *testing.T, svc *e2e.HTTPService, operation string, expected servicesOrOpJaegerQueryResponse) {
-
 	apiURL := fmt.Sprintf("/api/services/%s/operations", operation)
 
 	// search for tag values
@@ -122,7 +120,6 @@ func callJaegerQuerySearchOperationAssert(t *testing.T, svc *e2e.HTTPService, op
 }
 
 func callJaegerQuerySearchTraceAssert(t *testing.T, svc *e2e.HTTPService, operation, service string) {
-
 	start := time.Now().Add(-10 * time.Minute)
 	end := start.Add(1 * time.Hour)
 

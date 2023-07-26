@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/httpclient"
 )
 
 type querySearchTagsCmd struct {
@@ -11,7 +11,7 @@ type querySearchTagsCmd struct {
 }
 
 func (cmd *querySearchTagsCmd) Run(_ *globalOptions) error {
-	client := util.NewClient(cmd.APIEndpoint, cmd.OrgID)
+	client := httpclient.New(cmd.APIEndpoint, cmd.OrgID)
 
 	tags, err := client.SearchTags()
 	if err != nil {

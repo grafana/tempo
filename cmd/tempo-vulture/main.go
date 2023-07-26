@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -161,7 +162,7 @@ func main() {
 					continue
 				}
 
-				client := util.NewClient(tempoQueryURL, tempoOrgID)
+				client := httpclient.New(tempoQueryURL, tempoOrgID)
 
 				// query the trace
 				queryMetrics, err := queryTrace(client, info)
@@ -192,7 +193,7 @@ func main() {
 					continue
 				}
 
-				client := util.NewClient(tempoQueryURL, tempoOrgID)
+				client := httpclient.New(tempoQueryURL, tempoOrgID)
 
 				// query a tag we expect the trace to be found within
 				searchMetrics, err := searchTag(client, seed)
@@ -322,7 +323,7 @@ func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
 	return number
 }
 
-func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
+func searchTag(client *httpclient.Client, seed time.Time) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -373,7 +374,6 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
 	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
-
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -388,7 +388,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	return tm, nil
 }
 
-func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
+func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -437,7 +437,6 @@ func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
 	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
-
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -452,7 +451,7 @@ func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
 	return tm, nil
 }
 
-func queryTrace(client *util.Client, info *util.TraceInfo) (traceMetrics, error) {
+func queryTrace(client *httpclient.Client, info *util.TraceInfo) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}

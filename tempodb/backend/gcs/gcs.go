@@ -122,6 +122,11 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 	return w.Close()
 }
 
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+	handle := rw.bucket.Object(backend.ObjectFileName(keypath, name))
+	return handle.Delete(ctx)
+}
+
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)

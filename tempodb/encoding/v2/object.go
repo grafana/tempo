@@ -8,8 +8,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type object struct {
-}
+type object struct{}
 
 var staticObject = object{}
 

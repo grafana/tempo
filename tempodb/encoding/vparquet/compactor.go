@@ -30,7 +30,6 @@ type Compactor struct {
 }
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
-
 	var (
 		compactionLevel uint8
 		totalRecords    int

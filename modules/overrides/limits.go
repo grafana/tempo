@@ -4,10 +4,12 @@ import (
 	"flag"
 	"time"
 
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+
+	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -33,15 +35,14 @@ const (
 	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
 	MetricBlockRetention                  = "block_retention"
 	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
+	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
 
-var (
-	metricLimitsDesc = prometheus.NewDesc(
-		"tempo_limits_defaults",
-		"Default resource limits",
-		[]string{"limit_name"},
-		nil,
-	)
+var metricLimitsDesc = prometheus.NewDesc(
+	"tempo_limits_defaults",
+	"Default resource limits",
+	[]string{"limit_name"},
+	nil,
 )
 
 // Limits describe all the limits for users; can be used to describe global default
@@ -98,13 +99,18 @@ type Limits struct {
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 
-	// Configuration for overrides, convenient if it goes here.
+	// tempodb limits
+	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
+
+	// Configuration for overrides module, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
+
+	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 }
 
-// RegisterFlags adds the flags required to config this to the given FlagSet
-func (l *Limits) RegisterFlags(f *flag.FlagSet) {
+// RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
+func (l *Limits) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Distributor Limits
 	f.StringVar(&l.IngestionRateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&l.IngestionRateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
@@ -122,6 +128,8 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
+
+	l.UserConfigurableOverridesConfig.RegisterFlagsAndApplyDefaults(f)
 }
 
 func (l *Limits) Describe(ch chan<- *prometheus.Desc) {

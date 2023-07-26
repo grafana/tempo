@@ -13,9 +13,6 @@ import (
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/pkg/util/log"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,6 +29,10 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"gopkg.in/yaml.v2"
+
+	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const appName = "tempo"
@@ -55,7 +56,7 @@ func main() {
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
 
-	config, err := loadConfig()
+	config, configVerify, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed parsing config: %v\n", err)
 		os.Exit(1)
@@ -71,6 +72,17 @@ func main() {
 		os.Exit(1)
 	}
 	log.InitLogger(&config.Server)
+
+	// Verifying the config's validity and log warnings now that the logger is initialized
+	isValid := configIsValid(config)
+
+	// Exit if config.verify flag is true
+	if configVerify {
+		if isValid {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// Init tracer
 	var shutdownTracer func()
@@ -111,7 +123,7 @@ func main() {
 func configIsValid(config *app.Config) bool {
 	// Warn the user for suspect configurations
 	if warnings := config.CheckConfig(); len(warnings) != 0 {
-		level.Warn(log.Logger).Log("-- CONFIGURATION WARNINGS --")
+		level.Warn(log.Logger).Log("msg", "-- CONFIGURATION WARNINGS --")
 		for _, w := range warnings {
 			output := []any{"msg", w.Message}
 			if w.Explain != "" {
@@ -124,7 +136,7 @@ func configIsValid(config *app.Config) bool {
 	return true
 }
 
-func loadConfig() (*app.Config, error) {
+func loadConfig() (*app.Config, bool, error) {
 	const (
 		configFileOption      = "config.file"
 		configExpandEnvOption = "config.expand-env"
@@ -163,20 +175,20 @@ func loadConfig() (*app.Config, error) {
 	if configFile != "" {
 		buff, err := os.ReadFile(configFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
+			return nil, false, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
 		}
 
 		if configExpandEnv {
 			s, err := envsubst.EvalEnv(string(buff))
 			if err != nil {
-				return nil, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
+				return nil, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
 			}
 			buff = []byte(s)
 		}
 
 		err = yaml.UnmarshalStrict(buff, config)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
+			return nil, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}
 
 	}
@@ -199,16 +211,7 @@ func loadConfig() (*app.Config, error) {
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 	}
 
-	// after finalizing the configuration, verify its validity and exit if config.verify flag is true.
-	isValid := configIsValid(config)
-	if configVerify {
-		if !isValid {
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
-	return config, nil
+	return config, configVerify, nil
 }
 
 func installOpenTracingTracer(config *app.Config) (func(), error) {

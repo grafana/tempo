@@ -3,10 +3,9 @@ package ingester
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
-
-	"regexp"
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"

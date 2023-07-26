@@ -25,6 +25,7 @@ func BenchmarkAppender1000(b *testing.B) {
 func BenchmarkAppender10000(b *testing.B) {
 	benchmarkAppender(b, 10000)
 }
+
 func BenchmarkAppender200000(b *testing.B) {
 	benchmarkAppender(b, 200000)
 }

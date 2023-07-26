@@ -11,7 +11,9 @@ import (
 	e2e_db "github.com/grafana/e2e/db"
 
 	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -20,7 +22,6 @@ const (
 )
 
 func TestServerless(t *testing.T) {
-
 	testClouds := []struct {
 		name       string
 		serverless *e2e.HTTPService
@@ -96,7 +97,7 @@ func TestServerless(t *testing.T) {
 			}
 			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_feature_enabled`}, e2e.WithLabelMatchers(features...), e2e.WaitMissingMetrics))
 
-			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+			apiClient := httpclient.New("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// flush trace to backend
 			res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
@@ -117,10 +118,8 @@ func TestServerless(t *testing.T) {
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-
 		})
 	}
-
 }
 
 func newTempoServerlessGCR() *e2e.HTTPService {
@@ -138,7 +137,7 @@ func newTempoServerlessGCR() *e2e.HTTPService {
 		"TEMPO_S3_ACCESS_KEY": e2e_db.MinioAccessKey,
 		"TEMPO_S3_SECRET_KEY": e2e_db.MinioSecretKey,
 		"TEMPO_S3_INSECURE":   "true",
-		"TEMPO_BACKEND":       "s3",
+		"TEMPO_BACKEND":       backend.S3,
 	})
 
 	s.SetBackoff(util.TempoBackoff())
@@ -161,7 +160,7 @@ func newTempoServerlessLambda() *e2e.HTTPService {
 		"TEMPO_S3_ACCESS_KEY": e2e_db.MinioAccessKey,
 		"TEMPO_S3_SECRET_KEY": e2e_db.MinioSecretKey,
 		"TEMPO_S3_INSECURE":   "true",
-		"TEMPO_BACKEND":       "s3",
+		"TEMPO_BACKEND":       backend.S3,
 	})
 
 	s.SetBackoff(util.TempoBackoff())
