@@ -21,6 +21,7 @@ import (
 
 	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type UserConfigurableOverridesConfig struct {
@@ -142,7 +143,11 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 
 	// For every tenant with user-configurable overrides, download and cache them
 	for _, tenant := range tenants {
-		limits, err := o.client.Get(ctx, tenant)
+		limits, _, err := o.client.Get(ctx, tenant)
+		if err == backend.ErrDoesNotExist {
+			o.setTenantLimit(tenant, nil)
+			continue
+		}
 		if err != nil {
 			return errors.Wrapf(err, "failed to load tenant limits for tenant %v", tenant)
 		}
