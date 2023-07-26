@@ -122,13 +122,13 @@ func (t *TraceInfo) EmitAllBatches(c *jaeger_grpc.Reporter) error {
 	return nil
 }
 
-func (t *TraceInfo) generateRandomInt(min int64, max int64) int64 {
+func (t *TraceInfo) generateRandomInt(min, max int64) int64 {
 	min++
 	number := min + t.r.Int63n(max-min)
 	return number
 }
 
-func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift.Batch {
+func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch {
 	var spans []*thrift.Span
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
@@ -149,6 +149,7 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 
 	process := &thrift.Process{
 		ServiceName: "tempo-vulture",
+		Tags:        t.generateRandomTagsWithPrefix("vulture-process"),
 	}
 
 	return &thrift.Batch{Process: process, Spans: spans}
@@ -165,12 +166,16 @@ func (t *TraceInfo) generateRandomString() string {
 }
 
 func (t *TraceInfo) generateRandomTags() []*thrift.Tag {
+	return t.generateRandomTagsWithPrefix("vulture")
+}
+
+func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*thrift.Tag {
 	var tags []*thrift.Tag
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
 		value := t.generateRandomString()
 		tags = append(tags, &thrift.Tag{
-			Key:  fmt.Sprintf("vulture-%d", i),
+			Key:  fmt.Sprintf("%s-%d", prefix, i),
 			VStr: &value,
 		})
 	}
@@ -256,24 +261,33 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	if len(t.Batches) == 0 {
 		return nil
 	}
-	iBatch := r.Intn(len(t.Batches))
+	batch := randFrom(r, t.Batches)
 
-	if len(t.Batches[iBatch].ScopeSpans) == 0 {
+	// maybe choose resource attribute
+	res := batch.Resource
+	if len(res.Attributes) > 0 && rand.Int()%2 == 1 {
+		return randFrom(r, res.Attributes)
+	}
+
+	if len(batch.ScopeSpans) == 0 {
 		return nil
 	}
-	iSpans := r.Intn(len(t.Batches[iBatch].ScopeSpans))
+	ss := randFrom(r, batch.ScopeSpans)
 
-	if len(t.Batches[iBatch].ScopeSpans[iSpans].Spans) == 0 {
+	if len(ss.Spans) == 0 {
 		return nil
 	}
-	iSpan := r.Intn(len(t.Batches[iBatch].ScopeSpans[iSpans].Spans))
+	span := randFrom(r, ss.Spans)
 
-	if len(t.Batches[iBatch].ScopeSpans[iSpans].Spans[iSpan].Attributes) == 0 {
+	if len(span.Attributes) == 0 {
 		return nil
 	}
-	iAttr := r.Intn(len(t.Batches[iBatch].ScopeSpans[iSpans].Spans[iSpan].Attributes))
 
-	return t.Batches[iBatch].ScopeSpans[iSpans].Spans[iSpan].Attributes[iAttr]
+	return randFrom(r, span.Attributes)
+}
+
+func randFrom[T any](r *rand.Rand, s []T) T {
+	return s[r.Intn(len(s))]
 }
 
 func newRand(t time.Time) *rand.Rand {

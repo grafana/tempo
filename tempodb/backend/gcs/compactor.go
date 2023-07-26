@@ -8,8 +8,9 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
-	"github.com/grafana/tempo/tempodb/backend"
 	"google.golang.org/api/iterator"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -69,7 +70,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
-	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
+	bytes, attrs, err := rw.readAll(context.Background(), name)
 	if err != nil {
 		return nil, readError(err)
 	}
@@ -79,7 +80,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	if err != nil {
 		return nil, err
 	}
-	out.CompactedTime = modTime
+	out.CompactedTime = attrs.LastModified
 
 	return out, nil
 }

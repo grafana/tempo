@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestRuntimeConfigOverrides(t *testing.T) {
@@ -325,6 +326,92 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
 			// }
+		})
+	}
+}
+
+func TestTempoDBOverrides(t *testing.T) {
+	tests := []struct {
+		name                     string
+		limits                   Limits
+		overrides                string
+		expectedDedicatedColumns map[string]backend.DedicatedColumns
+	}{
+		{
+			name: "limits",
+			limits: Limits{
+				DedicatedColumns: backend.DedicatedColumns{
+					{Scope: "resource", Name: "namespace", Type: "string"},
+				},
+			},
+			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
+				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
+				"user2": {{Scope: "resource", Name: "namespace", Type: "string"}},
+			},
+		},
+		{
+			name: "basic overrides",
+			limits: Limits{
+				DedicatedColumns: backend.DedicatedColumns{
+					{Scope: "resource", Name: "namespace", Type: "string"},
+				},
+			},
+			overrides: `
+overrides:
+  user2:
+    parquet_dedicated_columns:
+      - scope: "span"
+        name: "http.status"
+        type: "int"
+`,
+			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
+				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
+				"user2": {{Scope: "span", Name: "http.status", Type: "int"}},
+			},
+		},
+		{
+			name: "empty dedicated columns override global cfg",
+			limits: Limits{
+				DedicatedColumns: backend.DedicatedColumns{
+					{Scope: "resource", Name: "namespace", Type: "string"},
+				},
+			},
+			overrides: `
+overrides:
+  user1:
+  user2:
+    parquet_dedicated_columns: []
+`,
+			expectedDedicatedColumns: map[string]backend.DedicatedColumns{
+				"user1": {{Scope: "resource", Name: "namespace", Type: "string"}},
+				"user2": {},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.overrides) > 0 {
+				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
+
+				require.NoError(t, os.WriteFile(overridesFile, []byte(tc.overrides), os.ModePerm))
+
+				tc.limits.PerTenantOverrideConfig = overridesFile
+				tc.limits.PerTenantOverridePeriod = model.Duration(time.Hour)
+			}
+
+			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
+			overrides, err := NewOverrides(tc.limits)
+			require.NoError(t, err)
+			err = services.StartAndAwaitRunning(context.TODO(), overrides)
+			require.NoError(t, err)
+
+			for user, expected := range tc.expectedDedicatedColumns {
+				assert.Equal(t, expected, overrides.DedicatedColumns(user))
+			}
+
+			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
 		})
 	}
 }
