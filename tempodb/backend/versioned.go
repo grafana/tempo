@@ -57,5 +57,5 @@ func (f *fakeVersionedReaderWriter) ReadVersioned(ctx context.Context, name stri
 }
 
 func (f *fakeVersionedReaderWriter) DeleteVersioned(ctx context.Context, name string, keypath KeyPath, _ Version) error {
-	return f.Delete(ctx, name, keypath)
+	return f.Delete(ctx, name, keypath, false)
 }

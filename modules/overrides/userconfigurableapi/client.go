@@ -126,8 +126,11 @@ func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.Version
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Backend == backend.S3 || cfg.Backend == backend.Azure {
-		level.Warn(log.Logger).Log("msg", "versioned backend requests are best-effort on %s, concurrent requests modifying user-configurable overrides might cause data races", cfg.Backend)
+	if cfg.Backend == backend.Local || cfg.Backend == backend.S3 || cfg.Backend == backend.Azure {
+		level.Warn(log.Logger).Log(
+			"msg", "versioned backend requests are best-effort for the configured backend, concurrent requests modifying user-configurable overrides might cause data races",
+			"backend", cfg.Backend,
+		)
 	}
 	return rw, nil
 }

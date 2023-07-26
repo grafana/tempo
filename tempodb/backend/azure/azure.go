@@ -243,7 +243,7 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 		return backend.ErrVersionDoesNotMatch
 	}
 
-	return rw.Delete(ctx, name, keypath)
+	return rw.Delete(ctx, name, keypath, false)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
