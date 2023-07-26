@@ -20,6 +20,13 @@ func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	case Attribute:
 		switch o.RHS.(type) {
 		case Static:
+			if o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual {
+				request.appendCondition(Condition{
+					Attribute: o.LHS.(Attribute),
+					Op:        OpNone,
+					Operands:  nil,
+				})
+			}
 			request.appendCondition(Condition{
 				Attribute: o.LHS.(Attribute),
 				Op:        o.Op,

@@ -284,19 +284,16 @@ var wellKnownColumnLookups = map[string]struct {
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	fmt.Println("block_traceql.go 267")
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	fmt.Println("block_traceql.go 273")
 	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
 	}
 
-	fmt.Println("block_traceql.go 279")
 	iter, err := fetch(ctx, req, pf, opts)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
@@ -749,9 +746,9 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		traceConditions    []traceql.Condition
 	)
 	for _, cond := range conds {
+
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
-		fmt.Printf("block_736 scope: %s \n", scope)
 		if cond.Attribute.Scope == traceql.AttributeScopeNone {
 			if lookup, ok := intrinsicColumnLookups[cond.Attribute.Intrinsic]; ok {
 				scope = lookup.scope
@@ -849,9 +846,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	for _, cond := range conditions {
-		if len(cond.Operands) > 0 {
-			fmt.Printf("block 835 operand: %s \n", cond.Operands[0])
-		}
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
@@ -1027,22 +1021,10 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	for _, cond := range conditions {
-		s := cond.Operands[0]
-		fmt.Printf("s: %s \n", s)
-		fmt.Printf("op.string(): %s \n", cond.Op.String())
-
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			}
-
-			if cond.Op == traceql.OpNotEqual && cond.Operands[0].Type == 0 {
-				fmt.Println("wala")
-				pred, _ := createNilPredicate(cond.Op, cond.Operands)
-				addPredicate(entry.columnPath, pred) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
 				continue
 			}
@@ -1066,8 +1048,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
-	fmt.Printf("iter before length: %d \n", len(iters))
-
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
 	if err != nil {
@@ -1076,7 +1056,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
-	fmt.Printf("iter after length: %d \n", len(iters))
+
 	minCount := 0
 	if requireAtLeastOneMatch {
 		minCount = 1
@@ -1412,22 +1392,6 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 }
 
-func createNilPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
-	// Ensure operand is nil
-	if operands[0].Type != traceql.TypeNil {
-		return nil, fmt.Errorf("operand is not nil: %+v", operands[0])
-	}
-
-	switch op {
-	case traceql.OpNotEqual:
-		return parquetquery.NewSkipNilsPredicate(), nil
-	case traceql.OpEqual:
-		return parquetquery.NewNilPredicate(true), nil
-	default:
-		return nil, fmt.Errorf("operand not supported for nil: %+v", op)
-	} 
-}
-
 func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
@@ -1441,7 +1405,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		boolPreds       = []parquetquery.Predicate{}
 	)
 	for _, cond := range conditions {
-		fmt.Printf("block 1407 cond op: %s, operand: %s ,  type: %d \n", cond.Op.String(), cond.Operands[0], cond.Operands[0].Type)
+
 		attrKeys = append(attrKeys, cond.Attribute.Name)
 
 		if cond.Op == traceql.OpNone {
@@ -1483,13 +1447,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			boolPreds = append(boolPreds, pred)
-		case traceql.TypeNil:
-			fmt.Println("*** i got here")
-			pred, err := createNilPredicate(cond.Op, cond.Operands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
-			}
-			attrStringPreds = append(attrStringPreds, pred)
 		}
 	}
 
