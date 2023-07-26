@@ -96,7 +96,6 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 	iterator := fetchSpansResponse.Results
-
 	defer iterator.Close()
 
 	res := &tempopb.SearchResponse{
@@ -255,7 +254,6 @@ func (e *Engine) ExecuteTagValues(
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
-
 	r, err := Parse(searchReq.Query)
 	if err != nil {
 		return nil, err

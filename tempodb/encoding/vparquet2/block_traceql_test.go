@@ -146,8 +146,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo}`),                 // Projection only
 
 		// existence
-		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo != nil}`),                 // Exist
-		
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo != nil}`), // Exist
+
 		makeReq(
 			// Matches either condition
 			parse(t, `{.foo = "baz"}`),

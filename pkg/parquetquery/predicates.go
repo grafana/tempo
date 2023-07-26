@@ -348,18 +348,6 @@ func NewBoolPredicate(b bool) *GenericPredicate[bool] {
 	)
 }
 
-func NewNilPredicate(isNil bool)  *GenericPredicate[bool] {
-	return NewGenericPredicate(
-		func(v bool) bool { 
-			return v == isNil
-		},
-		nil,
-		func(v pq.Value) bool {
-			return v.IsNull()
-		},
-	)	
-}
-
 type FloatBetweenPredicate struct {
 	min, max float64
 }

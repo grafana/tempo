@@ -181,12 +181,16 @@ func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, eval func(l, r
 
 	o.matchingSpansBuffer = o.matchingSpansBuffer[:0]
 
-	for _, r := range rhs {
-		for _, l := range lhs {
+	for _, l := range lhs {
+		for i, r := range rhs {
+			if r == nil {
+				// Already matched
+				continue
+			}
 			if eval(l, r) {
 				// Returns RHS
 				o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
-				break
+				rhs[i] = nil // No need to check this span again
 			}
 		}
 	}
@@ -355,15 +359,6 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 		case OpLessEqual:
 			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
 		default:
-		}
-	}
-
-	if rhsT == TypeNil {
-		switch o.Op {
-		case OpNotEqual:
-			return NewStaticBool(lhsT != TypeNil), nil
-		default:
-			return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 		}
 	}
 

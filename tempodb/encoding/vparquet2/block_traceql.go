@@ -746,7 +746,6 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		traceConditions    []traceql.Condition
 	)
 	for _, cond := range conds {
-
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
 		if cond.Attribute.Scope == traceql.AttributeScopeNone {
@@ -1016,11 +1015,13 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		iters             = []parquetquery.Iterator{}
 		genericConditions []traceql.Condition
 	)
+
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
 	for _, cond := range conditions {
+
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			if cond.Op == traceql.OpNone {
