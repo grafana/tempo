@@ -82,6 +82,8 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return rw, rw, rw, err
 }
 
+// NewVersionedReaderWriter creates a client to perform versioned requests. Note that write requests are
+// best-effort since the S3 API does not support precondition headers.
 func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
 	return internalNew(cfg, true)
 }

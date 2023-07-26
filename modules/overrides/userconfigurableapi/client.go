@@ -9,11 +9,13 @@ import (
 	"os"
 	"path"
 
+	"github.com/go-kit/log/level"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -121,7 +123,13 @@ func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.Version
 	default:
 		err = fmt.Errorf("unknown backend %s", cfg.Backend)
 	}
-	return rw, err
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Backend == backend.S3 || cfg.Backend == backend.Azure {
+		level.Warn(log.Logger).Log("msg", "versioned backend requests are best-effort on %s, concurrent requests modifying user-configurable overrides might cause data races", cfg.Backend)
+	}
+	return rw, nil
 }
 
 func (o *userConfigOverridesClient) List(ctx context.Context) ([]string, error) {

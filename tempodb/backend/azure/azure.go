@@ -54,6 +54,9 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return rw, rw, rw, err
 }
 
+// NewVersionedReaderWriter creates a client to perform versioned requests. Note that write requests are
+// best-effort for now. We need to update the SDK to make use of the precondition headers.
+// https://github.com/grafana/tempo/issues/2705
 func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
 	return internalNew(cfg, true)
 }

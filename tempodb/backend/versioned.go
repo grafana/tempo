@@ -42,7 +42,7 @@ type fakeVersionedReaderWriter struct {
 
 var _ VersionedReaderWriter = (*fakeVersionedReaderWriter)(nil)
 
-func NewFakeVersionedReaderWriter(r RawReader, w RawWriter) VersionedReaderWriter {
+func NewFakeVersionedReaderWriter(r RawReader, w RawWriter) *fakeVersionedReaderWriter {
 	return &fakeVersionedReaderWriter{r, w}
 }
 
