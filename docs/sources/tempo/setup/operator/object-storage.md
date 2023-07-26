@@ -1,11 +1,13 @@
 ---
-title: 'Object storage'
+title: Object storage
 description: Setup for storing traces to Object Storage
 menuTitle: Object storage
 weight: 200
 aliases:
 - /docs/tempo/operator/object-storage
 ---
+
+# Object storage
 
 Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure.microsoft.com), [GCS](https://cloud.google.com/), [Minio](https://min.io/) and [OpenShift Data Foundation](https://www.redhat.com/en/technologies/cloud-computing/openshift-data-foundation) for TempoStack object storage.
 
@@ -106,13 +108,13 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
         type: gcs
   ```
 
-## Minio
+## MinIO
 
 ### Requirements
 
-* Deploy Minio on your Cluster, e.g. using the [Minio Operator](https://operator.min.io/)
+* Deploy MinIO on your cluster, e.g. using the [MinIO Operator](https://operator.min.io/) or another method.
 
-* Create a [bucket](https://docs.min.io/docs/minio-client-complete-guide.html) on Minio via CLI.
+* Create a [bucket](https://docs.min.io/docs/minio-client-complete-guide.html) on MinIO using the CLI.
 
 ### Installation
 
