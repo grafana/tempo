@@ -518,7 +518,6 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 func (t *App) buildinfoHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(build.GetVersion())
 
