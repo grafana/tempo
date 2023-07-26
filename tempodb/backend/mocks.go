@@ -75,7 +75,7 @@ func (m *MockRawWriter) CloseAppend(context.Context, AppendTracker) error {
 	return nil
 }
 
-func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath) error {
+func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath, _ bool) error {
 	if m.deleteCalls == nil {
 		m.deleteCalls = make(map[string]map[string]int)
 	}
