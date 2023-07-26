@@ -35,27 +35,27 @@ type VersionedReaderWriter interface {
 	ReadVersioned(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, Version, error)
 }
 
-type fakeVersionedReaderWriter struct {
+type FakeVersionedReaderWriter struct {
 	RawReader
 	RawWriter
 }
 
-var _ VersionedReaderWriter = (*fakeVersionedReaderWriter)(nil)
+var _ VersionedReaderWriter = (*FakeVersionedReaderWriter)(nil)
 
-func NewFakeVersionedReaderWriter(r RawReader, w RawWriter) VersionedReaderWriter {
-	return &fakeVersionedReaderWriter{r, w}
+func NewFakeVersionedReaderWriter(r RawReader, w RawWriter) *FakeVersionedReaderWriter {
+	return &FakeVersionedReaderWriter{r, w}
 }
 
-func (f *fakeVersionedReaderWriter) WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, _ Version) (Version, error) {
+func (f *FakeVersionedReaderWriter) WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, _ Version) (Version, error) {
 	err := f.Write(ctx, name, keypath, data, -1, false)
 	return VersionNew, err
 }
 
-func (f *fakeVersionedReaderWriter) ReadVersioned(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, Version, error) {
+func (f *FakeVersionedReaderWriter) ReadVersioned(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, Version, error) {
 	readCloser, _, err := f.Read(ctx, name, keypath, false)
 	return readCloser, VersionNew, err
 }
 
-func (f *fakeVersionedReaderWriter) DeleteVersioned(ctx context.Context, name string, keypath KeyPath, _ Version) error {
+func (f *FakeVersionedReaderWriter) DeleteVersioned(ctx context.Context, name string, keypath KeyPath, _ Version) error {
 	return f.Delete(ctx, name, keypath, false)
 }
