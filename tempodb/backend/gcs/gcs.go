@@ -152,7 +152,7 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 	return w.Close()
 }
 
-func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	return rw.bucket.Object(backend.ObjectFileName(keypath, name)).
 		Delete(ctx)
 }

@@ -239,7 +239,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
-func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath) error {
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	filename := backend.ObjectFileName(keypath, name)
 	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, filename, minio.RemoveObjectOptions{})
 }
