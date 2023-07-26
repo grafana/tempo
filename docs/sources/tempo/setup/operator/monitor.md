@@ -1,5 +1,5 @@
 ---
-title: 'Monitor'
+title: Monitor
 description: Monitor TempoStack instances
 menuTitle: Monitor
 weight: 300
@@ -7,11 +7,29 @@ aliases:
 - /docs/tempo/operator/monitor
 ---
 
+# Monitor
+
+Tempo operator and `TempoStack` operands can be monitored.
+The monitoring configuration for operands is exposed the `TempoStack` CR:
+
+```yaml
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoStack
+spec:
+  observability:
+    metrics:
+      createServiceMonitors: true
+      createPrometheusRules: true
+    tracing:
+      sampling_fraction: 1.0
+      jaeger_agent_endpoint: localhost:6831
+```
+
 ## Distributed Tracing
 
 All Tempo components as well as the [Tempo Gateway](https://github.com/observatorium/api) support the export of traces in `thrift_compact` format.
 
-### Configure tracing of Operands
+### Configure distributed tracing of operands
 
 #### Deploy OpenTelemetry collector
 
