@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	allSupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, localblocks.Name}
+	SupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, localblocks.Name}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -252,7 +252,7 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			}
 		default:
 			level.Error(i.logger).Log(
-				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
+				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
 				"processorName", processorName,
 			)
 			err = fmt.Errorf("unknown processor %s", processorName)
@@ -286,7 +286,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		newProcessor = p
 	default:
 		level.Error(i.logger).Log(
-			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
+			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
 			"processorName", processorName,
 		)
 		return fmt.Errorf("unknown processor %s", processorName)
@@ -319,7 +319,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
 func (i *instance) updateProcessorMetrics() {
-	for _, processorName := range allSupportedProcessors {
+	for _, processorName := range SupportedProcessors {
 		isPresent := 0.0
 		if _, ok := i.processors[processorName]; ok {
 			isPresent = 1.0
