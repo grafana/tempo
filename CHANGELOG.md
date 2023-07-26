@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
+
 ## v2.2.0-rc0 / 2023-07-21
 
 * [CHANGE] Make vParquet2 the default block format [#2526](https://github.com/grafana/tempo/pull/2526) (@stoewer)
