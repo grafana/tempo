@@ -195,6 +195,9 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	if len(prefix) > 0 {
 		prefix = prefix + "/"
 	}
+
+	// The "n" delimter here is used to identify files that end with "n", which
+	// will yield json files.
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
 		Delimiter: "n",
