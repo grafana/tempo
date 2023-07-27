@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const testTenantID = "test"
@@ -470,6 +471,12 @@ func TestUpdateCompacted(t *testing.T) {
 func TestUpdatesSaved(t *testing.T) {
 	// unlike most tests these are applied serially to the same list object and the expected
 	// results are cumulative across all tests
+
+	one := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	two := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	oneOhOne := uuid.MustParse("10000000-0000-0000-0000-000000000001")
+	oneOhTwo := uuid.MustParse("10000000-0000-0000-0000-000000000002")
+
 	tests := []struct {
 		applyMetas     PerTenant
 		applyCompacted PerTenantCompacted
@@ -487,7 +494,7 @@ func TestUpdatesSaved(t *testing.T) {
 			applyMetas: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
@@ -495,7 +502,7 @@ func TestUpdatesSaved(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+							BlockID: oneOhOne,
 						},
 					},
 				},
@@ -503,21 +510,21 @@ func TestUpdatesSaved(t *testing.T) {
 			updateTenant: "test",
 			addMetas: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID: one,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					BlockID: two,
 				},
 			},
 			removeMetas: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID: one,
 				},
 			},
 			addCompacted: []*backend.CompactedBlockMeta{
 				{
 					BlockMeta: backend.BlockMeta{
-						BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000002"),
+						BlockID: oneOhTwo,
 					},
 				},
 			},
@@ -525,7 +532,7 @@ func TestUpdatesSaved(t *testing.T) {
 			expectedMetas: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+						BlockID: two,
 					},
 				},
 			},
@@ -533,12 +540,12 @@ func TestUpdatesSaved(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+							BlockID: oneOhOne,
 						},
 					},
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000002"),
+							BlockID: oneOhTwo,
 						},
 					},
 				},
@@ -549,7 +556,7 @@ func TestUpdatesSaved(t *testing.T) {
 			applyMetas: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
@@ -557,7 +564,7 @@ func TestUpdatesSaved(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+							BlockID: oneOhOne,
 						},
 					},
 				},
@@ -565,8 +572,12 @@ func TestUpdatesSaved(t *testing.T) {
 			expectedTenants: []string{"test"},
 			expectedMetas: PerTenant{
 				"test": []*backend.BlockMeta{
+					// Even though we have just appled one, it was removed in the previous step, and we we expect not to find it here.
+					// {
+					// 	BlockID: one,
+					// },
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+						BlockID: two,
 					},
 				},
 			},
@@ -574,12 +585,12 @@ func TestUpdatesSaved(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+							BlockID: oneOhOne,
 						},
 					},
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000002"),
+							BlockID: oneOhTwo,
 						},
 					},
 				},
@@ -590,7 +601,7 @@ func TestUpdatesSaved(t *testing.T) {
 			applyMetas: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
@@ -598,7 +609,7 @@ func TestUpdatesSaved(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+							BlockID: oneOhOne,
 						},
 					},
 				},
@@ -607,7 +618,7 @@ func TestUpdatesSaved(t *testing.T) {
 			expectedMetas: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
@@ -615,7 +626,7 @@ func TestUpdatesSaved(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+							BlockID: oneOhOne,
 						},
 					},
 				},
@@ -624,7 +635,9 @@ func TestUpdatesSaved(t *testing.T) {
 	}
 
 	l := New()
-	for _, tc := range tests {
+	for i, tc := range tests {
+		t.Logf("step %d", i+1)
+
 		l.ApplyPollResults(tc.applyMetas, tc.applyCompacted)
 		if tc.updateTenant != "" {
 			l.Update(tc.updateTenant, tc.addMetas, tc.removeMetas, tc.addCompacted, nil)
