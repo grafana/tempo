@@ -1,7 +1,9 @@
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -390,6 +392,7 @@ func TestScalableSingleBinary(t *testing.T) {
 		callIngesterRing(t, i)
 		callCompactorRing(t, i)
 		callStatus(t, i)
+		callBuildinfo(t, i)
 	}
 
 	apiClient1 := httpclient.New("http://"+tempo1.Endpoint(3200), "")
@@ -475,6 +478,27 @@ func callStatus(t *testing.T, svc *e2e.HTTPService) {
 	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func callBuildinfo(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/api/status/buildinfo"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	// Check that the actual JSON response contains all the expected keys (we disregard the values)
+	var jsonResponse map[string]any
+	keys := []string{"version", "revision", "branch", "buildDate", "buildUser", "goVersion"}
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	err = json.Unmarshal(body, &jsonResponse)
+	require.NoError(t, err)
+	for _, key := range keys {
+		_, ok := jsonResponse[key]
+		require.True(t, ok)
+	}
+	defer res.Body.Close()
 }
 
 func assertEcho(t *testing.T, url string) {
