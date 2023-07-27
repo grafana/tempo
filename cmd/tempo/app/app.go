@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"gopkg.in/yaml.v3"
 
+	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
@@ -187,6 +189,7 @@ func (t *App) Run() error {
 		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm))
 	}
 
+	t.Server.HTTP.Path("/api/status/buildinfo").Handler(t.buildinfoHandler()).Methods("GET")
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
@@ -509,4 +512,18 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 	}
 
 	return nil
+}
+
+func (t *App) buildinfoHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(build.GetVersion())
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			level.Error(log.Logger).Log("msg", "error writing response", "err", err)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	}
 }
