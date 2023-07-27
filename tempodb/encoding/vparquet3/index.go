@@ -10,15 +10,20 @@ import (
 
 type index struct {
 	lastID    common.ID
+	dirty     bool
 	RowGroups []common.ID `json:"rowGroups"`
 }
 
 func (i *index) Add(id common.ID) {
 	i.lastID = id
+	i.dirty = true
 }
 
 func (i *index) Flush() {
-	i.RowGroups = append(i.RowGroups, i.lastID)
+	if i.dirty {
+		i.RowGroups = append(i.RowGroups, i.lastID)
+		i.dirty = false
+	}
 }
 
 func (i *index) Marshal() ([]byte, error) {
