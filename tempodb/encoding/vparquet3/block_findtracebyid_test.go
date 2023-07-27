@@ -143,6 +143,31 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	}
 }
 
+/*func genIndex(t require.TestingT, block *backendBlock) *index {
+	pf, _, err := block.openForSearch(context.TODO(), common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	i := &index{}
+
+	for j := range pf.RowGroups() {
+		iter := parquetquery.NewSyncIterator(context.TODO(), pf.RowGroups()[j:j+1], 0, "", 1000, nil, "TraceID")
+		defer iter.Close()
+
+		for {
+			v, err := iter.Next()
+			require.NoError(t, err)
+			if v == nil {
+				break
+			}
+
+			i.Add(v.Entries[0].Value.ByteArray())
+		}
+		i.Flush()
+	}
+
+	return i
+}*/
+
 func BenchmarkFindTraceByID(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
