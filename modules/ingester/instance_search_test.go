@@ -387,8 +387,8 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Read: overrides.ReadConfig{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
 				MaxBytesPerTagValuesQuery: 10,
 			},
 		},
@@ -418,8 +418,8 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Read: overrides.ReadConfig{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
 				MaxBlocksPerTagValuesQuery: 1,
 			},
 		},

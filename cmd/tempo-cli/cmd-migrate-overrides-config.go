@@ -39,7 +39,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed to parse configFile %s: %w", cmd.ConfigFile, err)
 	}
 
-	o, err := overrides.NewOverrides(cfg.OverridesConfig)
+	o, err := overrides.NewOverrides(cfg.Overrides)
 	if err != nil {
 		return fmt.Errorf("failed to load overrides module: %w", err)
 	}
@@ -61,7 +61,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed parsing overrides config: %w", err)
 	}
 
-	cfg.OverridesConfig.DefaultOverrides = runtimeConfig.Defaults
+	cfg.Overrides.Defaults = runtimeConfig.Defaults
 	configBytes, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
@@ -76,7 +76,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		// Only print the overrides block
 		partialCfg := struct {
 			Overrides overrides.Config `yaml:"overrides"`
-		}{Overrides: cfg.OverridesConfig}
+		}{Overrides: cfg.Overrides}
 		overridesBytes, err := yaml.Marshal(partialCfg)
 		if err != nil {
 			return fmt.Errorf("failed to marshal overrides: %w", err)
@@ -94,7 +94,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 			return fmt.Errorf("failed to write overrides file: %w", err)
 		}
 	} else {
-		fmt.Println(cfg.OverridesConfig.PerTenantOverrideConfig)
+		fmt.Println(cfg.Overrides.PerTenantOverrideConfig)
 		fmt.Println(string(overridesBytes))
 	}
 

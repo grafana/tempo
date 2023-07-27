@@ -211,11 +211,11 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 func TestInstanceLimits(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Global: overrides.GlobalLimitsConfig{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
 				MaxBytesPerTrace: 1000,
 			},
-			Ingestion: overrides.IngestionConfig{
+			Ingestion: overrides.IngestionOverrides{
 				MaxLocalTracesPerUser: 4,
 			},
 		},
@@ -510,8 +510,8 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
 	limits, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Global: overrides.GlobalLimitsConfig{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
 				MaxBytesPerTrace: maxTraceBytes,
 			},
 		},

@@ -49,7 +49,7 @@ type Config struct {
 	Ingester        ingester.Config         `yaml:"ingester,omitempty"`
 	Generator       generator.Config        `yaml:"metrics_generator,omitempty"`
 	StorageConfig   storage.Config          `yaml:"storage,omitempty"`
-	OverridesConfig overrides.Config        `yaml:"overrides,omitempty"`
+	Overrides       overrides.Config        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
 
@@ -117,7 +117,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.GeneratorClient)
 	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
-	c.OverridesConfig.RegisterFlagsAndApplyDefaults(f)
+	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingester"), f)
@@ -190,7 +190,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTracesAndUserConfigurableOverridesStorageConflict)
 	}
 
-	if c.OverridesConfig.ConfigType == overrides.ConfigTypeLegacy {
+	if c.Overrides.ConfigType == overrides.ConfigTypeLegacy {
 		warnings = append(warnings, warnLegacyOverridesConfig)
 	}
 
@@ -266,7 +266,7 @@ func newV2Warning(setting string) ConfigWarning {
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace
-	overridesStorage := c.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig
+	overridesStorage := c.Overrides.UserConfigurableOverridesConfig.ClientConfig
 
 	if traceStorage.Backend != overridesStorage.Backend {
 		return false

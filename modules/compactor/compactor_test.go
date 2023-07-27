@@ -17,8 +17,8 @@ import (
 
 func TestCombineLimitsNotHit(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Global: overrides.GlobalLimitsConfig{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
 				MaxBytesPerTrace: math.MaxInt,
 			},
 		},
@@ -51,8 +51,8 @@ func TestCombineLimitsNotHit(t *testing.T) {
 
 func TestCombineLimitsHit(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Global: overrides.GlobalLimitsConfig{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
 				MaxBytesPerTrace: 1,
 			},
 		},
@@ -85,8 +85,8 @@ func TestCombineLimitsHit(t *testing.T) {
 
 func TestCombineDoesntEnforceZero(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{
-		DefaultOverrides: overrides.Overrides{
-			Global: overrides.GlobalLimitsConfig{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
 				MaxBytesPerTrace: math.MaxInt,
 			},
 		},

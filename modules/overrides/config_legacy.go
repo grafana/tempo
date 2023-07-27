@@ -109,39 +109,39 @@ type LegacyOverrides struct {
 
 func (l *LegacyOverrides) toNewLimits() Overrides {
 	return Overrides{
-		Ingestion: IngestionConfig{
+		Ingestion: IngestionOverrides{
 			RateStrategy:           l.IngestionRateStrategy,
 			RateLimitBytes:         l.IngestionRateLimitBytes,
 			BurstSizeBytes:         l.IngestionBurstSizeBytes,
 			MaxLocalTracesPerUser:  l.MaxLocalTracesPerUser,
 			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
 		},
-		Read: ReadConfig{
+		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
 			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
 			MaxSearchDuration:          l.MaxSearchDuration,
 		},
-		Compaction: CompactionConfig{
+		Compaction: CompactionOverrides{
 			BlockRetention: l.BlockRetention,
 		},
-		MetricsGenerator: MetricsGeneratorConfig{
+		MetricsGenerator: MetricsGeneratorOverrides{
 			RingSize:           l.MetricsGeneratorRingSize,
 			Processors:         l.MetricsGeneratorProcessors,
 			MaxActiveSeries:    l.MetricsGeneratorMaxActiveSeries,
 			CollectionInterval: l.MetricsGeneratorCollectionInterval,
 			DisableCollection:  l.MetricsGeneratorDisableCollection,
-			Forwarder: ForwarderConfig{
+			Forwarder: ForwarderOverrides{
 				QueueSize: l.MetricsGeneratorForwarderQueueSize,
 				Workers:   l.MetricsGeneratorForwarderWorkers,
 			},
-			Processor: ProcessorConfig{
-				ServiceGraphs: ServiceGraphsConfig{
+			Processor: ProcessorOverrides{
+				ServiceGraphs: ServiceGraphsOverrides{
 					HistogramBuckets:         l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
 					Dimensions:               l.MetricsGeneratorProcessorServiceGraphsDimensions,
 					PeerAttributes:           l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
 					EnableClientServerPrefix: l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
 				},
-				SpanMetrics: SpanMetricsConfig{
+				SpanMetrics: SpanMetricsOverrides{
 					HistogramBuckets:    l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
 					Dimensions:          l.MetricsGeneratorProcessorSpanMetricsDimensions,
 					IntrinsicDimensions: l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
@@ -149,7 +149,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					DimensionMappings:   l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
 					EnableTargetInfo:    l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
 				},
-				LocalBlocks: LocalBlocksConfig{
+				LocalBlocks: LocalBlocksOverrides{
 					MaxLiveTraces:        l.MetricsGeneratorProcessorLocalBlocksMaxLiveTraces,
 					MaxBlockDuration:     l.MetricsGeneratorProcessorLocalBlocksMaxBlockDuration,
 					MaxBlockBytes:        l.MetricsGeneratorProcessorLocalBlocksMaxBlockBytes,
@@ -160,7 +160,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			},
 		},
 		Forwarders: l.Forwarders,
-		Global: GlobalLimitsConfig{
+		Global: GlobalOverrides{
 			MaxBytesPerTrace: l.MaxBytesPerTrace,
 		},
 	}

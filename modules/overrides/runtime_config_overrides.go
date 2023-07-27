@@ -116,7 +116,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 
 	o := &runtimeConfigOverridesManager{
 		runtimeConfigMgr: manager,
-		defaultLimits:    &cfg.DefaultOverrides,
+		defaultLimits:    &cfg.Defaults,
 	}
 
 	if len(subservices) > 0 {

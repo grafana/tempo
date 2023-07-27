@@ -182,15 +182,15 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	o, err := overrides.NewOverrides(t.cfg.OverridesConfig)
+	o, err := overrides.NewOverrides(t.cfg.Overrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
 	t.Overrides = o
 
-	prometheus.MustRegister(&t.cfg.OverridesConfig)
+	prometheus.MustRegister(&t.cfg.Overrides)
 
-	if t.cfg.OverridesConfig.PerTenantOverrideConfig != "" {
+	if t.cfg.Overrides.PerTenantOverrideConfig != "" {
 		prometheus.MustRegister(t.Overrides)
 	}
 
@@ -198,7 +198,7 @@ func (t *App) initOverrides() (services.Service, error) {
 }
 
 func (t *App) initOverridesAPI() (services.Service, error) {
-	cfg := t.cfg.OverridesConfig.UserConfigurableOverridesConfig
+	cfg := t.cfg.Overrides.UserConfigurableOverridesConfig
 
 	if !cfg.Enabled {
 		return services.NewIdleService(nil, nil), nil

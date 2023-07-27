@@ -20,7 +20,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 	}{
 		"local rate limiter should just return configured limits": {
 			limits: overrides.Overrides{
-				Ingestion: overrides.IngestionConfig{
+				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.LocalIngestionRateStrategy,
 					RateLimitBytes: 5,
 					BurstSizeBytes: 2,
@@ -32,7 +32,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 		},
 		"global rate limiter should share the limit across the number of distributors": {
 			limits: overrides.Overrides{
-				Ingestion: overrides.IngestionConfig{
+				Ingestion: overrides.IngestionOverrides{
 					RateStrategy:   overrides.GlobalIngestionRateStrategy,
 					RateLimitBytes: 5,
 					BurstSizeBytes: 2,
@@ -56,7 +56,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 
 			// Init limits overrides
 			o, err := overrides.NewOverrides(overrides.Config{
-				DefaultOverrides: testData.limits,
+				Defaults: testData.limits,
 			})
 			require.NoError(t, err)
 

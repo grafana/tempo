@@ -33,13 +33,13 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		{
 			name: "limits only",
 			defaultLimits: Overrides{
-				Ingestion: IngestionConfig{
+				Ingestion: IngestionOverrides{
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
 					BurstSizeBytes:         4,
 					RateLimitBytes:         5,
 				},
-				Global: GlobalLimitsConfig{
+				Global: GlobalOverrides{
 					MaxBytesPerTrace: 3,
 				},
 			},
@@ -53,29 +53,29 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		{
 			name: "basic Overrides",
 			defaultLimits: Overrides{
-				Ingestion: IngestionConfig{
+				Ingestion: IngestionOverrides{
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
 					BurstSizeBytes:         4,
 					RateLimitBytes:         5,
 				},
-				Global: GlobalLimitsConfig{
+				Global: GlobalOverrides{
 					MaxBytesPerTrace: 3,
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
 					"user1": {
-						Ingestion: IngestionConfig{
+						Ingestion: IngestionOverrides{
 							MaxGlobalTracesPerUser: 6,
 							MaxLocalTracesPerUser:  7,
 							BurstSizeBytes:         9,
 							RateLimitBytes:         10,
 						},
-						Global: GlobalLimitsConfig{
+						Global: GlobalOverrides{
 							MaxBytesPerTrace: 8,
 						},
-						Read: ReadConfig{
+						Read: ReadOverrides{
 							MaxSearchDuration: model.Duration(11 * time.Second),
 						},
 					},
@@ -91,40 +91,40 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		{
 			name: "wildcard override",
 			defaultLimits: Overrides{
-				Ingestion: IngestionConfig{
+				Ingestion: IngestionOverrides{
 					MaxGlobalTracesPerUser: 1,
 					MaxLocalTracesPerUser:  2,
 					BurstSizeBytes:         4,
 					RateLimitBytes:         5,
 				},
-				Global: GlobalLimitsConfig{
+				Global: GlobalOverrides{
 					MaxBytesPerTrace: 3,
 				},
 			},
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
 					"user1": {
-						Ingestion: IngestionConfig{
+						Ingestion: IngestionOverrides{
 							MaxGlobalTracesPerUser: 6,
 							MaxLocalTracesPerUser:  7,
 							BurstSizeBytes:         9,
 							RateLimitBytes:         10,
 						},
-						Global: GlobalLimitsConfig{
+						Global: GlobalOverrides{
 							MaxBytesPerTrace: 8,
 						},
 					},
 					"*": {
-						Ingestion: IngestionConfig{
+						Ingestion: IngestionOverrides{
 							MaxGlobalTracesPerUser: 11,
 							MaxLocalTracesPerUser:  12,
 							BurstSizeBytes:         14,
 							RateLimitBytes:         15,
 						},
-						Global: GlobalLimitsConfig{
+						Global: GlobalOverrides{
 							MaxBytesPerTrace: 13,
 						},
-						Read: ReadConfig{
+						Read: ReadOverrides{
 							MaxSearchDuration: model.Duration(16 * time.Second),
 						},
 					},
@@ -142,7 +142,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				DefaultOverrides: tt.defaultLimits,
+				Defaults: tt.defaultLimits,
 			}
 
 			if tt.perTenantOverrides != nil {
@@ -189,7 +189,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 		})
 		t.Run(fmt.Sprintf("%s (legacy)", tt.name), func(t *testing.T) {
 			cfg := Config{
-				DefaultOverrides: tt.defaultLimits,
+				Defaults: tt.defaultLimits,
 			}
 
 			if tt.perTenantOverrides != nil {
@@ -254,9 +254,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		{
 			name: "limits only",
 			defaultLimits: Overrides{
-				MetricsGenerator: MetricsGeneratorConfig{
-					Processor: ProcessorConfig{
-						SpanMetrics: SpanMetricsConfig{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					Processor: ProcessorOverrides{
+						SpanMetrics: SpanMetricsOverrides{
 							EnableTargetInfo: true,
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
@@ -293,9 +293,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
 					"user1": {
-						MetricsGenerator: MetricsGeneratorConfig{
-							Processor: ProcessorConfig{
-								SpanMetrics: SpanMetricsConfig{
+						MetricsGenerator: MetricsGeneratorOverrides{
+							Processor: ProcessorOverrides{
+								SpanMetrics: SpanMetricsOverrides{
 									EnableTargetInfo: true,
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
@@ -325,9 +325,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		{
 			name: "wildcard override",
 			defaultLimits: Overrides{
-				MetricsGenerator: MetricsGeneratorConfig{
-					Processor: ProcessorConfig{
-						SpanMetrics: SpanMetricsConfig{
+				MetricsGenerator: MetricsGeneratorOverrides{
+					Processor: ProcessorOverrides{
+						SpanMetrics: SpanMetricsOverrides{
 							EnableTargetInfo: false,
 							DimensionMappings: []sharedconfig.DimensionMappings{
 								{
@@ -343,9 +343,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 			perTenantOverrides: &perTenantOverrides{
 				TenantLimits: map[string]*Overrides{
 					"user1": {
-						MetricsGenerator: MetricsGeneratorConfig{
-							Processor: ProcessorConfig{
-								SpanMetrics: SpanMetricsConfig{
+						MetricsGenerator: MetricsGeneratorOverrides{
+							Processor: ProcessorOverrides{
+								SpanMetrics: SpanMetricsOverrides{
 									EnableTargetInfo: true,
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
@@ -359,9 +359,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 						},
 					},
 					"*": {
-						MetricsGenerator: MetricsGeneratorConfig{
-							Processor: ProcessorConfig{
-								SpanMetrics: SpanMetricsConfig{
+						MetricsGenerator: MetricsGeneratorOverrides{
+							Processor: ProcessorOverrides{
+								SpanMetrics: SpanMetricsOverrides{
 									EnableTargetInfo: false,
 									DimensionMappings: []sharedconfig.DimensionMappings{
 										{
@@ -409,7 +409,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				DefaultOverrides: tt.defaultLimits,
+				Defaults: tt.defaultLimits,
 			}
 
 			if tt.perTenantOverrides != nil {

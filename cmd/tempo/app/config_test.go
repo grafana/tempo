@@ -108,8 +108,8 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.Local
 				cfg.StorageConfig.Trace.Local.Path = "/var/tempo"
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.Local
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.Local.Path = "/var/tempo"
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.Local
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.Local.Path = "/var/tempo"
 				return cfg
 			}(),
 			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
@@ -121,9 +121,9 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg.StorageConfig.Trace.Backend = backend.GCS
 				cfg.StorageConfig.Trace.GCS.BucketName = "bucketname"
 				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.GCS
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "bucketname"
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.GCS.Prefix = "tempo"
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.GCS
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.GCS.BucketName = "bucketname"
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.GCS.Prefix = "tempo"
 				return cfg
 			}(),
 			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
@@ -134,8 +134,8 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.GCS
 				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.S3
-				cfg.OverridesConfig.UserConfigurableOverridesConfig.ClientConfig.S3.Bucket = "my-bucket"
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.Backend = backend.S3
+				cfg.Overrides.UserConfigurableOverridesConfig.ClientConfig.S3.Bucket = "my-bucket"
 				return cfg
 			}(),
 			expect: nil,

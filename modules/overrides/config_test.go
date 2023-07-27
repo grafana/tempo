@@ -134,6 +134,8 @@ max_search_duration: 17s
 max_bytes_per_trace: 18
 per_tenant_override_config: /Overrides/Overrides.yaml
 per_tenant_override_period: 19s
+user_configurable_overrides:
+  enabled: true
 `
 
 	legacyCfg := Config{}
@@ -209,6 +211,8 @@ defaults:
     max_bytes_per_trace: 18
 per_tenant_override_config: /Overrides/Overrides.yaml
 per_tenant_override_period: 19s
+user_configurable_overrides:
+  enabled: true
 `
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})

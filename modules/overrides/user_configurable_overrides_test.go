@@ -23,7 +23,7 @@ const (
 
 func TestUserConfigOverridesManager(t *testing.T) {
 	defaultLimits := Overrides{
-		Global: GlobalLimitsConfig{
+		Global: GlobalOverrides{
 			MaxBytesPerTrace: 1024,
 		},
 		Forwarders: []string{"my-forwarder"},
@@ -183,7 +183,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides) (string, *user
 		},
 	}
 
-	baseOverrides, err := NewOverrides(Config{DefaultOverrides: baseLimits})
+	baseOverrides, err := NewOverrides(Config{Defaults: baseLimits})
 	assert.NoError(t, err)
 
 	configurableOverrides, err := newUserConfigOverrides(cfg, baseOverrides)
