@@ -197,7 +197,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
-		Delimiter: ".json",
+		Delimiter: "n",
 		Versions:  false,
 	})
 
