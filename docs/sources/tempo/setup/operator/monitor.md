@@ -1,5 +1,5 @@
 ---
-title: Monitor
+title: Monitor TempoStack instances
 description: Monitor TempoStack instances
 menuTitle: Monitor
 weight: 300
@@ -7,10 +7,9 @@ aliases:
 - /docs/tempo/operator/monitor
 ---
 
-# Monitor
+# Monitor TempoStack instances
 
-Tempo operator and `TempoStack` operands can be monitored.
-The monitoring configuration for operands is exposed the `TempoStack` CR:
+The configuration for monitoring `TempoStack` instances is exposed in the CR:
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
@@ -25,17 +24,16 @@ spec:
       jaeger_agent_endpoint: localhost:6831
 ```
 
-## Distributed Tracing
+## Configure distributed tracing of operands
 
 All Tempo components as well as the [Tempo Gateway](https://github.com/observatorium/api) support the export of traces in `thrift_compact` format.
 
-### Configure distributed tracing of operands
+### Deploy OpenTelemetry collector sidecar
 
-#### Deploy OpenTelemetry collector
-
-* Deploy [OpenTelemetry Operator](https://opentelemetry.io/docs/k8s-operator/#getting-started) installation.
-* Create an `OpenTelemetryCollector` CR that receives trace data in Jaeger Thrift format and exports data via OTLP to the desired trace backend.
-* *Optional:* Deploy tracing backend to store trace data.
+To deploy the OpenTelemetry collector, follow these steps:
+1. Install [OpenTelemetry Operator](https://opentelemetry.io/docs/k8s-operator/#getting-started) into the cluster.
+2. Create an `OpenTelemetryCollector` CR that receives trace data in Jaeger Thrift format and exports data via OTLP to the desired trace backend.
+3. **Optional:** Deploy tracing backend to store trace data.
 
 ```yaml
 apiVersion: opentelemetry.io/v1alpha1
@@ -63,11 +61,11 @@ spec:
           exporters: [otlp]
 ```
 
-#### Configuration
+### Send trace data to OpenTelemetry sidecar
 
-Finally, create a `TempoStack` instance that configures `jaeger_agent_endpoint` to report trace data to the `localhost`. 
-The Tempo operator sets the inject annotation `sidecar.opentelemetry.io/inject": "true` to all `TempoStack` pods.
-The annotation instructs the OpenTelemetry Operator to inject a sidecar into all `TempoStack` pods.
+Finally, create a `TempoStack` instance that sets `jaeger_agent_endpoint` to report trace data to the `localhost`. 
+The Tempo operator sets the OpenTelemetry inject annotation `sidecar.opentelemetry.io/inject": "true` to all `TempoStack` pods.
+The OpenTelemetry Operator will recognize the annotation, and it will inject a sidecar into all `TempoStack` pods.
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
