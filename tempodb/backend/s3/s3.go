@@ -288,14 +288,16 @@ func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) (
 		prefix = prefix + "/"
 	}
 
-	nextMarker := ""
+	nextToken := ""
 	isTruncated := true
 	var parts []string
 	var id uuid.UUID
-	var res minio.ListBucketResult
+	var res minio.ListBucketV2Result
 
 	for isTruncated {
-		res, err = rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, ".json", 0)
+		// The "n" delimter here is used to identify files that end with "n", which
+		// will yield json files.
+		res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "n", 0)
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
 		}
@@ -303,10 +305,10 @@ func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) (
 		// level.Debug(s.logger).Log("response", spew.Sdump(res))
 
 		isTruncated = res.IsTruncated
-		nextMarker = res.NextMarker
+		nextToken = res.NextContinuationToken
 
 		level.Debug(rw.logger).Log("msg", "block list", "keypath", path.Join(keypath...)+"/",
-			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
+			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextContinuationToken)
 
 		if len(res.CommonPrefixes) > 0 {
 			for _, cp := range res.CommonPrefixes {
@@ -329,7 +331,6 @@ func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) (
 				}
 			}
 		}
-
 	}
 
 	level.Debug(rw.logger).
