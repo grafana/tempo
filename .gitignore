@@ -1,6 +1,7 @@
 .DS_Store
 .idea
 .vscode
+*.test
 /bin
 /cmd/tempo-cli/tempo-cli
 /cmd/tempo-serverless/vendor/
