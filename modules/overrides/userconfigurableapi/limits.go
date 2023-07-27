@@ -72,8 +72,9 @@ func (l *UserConfigurableOverridesMetricsGeneratorProcessor) GetSpanMetrics() *U
 }
 
 type UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs struct {
-	Dimensions     *[]string
-	PeerAttributes *[]string `json:"peer_attributes,omitempty"`
+	Dimensions               *[]string `json:"dimensions"`
+	EnableClientServerPrefix *bool     `json:"enable_client_server_prefix"`
+	PeerAttributes           *[]string `json:"peer_attributes,omitempty"`
 }
 
 func (l *UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -81,6 +82,13 @@ func (l *UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs) GetDim
 		return *l.Dimensions, true
 	}
 	return nil, false
+}
+
+func (l *UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs) GetEnableClientServerPrefix() (bool, bool) {
+	if l != nil && l.EnableClientServerPrefix != nil {
+		return *l.EnableClientServerPrefix, true
+	}
+	return false, false
 }
 
 func (l *UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs) GetPeerAttributes() ([]string, bool) {
@@ -91,8 +99,8 @@ func (l *UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs) GetPee
 }
 
 type UserConfigurableOverridesMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions       *[]string
-	EnableTargetInfo *bool `json:"enable_target_info,omitempty"`
+	Dimensions       *[]string `json:"dimensions"`
+	EnableTargetInfo *bool     `json:"enable_target_info,omitempty"`
 }
 
 func (l *UserConfigurableOverridesMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {

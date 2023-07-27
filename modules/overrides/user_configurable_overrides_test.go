@@ -72,6 +72,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorDisableCollection(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
@@ -84,8 +85,9 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 			DisableCollection: boolPtr(true),
 			Processor: &api.UserConfigurableOverridesMetricsGeneratorProcessor{
 				ServiceGraphs: &api.UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs{
-					Dimensions:     &[]string{"sg-dimension"},
-					PeerAttributes: &[]string{"attribute"},
+					Dimensions:               &[]string{"sg-dimension"},
+					EnableClientServerPrefix: boolPtr(true),
+					PeerAttributes:           &[]string{"attribute"},
 				},
 				SpanMetrics: &api.UserConfigurableOverridesMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:       &[]string{"sm-dimension"},
@@ -100,6 +102,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"service-graphs": {}}, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorDisableCollection(tenant1))
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
