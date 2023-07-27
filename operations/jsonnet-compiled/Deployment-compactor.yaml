@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 6eb438b3ed5c9d479d974627acab1417
+        config_hash: 004e7f005ba26495e1943b7948696f5c
       labels:
         app: compactor
         name: compactor
