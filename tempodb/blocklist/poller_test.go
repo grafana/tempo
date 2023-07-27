@@ -9,9 +9,10 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 var (
@@ -575,7 +576,11 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 			_, _, err := poller.Do(b)
 
-			assert.Equal(t, tc.expectedError, err)
+			if tc.expectedError != nil {
+				assert.ErrorContains(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
