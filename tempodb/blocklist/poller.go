@@ -205,7 +205,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 		// there was an error, return the error if we're not supposed to fallback to polling
 		if !p.cfg.PollFallback {
-			return nil, nil, err
+			return nil, nil, errors.Wrap(err, "failed to pull tenant index and no fallback configured")
 		}
 
 		// polling fallback is true, log the error and continue in this method to completely poll the backend
@@ -221,7 +221,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 		level.Error(p.logger).Log("msg", "quick poll failed, falling back to long poll", "tenant", tenantID, "error", err)
 		blocklist, compactedBlocklist, err = p.pollTenantBlocks(derivedCtx, tenantID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Wrap(err, "polling failed")
 		}
 	}
 
