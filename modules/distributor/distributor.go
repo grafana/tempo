@@ -268,10 +268,47 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
+func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID string) error {
+	now := time.Now()
+	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
+		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
+		return status.Errorf(codes.ResourceExhausted,
+			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes",
+			overrides.ErrorPrefixRateLimited,
+			int(d.ingestionRateLimiter.Limit(now, userID)),
+			tracesSize)
+	}
+
+	return nil
+}
+
+func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
+	user, e := user.ExtractOrgID(ctx)
+	if e != nil {
+		return "", 0, 0, e
+	}
+
+	return user, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+}
+
 // PushTraces pushes a batch of traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushTraces")
 	defer span.Finish()
+
+	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
+	if err != nil {
+		// can't record discarded spans here b/c there's no tenant
+		return nil, err
+	}
+	if spanCount == 0 {
+		return &tempopb.PushResponse{}, nil
+	}
+	// check limits
+	err = d.checkForRateLimits(size, spanCount, userID)
+	if err != nil {
+		return nil, err
+	}
 
 	// Convert to bytes and back. This is unfortunate for efficiency, but it works
 	// around the otel-collector internalization of otel-proto which Tempo also uses.
@@ -290,12 +327,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	batches := trace.Batches
 
-	userID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		// can't record discarded spans here b/c there's no tenant
-		return nil, err
-	}
-
 	if d.cfg.LogReceivedSpans.Enabled || d.cfg.LogReceivedTraces {
 		if d.cfg.LogReceivedSpans.IncludeAllAttributes {
 			logSpansWithAllAttributes(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
@@ -304,31 +335,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		}
 	}
 
-	// metric size
-	size := 0
-	spanCount := 0
-	for _, b := range batches {
-		size += b.Size()
-		for _, ils := range b.ScopeSpans {
-			spanCount += len(ils.Spans)
-		}
-	}
-	if spanCount == 0 {
-		return &tempopb.PushResponse{}, nil
-	}
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
-
-	// check limits
-	now := time.Now()
-	if !d.ingestionRateLimiter.AllowN(now, userID, size) {
-		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
-		return nil, status.Errorf(codes.ResourceExhausted,
-			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes",
-			overrides.ErrorPrefixRateLimited,
-			int(d.ingestionRateLimiter.Limit(now, userID)),
-			size)
-	}
 
 	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {

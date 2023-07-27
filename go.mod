@@ -100,6 +100,7 @@ require (
 
 require (
 	github.com/Azure/go-autorest/autorest v0.11.28
+	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/grafana/gomemcache v0.0.0-20230316202710-a081dae0aba9

@@ -31,38 +31,54 @@ type readerWriter struct {
 	hedgedContainerURL blob.ContainerURL
 }
 
+var (
+	_ backend.RawReader             = (*readerWriter)(nil)
+	_ backend.RawWriter             = (*readerWriter)(nil)
+	_ backend.Compactor             = (*readerWriter)(nil)
+	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
+)
+
 type appendTracker struct {
 	Name string
 }
 
 // NewNoConfirm gets the Azure blob container without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	return internalNew(cfg, false)
+	rw, err := internalNew(cfg, false)
+	return rw, rw, rw, err
 }
 
 // New gets the Azure blob container
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	rw, err := internalNew(cfg, true)
+	return rw, rw, rw, err
+}
+
+// NewVersionedReaderWriter creates a client to perform versioned requests. Note that write requests are
+// best-effort for now. We need to update the SDK to make use of the precondition headers.
+// https://github.com/grafana/tempo/issues/2705
+func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
 	return internalNew(cfg, true)
 }
 
-func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	ctx := context.Background()
 
 	container, err := GetContainer(ctx, cfg, false)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "getting storage container")
+		return nil, errors.Wrap(err, "getting storage container")
 	}
 
 	hedgedContainer, err := GetContainer(ctx, cfg, true)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "getting hedged storage container")
+		return nil, errors.Wrap(err, "getting hedged storage container")
 	}
 
 	if confirm {
 		// Getting container properties to check if container exists
 		_, err = container.GetProperties(ctx, blob.LeaseAccessConditions{})
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to GetProperties: %w", err)
+			return nil, fmt.Errorf("failed to GetProperties: %w", err)
 		}
 	}
 
@@ -72,7 +88,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 		hedgedContainerURL: hedgedContainer,
 	}
 
-	return rw, rw, rw, nil
+	return rw, nil
 }
 
 // Write implements backend.Writer
@@ -196,6 +212,44 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
+}
+
+func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+	// TODO use conditional if-match API
+	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
+	if err != nil && err != backend.ErrDoesNotExist {
+		return "", err
+	}
+	if err != backend.ErrDoesNotExist && currentVersion != version {
+		return "", backend.ErrVersionDoesNotMatch
+	}
+
+	err = rw.Write(ctx, name, keypath, data, -1, false)
+	if err != nil {
+		return "", err
+	}
+
+	_, currentVersion, err = rw.ReadVersioned(ctx, name, keypath)
+	return currentVersion, err
+}
+
+func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	// TODO use conditional if-match API
+	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
+	if err != nil && err != backend.ErrDoesNotExist {
+		return err
+	}
+	if err != backend.ErrDoesNotExist && currentVersion != version {
+		return backend.ErrVersionDoesNotMatch
+	}
+
+	return rw.Delete(ctx, name, keypath, false)
+}
+
+func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
+	// TODO properly extract version from object
+	readCloser, _, err := rw.Read(ctx, name, keypath, false)
+	return readCloser, backend.VersionNew, err
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {

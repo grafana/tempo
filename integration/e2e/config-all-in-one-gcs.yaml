@@ -45,8 +45,9 @@ overrides:
     poll_interval: 10s
     client:
       backend: gcs
+      # fsouza/fake-gcs-server does not support versioning
+      confirm_versioning: false
       gcs:
-        # TODO use separate bucket?
         bucket_name: tempo
         endpoint: https://tempo_e2e-gcs:4443/storage/v1/
         insecure: true

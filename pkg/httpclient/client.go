@@ -215,48 +215,50 @@ func (c *Client) buildQueryURL(queryType string, query string, start int64, end 
 	return fmt.Sprint(joinURL)
 }
 
-func (c *Client) GetOverrides() (*api.UserConfigurableLimits, error) {
+func (c *Client) GetOverrides() (*api.UserConfigurableLimits, string, error) {
 	req, err := http.NewRequest("GET", c.BaseURL+tempo_api.PathOverrides, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	req.Header.Set(acceptHeader, applicationJSON)
 
 	resp, body, err := c.doRequest(req)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, ErrNotFound
+			return nil, "", ErrNotFound
 		}
-		return nil, err
+		return nil, "", err
 	}
 
 	limits := &api.UserConfigurableLimits{}
 	if err = json.Unmarshal(body, limits); err != nil {
-		return nil, fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
+		return nil, "", fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
 	}
-	return limits, err
+	return limits, resp.Header.Get("Etag"), err
 }
 
-func (c *Client) SetOverrides(limits *api.UserConfigurableLimits) error {
+func (c *Client) SetOverrides(limits *api.UserConfigurableLimits, version string) (string, error) {
 	b, err := json.Marshal(limits)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", c.BaseURL+tempo_api.PathOverrides, bytes.NewBuffer(b))
 	if err != nil {
-		return err
+		return "", err
 	}
+	req.Header.Set("If-Match", version)
 
-	_, _, err = c.doRequest(req)
-	return err
+	resp, _, err := c.doRequest(req)
+	return resp.Header.Get("Etag"), err
 }
 
-func (c *Client) DeleteOverrides() error {
+func (c *Client) DeleteOverrides(version string) error {
 	req, err := http.NewRequest("DELETE", c.BaseURL+tempo_api.PathOverrides, nil)
 	if err != nil {
 		return err
 	}
+	req.Header.Set("If-Match", version)
 
 	_, _, err = c.doRequest(req)
 	return err
