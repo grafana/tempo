@@ -18,6 +18,7 @@ import (
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // perTenantOverrides represents the overrides config file
@@ -414,6 +415,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksComp
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
+}
+
+func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.DedicatedColumns {
+	return o.getOverridesForUser(userID).Storage.DedicatedColumns
 }
 
 func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {

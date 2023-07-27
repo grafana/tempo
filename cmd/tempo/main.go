@@ -56,7 +56,7 @@ func main() {
 	ballastMBs := flag.Int("mem-ballast-size-mbs", 0, "Size of memory ballast to allocate in MBs.")
 	mutexProfileFraction := flag.Int("mutex-profile-fraction", 0, "Enable mutex profiling.")
 
-	config, warningLogs, err := loadConfig()
+	config, configVerify, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed parsing config: %v\n", err)
 		os.Exit(1)
@@ -73,9 +73,15 @@ func main() {
 	}
 	log.InitLogger(&config.Server)
 
-	// Log warnings from loading the config now the logger is initialized
-	for _, warning := range warningLogs {
-		level.Warn(log.Logger).Log(warning...)
+	// Verifying the config's validity and log warnings now that the logger is initialized
+	isValid := configIsValid(config)
+
+	// Exit if config.verify flag is true
+	if configVerify {
+		if isValid {
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	// Init tracer
@@ -114,23 +120,23 @@ func main() {
 	runtime.KeepAlive(ballast)
 }
 
-func configIsValid(config *app.Config) (warningLogs [][]any, isValid bool) {
+func configIsValid(config *app.Config) bool {
 	// Warn the user for suspect configurations
 	if warnings := config.CheckConfig(); len(warnings) != 0 {
-		warningLogs = append(warningLogs, []any{"msg", "-- CONFIGURATION WARNINGS --"})
+		level.Warn(log.Logger).Log("msg", "-- CONFIGURATION WARNINGS --")
 		for _, w := range warnings {
 			output := []any{"msg", w.Message}
 			if w.Explain != "" {
 				output = append(output, "explain", w.Explain)
 			}
-			warningLogs = append(warningLogs, output)
+			level.Warn(log.Logger).Log(output...)
 		}
-		return warningLogs, false
+		return false
 	}
-	return warningLogs, true
+	return true
 }
 
-func loadConfig() (*app.Config, [][]any, error) {
+func loadConfig() (*app.Config, bool, error) {
 	const (
 		configFileOption      = "config.file"
 		configExpandEnvOption = "config.expand-env"
@@ -169,20 +175,20 @@ func loadConfig() (*app.Config, [][]any, error) {
 	if configFile != "" {
 		buff, err := os.ReadFile(configFile)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
+			return nil, false, fmt.Errorf("failed to read configFile %s: %w", configFile, err)
 		}
 
 		if configExpandEnv {
 			s, err := envsubst.EvalEnv(string(buff))
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
+				return nil, false, fmt.Errorf("failed to expand env vars from configFile %s: %w", configFile, err)
 			}
 			buff = []byte(s)
 		}
 
 		err = yaml.UnmarshalStrict(buff, config)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
+			return nil, false, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}
 
 	}
@@ -205,16 +211,7 @@ func loadConfig() (*app.Config, [][]any, error) {
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 	}
 
-	// after finalizing the configuration, verify its validity and exit if config.verify flag is true.
-	warningLogs, isValid := configIsValid(config)
-	if configVerify {
-		if !isValid {
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
-	return config, warningLogs, nil
+	return config, configVerify, nil
 }
 
 func installOpenTracingTracer(config *app.Config) (func(), error) {

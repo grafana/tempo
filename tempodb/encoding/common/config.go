@@ -30,6 +30,9 @@ type BlockConfig struct {
 
 	// parquet fields
 	RowGroupSizeBytes int `yaml:"parquet_row_group_size_bytes"`
+
+	// vParquet3 fields
+	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns"`
 }
 
 func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -62,5 +65,5 @@ func ValidateConfig(b *BlockConfig) error {
 		return fmt.Errorf("positive value required for bloom-filter shard size")
 	}
 
-	return nil
+	return b.DedicatedColumns.Validate()
 }

@@ -3,6 +3,8 @@ package overrides
 import (
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/common/model"
@@ -49,6 +51,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
+
+		DedicatedColumns: c.Storage.DedicatedColumns,
 	}
 }
 
@@ -105,6 +109,9 @@ type LegacyOverrides struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+
+	// tempodb limits
+	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 }
 
 func (l *LegacyOverrides) toNewLimits() Overrides {
@@ -162,6 +169,9 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 		Forwarders: l.Forwarders,
 		Global: GlobalOverrides{
 			MaxBytesPerTrace: l.MaxBytesPerTrace,
+		},
+		Storage: StorageOverrides{
+			DedicatedColumns: l.DedicatedColumns,
 		},
 	}
 }

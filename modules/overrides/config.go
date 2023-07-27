@@ -4,6 +4,8 @@ import (
 	"flag"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend"
+
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -132,6 +134,11 @@ type GlobalOverrides struct {
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
 }
 
+type StorageOverrides struct {
+	// tempodb limits
+	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
+}
+
 type Overrides struct {
 	// Ingestion enforced overrides.
 	Ingestion IngestionOverrides `yaml:"ingestion,omitempty" json:"ingestion,omitempty"`
@@ -145,6 +152,8 @@ type Overrides struct {
 	Forwarders []string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
 	// Global enforced overrides.
 	Global GlobalOverrides `yaml:"global,omitempty" json:"global,omitempty"`
+	// Storage enforced overrides.
+	Storage StorageOverrides `yaml:"storage,omitempty" json:"storage,omitempty"`
 }
 
 type Config struct {

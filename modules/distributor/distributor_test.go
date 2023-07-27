@@ -1000,6 +1000,50 @@ func TestLogSpans(t *testing.T) {
 	}
 }
 
+func TestRateLimitRespected(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{
+		Defaults: overrides.Overrides{
+			Ingestion: overrides.IngestionOverrides{
+				RateStrategy:   overrides.LocalIngestionRateStrategy,
+				RateLimitBytes: 400,
+				BurstSizeBytes: 200,
+			},
+		},
+	}
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d := prepare(t, overridesConfig, nil, logger)
+	batches := []*v1.ResourceSpans{
+		makeResourceSpans("test-service", []*v1.ScopeSpans{
+			makeScope(
+				makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil,
+					makeAttribute("tag1", "value1")),
+				makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
+					makeAttribute("tag1", "value1"),
+					makeAttribute("tag2", "value2"))),
+			makeScope(
+				makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+		}, makeAttribute("resource_attribute1", "value1")),
+		makeResourceSpans("test-service2", []*v1.ScopeSpans{
+			makeScope(
+				makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+		}, makeAttribute("resource_attribute2", "value2")),
+	}
+	traces := batchesToTraces(t, batches)
+
+	// invoke unit
+	_, err := d.PushTraces(ctx, traces)
+
+	// validations
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	status, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.True(t, status.Code() == codes.ResourceExhausted, "Wrong status code")
+}
+
 type logSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
@@ -1015,14 +1059,14 @@ type logSpan struct {
 	ResourceAttribute2 string `json:"span_resource_attribute2,omitempty"`
 }
 
-func makeAttribute(key string, value string) *v1_common.KeyValue {
+func makeAttribute(key, value string) *v1_common.KeyValue {
 	return &v1_common.KeyValue{
 		Key:   key,
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: value}},
 	}
 }
 
-func makeSpan(traceID string, spanID string, name string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
+func makeSpan(traceID, spanID, name string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
 	if status == nil {
 		status = &v1.Status{Code: v1.Status_STATUS_CODE_OK}
 	}

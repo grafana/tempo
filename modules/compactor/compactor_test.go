@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestCombineLimitsNotHit(t *testing.T) {
@@ -133,6 +134,41 @@ func TestCountSpans(t *testing.T) {
 	assert.Equal(t, t1ExpectedSpans, b1Total)
 	assert.Equal(t, t2ExpectedSpans, b2Total)
 	assert.Equal(t, t1ExpectedSpans+t2ExpectedSpans, total)
+}
+
+func TestDedicatedColumns(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Storage: overrides.StorageOverrides{
+				DedicatedColumns: backend.DedicatedColumns{
+					{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
+					{Scope: "span", Name: "dedicated.span.1", Type: "string"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	c := &Compactor{overrides: o}
+
+	tr := test.AddDedicatedAttributes(test.MakeTraceWithSpanCount(2, 10, nil))
+	t1 := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			tr.Batches[0],
+		},
+	}
+	t2 := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			tr.Batches[1],
+		},
+	}
+	obj1 := encode(t, t1)
+	obj2 := encode(t, t2)
+
+	actual, wasCombined, err := c.Combine(model.CurrentEncoding, "test", obj1, obj2)
+	assert.NoError(t, err)
+	assert.Equal(t, true, wasCombined)
+	assert.Equal(t, encode(t, tr), actual) // entire trace should be returned
 }
 
 func encode(t *testing.T, tr *tempopb.Trace) []byte {

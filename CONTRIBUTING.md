@@ -173,7 +173,7 @@ If your content needs to be added to a previous release, use the `backport` labe
 To preview the documentation locally, run `make docs` from the root folder of the Tempo repository. This uses
 the `grafana/docs` image which internally uses Hugo to generate the static site. The site is available on `localhost:3002/docs/`.
 
-> **Note** The `make docs` command uses a lot of memory. If its crashing make sure to increase the memory allocated to Docker
+> **Note** The `make docs` command uses a lot of memory. If it is crashing, make sure to increase the memory allocated to Docker
 > and try again.
 
 ### Publishing process

@@ -40,6 +40,7 @@ For externally support GRPC API [see below](#tempo-grpc-api)
 | [Metrics-generator ring status](#metrics-generator-ring-status) (*) | Distributor |  HTTP | `GET /metrics-generator/ring` |
 | [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
 | [Status](#status) | Status |  HTTP | `GET /status` |
+| [List build information](#list-build-information) | Status |  HTTP | `GET /api/status/buildinfo` |
 
 _(*) This endpoint is not always available, check the specific section for more details._
 
@@ -560,6 +561,12 @@ GET /status/usage-stats
 ```
 
 Displays anonymous usage stats data that is reported back to Grafana Labs.
+
+### List build information
+```
+GET /api/status/buildinfo
+```
+Exposes the build information in a JSON object. The fields are `version`, `revision`, `branch`, `buildDate`, `buildUser`, and `goVersion`.
 
 ## Tempo GRPC API
 
