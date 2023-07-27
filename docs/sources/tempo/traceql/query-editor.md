@@ -16,24 +16,37 @@ keywords:
 You can compose TraceQL queries in Grafana and Grafana Cloud using **Explore** and a Tempo data source. You can use either the **Query type** > **Search** (the TraceQL query builder) or the **TraceQL** tab (the TraceQL query editor).
 Both of these methods let you build queries and drill-down into result sets.
 
-The TraceQL query builder, located on the **Explore** > **Query type** > **Search**, provides drop-downs and text fields to help you write a query.
-![The TraceQL query builder](/static/img/docs/tempo/screenshot-traceql-query-type-search-v10.png)
-
-The TraceQL query editor, located on the **Explore** > **TraceQL** tab, lets you search by trace ID and write TraceQL queries using autocomplete.
-
-![The TraceQL query editor](/static/img/docs/tempo/screenshot-traceql-query-editor-v10.png)
-
 To add TraceQL panels to your dashboard, refer to the [Traces panel documentation](/docs/grafana/latest/panels-visualizations/visualizations/traces/).
 
 To learn more about Grafana dashboards, refer to the [Use dashboards documentation](/docs/grafana/latest/dashboards/use-dashboards/).
 
-{{% admonition type="note" %}}
-The query editor and builder are available in Grafana Cloud without activating a feature toggle.
+## TraceQL query builder
 
-To use the TraceQL query editor in self-hosted Grafana 9.3.2 and newer, you need to enable the `traceqlEditor` feature toggle ([refer to instructions for enabling feature toggles](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).)
+The TraceQL query builder, located on the **Explore** > **Query type** > **Search** in Grafana, provides drop-downs and text fields to help you write a query.
 
-To enable the Trace Search in self-hosted Grafana through version 10.1, you need to [enable the `traceqlSearch` feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/). Grafana 10.1 and later have this feature activated by default.
-{{% /admonition %}}
+![The TraceQL query builder](/static/img/docs/tempo/screenshot-traceql-query-type-search-v10.png)
+
+### Enable TraceQL query builder
+
+
+Grafana Cloud and Grafana 10.1 and later have this feature enabled by default.
+
+To enable the TraceQL query builder in self-hosted Grafana through version 10.1, [enable the `traceqlSearch` feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).
+
+
+## TraceQL query editor
+
+The TraceQL query editor, located on the **Explore** > **TraceQL** tab in Grafana, lets you search by trace ID and write TraceQL queries using autocomplete.
+
+![The TraceQL query editor](/static/img/docs/tempo/screenshot-traceql-query-editor-v10.png)
+
+### Enable TracedQL query editor
+
+This feature is available in Grafana and Grafana Cloud.
+
+Grafana Cloud and Grafana 10 and newer have this feature enabled by default.
+
+To use the TraceQL query editor in self-hosted Grafana 9.3.2 and older, you need to [enable the `traceqlEditor` feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).
 
 ## Write TraceQL queries using the query editor
 
