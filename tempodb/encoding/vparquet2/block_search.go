@@ -38,7 +38,7 @@ const (
 	KindProducer    = "producer"
 	KindConsumer    = "consumer"
 
-	EnvVarAsyncIteratorName  = "VPARQUET2_ASYNC_ITERATOR"
+	EnvVarAsyncIteratorName  = "VPARQUET_ASYNC_ITERATOR"
 	EnvVarAsyncIteratorValue = "1"
 )
 

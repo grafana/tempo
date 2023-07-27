@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 	"golang.org/x/oauth2"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 func TestAuthHeader(t *testing.T) {

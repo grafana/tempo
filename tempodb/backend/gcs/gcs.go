@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -30,33 +31,62 @@ type readerWriter struct {
 	hedgedBucket *storage.BucketHandle
 }
 
+var (
+	_ backend.RawReader             = (*readerWriter)(nil)
+	_ backend.RawWriter             = (*readerWriter)(nil)
+	_ backend.Compactor             = (*readerWriter)(nil)
+	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
+)
+
 // NewNoConfirm gets the GCS backend without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	return internalNew(cfg, false)
+	rw, err := internalNew(cfg, false)
+	return rw, rw, rw, err
 }
 
 // New gets the GCS backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	return internalNew(cfg, true)
+	rw, err := internalNew(cfg, true)
+	return rw, rw, rw, err
 }
 
-func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+func NewVersionedReaderWriter(cfg *Config, confirmVersioning bool) (backend.VersionedReaderWriter, error) {
+	rw, err := internalNew(cfg, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if confirmVersioning {
+		bucketAttrs, err := rw.bucket.Attrs(context.Background())
+		if err != nil {
+			return nil, errors.Wrap(err, "getting bucket attrs")
+		}
+
+		if !bucketAttrs.VersioningEnabled {
+			return nil, errors.New("versioning is not enabled on bucket")
+		}
+	}
+
+	return rw, nil
+}
+
+func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	ctx := context.Background()
 
 	bucket, err := createBucket(ctx, cfg, false)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "creating bucket")
+		return nil, errors.Wrap(err, "creating bucket")
 	}
 
 	hedgedBucket, err := createBucket(ctx, cfg, true)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "creating hedged bucket")
+		return nil, errors.Wrap(err, "creating hedged bucket")
 	}
 
 	// Check bucket exists by getting attrs
 	if confirm {
 		if _, err = bucket.Attrs(ctx); err != nil {
-			return nil, nil, nil, errors.Wrap(err, "getting bucket attrs")
+			return nil, errors.Wrap(err, "getting bucket attrs")
 		}
 	}
 
@@ -66,7 +96,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 		hedgedBucket: hedgedBucket,
 	}
 
-	return rw, rw, rw, nil
+	return rw, nil
 }
 
 // Write implements backend.Writer
@@ -77,7 +107,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 	span.SetTag("object", name)
 
-	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name))
+	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), nil)
 
 	_, err := io.Copy(w, data)
 	if err != nil {
@@ -99,7 +129,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 
 	var w *storage.Writer
 	if tracker == nil {
-		w = rw.writer(ctx, backend.ObjectFileName(keypath, name))
+		w = rw.writer(ctx, backend.ObjectFileName(keypath, name), nil)
 	} else {
 		w = tracker.(*storage.Writer)
 	}
@@ -123,8 +153,8 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
-	handle := rw.bucket.Object(backend.ObjectFileName(keypath, name))
-	return handle.Delete(ctx)
+	return rw.bucket.Object(backend.ObjectFileName(keypath, name)).
+		Delete(ctx)
 }
 
 // List implements backend.Reader
@@ -165,7 +195,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 
 	span.SetTag("object", name)
 
-	b, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
+	b, _, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		span.SetTag("error", true)
 	}
@@ -192,8 +222,80 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
+func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.WriteVersioned", opentracing.Tags{
+		"object": name,
+	})
+	defer span.Finish()
+
+	generation, err := strconv.ParseInt(string(version), 10, 64)
+	if err != nil {
+		return "", errors.New("invalid version number")
+	}
+
+	preconditions := &storage.Conditions{
+		GenerationMatch: generation,
+	}
+	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), preconditions)
+
+	_, err = io.Copy(w, data)
+	if err != nil {
+		w.Close()
+		span.SetTag("error", true)
+		return "", errors.Wrap(err, "failed to write")
+	}
+
+	err = w.Close()
+	if err != nil {
+		return "", err
+	}
+
+	return toVersion(w.Attrs().Generation), nil
+}
+
+func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	object := rw.bucket.Object(backend.ObjectFileName(keypath, name))
+
+	if version != backend.VersionNew {
+		generation, err := strconv.ParseInt(string(version), 10, 64)
+		if err != nil {
+			return errors.New("invalid version number")
+		}
+
+		preconditions := storage.Conditions{
+			GenerationMatch: generation,
+		}
+		object.If(preconditions)
+	}
+
+	return object.Delete(ctx)
+}
+
+func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadVersioned", opentracing.Tags{
+		"object": name,
+	})
+	defer span.Finish()
+
+	b, attrs, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
+	if err != nil {
+		span.SetTag("error", true)
+		return nil, "", readError(err)
+	}
+	return io.NopCloser(bytes.NewReader(b)), toVersion(attrs.Generation), nil
+}
+
+func toVersion(generation int64) backend.Version {
+	return backend.Version(fmt.Sprint(generation))
+}
+
+func (rw *readerWriter) writer(ctx context.Context, name string, conditions *storage.Conditions) *storage.Writer {
 	o := rw.bucket.Object(name)
+	if (conditions != nil && *conditions != storage.Conditions{}) {
+		o = o.If(*conditions)
+	}
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 
@@ -208,29 +310,19 @@ func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer
 	return w
 }
 
-func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
+func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, *storage.ReaderObjectAttrs, error) {
 	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
 	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	return tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
-}
-
-func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
-	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
-	if err != nil {
-		return nil, time.Time{}, err
+		return nil, nil, err
 	}
 	defer r.Close()
 
 	buf, err := tempo_io.ReadAllWithEstimate(r, r.Attrs.Size)
 	if err != nil {
-		return nil, time.Time{}, err
+		return nil, nil, err
 	}
 
-	return buf, r.Attrs.LastModified, nil
+	return buf, &r.Attrs, nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, buffer []byte) error {

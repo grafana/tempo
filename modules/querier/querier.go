@@ -749,16 +749,22 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		return nil, err
 	}
 
+	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
+	if err != nil {
+		return nil, err
+	}
+
 	meta := &backend.BlockMeta{
-		Version:       req.Version,
-		TenantID:      tenantID,
-		Encoding:      enc,
-		Size:          req.Size_,
-		IndexPageSize: req.IndexPageSize,
-		TotalRecords:  req.TotalRecords,
-		BlockID:       blockID,
-		DataEncoding:  req.DataEncoding,
-		FooterSize:    req.FooterSize,
+		Version:          req.Version,
+		TenantID:         tenantID,
+		Encoding:         enc,
+		Size:             req.Size_,
+		IndexPageSize:    req.IndexPageSize,
+		TotalRecords:     req.TotalRecords,
+		BlockID:          blockID,
+		DataEncoding:     req.DataEncoding,
+		FooterSize:       req.FooterSize,
+		DedicatedColumns: dc,
 	}
 
 	opts := common.DefaultSearchOptions()

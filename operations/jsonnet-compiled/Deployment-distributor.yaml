@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: cdd8a088be55b9c2b79b94526df424f2
+        config_hash: 028b09123416ff106e411d57dafeadd8
       labels:
         app: distributor
         name: distributor

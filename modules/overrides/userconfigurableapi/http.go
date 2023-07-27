@@ -1,9 +1,13 @@
 package userconfigurableapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
@@ -15,6 +19,12 @@ import (
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
+)
+
+const (
+	headerEtag    = "ETag"
+	headerIfMatch = "If-Match"
 )
 
 type Validator interface {
@@ -67,14 +77,13 @@ func (a *UserConfigOverridesAPI) GetOverridesHandler(w http.ResponseWriter, r *h
 	}
 	logRequest(userID, r)
 
-	limits, err := a.client.Get(ctx, userID)
-	if err != nil {
-		handleError(span, userID, r, w, http.StatusInternalServerError, err)
+	limits, version, err := a.client.Get(ctx, userID)
+	if err == backend.ErrDoesNotExist {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-
-	if limits == nil {
-		w.WriteHeader(http.StatusNotFound)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -84,8 +93,8 @@ func (a *UserConfigOverridesAPI) GetOverridesHandler(w http.ResponseWriter, r *h
 		return
 	}
 
+	w.Header().Set(headerEtag, string(version))
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
-	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
 
@@ -102,6 +111,12 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 	}
 	logRequest(userID, r)
 
+	ifMatchVersion := r.Header.Get(headerIfMatch)
+	if ifMatchVersion == "" {
+		handleError(span, userID, r, w, http.StatusPreconditionRequired, errors.New("must specify If-Match header"))
+		return
+	}
+
 	d := jsoniter.NewDecoder(r.Body)
 	// error in case of unwanted fields
 	d.DisallowUnknownFields()
@@ -110,7 +125,6 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 
 	err = d.Decode(&limits)
 	if err != nil {
-		// bad JSON or unrecognized json field
 		handleError(span, userID, r, w, http.StatusBadRequest, err)
 		return
 	}
@@ -121,12 +135,90 @@ func (a *UserConfigOverridesAPI) PostOverridesHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	err = a.client.Set(ctx, userID, limits)
+	version, err := a.client.Set(ctx, userID, limits, backend.Version(ifMatchVersion))
+	if err == backend.ErrVersionDoesNotMatch {
+		handleError(span, userID, r, w, http.StatusPreconditionFailed, err)
+		return
+	}
 	if err != nil {
 		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "failed to store user-configurable limits"))
+		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set(headerEtag, string(version))
+}
+
+func (a *UserConfigOverridesAPI) PatchOverridesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.PatchOverridesHandler")
+	defer span.Finish()
+
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
+	logRequest(userID, r)
+
+	patch, err := io.ReadAll(r.Body)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusInternalServerError, err)
+		return
+	}
+
+	currLimits, currVersion, err := a.client.Get(ctx, userID)
+	if err != nil && err != backend.ErrDoesNotExist {
+		handleError(span, userID, r, w, http.StatusInternalServerError, err)
+		return
+	}
+
+	patchedBytes := patch
+	if err != backend.ErrDoesNotExist {
+		currBytes, err := json.Marshal(currLimits)
+		if err != nil {
+			handleError(span, userID, r, w, http.StatusInternalServerError, err)
+			return
+		}
+
+		patchedBytes, err = jsonpatch.MergePatch(currBytes, patch)
+		if err != nil {
+			handleError(span, userID, r, w, http.StatusBadRequest, errors.Wrap(err, "applying patch failed"))
+			return
+		}
+	} else {
+		currVersion = backend.VersionNew
+	}
+
+	var patchedLimits UserConfigurableLimits
+	d := jsoniter.NewDecoder(bytes.NewReader(patchedBytes))
+	// error in case of unwanted fields
+	d.DisallowUnknownFields()
+
+	err = d.Decode(&patchedLimits)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
+
+	err = a.validator.Validate(&patchedLimits)
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusBadRequest, err)
+		return
+	}
+
+	updatedVersion, err := a.client.Set(ctx, userID, &patchedLimits, currVersion)
+	if err == backend.ErrVersionDoesNotMatch {
+		handleError(span, userID, r, w, http.StatusInternalServerError, errors.New("overrides have been modified during request processing, try again"))
+		return
+	}
+	if err != nil {
+		handleError(span, userID, r, w, http.StatusInternalServerError, err)
+		return
+	}
+
+	w.Header().Set(headerEtag, string(updatedVersion))
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	_, _ = w.Write(patchedBytes)
 }
 
 func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r *http.Request) {
@@ -141,9 +233,15 @@ func (a *UserConfigOverridesAPI) DeleteOverridesHandler(w http.ResponseWriter, r
 	}
 	logRequest(userID, r)
 
-	err = a.client.Delete(ctx, userID)
+	ifMatchVersion := r.Header.Get(headerIfMatch)
+	if ifMatchVersion == "" {
+		handleError(span, userID, r, w, http.StatusPreconditionRequired, errors.New("must specify If-Match header"))
+		return
+	}
+
+	err = a.client.Delete(ctx, userID, backend.Version(ifMatchVersion))
 	if err != nil {
-		handleError(span, userID, nil, w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete user-configurable limits"))
+		handleError(span, userID, r, w, http.StatusInternalServerError, errors.Wrap(err, "failed to delete user-configurable limits"))
 	}
 
 	w.WriteHeader(http.StatusOK)

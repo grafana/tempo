@@ -1,22 +1,19 @@
 package e2e
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
-	"reflect"
 	"sync"
 	"testing"
-	"text/template"
 	"time"
 
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -191,21 +188,15 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 				t.Errorf("unknown KVStore %s", tc.name)
 			}
 
-			tmpl, err := template.New(filepath.Base(configMicroservices)).ParseFiles(configMicroservices)
-			require.NoError(t, err)
-
 			KVStoreConfig := tc.kvconfig("", 0)
 			if kvstore != nil {
 				KVStoreConfig = tc.kvconfig(kvstore.Name(), kvstore.HTTPPort())
 			}
 
-			var buf bytes.Buffer
-			kvconfig := map[string]interface{}{
-				"KVStore": KVStoreConfig,
-			}
-			require.NoError(t, tmpl.Execute(&buf, kvconfig))
-
-			require.NoError(t, util.WriteFileToSharedDir(s, "config.yaml", buf.Bytes()))
+			// copy config template to shared directory and expand template variables
+			tmplConfig := map[string]any{"KVStore": KVStoreConfig}
+			_, err = util.CopyTemplateToSharedDir(s, configMicroservices, "config.yaml", tmplConfig)
+			require.NoError(t, err)
 
 			minio := e2edb.NewMinio(9000, "tempo")
 			require.NotNil(t, minio)
@@ -524,14 +515,15 @@ func queryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUti
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	require.True(t, equalTraces(resp, expected))
+	assertEqualTrace(t, resp, expected)
 }
 
-func equalTraces(a, b *tempopb.Trace) bool {
-	trace.SortTrace(a)
-	trace.SortTrace(b)
+func assertEqualTrace(t *testing.T, a, b *tempopb.Trace) {
+	t.Helper()
+	trace.SortTraceAndAttributes(a)
+	trace.SortTraceAndAttributes(b)
 
-	return reflect.DeepEqual(a, b)
+	assert.Equal(t, a, b)
 }
 
 func spanCount(a *tempopb.Trace) float64 {
