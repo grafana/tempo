@@ -97,7 +97,6 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*Record, int, err
 
 		return bytes.Compare(record.ID, id) >= 0, nil
 	})
-
 	if err != nil {
 		return nil, -1, err
 	}

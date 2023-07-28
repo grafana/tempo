@@ -16,9 +16,11 @@ type Backend struct {
 	cfg *Config
 }
 
-var _ backend.RawReader = (*Backend)(nil)
-var _ backend.RawWriter = (*Backend)(nil)
-var _ backend.Compactor = (*Backend)(nil)
+var (
+	_ backend.RawReader = (*Backend)(nil)
+	_ backend.RawWriter = (*Backend)(nil)
+	_ backend.Compactor = (*Backend)(nil)
+)
 
 func NewBackend(cfg *Config) (*Backend, error) {
 	err := os.MkdirAll(cfg.Path, os.ModePerm)
@@ -102,7 +104,7 @@ func (rw *Backend) CloseAppend(_ context.Context, tracker backend.AppendTracker)
 	return dst.Close()
 }
 
-func (rw *Backend) Delete(_ context.Context, name string, keypath backend.KeyPath) error {
+func (rw *Backend) Delete(_ context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	path := rw.rootPath(append(keypath, name))
 	return os.RemoveAll(path)
 }
@@ -130,7 +132,7 @@ func (rw *Backend) List(_ context.Context, keypath backend.KeyPath) ([]string, e
 func (rw *Backend) Read(_ context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	filename := rw.objectFileName(keypath, name)
 
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0o644)
 	if err != nil {
 		return nil, -1, readError(err)
 	}
@@ -154,7 +156,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 
 	filename := rw.objectFileName(keypath, name)
 
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0o644)
 	if err != nil {
 		return readError(err)
 	}

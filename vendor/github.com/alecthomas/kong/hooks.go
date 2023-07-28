@@ -1,6 +1,6 @@
 package kong
 
-// BeforeResolve is a documentation-only interface describing hooks that run before values are set.
+// BeforeResolve is a documentation-only interface describing hooks that run before resolvers are applied.
 type BeforeResolve interface {
 	// This is not the correct signature - see README for details.
 	BeforeResolve(args ...interface{}) error

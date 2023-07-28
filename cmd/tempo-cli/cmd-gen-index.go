@@ -23,7 +23,7 @@ type indexCmd struct {
 func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]v2.Record, error, error) {
 	var replayError error
 	// replay file to extract records
-	f, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(filepath, os.O_RDONLY, 0o644)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -151,7 +151,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 
 	// get index file with records
 	indexFilePath := cmd.backendOptions.Bucket + cmd.TenantID + "/" + cmd.BlockID + "/" + indexFilename
-	indexFile, err := os.OpenFile(indexFilePath, os.O_RDONLY, 0644)
+	indexFile, err := os.OpenFile(indexFilePath, os.O_RDONLY, 0o644)
 	if err != nil {
 		fmt.Println("error opening index file")
 		return err
@@ -165,7 +165,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 
 	// data reader
 	dataFilePath := cmd.backendOptions.Bucket + cmd.TenantID + "/" + cmd.BlockID + "/" + dataFilename
-	dataFile, err := os.OpenFile(dataFilePath, os.O_RDONLY, 0644)
+	dataFile, err := os.OpenFile(dataFilePath, os.O_RDONLY, 0o644)
 	if err != nil {
 		fmt.Println("error opening data file")
 		return err

@@ -198,7 +198,6 @@ func (f *generatorForwarder) start(_ context.Context) error {
 	go f.watchOverrides()
 
 	return nil
-
 }
 
 func (f *generatorForwarder) stop(_ error) error {

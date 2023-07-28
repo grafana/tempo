@@ -1,20 +1,19 @@
 package e2e
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
-	"reflect"
 	"sync"
 	"testing"
-	"text/template"
 	"time"
 
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -189,21 +188,15 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 				t.Errorf("unknown KVStore %s", tc.name)
 			}
 
-			tmpl, err := template.New(filepath.Base(configMicroservices)).ParseFiles(configMicroservices)
-			require.NoError(t, err)
-
 			KVStoreConfig := tc.kvconfig("", 0)
 			if kvstore != nil {
 				KVStoreConfig = tc.kvconfig(kvstore.Name(), kvstore.HTTPPort())
 			}
 
-			var buf bytes.Buffer
-			kvconfig := map[string]interface{}{
-				"KVStore": KVStoreConfig,
-			}
-			require.NoError(t, tmpl.Execute(&buf, kvconfig))
-
-			require.NoError(t, util.WriteFileToSharedDir(s, "config.yaml", buf.Bytes()))
+			// copy config template to shared directory and expand template variables
+			tmplConfig := map[string]any{"KVStore": KVStoreConfig}
+			_, err = util.CopyTemplateToSharedDir(s, configMicroservices, "config.yaml", tmplConfig)
+			require.NoError(t, err)
 
 			minio := e2edb.NewMinio(9000, "tempo")
 			require.NotNil(t, minio)
@@ -399,6 +392,7 @@ func TestScalableSingleBinary(t *testing.T) {
 		callIngesterRing(t, i)
 		callCompactorRing(t, i)
 		callStatus(t, i)
+		callBuildinfo(t, i)
 	}
 
 	apiClient1 := httpclient.New("http://"+tempo1.Endpoint(3200), "")
@@ -486,6 +480,27 @@ func callStatus(t *testing.T, svc *e2e.HTTPService) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
+func callBuildinfo(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/api/status/buildinfo"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	// Check that the actual JSON response contains all the expected keys (we disregard the values)
+	var jsonResponse map[string]any
+	keys := []string{"version", "revision", "branch", "buildDate", "buildUser", "goVersion"}
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	err = json.Unmarshal(body, &jsonResponse)
+	require.NoError(t, err)
+	for _, key := range keys {
+		_, ok := jsonResponse[key]
+		require.True(t, ok)
+	}
+	defer res.Body.Close()
+}
+
 func assertEcho(t *testing.T, url string) {
 	res, err := e2e.DoGet(url)
 	require.NoError(t, err)
@@ -500,14 +515,15 @@ func queryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUti
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	require.True(t, equalTraces(resp, expected))
+	assertEqualTrace(t, resp, expected)
 }
 
-func equalTraces(a, b *tempopb.Trace) bool {
-	trace.SortTrace(a)
-	trace.SortTrace(b)
+func assertEqualTrace(t *testing.T, a, b *tempopb.Trace) {
+	t.Helper()
+	trace.SortTraceAndAttributes(a)
+	trace.SortTraceAndAttributes(b)
 
-	return reflect.DeepEqual(a, b)
+	assert.Equal(t, a, b)
 }
 
 func spanCount(a *tempopb.Trace) float64 {

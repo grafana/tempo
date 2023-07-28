@@ -82,17 +82,23 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("parsing encoding", err, http.StatusBadRequest)
 	}
 
+	dc, err := backend.DedicatedColumnsFromTempopb(searchReq.DedicatedColumns)
+	if err != nil {
+		return nil, httpError("parsing dedicated columns", err, http.StatusBadRequest)
+	}
+
 	// /giphy so meta
 	meta := &backend.BlockMeta{
-		Version:       searchReq.Version,
-		TenantID:      tenant,
-		Encoding:      enc,
-		IndexPageSize: searchReq.IndexPageSize,
-		TotalRecords:  searchReq.TotalRecords,
-		BlockID:       blockID,
-		DataEncoding:  searchReq.DataEncoding,
-		Size:          searchReq.Size_,
-		FooterSize:    searchReq.FooterSize,
+		Version:          searchReq.Version,
+		TenantID:         tenant,
+		Encoding:         enc,
+		IndexPageSize:    searchReq.IndexPageSize,
+		TotalRecords:     searchReq.TotalRecords,
+		BlockID:          blockID,
+		DataEncoding:     searchReq.DataEncoding,
+		Size:             searchReq.Size_,
+		FooterSize:       searchReq.FooterSize,
+		DedicatedColumns: dc,
 	}
 
 	block, err := encoding.OpenBlock(meta, reader)
@@ -226,7 +232,8 @@ func stringToFlagExt() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}

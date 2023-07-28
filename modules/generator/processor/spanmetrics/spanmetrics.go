@@ -237,7 +237,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 			p.spanMetricsTargetInfo.Set(targetInfoRegistryLabelValues, 1)
 		}
 	}
-
 }
 
 func sanitizeLabelNameWithCollisions(name string) string {

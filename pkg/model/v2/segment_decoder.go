@@ -15,8 +15,7 @@ import (
 // | uint32 | uint32 | variable length          |
 // | start  | end    | marshalled tempopb.Trace |
 // start and end are unix epoch seconds
-type SegmentDecoder struct {
-}
+type SegmentDecoder struct{}
 
 var segmentDecoder = &SegmentDecoder{}
 

@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-var (
-	ErrTooManyItems = errors.New("too many items")
-)
+var ErrTooManyItems = errors.New("too many items")
 
 var _ Store = (*store)(nil)
 

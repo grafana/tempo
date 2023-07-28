@@ -43,8 +43,10 @@ type histogramSeries struct {
 	lastUpdated    *atomic.Int64
 }
 
-var _ Histogram = (*histogram)(nil)
-var _ metric = (*histogram)(nil)
+var (
+	_ Histogram = (*histogram)(nil)
+	_ metric    = (*histogram)(nil)
+)
 
 func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *histogram {
 	if onAddSeries == nil {

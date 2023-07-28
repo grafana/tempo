@@ -302,18 +302,23 @@ func BenchmarkWriteGzip(b *testing.B) {
 func BenchmarkWriteSnappy(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, false)
 }
+
 func BenchmarkWriteLZ4256(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncLZ4_256k, benchDownsample, false)
 }
+
 func BenchmarkWriteLZ41M(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncLZ4_1M, benchDownsample, false)
 }
+
 func BenchmarkWriteNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, false)
 }
+
 func BenchmarkWriteZstd(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, false)
 }
+
 func BenchmarkWriteS2(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncS2, benchDownsample, false)
 }
@@ -321,21 +326,27 @@ func BenchmarkWriteS2(b *testing.B) {
 func BenchmarkReadGzip(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncGZIP, benchDownsample, true)
 }
+
 func BenchmarkReadSnappy(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncSnappy, benchDownsample, true)
 }
+
 func BenchmarkReadLZ4256(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncLZ4_256k, benchDownsample, true)
 }
+
 func BenchmarkReadLZ41M(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncLZ4_1M, benchDownsample, true)
 }
+
 func BenchmarkReadNone(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncNone, benchDownsample, true)
 }
+
 func BenchmarkReadZstd(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncZstd, benchDownsample, true)
 }
+
 func BenchmarkReadS2(b *testing.B) {
 	benchmarkCompressBlock(b, backend.EncS2, benchDownsample, true)
 }

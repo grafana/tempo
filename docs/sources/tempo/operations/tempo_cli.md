@@ -303,3 +303,39 @@ Options:
 ```bash
 tempo-cli migrate tenant --source-config source.yaml --config-file dest.yaml my-tenant my-other-tenant
 ```
+
+## Analyse block
+Analyses a block and outputs a summary of the block's generic attributes.
+It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `block-id` The block ID as UUID string.
+
+Options:
+- [Backend options](#backend-options)
+- `--num-attr <value>` Number of attributes to output (default: 10)
+
+**Example:**
+```bash
+tempo-cli analyse block --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant b18beca6-4d7f-4464-9f72-f343e688a4a0
+```
+
+## Analyse blocks
+Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
+It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
+
+Arguments:
+- `tenant-id` The tenant ID.  Use `single-tenant` for single-tenant setups.
+
+Options:
+- [Backend options](#backend-options)
+- `--num-attr <value>` Number of attributes to output (default: 10)
+- `--min-compaction-level <value>` Minimum compaction level to include in the analysis (default: 3)
+- `--max-blocks <value>` Maximum number of blocks to analyze (default: 10)
+
+**Example:**
+```bash
+tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
+```
+

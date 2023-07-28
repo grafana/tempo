@@ -33,7 +33,7 @@ type RawWriter interface {
 	// CloseAppend closes any resources associated with the AppendTracker.
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// Delete deletes a file.
-	Delete(ctx context.Context, name string, keypath KeyPath) error
+	Delete(ctx context.Context, name string, keypath KeyPath, shouldCache bool) error
 }
 
 // RawReader is a collection of methods to read data from tempodb backends
@@ -89,6 +89,11 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 }
 
 func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	// If meta and compactedMeta are empty, call delete the tenant index.
+	if len(meta) == 0 && len(compactedMeta) == 0 {
+		return w.w.Delete(ctx, TenantIndexName, KeyPath([]string{tenantID}), false)
+	}
+
 	b := newTenantIndex(meta, compactedMeta)
 
 	indexBytes, err := b.marshal()

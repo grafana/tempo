@@ -16,6 +16,7 @@ import (
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // perTenantOverrides represents the overrides config file
@@ -34,7 +35,7 @@ func (o *perTenantOverrides) forUser(userID string) *Limits {
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
 func loadPerTenantOverrides(r io.Reader) (interface{}, error) {
-	var overrides = &perTenantOverrides{}
+	overrides := &perTenantOverrides{}
 
 	decoder := yaml.NewDecoder(r)
 	decoder.SetStrict(true)
@@ -380,6 +381,10 @@ func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Durat
 // MaxSearchDuration is the duration of the max search duration for this tenant.
 func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).MaxSearchDuration)
+}
+
+func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.DedicatedColumns {
+	return o.getOverridesForUser(userID).DedicatedColumns
 }
 
 func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Limits {

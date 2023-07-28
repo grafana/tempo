@@ -118,11 +118,9 @@ func TestSearchProgressCombineResults(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, sr.result())
-
 }
 
 func TestInstanceDoesNotRace(*testing.T) {
-
 	end := make(chan struct{})
 	concurrent := func(f func()) {
 		for {

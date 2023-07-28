@@ -228,7 +228,6 @@ func TestWalBlockFindTraceByID(t *testing.T) {
 
 func TestWalBlockIterator(t *testing.T) {
 	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
-
 		iter, err := w.Iterator()
 		require.NoError(t, err)
 
@@ -325,7 +324,6 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 }
 
 func BenchmarkWalTraceQL(b *testing.B) {
-
 	reqs := []string{
 		"{ .foo = `bar` }",
 		"{ span.foo = `bar` }",
@@ -356,7 +354,6 @@ func BenchmarkWalTraceQL(b *testing.B) {
 }
 
 func BenchmarkWalSearchTagValues(b *testing.B) {
-
 	tags := []string{
 		"service.name",
 		"name",

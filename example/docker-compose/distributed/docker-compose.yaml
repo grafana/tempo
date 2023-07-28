@@ -39,7 +39,7 @@ services:
 
   query-frontend:
     image: grafana/tempo:latest
-    command: "-target=query-frontend -config.file=/etc/tempo.yaml"
+    command: "-target=query-frontend -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     volumes:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
@@ -48,7 +48,7 @@ services:
 
   querier:
     image: grafana/tempo:latest
-    command: "-target=querier -config.file=/etc/tempo.yaml"
+    command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     volumes:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
@@ -92,6 +92,8 @@ services:
     restart: always
     depends_on:
       - distributor
+    logging:
+      driver: "none"
 
   prometheus:
     image: prom/prometheus:latest

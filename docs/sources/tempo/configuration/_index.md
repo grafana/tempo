@@ -386,10 +386,16 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
+    # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
+    # (default: 2000)
+    [max_outstanding_per_tenant: <int>]
+
+    # The number of jobs to batch together in one http request to the querier. Set to 1 to
+    # disable.
+    # (default: 5)
+    [max_batch_size: <int>]
+
     search:
-        # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
-        # (default: 2000)
-        [max_outstanding_per_tenant: <int>]
 
         # The number of concurrent jobs to execute when searching the backend.
         # (default: 1000)
@@ -510,6 +516,19 @@ querier:
         # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
         # (default: 2)
         [external_hedge_requests_up_to: <int>]
+
+        # The serverless backend to use. If external_backend is set, then authorization credentials will be provided
+        # when querying the external endpoints. "google_cloud_run" is the only value supported at this time.
+        # The default value of "" omits credentials when querying the external backend.
+        [external_backend: <string> | default = ""]
+
+        # Google Cloud Run configuration. Will be used only if the value of external_backend is "google_cloud_run".
+        google_cloud_run:
+            # A list of external endpoints that the querier will use to offload backend search requests. They must
+            # take and return the same value as /api/search endpoint on the querier. This is intended to be
+            # used with serverless technologies for massive parrallelization of the search path.
+            # The default value of "" disables this feature.
+            [external_endpoints: <list of strings> | default = <empty list>]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
@@ -1083,6 +1102,17 @@ storage:
             #  create larger footers but will be harder to shard when searching. It is difficult to calculate
             #  this field directly and it may vary based on workload. This is roughly a lower bound.
             [parquet_row_group_size_bytes: <int> | default = 100MB]
+
+            # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+            # generic attribute key-value list. This allows for more efficient searching of these attributes.
+            # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+            # Requires vParquet3
+            parquet_dedicated_columns:
+                [ 
+                  name: <string>, # name of the attribute
+                  type: <string>, # type of the attribute. options: string
+                  scope: <string> # scope of the attribute. options: resource, span
+                ]
 ```
 
 ## Memberlist
@@ -1312,6 +1342,17 @@ overrides:
     # Per-user max search duration. If this value is set to 0 (default), then max_duration
     #  in the front-end configuration is used.
     [max_search_duration: <duration> | default = 0s]
+
+    # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+    # generic attribute key-value list. This allows for more efficient searching of these attributes.
+    # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+    # Requires vParquet3
+    parquet_dedicated_columns:
+        [
+          name: <string>, # name of the attribute
+          type: <string>, # type of the attribute. options: string
+          scope: <string> # scope of the attribute. options: resource, span
+        ]
 
     # Tenant-specific overrides settings configuration file. The empty string (default
     # value) disables using an overrides file.

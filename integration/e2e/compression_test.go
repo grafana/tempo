@@ -46,7 +46,6 @@ func TestCompression(t *testing.T) {
 }
 
 func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
-
 	// The received client will strip the header before we have a chance to inspect it, so just validate that the compressed client works as expected.
 	result, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
@@ -54,7 +53,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
-	require.True(t, equalTraces(result, expected))
+	assertEqualTrace(t, result, expected)
 
 	// Go's http.Client transparently requests gzip compression and automatically decompresses the
 	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header.
@@ -78,5 +77,5 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	unmarshaller := &jsonpb.Unmarshaler{}
 	err = unmarshaller.Unmarshal(gzipReader, m)
 	require.NoError(t, err)
-	require.True(t, equalTraces(expected, m))
+	assertEqualTrace(t, expected, m)
 }

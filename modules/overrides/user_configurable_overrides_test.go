@@ -38,7 +38,7 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	userConfigurableLimits := &api.UserConfigurableLimits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
-	err := mgr.client.Set(context.Background(), tenant2, userConfigurableLimits)
+	_, err := mgr.client.Set(context.Background(), tenant2, userConfigurableLimits, backend.VersionNew)
 	assert.NoError(t, err)
 
 	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
@@ -50,12 +50,12 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-other-forwarder"}, mgr.Forwarders(tenant2))
 
 	// Delete limits for tenant-1
-	err = mgr.client.Delete(context.Background(), tenant2)
+	err = mgr.client.Delete(context.Background(), tenant2, backend.VersionNew)
 	assert.NoError(t, err)
 
 	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
-	// Verify default limits are returned
+	// Verify default limits are returned again
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant2))
@@ -92,7 +92,7 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 	limits := &api.UserConfigurableLimits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
-	err := mgr.client.Set(context.Background(), tenant1, limits)
+	_, err := mgr.client.Set(context.Background(), tenant1, limits, backend.VersionNew)
 	assert.NoError(t, err)
 
 	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
@@ -118,13 +118,13 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	limits := &api.UserConfigurableLimits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
-	err := mgr.client.Set(context.Background(), tenant1, limits)
+	_, err := mgr.client.Set(context.Background(), tenant1, limits, backend.VersionNew)
 	assert.NoError(t, err)
 
 	assert.NoError(t, mgr.reloadAllTenantLimits(context.Background()))
 
 	// replace reader by this uncooperative fella
-	mgr.client = badClient{}
+	mgr.client = &badClient{}
 
 	// reloading fails
 	assert.Error(t, mgr.reloadAllTenantLimits(context.Background()))
@@ -197,7 +197,7 @@ func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant strin
 	})
 	assert.NoError(t, err)
 
-	err = client.Set(context.Background(), tenant, limits)
+	_, err = client.Set(context.Background(), tenant, limits, backend.VersionNew)
 	assert.NoError(t, err)
 }
 
@@ -208,24 +208,29 @@ func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant st
 	})
 	assert.NoError(t, err)
 
-	err = client.Delete(context.Background(), tenant)
+	err = client.Delete(context.Background(), tenant, backend.VersionNew)
 	assert.NoError(t, err)
 }
 
 type badClient struct{}
 
-func (b badClient) List(context.Context) ([]string, error) {
+var _ api.Client = (*badClient)(nil)
+
+func (b *badClient) List(context.Context) ([]string, error) {
 	return nil, errors.New("no")
 }
 
-func (b badClient) Get(context.Context, string) (*api.UserConfigurableLimits, error) {
-	return nil, errors.New("no")
+func (b *badClient) Get(context.Context, string) (*api.UserConfigurableLimits, backend.Version, error) {
+	return nil, "", errors.New("no")
 }
 
-func (b badClient) Set(context.Context, string, *api.UserConfigurableLimits) error {
+func (b *badClient) Set(context.Context, string, *api.UserConfigurableLimits, backend.Version) (backend.Version, error) {
+	return "", errors.New("no")
+}
+
+func (b *badClient) Delete(context.Context, string, backend.Version) error {
 	return errors.New("no")
 }
 
-func (b badClient) Delete(context.Context, string) error {
-	return errors.New("no")
+func (b badClient) Shutdown() {
 }

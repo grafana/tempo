@@ -29,8 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-type mockSharder struct {
-}
+type mockSharder struct{}
 
 func (m *mockSharder) Owns(string) bool {
 	return true
@@ -88,6 +87,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
 			RowGroupSizeBytes:    30_000_000,
+			DedicatedColumns:     backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),

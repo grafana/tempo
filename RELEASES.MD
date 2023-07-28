@@ -14,8 +14,10 @@
 
 # Releases
 
-This document details release procedures for Tempo.  Currently it's pretty dang easy.
+This document details release procedures for Tempo.
 
+- Create a release branch. This will likely be on the same commit as the release candidate above.
+  - Name the branch like `release-v2.2`
 - Follow all steps in [Release Candidates](#release-candidates) except:
   - Drop the `-rc.#` postfix from the tag. For instance use `v1.2.0` instead. Something like:
     - `git tag -a v1.2.0`
@@ -23,6 +25,8 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
   - Make sure that the "This is a pre-release" is unchecked when publishing the release.
 - Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
   the newly minted version.
+  - Given that the changelog was already cleaned up for the RC above. This will likely be simply
+    renaming the release candidate to the full version.
 - In [github releases](https://github.com/grafana/tempo/releases) there should be a "Draft" release.
   Pretty up the changelog, add it to the release notes and hit "Publish release". Make sure that
   "Set as the latest release" is checked.

@@ -154,7 +154,7 @@ func (m *Queue[T]) worker() {
 			// This is important during shutdown to ensure that the queue is drained
 			select {
 			case req, ok := <-m.reqChan:
-				if !ok { //closed
+				if !ok { // closed
 					return
 				}
 

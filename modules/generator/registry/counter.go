@@ -31,8 +31,10 @@ type counterSeries struct {
 	firstSeries *atomic.Bool
 }
 
-var _ Counter = (*counter)(nil)
-var _ metric = (*counter)(nil)
+var (
+	_ Counter = (*counter)(nil)
+	_ metric  = (*counter)(nil)
+)
 
 const insertOffsetDuration = 1 * time.Second
 

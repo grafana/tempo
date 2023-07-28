@@ -13,9 +13,15 @@ weight: 120
 
 # What are traces?
 
-A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures. Traces let you profile and observe systems, making it easy to discover bottlenecks and interconnection issues.
+A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures.
+Traces let you profile and observe systems, making it easy to discover bottlenecks and interconnection issues.
 
-Traces are composed of one or more spans. A span is a unit of work within a trace that has a start time relative to the beginning of the trace, a duration and an operation name for the unit of work. It usually has a reference to a parent span (unless it is the first span in a trace). It may optionally include key/value attributes that are relevant to the span itself, for example the HTTP method being used by the span, as well as other metadata such as sub-span events or links to other spans.
+Traces are composed of one or more spans.
+A span is a unit of work within a trace that has a start time relative to the beginning of the trace, a duration and an operation name for the unit of work. It usually has a reference to a parent span (unless it is the first span in a trace).
+It may optionally include key/value attributes that are relevant to the span itself, for example the HTTP method being used by the span, as well as other metadata such as sub-span events or links to other spans.
+
+By definition, traces are never complete. You can always push a new batch of spans, even if days have passed since the last one.
+When receiving a query requesting a stored trace, tracing backends (for example Tempo), find all the spans for that specific trace and collate them into a returned result. For that reason, issues can start to arise predominantly on retrieval of the trace data if you are creating traces that are extremely large in size.
 
 ## Example of traces
 
@@ -45,9 +51,14 @@ The trace ID is applied to activities recorded as metrics and as logs.
 
 ## What are traces used for?
 
-Traces can help you find bottlenecks. A trace can be visualized to give a graphic representation of how long it takes for each step in the data flow pathway to complete. It can show where new requests are initiated and end, and how your system responds. This data helps you locate problem areas, often in places you never would have anticipated or found without this ability to trace the request flow.
+Traces can help you find bottlenecks.
+A trace can be visualized to give a graphic representation of how long it takes for each step in the data flow pathway to complete.
+It can show where new requests are initiated and end, and how your system responds.
+This data helps you locate problem areas, often in places you never would have anticipated or found without this ability to trace the request flow.
 
-Metrics, logs, and traces form the three pillars of observability. Metrics provide the health data about the state of a system. Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway.
+Metrics, logs, and traces form the three pillars of observability.
+Metrics provide the health data about the state of a system.
+Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway.
 
 ## Tracing versus profiling
 

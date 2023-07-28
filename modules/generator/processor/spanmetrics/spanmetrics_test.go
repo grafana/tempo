@@ -24,13 +24,11 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
-var (
-	metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "metrics_generator_spans_discarded_total",
-		Help:      "The total number of discarded spans received per tenant",
-	}, []string{"tenant", "reason"})
-)
+var metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "metrics_generator_spans_discarded_total",
+	Help:      "The total number of discarded spans received per tenant",
+}, []string{"tenant", "reason"})
 
 func TestSpanMetrics(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
@@ -275,7 +273,6 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			expectedRejections: 0.0,
 			filterPolicies: []filterconfig.FilterPolicy{
 				{
-
 					Include: &filterconfig.PolicyMatch{
 						MatchType: filterconfig.Strict,
 						Attributes: []filterconfig.MatchPolicyAttribute{
@@ -293,7 +290,6 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			expectedRejections: 10.0,
 			filterPolicies: []filterconfig.FilterPolicy{
 				{
-
 					Include: &filterconfig.PolicyMatch{
 						MatchType: filterconfig.Strict,
 						Attributes: []filterconfig.MatchPolicyAttribute{

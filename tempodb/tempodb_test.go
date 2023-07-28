@@ -507,7 +507,6 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, tc.start, tc.end))
 		})
 	}
-
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
@@ -649,7 +648,6 @@ func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
 }
 
 func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion string) {
-
 	tempDir := t.TempDir()
 
 	_, w, _, err := New(&Config{
@@ -697,6 +695,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	require.Equal(t, now.Unix(), complete.BlockMeta().StartTime.Unix())
 	require.Equal(t, now.Unix(), complete.BlockMeta().EndTime.Unix())
 }
+
 func TestShouldCache(t *testing.T) {
 	tempDir := t.TempDir()
 

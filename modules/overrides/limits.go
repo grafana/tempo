@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -37,13 +38,11 @@ const (
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
 
-var (
-	metricLimitsDesc = prometheus.NewDesc(
-		"tempo_limits_defaults",
-		"Default resource limits",
-		[]string{"limit_name"},
-		nil,
-	)
+var metricLimitsDesc = prometheus.NewDesc(
+	"tempo_limits_defaults",
+	"Default resource limits",
+	[]string{"limit_name"},
+	nil,
 )
 
 // Limits describe all the limits for users; can be used to describe global default
@@ -100,6 +99,9 @@ type Limits struct {
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+
+	// tempodb limits
+	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 
 	// Configuration for overrides module, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
