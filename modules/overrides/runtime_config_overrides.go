@@ -370,7 +370,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientMetrics(userID string) bool {
-	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsEnableClientMetrics
+	if v := o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsEnableClientMetrics; v != nil {
+		return *v
+	}
+	return *o.defaultLimits.MetricsGeneratorProcessorServiceGraphsEnableClientMetrics
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

@@ -72,7 +72,7 @@ type Limits struct {
 	MetricsGeneratorProcessorServiceGraphsDimensions               []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes           []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix bool                             `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
-	MetricsGeneratorProcessorServiceGraphsEnableClientMetrics      bool                             `yaml:"metrics_generator_processor_service_graphs_enable_client_metrics" json:"metrics_generator_processor_service_graphs_enable_client_metrics"`
+	MetricsGeneratorProcessorServiceGraphsEnableClientMetrics      *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_client_metrics" json:"metrics_generator_processor_service_graphs_enable_client_metrics"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets           []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions                 []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions        map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
@@ -129,6 +129,10 @@ func (l *Limits) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
+
+	// Metrics-generator limits
+	l.MetricsGeneratorProcessorServiceGraphsEnableClientMetrics = new(bool)
+	*l.MetricsGeneratorProcessorServiceGraphsEnableClientMetrics = true
 
 	l.UserConfigurableOverridesConfig.RegisterFlagsAndApplyDefaults(f)
 }
