@@ -62,44 +62,6 @@ tempo {
     },
   },
 
-  local k = import 'ksonnet-util/kausal.libsonnet',
-  local service = k.core.v1.service,
-  tempo_service:
-    k.util.serviceFor($.tempo_distributor_deployment)
-    + service.mixin.metadata.withName('tempo'),
-
-  local container = k.core.v1.container,
-  local containerPort = k.core.v1.containerPort,
-  tempo_compactor_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
-
-  tempo_distributor_container+::
-    k.util.resourcesRequests('500m', '500Mi') +
-    container.withPortsMixin([
-      containerPort.new('opencensus', 55678),
-      containerPort.new('jaeger-http', 14268),
-    ]),
-
-  tempo_ingester_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
-
-  // clear affinity so we can run multiple ingesters on a single node
-  tempo_ingester_statefulset+: {
-    spec+: {
-      template+: {
-        spec+: {
-          affinity: {},
-        },
-      },
-    },
-  },
-
-  tempo_querier_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
-
-  tempo_query_frontend_container+::
-    k.util.resourcesRequests('300m', '500Mi'),
-
   // clear affinity so we can run multiple instances of memcached on a single node
   memcached_all+: {
     statefulSet+: {
@@ -113,6 +75,7 @@ tempo {
     },
   },
 
+  local k = import 'ksonnet-util/kausal.libsonnet',
   local ingress = k.networking.v1.ingress,
   local rule = k.networking.v1.ingressRule,
   local path = k.networking.v1.httpIngressPath,
