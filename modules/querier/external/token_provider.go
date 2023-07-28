@@ -10,6 +10,14 @@ import (
 	"google.golang.org/api/idtoken"
 )
 
+type tokenProvider interface {
+	// Returns an oauth2 token, leveraging a cache unless the token is expired.
+	// If expired, the token is renewed and added to the cache.
+	//
+	// If this returns nil, the request will be unauthenticated.
+	getToken(ctx context.Context, endpoint string) (*oauth2.Token, error)
+}
+
 // Caches an oauth2.TokenSource to enable efficient auth on each of our external
 // endpoints.
 type cachedTokenProvider struct {
@@ -59,7 +67,11 @@ func (t *cachedTokenProvider) getToken(_ context.Context, endpoint string) (*oau
 	return nil, fmt.Errorf("endpoint is not configured: %s", endpoint)
 }
 
-func newGoogleProvider(ctx context.Context, endpoints []string) (*cachedTokenProvider, error) {
+func newGoogleProvider(ctx context.Context, endpoints []string, noAuth bool) (tokenProvider, error) {
+	if noAuth {
+		return &nilTokenProvider{}, nil
+	}
+
 	return newTokenProvider(ctx, endpoints, func(ctx context.Context, endpoint string) (oauth2.TokenSource, error) {
 		return idtoken.NewTokenSource(ctx, endpoint)
 	})

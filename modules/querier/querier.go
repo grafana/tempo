@@ -713,7 +713,7 @@ func valuesToV2Response(distinctValues *util.DistinctValueCollector[tempopb.TagV
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// if we have no external configuration always search in the querier
-	if len(q.cfg.Search.ExternalEndpoints) == 0 {
+	if q.cfg.Search.ExternalBackend == "" && len(q.cfg.Search.ExternalEndpoints) == 0 {
 		return q.internalSearchBlock(ctx, req)
 	}
 
