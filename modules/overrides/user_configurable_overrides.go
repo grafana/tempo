@@ -60,6 +60,8 @@ type userConfigurableOverridesManager struct {
 	logger log.Logger
 }
 
+var _ Interface = (*userConfigurableOverridesManager)(nil)
+
 // newUserConfigOverrides wraps the given overrides with user-configurable overrides.
 func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides Service) (*userConfigurableOverridesManager, error) {
 	client, err := api.NewUserConfigOverridesClient(&cfg.ClientConfig)
