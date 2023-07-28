@@ -3,6 +3,9 @@ package app
 import (
 	"fmt"
 
+	"golang.org/x/exp/slices"
+
+	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 )
 
@@ -26,10 +29,18 @@ func NewOverridesValidator(cfg *Config) userconfigurableapi.Validator {
 }
 
 func (v *overridesValidator) Validate(limits *userconfigurableapi.UserConfigurableLimits) error {
-	if limits.Forwarders != nil {
-		for _, f := range *limits.Forwarders {
+	if forwarders, ok := limits.GetForwarders(); ok {
+		for _, f := range forwarders {
 			if _, ok := v.validForwarders[f]; !ok {
 				return fmt.Errorf("forwarder \"%s\" is not a known forwarder, contact your system administrator", f)
+			}
+		}
+	}
+
+	if processors, ok := limits.GetMetricsGenerator().GetProcessors(); ok {
+		for p := range processors.GetMap() {
+			if !slices.Contains(generator.SupportedProcessors, p) {
+				return fmt.Errorf("metrics_generator.processor \"%s\" is not a known processor, valid values: %v", p, generator.SupportedProcessors)
 			}
 		}
 	}

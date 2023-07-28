@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -62,7 +63,7 @@ type Limits struct {
 
 	// Metrics-generator config
 	MetricsGeneratorRingSize                                       int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
-	MetricsGeneratorProcessors                                     ListToMap                        `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
+	MetricsGeneratorProcessors                                     listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
 	MetricsGeneratorMaxActiveSeries                                uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval                             time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                              bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
