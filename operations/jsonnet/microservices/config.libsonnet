@@ -1,7 +1,6 @@
 {
   _images+:: {
     tempo: 'grafana/tempo:latest',
-    tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     rollout_operator: 'grafana/rollout-operator:v0.1.1',
     memcached: 'memcached:1.6.17-alpine',
@@ -18,10 +17,6 @@
     node_selector: null,
     ingester_allow_multiple_replicas_on_same_node: false,
 
-    // disable tempo-query by default
-    tempo_query: {
-      enabled: false,
-    },
     compactor: {
       replicas: 1,
       resources: {

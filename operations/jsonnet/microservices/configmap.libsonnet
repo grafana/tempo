@@ -120,12 +120,4 @@
         overrides: $._config.overrides,
       }),
     }),
-
-  tempo_query_configmap: if $._config.tempo_query.enabled then
-    configMap.new('tempo-query') +
-    configMap.withData({
-      'tempo-query.yaml': $.util.manifestYaml({
-        backend: 'localhost:%d%s' % [$._config.port, $._config.http_api_prefix],
-      }),
-    }),
 }
