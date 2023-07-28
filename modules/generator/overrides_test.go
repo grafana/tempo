@@ -8,24 +8,24 @@ import (
 )
 
 type mockOverrides struct {
-	processors                            map[string]struct{}
-	serviceGraphsHistogramBuckets         []float64
-	serviceGraphsDimensions               []string
-	serviceGraphsPeerAttributes           []string
-	serviceGraphsEnableClientServerPrefix bool
-	spanMetricsHistogramBuckets           []float64
-	spanMetricsDimensions                 []string
-	spanMetricsIntrinsicDimensions        map[string]bool
-	spanMetricsFilterPolicies             []filterconfig.FilterPolicy
-	spanMetricsDimensionMappings          []sharedconfig.DimensionMappings
-	spanMetricsEnableTargetInfo           bool
+	processors                              map[string]struct{}
+	serviceGraphsHistogramBuckets           []float64
+	serviceGraphsDimensions                 []string
+	serviceGraphsPeerAttributes             []string
+	serviceGraphsEnableClientServerPrefix   bool
+	spanMetricsHistogramBuckets             []float64
+	spanMetricsDimensions                   []string
+	spanMetricsIntrinsicDimensions          map[string]bool
+	spanMetricsFilterPolicies               []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings            []sharedconfig.DimensionMappings
+	spanMetricsEnableTargetInfo             bool
 	spanMetricsTargetInfoExcludedDimensions []string
-	localBlocksMaxLiveTraces              uint64
-	localBlocksMaxBlockDuration           time.Duration
-	localBlocksMaxBlockBytes              uint64
-	localBlocksFlushCheckPeriod           time.Duration
-	localBlocksTraceIdlePeriod            time.Duration
-	localBlocksCompleteBlockTimeout       time.Duration
+	localBlocksMaxLiveTraces                uint64
+	localBlocksMaxBlockDuration             time.Duration
+	localBlocksMaxBlockBytes                uint64
+	localBlocksFlushCheckPeriod             time.Duration
+	localBlocksTraceIdlePeriod              time.Duration
+	localBlocksCompleteBlockTimeout         time.Duration
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -112,6 +112,6 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServer
 	return m.serviceGraphsEnableClientServerPrefix
 }
 
-func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(string) []string {
 	return m.spanMetricsTargetInfoExcludedDimensions
 }
