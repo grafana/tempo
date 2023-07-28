@@ -70,7 +70,6 @@ func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64
 }
 
 func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
-
 	hash := labelValueCombo.getHash()
 
 	g.seriesMtx.RLock()
