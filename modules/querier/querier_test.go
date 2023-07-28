@@ -15,6 +15,7 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -47,6 +48,19 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 			cfg:              Config{},
 			queriesToExecute: 3,
 			externalExpected: 0,
+		},
+		{
+			cfg: Config{
+				Search: SearchConfig{
+					ExternalBackend: "google_cloud_run",
+					CloudRun: &external.CloudRunConfig{
+						Endpoints: []string{srv.URL},
+						NoAuth:    true,
+					},
+				},
+			},
+			queriesToExecute: 1,
+			externalExpected: 1,
 		},
 		// SearchPreferSelf is respected. this test won't pass b/c SearchBlock fails instantly and so
 		//  all 3 queries are executed locally and nothing is proxied to the external endpoint.

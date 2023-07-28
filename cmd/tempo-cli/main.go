@@ -27,7 +27,7 @@ type globalOptions struct {
 }
 
 type backendOptions struct {
-	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure"`
+	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure" default:""`
 	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
 
 	S3Endpoint string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
@@ -45,6 +45,11 @@ var cli struct {
 		CacheSummary      listCacheSummaryCmd      `cmd:"" help:"List summary of bloom sizes per day per compaction level"`
 		Index             listIndexCmd             `cmd:"" help:"List information about a block index"`
 		Column            listColumnCmd            `cmd:"" help:"List values in a given column"`
+	} `cmd:""`
+
+	Analyse struct {
+		Block  analyseBlockCmd  `cmd:"" help:"Analyse block in a bucket"`
+		Blocks analyseBlocksCmd `cmd:"" help:"Analyse blocks in a bucket"`
 	} `cmd:""`
 
 	View struct {

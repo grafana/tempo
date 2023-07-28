@@ -86,6 +86,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [BUGFIX] Tempo failed to find meta.json path after adding prefix in S3/GCS/Azure configuration. [#2585](https://github.com/grafana/tempo/issues/2585) (@WildCatFish)
 * [BUGFIX] Delay logging config warnings until the logger has been initialized [#2645](https://github.com/grafana/tempo/pull/2645) (@kvrhdn)
 * [BUGFIX] Fix issue where metrics-generator was setting wrong labels for traces_target_info [#2546](https://github.com/grafana/tempo/pull/2546) (@ie-pham)
+* [FEATURE] Add `tempo-cli` commands `analyse block` and `analyse blocks` to analyse parquet blocks and output summaries of generic attribute columns [#2622](https://github.com/grafana/tempo/pull/2622) (@mapno)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)
