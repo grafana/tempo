@@ -2,6 +2,7 @@
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
+* [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
 
 ## v2.2.0-rc0 / 2023-07-21
 
@@ -86,6 +87,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [BUGFIX] Tempo failed to find meta.json path after adding prefix in S3/GCS/Azure configuration. [#2585](https://github.com/grafana/tempo/issues/2585) (@WildCatFish)
 * [BUGFIX] Delay logging config warnings until the logger has been initialized [#2645](https://github.com/grafana/tempo/pull/2645) (@kvrhdn)
 * [BUGFIX] Fix issue where metrics-generator was setting wrong labels for traces_target_info [#2546](https://github.com/grafana/tempo/pull/2546) (@ie-pham)
+* [FEATURE] Add `tempo-cli` commands `analyse block` and `analyse blocks` to analyse parquet blocks and output summaries of generic attribute columns [#2622](https://github.com/grafana/tempo/pull/2622) (@mapno)
 
 ## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)

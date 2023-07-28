@@ -60,6 +60,8 @@ type userConfigurableOverridesManager struct {
 	logger log.Logger
 }
 
+var _ Interface = (*userConfigurableOverridesManager)(nil)
+
 // newUserConfigOverrides wraps the given overrides with user-configurable overrides.
 func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides Service) (*userConfigurableOverridesManager, error) {
 	client, err := api.NewUserConfigOverridesClient(&cfg.ClientConfig)
@@ -157,12 +159,12 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 	return nil
 }
 
-func (o *userConfigurableOverridesManager) getTenantLimits(userID string) (*api.UserConfigurableLimits, bool) {
+// getTenantLimits returns the tenant limits for the given tenant, can be nil.
+func (o *userConfigurableOverridesManager) getTenantLimits(userID string) *api.UserConfigurableLimits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
-	tenantLimits, ok := o.tenantLimits[userID]
-	return tenantLimits, ok
+	return o.tenantLimits[userID]
 }
 
 func (o *userConfigurableOverridesManager) getAllTenantLimits() tenantLimits {
@@ -184,11 +186,59 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
-	tenantLimits, ok := o.getTenantLimits(userID)
-	if ok && tenantLimits.Forwarders != nil {
-		return *tenantLimits.Forwarders
+	if forwarders, ok := o.getTenantLimits(userID).GetForwarders(); ok {
+		return forwarders
 	}
 	return o.Interface.Forwarders(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID string) map[string]struct{} {
+	if processors, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors(); ok {
+		return processors.GetMap()
+	}
+	return o.Interface.MetricsGeneratorProcessors(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {
+	if disableCollection, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetDisableCollection(); ok {
+		return disableCollection
+	}
+	return o.Interface.MetricsGeneratorDisableCollection(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
+	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
+		return dimensions
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsDimensions(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
+	if enableClientServerPrefix, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableClientServerPrefix(); ok {
+		return enableClientServerPrefix
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
+	if peerAttribtues, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
+		return peerAttribtues
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
+	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
+		return dimensions
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensions(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	if enableTargetInfo, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableTargetInfo(); ok {
+		return enableTargetInfo
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 }
 
 // statusUserConfigurableOverrides used to marshal UserConfigurableLimits for tenants

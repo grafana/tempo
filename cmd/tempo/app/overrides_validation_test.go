@@ -1,12 +1,14 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
+	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
 )
 
@@ -46,6 +48,19 @@ func Test_overridesValidator(t *testing.T) {
 				Forwarders: &[]string{"forwarder-1", "some-forwarder"},
 			},
 			expErr: "forwarder \"some-forwarder\" is not a known forwarder, contact your system administrator",
+		},
+		{
+			name: "metrics_generator.processor",
+			cfg:  Config{},
+			limits: userconfigurableapi.UserConfigurableLimits{
+				MetricsGenerator: &userconfigurableapi.UserConfigurableOverridesMetricsGenerator{
+					Processors: map[string]struct{}{
+						"service-graphs": {},
+						"span-span":      {},
+					},
+				},
+			},
+			expErr: fmt.Sprintf("metrics_generator.processor \"span-span\" is not a known processor, valid values: %v", generator.SupportedProcessors),
 		},
 	}
 

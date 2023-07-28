@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"context"
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -60,6 +61,51 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant2))
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
+}
+
+func TestUserConfigOverridesManager_allFields(t *testing.T) {
+	defaultLimits := Limits{}
+	defaultLimits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	_, mgr := localUserConfigOverrides(t, defaultLimits)
+
+	assert.Empty(t, mgr.Forwarders(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
+	assert.Equal(t, false, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
+	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+
+	// Inject user-configurable overrides
+	mgr.tenantLimits[tenant1] = &api.UserConfigurableLimits{
+		Forwarders: &[]string{"my-forwarder"},
+		MetricsGenerator: &api.UserConfigurableOverridesMetricsGenerator{
+			Processors:        map[string]struct{}{"service-graphs": {}},
+			DisableCollection: boolPtr(true),
+			Processor: &api.UserConfigurableOverridesMetricsGeneratorProcessor{
+				ServiceGraphs: &api.UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs{
+					Dimensions:               &[]string{"sg-dimension"},
+					EnableClientServerPrefix: boolPtr(true),
+					PeerAttributes:           &[]string{"attribute"},
+				},
+				SpanMetrics: &api.UserConfigurableOverridesMetricsGeneratorProcessorSpanMetrics{
+					Dimensions:       &[]string{"sm-dimension"},
+					EnableTargetInfo: boolPtr(true),
+				},
+			},
+		},
+	}
+
+	// Verify we can get the updated overrides
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
+	assert.Equal(t, map[string]struct{}{"service-graphs": {}}, mgr.MetricsGeneratorProcessors(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
+	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
 }
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
@@ -233,4 +279,8 @@ func (b *badClient) Delete(context.Context, string, backend.Version) error {
 }
 
 func (b badClient) Shutdown() {
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

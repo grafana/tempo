@@ -59,6 +59,8 @@ type runtimeConfigOverridesManager struct {
 	subservicesWatcher *services.FailureWatcher
 }
 
+var _ Interface = (*runtimeConfigOverridesManager)(nil)
+
 func newRuntimeConfigOverrides(defaults Limits) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
