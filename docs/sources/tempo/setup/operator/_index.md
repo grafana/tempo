@@ -43,7 +43,7 @@ The Tempo Operator is supported on Kubernetes 1.21 and 1.27.
 
 The operator Kubernetes manifest installation files use cert-manger `v1` custom resources to provision certificates for admission webhooks.
 
-### Community
+## Community
 
 * Reach out to us on [#tempo-operator](https://grafana.slack.com/archives/C0414EUU39A) Grafana Slack channel.
 * Participate on [Tempo community call]({{< relref "../../community" >}}).
