@@ -306,9 +306,7 @@ tempo-cli migrate tenant --source-config source.yaml --config-file dest.yaml my-
 
 ## Analyse block
 Analyses a block and outputs a summary of the block's generic attributes.
-<!-- Commenting out until vParquet3 is available.
 It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
--->
 Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
