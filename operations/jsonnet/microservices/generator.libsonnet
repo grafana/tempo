@@ -21,11 +21,7 @@
                  + component.withReplicas($._config.metrics_generator.replicas)
                  + component.withResources($._config.metrics_generator.resources)
                  + component.withSlowRollout()
-                 + component.withEphemeralStorage(
-                   $._config.metrics_generator.ephemeral_storage_request_size,
-                   $._config.metrics_generator.ephemeral_storage_limit_size,
-                   $.tempo_metrics_generator_config.metrics_generator.storage.path,
-                 )
+                 + component.withPVC(size=$._config.metrics_generator.pvc_size, storage_class=$._config.metrics_generator.pvc_storage_class)
   ,
 
   metrics_generator:

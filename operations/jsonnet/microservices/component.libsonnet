@@ -133,7 +133,6 @@
         volume.fromConfigMap(this.overridesVolumeName, this.config.overrides_configmap_name),
       ]) +
       statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
-      statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
       kausal.util.podPriority('high'),
   },
 
@@ -142,6 +141,12 @@
       deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
       deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1),
   },
+
+  withGracefulShutdown():: {
+    statefulset+:
+      statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200),
+  },
+
 
   withPorts(ports=[]):: {
     container+:

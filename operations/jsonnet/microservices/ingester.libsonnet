@@ -26,6 +26,7 @@
                  + component.withReplicas($._config.ingester.replicas)
                  + component.withResources($._config.ingester.resources)
                  + component.withStatefulset()
+                 + component.withGracefulShutdown()
   ,
 
   ingester:
