@@ -28,6 +28,7 @@ type Gauge interface {
 	// Set sets the Gauge to an arbitrary value.
 	Set(labelValueCombo *LabelValueCombo, value float64)
 	Inc(labelValueCombo *LabelValueCombo, value float64)
+	SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64)
 }
 
 // LabelValueCombo is a wrapper around a slice of label values. It has the ability to cache the hash of

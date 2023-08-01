@@ -12,11 +12,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+const maxBuckets = 64
+
 type LatencyHistogram struct {
-	buckets [64]int // Exponential buckets, powers of 2
+	buckets [maxBuckets]int // Exponential buckets, powers of 2
 }
 
-func New(buckets [64]int) *LatencyHistogram {
+func New(buckets [maxBuckets]int) *LatencyHistogram {
 	return &LatencyHistogram{buckets: buckets}
 }
 
@@ -26,6 +28,10 @@ func (m *LatencyHistogram) Record(durationNanos uint64) {
 	if durationNanos >= 2 {
 		bucket = int(math.Ceil(math.Log2(float64(durationNanos))))
 	}
+	if bucket >= maxBuckets {
+		bucket = maxBuckets - 1
+	}
+
 	m.buckets[bucket]++
 }
 

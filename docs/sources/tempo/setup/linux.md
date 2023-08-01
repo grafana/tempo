@@ -59,10 +59,10 @@ You need administrator privileges to do this by running as the `root` user or vi
 1. Download the Tempo binary, verify checksums (listed in `SHA256SUMS`), and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/) for your OS and architecture:
 
    ```bash
-   curl -Lo tempo_2.1.1_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.1.1/tempo_2.1.1_linux_amd64.deb
-   echo 6e031625b2046d360cf8c4897614523869f45b52286e4fb69e25811d2509b651 \
-     tempo_2.1.1_linux_amd64.deb | sha256sum -c
-   dpkg -i tempo_2.1.1_linux_amd64.deb
+   curl -Lo tempo_2.2.0_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v2.2.0/tempo_2.2.0_linux_amd64.deb
+   echo e81cb4ae47e1d8069efaad400df15547e809b849cbb18932e23ac3082995535b \
+     tempo_2.2.0_linux_amd64.deb | sha256sum -c
+   dpkg -i tempo_2.2.0_linux_amd64.deb
    ```
 
 ## Create a Tempo configuration file

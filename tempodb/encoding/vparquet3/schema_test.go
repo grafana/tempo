@@ -110,6 +110,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	// a minimal trace to make sure nothing bleeds through
 	tr := &Trace{}
 	_ = traceToParquet(&meta, traceID, complexTrace, tr)
+
 	parqTr := traceToParquet(&meta, traceID, simpleTrace, tr)
 	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr)
 	require.Equal(t, simpleTrace, actualTrace)
