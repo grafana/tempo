@@ -45,9 +45,9 @@ As your username, use the **User** value in the Grafana Data Source settings.
 
 As your password, you can use either a token for a Cloud Access Policy (recommended) or a Grafana Cloud API key.
 
-If using Cloud Access Policies, create an access policy with `traces:read` scope and then create a token for that access policy. Use the token as your password. For more information on how to do this, refer to the [Cloud Access Policies]({{< relref "/docs/grafana-cloud/account-management/authentication-and-permissions/access-policies/authorize-services" >}}) documentation.
+If using Cloud Access Policies, create an access policy with `traces:read` scope and then create a token for that access policy. Use the token as your password. For more information on how to do this, refer to the [Cloud Access Policies](/docs/grafana-cloud/account-management/authentication-and-permissions/access-policies/authorize-services) documentation.
 
-If using a Grafnaa Cloud API key, you’ll need a key with `Viewer` role. For information on how to create this key, see [Create a Grafana Cloud API key]({{< relref "/docs/grafana-cloud/account-management/authentication-and-permissions/create-api-key#create-a-grafana-cloud-api-key" >}}).
+If using a Grafnaa Cloud API key, you’ll need a key with `Viewer` role. For information on how to create this key, see [Create a Grafana Cloud API key](/docs/grafana-cloud/account-management/authentication-and-permissions/create-api-key#create-a-grafana-cloud-api-key).
 
 Example:
 
