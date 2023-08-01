@@ -22,14 +22,16 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 
 ## Choose a different block format
 
-The default block format is `vParquet2` which is the latest iteration of Tempo's Parquet based columnar block format.
+The default block format is `vParquet2`, which is the latest iteration of Tempo's Parquet based columnar block format.
 It is still possible to use the previous format `vParquet`.
 To enable it, set the block version option to `vParquet` in the Storage section of the configuration file.
 
+<!-- Commenting out until vParquet3 is released.
 Since v2.2, `vParquet3` is also available.
 It introduces dedicated columns, which improve query performance by storing attributes in dedicated columns,
 rather than in the generic attribute key-value list.
 For more information, see [Dedicated columns]({{< relref "../operations/tempo_cli" >}}).
+-->
 
 ```yaml
 # block format version. options: v2, vParquet, vParquet2, vParquet3
