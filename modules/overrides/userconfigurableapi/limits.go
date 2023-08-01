@@ -5,7 +5,7 @@ import (
 )
 
 type UserConfigurableLimits struct {
-	Forwarders *[]string `json:"forwarders"`
+	Forwarders *[]string `json:"forwarders,omitempty"`
 
 	MetricsGenerator *UserConfigurableOverridesMetricsGenerator `json:"metrics_generator,omitempty"`
 }
@@ -72,8 +72,8 @@ func (l *UserConfigurableOverridesMetricsGeneratorProcessor) GetSpanMetrics() *U
 }
 
 type UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs struct {
-	Dimensions               *[]string `json:"dimensions"`
-	EnableClientServerPrefix *bool     `json:"enable_client_server_prefix"`
+	Dimensions               *[]string `json:"dimensions,omitempty"`
+	EnableClientServerPrefix *bool     `json:"enable_client_server_prefix,omitempty"`
 	PeerAttributes           *[]string `json:"peer_attributes,omitempty"`
 }
 
@@ -99,7 +99,7 @@ func (l *UserConfigurableOverridesMetricsGeneratorProcessorServiceGraphs) GetPee
 }
 
 type UserConfigurableOverridesMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions       *[]string `json:"dimensions"`
+	Dimensions       *[]string `json:"dimensions,omitempty"`
 	EnableTargetInfo *bool     `json:"enable_target_info,omitempty"`
 }
 
