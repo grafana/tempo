@@ -15,6 +15,45 @@ This upgrade guide applies to on-premise installations and not for Grafana Cloud
 
 >**TIP**: You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 
+## Upgrade to Tempo 2.2
+
+Tempo 2.2 has several considerations for any upgrade:
+
+* vParquet2 is now the default block format
+* Several configuration parameters have been renamed or removed.
+
+For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.2 changelog](https://github.com/grafana/tempo/releases).
+
+### Default block format changed to vParquet2
+
+While not a breaking change, upgrading to Tempo 2.2 will by default change Tempo’s block format to vParquet2.
+
+To stay on a previous block format, read the[Parquet configuration documentation]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
+We strongly encourage upgrading to vParquet2 as soon as possible as this is required for using structural operators in your TraceQL queries and provides query performance improvements, in particular on queries using the `duration` intrinsic.
+
+### Updated JSonnet supports `statefulset` for the metrics-generator
+
+Tempo 2.2 updates the `microservices` JSonnet to support a `statefulset` for the `metrics_generator` component.
+
+{{% admonition type="note" %}}
+This update is important if you use the experimental `local-blocks` processor.
+{{% /admonition %}}
+
+To support a new `processor`, the metrics-generator has been converted from a `deployment` into a `statefulset` with a PVC.
+This requires manual intervention to migrate successfully and avoid downtime.
+Note that currently both a `deployment` and a `statefulset` will be managed by the JSonnet for a period of time, after which we will delete the deployment from this repo and you will need to delete user-side references to the `tempo_metrics_generator_deployment`, as well as delete the deployment itself.
+
+Refer to the PR for seamless migration instructions. [PRs [2533](https://github.com/grafana/tempo/pull/2533), [2467](https://github.com/grafana/tempo/pull/2467)]
+
+### Removed or renamed configuration parameters
+
+The following fields were removed or renamed.
+| Parameter | Comments |
+|---|---|
+|<pre>query_frontend:<br>&nbsp;&nbsp;tolerate_failed_blocks: <int></pre> | Remove support for `tolerant_failed_blocks` [[PR 2416](https://github.com/grafana/tempo/pull/2416)] |
+|<pre>storage:<br>&nbsp;&nbsp;trace:<br>&nbsp;&nbsp;s3:<br>&nbsp;&nbsp;insecure_skip_verify: true  // renamed to tls_insecure_skip_verify</pre> | Renamed `insecure_skip_verify` to `tls_insecure_skip_verify` [[PR 2407](https://github.com/grafana/tempo/pull/2407)] |
+
+
 ## Upgrade to Tempo 2.1
 
 Tempo 2.1 has two major considerations for any upgrade:
