@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 )
 
 type convertParquet struct {

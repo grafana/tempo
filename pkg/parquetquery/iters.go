@@ -11,8 +11,8 @@ import (
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
+	pq "github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	pq "github.com/segmentio/parquet-go"
 )
 
 // RowNumber is the sequence of row numbers uniquely identifying a value

@@ -6,10 +6,10 @@ import (
 	"io"
 
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
-	"github.com/segmentio/parquet-go"
 )
 
 type listColumnCmd struct {
