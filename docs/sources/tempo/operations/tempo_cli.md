@@ -322,9 +322,7 @@ tempo-cli analyse block --backend=local --bucket=./cmd/tempo-cli/test-data/ sing
 
 ## Analyse blocks
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
-<!-- Commenting out until vParquet3 is available.
 It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
--->
 Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single-tenant setups.
 
