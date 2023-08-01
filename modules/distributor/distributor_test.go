@@ -1167,7 +1167,7 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 				responses = append(responses, response)
 			}
 
-			liveTraceDiscardedCount, traceTooLongDiscardedCount, _ := countDiscaredSpans(responses, traceByID, tc.replicationFactor)
+			liveTraceDiscardedCount, traceTooLongDiscardedCount := countDiscaredSpans(responses, traceByID, tc.replicationFactor)
 
 			require.Equal(t, tc.expectedLiveTracesDiscardedCount, liveTraceDiscardedCount)
 			require.Equal(t, tc.expectedTraceTooLargeDiscardedCount, traceTooLongDiscardedCount)
