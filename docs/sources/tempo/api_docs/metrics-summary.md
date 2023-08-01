@@ -10,7 +10,7 @@ weight: 600
 # Metrics summary API
 
 {{% admonition type="warning" %}}
-The Metrics summary API is an [experimental feature]({{< relref "/docs/release-life-cycle" >}}) that is disabled by default. To enable it, contact Grafana Support. Grafana Labs offers support for this feature on a best-effort basis, and breaking changes might occur prior to the feature being made generally available.
+The Metrics summary API is an [experimental feature](/docs/release-life-cycle) that is disabled by default. To enable it, contact Grafana Support. Grafana Labs offers support for this feature on a best-effort basis, and breaking changes might occur prior to the feature being made generally available.
 {{% /admonition %}}
 
 This document explains how to use the metrics summary API in Tempo.
