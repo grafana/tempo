@@ -55,6 +55,25 @@ func Exit(exit func(int)) Option {
 	})
 }
 
+type embedded struct {
+	strct any
+	tags  []string
+}
+
+// Embed a struct into the root of the CLI.
+//
+// "strct" must be a pointer to a structure.
+func Embed(strct any, tags ...string) Option {
+	t := reflect.TypeOf(strct)
+	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
+		panic("kong: Embed() must be called with a pointer to a struct")
+	}
+	return OptionFunc(func(k *Kong) error {
+		k.embedded = append(k.embedded, embedded{strct, tags})
+		return nil
+	})
+}
+
 type dynamicCommand struct {
 	name  string
 	help  string
@@ -164,8 +183,8 @@ func Writers(stdout, stderr io.Writer) Option {
 //
 // There are two hook points:
 //
-// 		BeforeApply(...) error
-//   	AfterApply(...) error
+//			BeforeApply(...) error
+//	  	AfterApply(...) error
 //
 // Called before validation/assignment, and immediately after validation/assignment, respectively.
 func Bind(args ...interface{}) Option {
@@ -177,7 +196,7 @@ func Bind(args ...interface{}) Option {
 
 // BindTo allows binding of implementations to interfaces.
 //
-// 		BindTo(impl, (*iface)(nil))
+//	BindTo(impl, (*iface)(nil))
 func BindTo(impl, iface interface{}) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.bindings.addTo(impl, iface)
@@ -428,24 +447,25 @@ func siftStrings(ss []string, filter func(s string) bool) []string {
 // Predefined environment variables are skipped.
 //
 // For example:
-//   --some.value -> PREFIX_SOME_VALUE
+//
+//	--some.value -> PREFIX_SOME_VALUE
 func DefaultEnvars(prefix string) Option {
 	processFlag := func(flag *Flag) {
-		switch env := flag.Env; {
+		switch env := flag.Envs; {
 		case flag.Name == "help":
 			return
-		case env == "-":
-			flag.Env = ""
+		case len(env) == 1 && env[0] == "-":
+			flag.Envs = nil
 			return
-		case env != "":
+		case len(env) > 0:
 			return
 		}
 		replacer := strings.NewReplacer("-", "_", ".", "_")
 		names := append([]string{prefix}, camelCase(replacer.Replace(flag.Name))...)
 		names = siftStrings(names, func(s string) bool { return !(s == "_" || strings.TrimSpace(s) == "") })
 		name := strings.ToUpper(strings.Join(names, "_"))
-		flag.Env = name
-		flag.Value.Tag.Env = name
+		flag.Envs = append(flag.Envs, name)
+		flag.Value.Tag.Envs = append(flag.Value.Tag.Envs, name)
 	}
 
 	var processNode func(node *Node)
@@ -460,6 +480,14 @@ func DefaultEnvars(prefix string) Option {
 
 	return PostBuild(func(k *Kong) error {
 		processNode(k.Model.Node)
+		return nil
+	})
+}
+
+// FlagNamer allows you to override the default kebab-case automated flag name generation.
+func FlagNamer(namer func(fieldName string) string) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.flagNamer = namer
 		return nil
 	})
 }

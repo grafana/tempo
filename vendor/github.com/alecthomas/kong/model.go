@@ -318,6 +318,9 @@ func (v *Value) IsMap() bool {
 
 // IsBool returns true if the underlying value is a boolean.
 func (v *Value) IsBool() bool {
+	if m, ok := v.Mapper.(BoolMapperExt); ok && m.IsBoolFromValue(v.Target) {
+		return true
+	}
 	if m, ok := v.Mapper.(BoolMapper); ok && m.IsBool() {
 		return true
 	}
@@ -363,14 +366,17 @@ func (v *Value) ApplyDefault() error {
 // Does not include resolvers.
 func (v *Value) Reset() error {
 	v.Target.Set(reflect.Zero(v.Target.Type()))
-	if v.Tag.Env != "" {
-		envar := os.Getenv(v.Tag.Env)
-		if envar != "" {
-			err := v.Parse(ScanFromTokens(Token{Type: FlagValueToken, Value: envar}), v.Target)
-			if err != nil {
-				return fmt.Errorf("%s (from envar %s=%q)", err, v.Tag.Env, envar)
+	if len(v.Tag.Envs) != 0 {
+		for _, env := range v.Tag.Envs {
+			envar := os.Getenv(env)
+			// Parse the first non-empty ENV in the list
+			if envar != "" {
+				err := v.Parse(ScanFromTokens(Token{Type: FlagValueToken, Value: envar}), v.Target)
+				if err != nil {
+					return fmt.Errorf("%s (from envar %s=%q)", err, env, envar)
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 	if v.HasDefault {
@@ -390,7 +396,7 @@ type Flag struct {
 	Group       *Group // Logical grouping when displaying. May also be used by configuration loaders to group options logically.
 	Xor         []string
 	PlaceHolder string
-	Env         string
+	Envs        []string
 	Short       rune
 	Hidden      bool
 	Negated     bool

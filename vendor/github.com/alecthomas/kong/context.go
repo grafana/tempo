@@ -110,7 +110,7 @@ func (c *Context) Bind(args ...interface{}) {
 //
 // This will typically have to be called like so:
 //
-//    BindTo(impl, (*MyInterface)(nil))
+//	BindTo(impl, (*MyInterface)(nil))
 func (c *Context) BindTo(impl, iface interface{}) {
 	c.bindings.addTo(impl, iface)
 }
@@ -165,16 +165,16 @@ func (c *Context) Validate() error { // nolint: gocyclo
 	err := Visit(c.Model, func(node Visitable, next Next) error {
 		switch node := node.(type) {
 		case *Value:
-			_, ok := os.LookupEnv(node.Tag.Env)
-			if node.Enum != "" && (!node.Required || node.HasDefault || (node.Tag.Env != "" && ok)) {
+			ok := atLeastOneEnvSet(node.Tag.Envs)
+			if node.Enum != "" && (!node.Required || node.HasDefault || (len(node.Tag.Envs) != 0 && ok)) {
 				if err := checkEnum(node, node.Target); err != nil {
 					return err
 				}
 			}
 
 		case *Flag:
-			_, ok := os.LookupEnv(node.Tag.Env)
-			if node.Enum != "" && (!node.Required || node.HasDefault || (node.Tag.Env != "" && ok)) {
+			ok := atLeastOneEnvSet(node.Tag.Envs)
+			if node.Enum != "" && (!node.Required || node.HasDefault || (len(node.Tag.Envs) != 0 && ok)) {
 				if err := checkEnum(node.Value, node.Target); err != nil {
 					return err
 				}
@@ -719,6 +719,13 @@ func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 	return findPotentialCandidates(match, candidates, "unknown flag %s", match)
 }
 
+// Call an arbitrary function filling arguments with bound values.
+func (c *Context) Call(fn any, binds ...interface{}) (out []interface{}, err error) {
+	fv := reflect.ValueOf(fn)
+	bindings := c.Kong.bindings.clone().add(binds...).add(c).merge(c.bindings) //nolint:govet
+	return callAnyFunction(fv, bindings)
+}
+
 // RunNode calls the Run() method on an arbitrary node.
 //
 // This is useful in conjunction with Visit(), for dynamically running commands.
@@ -883,9 +890,8 @@ func checkMissingPositionals(positional int, values []*Value) error {
 	for ; positional < len(values); positional++ {
 		arg := values[positional]
 		// TODO(aat): Fix hardcoding of these env checks all over the place :\
-		if arg.Tag.Env != "" {
-			_, ok := os.LookupEnv(arg.Tag.Env)
-			if ok {
+		if len(arg.Tag.Envs) != 0 {
+			if atLeastOneEnvSet(arg.Tag.Envs) {
 				continue
 			}
 		}
@@ -989,4 +995,13 @@ func isValidatable(v reflect.Value) validatable {
 		return isValidatable(v.Addr())
 	}
 	return nil
+}
+
+func atLeastOneEnvSet(envs []string) bool {
+	for _, env := range envs {
+		if _, ok := os.LookupEnv(env); ok {
+			return true
+		}
+	}
+	return false
 }
