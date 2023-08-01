@@ -10,52 +10,28 @@ weight: 600
 # Metrics summary API
 
 {{% admonition type="warning" %}}
-The Metrics summary API is an [experimental feature](/docs/release-life-cycle) that is disabled by default. To enable it, contact Grafana Support. Grafana Labs offers support for this feature on a best-effort basis, and breaking changes might occur prior to the feature being made generally available.
+The Metrics summary API is an [experimental feature](/docs/release-life-cycle) that is disabled by default. To enable it, adjust your configuration as suggested below.
 {{% /admonition %}}
 
 This document explains how to use the metrics summary API in Tempo.
 This API returns RED metrics (span count, erroring span count, and latency information) for `kind=server` spans sent to Tempo in the last hour, grouped by a user-specified attribute.
 
+## Configuration
+
+To enable the experimental metrics summary API you must turn on the local blocks processor in the metrics generator. Be aware that the generator will use considerably more resources including disk space if this is enabled:
+
+```
+overrides:
+  metrics_generator_processors: [..., 'local-blocks']
+```
+
 ## Request
 
-To make a request to this API, use the following URL:
+To make a request to this API, use the following endoint on the query-frontend:
 
 ```
-https://$URL/api/metrics/summary
+GET http://<tempo>/api/metrics/summary
 ```
-
-Example:
-
-```
-GET https://tempo-dedicated-02-prod-us-central-0.grafana.net/tempo/api/metrics/summary
-```
-
-To get the value of `$URL`:
-
-1. Go to grafana.com.
-1. Select **Details** for your stack.
-1. Select **Details** for your Tempo tracing service.
-1. Use the value under **URL** in the **Grafana Data Source settings**.
-
-### Authentication
-
-The API uses HTTP basic authentication.
-
-As your username, use the **User** value in the Grafana Data Source settings.
-
-As your password, you can use either a token for a Cloud Access Policy (recommended) or a Grafana Cloud API key.
-
-If using Cloud Access Policies, create an access policy with `traces:read` scope and then create a token for that access policy. Use the token as your password. For more information on how to do this, refer to the [Cloud Access Policies](/docs/grafana-cloud/account-management/authentication-and-permissions/access-policies/authorize-services) documentation.
-
-If using a Grafnaa Cloud API key, you’ll need a key with `Viewer` role. For information on how to create this key, see [Create a Grafana Cloud API key](/docs/grafana-cloud/account-management/authentication-and-permissions/create-api-key#create-a-grafana-cloud-api-key).
-
-Example:
-
-```
-GET -u "$USER:$PASSWORD" "$URL/api/metrics/summary"
-```
-
-Replace `$USER`, `$PASSWORD`, and `$URL` with the values for your username, password, and URL.
 
 ### Query Parameters
 
@@ -71,7 +47,7 @@ All query parameters must be URL-encoded to preserve non-URL-safe characters in 
 Example:
 
 ```bash
-curl -u "$USER:$PASSWORD" "$URL/api/metrics/summary" --data-url-encode 'q={resource.service.name="checkout-service"}' --data-url-encode 'groupBy=name'
+curl "$URL/api/metrics/summary" --data-urlencode 'q={resource.service.name="checkout-service"}' --data-urlencode 'groupBy=name'
 ```
 
 ## Response
