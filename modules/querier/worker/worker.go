@@ -48,7 +48,7 @@ func (cfg *Config) Validate(log log.Logger) error {
 	if cfg.FrontendAddress != "" {
 		return errors.New("starting querier worker without frontend address is not supported")
 	}
-	return cfg.GRPCClientConfig.Validate(log)
+	return cfg.GRPCClientConfig.Validate()
 }
 
 // Handler for HTTP requests wrapped in protobuf messages.
