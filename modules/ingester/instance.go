@@ -42,8 +42,9 @@ type traceTooLargeError struct {
 	maxBytes, reqSize int
 }
 
-type pushError struct {
-	message string
+type maxLiveTracesError struct {
+	instanceID string
+	limit      string
 }
 
 func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) *traceTooLargeError {
@@ -61,14 +62,15 @@ func (e traceTooLargeError) Error() string {
 		overrides.ErrorPrefixTraceTooLarge, e.maxBytes, e.reqSize, hex.EncodeToString(e.traceID), e.instanceID)
 }
 
-func newPushError(format string, a ...interface{}) *pushError {
-	return &pushError{
-		message: fmt.Sprintf(format, a...),
+func newMaxLiveTracesError(instanceID string, limit string) *maxLiveTracesError {
+	return &maxLiveTracesError{
+		instanceID: instanceID,
+		limit:      limit,
 	}
 }
 
-func (p pushError) Error() string {
-	return fmt.Sprintf(p.message)
+func (e maxLiveTracesError) Error() string {
+	return fmt.Sprintf("%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, e.instanceID, e.limit)
 }
 
 // Errors returned on Query.
@@ -170,7 +172,7 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 	return i, nil
 }
 
-func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
 	var errors util.MultiError
 
 	maxLiveErrorTraces := make([]int32, 0)
@@ -185,18 +187,18 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 			errorMessage := err.Error()
 			totalTracesDiscarded++
 
-			if strings.Contains(errorMessage, overrides.ErrorPrefixLiveTracesExceeded) {
+			if _, ok := err.(*maxLiveTracesError); ok {
 				maxLiveErrorTraces = append(maxLiveErrorTraces, index)
 				// only log one of each occurrence
-				if !strings.Contains(errors.Error(), overrides.ErrorPrefixLiveTracesExceeded) {
+				if !strings.Contains(errorMessage, overrides.ErrorPrefixLiveTracesExceeded) {
 					errors.Add(err)
 				}
 			}
 
-			if strings.Contains(errorMessage, overrides.ErrorPrefixTraceTooLarge) {
+			if _, ok := err.(*traceTooLargeError); ok {
 				traceTooLargeErrorTraces = append(traceTooLargeErrorTraces, index)
 				// only log one of each occurrence
-				if !strings.Contains(errors.Error(), overrides.ErrorPrefixTraceTooLarge) {
+				if !strings.Contains(errorMessage, overrides.ErrorPrefixTraceTooLarge) {
 					errors.Add(err)
 				}
 			}
@@ -209,11 +211,11 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 			MaxLiveErrorTraces:       maxLiveErrorTraces,
 			TraceTooLargeErrorTraces: traceTooLargeErrorTraces,
 			Error:                    errors.Error(),
-		}, newPushError(errors.Error())
+		}
 	}
 
 	// no failure
-	return nil, nil
+	return nil
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -227,7 +229,7 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) 
 	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
 	if err != nil {
-		return newPushError("%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
+		return newMaxLiveTracesError(i.instanceID, err.Error())
 	}
 
 	return i.push(ctx, id, traceBytes)
@@ -244,7 +246,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		prevSize := int(i.traceSizes[tkn])
 		reqSize := len(traceBytes)
 		if prevSize+reqSize > maxBytes {
-			return newPushError(newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error())
+			return newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize)
 		}
 	}
 
@@ -253,7 +255,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
 		if e, ok := err.(*traceTooLargeError); ok {
-			return newPushError(e.Error())
+			return e
 		}
 		return err
 	}

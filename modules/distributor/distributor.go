@@ -141,11 +141,6 @@ type Distributor struct {
 	logger log.Logger
 }
 
-type PushByteRes struct {
-	mu        sync.Mutex
-	responses []*tempopb.PushResponse
-}
-
 // New a distributor creates.
 func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o overrides.Interface, middleware receiver.Middleware, logger log.Logger, loggingLevel dslog.Level, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
@@ -381,9 +376,8 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		op = ring.Write
 	}
 
-	r := PushByteRes{
-		responses: make([]*tempopb.PushResponse, 0, d.ingestersRing.ReplicationFactor()),
-	}
+	responses := make([]*tempopb.PushResponse, 0, d.ingestersRing.ReplicationFactor())
+	var mu sync.Mutex
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
@@ -412,31 +406,34 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		// response != {empty}, err = nil  ==>  at least one trace was discarded
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		r.responses = append(r.responses, response)
-
-		if err != nil {
+		if response != nil {
+			mu.Lock()
+			defer mu.Unlock()
+			responses = append(responses, response)
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
 		}
 
 		return err
 	}, func() {})
 
+	// if err != nil, we discarded everything because of an internal error
+	if err != nil {
+		return err
+	}
+
 	// count discarded span count
 	// due to the way that doBatch works, there is a possibility of overcounting discarded span count
 	// because we are not waiting for all responses to come back before returning
 	// but we predict a low frequency for that scenario
 	// todo: figure out a more accurate way to count discarded spans
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount, internalErrorDiscardedCount := countDiscaredSpans(r.responses, traces, d.ingestersRing.ReplicationFactor())
+	mu.Lock()
+	defer mu.Unlock()
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(responses, traces, d.ingestersRing.ReplicationFactor())
 
 	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
 	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
-	overrides.RecordDiscardedSpans(internalErrorDiscardedCount, reasonInternalError, userID)
 
-	return err
+	return nil
 }
 
 func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
@@ -560,10 +557,9 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTrace, repFactor int) (int, int, int) {
+func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTrace, repFactor int) (int, int) {
 	maxLiveDiscardedCount := 0
 	traceTooLargeDiscardedCount := 0
-	internalErrorDiscardedCount := 0
 	discardedTraces := make([]int, len(traces))
 	numResponses := len(responses)
 	quorum := (repFactor / 2) + 1 // min success required
@@ -574,18 +570,6 @@ func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTr
 
 	// if a trace triggers two different errors in two different responses, the error that triggers the maxError count will be used
 	for _, response := range responses {
-		if response == nil {
-			// if response is nil, entire batch failed because of some other internal error
-			// record an error count for each trace in entire batch
-			for traceIndex := range traces {
-				discardedTraces[traceIndex]++
-				if discardedTraces[traceIndex] == maxError {
-					spanCount := traces[traceIndex].spanCount
-					internalErrorDiscardedCount += spanCount
-				}
-			}
-			continue
-		}
 		for _, traceIndex := range response.MaxLiveErrorTraces {
 			traceIndex := int(traceIndex)
 			discardedTraces[traceIndex]++
@@ -605,7 +589,7 @@ func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTr
 		}
 	}
 
-	return maxLiveDiscardedCount, traceTooLargeDiscardedCount, internalErrorDiscardedCount
+	return maxLiveDiscardedCount, traceTooLargeDiscardedCount
 }
 
 func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {

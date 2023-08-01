@@ -245,9 +245,9 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 		return nil, err
 	}
 
-	response, _ := instance.PushBytesRequest(ctx, req)
-	// distributor will determine if an error should be returned to the client
-	// for this step - so always return err = nil here
+	response := instance.PushBytesRequest(ctx, req)
+	// response = nil => no errors
+	// response = {} => partial error
 	if response != nil {
 		return response, nil
 	}
