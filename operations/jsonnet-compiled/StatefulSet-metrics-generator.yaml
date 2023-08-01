@@ -47,20 +47,17 @@ spec:
         resources:
           limits:
             cpu: "1"
-            ephemeral-storage: 11Gi
             memory: 2Gi
           requests:
             cpu: 500m
-            ephemeral-storage: 10Gi
             memory: 1Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
         - mountPath: /overrides
           name: overrides
-        - mountPath: /var/tempo/generator_wal
-          name: metrics-generator-ephemeral-data
-      terminationGracePeriodSeconds: 1200
+        - mountPath: /var/tempo
+          name: metrics-generator-data
       volumes:
       - configMap:
           name: tempo-metrics-generator
@@ -79,3 +76,7 @@ spec:
     spec:
       accessModes:
       - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: fast
