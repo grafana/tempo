@@ -16,6 +16,16 @@ type Config struct {
 	Name     string          `yaml:"name"`
 	Backend  string          `yaml:"backend"`
 	OTLPGRPC otlpgrpc.Config `yaml:"otlpgrpc"`
+	Filter   FilterConfig    `yaml:"filter"`
+}
+
+type FilterConfig struct {
+	Traces TraceFiltersConfig `yaml:"traces"`
+}
+
+type TraceFiltersConfig struct {
+	SpanConditions      []string `yaml:"span"`
+	SpanEventConditions []string `yaml:"spanevent"`
 }
 
 func (cfg *Config) Validate() error {

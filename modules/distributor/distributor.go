@@ -214,7 +214,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
 	subservices = append(subservices, d.generatorForwarder)
 
-	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, o)
+	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, o, loggingLevel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create forwarders manager: %w", err)
 	}
