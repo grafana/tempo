@@ -35,6 +35,9 @@ We strongly encourage upgrading to vParquet2 as soon as possible as this is requ
 
 Tempo 2.2 updates the `microservices` JSonnet to support a `statefulset` for the `metrics_generator` component.
 
+{{% admonition type="note" }}
+This update is important if you use the experimental `local-blocks` processor.
+{{% /admonition %}}
 To support a new `processor`, the metrics-generator has been converted from a `deployment` into a `statefulset` with a PVC.
 This requires manual intervention to migrate successfully and avoid downtime.
 Note that currently both a `deployment` and a `statefulset` will be managed by the JSonnet for a period of time, after which we will delete the deployment from this repo and you will need to delete user-side references to the `tempo_metrics_generator_deployment`, as well as delete the deployment itself.

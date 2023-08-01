@@ -2,12 +2,7 @@
 title: Dedicated columns
 description: Learn how to use dedicated columns to improve query performance.
 weight: 42
-_build:
-  list: false
 ---
-
-<!-- This content requires vParquet3, so it's set to not build on the doc site for now.
-Once it's ready to be available, we need to remove build: list: false from the front matter. -->
 
 # Dedicated columns
 
