@@ -524,7 +524,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	i, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	req := makeRequestWithByteLimit(maxTraceBytes-200, id)
+	req := makeRequestWithByteLimit(maxTraceBytes-300, id)
 	reqSize := 0
 	for _, b := range req.Traces {
 		reqSize += len(b.Slice)
