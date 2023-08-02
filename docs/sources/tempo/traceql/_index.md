@@ -25,6 +25,8 @@ Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-
 For information on where the language is headed, see [future work]({{< relref "./architecture" >}}).
 The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
 
+Check the [release notes]({{< relref "../release-notes" >}}) for the latest updates to TraceQL.
+
 TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend]({{< relref "..//configuration/parquet" >}}) Tempo documentation.
 
 ## TraceQL query editor
