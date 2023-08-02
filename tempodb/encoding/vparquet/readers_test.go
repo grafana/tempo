@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -24,9 +24,9 @@ type dummyReader struct {
 
 func (d *dummyReader) ReadAt(p []byte, off int64) (int, error) { return d.r.ReadAt(p, off) }
 
-func (d *dummyReader) SetFooterSection(_ int64, _ int64)      { d.footer = true }
-func (d *dummyReader) SetColumnIndexSection(_ int64, _ int64) { d.columnIndex = true }
-func (d *dummyReader) SetOffsetIndexSection(_ int64, _ int64) { d.offsetIndex = true }
+func (d *dummyReader) SetFooterSection(_, _ int64)      { d.footer = true }
+func (d *dummyReader) SetColumnIndexSection(_, _ int64) { d.columnIndex = true }
+func (d *dummyReader) SetOffsetIndexSection(_, _ int64) { d.offsetIndex = true }
 
 // TestParquetGoSetsMetadataSections tests if the special metadata sections are set correctly for caching.
 // It is the best way right now to ensure that the interface used by the underlying parquet-go library does not drift.

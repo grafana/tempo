@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
