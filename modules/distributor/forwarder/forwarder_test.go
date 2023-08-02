@@ -41,6 +41,25 @@ func (m *mockTraceRecordingForwarder) Shutdown(ctx context.Context) error {
 	return m.next.Shutdown(ctx)
 }
 
+type mockWorkingProcessor struct {
+	component.Component
+	consumer.Traces
+}
+
+func (m *mockWorkingProcessor) Shutdown(_ context.Context) error {
+	return nil
+}
+
+type mockFailingProcessor struct {
+	component.Component
+	consumer.Traces
+	err error
+}
+
+func (m *mockFailingProcessor) Shutdown(_ context.Context) error {
+	return m.err
+}
+
 func TestList_ForwardTraces_ReturnsNoErrorAndCallsForwardTracesOnAllUnderlyingWorkingForwarders(t *testing.T) {
 	// Given
 	forwarder1 := &mockCountingForwarder{next: &mockWorkingForwarder{}, forwardTracesCount: 0}
@@ -237,25 +256,6 @@ func TestFilterForwarder_ForwardTraces_ReturnsErrorWithFailingUnderlyingForwarde
 	// Then
 	require.ErrorIs(t, err, forwardTracesErr)
 	require.Equal(t, 1, f.forwardTracesCount)
-}
-
-type mockWorkingProcessor struct {
-	component.Component
-	consumer.Traces
-}
-
-func (m *mockWorkingProcessor) Shutdown(_ context.Context) error {
-	return nil
-}
-
-type mockFailingProcessor struct {
-	component.Component
-	consumer.Traces
-	err error
-}
-
-func (m *mockFailingProcessor) Shutdown(_ context.Context) error {
-	return m.err
 }
 
 func TestFilterForwarder_Shutdown_ReturnsNoErrorWithWorkingProcessorAndForwarder(t *testing.T) {
