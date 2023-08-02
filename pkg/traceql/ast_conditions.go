@@ -26,12 +26,13 @@ func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 					Op:        OpNone,
 					Operands:  nil,
 				})
+			} else {
+				request.appendCondition(Condition{
+					Attribute: o.LHS.(Attribute),
+					Op:        o.Op,
+					Operands:  []Static{o.RHS.(Static)},
+				})
 			}
-			request.appendCondition(Condition{
-				Attribute: o.LHS.(Attribute),
-				Op:        o.Op,
-				Operands:  []Static{o.RHS.(Static)},
-			})
 		case Attribute:
 			// Both sides are attributes, just fetch both
 			request.appendCondition(Condition{
