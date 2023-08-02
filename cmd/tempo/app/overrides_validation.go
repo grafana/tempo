@@ -6,7 +6,8 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 )
 
 type overridesValidator struct {
@@ -15,7 +16,9 @@ type overridesValidator struct {
 	validForwarders map[string]struct{}
 }
 
-func NewOverridesValidator(cfg *Config) userconfigurableapi.Validator {
+var _ api.Validator = (*overridesValidator)(nil)
+
+func NewOverridesValidator(cfg *Config) api.Validator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
 		validForwarders[f.Name] = struct{}{}
@@ -28,7 +31,7 @@ func NewOverridesValidator(cfg *Config) userconfigurableapi.Validator {
 	}
 }
 
-func (v *overridesValidator) Validate(limits *userconfigurableapi.UserConfigurableLimits) error {
+func (v *overridesValidator) Validate(limits *client.Limits) error {
 	if forwarders, ok := limits.GetForwarders(); ok {
 		for _, f := range forwarders {
 			if _, ok := v.validForwarders[f]; !ok {

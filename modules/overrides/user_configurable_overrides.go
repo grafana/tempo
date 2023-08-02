@@ -19,7 +19,7 @@ import (
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
-	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -30,16 +30,16 @@ type UserConfigurableOverridesConfig struct {
 	// PollInterval controls how often the overrides will be refreshed by polling the backend
 	PollInterval time.Duration `yaml:"poll_interval"`
 
-	ClientConfig api.UserConfigurableOverridesClientConfig `yaml:"client"`
+	Client userconfigurableoverrides.Config `yaml:"client"`
 }
 
 func (cfg *UserConfigurableOverridesConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	cfg.PollInterval = time.Minute
 
-	cfg.ClientConfig.RegisterFlagsAndApplyDefaults(f)
+	cfg.Client.RegisterFlagsAndApplyDefaults(f)
 }
 
-type tenantLimits map[string]*api.UserConfigurableLimits
+type tenantLimits map[string]*userconfigurableoverrides.Limits
 
 // userConfigurableOverridesManager can store user-configurable overrides on a bucket.
 type userConfigurableOverridesManager struct {
@@ -55,16 +55,16 @@ type userConfigurableOverridesManager struct {
 	mtx          sync.RWMutex
 	tenantLimits tenantLimits
 
-	client api.Client
+	client userconfigurableoverrides.Client
 
 	logger log.Logger
 }
 
-var _ Interface = (*userConfigurableOverridesManager)(nil)
+var _ Service = (*userConfigurableOverridesManager)(nil)
 
 // newUserConfigOverrides wraps the given overrides with user-configurable overrides.
 func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides Service) (*userConfigurableOverridesManager, error) {
-	client, err := api.NewUserConfigOverridesClient(&cfg.ClientConfig)
+	client, err := userconfigurableoverrides.New(&cfg.Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize backend client for user-configurable overrides: %w", err)
 	}
@@ -160,7 +160,7 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 }
 
 // getTenantLimits returns the tenant limits for the given tenant, can be nil.
-func (o *userConfigurableOverridesManager) getTenantLimits(userID string) *api.UserConfigurableLimits {
+func (o *userConfigurableOverridesManager) getTenantLimits(userID string) *userconfigurableoverrides.Limits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
@@ -174,7 +174,7 @@ func (o *userConfigurableOverridesManager) getAllTenantLimits() tenantLimits {
 	return o.tenantLimits
 }
 
-func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits *api.UserConfigurableLimits) {
+func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits *userconfigurableoverrides.Limits) {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
@@ -241,7 +241,7 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsE
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 }
 
-// statusUserConfigurableOverrides used to marshal UserConfigurableLimits for tenants
+// statusUserConfigurableOverrides used to marshal userconfigurableoverrides.Limits for tenants
 type statusUserConfigurableOverrides struct {
 	TenantLimits tenantLimits `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 }

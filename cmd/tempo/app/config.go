@@ -268,7 +268,7 @@ func newV2Warning(setting string) ConfigWarning {
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace
-	overridesStorage := c.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig
+	overridesStorage := c.LimitsConfig.UserConfigurableOverrides.Client
 
 	if traceStorage.Backend != overridesStorage.Backend {
 		return false

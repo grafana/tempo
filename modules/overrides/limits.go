@@ -108,7 +108,7 @@ type Limits struct {
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
 	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
 
-	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
+	UserConfigurableOverrides UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 }
 
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
@@ -131,7 +131,7 @@ func (l *Limits) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
 
-	l.UserConfigurableOverridesConfig.RegisterFlagsAndApplyDefaults(f)
+	l.UserConfigurableOverrides.RegisterFlagsAndApplyDefaults(f)
 }
 
 func (l *Limits) Describe(ch chan<- *prometheus.Desc) {

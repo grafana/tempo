@@ -15,7 +15,7 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all
 	"github.com/klauspost/compress/gzhttp"
 
-	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 
@@ -215,7 +215,7 @@ func (c *Client) buildQueryURL(queryType string, query string, start int64, end 
 	return fmt.Sprint(joinURL)
 }
 
-func (c *Client) GetOverrides() (*api.UserConfigurableLimits, string, error) {
+func (c *Client) GetOverrides() (*userconfigurableoverrides.Limits, string, error) {
 	req, err := http.NewRequest("GET", c.BaseURL+tempo_api.PathOverrides, nil)
 	if err != nil {
 		return nil, "", err
@@ -230,14 +230,14 @@ func (c *Client) GetOverrides() (*api.UserConfigurableLimits, string, error) {
 		return nil, "", err
 	}
 
-	limits := &api.UserConfigurableLimits{}
+	limits := &userconfigurableoverrides.Limits{}
 	if err = json.Unmarshal(body, limits); err != nil {
 		return nil, "", fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
 	}
 	return limits, resp.Header.Get("Etag"), err
 }
 
-func (c *Client) SetOverrides(limits *api.UserConfigurableLimits, version string) (string, error) {
+func (c *Client) SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error) {
 	b, err := json.Marshal(limits)
 	if err != nil {
 		return "", err

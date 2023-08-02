@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/httpclient"
 )
 
@@ -63,7 +63,7 @@ func TestOverrides(t *testing.T) {
 
 			// Modify overrides
 			fmt.Println("* Setting overrides.forwarders")
-			_, err = apiClient.SetOverrides(&userconfigurableapi.UserConfigurableLimits{
+			_, err = apiClient.SetOverrides(&client.Limits{
 				Forwarders: &[]string{},
 			}, "0")
 			require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestOverrides(t *testing.T) {
 	}
 }
 
-func printLimits(limits *userconfigurableapi.UserConfigurableLimits) {
+func printLimits(limits *client.Limits) {
 	fmt.Printf("* Overrides: %+v\n", limits)
 	if limits != nil && limits.Forwarders != nil {
 		fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
