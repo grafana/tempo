@@ -415,7 +415,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 
 		return err
 	}, func() {})
-
 	// if err != nil, we discarded everything because of an internal error
 	if err != nil {
 		return err
