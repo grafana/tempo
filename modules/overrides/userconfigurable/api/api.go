@@ -88,7 +88,10 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 
 	level.Info(a.logger).Log("traceID", traceID, "msg", "storing user-configurable overrides", "userID", userID, "limits", logLimits(limits), "version", version)
 
-	return a.client.Set(ctx, userID, limits, version)
+	newVersion, err := a.client.Set(ctx, userID, limits, version)
+
+	level.Info(a.logger).Log("traceID", traceID, "msg", "stored user-configurable overrides", "userID", userID, "limits", logLimits(limits), "version", version, "newVersion", newVersion, "err", err)
+	return newVersion, err
 }
 
 func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patch []byte) (*client.Limits, backend.Version, error) {

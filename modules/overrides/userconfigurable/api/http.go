@@ -160,7 +160,7 @@ func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string,
 	span, ctx := opentracing.StartSpanFromContext(ctx, handler)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
-	level.Info(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI())
+	level.Info(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI(), "user-agent", r.UserAgent())
 
 	return ctx, func(errPtr *error) {
 		err := *errPtr
@@ -168,7 +168,7 @@ func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string,
 		if err != nil && err != backend.ErrDoesNotExist {
 			span.LogFields(ot_log.Error(err))
 			ext.Error.Set(span, true)
-			level.Error(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI(), "err", err)
+			level.Error(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI(), "user-agent", r.UserAgent(), "err", err)
 		}
 
 		span.Finish()
