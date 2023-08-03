@@ -157,8 +157,6 @@ func (b *BackendBlock) SearchTagValuesV2(context.Context, traceql.Attribute, com
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) Release(*traceql.Spanset) {}
-
 func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }

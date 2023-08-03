@@ -165,7 +165,13 @@ var spansetPool = sync.Pool{
 }
 
 func getSpanset() *traceql.Spanset {
-	return spansetPool.Get().(*traceql.Spanset)
+	ss := spansetPool.Get().(*traceql.Spanset)
+	if ss.ReleaseFn == nil {
+		ss.ReleaseFn = func() {
+			putSpansetAndSpans(ss)
+		}
+	}
+	return ss
 }
 
 // putSpanset back into the pool.  Does not repool the spans.
@@ -289,10 +295,6 @@ var wellKnownColumnLookups = map[string]struct {
 	LabelHTTPStatusCode: {columnPathSpanHTTPStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
 	LabelHTTPMethod:     {columnPathSpanHTTPMethod, traceql.AttributeScopeSpan, traceql.TypeString},
 	LabelHTTPUrl:        {columnPathSpanHTTPURL, traceql.AttributeScopeSpan, traceql.TypeString},
-}
-
-func (b *backendBlock) Release(ss *traceql.Spanset) {
-	putSpansetAndSpans(ss)
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for

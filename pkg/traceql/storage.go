@@ -109,10 +109,22 @@ type Spanset struct {
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
 	Attributes         []*SpansetAttribute
+
+	// Set this function to provide upstream callers with a method to
+	// release this spanset and all its spans when finished.
+	ReleaseFn func()
 }
 
 func (s *Spanset) AddAttribute(key string, value Static) {
 	s.Attributes = append(s.Attributes, &SpansetAttribute{Name: key, Val: value})
+}
+
+// Release the spanset and all its span. This is just a wrapper of ReleaseFn that
+// performs nil checks.
+func (s *Spanset) Release() {
+	if s.ReleaseFn != nil {
+		s.ReleaseFn()
+	}
 }
 
 func (s *Spanset) clone() *Spanset {
@@ -133,7 +145,6 @@ type FetchSpansResponse struct {
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
-	Release(*Spanset)
 }
 
 // MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns
@@ -166,21 +177,14 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 
 type SpansetFetcherWrapper struct {
 	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
-	r func(*Spanset)
 }
 
 var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
 
-func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error), release func(*Spanset)) SpansetFetcher {
-	return SpansetFetcherWrapper{f, release}
+func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{f}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
-}
-
-func (s SpansetFetcherWrapper) Release(ss *Spanset) {
-	if s.r != nil {
-		s.r(ss)
-	}
 }

@@ -298,7 +298,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 			}
 		}
 
-		fetcher.Release(ss)
+		ss.Release()
 	}
 
 	// The results are estimated if we bailed early due to limit being reached, but only if spanLimit has been set.

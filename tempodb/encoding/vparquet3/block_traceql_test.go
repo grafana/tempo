@@ -542,7 +542,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 				resp, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: tc.query}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return block.Fetch(ctx, req, opts)
-				}, block.Release))
+				}))
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
@@ -594,7 +594,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return block.Fetch(ctx, req, opts)
-				}, block.Release)
+				})
 
 				r, err := traceqlmetrics.GetMetrics(ctx, tc.query, tc.groupby, 0, 0, 0, f)
 

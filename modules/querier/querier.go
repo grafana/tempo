@@ -775,7 +775,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	if api.IsTraceQLQuery(req.SearchReq) {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return q.store.Fetch(ctx, meta, req, opts)
-		}, nil)
+		})
 
 		return q.engine.ExecuteSearch(ctx, req.SearchReq, fetcher)
 	}
