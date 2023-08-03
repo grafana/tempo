@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -16,7 +17,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
+	pkgErrors "github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -75,7 +76,7 @@ func (e maxLiveTracesError) Error() string {
 
 // Errors returned on Query.
 var (
-	ErrTraceMissing = errors.New("Trace missing")
+	ErrTraceMissing = pkgErrors.New("Trace missing")
 )
 
 const (
@@ -173,7 +174,7 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
-	var errors util.MultiError
+	var errorList util.MultiError
 
 	maxLiveErrorTraces := make([]int32, 0)
 	traceTooLargeErrorTraces := make([]int32, 0)
@@ -185,21 +186,25 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
 			errorMessage := err.Error()
+			fmt.Print(errorMessage)
 			totalTracesDiscarded++
+			if errors.Is(err, maxLiveTracesError{}){
 
+			}
 			if _, ok := err.(*maxLiveTracesError); ok {
 				maxLiveErrorTraces = append(maxLiveErrorTraces, index)
 				// only log one of each occurrence
 				if !strings.Contains(errorMessage, overrides.ErrorPrefixLiveTracesExceeded) {
-					errors.Add(err)
+					errorList.Add(err)
 				}
 			}
 
-			if _, ok := err.(*traceTooLargeError); ok {
+			if errors.Is(err, &traceTooLargeError{}) {
+				fmt.Println("hallo")
 				traceTooLargeErrorTraces = append(traceTooLargeErrorTraces, index)
 				// only log one of each occurrence
 				if !strings.Contains(errorMessage, overrides.ErrorPrefixTraceTooLarge) {
-					errors.Add(err)
+					errorList.Add(err)
 				}
 			}
 		}
@@ -210,12 +215,12 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 		return &tempopb.PushResponse{
 			MaxLiveErrorTraces:       maxLiveErrorTraces,
 			TraceTooLargeErrorTraces: traceTooLargeErrorTraces,
-			Error:                    errors.Error(),
+			Error:                    errorList.Error(),
 		}
 	}
 
 	// no failure
-	return nil
+	return &tempopb.PushResponse{}
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -371,7 +376,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i.localReader, i.localWriter)
 	if err != nil {
-		return errors.Wrap(err, "error completing wal block with local backend")
+		return pkgErrors.Wrap(err, "error completing wal block with local backend")
 	}
 
 	ingesterBlock := newLocalBlock(ctx, backendBlock, i.local)
@@ -400,7 +405,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 		return completingBlock.Clear()
 	}
 
-	return errors.New("Error finding wal completingBlock to clear")
+	return pkgErrors.New("Error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
@@ -634,7 +639,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)
 				if err != nil {
-					return nil, errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
+					return nil, pkgErrors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
 				}
 			} else {
 				// Block with unknown error
