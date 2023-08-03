@@ -151,7 +151,7 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ “DELETE|GET” }
 ```
 
-Find all traces where `any_attribute` is not nil or where `any_attribute` exists in a span
+Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
 ```
 { .any_attribute != nil }
 ```

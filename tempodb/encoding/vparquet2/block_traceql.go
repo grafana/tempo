@@ -845,7 +845,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	for _, cond := range conditions {
-
 		// Intrinsic
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
