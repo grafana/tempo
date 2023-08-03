@@ -443,7 +443,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
-		parquetquery.Release(res)
+		parquetquery.ReleaseResult(res)
 
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
@@ -565,7 +565,7 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
-		parquetquery.Release(res)
+		parquetquery.ReleaseResult(res)
 		putSpanset(ss)
 
 		res = i.resultFromNextSpans()
@@ -632,7 +632,7 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset in spansetIterator")
 	}
 
-	parquetquery.Release(res)
+	parquetquery.ReleaseResult(res)
 
 	return ss, nil
 }

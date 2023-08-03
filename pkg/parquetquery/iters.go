@@ -446,14 +446,6 @@ var syncIteratorPool = sync.Pool{
 	},
 }
 
-func GetResult() *IteratorResult {
-	return columnIteratorResultPoolGet()
-}
-
-func Release(r *IteratorResult) {
-	columnIteratorResultPoolPut(r)
-}
-
 func syncIteratorPoolGet(capacity, len int) []pq.Value {
 	res := syncIteratorPool.Get().([]pq.Value)
 	if cap(res) < capacity {
@@ -479,12 +471,12 @@ var columnIteratorResultPool = sync.Pool{
 	},
 }
 
-func columnIteratorResultPoolGet() *IteratorResult {
+func GetResult() *IteratorResult {
 	res := columnIteratorResultPool.Get().(*IteratorResult)
 	return res
 }
 
-func columnIteratorResultPoolPut(r *IteratorResult) {
+func ReleaseResult(r *IteratorResult) {
 	if r != nil {
 		r.Reset()
 		columnIteratorResultPool.Put(r)
@@ -845,7 +837,7 @@ func (c *SyncIterator) closeCurrRowGroup() {
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
-	r := columnIteratorResultPoolGet()
+	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v.Clone())
@@ -1160,7 +1152,7 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
-	r := columnIteratorResultPoolGet()
+	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v)
@@ -1270,7 +1262,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 			}
 
 			// Result discarded
-			columnIteratorResultPoolPut(result)
+			ReleaseResult(result)
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
@@ -1295,7 +1287,7 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
-			columnIteratorResultPoolPut(j.peeks[iterNum])
+			ReleaseResult(j.peeks[iterNum])
 			j.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return err
@@ -1322,7 +1314,7 @@ func (j *JoinIterator) peek(iterNum int) (*IteratorResult, error) {
 func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := columnIteratorResultPoolGet()
+	result := GetResult()
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
@@ -1330,7 +1322,7 @@ func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 
 			result.Append(j.peeks[i])
 
-			columnIteratorResultPoolPut(j.peeks[i])
+			ReleaseResult(j.peeks[i])
 
 			j.peeks[i], err = j.iters[i].Next()
 			if err != nil {
@@ -1444,7 +1436,7 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 			}
 
 			// Result discarded
-			columnIteratorResultPoolPut(result)
+			ReleaseResult(result)
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
@@ -1469,7 +1461,7 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
-			columnIteratorResultPoolPut(j.peeksRequired[iterNum])
+			ReleaseResult(j.peeksRequired[iterNum])
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
@@ -1478,7 +1470,7 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 	}
 	for iterNum, iter := range j.optional {
 		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d, j.peeksOptional[iterNum].RowNumber, t) == -1 {
-			columnIteratorResultPoolPut(j.peeksOptional[iterNum])
+			ReleaseResult(j.peeksOptional[iterNum])
 			j.peeksOptional[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
@@ -1504,7 +1496,7 @@ func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 // or are exhausted.
 func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
-	result := columnIteratorResultPoolGet()
+	result := GetResult()
 	result.RowNumber = rowNumber
 
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
@@ -1512,7 +1504,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 			// Collect matches
 			for peeks[i] != nil && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) == 0 {
 				result.Append(peeks[i])
-				columnIteratorResultPoolPut(peeks[i])
+				ReleaseResult(peeks[i])
 				peeks[i], err = iters[i].Next()
 				if err != nil {
 					return
@@ -1624,7 +1616,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 		// from at least one iterator, or all are exhausted
 		if len(u.lowestIters) > 0 {
 			if u.pred != nil && !u.pred.KeepGroup(result) {
-				columnIteratorResultPoolPut(result)
+				ReleaseResult(result)
 				continue
 			}
 
@@ -1667,7 +1659,7 @@ func (u *UnionIterator) peek(iterNum int) (*IteratorResult, error) {
 func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := columnIteratorResultPoolGet()
+	result := GetResult()
 	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
@@ -1675,7 +1667,7 @@ func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorR
 
 			result.Append(u.peeks[iterNum])
 
-			columnIteratorResultPoolPut(u.peeks[iterNum])
+			ReleaseResult(u.peeks[iterNum])
 
 			u.peeks[iterNum], err = u.iters[iterNum].Next()
 			if err != nil {
