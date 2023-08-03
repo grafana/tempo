@@ -471,11 +471,14 @@ var columnIteratorResultPool = sync.Pool{
 	},
 }
 
+// GetResult buffer struct from the internal memory pool.  Should be
+// released by calling ReleaseResult() when done.
 func GetResult() *IteratorResult {
 	res := columnIteratorResultPool.Get().(*IteratorResult)
 	return res
 }
 
+// ReleaseResult returns the buffer struct back to the internal memory pool.
 func ReleaseResult(r *IteratorResult) {
 	if r != nil {
 		r.Reset()
