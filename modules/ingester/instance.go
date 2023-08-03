@@ -173,7 +173,7 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
-	var errors util.MultiError
+	var errorList util.MultiError
 
 	maxLiveErrorTraces := make([]int32, 0)
 	traceTooLargeErrorTraces := make([]int32, 0)
@@ -185,21 +185,25 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
 			errorMessage := err.Error()
+			fmt.Print(errorMessage)
 			totalTracesDiscarded++
+			if errors.Is(err, maxLiveTracesError{}){
 
+			}
 			if _, ok := err.(*maxLiveTracesError); ok {
 				maxLiveErrorTraces = append(maxLiveErrorTraces, index)
 				// only log one of each occurrence
 				if !strings.Contains(errorMessage, overrides.ErrorPrefixLiveTracesExceeded) {
-					errors.Add(err)
+					errorList.Add(err)
 				}
 			}
 
-			if _, ok := err.(*traceTooLargeError); ok {
+			if errors.Is(err, &traceTooLargeError{}) {
+				fmt.Println("hallo")
 				traceTooLargeErrorTraces = append(traceTooLargeErrorTraces, index)
 				// only log one of each occurrence
 				if !strings.Contains(errorMessage, overrides.ErrorPrefixTraceTooLarge) {
-					errors.Add(err)
+					errorList.Add(err)
 				}
 			}
 		}
@@ -210,12 +214,12 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 		return &tempopb.PushResponse{
 			MaxLiveErrorTraces:       maxLiveErrorTraces,
 			TraceTooLargeErrorTraces: traceTooLargeErrorTraces,
-			Error:                    errors.Error(),
+			Error:                    errorList.Error(),
 		}
 	}
 
 	// no failure
-	return nil
+	return &tempopb.PushResponse{}
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -401,7 +405,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 		return completingBlock.Clear()
 	}
 
-	return errors.New("Error finding wal completingBlock to clear")
+	return pkgErrors.New("Error finding wal completingBlock to clear")
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
