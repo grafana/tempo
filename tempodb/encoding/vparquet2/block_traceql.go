@@ -844,29 +844,12 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		}
 	}
 
-	fmt.Printf("number of cond: %d \n", len(conditions))
-
 	for _, cond := range conditions {
 
-		fmt.Printf("cond: %s \n", cond.Attribute.Intrinsic)
-		fmt.Printf("op: %s \n", cond.Op)
-		fmt.Printf("operands: %s \n", cond.Operands)
-		
-		// Intrinsic?
-
-		// existence check?
-		if entry, ok := intrinsicColumnLookups[cond.Attribute.Intrinsic]; ok && cond.Op == traceql.OpNone {
-			fmt.Println("**** i got here ")
-			columnPath := entry.columnPath
-			fmt.Printf("column Path: %s \n", columnPath)
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = columnPath
-			continue
-		}
-
+		// Intrinsic
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
-			
+
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -919,7 +902,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
 			continue
-		
+
 		case traceql.IntrinsicStructuralDescendant:
 			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
 			selectColumnIfNotAlready(columnPathSpanNestedSetRight)
