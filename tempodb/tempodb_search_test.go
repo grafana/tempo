@@ -40,11 +40,11 @@ func TestSearchCompleteBlock(t *testing.T) {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
 			runCompleteBlockSearchTest(t, vers,
-				// searchRunner,
-				// traceQLRunner,
-				// advancedTraceQLRunner,
-				// groupTraceQLRunner,
-				// traceQLStructural,
+				searchRunner,
+				traceQLRunner,
+				advancedTraceQLRunner,
+				groupTraceQLRunner,
+				traceQLStructural,
 				traceQLExistence,
 			)
 		})
@@ -600,9 +600,10 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 }
 
 // existence
-func traceQLExistence(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
+	const intrinsicName = "name"
 
 	type expected struct {
 		key string
@@ -617,7 +618,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		{
 			req: &tempopb.SearchRequest{Query: "{ name != nil }", Limit: 10},
 			expected: expected{
-				key: "name",
+				key: intrinsicName,
 			},
 		},
 		{
@@ -664,7 +665,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 			spanSet := tr.SpanSets[0]
 			for _, span := range spanSet.Spans {
 				switch tc.expected.key {
-				case "name":
+				case intrinsicName:
 					require.NotNil(t, span.Name)
 				case "duration":
 					require.NotNil(t, span.DurationNanos)
