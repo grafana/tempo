@@ -111,8 +111,10 @@ type Spanset struct {
 	Attributes         []*SpansetAttribute
 
 	// Set this function to provide upstream callers with a method to
-	// release this spanset and all its spans when finished.
-	ReleaseFn func()
+	// release this spanset and all its spans when finished. This method will be
+	// called with the spanset itself as the argument. This is done for a worthwhile
+	// memory savings as the same function pointer can then be reused across spansets.
+	ReleaseFn func(*Spanset)
 }
 
 func (s *Spanset) AddAttribute(key string, value Static) {
@@ -123,7 +125,7 @@ func (s *Spanset) AddAttribute(key string, value Static) {
 // performs nil checks.
 func (s *Spanset) Release() {
 	if s.ReleaseFn != nil {
-		s.ReleaseFn()
+		s.ReleaseFn(s)
 	}
 }
 

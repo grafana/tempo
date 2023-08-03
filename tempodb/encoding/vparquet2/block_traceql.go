@@ -166,11 +166,7 @@ var spansetPool = sync.Pool{
 
 func getSpanset() *traceql.Spanset {
 	ss := spansetPool.Get().(*traceql.Spanset)
-	if ss.ReleaseFn == nil {
-		ss.ReleaseFn = func() {
-			putSpansetAndSpans(ss)
-		}
-	}
+	ss.ReleaseFn = putSpansetAndSpans
 	return ss
 }
 
