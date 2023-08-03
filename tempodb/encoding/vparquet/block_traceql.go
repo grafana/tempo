@@ -203,6 +203,8 @@ var wellKnownColumnLookups = map[string]struct {
 	LabelHTTPUrl:        {columnPathSpanHTTPURL, traceql.AttributeScopeSpan, traceql.TypeString},
 }
 
+func (b *backendBlock) Release(*traceql.Spanset) {}
+
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.

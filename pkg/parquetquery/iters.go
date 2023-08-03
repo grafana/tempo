@@ -446,6 +446,14 @@ var syncIteratorPool = sync.Pool{
 	},
 }
 
+func GetResult() *IteratorResult {
+	return columnIteratorResultPoolGet()
+}
+
+func Release(r *IteratorResult) {
+	columnIteratorResultPoolPut(r)
+}
+
 func syncIteratorPoolGet(capacity, len int) []pq.Value {
 	res := syncIteratorPool.Get().([]pq.Value)
 	if cap(res) < capacity {

@@ -124,7 +124,7 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 			// and engine.ExecuteSearch is parsing the query for each block
 			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return e.Fetch(ctx, req, opts)
-			}))
+			}, e.Release))
 		} else {
 			resp, err = e.Search(ctx, req, opts)
 		}
@@ -404,7 +404,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return s.Fetch(ctx, req, common.DefaultSearchOptions())
-			})
+			}, s.Release)
 
 			return engine.ExecuteTagValues(ctx, tag, query, cb, fetcher)
 		}

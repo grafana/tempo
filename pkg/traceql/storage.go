@@ -133,6 +133,7 @@ type FetchSpansResponse struct {
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+	Release(*Spanset)
 }
 
 // MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns
@@ -165,14 +166,21 @@ func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 
 type SpansetFetcherWrapper struct {
 	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+	r func(*Spanset)
 }
 
 var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
 
-func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
-	return SpansetFetcherWrapper{f}
+func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error), release func(*Spanset)) SpansetFetcher {
+	return SpansetFetcherWrapper{f, release}
 }
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
+}
+
+func (s SpansetFetcherWrapper) Release(ss *Spanset) {
+	if s.r != nil {
+		s.r(ss)
+	}
 }

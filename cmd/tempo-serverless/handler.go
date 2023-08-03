@@ -120,7 +120,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 
 		spansetFetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return block.Fetch(ctx, req, opts)
-		})
+		}, block.Release)
 		resp, err = engine.ExecuteSearch(r.Context(), searchReq.SearchReq, spansetFetcher)
 		if err != nil {
 			return nil, httpError("searching block", err, http.StatusInternalServerError)

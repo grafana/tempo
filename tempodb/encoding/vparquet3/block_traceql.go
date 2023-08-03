@@ -183,6 +183,17 @@ func putSpanset(ss *traceql.Spanset) {
 	spansetPool.Put(ss)
 }
 
+func putSpansetAndSpans(ss *traceql.Spanset) {
+	if ss != nil {
+		for _, s := range ss.Spans {
+			if span, ok := s.(*span); ok {
+				putSpan(span)
+			}
+		}
+		putSpanset(ss)
+	}
+}
+
 // Helper function to create an iterator, that abstracts away
 // context like file and rowgroups.
 type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
@@ -279,6 +290,10 @@ var wellKnownColumnLookups = map[string]struct {
 	LabelHTTPStatusCode: {columnPathSpanHTTPStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
 	LabelHTTPMethod:     {columnPathSpanHTTPMethod, traceql.AttributeScopeSpan, traceql.TypeString},
 	LabelHTTPUrl:        {columnPathSpanHTTPURL, traceql.AttributeScopeSpan, traceql.TypeString},
+}
+
+func (b *backendBlock) Release(ss *traceql.Spanset) {
+	putSpansetAndSpans(ss)
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for

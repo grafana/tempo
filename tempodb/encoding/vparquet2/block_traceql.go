@@ -182,6 +182,17 @@ func putSpanset(ss *traceql.Spanset) {
 	spansetPool.Put(ss)
 }
 
+func putSpansetAndSpans(ss *traceql.Spanset) {
+	if ss != nil {
+		for _, s := range ss.Spans {
+			if span, ok := s.(*span); ok {
+				putSpan(span)
+			}
+		}
+		putSpanset(ss)
+	}
+}
+
 // Helper function to create an iterator, that abstracts away
 // context like file and rowgroups.
 type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
@@ -278,6 +289,10 @@ var wellKnownColumnLookups = map[string]struct {
 	LabelHTTPStatusCode: {columnPathSpanHTTPStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
 	LabelHTTPMethod:     {columnPathSpanHTTPMethod, traceql.AttributeScopeSpan, traceql.TypeString},
 	LabelHTTPUrl:        {columnPathSpanHTTPURL, traceql.AttributeScopeSpan, traceql.TypeString},
+}
+
+func (b *backendBlock) Release(ss *traceql.Spanset) {
+	putSpansetAndSpans(ss)
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
@@ -428,6 +443,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
+		parquetquery.Release(res)
+
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
 		})
@@ -442,7 +459,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := &parquetquery.IteratorResult{RowNumber: s.rowNum}
+	res := parquetquery.GetResult()
+	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
 	return res
@@ -547,6 +565,9 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
+		parquetquery.Release(res)
+		putSpanset(ss)
+
 		res = i.resultFromNextSpans()
 		if res != nil {
 			return res, nil
@@ -561,7 +582,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := &parquetquery.IteratorResult{}
+			res := parquetquery.GetResult()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -610,6 +631,8 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 	if !ok {
 		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset in spansetIterator")
 	}
+
+	parquetquery.Release(res)
 
 	return ss, nil
 }
