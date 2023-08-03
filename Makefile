@@ -162,6 +162,7 @@ lint:
 docker-component: check-component exe
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
+	docker tag grafana/$(COMPONENT) $(COMPONENT):dev
 
 .PHONY: docker-component-debug
 docker-component-debug: check-component exe-debug
