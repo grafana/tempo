@@ -175,7 +175,7 @@ distributor:
             [cert_file: <string | default = "">]
        
         # Optional.
-        # Configures filtering in forwarder that allows dropping spans and span events using
+        # Configures filtering in forwarder that lets you drop spans and span events using
         # the OpenTelemetry Transformation Language (OTTL) syntax. For detailed overview of
         # the OTTL syntax, please refer to the official Open Telemetry documentation.
         filter:
