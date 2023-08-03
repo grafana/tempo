@@ -350,8 +350,6 @@ func (m *MockSpanSetFetcher) Fetch(_ context.Context, request FetchSpansRequest)
 	}, nil
 }
 
-func (m *MockSpanSetFetcher) Release(*Spanset) {}
-
 type MockSpanSetIterator struct {
 	results []*Spanset
 	filter  SecondPassFn

@@ -70,8 +70,6 @@ func (m *mockFetcher) Fetch(_ context.Context, req traceql.FetchSpansRequest) (t
 	}, nil
 }
 
-func (m *mockFetcher) Release(*traceql.Spanset) {}
-
 func (m *mockFetcher) Next(context.Context) (*traceql.Spanset, error) {
 	if len(m.Spansets) == 0 {
 		return nil, nil
