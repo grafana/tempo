@@ -1,13 +1,15 @@
 ---
-title: Monitor TempoStack instances
-description: Monitor TempoStack instances
+title: Monitor Tempo instances and the operator
+description: Set up monitoring for Tempo instances and the operator
 menuTitle: Monitor
 weight: 300
 aliases:
 - /docs/tempo/operator/monitor
 ---
 
-# Monitor TempoStack instances
+# Monitor Tempo instances and the operator
+
+## Monitor TempoStack instances
 
 The Tempo Operator supports monitoring and alerting of each Tempo component (distributor, ingester, etc.).
 To enable metrics and alerting, the [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) or a comparable solution which discovers `ServiceMonitor` and `PrometheusRule` objects must be installed and configured in the cluster.
@@ -27,11 +29,11 @@ spec:
       jaeger_agent_endpoint: localhost:6831
 ```
 
-## Configure distributed tracing of operands
+### Configure distributed tracing of operands
 
 All Tempo components as well as the [Tempo Gateway](https://github.com/observatorium/api) support the export of traces in `thrift_compact` format.
 
-### Deploy OpenTelemetry collector sidecar
+#### Deploy OpenTelemetry collector sidecar
 
 To deploy the OpenTelemetry collector, follow these steps:
 1. Install [OpenTelemetry Operator](https://opentelemetry.io/docs/k8s-operator/#getting-started) into the cluster.
@@ -64,7 +66,7 @@ spec:
           exporters: [otlp]
 ```
 
-### Send trace data to OpenTelemetry sidecar
+#### Send trace data to OpenTelemetry sidecar
 
 Finally, create a `TempoStack` instance that sets `jaeger_agent_endpoint` to report trace data to the `localhost`. 
 The Tempo operator sets the OpenTelemetry inject annotation `sidecar.opentelemetry.io/inject": "true` to all `TempoStack` pods.
@@ -92,7 +94,7 @@ spec:
 ```
 
 
-# Monitor the Operator
+## Monitor the operator
 
 The Tempo Operator can expose upgrade and other operational metrics about the operator itself, and can create alerts based on these metrics.
 The configuration options to enable the creation of `ServiceMonitor` (for scraping metrics) and `PrometheusRule` (for creating alerts) objects is in the ConfigMap `tempo-operator-manager-config` in the same namespace as the operator:
