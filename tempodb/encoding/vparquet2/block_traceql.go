@@ -158,16 +158,17 @@ func getSpan() *span {
 	return spanPool.Get().(*span)
 }
 
-var spansetPool = sync.Pool{
-	New: func() interface{} {
-		return &traceql.Spanset{}
-	},
-}
+var spansetPool = sync.Pool{}
 
 func getSpanset() *traceql.Spanset {
-	ss := spansetPool.Get().(*traceql.Spanset)
-	ss.ReleaseFn = putSpansetAndSpans
-	return ss
+	ss := spansetPool.Get()
+	if ss == nil {
+		return &traceql.Spanset{
+			ReleaseFn: putSpansetAndSpans,
+		}
+	}
+
+	return ss.(*traceql.Spanset)
 }
 
 // putSpanset back into the pool.  Does not repool the spans.
@@ -564,7 +565,7 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 		}
 
 		parquetquery.ReleaseResult(res)
-		putSpanset(ss)
+		putSpanset(ss) // Repool the spanset but not the spans which have been moved to nextSpans as needed.
 
 		res = i.resultFromNextSpans()
 		if res != nil {
@@ -620,6 +621,8 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 		return nil, nil
 	}
 
+	defer parquetquery.ReleaseResult(res)
+
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)
 	if iface == nil {
@@ -629,8 +632,6 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 	if !ok {
 		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset in spansetIterator")
 	}
-
-	parquetquery.ReleaseResult(res)
 
 	return ss, nil
 }
