@@ -159,14 +159,17 @@ func getSpan() *span {
 	return spanPool.Get().(*span)
 }
 
-var spansetPool = sync.Pool{
-	New: func() interface{} {
-		return &traceql.Spanset{}
-	},
-}
+var spansetPool = sync.Pool{}
 
 func getSpanset() *traceql.Spanset {
-	return spansetPool.Get().(*traceql.Spanset)
+	ss := spansetPool.Get()
+	if ss == nil {
+		return &traceql.Spanset{
+			ReleaseFn: putSpansetAndSpans,
+		}
+	}
+
+	return ss.(*traceql.Spanset)
 }
 
 // putSpanset back into the pool.  Does not repool the spans.
@@ -440,6 +443,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
+		parquetquery.ReleaseResult(res)
+
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
 		})
@@ -454,7 +459,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := &parquetquery.IteratorResult{RowNumber: s.rowNum}
+	res := parquetquery.GetResult()
+	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
 	return res
@@ -559,6 +565,9 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
+		parquetquery.ReleaseResult(res)
+		putSpanset(ss) // Repool the spanset but not the spans which have been moved to nextSpans as needed.
+
 		res = i.resultFromNextSpans()
 		if res != nil {
 			return res, nil
@@ -573,7 +582,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := &parquetquery.IteratorResult{}
+			res := parquetquery.GetResult()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -612,6 +621,8 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 	if res == nil {
 		return nil, nil
 	}
+
+	defer parquetquery.ReleaseResult(res)
 
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)

@@ -555,6 +555,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	rr := backend.NewReader(r)
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
+	require.Equal(b, VersionString, meta.Version)
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
