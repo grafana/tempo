@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 	"golang.org/x/oauth2"
 

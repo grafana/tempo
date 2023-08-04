@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/user"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.uber.org/atomic"

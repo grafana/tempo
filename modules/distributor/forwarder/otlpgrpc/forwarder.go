@@ -6,11 +6,11 @@ import (
 	"sync"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/middleware"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
-	"github.com/weaveworks/common/middleware"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.uber.org/multierr"

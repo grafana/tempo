@@ -13,9 +13,9 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/generator/storage"
