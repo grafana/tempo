@@ -16,7 +16,10 @@ const (
 	VersionNew Version = "0"
 )
 
-var ErrVersionDoesNotMatch = errors.New("version does not match")
+var (
+	ErrVersionDoesNotMatch = errors.New("version does not match")
+	ErrVersionInvalid      = errors.New("version is not valid")
+)
 
 // VersionedReaderWriter is a collection of methods to read and write data from tempodb backends with
 // versioning enabled.

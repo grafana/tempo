@@ -34,7 +34,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	ctx := context.TODO()
 
-	src, err := rw.readAll(ctx, metaFilename)
+	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 }
 
 func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
-	bytes, err := rw.readAll(ctx, name)
+	bytes, _, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
 	}

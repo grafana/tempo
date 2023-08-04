@@ -310,14 +310,23 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	// Note there is a potential data race here because S3 does not support conditional headers. If
 	// another process writes to the same object in between ReadVersioned and Write its changes will
 	// be overwritten.
+	// TODO use rw.hedgedCore.GetObject, don't download the full object
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && err != backend.ErrDoesNotExist {
 		return "", err
 	}
-	if err != backend.ErrDoesNotExist && currentVersion != version {
+
+	level.Info(rw.logger).Log("msg", "WriteVersioned - fetching data", "currentVersion", currentVersion, "err", err, "version", version)
+
+	// object does not exist - supplied version must be "0"
+	if err == backend.ErrDoesNotExist && version != backend.VersionNew {
+		return "", backend.ErrVersionDoesNotMatch
+	}
+	if err != backend.ErrDoesNotExist && version != currentVersion {
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
+	// TODO extract Write to a separate method which returns minio.UploadInfo, saves us a GetObject request
 	err = rw.Write(ctx, name, keypath, data, -1, false)
 	if err != nil {
 		return "", err
@@ -331,6 +340,7 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	// Note there is a potential data race here because S3 does not support conditional headers. If
 	// another process writes to the same object in between ReadVersioned and Delete its changes will
 	// be overwritten.
+	// TODO use rw.hedgedCore.GetObject, don't download the full object
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && err != backend.ErrDoesNotExist {
 		return err

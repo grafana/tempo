@@ -132,7 +132,7 @@ func writeError(w http.ResponseWriter, err error) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	if err == backend.ErrVersionDoesNotMatch {
+	if err == backend.ErrVersionDoesNotMatch || err == backend.ErrVersionInvalid {
 		http.Error(w, err.Error(), http.StatusPreconditionFailed)
 		return
 	}

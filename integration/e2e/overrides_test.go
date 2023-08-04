@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grafana/e2e"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -19,12 +20,15 @@ import (
 
 func TestOverrides(t *testing.T) {
 	testBackends := []struct {
-		name       string
-		configFile string
+		name           string
+		skipVersioning bool
+		configFile     string
 	}{
 		{
-			name:       "local",
-			configFile: configAllInOneLocal,
+			name: "local",
+			// local backend does not enforce versioning
+			skipVersioning: true,
+			configFile:     configAllInOneLocal,
 		},
 		{
 			name:       "s3",
@@ -61,38 +65,120 @@ func TestOverrides(t *testing.T) {
 			orgID := ""
 			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), orgID)
 
-			// Modify overrides
-			fmt.Println("* Setting overrides.forwarders")
+			// Create overrides
+			if !tc.skipVersioning {
+				fmt.Println("* Creating overrides with non-0 version")
+				_, err = apiClient.SetOverrides(&client.Limits{
+					MetricsGenerator: &client.LimitsMetricsGenerator{
+						DisableCollection: boolPtr(true),
+					},
+				}, "123")
+				assert.ErrorContains(t, err, "412") // precondition failed
+			}
+
+			fmt.Println("* Creating overrides")
 			_, err = apiClient.SetOverrides(&client.Limits{
-				Forwarders: &[]string{},
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
 			}, "0")
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			limits, version, err := apiClient.GetOverrides()
-			printLimits(limits)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+			printLimits(limits, version)
 
-			require.NotNil(t, limits)
-			require.NotNil(t, limits.Forwarders)
-			assert.ElementsMatch(t, *limits.Forwarders, []string{})
+			disableCollection, ok := limits.GetMetricsGenerator().GetDisableCollection()
+			assert.True(t, ok)
+			assert.True(t, disableCollection)
 
-			// We fetched the overrides once manually, but we also expect at least one poll_interval to have happened
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(1), "tempo_overrides_user_configurable_overrides_fetch_total"))
+			if !tc.skipVersioning {
+				fmt.Println("* Update overrides with bogus version number")
+				_, err = apiClient.SetOverrides(&client.Limits{
+					Forwarders: &[]string{},
+				}, "abc")
+				assert.ErrorContains(t, err, "412") // precondition failed
 
-			// Clear overrides
+				fmt.Println("* Update overrides with backend.VersionNew")
+				_, err = apiClient.SetOverrides(&client.Limits{
+					MetricsGenerator: &client.LimitsMetricsGenerator{
+						DisableCollection: nil,
+						Processors:        map[string]struct{}{"span-metrics": {}},
+					},
+				}, "0")
+				assert.ErrorContains(t, err, "412") // precondition failed
+
+				_, err = apiClient.SetOverrides(&client.Limits{
+					MetricsGenerator: &client.LimitsMetricsGenerator{
+						DisableCollection: nil,
+						Processors:        map[string]struct{}{"span-metrics": {}},
+					},
+				}, "123")
+				assert.ErrorContains(t, err, "412") // precondition failed
+			}
+
+			// Modify overrides - respect version
+			fmt.Println("* Update overrides")
+			_, err = apiClient.SetOverrides(&client.Limits{
+				Forwarders: nil,
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					Processors: map[string]struct{}{"span-metrics": {}},
+				},
+			}, version)
+			assert.NoError(t, err)
+			limits, version, err = apiClient.GetOverrides()
+
+			assert.NoError(t, err)
+			printLimits(limits, version)
+
+			_, ok = limits.GetMetricsGenerator().GetDisableCollection()
+			assert.False(t, ok)
+			processors, ok := limits.GetMetricsGenerator().GetProcessors()
+			assert.True(t, ok)
+
+			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
+
+			// Modify overrides - patch
+			// TODO https://github.com/grafana/tempo/issues/2756
+
+			// Delete overrides
+			if !tc.skipVersioning {
+				fmt.Println("* Deleting overrides - don't respect version")
+				err = apiClient.DeleteOverrides("123")
+				assert.ErrorContains(t, err, "412") // precondition failed
+			}
+
 			fmt.Println("* Deleting overrides")
 			err = apiClient.DeleteOverrides(version)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
+			// Get overrides - 404
+			fmt.Println("* Get overrides - 404")
 			_, _, err = apiClient.GetOverrides()
-			require.ErrorIs(t, err, httpclient.ErrNotFound)
+			assert.ErrorIs(t, err, httpclient.ErrNotFound)
 		})
 	}
 }
 
-func printLimits(limits *client.Limits) {
-	fmt.Printf("* Overrides: %+v\n", limits)
-	if limits != nil && limits.Forwarders != nil {
-		fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
+func printLimits(limits *client.Limits, version string) {
+	var str string
+	if limits != nil {
+		bytes, err := jsoniter.Marshal(limits)
+		if err == nil {
+			str = string(bytes)
+		}
 	}
+	fmt.Printf("* Overrides (version = %s): %+v\n", version, str)
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func keys(m map[string]struct{}) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
