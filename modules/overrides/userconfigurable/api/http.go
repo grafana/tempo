@@ -6,12 +6,12 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/tracing"
+	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/weaveworks/common/tracing"
-	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
