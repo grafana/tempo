@@ -9,6 +9,9 @@ aliases:
 
 # Monitor TempoStack instances
 
+The Tempo Operator supports monitoring and alerting of each Tempo component (distributor, ingester, etc.).
+To enable metrics and alerting, the [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) or a comparable solution which discovers `ServiceMonitor` and `PrometheusRule` objects must be installed and configured in the cluster.
+
 The configuration for monitoring `TempoStack` instances is exposed in the CR:
 
 ```yaml
@@ -86,4 +89,22 @@ spec:
     tracing:
       sampling_fraction: "1.0"
       jaeger_agent_endpoint: localhost:6831
+```
+
+
+# Monitor the Operator
+
+The Tempo Operator can expose upgrade and other operational metrics about the operator itself, and can create alerts based on these metrics.
+The configuration options to enable the creation of `ServiceMonitor` (for scraping metrics) and `PrometheusRule` (for creating alerts) objects is in the ConfigMap `tempo-operator-manager-config` in the same namespace as the operator:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+data:
+  controller_manager_config.yaml: |
+    featureGates:
+      observability:
+        metrics:
+          createServiceMonitors: true
+          createPrometheusRules: true
 ```
