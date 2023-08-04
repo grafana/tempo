@@ -252,16 +252,15 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
-	object := rw.bucket.Object(backend.ObjectFileName(keypath, name))
+	o := rw.bucket.Object(backend.ObjectFileName(keypath, name))
 
 	preconditions, err := createPreconditions(version)
 	if err != nil {
 		return err
 	}
+	o = o.If(preconditions)
 
-	object.If(preconditions)
-
-	return object.Delete(ctx)
+	return o.Delete(ctx)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
