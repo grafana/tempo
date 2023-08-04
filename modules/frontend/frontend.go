@@ -236,7 +236,7 @@ func newSpanMetricsMiddleware() Middleware {
 
 // buildUpstreamRequestURI returns a uri based on the passed parameters
 // we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
-// https://github.com/dskit/common/blob/47e357f4e1badb7da17ad74bae63e228bdd76e8f/httpgrpc/server/server.go#L48
+// https://github.com/grafana/dskit/blob/740f56bd293423c5147773ce97264519f9fddc58/httpgrpc/server/server.go#L59
 func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	const queryDelimiter = "?"
 
