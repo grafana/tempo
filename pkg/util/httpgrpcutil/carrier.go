@@ -1,8 +1,8 @@
 package httpgrpcutil
 
 import (
+	"github.com/grafana/dskit/httpgrpc"
 	"github.com/opentracing/opentracing-go"
-	"github.com/weaveworks/common/httpgrpc"
 )
 
 // Used to transfer trace information from/to HTTP request.

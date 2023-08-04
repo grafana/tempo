@@ -16,10 +16,10 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
