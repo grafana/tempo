@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	dslog "github.com/grafana/dskit/log"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"github.com/sirupsen/logrus"
-	"github.com/weaveworks/common/logging"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
@@ -46,7 +46,7 @@ func (l List) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
 	return multierr.Combine(errs...)
 }
 
-func New(cfg Config, logger log.Logger, logLevel logging.Level) (Forwarder, error) {
+func New(cfg Config, logger log.Logger, logLevel dslog.Level) (Forwarder, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -84,7 +84,7 @@ type FilterForwarder struct {
 	fatalErrorMu    sync.RWMutex
 }
 
-func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel logging.Level) (*FilterForwarder, error) {
+func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) (*FilterForwarder, error) {
 	factory := filterprocessor.NewFactory()
 
 	set := processor.CreateSettings{
@@ -191,7 +191,7 @@ func (c consumerToForwarderAdapter) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
-func newLogger(level logging.Level) *zap.Logger {
+func newLogger(level dslog.Level) *zap.Logger {
 	zapLevel := zapcore.InfoLevel
 
 	switch level.Logrus {

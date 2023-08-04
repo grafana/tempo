@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	dslog "github.com/grafana/dskit/log"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/logging"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -138,7 +138,7 @@ func TestFilterForwarder_ForwardTraces_ReturnsNoErrorAndCallsForwardTracesOnUnde
 
 	f := &mockCountingForwarder{next: &mockWorkingForwarder{}, forwardTracesCount: 0}
 	cfg := FilterConfig{}
-	ff, err := NewFilterForwarder(cfg, f, logging.Level{})
+	ff, err := NewFilterForwarder(cfg, f, dslog.Level{})
 	require.NoError(t, err)
 
 	// When
@@ -165,7 +165,7 @@ func TestFilterForwarder_ForwardTraces_ReturnsNoErrorAndCallsForwardTracesOnUnde
 			SpanEventConditions: nil,
 		},
 	}
-	ff, err := NewFilterForwarder(cfg, f, logging.Level{})
+	ff, err := NewFilterForwarder(cfg, f, dslog.Level{})
 	require.NoError(t, err)
 
 	// When
@@ -196,7 +196,7 @@ func TestFilterForwarder_ForwardTraces_ReturnsNoErrorAndDoesNotCallsForwardTrace
 			SpanEventConditions: nil,
 		},
 	}
-	ff, err := NewFilterForwarder(cfg, f, logging.Level{})
+	ff, err := NewFilterForwarder(cfg, f, dslog.Level{})
 	require.NoError(t, err)
 
 	// When
@@ -218,7 +218,7 @@ func TestFilterForwarder_ForwardTraces_ReturnsErrorAndDoesNotCallForwardTracesOn
 			SpanEventConditions: nil,
 		},
 	}
-	ff, err := NewFilterForwarder(cfg, f, logging.Level{})
+	ff, err := NewFilterForwarder(cfg, f, dslog.Level{})
 	require.NoError(t, err)
 
 	ff.fatalError = fatalErr
@@ -247,7 +247,7 @@ func TestFilterForwarder_ForwardTraces_ReturnsErrorWithFailingUnderlyingForwarde
 			SpanEventConditions: nil,
 		},
 	}
-	ff, err := NewFilterForwarder(cfg, f, logging.Level{})
+	ff, err := NewFilterForwarder(cfg, f, dslog.Level{})
 	require.NoError(t, err)
 
 	// When

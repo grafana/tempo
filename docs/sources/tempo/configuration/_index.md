@@ -59,7 +59,7 @@ You can find more about other supported syntax [here](https://github.com/drone/e
 
 ## Server
 
-Tempo uses the Weaveworks/common server. For more information on configuration options, see [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54).
+Tempo uses the server from `dskit/server`. For more information on configuration options, see [here](https://github.com/grafana/dskit/blob/main/server/server.go#L66).
 
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
