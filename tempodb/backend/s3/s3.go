@@ -356,6 +356,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	creds := credentials.NewChainCredentials([]credentials.Provider{
+		wrapCredentialsProvider(NewAWSSDKAuth(cfg.Region)),
 		wrapCredentialsProvider(&credentials.EnvAWS{}),
 		wrapCredentialsProvider(&credentials.Static{
 			Value: credentials.Value{
