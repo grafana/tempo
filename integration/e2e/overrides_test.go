@@ -142,7 +142,8 @@ func TestOverrides(t *testing.T) {
 			// TODO https://github.com/grafana/tempo/issues/2756
 
 			// Delete overrides
-			if !tc.skipVersioning {
+			if !tc.skipVersioning && tc.name != "gcs" {
+				// Delete with preconditions is not supported by fake-gcs-server https://github.com/fsouza/fake-gcs-server/issues/1282
 				fmt.Println("* Deleting overrides - don't respect version")
 				err = apiClient.DeleteOverrides("123")
 				assert.ErrorContains(t, err, "412") // precondition failed
