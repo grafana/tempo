@@ -68,13 +68,34 @@ func TestOverrides(t *testing.T) {
 			}, "0")
 			require.NoError(t, err)
 
-			limits, version, err := apiClient.GetOverrides()
+			limits, _, err := apiClient.GetOverrides()
 			printLimits(limits)
 			require.NoError(t, err)
 
 			require.NotNil(t, limits)
 			require.NotNil(t, limits.Forwarders)
 			assert.ElementsMatch(t, *limits.Forwarders, []string{})
+
+			// Patching overrides
+			fmt.Println("* Patching overrides.forwarders")
+			bt := true
+			limits, version, err := apiClient.PatchOverrides(&userconfigurableapi.UserConfigurableLimits{
+				MetricsGenerator: &userconfigurableapi.UserConfigurableOverridesMetricsGenerator{
+					DisableCollection: &bt,
+				},
+			})
+			require.NoError(t, err)
+
+			printLimits(limits)
+			require.NoError(t, err)
+
+			require.NotNil(t, limits)
+			// limits did not change
+			require.NotNil(t, limits.Forwarders)
+			assert.ElementsMatch(t, *limits.Forwarders, []string{})
+			require.NotNil(t, limits.MetricsGenerator)
+			require.NotNil(t, limits.MetricsGenerator.DisableCollection)
+			assert.True(t, *limits.MetricsGenerator.DisableCollection)
 
 			// We fetched the overrides once manually, but we also expect at least one poll_interval to have happened
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(1), "tempo_overrides_user_configurable_overrides_fetch_total"))

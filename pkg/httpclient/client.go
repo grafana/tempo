@@ -253,6 +253,29 @@ func (c *Client) SetOverrides(limits *api.UserConfigurableLimits, version string
 	return resp.Header.Get("Etag"), err
 }
 
+func (c *Client) PatchOverrides(limits *api.UserConfigurableLimits) (*api.UserConfigurableLimits, string, error) {
+	b, err := json.Marshal(limits)
+	if err != nil {
+		return nil, "", err
+	}
+
+	req, err := http.NewRequest("PATCH", c.BaseURL+tempo_api.PathOverrides, bytes.NewBuffer(b))
+	if err != nil {
+		return nil, "", err
+	}
+
+	resp, body, err := c.doRequest(req)
+	if err != nil {
+		return nil, "", err
+	}
+
+	patchedLimits := &api.UserConfigurableLimits{}
+	if err = json.Unmarshal(body, patchedLimits); err != nil {
+		return nil, "", fmt.Errorf("error decoding overrides, err: %v body: %s", err, string(body))
+	}
+	return patchedLimits, resp.Header.Get("Etag"), err
+}
+
 func (c *Client) DeleteOverrides(version string) error {
 	req, err := http.NewRequest("DELETE", c.BaseURL+tempo_api.PathOverrides, nil)
 	if err != nil {

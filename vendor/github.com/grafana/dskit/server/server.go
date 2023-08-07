@@ -259,7 +259,7 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	if cfg.RouteHTTPToGRPC {
 		grpchttpmux = cmux.New(httpListener)
 
-		httpListener = grpchttpmux.Match(cmux.HTTP1Fast())
+		httpListener = grpchttpmux.Match(cmux.HTTP1Fast("PATCH"))
 		grpcOnHTTPListener = grpchttpmux.Match(cmux.HTTP2())
 	}
 
