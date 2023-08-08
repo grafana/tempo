@@ -629,8 +629,8 @@ github.com/gorilla/handlers v1.5.1 h1:9lRY6j8DEeeBT10CvO9hGW0gmky0BprnvDI5vfhUHH
 github.com/gorilla/handlers v1.5.1/go.mod h1:t8XrUpc4KVXb7HGyJ4/cEnwQiaxrX/hz1Zv/4g96P1Q=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/grafana/dskit v0.0.0-20230804003603-740f56bd2934 h1:W1g+y6rOO7K/Jm2XNPxIXyJisJSJ25uiVVaSa7N1Zwo=
-github.com/grafana/dskit v0.0.0-20230804003603-740f56bd2934/go.mod h1:Xg0aN3EpqkYFW1ZxGyIl4BGEpr3QrCQOM1aWalpU3ik=
+github.com/grafana/dskit v0.0.0-20230808012443-3f5683fdb201 h1:oad2aie0d6S/Dipv3Yiv/eKaq95o5dVZFuCAdRtMNs0=
+github.com/grafana/dskit v0.0.0-20230808012443-3f5683fdb201/go.mod h1:rLsknCxlzGWMVtW39D0dArFpUY3McQJbIwi5T8wogFQ=
 github.com/grafana/gomemcache v0.0.0-20230316202710-a081dae0aba9 h1:WB3bGH2f1UN6jkd6uAEWfHB8OD7dKJ0v2Oo6SNfhpfQ=
 github.com/grafana/gomemcache v0.0.0-20230316202710-a081dae0aba9/go.mod h1:PGk3RjYHpxMM8HFPhKKo+vve3DdlPUELZLSDEFehPuU=
 github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 h1:+9834+KizmvFV7pXQGSXQTsaWhq2GjuNUt0aUU0YBYw=
