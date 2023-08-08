@@ -30,7 +30,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20230804003603-740f56bd2934
+	github.com/grafana/dskit v0.0.0-20230808012443-3f5683fdb201
 	github.com/grafana/e2e v0.1.1-0.20221018202458-cffd2bb71c7b
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.4.0

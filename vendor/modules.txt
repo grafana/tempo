@@ -381,8 +381,8 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit; go 1.12
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20230804003603-740f56bd2934
-## explicit; go 1.18
+# github.com/grafana/dskit v0.0.0-20230808012443-3f5683fdb201
+## explicit; go 1.19
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/concurrency
 github.com/grafana/dskit/crypto/tls
