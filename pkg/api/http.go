@@ -68,6 +68,7 @@ const (
 	PathSearchTags         = "/api/search/tags"
 	PathSearchTagValues    = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho               = "/api/echo"
+	PathBuildInfo          = "/api/status/buildinfo"
 	PathUsageStats         = "/status/usage-stats"
 	PathSpanMetrics        = "/api/metrics"
 	PathSpanMetricsSummary = "/api/metrics/summary"

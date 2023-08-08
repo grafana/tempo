@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -15,7 +16,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/atomic"
-	"github.com/weaveworks/common/user"
 )
 
 func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
