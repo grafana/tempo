@@ -66,22 +66,20 @@ func TestOverrides(t *testing.T) {
 			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), orgID)
 
 			// Create overrides
+			initialLimits := &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+
 			if !tc.skipVersioning {
 				fmt.Println("* Creating overrides with non-0 version")
-				_, err = apiClient.SetOverrides(&client.Limits{
-					MetricsGenerator: &client.LimitsMetricsGenerator{
-						DisableCollection: boolPtr(true),
-					},
-				}, "123")
+				_, err = apiClient.SetOverrides(initialLimits, "123")
 				assert.ErrorContains(t, err, "412") // precondition failed
 			}
 
 			fmt.Println("* Creating overrides")
-			_, err = apiClient.SetOverrides(&client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
-					DisableCollection: boolPtr(true),
-				},
-			}, "0")
+			_, err = apiClient.SetOverrides(initialLimits, "0")
 			assert.NoError(t, err)
 
 			limits, version, err := apiClient.GetOverrides()
@@ -92,54 +90,59 @@ func TestOverrides(t *testing.T) {
 			assert.True(t, ok)
 			assert.True(t, disableCollection)
 
+			// Update overrides - POST
+			updatedLimits := &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: nil,
+					Processors:        map[string]struct{}{"span-metrics": {}},
+				},
+			}
+
 			if !tc.skipVersioning {
 				fmt.Println("* Update overrides with bogus version number")
-				_, err = apiClient.SetOverrides(&client.Limits{
-					Forwarders: &[]string{},
-				}, "abc")
+				_, err = apiClient.SetOverrides(updatedLimits, "abc")
 				assert.ErrorContains(t, err, "412") // precondition failed
 
 				fmt.Println("* Update overrides with backend.VersionNew")
-				_, err = apiClient.SetOverrides(&client.Limits{
-					MetricsGenerator: &client.LimitsMetricsGenerator{
-						DisableCollection: nil,
-						Processors:        map[string]struct{}{"span-metrics": {}},
-					},
-				}, "0")
+				_, err = apiClient.SetOverrides(updatedLimits, "0")
 				assert.ErrorContains(t, err, "412") // precondition failed
 
-				_, err = apiClient.SetOverrides(&client.Limits{
-					MetricsGenerator: &client.LimitsMetricsGenerator{
-						DisableCollection: nil,
-						Processors:        map[string]struct{}{"span-metrics": {}},
-					},
-				}, "123")
+				fmt.Println("* Update overrides with wrong version number")
+				_, err = apiClient.SetOverrides(updatedLimits, "123")
 				assert.ErrorContains(t, err, "412") // precondition failed
 			}
 
-			// Modify overrides - respect version
 			fmt.Println("* Update overrides")
-			_, err = apiClient.SetOverrides(&client.Limits{
-				Forwarders: nil,
-				MetricsGenerator: &client.LimitsMetricsGenerator{
-					Processors: map[string]struct{}{"span-metrics": {}},
-				},
-			}, version)
+			_, err = apiClient.SetOverrides(updatedLimits, version)
 			assert.NoError(t, err)
+
 			limits, version, err = apiClient.GetOverrides()
 
 			assert.NoError(t, err)
 			printLimits(limits, version)
 
 			_, ok = limits.GetMetricsGenerator().GetDisableCollection()
-			assert.False(t, ok)
+			assert.False(t, ok) // is not set anymore
 			processors, ok := limits.GetMetricsGenerator().GetProcessors()
 			assert.True(t, ok)
-
 			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
 
-			// Modify overrides - patch
-			// TODO https://github.com/grafana/tempo/issues/2756
+			// Modify overrides - PATCH
+			patch := &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+
+			limits, version, err = apiClient.PatchOverrides(patch)
+			assert.NoError(t, err)
+
+			disableCollection, ok = limits.GetMetricsGenerator().GetDisableCollection()
+			assert.True(t, ok)
+			assert.True(t, disableCollection)
+			processors, ok = limits.GetMetricsGenerator().GetProcessors()
+			assert.True(t, ok)
+			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
 
 			// Delete overrides
 			if !tc.skipVersioning && tc.name != "gcs" {
@@ -157,6 +160,16 @@ func TestOverrides(t *testing.T) {
 			fmt.Println("* Get overrides - 404")
 			_, _, err = apiClient.GetOverrides()
 			assert.ErrorIs(t, err, httpclient.ErrNotFound)
+
+			// Recreate overrides - PATCH
+			patch = &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+
+			_, _, err = apiClient.PatchOverrides(patch)
+			assert.NoError(t, err)
 		})
 	}
 }
