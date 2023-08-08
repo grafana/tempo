@@ -11,7 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util/test"

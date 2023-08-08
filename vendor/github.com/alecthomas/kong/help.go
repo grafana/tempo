@@ -86,10 +86,10 @@ type HelpValueFormatter func(value *Value) string
 
 // DefaultHelpValueFormatter is the default HelpValueFormatter.
 func DefaultHelpValueFormatter(value *Value) string {
-	if value.Tag.Env == "" || HasInterpolatedVar(value.OrigHelp, "env") {
+	if len(value.Tag.Envs) == 0 || HasInterpolatedVar(value.OrigHelp, "env") {
 		return value.Help
 	}
-	suffix := "($" + value.Tag.Env + ")"
+	suffix := "(" + formatEnvs(value.Tag.Envs) + ")"
 	switch {
 	case strings.HasSuffix(value.Help, "."):
 		return value.Help[:len(value.Help)-1] + " " + suffix + "."
@@ -566,4 +566,13 @@ func TreeIndenter(prefix string) string {
 		return "|- "
 	}
 	return "|" + strings.Repeat(" ", defaultIndent) + prefix
+}
+
+func formatEnvs(envs []string) string {
+	formatted := make([]string, len(envs))
+	for i := range envs {
+		formatted[i] = "$" + envs[i]
+	}
+
+	return strings.Join(formatted, ", ")
 }

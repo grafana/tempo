@@ -74,11 +74,14 @@ func getMethod(value reflect.Value, name string) reflect.Value {
 	return method
 }
 
-func callMethod(name string, v, f reflect.Value, bindings bindings) error {
+func callFunction(f reflect.Value, bindings bindings) error {
+	if f.Kind() != reflect.Func {
+		return fmt.Errorf("expected function, got %s", f.Type())
+	}
 	in := []reflect.Value{}
 	t := f.Type()
 	if t.NumOut() != 1 || !t.Out(0).Implements(callbackReturnSignature) {
-		return fmt.Errorf("return value of %T.%s() must implement \"error\"", v.Type(), name)
+		return fmt.Errorf("return value of %s must implement \"error\"", t)
 	}
 	for i := 0; i < t.NumIn(); i++ {
 		pt := t.In(i)
@@ -89,7 +92,7 @@ func callMethod(name string, v, f reflect.Value, bindings bindings) error {
 			}
 			in = append(in, argv)
 		} else {
-			return fmt.Errorf("couldn't find binding of type %s for parameter %d of %s.%s(), use kong.Bind(%s)", pt, i, v.Type(), name, pt)
+			return fmt.Errorf("couldn't find binding of type %s for parameter %d of %s(), use kong.Bind(%s)", pt, i, t, pt)
 		}
 	}
 	out := f.Call(in)
@@ -97,4 +100,38 @@ func callMethod(name string, v, f reflect.Value, bindings bindings) error {
 		return nil
 	}
 	return out[0].Interface().(error) // nolint
+}
+
+func callAnyFunction(f reflect.Value, bindings bindings) (out []any, err error) {
+	if f.Kind() != reflect.Func {
+		return nil, fmt.Errorf("expected function, got %s", f.Type())
+	}
+	in := []reflect.Value{}
+	t := f.Type()
+	for i := 0; i < t.NumIn(); i++ {
+		pt := t.In(i)
+		if argf, ok := bindings[pt]; ok {
+			argv, err := argf()
+			if err != nil {
+				return nil, err
+			}
+			in = append(in, argv)
+		} else {
+			return nil, fmt.Errorf("couldn't find binding of type %s for parameter %d of %s(), use kong.Bind(%s)", pt, i, t, pt)
+		}
+	}
+	outv := f.Call(in)
+	out = make([]any, len(outv))
+	for i, v := range outv {
+		out[i] = v.Interface()
+	}
+	return out, nil
+}
+
+func callMethod(name string, v, f reflect.Value, bindings bindings) error {
+	err := callFunction(f, bindings)
+	if err != nil {
+		return fmt.Errorf("%s.%s(): %w", v.Type(), name, err)
+	}
+	return nil
 }

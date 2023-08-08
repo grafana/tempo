@@ -5,8 +5,8 @@ import (
 	"io"
 	"sort"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
