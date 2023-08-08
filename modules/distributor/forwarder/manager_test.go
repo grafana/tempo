@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	dslog "github.com/grafana/dskit/log"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"golang.org/x/exp/slices"
@@ -63,7 +64,7 @@ func (m *mockChannelledInterceptorForwarder) Shutdown(ctx context.Context) error
 func newManagerWithForwarders(t *testing.T, forwarderNameToForwarder map[string]Forwarder, logger log.Logger, o Overrides) *Manager {
 	t.Helper()
 
-	manager, err := NewManager(ConfigList{}, logger, o)
+	manager, err := NewManager(ConfigList{}, logger, o, dslog.Level{})
 	require.NoError(t, err)
 	manager.forwarderNameToForwarder = forwarderNameToForwarder
 
@@ -82,7 +83,7 @@ func TestNewManager_ReturnsNoErrorAndNonNilManagerWithValidConfigList(t *testing
 	o := &mockWorkingOverrides{}
 
 	// When
-	got, err := NewManager(cfgs, logger, o)
+	got, err := NewManager(cfgs, logger, o, dslog.Level{})
 
 	// Then
 	require.NoError(t, err)
@@ -98,7 +99,7 @@ func TestNewManager_ReturnsErrorAndNilManagerWithInvalidConfigList(t *testing.T)
 	o := &mockWorkingOverrides{}
 
 	// When
-	got, err := NewManager(cfgs, logger, o)
+	got, err := NewManager(cfgs, logger, o, dslog.Level{})
 
 	// Then
 	require.Error(t, err)

@@ -30,7 +30,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20230731140248-b62b4b2ca7b2
+	github.com/grafana/dskit v0.0.0-20230804003603-740f56bd2934
 	github.com/grafana/e2e v0.1.1-0.20221018202458-cffd2bb71c7b
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.4.0
@@ -66,7 +66,6 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	github.com/weaveworks/common v0.0.0-20230511094633-334485600903
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.74.0
@@ -104,6 +103,8 @@ require (
 	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/grafana/gomemcache v0.0.0-20230316202710-a081dae0aba9
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.74.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.74.0
 	github.com/parquet-go/parquet-go v0.17.0
 	github.com/stoewer/parquet-cli v0.0.5
 	go.opentelemetry.io/collector/exporter v0.74.0
@@ -125,9 +126,11 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/Shopify/sarama v1.38.1 // indirect
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
+	github.com/alecthomas/participle/v2 v2.0.0-beta.5 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/antonmedv/expr v1.12.3 // indirect
 	github.com/apache/thrift v0.18.1 // indirect
 	github.com/armon/go-metrics v0.4.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
@@ -159,6 +162,7 @@ require (
 	github.com/go-openapi/strfmt v0.21.3 // indirect
 	github.com/go-openapi/swag v0.22.1 // indirect
 	github.com/go-openapi/validate v0.22.0 // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
@@ -180,6 +184,7 @@ require (
 	github.com/hashicorp/memberlist v0.3.1 // indirect
 	github.com/hashicorp/serf v0.9.8 // indirect
 	github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d // indirect
+	github.com/iancoleman/strcase v0.2.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
@@ -215,7 +220,9 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.74.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.74.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.74.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.74.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.74.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.74.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.74.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20220512140940-7b36cea86235 // indirect
