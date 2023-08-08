@@ -134,6 +134,7 @@ func TestOverrides(t *testing.T) {
 				},
 			}
 
+			fmt.Println("* Patch overrides")
 			limits, version, err = apiClient.PatchOverrides(patch)
 			assert.NoError(t, err)
 
@@ -168,6 +169,7 @@ func TestOverrides(t *testing.T) {
 				},
 			}
 
+			fmt.Println("* Patch overrides - overrides don't exist yet")
 			_, _, err = apiClient.PatchOverrides(patch)
 			assert.NoError(t, err)
 		})
