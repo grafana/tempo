@@ -100,6 +100,12 @@ spec:
 ## Monitor the operator
 
 The Tempo Operator can expose upgrade and other operational metrics about the operator itself, and can create alerts based on these metrics.
+For example, the operator handles Tempo upgrades and exposes metrics like "the number of successful Tempo upgrades", "number of failed Tempo upgrades", and others.
+The operator also creates alerts to notify system administrators if any tempo upgrade fails. 
+
+Other metrics are internal to the operator itself, for example, the duration of a "reconcile loop iteration". 
+This operator-specific component continuously tries to match the expected state as described in the TempoStack custom resource to the actual cluster state.
+For example, if you delete some object in the cluster which is managed by the operator, the operator re-creates this object again, to match the expected state of the cluster.
 
 The operator can be configured using the ConfigMap `tempo-operator-manager-config` in the same namespace as the operator.
 The following excerpt shows the configuration options to enable the creation of `ServiceMonitor` (for scraping metrics) and `PrometheusRule` (for creating alerts) objects:
