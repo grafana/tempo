@@ -45,7 +45,7 @@ That trace ID enables one to trace, or follow a request as it flows from node to
 
 Here's an example showing two pages in Grafana Cloud. The first, on the left (1), shows a query using the **Explore** feature. In the query results you can see a **traceID** field that was added to an application. That field contains a **Tempo** trace ID. The second page, on the right (2), uses the same Explore feature to perform a Tempo search using that **trace ID**. It then shows a set of spans as horizontal bars, each bar denoting a different part of the system.
 
-<p align="center"><img src="../getting-started/assets/trace-explore-spans.png" alt="Trace example"></p>
+![Traces example with query results and spans](/static/img/docs/tempo/screenshot-trace-explore-spans-g10.png)
 
 The trace ID is applied to activities recorded as metrics and as logs.
 
