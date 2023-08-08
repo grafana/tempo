@@ -9,7 +9,7 @@ aliases:
 
 # Monitor Tempo instances and the operator
 
-You can configure the Tempo Operator to monitor TempoStack instances (including all Tempo components like the distributor). In addition, the operator can expose metrics about the operator itself (for example the number of successful and failed upgrades, etc.).
+You can configure the Tempo Operator to monitor TempoStack instances (including all Tempo components like the distributor). In addition, the operator can expose metrics about the operator itself (for example, the number of successful and failed upgrades, etc.).
 
 
 ## Monitor TempoStack instances
