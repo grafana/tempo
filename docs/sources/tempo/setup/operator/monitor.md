@@ -101,7 +101,7 @@ spec:
 
 The Tempo Operator can expose upgrade and other operational metrics about the operator itself, and can create alerts based on these metrics.
 
-The operator can be configured via the ConfigMap `tempo-operator-manager-config` in the same namespace as the operator.
+The operator can be configured using the ConfigMap `tempo-operator-manager-config` in the same namespace as the operator.
 The following excerpt shows the configuration options to enable the creation of `ServiceMonitor` (for scraping metrics) and `PrometheusRule` (for creating alerts) objects:
 
 ```yaml
