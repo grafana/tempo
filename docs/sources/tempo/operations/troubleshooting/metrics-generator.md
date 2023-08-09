@@ -44,7 +44,7 @@ Rate of all edges:
 sum(rate(tempo_metrics_generator_processor_service_graphs_edges{}[1m]))
 ```
 
-If you are seeing a large number of edges expire without a match consider adjusting the following setting. This
+If you are seeing a large number of edges expire without a match, consider adjusting the `wait` setting. This
 controls how long the metrics generator waits to find a match before it gives up.
 
 ```
