@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sort"
+
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/util"
@@ -32,7 +35,11 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	combiner := trace.NewCombiner()
+	var (
+		combiner   = trace.NewCombiner()
+		marshaller = new(jsonpb.Marshaler)
+		jsonBytes  = bytes.Buffer{}
+	)
 
 	fmt.Println()
 	for i, result := range results {
@@ -80,18 +87,25 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 	}
 
 	// get top 5 most frequent service names
-	topTenSortedPL := sortServiceNames(serviceNameMap)
-	topTenServiceName := make([]string, 10)
-	length := len(topTenSortedPL)
-	if length > 10 {
-		length = 10
+	topFiveSortedPL := sortServiceNames(serviceNameMap)
+	topFiveServiceName := make([]string, 10)
+	length := len(topFiveSortedPL)
+	if length > 5 {
+		length = 5
 	}
 	for index := 0; index < length; index++ {
-		topTenServiceName[index] = topTenSortedPL[index].Key
+		topFiveServiceName[index] = topFiveSortedPL[index].Key
 	}
 
 	duration := lastEndTime - firstStartTime
 	durationSecond := duration / 1000000000
+
+	// jsonify rootspan
+	err = marshaller.Marshal(&jsonBytes, rootSpan)
+	if err != nil {
+		fmt.Println("failed to marshal to json: ", err)
+		return nil
+	}
 
 	fmt.Printf("Number of blocks: %d \n", len(results))
 	fmt.Printf("Span count: %d \n", spanCount)
@@ -99,9 +113,9 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 	fmt.Printf("Trace duration: %d seconds \n", durationSecond)
 	fmt.Printf("Root service name: %s \n", rootServiceName)
 	fmt.Println("Root span info:")
-	fmt.Println(rootSpan)
-	fmt.Println("top 5 frequent service.names: ")
-	fmt.Println(topTenServiceName)
+	fmt.Println(jsonBytes.String())
+	fmt.Println("top frequent service.names: ")
+	fmt.Println(topFiveServiceName)
 
 	return nil
 }
