@@ -43,7 +43,7 @@ configurable filters. You can see the number of spans rejected by reason using t
 sum(rate(tempo_metrics_generator_spans_discarded_total{}[1m])) by (reason)
 ```
 
-If you are dropping a lot of spans due to your filters, you will need to adjust them. If you are dropping a lot of spans
+If a lot of spans are dropped in the metrics-generator due to your filters, you will need to adjust them. If spans are dropped
 due to the ingestion slack time, consider adjusting this setting:
 
 ```
