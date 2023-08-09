@@ -114,7 +114,7 @@ of edges it will track at once. To determine if edges are being dropped due to t
 sum(rate(tempo_metrics_generator_processor_service_graphs_dropped_spans{}[1m]))
 ```
 
-To adjust the maximum amount of edges it will track use:
+Use `max_items` to adjust the maximum amount of edges tracked:
 
 ```
 metrics_generator:
