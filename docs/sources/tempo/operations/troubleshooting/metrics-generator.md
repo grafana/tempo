@@ -53,8 +53,8 @@ metrics_generator:
 
 ### Max active series
 
-The generator protects itself and your remote write target by having a maximum number of series it will produce. To 
-determine if series are being dropped due to this limit check:
+The generator protects itself and your remote-write target by having a maximum number of series the generator produces.  
+Use the `sum` below to determine if series are being dropped due to this limit:
 
 ```
 sum(rate(tempo_metrics_generator_registry_series_limited_total{}[1m]))
