@@ -18,7 +18,7 @@ If everything seems ok from these two perspectives, consider the following topic
 
 ### Dropped spans in the distributor
 
-The distributor has a queue of outgoing spans to the metrics generators. If that queue is full then the distributor
+The distributor has a queue of outgoing spans to the metrics-generators. If that queue is full then the distributor
 will drop spans before they reach the generator. Use the following metric to determine if that is happening:
 
 ```
