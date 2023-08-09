@@ -1,21 +1,12 @@
 package main
 
 import (
-
 	"context"
 	"fmt"
-
-
-
+	"sort"
 
 	"github.com/grafana/tempo/pkg/model/trace"
-
-	//"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
-	// "github.com/grafana/tempo/tempodb"
-	// "github.com/grafana/tempo/tempodb/backend"
-	// "github.com/grafana/tempo/tempodb/encoding"
-	// "github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type queryBlocksSummaryCmd struct {
@@ -41,11 +32,7 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	var (
-		combiner   = trace.NewCombiner()
-		// marshaller = new(jsonpb.Marshaler)
-		// jsonBytes  = bytes.Buffer{}
-	)
+	var combiner = trace.NewCombiner()
 
 	fmt.Println()
 	for i, result := range results {
@@ -61,58 +48,50 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 	rootSpanResource := combinedTrace.Batches[0].Resource
 	rootServiceName := ""
 	serviceNameMap := make(map[string]int)
+
+	for _, b := range combinedTrace.Batches {
+		size += b.Size()
+		for _, attr := range b.Resource.Attributes {
+			if "service.name" == attr.Key {
+				serviceNameMap[attr.Value.GetStringValue()]++
+			}
+		}
+		for _, scope := range b.ScopeSpans {
+			spanCount += len(scope.Spans)
+			for _, span := range scope.Spans {
+				if span.StartTimeUnixNano < firstStartTime {
+					firstStartTime = span.StartTimeUnixNano
+				}
+				if span.EndTimeUnixNano > lastEndTime {
+					lastEndTime = span.EndTimeUnixNano
+				}
+				if span.ParentSpanId == nil {
+					rootSpan = span
+					rootSpanResource = b.Resource
+				}
+			}
+		}
+	}
+
 	for _, attr := range rootSpanResource.Attributes {
 		if "service.name" == attr.Key {
 			rootServiceName = attr.Value.GetStringValue()
 		}
 	}
 
-	for _, b := range combinedTrace.Batches {
-		size += b.Size()
-		for _, attr := range b.Resource.Attributes {
-			if "service.name" == attr.Key {
-				serviceNameMap[attr.Value.GetStringValue()] ++
-			}
-		}
-		for _, scope := range b.ScopeSpans {
-			spanCount += len(scope.Spans)
-			for _, span := range scope.Spans {
-				if span.EndTimeUnixNano > lastEndTime {
-					lastEndTime = span.EndTimeUnixNano
-				}
-			}
-		}
-	}
-
-
 	// get top 5 most frequent service names
-	lowest := 0
-	topFiveName := make([]string, 5)
-	topFiveFreq := make([]int, 5)
-	for name, freq := range serviceNameMap {
-		if freq > lowest {
-			for i := 3; i >= 0; i-- {
-				if freq < topFiveFreq[i] || i == 0 {
-					position := i + 1
-					if freq > topFiveFreq[0] {
-						position = 0
-					}
-
-					for y := 4; y >= position+1; y-- {
-						topFiveFreq[y] = topFiveFreq[y-1]
-						topFiveName[y] = topFiveName[y-1]
-					}
-					topFiveFreq[position] = freq
-					topFiveName[position] = name
-					break
-				}
-			}
-			lowest = topFiveFreq[4]
-		}
+	topTenSortedPL := sortServiceNames(serviceNameMap)
+	topTenServiceName := make([]string, 10)
+	length := len(topTenSortedPL)
+	if length > 10 {
+		length = 10
+	}
+	for index := 0; index < length; index++ {
+		topTenServiceName[index] = topTenSortedPL[index].Key
 	}
 
 	duration := lastEndTime - firstStartTime
-	durationSecond := duration/1000000000
+	durationSecond := duration / 1000000000
 
 	fmt.Printf("Number of blocks: %d \n", len(results))
 	fmt.Printf("Span count: %d \n", spanCount)
@@ -122,14 +101,29 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 	fmt.Println("Root span info:")
 	fmt.Println(rootSpan)
 	fmt.Println("top 5 frequent service.names: ")
-	fmt.Println(topFiveName)
+	fmt.Println(topTenServiceName)
 
-	fmt.Println("combined:")
-	// err = marshaller.Marshal(&jsonBytes, combinedTrace)
-	// if err != nil {
-	// 	fmt.Println("failed to marshal to json: ", err)
-	// 	return nil
-	// }
-	// fmt.Println(jsonBytes.String())
 	return nil
 }
+
+func sortServiceNames(nameFrequencies map[string]int) PairList {
+	pl := make(PairList, len(nameFrequencies))
+	i := 0
+	for k, v := range nameFrequencies {
+		pl[i] = Pair{k, v}
+		i++
+	}
+	sort.Sort(sort.Reverse(pl))
+	return pl
+}
+
+type Pair struct {
+	Key   string
+	Value int
+}
+
+type PairList []Pair
+
+func (p PairList) Len() int           { return len(p) }
+func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
+func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
