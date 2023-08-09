@@ -249,6 +249,8 @@ unsupported:
   - '{ 1 >= parent }'
   - '{ -parent = nil }'
   - '{ !parent = nil }'
+    # nil - will be valid when supported
+  - '{ .foo = nil }'
   # childCount - will be valid when supported
   - '{ 1 = childCount }'
   # childCount - will be invalid when supported
