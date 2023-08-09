@@ -27,7 +27,7 @@ sum(rate(tempo_distributor_queue_pushes_failures_total{}[1m]))
 
 ### Failed pushes to the generator
 
-For any number of reasons the distributor can fail a push to the generators. Use the following metric to
+For any number of reasons, the distributor can fail a push to the generators. Use the following metric to
 determine if that is happening:
 
 ```
