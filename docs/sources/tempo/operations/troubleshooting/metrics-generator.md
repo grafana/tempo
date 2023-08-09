@@ -1,6 +1,6 @@
 ---
-title: Troubleshoot Metrics Generator
-menuTitle: Metrics Generator
+title: Troubleshoot metrics-generator
+menuTitle: Metrics-generator
 description: Gain an understanding of how to debug metrics quality issues.
 weight: 500
 ---
