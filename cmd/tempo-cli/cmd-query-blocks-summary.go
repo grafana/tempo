@@ -88,7 +88,7 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 
 	// get top 5 most frequent service names
 	topFiveSortedPL := sortServiceNames(serviceNameMap)
-	topFiveServiceName := make([]string, 10)
+	topFiveServiceName := make([]string, 5)
 	length := len(topFiveSortedPL)
 	if length > 5 {
 		length = 5
