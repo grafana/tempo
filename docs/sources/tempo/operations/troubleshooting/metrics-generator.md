@@ -107,8 +107,8 @@ metrics_generator:
 
 ### Service graph max items
 
-In order to limit the total amount of memory that the service graph processor uses there is a maximum number
-of edges it will track at once. To determine if edges are being dropped due to this limit check:
+The service graph processor has a maximum number of edges it will track at once to limit the total amount of memory the processor uses.
+To determine if edges are being dropped due to this limit, check:
 
 ```
 sum(rate(tempo_metrics_generator_processor_service_graphs_dropped_spans{}[1m]))
