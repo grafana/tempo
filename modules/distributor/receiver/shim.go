@@ -28,9 +28,8 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
-
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -182,7 +181,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	params := receiver.CreateSettings{TelemetrySettings: component.TelemetrySettings{
 		Logger:         zapLogger,
 		TracerProvider: trace.NewNoopTracerProvider(),
-		MeterProvider:  metric.NewNoopMeterProvider(),
+		MeterProvider:  metricnoop.NewMeterProvider(),
 	}}
 
 	for componentID, cfg := range conf.Receivers {
