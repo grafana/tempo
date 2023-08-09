@@ -69,7 +69,7 @@ overrides:
 
 ### Remote write failures
 
-For any number of reasons the generator may fail a write to the remote write target. Use the following metrics to
+For any number of reasons, the generator may fail a write to the remote write target. Use the following metrics to
 determine if that is happening:
 
 ```
