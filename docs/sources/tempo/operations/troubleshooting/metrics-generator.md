@@ -22,7 +22,7 @@ sum(rate(tempo_metrics_generator_spans_discarded_total{}[1m])) by (reason)
 ```
 
 If you are dropping a lot of spans due to your filters, you will need to adjust them. If you are dropping a lot of spans
-due to the ingestion slack time consider adjusting this setting:
+due to the ingestion slack time, consider adjusting this setting:
 
 ```
 metrics_generator:
