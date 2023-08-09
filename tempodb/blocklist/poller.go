@@ -305,7 +305,7 @@ func (p *Poller) quickPollTenantBlocks(
 	newBlockIDs := []uuid.UUID{}
 	for _, blockID := range currentBlockIDs {
 		// if we don't have this block id in our current our or previous block list, add it to the new list
-		if uuidInBlocklist(tenantID, blockID, previous) {
+		if uuidInBlocklist(blockID, previousMetas, previousCompactedMetas) {
 			// write the block meta to the channel
 			for _, previousMeta := range previousMetas {
 				if previousMeta.BlockID == blockID {
@@ -322,7 +322,7 @@ func (p *Poller) quickPollTenantBlocks(
 	for _, blockID := range currentCompactedBlockIDs {
 		compactedFound = false
 		// if we don't have this block id in our current our or previous block list, add it to the new lists
-		if uuidInBlocklist(tenantID, blockID, previous) {
+		if uuidInBlocklist(blockID, previousMetas, previousCompactedMetas) {
 			// write the block meta to the channel
 			for _, previousCompactedMeta := range previousCompactedMetas {
 				if previousCompactedMeta.BlockID == blockID {
@@ -486,14 +486,14 @@ func sumTotalBackendMetaMetrics(
 	}
 }
 
-func uuidInBlocklist(tenantID string, id uuid.UUID, list backend.Blocklist) bool {
-	for _, i := range list.Metas(tenantID) {
+func uuidInBlocklist(id uuid.UUID, metas []*backend.BlockMeta, compactedMetas []*backend.CompactedBlockMeta) bool {
+	for _, i := range metas {
 		if i.BlockID == id {
 			return true
 		}
 	}
 
-	for _, i := range list.CompactedMetas(tenantID) {
+	for _, i := range compactedMetas {
 		if i.BlockID == id {
 			return true
 		}
