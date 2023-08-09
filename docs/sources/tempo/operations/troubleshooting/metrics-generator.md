@@ -5,7 +5,9 @@ description: Gain an understanding of how to debug metrics quality issues.
 weight: 500
 ---
 
-If you are concerned with data quality issues in the metrics generator, we'd first recommend:
+# Troubleshoot metrics-generator
+
+If you are concerned with data quality issues in the metrics-generator, we'd first recommend:
 
 - Reviewing your telemetry pipeline to determine the number of dropped spans. We are only looking for major issues here.
 - Reviewing the [service graph documentation]({{< relref "../../metrics-generator/service_graphs" >}}) to understand how they are built.
