@@ -1,4 +1,4 @@
-package userconfigurableapi
+package client
 
 import (
 	"bytes"
@@ -46,7 +46,7 @@ var (
 	}, []string{"tenant"})
 )
 
-type UserConfigurableOverridesClientConfig struct {
+type Config struct {
 	Backend string `yaml:"backend"`
 
 	// ConfirmVersioning is enabled when creating the backend client. If versioning is disabled no
@@ -59,7 +59,7 @@ type UserConfigurableOverridesClientConfig struct {
 	Azure *azure.Config `yaml:"azure"`
 }
 
-func (c *UserConfigurableOverridesClientConfig) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
+func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.ConfirmVersioning = true
 
 	c.Local = &local.Config{}
@@ -73,35 +73,35 @@ type Client interface {
 	// List tenants that have user-configurable overrides.
 	List(ctx context.Context) ([]string, error)
 	// Get the user-configurable overrides. Returns backend.ErrDoesNotExist if no limits are set.
-	Get(context.Context, string) (*UserConfigurableLimits, backend.Version, error)
+	Get(context.Context, string) (*Limits, backend.Version, error)
 	// Set the user-configurable overrides. Returns backend.ErrVersionDoesNotMatch if the backend
 	// has a newer version.
-	Set(context.Context, string, *UserConfigurableLimits, backend.Version) (backend.Version, error)
+	Set(context.Context, string, *Limits, backend.Version) (backend.Version, error)
 	// Delete the user-configurable overrides.
 	Delete(context.Context, string, backend.Version) error
 	// Shutdown the client.
 	Shutdown()
 }
 
-type userConfigOverridesClient struct {
+type clientImpl struct {
 	rw backend.VersionedReaderWriter
 }
 
-var _ Client = (*userConfigOverridesClient)(nil)
+var _ Client = (*clientImpl)(nil)
 
-func NewUserConfigOverridesClient(cfg *UserConfigurableOverridesClientConfig) (Client, error) {
+func New(cfg *Config) (Client, error) {
 	rw, err := initBackend(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &userConfigOverridesClient{rw}, nil
+	return &clientImpl{rw}, nil
 }
 
-func (o *userConfigOverridesClient) Shutdown() {
+func (o *clientImpl) Shutdown() {
 	o.rw.Shutdown()
 }
 
-func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.VersionedReaderWriter, err error) {
+func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 	switch cfg.Backend {
 	case backend.Local:
 		r, w, _, err := local.New(cfg.Local)
@@ -135,8 +135,8 @@ func initBackend(cfg *UserConfigurableOverridesClientConfig) (rw backend.Version
 	return rw, nil
 }
 
-func (o *userConfigOverridesClient) List(ctx context.Context) ([]string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.List")
+func (o *clientImpl) List(ctx context.Context) ([]string, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.List")
 	defer span.Finish()
 
 	metricList.Inc()
@@ -144,8 +144,8 @@ func (o *userConfigOverridesClient) List(ctx context.Context) ([]string, error) 
 	return o.rw.List(ctx, []string{OverridesKeyPath})
 }
 
-func (o *userConfigOverridesClient) Get(ctx context.Context, userID string) (tenantLimits *UserConfigurableLimits, version backend.Version, err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.Get", opentracing.Tag{Key: "tenant", Value: userID})
+func (o *clientImpl) Get(ctx context.Context, userID string) (tenantLimits *Limits, version backend.Version, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Get", opentracing.Tag{Key: "tenant", Value: userID})
 	defer span.Finish()
 
 	metricFetch.WithLabelValues(userID).Inc()
@@ -166,8 +166,8 @@ func (o *userConfigOverridesClient) Get(ctx context.Context, userID string) (ten
 	return
 }
 
-func (o *userConfigOverridesClient) Set(ctx context.Context, userID string, limits *UserConfigurableLimits, version backend.Version) (backend.Version, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.Set", opentracing.Tag{Key: "tenant", Value: userID})
+func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, version backend.Version) (backend.Version, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Set", opentracing.Tag{Key: "tenant", Value: userID})
 	defer span.Finish()
 
 	data, err := jsoniter.Marshal(limits)
@@ -178,8 +178,8 @@ func (o *userConfigOverridesClient) Set(ctx context.Context, userID string, limi
 	return o.rw.WriteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, bytes.NewReader(data), version)
 }
 
-func (o *userConfigOverridesClient) Delete(ctx context.Context, userID string, version backend.Version) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigOverridesClient.Delete", opentracing.Tag{Key: "tenant", Value: userID})
+func (o *clientImpl) Delete(ctx context.Context, userID string, version backend.Version) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Delete", opentracing.Tag{Key: "tenant", Value: userID})
 	defer span.Finish()
 
 	return o.rw.DeleteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, version)

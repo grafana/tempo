@@ -1,4 +1,4 @@
-package userconfigurableapi
+package api
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -21,21 +22,21 @@ import (
 func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	tenant := "my-tenant"
 
-	cfg := UserConfigurableOverridesClientConfig{
+	cfg := client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	}
 	validator := &mockValidator{}
-	overridesAPI, err := NewUserConfigOverridesAPI(&cfg, validator)
+	overridesAPI, err := New(&cfg, validator)
 	require.NoError(t, err)
 
 	// Provision some data
-	_, err = overridesAPI.client.Set(context.Background(), tenant, &UserConfigurableLimits{
+	_, err = overridesAPI.client.Set(context.Background(), tenant, &client.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}, backend.VersionNew)
 	require.NoError(t, err)
 
-	postJSON, err := jsoniter.Marshal(&UserConfigurableLimits{
+	postJSON, err := jsoniter.Marshal(&client.Limits{
 		Forwarders: &[]string{"my-updated-forwarder"},
 	})
 	require.NoError(t, err)
@@ -51,7 +52,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	}{
 		{
 			name:           "GET",
-			handler:        overridesAPI.GetOverridesHandler,
+			handler:        overridesAPI.GetHandler,
 			req:            prepareRequest(tenant, "GET", nil),
 			expResp:        "{\"forwarders\":[\"my-other-forwarder\"]}",
 			expContentType: api.HeaderAcceptJSON,
@@ -59,19 +60,19 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		},
 		{
 			name:          "GET - not found",
-			handler:       overridesAPI.GetOverridesHandler,
+			handler:       overridesAPI.GetHandler,
 			req:           prepareRequest("some-other-tenant", "GET", nil),
 			expStatusCode: 404,
 		},
 		{
 			name:          "POST",
-			handler:       overridesAPI.PostOverridesHandler,
+			handler:       overridesAPI.PostHandler,
 			req:           prepareRequest(tenant, "POST", postJSON),
 			expStatusCode: 200,
 		},
 		{
 			name:           "POST - invalid JSON",
-			handler:        overridesAPI.PostOverridesHandler,
+			handler:        overridesAPI.PostHandler,
 			req:            prepareRequest(tenant, "POST", []byte("not a json")),
 			expResp:        "skipThreeBytes: expect ull, error found in #2 byte of ...|not a json|..., bigger context ...|not a json|...\n",
 			expContentType: "text/plain; charset=utf-8",
@@ -79,15 +80,15 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		},
 		{
 			name:           "POST - unknown field JSON",
-			handler:        overridesAPI.PostOverridesHandler,
+			handler:        overridesAPI.PostHandler,
 			req:            prepareRequest(tenant, "POST", []byte("{\"unknown\":true}")),
-			expResp:        "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|{\"unknown\":true}|..., bigger context ...|{\"unknown\":true}|...\n",
+			expResp:        "client.Limits.ReadObject: found unknown field: unknown, error found in #10 byte of ...|{\"unknown\":true}|..., bigger context ...|{\"unknown\":true}|...\n",
 			expContentType: "text/plain; charset=utf-8",
 			expStatusCode:  400,
 		},
 		{
 			name:           "POST - invalid overrides",
-			handler:        overridesAPI.PostOverridesHandler,
+			handler:        overridesAPI.PostHandler,
 			req:            prepareRequest(tenant, "POST", postJSON),
 			validatorErr:   errors.New("these limits are invalid"),
 			expResp:        "these limits are invalid\n",
@@ -96,7 +97,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		},
 		{
 			name:          "DELETE",
-			handler:       overridesAPI.DeleteOverridesHandler,
+			handler:       overridesAPI.DeleteHandler,
 			req:           prepareRequest(tenant, "DELETE", nil),
 			expStatusCode: 200,
 		},
@@ -164,13 +165,13 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:          "PATCH - invalid patch",
 			patch:         `{"newField":true}`,
 			current:       `{"forwarders":["prior-forwarder"]}`,
-			expResp:       "userconfigurableapi.UserConfigurableLimits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|{\"forwarders\":[\"prior-forwarder\"],\"newField\":true}|...\n",
+			expResp:       "client.Limits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|{\"forwarders\":[\"prior-forwarder\"],\"newField\":true}|...\n",
 			expStatusCode: 400,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
+			overridesAPI, err := New(&client.Config{
 				Backend: backend.Local,
 				Local:   &local.Config{Path: t.TempDir()},
 			}, &mockValidator{})
@@ -187,7 +188,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			ctx := user.InjectOrgID(r.Context(), tenant)
 			r = r.WithContext(ctx)
 
-			overridesAPI.PatchOverridesHandler(w, r)
+			overridesAPI.PatchHandler(w, r)
 
 			data := w.Body.String()
 			require.Equal(t, tc.expResp, data)
@@ -202,7 +203,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testing.T) {
-	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
+	overridesAPI, err := New(&client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	}, &mockValidator{})
@@ -212,14 +213,14 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	testClient := &testClient{}
 	overridesAPI.client = testClient
 
-	testClient.get = func(ctx context.Context, userID string) (*UserConfigurableLimits, backend.Version, error) {
-		return &UserConfigurableLimits{}, "1", nil
+	testClient.get = func(ctx context.Context, userID string) (*client.Limits, backend.Version, error) {
+		return &client.Limits{}, "1", nil
 	}
-	testClient.set = func(ctx context.Context, userID string, limits *UserConfigurableLimits, version backend.Version) (backend.Version, error) {
+	testClient.set = func(ctx context.Context, userID string, limits *client.Limits, version backend.Version) (backend.Version, error) {
 		// Must pass in version from get
 		assert.Equal(t, backend.Version("1"), version)
 		assert.NotNil(t, limits)
-		assert.Equal(t, UserConfigurableLimits{Forwarders: &[]string{"f"}}, *limits)
+		assert.Equal(t, client.Limits{Forwarders: &[]string{"f"}}, *limits)
 		return "2", nil
 	}
 
@@ -229,7 +230,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	ctx := user.InjectOrgID(r.Context(), "foo")
 	r = r.WithContext(ctx)
 
-	overridesAPI.PatchOverridesHandler(w, r)
+	overridesAPI.PatchHandler(w, r)
 
 	data := w.Body.String()
 	assert.Equal(t, `{"forwarders":["f"]}`, data)
@@ -240,7 +241,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing.T) {
-	overridesAPI, err := NewUserConfigOverridesAPI(&UserConfigurableOverridesClientConfig{
+	overridesAPI, err := New(&client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	}, &mockValidator{})
@@ -250,10 +251,10 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing
 	testClient := &testClient{}
 	overridesAPI.client = testClient
 
-	testClient.get = func(ctx context.Context, userID string) (*UserConfigurableLimits, backend.Version, error) {
-		return &UserConfigurableLimits{}, "1", nil
+	testClient.get = func(ctx context.Context, userID string) (*client.Limits, backend.Version, error) {
+		return &client.Limits{}, "1", nil
 	}
-	testClient.set = func(ctx context.Context, userID string, limits *UserConfigurableLimits, version backend.Version) (backend.Version, error) {
+	testClient.set = func(ctx context.Context, userID string, limits *client.Limits, version backend.Version) (backend.Version, error) {
 		// Someone else changed the file!
 		return "", backend.ErrVersionDoesNotMatch
 	}
@@ -264,7 +265,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing
 	ctx := user.InjectOrgID(r.Context(), "foo")
 	r = r.WithContext(ctx)
 
-	overridesAPI.PatchOverridesHandler(w, r)
+	overridesAPI.PatchHandler(w, r)
 
 	res := w.Result()
 	assert.Equal(t, 500, res.StatusCode)
@@ -285,29 +286,29 @@ func prepareRequest(tenant, method string, payload []byte) *http.Request {
 	return r
 }
 
-func parseJSON(t *testing.T, s string) *UserConfigurableLimits {
-	var limits UserConfigurableLimits
+func parseJSON(t *testing.T, s string) *client.Limits {
+	var limits client.Limits
 	err := jsoniter.Unmarshal([]byte(s), &limits)
 	require.NoError(t, err)
 	return &limits
 }
 
 type testClient struct {
-	get func(context.Context, string) (*UserConfigurableLimits, backend.Version, error)
-	set func(context.Context, string, *UserConfigurableLimits, backend.Version) (backend.Version, error)
+	get func(context.Context, string) (*client.Limits, backend.Version, error)
+	set func(context.Context, string, *client.Limits, backend.Version) (backend.Version, error)
 }
 
-var _ Client = (*testClient)(nil)
+var _ client.Client = (*testClient)(nil)
 
 func (t *testClient) List(_ context.Context) ([]string, error) {
 	panic("implement me")
 }
 
-func (t *testClient) Get(ctx context.Context, userID string) (*UserConfigurableLimits, backend.Version, error) {
+func (t *testClient) Get(ctx context.Context, userID string) (*client.Limits, backend.Version, error) {
 	return t.get(ctx, userID)
 }
 
-func (t *testClient) Set(ctx context.Context, userID string, limits *UserConfigurableLimits, version backend.Version) (backend.Version, error) {
+func (t *testClient) Set(ctx context.Context, userID string, limits *client.Limits, version backend.Version) (backend.Version, error) {
 	return t.set(ctx, userID, limits, version)
 }
 
@@ -322,6 +323,6 @@ type mockValidator struct {
 	err error
 }
 
-func (m *mockValidator) Validate(_ *UserConfigurableLimits) error {
+func (m *mockValidator) Validate(_ *client.Limits) error {
 	return m.err
 }

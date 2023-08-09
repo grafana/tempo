@@ -1,4 +1,4 @@
-package userconfigurableapi
+package client
 
 import (
 	"context"
@@ -18,14 +18,14 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	tenant := "foo"
 	dir := t.TempDir()
 
-	cfg := &UserConfigurableOverridesClientConfig{
+	cfg := &Config{
 		Backend: backend.Local,
 		Local: &local.Config{
 			Path: dir,
 		},
 	}
 
-	client, err := NewUserConfigOverridesClient(cfg)
+	client, err := New(cfg)
 	require.NoError(t, err)
 
 	// List
@@ -34,7 +34,7 @@ func TestUserConfigOverridesClient(t *testing.T) {
 	assert.Empty(t, list)
 
 	// Set
-	limits := &UserConfigurableLimits{
+	limits := &Limits{
 		Forwarders: &[]string{"my-forwarder"},
 	}
 	_, err = client.Set(ctx, tenant, limits, "")
