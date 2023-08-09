@@ -36,7 +36,7 @@ sum(rate(tempo_distributor_metrics_generator_pushes_failures_total{}[1m]))
 
 ### Discarded spans in the generator
 
-Spans are rejected from being considered by the metrics generator by a configurable slack time as well as due to user
+Spans are rejected from being considered by the metrics-generator by a configurable slack time as well as due to user
 configurable filters. You can see the number of spans rejected by reason using this metric:
 
 ```
