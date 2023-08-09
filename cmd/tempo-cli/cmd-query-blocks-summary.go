@@ -32,7 +32,7 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	var combiner = trace.NewCombiner()
+	combiner := trace.NewCombiner()
 
 	fmt.Println()
 	for i, result := range results {
