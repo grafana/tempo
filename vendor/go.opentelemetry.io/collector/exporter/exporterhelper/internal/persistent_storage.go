@@ -1,22 +1,12 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package internal // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal"
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -90,7 +80,6 @@ var (
 
 // newPersistentContiguousStorage creates a new file-storage extension backed queue;
 // queueName parameter must be a unique value that identifies the queue.
-// The queue needs to be initialized separately using initPersistentContiguousStorage.
 func newPersistentContiguousStorage(ctx context.Context, queueName string, capacity uint64, logger *zap.Logger, client storage.Client, unmarshaler RequestUnmarshaler) *persistentContiguousStorage {
 	pcs := &persistentContiguousStorage{
 		logger:      logger,
@@ -107,17 +96,17 @@ func newPersistentContiguousStorage(ctx context.Context, queueName string, capac
 	initPersistentContiguousStorage(ctx, pcs)
 	notDispatchedReqs := pcs.retrieveNotDispatchedReqs(context.Background())
 
-	// We start the loop first so in case there are more elements in the persistent storage than the capacity,
-	// it does not get blocked on initialization
-
-	go pcs.loop()
-
 	// Make sure the leftover requests are handled
 	pcs.enqueueNotDispatchedReqs(notDispatchedReqs)
-	// Make sure the communication channel is loaded up
-	for i := uint64(0); i < pcs.size(); i++ {
+
+	// Ensure the communication channel has the same size as the queue
+	// We might already have items here from requeueing non-dispatched requests
+	for len(pcs.putChan) < int(pcs.size()) {
 		pcs.putChan <- struct{}{}
 	}
+
+	// start the loop which moves items from storage to the outbound channel
+	go pcs.loop()
 
 	return pcs
 }
@@ -260,7 +249,10 @@ func (pcs *persistentContiguousStorage) getNextItem(ctx context.Context) (Reques
 
 		if err != nil || req == nil {
 			// We need to make sure that currently dispatched items list is cleaned
-			pcs.itemDispatchingFinish(ctx, index)
+			if err := pcs.itemDispatchingFinish(ctx, index); err != nil {
+				pcs.logger.Error("Error deleting item from queue",
+					zap.String(zapQueueNameKey, pcs.queueName), zap.Error(err))
+			}
 
 			return nil, false
 		}
@@ -269,7 +261,10 @@ func (pcs *persistentContiguousStorage) getNextItem(ctx context.Context) (Reques
 		req.SetOnProcessingFinished(func() {
 			pcs.mu.Lock()
 			defer pcs.mu.Unlock()
-			pcs.itemDispatchingFinish(ctx, index)
+			if err := pcs.itemDispatchingFinish(ctx, index); err != nil {
+				pcs.logger.Error("Error deleting item from queue",
+					zap.String(zapQueueNameKey, pcs.queueName), zap.Error(err))
+			}
 		})
 		return req, true
 	}
@@ -361,7 +356,8 @@ func (pcs *persistentContiguousStorage) itemDispatchingStart(ctx context.Context
 }
 
 // itemDispatchingFinish removes the item from the list of currently dispatched items and deletes it from the persistent queue
-func (pcs *persistentContiguousStorage) itemDispatchingFinish(ctx context.Context, index itemIndex) {
+func (pcs *persistentContiguousStorage) itemDispatchingFinish(ctx context.Context, index itemIndex) error {
+	var batch *batchStruct
 	var updatedDispatchedItems []itemIndex
 	for _, it := range pcs.currentlyDispatchedItems {
 		if it != index {
@@ -370,14 +366,32 @@ func (pcs *persistentContiguousStorage) itemDispatchingFinish(ctx context.Contex
 	}
 	pcs.currentlyDispatchedItems = updatedDispatchedItems
 
-	_, err := newBatch(pcs).
+	batch = newBatch(pcs).
 		setItemIndexArray(currentlyDispatchedItemsKey, pcs.currentlyDispatchedItems).
-		delete(pcs.itemKey(index)).
-		execute(ctx)
-	if err != nil {
-		pcs.logger.Debug("Failed updating currently dispatched items",
+		delete(pcs.itemKey(index))
+	if _, err := batch.execute(ctx); err != nil {
+		// got an error, try to gracefully handle it
+		pcs.logger.Warn("Failed updating currently dispatched items, trying to delete the item first",
 			zap.String(zapQueueNameKey, pcs.queueName), zap.Error(err))
+	} else {
+		// Everything ok, exit
+		return nil
 	}
+
+	if _, err := newBatch(pcs).delete(pcs.itemKey(index)).execute(ctx); err != nil {
+		// Return an error here, as this indicates an issue with the underlying storage medium
+		return fmt.Errorf("failed deleting item from queue, got error from storage: %w", err)
+	}
+
+	batch = newBatch(pcs).
+		setItemIndexArray(currentlyDispatchedItemsKey, pcs.currentlyDispatchedItems)
+	if _, err := batch.execute(ctx); err != nil {
+		// even if this fails, we still have the right dispatched items in memory
+		// at worst, we'll have the wrong list in storage, and we'll discard the nonexistent items during startup
+		return fmt.Errorf("failed updating currently dispatched items, but deleted item successfully: %w", err)
+	}
+
+	return nil
 }
 
 func (pcs *persistentContiguousStorage) updateReadIndex(ctx context.Context) {
