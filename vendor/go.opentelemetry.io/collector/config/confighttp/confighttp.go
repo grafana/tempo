@@ -1,22 +1,12 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package confighttp // import "go.opentelemetry.io/collector/config/confighttp"
 
 import (
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -135,28 +125,10 @@ func (hcs *HTTPClientSettings) ToClient(host component.Host, settings component.
 	}
 
 	clientTransport := (http.RoundTripper)(transport)
-	if len(hcs.Headers) > 0 {
-		clientTransport = &headerRoundTripper{
-			transport: transport,
-			headers:   hcs.Headers,
-		}
-	}
-	// wrapping http transport with otelhttp transport to enable otel instrumenetation
-	if settings.TracerProvider != nil && settings.MeterProvider != nil {
-		clientTransport = otelhttp.NewTransport(
-			clientTransport,
-			otelhttp.WithTracerProvider(settings.TracerProvider),
-			otelhttp.WithMeterProvider(settings.MeterProvider),
-			otelhttp.WithPropagators(otel.GetTextMapPropagator()),
-		)
-	}
 
-	// Compress the body using specified compression methods if non-empty string is provided.
-	// Supporting gzip, zlib, deflate, snappy, and zstd; none is treated as uncompressed.
-	if configcompression.IsCompressed(hcs.Compression) {
-		clientTransport = newCompressRoundTripper(clientTransport, hcs.Compression)
-	}
-
+	// The Auth RoundTripper should always be the innermost to ensure that
+	// request signing-based auth mechanisms operate after compression
+	// and header middleware modifies the request
 	if hcs.Auth != nil {
 		ext := host.GetExtensions()
 		if ext == nil {
@@ -172,6 +144,32 @@ func (hcs *HTTPClientSettings) ToClient(host component.Host, settings component.
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if len(hcs.Headers) > 0 {
+		clientTransport = &headerRoundTripper{
+			transport: clientTransport,
+			headers:   hcs.Headers,
+		}
+	}
+
+	// Compress the body using specified compression methods if non-empty string is provided.
+	// Supporting gzip, zlib, deflate, snappy, and zstd; none is treated as uncompressed.
+	if configcompression.IsCompressed(hcs.Compression) {
+		clientTransport, err = newCompressRoundTripper(clientTransport, hcs.Compression)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// wrapping http transport with otelhttp transport to enable otel instrumenetation
+	if settings.TracerProvider != nil && settings.MeterProvider != nil {
+		clientTransport = otelhttp.NewTransport(
+			clientTransport,
+			otelhttp.WithTracerProvider(settings.TracerProvider),
+			otelhttp.WithMeterProvider(settings.MeterProvider),
+			otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+		)
 	}
 
 	if hcs.CustomRoundTripper != nil {
@@ -222,6 +220,10 @@ type HTTPServerSettings struct {
 	// IncludeMetadata propagates the client metadata from the incoming requests to the downstream consumers
 	// Experimental: *NOTE* this option is subject to change or removal in the future.
 	IncludeMetadata bool `mapstructure:"include_metadata"`
+
+	// Additional headers attached to each HTTP response sent to the client.
+	// Header values are opaque since they may be sensitive.
+	ResponseHeaders map[string]configopaque.String `mapstructure:"response_headers"`
 }
 
 // ToListener creates a net.Listener.
@@ -246,7 +248,8 @@ func (hss *HTTPServerSettings) ToListener() (net.Listener, error) {
 // toServerOptions has options that change the behavior of the HTTP server
 // returned by HTTPServerSettings.ToServer().
 type toServerOptions struct {
-	errorHandler
+	errHandler func(w http.ResponseWriter, r *http.Request, errorMsg string, statusCode int)
+	decoders   map[string]func(body io.ReadCloser) (io.ReadCloser, error)
 }
 
 // ToServerOption is an option to change the behavior of the HTTP server
@@ -255,9 +258,20 @@ type ToServerOption func(opts *toServerOptions)
 
 // WithErrorHandler overrides the HTTP error handler that gets invoked
 // when there is a failure inside httpContentDecompressor.
-func WithErrorHandler(e errorHandler) ToServerOption {
+func WithErrorHandler(e func(w http.ResponseWriter, r *http.Request, errorMsg string, statusCode int)) ToServerOption {
 	return func(opts *toServerOptions) {
-		opts.errorHandler = e
+		opts.errHandler = e
+	}
+}
+
+// WithDecoder provides support for additional decoders to be configured
+// by the caller.
+func WithDecoder(key string, dec func(body io.ReadCloser) (io.ReadCloser, error)) ToServerOption {
+	return func(opts *toServerOptions) {
+		if opts.decoders == nil {
+			opts.decoders = map[string]func(body io.ReadCloser) (io.ReadCloser, error){}
+		}
+		opts.decoders[key] = dec
 	}
 }
 
@@ -270,10 +284,7 @@ func (hss *HTTPServerSettings) ToServer(host component.Host, settings component.
 		o(serverOpts)
 	}
 
-	handler = httpContentDecompressor(
-		handler,
-		withErrorHandlerForDecompressor(serverOpts.errorHandler),
-	)
+	handler = httpContentDecompressor(handler, serverOpts.errHandler, serverOpts.decoders)
 
 	if hss.MaxRequestBodySize > 0 {
 		handler = maxRequestBodySizeInterceptor(handler, hss.MaxRequestBodySize)
@@ -288,6 +299,7 @@ func (hss *HTTPServerSettings) ToServer(host component.Host, settings component.
 		handler = authInterceptor(handler, server)
 	}
 
+	// TODO: emit a warning when non-empty CorsHeaders and empty CorsOrigins.
 	if hss.CORS != nil && len(hss.CORS.AllowedOrigins) > 0 {
 		co := cors.Options{
 			AllowedOrigins:   hss.CORS.AllowedOrigins,
@@ -297,7 +309,10 @@ func (hss *HTTPServerSettings) ToServer(host component.Host, settings component.
 		}
 		handler = cors.New(co).Handler(handler)
 	}
-	// TODO: emit a warning when non-empty CorsHeaders and empty CorsOrigins.
+
+	if hss.ResponseHeaders != nil {
+		handler = responseHeadersHandler(handler, hss.ResponseHeaders)
+	}
 
 	// Enable OpenTelemetry observability plugin.
 	// TODO: Consider to use component ID string as prefix for all the operations.
@@ -321,6 +336,18 @@ func (hss *HTTPServerSettings) ToServer(host component.Host, settings component.
 	return &http.Server{
 		Handler: handler,
 	}, nil
+}
+
+func responseHeadersHandler(handler http.Handler, headers map[string]configopaque.String) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+
+		for k, v := range headers {
+			h.Set(k, string(v))
+		}
+
+		handler.ServeHTTP(w, r)
+	})
 }
 
 // CORSSettings configures a receiver for HTTP cross-origin resource sharing (CORS).
