@@ -27,3 +27,7 @@ In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/oper
 - [Queries fail with 500 and "error using pageFinder"]({{< relref "./bad-blocks" >}})
 - [I can search traces, but there are no service name or span name values available]({{< relref "./search-tag" >}})
 - [Error message `response larger than the max (<number> vs <limit>)`]({{< relref "./response-too-large" >}})
+
+## Metrics Generator
+
+- [Metrics or service graphs seem incomplete]({{< relref "./metrics-generator" >}})
