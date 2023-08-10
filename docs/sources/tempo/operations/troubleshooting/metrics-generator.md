@@ -51,6 +51,10 @@ metrics_generator:
   metrics_ingestion_time_range_slack: 30s
 ```
 
+If spans are regularly exceeding this value you may want to consider reviewing your tracing pipeline to see if you have excessive buffering. 
+Note that increasing this value allows the generator to consume more spans, but does reduce the accuracy of metrics because spans farther
+away from "now" are included.
+
 ### Max active series
 
 The generator protects itself and your remote-write target by having a maximum number of series the generator produces.  
@@ -67,6 +71,8 @@ overrides:
   metrics_generator_max_active_series: 0
 ```
 
+Note that this value is per metrics generator. The actual max series remote written will be `<# of metrics generators> * <metrics_generator_max_active_series>`.
+
 ### Remote write failures
 
 For any number of reasons, the generator may fail a write to the remote write target. Use the following metrics to
@@ -75,6 +81,8 @@ determine if that is happening:
 ```
 sum(rate(prometheus_remote_storage_samples_failed_total{}[1m]))
 sum(rate(prometheus_remote_storage_samples_dropped_total{}[1m]))
+sum(rate(prometheus_remote_storage_exemplars_failed_total{}[1m]))
+sum(rate(prometheus_remote_storage_exemplars_dropped_total{}[1m]))
 ```
 
 ## Service graph metrics
