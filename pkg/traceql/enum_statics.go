@@ -33,6 +33,10 @@ func (t StaticType) isMatchingOperand(otherT StaticType) bool {
 		return true
 	}
 
+	if otherT == TypeNil {
+		return true
+	}
+
 	return false
 }
 
