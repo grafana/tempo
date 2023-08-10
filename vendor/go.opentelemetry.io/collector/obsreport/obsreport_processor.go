@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package obsreport // import "go.opentelemetry.io/collector/obsreport"
 
@@ -21,7 +10,7 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric/instrument"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
@@ -51,7 +40,7 @@ func BuildProcessorCustomMetricName(configType, metric string) string {
 	return componentPrefix + configType + obsmetrics.NameSep + metric
 }
 
-// Processor is a helper to add observability to a component.Processor.
+// Processor is a helper to add observability to a processor.
 type Processor struct {
 	level    configtelemetry.Level
 	mutators []tag.Mutator
@@ -61,15 +50,15 @@ type Processor struct {
 	useOtelForMetrics bool
 	otelAttrs         []attribute.KeyValue
 
-	acceptedSpansCounter        instrument.Int64Counter
-	refusedSpansCounter         instrument.Int64Counter
-	droppedSpansCounter         instrument.Int64Counter
-	acceptedMetricPointsCounter instrument.Int64Counter
-	refusedMetricPointsCounter  instrument.Int64Counter
-	droppedMetricPointsCounter  instrument.Int64Counter
-	acceptedLogRecordsCounter   instrument.Int64Counter
-	refusedLogRecordsCounter    instrument.Int64Counter
-	droppedLogRecordsCounter    instrument.Int64Counter
+	acceptedSpansCounter        metric.Int64Counter
+	refusedSpansCounter         metric.Int64Counter
+	droppedSpansCounter         metric.Int64Counter
+	acceptedMetricPointsCounter metric.Int64Counter
+	refusedMetricPointsCounter  metric.Int64Counter
+	droppedMetricPointsCounter  metric.Int64Counter
+	acceptedLogRecordsCounter   metric.Int64Counter
+	refusedLogRecordsCounter    metric.Int64Counter
+	droppedLogRecordsCounter    metric.Int64Counter
 }
 
 // ProcessorSettings are settings for creating a Processor.
@@ -110,64 +99,64 @@ func (por *Processor) createOtelMetrics(cfg ProcessorSettings) error {
 
 	por.acceptedSpansCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.AcceptedSpansKey,
-		instrument.WithDescription("Number of spans successfully pushed into the next component in the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of spans successfully pushed into the next component in the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.refusedSpansCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.RefusedSpansKey,
-		instrument.WithDescription("Number of spans that were rejected by the next component in the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of spans that were rejected by the next component in the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.droppedSpansCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.DroppedSpansKey,
-		instrument.WithDescription("Number of spans that were dropped."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of spans that were dropped."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.acceptedMetricPointsCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.AcceptedMetricPointsKey,
-		instrument.WithDescription("Number of metric points successfully pushed into the next component in the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points successfully pushed into the next component in the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.refusedMetricPointsCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.RefusedMetricPointsKey,
-		instrument.WithDescription("Number of metric points that were rejected by the next component in the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points that were rejected by the next component in the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.droppedMetricPointsCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.DroppedMetricPointsKey,
-		instrument.WithDescription("Number of metric points that were dropped."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points that were dropped."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.acceptedLogRecordsCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.AcceptedLogRecordsKey,
-		instrument.WithDescription("Number of log records successfully pushed into the next component in the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of log records successfully pushed into the next component in the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.refusedLogRecordsCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.RefusedLogRecordsKey,
-		instrument.WithDescription("Number of log records that were rejected by the next component in the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of log records that were rejected by the next component in the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	por.droppedLogRecordsCounter, err = meter.Int64Counter(
 		obsmetrics.ProcessorPrefix+obsmetrics.DroppedLogRecordsKey,
-		instrument.WithDescription("Number of log records that were dropped."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of log records that were dropped."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
@@ -175,7 +164,7 @@ func (por *Processor) createOtelMetrics(cfg ProcessorSettings) error {
 }
 
 func (por *Processor) recordWithOtel(ctx context.Context, dataType component.DataType, accepted, refused, dropped int64) {
-	var acceptedCount, refusedCount, droppedCount instrument.Int64Counter
+	var acceptedCount, refusedCount, droppedCount metric.Int64Counter
 	switch dataType {
 	case component.DataTypeTraces:
 		acceptedCount = por.acceptedSpansCounter
@@ -191,9 +180,9 @@ func (por *Processor) recordWithOtel(ctx context.Context, dataType component.Dat
 		droppedCount = por.droppedLogRecordsCounter
 	}
 
-	acceptedCount.Add(ctx, accepted, por.otelAttrs...)
-	refusedCount.Add(ctx, refused, por.otelAttrs...)
-	droppedCount.Add(ctx, dropped, por.otelAttrs...)
+	acceptedCount.Add(ctx, accepted, metric.WithAttributes(por.otelAttrs...))
+	refusedCount.Add(ctx, refused, metric.WithAttributes(por.otelAttrs...))
+	droppedCount.Add(ctx, dropped, metric.WithAttributes(por.otelAttrs...))
 }
 
 func (por *Processor) recordWithOC(ctx context.Context, dataType component.DataType, accepted, refused, dropped int64) {

@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package exporterhelper // import "go.opentelemetry.io/collector/exporter/exporterhelper"
 
@@ -33,6 +22,8 @@ import (
 	"go.opentelemetry.io/collector/extension/experimental/storage"
 	"go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics"
 )
+
+const defaultQueueSize = 1000
 
 var (
 	errSendingQueueIsFull = errors.New("sending_queue is full")
@@ -58,11 +49,10 @@ func NewDefaultQueueSettings() QueueSettings {
 	return QueueSettings{
 		Enabled:      true,
 		NumConsumers: 10,
-		// For 5000 queue elements at 100 requests/sec gives about 50 sec of survival of destination outage.
-		// This is a pretty decent value for production.
-		// User should calculate this from the perspective of how many seconds to buffer in case of a backend outage,
-		// multiply that by the number of requests per seconds.
-		QueueSize: 5000,
+		// By default, batches are 8192 spans, for a total of up to 8 million spans in the queue
+		// This can be estimated at 1-4 GB worth of maximum memory usage
+		// This default is probably still too high, and may be adjusted further down in a future release
+		QueueSize: defaultQueueSize,
 	}
 }
 

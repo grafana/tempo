@@ -23,9 +23,9 @@ func NewOverrides(cfg Limits) (Service, error) {
 		return nil, err
 	}
 
-	if cfg.UserConfigurableOverridesConfig.Enabled {
+	if cfg.UserConfigurableOverrides.Enabled {
 		// Wrap runtime config with user-config overrides module
-		overrides, err = newUserConfigOverrides(&cfg.UserConfigurableOverridesConfig, overrides)
+		overrides, err = newUserConfigOverrides(&cfg.UserConfigurableOverrides, overrides)
 	}
 
 	return overrides, err

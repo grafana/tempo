@@ -329,6 +329,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				sp.(*span).cbSpansetFinal = false
 				sp.(*span).rowNum = parquetquery.RowNumber{}
 			}
+			s.ReleaseFn = nil
 		}
 
 		require.Equal(t, tc.expectedResults, ss, "search request:", req)
