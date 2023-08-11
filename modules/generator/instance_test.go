@@ -25,7 +25,7 @@ import (
 )
 
 func Test_instance_concurrency(t *testing.T) {
-	// But instances use the same overrides, this map will be accessed by both
+	// Both instances use the same overrides, this map will be accessed by both
 	overrides := &mockOverrides{}
 	overrides.processors = map[string]struct{}{
 		spanmetrics.Name:   {},
