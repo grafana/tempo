@@ -553,5 +553,9 @@ func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool {
 	start := int64(req.Start)
 	end := int64(req.End)
 
-	return b.StartTime.Unix() <= start && b.EndTime.Unix() >= end
+	if start == 0 || end == 0 {
+		return true
+	}
+
+	return b.StartTime.Unix() <= end && b.EndTime.Unix() >= start
 }
