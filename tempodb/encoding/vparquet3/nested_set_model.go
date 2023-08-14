@@ -15,7 +15,8 @@ type spanNode struct {
 
 // assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
 // and Span.ParentID for all spans in a trace.
-func assignNestedSetModelBounds(trace *Trace) {
+// Returns true if the trace tree is a connected graph which is useful for calculating data quality
+func assignNestedSetModelBounds(trace *Trace) bool {
 	// count spans in order be able to pre-allocate tree nodes
 	var spanCount int
 	for _, rs := range trace.ResourceSpans {
@@ -45,7 +46,8 @@ func assignNestedSetModelBounds(trace *Trace) {
 				id := util.SpanIDToUint64(s.SpanID)
 				if nodes, ok := nodesByID[id]; ok {
 					// zipkin traces may contain client/server spans with the same IDs
-					nodesByID[id] = append(nodes, node)
+					nodes = append(nodes, node)
+					nodesByID[id] = nodes
 					if len(nodes) > 2 {
 						undoAssignment = true
 					}
@@ -58,7 +60,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 
 	// check preconditions before assignment
 	if len(rootNodes) == 0 {
-		return
+		return false
 	}
 	if undoAssignment {
 		for _, nodes := range nodesByID {
@@ -68,14 +70,21 @@ func assignNestedSetModelBounds(trace *Trace) {
 				n.span.ParentID = 0
 			}
 		}
-		return
+		// this trace has over 2 spans with the same span id. the data is invalid and therefore we are preferring "false",
+		// but semantically it's different then detecting a disconnected graph
+		return false
 	}
 
+	connected := true
 	// build the tree
 	for i := range allNodes {
 		node := &allNodes[i]
 		parent := findParentNodeInMap(nodesByID, node)
 		if parent == nil {
+			// if we find a node without a parent that's not root, it's not a connected graph
+			if !node.span.IsRoot() {
+				connected = false
+			}
 			continue
 		}
 		node.parent = parent
@@ -111,6 +120,8 @@ func assignNestedSetModelBounds(trace *Trace) {
 			}
 		}
 	}
+
+	return connected
 }
 
 // findParentNodeInMap finds the tree node containing the parent span for another node. zipkin traces can
