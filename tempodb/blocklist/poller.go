@@ -216,7 +216,7 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 	// everything is happy, write this tenant index
 	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist))
 	err = p.writer.WriteTenantIndex(derivedCtx, tenantID, blocklist, compactedBlocklist)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
