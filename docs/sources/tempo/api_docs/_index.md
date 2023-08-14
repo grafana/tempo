@@ -407,21 +407,23 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
 ```
 
 #### Filtered tag values
-If you set Tempo's `autocomplete_filtering_enabled` configuration parameter to `true` (default value is `false`), you can provide an optional URL query parameter, `q` to your request. `q` is a Url encoded [TraceQL query]({{< relref "../traceql" >}}. If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters. 
+If you set Tempo's `autocomplete_filtering_enabled` configuration parameter to `true` (default value is `false`), you can provide an optional URL query parameter, `q` to your request.
+The `q` parameter is a Url encoded [TraceQL query]({{< relref "../traceql" >}}.
+If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters. 
 
-Queries can be incomplete (eg. `{ .cluster = }`). Tempo will extract only the valid matchers and build a valid query. 
+Queries can be incomplete: for example, `{ .cluster = }`. Tempo extracts only the valid matchers and build a valid query. 
 
 Only queries with a single selector `{}` and AND `&&` operators are supported.
   - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
   - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
 
-The following request returns all discovered service names on spans with `span.http.method=GET`.
+The following request returns all discovered service names on spans with `span.http.method=GET`:
 
 ```
 GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
 ```
 
-If a particular service name (e.g., `shopping-cart`) is only present on spans with `span.http.method=POST`, it would not be included in the list of values returned. 
+If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it would not be included in the list of values returned. 
 
 ### Query Echo Endpoint
 
