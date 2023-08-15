@@ -20,8 +20,8 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.BucketName, util.PrefixConfig(prefix, "trace.gcs.bucket"), "", "gcs bucket to store traces in.")
-	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "trace.gcs.prefix"), "", "gcs bucket prefix to store traces in.")
+	f.StringVar(&cfg.BucketName, util.PrefixConfig(prefix, "gcs.bucket"), "", "gcs bucket to store traces in.")
+	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "gcs.prefix"), "", "gcs bucket prefix to store traces in.")
 	cfg.ChunkBufferSize = 10 * 1024 * 1024
 	cfg.HedgeRequestsUpTo = 2
 }

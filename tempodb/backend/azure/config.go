@@ -25,12 +25,12 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage_account_name"), "", "Azure storage account name.")
-	f.Var(&cfg.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage_account_key"), "Azure storage access key.")
-	f.StringVar(&cfg.ContainerName, util.PrefixConfig(prefix, "trace.azure.container_name"), "", "Azure container name to store blocks in.")
-	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "trace.azure.prefix"), "", "Azure container prefix to store blocks in.")
-	f.StringVar(&cfg.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
-	f.IntVar(&cfg.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max_buffers"), 4, "Number of simultaneous uploads.")
+	f.StringVar(&cfg.StorageAccountName, util.PrefixConfig(prefix, "azure.storage_account_name"), "", "Azure storage account name.")
+	f.Var(&cfg.StorageAccountKey, util.PrefixConfig(prefix, "azure.storage_account_key"), "Azure storage access key.")
+	f.StringVar(&cfg.ContainerName, util.PrefixConfig(prefix, "azure.container_name"), "", "Azure container name to store blocks in.")
+	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "azure.prefix"), "", "Azure container prefix to store blocks in.")
+	f.StringVar(&cfg.Endpoint, util.PrefixConfig(prefix, "azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
+	f.IntVar(&cfg.MaxBuffers, util.PrefixConfig(prefix, "azure.max_buffers"), 4, "Number of simultaneous uploads.")
 	cfg.BufferSize = 3 * 1024 * 1024
 	cfg.HedgeRequestsUpTo = 2
 }

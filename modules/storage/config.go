@@ -47,16 +47,16 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Block.RegisterFlagsAndApplyDefaults(prefix, f)
 
 	cfg.Trace.Azure = &azure.Config{}
-	cfg.Trace.Azure.RegisterFlagsAndApplyDefaults("", f)
+	cfg.Trace.Azure.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
 
 	cfg.Trace.S3 = &s3.Config{}
-	cfg.Trace.S3.RegisterFlagsAndApplyDefaults("", f)
+	cfg.Trace.S3.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
 
 	cfg.Trace.GCS = &gcs.Config{}
-	cfg.Trace.GCS.RegisterFlagsAndApplyDefaults("", f)
+	cfg.Trace.GCS.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
 
 	cfg.Trace.Local = &local.Config{}
-	cfg.Trace.Local.RegisterFlagsAndApplyDefaults("", f)
+	cfg.Trace.Local.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
 
 	cfg.Trace.BackgroundCache = &cache.BackgroundConfig{}
 	cfg.Trace.BackgroundCache.WriteBackBuffer = 10000

@@ -11,7 +11,7 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.Path, util.PrefixConfig(prefix, "trace.local.path"), "", "path to store traces at.")
+	f.StringVar(&cfg.Path, util.PrefixConfig(prefix, "local.path"), "", "path to store traces at.")
 }
 
 func (c *Config) PathMatches(other *Config) bool {
