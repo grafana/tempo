@@ -44,7 +44,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.HedgeRequestsUpTo = 2
 }
 
-func (c *Config) PathMatches(other *Config) bool {
+func (cfg *Config) PathMatches(other *Config) bool {
 	// S3 bucket names are globally unique
-	return c.Bucket == other.Bucket && c.Prefix == other.Prefix
+	return cfg.Bucket == other.Bucket && cfg.Prefix == other.Prefix
 }

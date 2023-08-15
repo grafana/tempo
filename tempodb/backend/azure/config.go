@@ -35,6 +35,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.HedgeRequestsUpTo = 2
 }
 
-func (c *Config) PathMatches(other *Config) bool {
-	return c.StorageAccountName == other.StorageAccountName && c.ContainerName == other.ContainerName && c.Prefix == other.Prefix
+func (cfg *Config) PathMatches(other *Config) bool {
+	return cfg.StorageAccountName == other.StorageAccountName && cfg.ContainerName == other.ContainerName && cfg.Prefix == other.Prefix
 }

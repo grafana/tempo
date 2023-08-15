@@ -26,7 +26,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.HedgeRequestsUpTo = 2
 }
 
-func (c *Config) PathMatches(other *Config) bool {
+func (cfg *Config) PathMatches(other *Config) bool {
 	// GCS bucket names are globally unique
-	return c.BucketName == other.BucketName && c.Prefix == other.Prefix
+	return cfg.BucketName == other.BucketName && cfg.Prefix == other.Prefix
 }
