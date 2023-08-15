@@ -1,7 +1,10 @@
 package gcs
 
 import (
+	"flag"
 	"time"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Config struct {
@@ -14,6 +17,13 @@ type Config struct {
 	Insecure           bool              `yaml:"insecure"`
 	ObjectCacheControl string            `yaml:"object_cache_control"`
 	ObjectMetadata     map[string]string `yaml:"object_metadata"`
+}
+
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	f.StringVar(&cfg.BucketName, util.PrefixConfig(prefix, "trace.gcs.bucket"), "", "gcs bucket to store traces in.")
+	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "trace.gcs.prefix"), "", "gcs bucket prefix to store traces in.")
+	cfg.ChunkBufferSize = 10 * 1024 * 1024
+	cfg.HedgeRequestsUpTo = 2
 }
 
 func (c *Config) PathMatches(other *Config) bool {

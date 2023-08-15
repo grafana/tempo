@@ -1,9 +1,12 @@
 package azure
 
 import (
+	"flag"
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Config struct {
@@ -19,6 +22,17 @@ type Config struct {
 	BufferSize         int            `yaml:"buffer_size"`
 	HedgeRequestsAt    time.Duration  `yaml:"hedge_requests_at"`
 	HedgeRequestsUpTo  int            `yaml:"hedge_requests_up_to"`
+}
+
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	f.StringVar(&cfg.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage_account_name"), "", "Azure storage account name.")
+	f.Var(&cfg.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage_account_key"), "Azure storage access key.")
+	f.StringVar(&cfg.ContainerName, util.PrefixConfig(prefix, "trace.azure.container_name"), "", "Azure container name to store blocks in.")
+	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "trace.azure.prefix"), "", "Azure container prefix to store blocks in.")
+	f.StringVar(&cfg.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
+	f.IntVar(&cfg.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max_buffers"), 4, "Number of simultaneous uploads.")
+	cfg.BufferSize = 3 * 1024 * 1024
+	cfg.HedgeRequestsUpTo = 2
 }
 
 func (c *Config) PathMatches(other *Config) bool {
