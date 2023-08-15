@@ -5,7 +5,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
+const (
+	reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
+	reasonDisconnectedTrace     = "disconnected_trace"
+
+	PhaseTraceFlushedToWal     = "_flushed_to_wal"
+	PhaseTraceWalToComplete    = "_wal_to_complete"
+	PhaseTraceCompactorCombine = "_compactor_combine"
+)
 
 var metric = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
@@ -15,4 +22,8 @@ var metric = promauto.NewCounterVec(prometheus.CounterOpts{
 
 func WarnOutsideIngestionSlack(tenant string) {
 	metric.WithLabelValues(tenant, reasonOutsideIngestionSlack).Inc()
+}
+
+func WarnDisconnectedTrace(tenant string, phase string) {
+	metric.WithLabelValues(tenant, reasonDisconnectedTrace+phase).Inc()
 }
