@@ -101,13 +101,7 @@ func (o *userConfigurableOverridesManager) starting(ctx context.Context) error {
 		return errors.Wrap(err, "unable to start overrides subservices")
 	}
 
-	err := o.reloadAllTenantLimits(ctx)
-	if err != nil {
-		// Don't block start up if loading user-configurable overrides failed. We can fall back to runtime overrides.
-		metricUserConfigurableOverridesReloadFailed.Inc()
-		level.Error(o.logger).Log("msg", "failed to load user-configurable config during start-up, will fall back to runtime overrides", "err", err)
-	}
-	return err
+	return o.reloadAllTenantLimits(ctx)
 }
 
 func (o *userConfigurableOverridesManager) running(ctx context.Context) error {
