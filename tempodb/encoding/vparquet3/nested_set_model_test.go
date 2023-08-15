@@ -172,7 +172,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 3, ParentID: 1},
 				},
 			},
-			expectedConnected: true, // jpe ?
+			expectedConnected: true,
 		},
 		{
 			name: "non unique IDs",

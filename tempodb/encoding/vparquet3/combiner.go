@@ -7,7 +7,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-func CombineTraces(traces ...*Trace) *Trace {
+func combineTraces(traces ...*Trace) *Trace {
 	if len(traces) == 1 {
 		return traces[0]
 	}
@@ -16,7 +16,7 @@ func CombineTraces(traces ...*Trace) *Trace {
 	for i := 0; i < len(traces); i++ {
 		c.ConsumeWithFinal(traces[i], i == len(traces)-1)
 	}
-	res, _ := c.Result()
+	res, _, _ := c.Result() // for now ignore the connected return. see comment in walBlock.Iterator()
 	return res
 }
 
@@ -127,17 +127,18 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 }
 
 // Result returns the final trace and span count.
-func (c *Combiner) Result() (*Trace, int) {
+func (c *Combiner) Result() (*Trace, int, bool) {
 	spanCount := -1
 
+	connected := true
 	if c.result != nil && c.combined {
 		// Only if anything combined
 		SortTrace(c.result)
-		assignNestedSetModelBounds(c.result)
+		connected = assignNestedSetModelBounds(c.result)
 		spanCount = len(c.spans)
 	}
 
-	return c.result, spanCount
+	return c.result, spanCount, connected
 }
 
 // SortTrace sorts a parquet *Trace

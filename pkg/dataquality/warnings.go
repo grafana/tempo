@@ -24,6 +24,7 @@ func WarnOutsideIngestionSlack(tenant string) {
 	metric.WithLabelValues(tenant, reasonOutsideIngestionSlack).Inc()
 }
 
+// jpe - make own metric, remove _wal_to_complete
 func WarnDisconnectedTrace(tenant string, phase string) {
 	metric.WithLabelValues(tenant, reasonDisconnectedTrace+phase).Inc()
 }

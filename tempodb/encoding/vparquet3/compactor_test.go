@@ -127,7 +127,8 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		require.NoError(t, err)
 
 		tr := test.AddDedicatedAttributes(test.MakeTraceWithSpanCount(batchCount, spanCount, id))
-		trp := traceToParquet(inMeta, id, tr, nil)
+		trp, connected := traceToParquet(inMeta, id, tr, nil)
+		require.False(t, connected)
 
 		require.NoError(t, sb.Add(trp, 0, 0))
 		if sb.EstimatedBufferedBytes() > 20_000_000 {
@@ -158,7 +159,8 @@ func TestCountSpans(t *testing.T) {
 
 	// make Trace and convert to parquet.Row
 	tr := test.MakeTraceWithSpanCount(batchSize, spansEach, traceID)
-	trp := traceToParquet(&backend.BlockMeta{}, traceID, tr, nil)
+	trp, connected := traceToParquet(&backend.BlockMeta{}, traceID, tr, nil)
+	require.False(t, connected)
 	row := sch.Deconstruct(nil, trp)
 
 	// count spans for generated rows.
