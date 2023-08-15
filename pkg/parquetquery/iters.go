@@ -62,12 +62,10 @@ func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 	return 0
 }
 
-func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
-	n := EmptyRowNumber()
-	for i := 0; i <= definitionLevelToKeep; i++ {
-		n[i] = t[i]
+func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) {
+	for i := definitionLevelToKeep + 1; i < len(t); i++ {
+		t[i] = -1
 	}
-	return n
 }
 
 func (t *RowNumber) Valid() bool {
@@ -1287,7 +1285,7 @@ func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 
 func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	var err error
-	t = TruncateRowNumber(d, t)
+	TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
 			ReleaseResult(j.peeks[iterNum])
@@ -1461,7 +1459,7 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
-	t = TruncateRowNumber(d, t)
+	TruncateRowNumber(d, t)
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 			ReleaseResult(j.peeksRequired[iterNum])
@@ -1633,7 +1631,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 
 func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	var err error
-	t = TruncateRowNumber(d, t)
+	TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
 		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
 			u.peeks[iterNum], err = iter.SeekTo(t, d)
