@@ -163,12 +163,13 @@ func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.Fi
 			return err
 		}
 
+		tenantFilePath := filepath.Join(filepath.Join(keypath...), path)
 		opts := backend.FindOpts{
-			Key:      path,
+			Key:      tenantFilePath,
 			Modified: info.ModTime(),
 		}
 		if f(opts) {
-			keys = append(keys, d.Name())
+			keys = append(keys, tenantFilePath)
 		}
 		return nil
 	})
