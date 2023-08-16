@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -212,7 +214,41 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, erro
 
 // Blocks implements backend.Reader
 func (r *reader) QuickBlocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-	return r.r.ListBlocks(ctx, KeyPath{tenantID})
+	// i.e: <tenantID/<blockID>/meta
+
+	f := func(opts FindOpts) bool {
+		parts := strings.Split(opts.Key, "/")
+		if len(parts) != 3 {
+			return false
+		}
+
+		switch parts[2] {
+		case MetaName, CompactedMetaName:
+			return true
+		}
+		return false
+	}
+
+	results, err := r.r.Find(ctx, KeyPath{tenantID}, f)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to find blocks")
+	}
+
+	mm := make([]uuid.UUID, 0, len(results))
+	cm := make([]uuid.UUID, 0, len(results))
+
+	for _, result := range results {
+		parts := strings.Split(result, "/")
+		switch parts[2] {
+		case MetaName:
+			mm = append(mm, uuid.MustParse(parts[1]))
+		case CompactedMetaName:
+			cm = append(cm, uuid.MustParse(parts[1]))
+		}
+
+	}
+
+	return mm, cm, nil
 }
 
 // Blocks implements backend.Reader
