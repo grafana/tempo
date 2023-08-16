@@ -89,13 +89,19 @@ func TestReader(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedTenants, actualTenants)
 
-	uuid1 := uuid.New()
-	uuid2 := uuid.New()
+	uuid1, uuid2, uuid3 := uuid.New(), uuid.New(), uuid.New()
 	expectedBlocks := []uuid.UUID{uuid1, uuid2}
-	m.L = []string{uuid1.String(), uuid2.String()}
-	actualBlocks, _, err := r.Blocks(ctx, "test")
+	expectedCompactedBlocks := []uuid.UUID{uuid3}
+	m.FindResult = []string{
+		"test/" + uuid1.String() + "/" + MetaName,
+		"test/" + uuid2.String() + "/" + MetaName,
+		"test/" + uuid3.String() + "/" + CompactedMetaName,
+	}
+
+	actualBlocks, actualCompactedBlocks, err := r.Blocks(ctx, "test")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedBlocks, actualBlocks)
+	assert.Equal(t, expectedCompactedBlocks, actualCompactedBlocks)
 
 	// should fail b/c meta is not valid
 	meta, err := r.BlockMeta(ctx, uuid.New(), "test")
