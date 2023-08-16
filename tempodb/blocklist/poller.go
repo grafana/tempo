@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -73,6 +74,7 @@ var (
 // Config is used to configure the poller
 type PollerConfig struct {
 	PollConcurrency           uint
+	PollTenantConcurrency     uint
 	PollFallback              bool
 	TenantIndexBuilders       int
 	StaleTenantIndex          time.Duration
@@ -138,44 +140,58 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 		return nil, nil, err
 	}
 
+	m := &sync.Mutex{}
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
 
 	consecutiveErrors := 0
 
+	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
 	for _, tenantID := range tenants {
-		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
-		if err != nil {
-			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
-			consecutiveErrors++
-			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-				level.Error(p.logger).
-					Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
-				return nil, nil, err
+		bg.Add(1)
+
+		go func(tenantID string) {
+			defer bg.Done()
+
+			level.Info(p.logger).Log("msg", "polling tenant", "tenant", tenantID)
+
+			newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+			if err != nil {
+				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+				consecutiveErrors++
+				if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+					level.Error(p.logger).
+						Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+					return
+				}
+
+				return
 			}
 
-			continue
-		}
+			consecutiveErrors = 0
+			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+				m.Lock()
+				blocklist[tenantID] = newBlockList
+				compactedBlocklist[tenantID] = newCompactedBlockList
+				m.Unlock()
 
-		consecutiveErrors = 0
-		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
-			blocklist[tenantID] = newBlockList
-			compactedBlocklist[tenantID] = newCompactedBlockList
+				metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
-			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
-
-			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-			continue
-		}
-		metricBlocklistLength.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendBytes.DeleteLabelValues(tenantID)
+				backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+				metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+				metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+				metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+				metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+				return
+			}
+			metricBlocklistLength.DeleteLabelValues(tenantID)
+			metricBackendObjects.DeleteLabelValues(tenantID)
+			metricBackendObjects.DeleteLabelValues(tenantID)
+			metricBackendBytes.DeleteLabelValues(tenantID)
+		}(tenantID)
 	}
+
+	bg.Wait()
 
 	return blocklist, compactedBlocklist, nil
 }
