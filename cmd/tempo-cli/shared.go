@@ -56,7 +56,7 @@ type blockStats struct {
 }
 
 func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
-	blockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, _, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}

@@ -84,7 +84,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 }
 
 func queryBucket(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) ([]queryResults, error) {
-	blockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, _, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}

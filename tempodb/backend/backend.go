@@ -53,14 +53,12 @@ type Reader interface {
 	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error
 	// Tenants returns a list of all tenants in a backend
 	Tenants(ctx context.Context) ([]string, error)
-	// Blocks returns a list of block UUIDs given a tenant
-	Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error)
+	// Blocks returns the blockIDs, compactedBlockIDs and an error from the backend.
+	Blocks(ctx context.Context, tenantID string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// BlockMeta returns the blockmeta given a block and tenant id
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
 	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
-	// QuickBlocks returns the blockIDs, compactedBlockIDs and an error from the backend.
-	QuickBlocks(ctx context.Context, tenantID string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Shutdown shuts...down?
 	Shutdown()
 }

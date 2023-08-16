@@ -571,7 +571,7 @@ func (p *Processor) reloadBlocks() error {
 		return nil
 	}
 
-	ids, err := r.Blocks(ctx, p.tenant)
+	ids, _, err := r.Blocks(ctx, p.tenant)
 	if err != nil {
 		return err
 	}

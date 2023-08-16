@@ -125,9 +125,7 @@ type MockReader struct {
 	sync.Mutex
 
 	T                 []string
-	B                 []uuid.UUID // blocks
-	BlockFn           func(ctx context.Context, tenantID string) ([]uuid.UUID, error)
-	QuickBlocksFn     func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error)
+	BlocksFn          func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error)
 	M                 *BlockMeta // meta
 	BlockMetaFn       func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	TenantIndexFn     func(ctx context.Context, tenantID string) (*TenantIndex, error)
@@ -143,17 +141,9 @@ func (m *MockReader) Tenants(context.Context) ([]string, error) {
 	return m.T, nil
 }
 
-func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	if m.BlockFn != nil {
-		return m.BlockFn(ctx, tenantID)
-	}
-
-	return m.B, nil
-}
-
-func (m *MockReader) QuickBlocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-	if m.QuickBlocksFn != nil {
-		return m.QuickBlocksFn(ctx, tenantID)
+func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+	if m.BlocksFn != nil {
+		return m.BlocksFn(ctx, tenantID)
 	}
 
 	return m.BlockIDs, m.CompactedBlockIDs, nil

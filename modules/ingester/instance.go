@@ -561,7 +561,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint
 }
 
 func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, error) {
-	ids, err := i.localReader.Blocks(ctx, i.instanceID)
+	ids, _, err := i.localReader.Blocks(ctx, i.instanceID)
 	if err != nil {
 		return nil, err
 	}

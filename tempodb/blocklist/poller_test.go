@@ -553,11 +553,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
-				BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-					i, _ := strconv.Atoi(tenantID)
-					return nil, tc.tenantErrors[i]
-				},
-				QuickBlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+				BlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
 					i, _ := strconv.Atoi(tenantID)
 					return nil, nil, tc.tenantErrors[i]
 				},
@@ -775,22 +771,6 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 	return &backend.MockReader{
 		T:              tenants,
 		BlockMetaCalls: make(map[string]map[uuid.UUID]int),
-		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-			if expectsError {
-				return nil, errors.New("err")
-			}
-			blocks := list[tenantID]
-			uuids := []uuid.UUID{}
-			for _, b := range blocks {
-				uuids = append(uuids, b.BlockID)
-			}
-			compactedBlocks := compactedList[tenantID]
-			for _, b := range compactedBlocks {
-				uuids = append(uuids, b.BlockID)
-			}
-
-			return uuids, nil
-		},
 		BlockMetaFn: func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
@@ -809,7 +789,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 			return nil, backend.ErrDoesNotExist
 		},
-		QuickBlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+		BlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
 			if expectsError {
 				return nil, nil, errors.New("err")
 			}

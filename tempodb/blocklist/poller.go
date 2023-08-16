@@ -232,13 +232,9 @@ func (p *Poller) pollTenantAndCreateIndex(
 	// there was a failure to pull the tenant index and we are configured to fall
 	// back to polling.  If quick polling fails, fall back to long poll.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
-	blocklist, compactedBlocklist, err := p.quickPollTenantBlocks(derivedCtx, tenantID, previous)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
-		level.Error(p.logger).Log("msg", "quick poll failed, falling back to long poll", "tenant", tenantID, "error", err)
-		blocklist, compactedBlocklist, err = p.pollTenantBlocks(derivedCtx, tenantID)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "polling failed")
-		}
+		return nil, nil, errors.Wrap(err, "polling failed")
 	}
 
 	// everything is happy, write this tenant index
@@ -256,56 +252,9 @@ func (p *Poller) pollTenantAndCreateIndex(
 func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
-) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	blockIDs, err := p.reader.Blocks(ctx, tenantID)
-	if err != nil {
-		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}, err
-	}
-
-	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
-	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
-	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
-	anyError := atomic.Error{}
-
-	for _, blockID := range blockIDs {
-		bg.Add(1)
-		go func(id uuid.UUID) {
-			defer bg.Done()
-
-			if p.cfg.PollJitterMs > 0 {
-				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
-			}
-
-			m, cm, pollBlockErr := p.pollBlock(ctx, tenantID, id)
-			if m != nil {
-				chMeta <- m
-			} else if cm != nil {
-				chCompactedMeta <- cm
-			} else if pollBlockErr != nil {
-				anyError.Store(err)
-			}
-		}(blockID)
-	}
-
-	bg.Wait()
-	close(chMeta)
-	close(chCompactedMeta)
-
-	if err = anyError.Load(); err != nil {
-		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
-		return nil, nil, err
-	}
-
-	return p.flushMetaChannels(chMeta, chCompactedMeta)
-}
-
-func (p *Poller) quickPollTenantBlocks(
-	ctx context.Context,
-	tenantID string,
 	previous backend.Blocklist,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.QuickBlocks(ctx, tenantID)
+	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}

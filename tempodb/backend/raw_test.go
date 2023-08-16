@@ -93,7 +93,7 @@ func TestReader(t *testing.T) {
 	uuid2 := uuid.New()
 	expectedBlocks := []uuid.UUID{uuid1, uuid2}
 	m.L = []string{uuid1.String(), uuid2.String()}
-	actualBlocks, err := r.Blocks(ctx, "test")
+	actualBlocks, _, err := r.Blocks(ctx, "test")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedBlocks, actualBlocks)
 

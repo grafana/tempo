@@ -186,32 +186,7 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 }
 
 // Blocks implements backend.Reader
-func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
-	objects, err := r.r.List(ctx, KeyPath{tenantID})
-	if err != nil {
-		return nil, err
-	}
-
-	// translate everything to UUIDs, if we see a bucket index we can skip that
-	blockIDs := make([]uuid.UUID, 0, len(objects))
-	for _, id := range objects {
-		// TODO: this line exists due to behavior differences in backends: https://github.com/grafana/tempo/issues/880
-		// revisit once #880 is resolved.
-		if id == TenantIndexName || id == "" {
-			continue
-		}
-		uuid, err := uuid.Parse(id)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse %s: %w", id, err)
-		}
-		blockIDs = append(blockIDs, uuid)
-	}
-
-	return blockIDs, nil
-}
-
-// Blocks implements backend.Reader
-func (r *reader) QuickBlocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
 	// i.e: <tenantID/<blockID>/meta
 
 	f := func(opts FindOpts) bool {
@@ -229,7 +204,7 @@ func (r *reader) QuickBlocks(ctx context.Context, tenantID string) ([]uuid.UUID,
 
 	results, err := r.r.Find(ctx, KeyPath{tenantID}, f)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to find blocks")
+		return nil, nil, fmt.Errorf("failed to find blocks: %w", err)
 	}
 
 	mm := make([]uuid.UUID, 0, len(results))
@@ -249,7 +224,7 @@ func (r *reader) QuickBlocks(ctx context.Context, tenantID string) ([]uuid.UUID,
 	return mm, cm, nil
 }
 
-// Blocks implements backend.Reader
+// BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), false)
 	if err != nil {
@@ -271,7 +246,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	return out, nil
 }
 
-// Blocks implements backend.Reader
+// TenantIndex implements backend.Reader
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), false)
 	if err != nil {
@@ -294,7 +269,7 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 	return i, nil
 }
 
-// Blocks implements backend.Reader
+// Shutdown implements backend.Reader
 func (r *reader) Shutdown() {
 	r.r.Shutdown()
 }
