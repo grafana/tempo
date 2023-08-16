@@ -424,10 +424,15 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 
+	if rw.cfg.TenantPollConcurrency <= 0 {
+		rw.cfg.TenantPollConcurrency = DefaultTenantPollConcurrency
+	}
+
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 		PollConcurrency:           rw.cfg.BlocklistPollConcurrency,
+		PollTenantConcurrency:     rw.cfg.TenantPollConcurrency,
 		PollFallback:              rw.cfg.BlocklistPollFallback,
 		TenantIndexBuilders:       rw.cfg.BlocklistPollTenantIndexBuilders,
 		StaleTenantIndex:          rw.cfg.BlocklistPollStaleTenantIndex,
