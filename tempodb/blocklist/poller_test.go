@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	testPollConcurrency = uint(10)
-	testPollFallback    = true
-	testBuilders        = 1
+	testPollConcurrency       = uint(10)
+	testPollTenantConcurrency = uint(2)
+	testPollFallback          = true
+	testBuilders              = 1
 )
 
 type mockJobSharder struct {
@@ -152,9 +153,10 @@ func TestTenantIndexBuilder(t *testing.T) {
 			b := newMockBlocklist(PerTenant{}, PerTenantCompacted{})
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
+				PollConcurrency:       testPollConcurrency,
+				PollTenantConcurrency: testPollTenantConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
@@ -769,7 +771,24 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 	}
 
 	return &backend.MockReader{
-		T:              tenants,
+		T: tenants,
+		BlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+			if expectsError {
+				return nil, nil, errors.New("err")
+			}
+			blocks := list[tenantID]
+			uuids := []uuid.UUID{}
+			compactedUUIDs := []uuid.UUID{}
+			for _, b := range blocks {
+				uuids = append(uuids, b.BlockID)
+			}
+			compactedBlocks := compactedList[tenantID]
+			for _, b := range compactedBlocks {
+				compactedUUIDs = append(compactedUUIDs, b.BlockID)
+			}
+
+			return uuids, compactedUUIDs, nil
+		},
 		BlockMetaCalls: make(map[string]map[uuid.UUID]int),
 		BlockMetaFn: func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 			if expectsError {
@@ -788,23 +807,6 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			}
 
 			return nil, backend.ErrDoesNotExist
-		},
-		BlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-			if expectsError {
-				return nil, nil, errors.New("err")
-			}
-			blocks := list[tenantID]
-			uuids := []uuid.UUID{}
-			compactedUUIDs := []uuid.UUID{}
-			for _, b := range blocks {
-				uuids = append(uuids, b.BlockID)
-			}
-			compactedBlocks := compactedList[tenantID]
-			for _, b := range compactedBlocks {
-				compactedUUIDs = append(compactedUUIDs, b.BlockID)
-			}
-
-			return uuids, compactedUUIDs, nil
 		},
 	}
 }
