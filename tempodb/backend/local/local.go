@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -152,6 +153,33 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 // ListBlocks implements backend.Reader
 func (rw *Backend) ListBlocks(_ context.Context, _ backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
 	return nil, nil, fmt.Errorf("not implemented")
+}
+
+// Find implements backend.Reader
+func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	path := rw.rootPath(keypath)
+	fff := os.DirFS(path)
+	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		opts := backend.FindOpts{
+			Key:      path,
+			Modified: info.ModTime(),
+		}
+		if f(opts) {
+			keys = append(keys, d.Name())
+		}
+		return nil
+	})
+
+	return
 }
 
 // Read implements backend.Reader
