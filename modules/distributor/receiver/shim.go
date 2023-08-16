@@ -6,9 +6,11 @@ import (
 	"os"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/distributor/forwarder"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
@@ -17,7 +19,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/sirupsen/logrus"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -57,6 +58,8 @@ var (
 	statReceiverZipkin     = usagestats.NewInt("receiver_enabled_zipkin")
 	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
+
+	rateLimitedLogger kitlog.Logger
 )
 
 type TracesPusher interface {
@@ -70,7 +73,7 @@ type receiversShim struct {
 
 	receivers   []receiver.Traces
 	pusher      TracesPusher
-	logger      *log.RateLimitedLogger
+	logger      kitlog.Logger
 	metricViews []*view.View
 	fatal       chan error
 }
@@ -94,10 +97,20 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel dslog.Level) (services.Service, error) {
+func getRateLimitedLogger(registry prom_client.Registerer) kitlog.Logger {
+	if rateLimitedLogger == nil {
+		rateLimitedLogger = dslog.NewRateLimitedLogger(log.Logger, logsPerSecond, 1, registry)
+		rateLimitedLogger = level.Error(rateLimitedLogger)
+	}
+	return rateLimitedLogger
+}
+
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel dslog.Level, registry prom_client.Registerer) (services.Service, error) {
+	rateLimitedLogger := getRateLimitedLogger(registry)
+
 	shim := &receiversShim{
 		pusher: pusher,
-		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		logger: rateLimitedLogger,
 		fatal:  make(chan error),
 	}
 
@@ -313,23 +326,7 @@ func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]c
 
 // observability shims
 func newLogger(level dslog.Level) *zap.Logger {
-	zapLevel := zapcore.InfoLevel
-
-	switch level.Logrus {
-	case logrus.PanicLevel:
-		zapLevel = zapcore.PanicLevel
-	case logrus.FatalLevel:
-		zapLevel = zapcore.FatalLevel
-	case logrus.ErrorLevel:
-		zapLevel = zapcore.ErrorLevel
-	case logrus.WarnLevel:
-		zapLevel = zapcore.WarnLevel
-	case logrus.InfoLevel:
-		zapLevel = zapcore.InfoLevel
-	case logrus.DebugLevel:
-	case logrus.TraceLevel:
-		zapLevel = zapcore.DebugLevel
-	}
+	zapLevel := forwarder.ZapLevel(level)
 
 	config := zap.NewProductionEncoderConfig()
 	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {

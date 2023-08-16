@@ -1,0 +1,45 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+ingester:
+  lifecycler:
+    ring:
+      replication_factor: 3
+    heartbeat_period: 100ms
+  override_ring_key: "ring-a"
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: tempo_active_active-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 100
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+  - tempo_active_active-ingester-a-1:7946
+  - tempo_active_active-ingester-a-2:7946
+  - tempo_active_active-ingester-a-3:7946
+  - tempo_active_active-ingester-b-1:7946
+  - tempo_active_active-ingester-b-2:7946
+  - tempo_active_active-ingester-b-3:7946
+
+
+querier:
+  secondary_ingester_ring: "ring-b"
+  frontend_worker:
+    frontend_address: tempo_active_active-query-frontend-a:9095

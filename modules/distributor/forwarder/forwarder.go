@@ -12,7 +12,6 @@ import (
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
@@ -191,23 +190,23 @@ func (c consumerToForwarderAdapter) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
-func newLogger(level dslog.Level) *zap.Logger {
-	zapLevel := zapcore.InfoLevel
-
-	switch level.Logrus {
-	case logrus.PanicLevel:
-		zapLevel = zapcore.PanicLevel
-	case logrus.FatalLevel:
-		zapLevel = zapcore.FatalLevel
-	case logrus.ErrorLevel:
-		zapLevel = zapcore.ErrorLevel
-	case logrus.WarnLevel:
-		zapLevel = zapcore.WarnLevel
-	case logrus.InfoLevel:
-		zapLevel = zapcore.InfoLevel
-	case logrus.TraceLevel, logrus.DebugLevel:
-		zapLevel = zapcore.DebugLevel
+func ZapLevel(level dslog.Level) zapcore.Level {
+	switch level.String() {
+	case "error":
+		return zapcore.ErrorLevel
+	case "warn":
+		return zapcore.WarnLevel
+	case "info":
+		return zapcore.InfoLevel
+	case "debug":
+		return zapcore.DebugLevel
+	default:
+		return zapcore.InfoLevel
 	}
+}
+
+func newLogger(level dslog.Level) *zap.Logger {
+	zapLevel := ZapLevel(level)
 
 	config := zap.NewProductionEncoderConfig()
 	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
