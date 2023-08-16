@@ -11,8 +11,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -277,66 +275,6 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	}
 
 	return objects, nil
-}
-
-// ListBlocks implements backend.Reader
-func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
-	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	prefix := path.Join(keypath...)
-
-	if len(prefix) > 0 {
-		prefix = prefix + "/"
-	}
-
-	nextToken := ""
-	isTruncated := true
-	var parts []string
-	var id uuid.UUID
-	var res minio.ListBucketV2Result
-
-	for isTruncated {
-		// The "n" delimter here is used to identify files that end with "n", which
-		// will yield json files.
-		res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "n", 0)
-		if err != nil {
-			return nil, nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
-		}
-
-		// level.Debug(s.logger).Log("response", spew.Sdump(res))
-
-		isTruncated = res.IsTruncated
-		nextToken = res.NextContinuationToken
-
-		level.Debug(rw.logger).Log("msg", "block list", "keypath", path.Join(keypath...)+"/",
-			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextContinuationToken)
-
-		if len(res.CommonPrefixes) > 0 {
-			for _, cp := range res.CommonPrefixes {
-				parts = strings.Split(cp.Prefix, "/")
-				// ie: <tenant>/<blockID>/meta.json
-				if len(parts) != 3 {
-					continue
-				}
-
-				id, err = uuid.Parse(parts[1])
-				if err != nil {
-					return nil, nil, err
-				}
-
-				switch parts[2] {
-				case backend.MetaName:
-					blockIDs = append(blockIDs, id)
-				case backend.CompactedMetaName:
-					compactedBlockIDs = append(compactedBlockIDs, id)
-				}
-			}
-		}
-	}
-
-	level.Debug(rw.logger).
-		Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
-
-	return
 }
 
 // Find implements backend.Reader

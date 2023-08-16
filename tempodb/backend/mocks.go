@@ -22,12 +22,11 @@ var (
 
 // MockRawReader
 type MockRawReader struct {
-	L            []string
-	ListFn       func(ctx context.Context, keypath KeyPath) ([]string, error)
-	ListBlocksFn func(ctx context.Context, keypath KeyPath) ([]uuid.UUID, []uuid.UUID, error)
-	R            []byte // read
-	Range        []byte // ReadRange
-	ReadFn       func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	L      []string
+	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
+	R      []byte // read
+	Range  []byte // ReadRange
+	ReadFn func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 
 	BlockIDs          []uuid.UUID
 	CompactedBlockIDs []uuid.UUID
@@ -40,14 +39,6 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	}
 
 	return m.L, nil
-}
-
-func (m *MockRawReader) ListBlocks(ctx context.Context, keypath KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
-	if m.ListFn != nil {
-		return m.ListBlocksFn(ctx, keypath)
-	}
-
-	return m.BlockIDs, m.CompactedBlockIDs, nil
 }
 
 func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {

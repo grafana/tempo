@@ -51,8 +51,6 @@ type RawWriter interface {
 type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
-	// ListBlocks returns the IDs for blocks and compacted blocks at the keypath
-	ListBlocks(ctx context.Context, keypath KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Find returns the names of all objects that match the provided FindFunc
 	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.

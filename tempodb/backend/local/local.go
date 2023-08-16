@@ -2,7 +2,6 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -148,11 +147,6 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 	}
 
 	return objects, nil
-}
-
-// ListBlocks implements backend.Reader
-func (rw *Backend) ListBlocks(_ context.Context, _ backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
-	return nil, nil, fmt.Errorf("not implemented")
 }
 
 // Find implements backend.Reader
