@@ -25,6 +25,14 @@ const (
 // KeyPath is an ordered set of strings that govern where data is read/written from the backend
 type KeyPath []string
 
+// FundFunc is used to match objects in a backend
+type FindFunc func(FindOpts) bool
+
+type FindOpts struct {
+	Key      string
+	Modified time.Time
+}
+
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
 	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
@@ -43,6 +51,8 @@ type RawReader interface {
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// ListBlocks returns the IDs for blocks and compacted blocks at the keypath
 	ListBlocks(ctx context.Context, keypath KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
+	// Find returns the names of all objects that match the provided FindFunc
+	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.

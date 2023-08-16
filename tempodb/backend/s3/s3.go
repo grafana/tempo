@@ -339,6 +339,53 @@ func (rw *readerWriter) ListBlocks(_ context.Context, keypath backend.KeyPath) (
 	return
 }
 
+// Find implements backend.Reader
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	nextToken := ""
+	isTruncated := true
+	var res minio.ListBucketV2Result
+
+	for isTruncated {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "", 0)
+			if err != nil {
+				return nil, errors.Wrapf(err, "error finding objects in s3 bucket, bucket: %s", rw.cfg.Bucket)
+			}
+
+			isTruncated = res.IsTruncated
+			nextToken = res.NextContinuationToken
+
+			if len(res.Contents) > 0 {
+				for _, c := range res.Contents {
+					opts := backend.FindOpts{
+						Key:      c.Key,
+						Modified: c.LastModified,
+					}
+					if !f(opts) {
+						continue
+					}
+
+					keys = append(keys, c.Key)
+				}
+			}
+		}
+	}
+
+	level.Debug(rw.logger).Log("msg", "find complete", "keys", len(keys))
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")

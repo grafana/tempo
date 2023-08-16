@@ -239,6 +239,45 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	return
 }
 
+// Find implements backend.Reader
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Prefix:    prefix,
+		Delimiter: "",
+		Versions:  false,
+	})
+
+	for {
+		attrs, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "iterating objects")
+		}
+
+		obj := strings.TrimPrefix(attrs.Prefix, prefix)
+
+		opts := backend.FindOpts{
+			Key:      obj,
+			Modified: attrs.Updated,
+		}
+		if !f(opts) {
+			continue
+		}
+
+		keys = append(keys, obj)
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
