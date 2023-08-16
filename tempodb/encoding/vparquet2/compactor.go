@@ -317,15 +317,21 @@ func estimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
 // countSpans counts the number of spans in the given trace in deconstructed
 // parquet row format and returns traceId.
 // It simply counts the number of values for span ID, which is always present.
-func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, spans int) {
+func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, rootSpanName string, spans int) {
 	traceIDColumn, found := schema.Lookup(TraceIDColumnName)
 	if !found {
-		return "", 0
+		return "", "", 0
 	}
 
-	spanID, found := schema.Lookup("rs", "list", "element", "ss", "list", "element", "Spans", "list", "element", "SpanID")
+	rootSpanNameColumn, found := schema.Lookup(RootSpanNameColumnName)
 	if !found {
-		return "", 0
+		return "", "", 0
+	}
+
+	spanID, found := schema.Lookup("rs", "list", "element", "ss",
+		"list", "element", "Spans", "list", "element", "SpanID")
+	if !found {
+		return "", "", 0
 	}
 
 	for _, v := range row {
@@ -335,6 +341,10 @@ func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, spans 
 
 		if v.Column() == traceIDColumn.ColumnIndex {
 			traceID = tempoUtil.TraceIDToHexString(v.ByteArray())
+		}
+
+		if v.Column() == rootSpanNameColumn.ColumnIndex {
+			rootSpanName = v.String()
 		}
 	}
 

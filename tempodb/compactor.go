@@ -223,8 +223,8 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
-		SpansDiscarded: func(traceId string, spans int) {
-			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId)
+		SpansDiscarded: func(traceId, rootSpanName string, spans int) {
+			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName)
 		},
 		DisconnectedTrace: func() {
 			dataquality.WarnDisconnectedTrace(tenantID, dataquality.PhaseTraceCompactorCombine)

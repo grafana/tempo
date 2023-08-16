@@ -24,7 +24,8 @@ const (
 	SearchNext     = -2
 	NotFound       = -3
 
-	TraceIDColumnName = "TraceID"
+	TraceIDColumnName      = "TraceID"
+	RootSpanNameColumnName = "RootSpanName"
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {

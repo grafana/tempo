@@ -244,8 +244,8 @@ func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte
 }
 
 // RecordDiscardedSpans implements tempodb.CompactorSharder
-func (c *Compactor) RecordDiscardedSpans(count int, tenantID string, traceID string) {
-	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID, "discarded_span_count", count)
+func (c *Compactor) RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string) {
+	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID, "rootSpanName", rootSpanName, "discarded_span_count", count)
 	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)
 }
 
