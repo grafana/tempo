@@ -63,9 +63,9 @@ const (
 type instance struct {
 	cfg *Config
 
-	instanceID              string
-	overrides               metricsGeneratorOverrides
-	ingestionSlackOverrides map[string]time.Duration
+	instanceID             string
+	overrides              metricsGeneratorOverrides
+	ingestionSlackOverride time.Duration
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -88,10 +88,9 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
-		cfg:                     cfg,
-		instanceID:              instanceID,
-		overrides:               overrides,
-		ingestionSlackOverrides: make(map[string]time.Duration),
+		cfg:        cfg,
+		instanceID: instanceID,
+		overrides:  overrides,
 
 		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
 		wal:      wal,
@@ -191,11 +190,9 @@ func (i *instance) updateProcessors() error {
 		return err
 	}
 
-	// add ingestion slack overrides
-	ingestionSlackOverride := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID)
-	slackDuration, exist := i.ingestionSlackOverrides[i.instanceID]
-	if ingestionSlackOverride > 0 && ( !exist || ingestionSlackOverride != slackDuration) {
-		i.ingestionSlackOverrides[i.instanceID] = ingestionSlackOverride
+	i.ingestionSlackOverride = i.overrides.MetricsGeneratorIngestionSlack(i.instanceID)
+	if i.ingestionSlackOverride == 0 {
+		i.ingestionSlackOverride = i.cfg.MetricsIngestionSlack
 	}
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
@@ -356,10 +353,6 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0
-	ingestionSlack := i.cfg.MetricsIngestionSlack
-	if overrideSlack, found := i.ingestionSlackOverrides[i.instanceID]; found {
-		ingestionSlack = overrideSlack
-	}
 
 	for _, b := range req.Batches {
 		size += b.Size()
@@ -370,7 +363,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			timeNow := time.Now()
 			index := 0
 			for _, span := range ss.Spans {
-				if span.EndTimeUnixNano >= uint64(timeNow.Add(-ingestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(ingestionSlack).UnixNano()) {
+				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.ingestionSlackOverride).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.ingestionSlackOverride).UnixNano()) {
 					newSpansArr[index] = span
 					index++
 				} else {
