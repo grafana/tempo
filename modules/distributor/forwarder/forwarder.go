@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -92,7 +92,7 @@ func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) 
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         newLogger(logLevel),
 			TracerProvider: trace.NewNoopTracerProvider(),
-			MeterProvider:  metric.NewNoopMeterProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
 		},
 		BuildInfo: component.BuildInfo{},
 	}

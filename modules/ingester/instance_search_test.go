@@ -24,6 +24,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -189,16 +190,16 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 		// writeTracesForSearch will build spans that end 1 second from now
 		// query 2 min range to have extra slack and always be within range
-		sr = search(req, uint32(time.Now().Add(-time.Minute).Unix()), uint32(time.Now().Add(time.Minute).Unix()))
+		sr = search(req, uint32(time.Now().Add(-5*time.Minute).Unix()), uint32(time.Now().Add(5*time.Minute).Unix()))
 		assert.Len(t, sr.Traces, len(ids))
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 		checkEqual(t, ids, sr)
 
-		// search with start=1m from now, end=2m from now
-		sr = search(req, uint32(time.Now().Add(time.Minute).Unix()), uint32(time.Now().Add(2*time.Minute).Unix()))
+		// search with start=5m from now, end=10m from now
+		sr = search(req, uint32(time.Now().Add(5*time.Minute).Unix()), uint32(time.Now().Add(10*time.Minute).Unix()))
 		// no results and should inspect 100 traces in wal
 		assert.Len(t, sr.Traces, 0)
-		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
+		assert.Equal(t, uint32(0), sr.Metrics.InspectedTraces)
 	}
 
 	req := &tempopb.SearchRequest{
@@ -477,6 +478,7 @@ func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue str
 	ids := [][]byte{}
 	expectedTagValues := []string{}
 
+	now := time.Now()
 	for j := 0; j < numTraces; j++ {
 		id := make([]byte, 16)
 		_, err := crand.Read(id)
@@ -491,13 +493,22 @@ func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue str
 		ids = append(ids, id)
 
 		testTrace := test.MakeTrace(10, id)
+		// add the time
+		for _, batch := range testTrace.Batches {
+			for _, ils := range batch.InstrumentationLibrarySpans {
+				for _, span := range ils.Spans {
+					span.StartTimeUnixNano = uint64(now.UnixNano())
+					span.EndTimeUnixNano = uint64(now.UnixNano())
+				}
+			}
+		}
 		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(
 			testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes,
 			kv,
 		)
 		trace.SortTrace(testTrace)
 
-		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
+		traceBytes, err := dec.PrepareForWrite(testTrace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)
 
 		// searchData will be nil if not
@@ -928,6 +939,79 @@ func BenchmarkExtractMatchers(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				_ = extractMatchers(query)
 			}
+		})
+	}
+}
+
+func TestIncludeBlock(t *testing.T) {
+	tests := []struct {
+		blocKStart int64
+		blockEnd   int64
+		reqStart   uint32
+		reqEnd     uint32
+		expected   bool
+	}{
+		// if request is 0s, block start/end don't matter
+		{
+			blocKStart: 100,
+			blockEnd:   200,
+			reqStart:   0,
+			reqEnd:     0,
+			expected:   true,
+		},
+		// req before
+		{
+			blocKStart: 100,
+			blockEnd:   200,
+			reqStart:   50,
+			reqEnd:     99,
+			expected:   false,
+		},
+		// overlap front
+		{
+			blocKStart: 100,
+			blockEnd:   200,
+			reqStart:   50,
+			reqEnd:     150,
+			expected:   true,
+		},
+		// inside block
+		{
+			blocKStart: 100,
+			blockEnd:   200,
+			reqStart:   110,
+			reqEnd:     150,
+			expected:   true,
+		},
+		// overlap end
+		{
+			blocKStart: 100,
+			blockEnd:   200,
+			reqStart:   150,
+			reqEnd:     250,
+			expected:   true,
+		},
+		// after block
+		{
+			blocKStart: 100,
+			blockEnd:   200,
+			reqStart:   201,
+			reqEnd:     250,
+			expected:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%d-%d-%d-%d", tc.blocKStart, tc.blockEnd, tc.reqStart, tc.reqEnd), func(t *testing.T) {
+			actual := includeBlock(&backend.BlockMeta{
+				StartTime: time.Unix(tc.blocKStart, 0),
+				EndTime:   time.Unix(tc.blockEnd, 0),
+			}, &tempopb.SearchRequest{
+				Start: tc.reqStart,
+				End:   tc.reqEnd,
+			})
+
+			require.Equal(t, tc.expected, actual)
 		})
 	}
 }

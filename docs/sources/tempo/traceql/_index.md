@@ -153,6 +153,11 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ “DELETE|GET” }
 ```
 
+Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+```
+{ .any_attribute != nil }
+```
+
 ### Field expressions
 
 Fields can also be combined in various ways to allow more flexible search criteria. A field expression is a composite of multiple fields that define all of the criteria that must be matched to return results.
@@ -267,8 +272,7 @@ or anything else that comes to mind.
 
 ## Selection
 
-TraceQL can select arbitrary fields from spans. This is particularly performant b/c
-the selected fields are not retrieved until all other criteria is met.
+TraceQL can select arbitrary fields from spans. This is particularly performant because the selected fields are not retrieved until all other criteria is met.
 ```
 { status=error } | select(span.http.status_code, span.http.url)
 ```

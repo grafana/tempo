@@ -9,14 +9,14 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 )
 
 func Test_overridesValidator(t *testing.T) {
 	testCases := []struct {
 		name   string
 		cfg    Config
-		limits userconfigurableapi.UserConfigurableLimits
+		limits client.Limits
 		expErr string
 	}{
 		{
@@ -30,7 +30,7 @@ func Test_overridesValidator(t *testing.T) {
 					},
 				},
 			},
-			limits: userconfigurableapi.UserConfigurableLimits{
+			limits: client.Limits{
 				Forwarders: &[]string{"forwarder-1", "forwarder-3"},
 			},
 		},
@@ -44,7 +44,7 @@ func Test_overridesValidator(t *testing.T) {
 					},
 				},
 			},
-			limits: userconfigurableapi.UserConfigurableLimits{
+			limits: client.Limits{
 				Forwarders: &[]string{"forwarder-1", "some-forwarder"},
 			},
 			expErr: "forwarder \"some-forwarder\" is not a known forwarder, contact your system administrator",
@@ -52,8 +52,8 @@ func Test_overridesValidator(t *testing.T) {
 		{
 			name: "metrics_generator.processor",
 			cfg:  Config{},
-			limits: userconfigurableapi.UserConfigurableLimits{
-				MetricsGenerator: &userconfigurableapi.UserConfigurableOverridesMetricsGenerator{
+			limits: client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
 					Processors: map[string]struct{}{
 						"service-graphs": {},
 						"span-span":      {},

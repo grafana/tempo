@@ -59,6 +59,12 @@ func TestWriter(t *testing.T) {
 
 	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
 	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
+
+	// When a backend returns ErrDoesNotExist, the tenant index should be deleted, but no error should be returned if the tenant index does not exist
+	m = &MockRawWriter{err: ErrDoesNotExist}
+	w = NewWriter(m)
+	err = w.WriteTenantIndex(ctx, "test", nil, nil)
+	assert.NoError(t, err)
 }
 
 func TestReader(t *testing.T) {

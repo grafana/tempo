@@ -144,6 +144,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = "abc"}`), // Resource-level only
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = "def"}`),     // Span-level only
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo}`),                 // Projection only
+
+		// existence
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo != nil}`), // Exist
+
 		makeReq(
 			// Matches either condition
 			parse(t, `{.foo = "baz"}`),
@@ -555,6 +559,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	rr := backend.NewReader(r)
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
+	require.Equal(b, VersionString, meta.Version)
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10

@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -17,6 +16,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -49,7 +49,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
-	i.searchBlock(ctx, req, sr, i.headBlock.BlockMeta().BlockID, i.headBlock, i.headBlockMtx.RUnlock)
+	i.searchBlock(ctx, req, sr, i.headBlock.BlockMeta(), i.headBlock, i.headBlockMtx.RUnlock)
 
 	// Lock blocks mutex until all search tasks are finished and this function exists. This avoids
 	// deadlocking with other activity (ingest, flushing), caused by releasing
@@ -58,11 +58,11 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	defer i.blocksMtx.RUnlock()
 
 	for _, b := range i.completingBlocks {
-		i.searchBlock(ctx, req, sr, b.BlockMeta().BlockID, b, nil)
+		i.searchBlock(ctx, req, sr, b.BlockMeta(), b, nil)
 	}
 
 	for _, b := range i.completeBlocks {
-		i.searchBlock(ctx, req, sr, b.BlockMeta().BlockID, b, nil)
+		i.searchBlock(ctx, req, sr, b.BlockMeta(), b, nil)
 	}
 
 	sr.AllWorkersStarted()
@@ -101,7 +101,17 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 // searchBlock starts a search task for the given block. The block must already be under lock,
 // and this method calls cleanup to unlock the block when done.
-func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results, blockID uuid.UUID, block common.Searcher, cleanup func()) {
+func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results, meta *backend.BlockMeta, block common.Searcher, cleanup func()) {
+	// confirm block should be included in search
+	if !includeBlock(meta, req) {
+		if cleanup != nil {
+			cleanup()
+		}
+		return
+	}
+
+	blockID := meta.BlockID
+
 	sr.StartWorker()
 	go func(e common.Searcher, cleanup func()) {
 		if cleanup != nil {
@@ -536,4 +546,16 @@ func extractMatchers(query string) string {
 	q.WriteString("}")
 
 	return q.String()
+}
+
+// includeBlock uses the provided time range to determine if the block should be included in the search.
+func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool {
+	start := int64(req.Start)
+	end := int64(req.End)
+
+	if start == 0 || end == 0 {
+		return true
+	}
+
+	return b.StartTime.Unix() <= end && b.EndTime.Unix() >= start
 }

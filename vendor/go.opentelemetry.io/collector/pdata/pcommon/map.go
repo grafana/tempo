@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package pcommon // import "go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -46,11 +35,11 @@ func (m Map) Clear() {
 // EnsureCapacity increases the capacity of this Map instance, if necessary,
 // to ensure that it can hold at least the number of elements specified by the capacity argument.
 func (m Map) EnsureCapacity(capacity int) {
-	if capacity <= cap(*m.getOrig()) {
+	oldOrig := *m.getOrig()
+	if capacity <= cap(oldOrig) {
 		return
 	}
-	oldOrig := *m.getOrig()
-	*m.getOrig() = make([]otlpcommon.KeyValue, 0, capacity)
+	*m.getOrig() = make([]otlpcommon.KeyValue, len(oldOrig), capacity)
 	copy(*m.getOrig(), oldOrig)
 }
 
