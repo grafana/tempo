@@ -225,6 +225,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 		}
 	}
 
+	// FIXME: only gcs and s3 support listing objects from a starting point.  The number of shards to create should reflect this limitation.
 	bb := util.CreateBlockBoundaries(16)
 
 	m := sync.Mutex{}
