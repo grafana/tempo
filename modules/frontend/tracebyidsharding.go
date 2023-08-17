@@ -3,10 +3,8 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"io"
-	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,13 +13,15 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto" //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/opentracing/opentracing-go"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -36,7 +36,7 @@ func newTraceByIDSharder(cfg *TraceByIDConfig, o overrides.Interface, logger log
 			cfg:             cfg,
 			logger:          logger,
 			o:               o,
-			blockBoundaries: createBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
+			blockBoundaries: util.CreateBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
 		}
 	})
 }
@@ -225,40 +225,6 @@ func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request
 	}
 
 	return reqs, nil
-}
-
-// createBlockBoundaries splits the range of blockIDs into queryShards parts
-func createBlockBoundaries(queryShards int) [][]byte {
-	if queryShards == 0 {
-		return nil
-	}
-
-	// create sharded queries
-	blockBoundaries := make([][]byte, queryShards+1)
-	for i := 0; i < queryShards+1; i++ {
-		blockBoundaries[i] = make([]byte, 16)
-	}
-
-	// bucketSz is the min size for the bucket
-	bucketSz := (math.MaxUint64 / uint64(queryShards))
-	// numLarger is the number of buckets that have to be bumped by 1
-	numLarger := (math.MaxUint64 % uint64(queryShards))
-	boundary := uint64(0)
-	for i := 0; i < queryShards; i++ {
-		binary.BigEndian.PutUint64(blockBoundaries[i][:8], boundary)
-		binary.BigEndian.PutUint64(blockBoundaries[i][8:], 0)
-
-		boundary += bucketSz
-		if numLarger != 0 {
-			numLarger--
-			boundary++
-		}
-	}
-
-	binary.BigEndian.PutUint64(blockBoundaries[queryShards][:8], math.MaxUint64)
-	binary.BigEndian.PutUint64(blockBoundaries[queryShards][8:], math.MaxUint64)
-
-	return blockBoundaries
 }
 
 func shouldQuit(ctx context.Context, statusCode int, err error) bool {
