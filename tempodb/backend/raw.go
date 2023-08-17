@@ -5,15 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -192,24 +193,63 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 
 // Blocks implements backend.Reader
 func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-	// i.e: <tenantID/<blockID>/meta
+	newF := func(min, max uuid.UUID) FindFunc {
+		return func(opts FindOpts) (bool, error) {
+			// i.e: <tenantID/<blockID>/meta
+			parts := strings.Split(opts.Key, "/")
+			if len(parts) != 3 {
+				return false, nil
+			}
 
-	f := func(opts FindOpts) bool {
-		parts := strings.Split(opts.Key, "/")
-		if len(parts) != 3 {
-			return false
-		}
+			id, err := uuid.Parse(parts[1])
+			if err != nil {
+				return false, nil
+			}
 
-		switch parts[2] {
-		case MetaName, CompactedMetaName:
-			return true
+			// Check that we are within the range
+			x := bytes.Compare(id[:], min[:])
+			if x < 0 {
+				return false, ErrDone
+			}
+
+			y := bytes.Compare(id[:], max[:])
+			if y > 0 {
+				return false, ErrDone
+			}
+
+			switch parts[2] {
+			case MetaName, CompactedMetaName:
+				return true, nil
+			}
+			return false, nil
 		}
-		return false
 	}
 
-	results, err := r.r.Find(ctx, KeyPath{tenantID}, f)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find blocks: %w", err)
+	bb := util.CreateBlockBoundaries(16)
+
+	m := sync.Mutex{}
+	w := sync.WaitGroup{}
+	results := make([]string, 0, 1000)
+
+	for i := 0; i < len(bb)-1; i++ {
+		min := uuid.UUID(bb[i])
+		max := uuid.UUID(bb[i+1])
+		f := newF(min, max)
+
+		w.Add(1)
+		go func() {
+			defer w.Done()
+			rrr, err := r.r.Find(ctx, KeyPath{tenantID}, f, min.String())
+			if err != nil {
+				// TODO: log me
+				return
+				// return nil, nil, errors.Wrap(err, "failed to find blocks")
+			}
+
+			m.Lock()
+			results = append(results, rrr...)
+			m.Unlock()
+		}()
 	}
 
 	mm := make([]uuid.UUID, 0, len(results))
@@ -223,7 +263,6 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 		case CompactedMetaName:
 			cm = append(cm, uuid.MustParse(parts[1]))
 		}
-
 	}
 
 	return mm, cm, nil
