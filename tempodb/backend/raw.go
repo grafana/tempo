@@ -24,16 +24,21 @@ const (
 	ClusterSeedFileName = "tempo_cluster_seed.json"
 )
 
-// KeyPath is an ordered set of strings that govern where data is read/written from the backend
+// KeyPath is an ordered set of strings that govern where data is read/written
+// from the backend
 type KeyPath []string
 
-// FundFunc is used to match objects in a backend
-type FindFunc func(FindOpts) bool
+// FundFunc is used to match objects in a backend.  The returned boolean
+// indicates if the object should be returned.  If an error is returned, it
+// should indicate that the search should stop.
+type FindFunc func(FindOpts) (bool, error)
 
 type FindOpts struct {
 	Key      string
 	Modified time.Time
 }
+
+var ErrDone = errors.New("done")
 
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
@@ -51,8 +56,8 @@ type RawWriter interface {
 type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
-	// Find returns the names of all objects that match the provided FindFunc
-	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
+	// Find returns the names of all objects for which the provided FindFunc is true.  Start/End are used to limit the search to a range.
+	Find(ctx context.Context, keypath KeyPath, f FindFunc, start string) ([]string, error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.

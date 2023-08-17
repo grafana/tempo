@@ -41,7 +41,7 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	return m.L, nil
 }
 
-func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {
+func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc, _ string) ([]string, error) {
 	return m.FindResult, nil
 }
 
