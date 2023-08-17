@@ -16,6 +16,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -23,6 +24,12 @@ import (
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
+
+var metricUserConfigurableOverridesReloadFailed = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "overrides_user_configurable_overrides_reload_failed_total",
+	Help:      "How often reloading the user-configurable overrides has failed",
+})
 
 type UserConfigurableOverridesConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -109,6 +116,7 @@ func (o *userConfigurableOverridesManager) running(ctx context.Context) error {
 		case <-ticker.C:
 			err := o.reloadAllTenantLimits(ctx)
 			if err != nil {
+				metricUserConfigurableOverridesReloadFailed.Inc()
 				level.Error(o.logger).Log("msg", "failed to refresh user-configurable config", "err", err)
 			}
 			continue

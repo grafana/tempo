@@ -272,8 +272,7 @@ or anything else that comes to mind.
 
 ## Selection
 
-TraceQL can select arbitrary fields from spans. This is particularly performant b/c
-the selected fields are not retrieved until all other criteria is met.
+TraceQL can select arbitrary fields from spans. This is particularly performant because the selected fields are not retrieved until all other criteria is met.
 ```
 { status=error } | select(span.http.status_code, span.http.url)
 ```
