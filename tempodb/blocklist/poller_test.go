@@ -568,6 +568,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			poller := NewPoller(&PollerConfig{
 				PollConcurrency:           testPollConcurrency,
 				PollFallback:              testPollFallback,
+				PollTenantConcurrency:     testPollTenantConcurrency,
 				TenantIndexBuilders:       testBuilders,
 				TolerateConsecutiveErrors: tc.tolerate,
 			}, s, r, c, w, log.NewNopLogger())
