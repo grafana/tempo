@@ -25,8 +25,17 @@ import (
 )
 
 func Test_instance_concurrency(t *testing.T) {
+	// Both instances use the same overrides, this map will be accessed by both
 	overrides := &mockOverrides{}
-	instance, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil)
+	overrides.processors = map[string]struct{}{
+		spanmetrics.Name:   {},
+		servicegraphs.Name: {},
+	}
+
+	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil)
+	assert.NoError(t, err)
+
+	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil)
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -44,26 +53,28 @@ func Test_instance_concurrency(t *testing.T) {
 
 	go accessor(func() {
 		req := test.MakeBatch(1, nil)
-		instance.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+		instance1.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
 	})
 
 	go accessor(func() {
-		overrides.processors = map[string]struct{}{
-			"span-metrics": {},
-		}
-		err := instance.updateProcessors()
-		assert.NoError(t, err)
+		req := test.MakeBatch(1, nil)
+		instance2.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+	})
 
-		overrides.processors = map[string]struct{}{
-			"service-graphs": {},
-		}
-		err = instance.updateProcessors()
+	go accessor(func() {
+		err := instance1.updateProcessors()
+		assert.NoError(t, err)
+	})
+
+	go accessor(func() {
+		err := instance2.updateProcessors()
 		assert.NoError(t, err)
 	})
 
 	time.Sleep(100 * time.Millisecond)
 
-	instance.shutdown()
+	instance1.shutdown()
+	instance2.shutdown()
 
 	time.Sleep(10 * time.Millisecond)
 	close(end)
