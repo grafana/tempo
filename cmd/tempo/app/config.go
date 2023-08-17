@@ -33,6 +33,7 @@ type Config struct {
 	Target                       string `yaml:"target,omitempty"`
 	AuthEnabled                  bool   `yaml:"auth_enabled,omitempty"`
 	MultitenancyEnabled          bool   `yaml:"multitenancy_enabled,omitempty"`
+	StreamOverHTTPEnabled        bool   `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix                string `yaml:"http_api_prefix"`
 	UseOTelTracer                bool   `yaml:"use_otel_tracer,omitempty"`
 	EnableGoRuntimeMetrics       bool   `yaml:"enable_go_runtime_metrics,omitempty"`
@@ -69,6 +70,7 @@ func newDefaultConfig() *Config {
 // RegisterFlagsAndApplyDefaults registers flag.
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
+	c.StreamOverHTTPEnabled = false
 	// global settings
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
@@ -127,6 +129,17 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
+}
+
+func (c *Config) ShouldActuallyRouteGRPCOverHTTP() bool {
+	// DoNotRouteHTTPToGRPC takes precedence. if it is set always return false
+	// this is used by applications that vendor tempo to have the ability to override the default behavior
+	if c.DoNotRouteHTTPToGRPC {
+		return false
+	}
+
+	// if DoNotRouteHTTPToGRPC is unset then just use our configurable flag
+	return c.StreamOverHTTPEnabled
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled

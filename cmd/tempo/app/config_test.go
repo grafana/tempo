@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/storage"
@@ -147,5 +148,41 @@ func TestConfig_CheckConfig(t *testing.T) {
 			warnings := tc.config.CheckConfig()
 			assert.Equal(t, tc.expect, warnings)
 		})
+	}
+}
+
+func TestConfig_ShouldActuallyRouteGRPCOverHTTP(t *testing.T) {
+	tcs := []struct {
+		cfg    *Config
+		should bool
+	}{
+		{
+			cfg:    &Config{},
+			should: false,
+		},
+		{
+			cfg: &Config{
+				DoNotRouteHTTPToGRPC: true,
+			},
+			should: false,
+		},
+		{
+			cfg: &Config{
+				DoNotRouteHTTPToGRPC:  true,
+				StreamOverHTTPEnabled: true,
+			},
+			should: false,
+		},
+		{
+			cfg: &Config{
+				DoNotRouteHTTPToGRPC:  false,
+				StreamOverHTTPEnabled: true,
+			},
+			should: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		require.Equal(t, tc.should, tc.cfg.ShouldActuallyRouteGRPCOverHTTP())
 	}
 }
