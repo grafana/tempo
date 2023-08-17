@@ -168,7 +168,10 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 				return
 			}
 
+			// TODO: find a better way to reset the consecutive error count
+			m.Lock()
 			consecutiveErrors = 0
+			m.Unlock()
 			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
 				m.Lock()
 				blocklist[tenantID] = newBlockList
