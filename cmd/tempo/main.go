@@ -71,7 +71,7 @@ func main() {
 		level.Error(log.Logger).Log("msg", "invalid log level")
 		os.Exit(1)
 	}
-	log.InitLogger(&config.Server)
+	config.Server.Log = log.InitLogger(config.Server.LogFormat, config.Server.LogLevel)
 
 	// Verifying the config's validity and log warnings now that the logger is initialized
 	isValid := configIsValid(config)
