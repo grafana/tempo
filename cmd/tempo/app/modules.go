@@ -95,7 +95,8 @@ func (t *App) initServer() (services.Service, error) {
 
 	// this allows us to serve http and grpc over the primary http server.
 	//  to use this register services with GRPCOnHTTPServer
-	t.cfg.Server.RouteHTTPToGRPC = t.cfg.ShouldActuallyRouteGRPCOverHTTP()
+	// Note: Enabling this breaks TLS
+	t.cfg.Server.RouteHTTPToGRPC = t.cfg.StreamOverHTTPEnabled
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {

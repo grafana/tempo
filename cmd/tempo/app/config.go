@@ -53,11 +53,6 @@ type Config struct {
 	LimitsConfig    overrides.Limits        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
-
-	// This is used by applications hosting Tempo to disable the default behavior
-	// of routing grpc over the main http server. Specifically this is for
-	// Grafana Enterprise Traces gateway module which does its own protocol muxing.
-	DoNotRouteHTTPToGRPC bool `yaml:"-"`
 }
 
 func newDefaultConfig() *Config {
@@ -129,17 +124,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
-}
-
-func (c *Config) ShouldActuallyRouteGRPCOverHTTP() bool {
-	// DoNotRouteHTTPToGRPC takes precedence. if it is set always return false
-	// this is used by applications that vendor tempo to have the ability to override the default behavior
-	if c.DoNotRouteHTTPToGRPC {
-		return false
-	}
-
-	// if DoNotRouteHTTPToGRPC is unset then just use our configurable flag
-	return c.StreamOverHTTPEnabled
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled
