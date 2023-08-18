@@ -233,6 +233,16 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 	return nil
 }
 
+// HasFeature implements backend.Reader
+func (rw *Backend) HasFeature(f backend.Feature) bool {
+	switch f {
+	// case backend.FeatureListShards:
+	// 	return true
+	default:
+		return false
+	}
+}
+
 // Shutdown implements backend.Reader. It attempts to clear all tenants
 // that do not have blocks.
 func (rw *Backend) Shutdown() {

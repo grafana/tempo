@@ -59,6 +59,8 @@ func (m *MockRawReader) ReadRange(_ context.Context, _ string, _ KeyPath, _ uint
 	return nil
 }
 
+func (m *MockRawReader) HasFeature(f Feature) bool { return false }
+
 func (m *MockRawReader) Shutdown() {}
 
 // MockRawWriter
@@ -199,6 +201,7 @@ func (m *MockReader) Shutdown() {}
 
 // MockWriter
 type MockWriter struct {
+	sync.Mutex
 	IndexMeta          map[string][]*BlockMeta
 	IndexCompactedMeta map[string][]*CompactedBlockMeta
 }
@@ -224,6 +227,9 @@ func (m *MockWriter) CloseAppend(context.Context, AppendTracker) error {
 }
 
 func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+	m.Lock()
+	defer m.Unlock()
+
 	if m.IndexMeta == nil {
 		m.IndexMeta = make(map[string][]*BlockMeta)
 	}

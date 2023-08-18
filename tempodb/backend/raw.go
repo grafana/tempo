@@ -41,6 +41,12 @@ type FindOpts struct {
 
 var ErrDone = errors.New("done")
 
+type Feature int
+
+const (
+	FeatureListShards Feature = iota
+)
+
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
 	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
@@ -64,6 +70,7 @@ type RawReader interface {
 	// ReadRange is for reading parts of large objects from the backend.
 	// There will be an attempt to retrieve this from cache if shouldCache is true. Cache key will be tenantID:blockID:offset:bufferLength
 	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, shouldCache bool) error
+	HasFeature(feature Feature) bool
 	// Shutdown must be called when the Reader is finished and cleans up any associated resources.
 	Shutdown()
 }

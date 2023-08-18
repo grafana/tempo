@@ -359,6 +359,16 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 	return readError(rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer))
 }
 
+// HasFeature implements backend.Reader
+func (rw *readerWriter) HasFeature(f backend.Feature) bool {
+	switch f {
+	case backend.FeatureListShards:
+		return true
+	default:
+		return false
+	}
+}
+
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
 }
