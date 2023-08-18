@@ -4,22 +4,25 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/grafana/tempo/pkg/model/trace"
+	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
 
-type queryBlocksSummaryCmd struct {
+type queryTraceSummaryCmd struct {
 	backendOptions
 
 	TraceID  string `arg:"" help:"trace ID to retrieve"`
 	TenantID string `arg:"" help:"tenant ID to search"`
 }
 
-func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
+func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 	r, _, c, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
@@ -47,12 +50,16 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 	}
 
 	combinedTrace, _ := combiner.Result()
+
+	var rootSpan *v1.Span
+	var rootSpanResource *v1resource.Resource
+
 	size := 0
 	spanCount := 0
-	firstStartTime := combinedTrace.Batches[0].ScopeSpans[0].Spans[0].StartTimeUnixNano
-	lastEndTime := combinedTrace.Batches[0].ScopeSpans[0].Spans[0].EndTimeUnixNano
-	rootSpan := combinedTrace.Batches[0].ScopeSpans[0].Spans[0]
-	rootSpanResource := combinedTrace.Batches[0].Resource
+
+	firstStartTime := uint64(math.MaxUint64)
+	lastEndTime := uint64(0)
+
 	rootServiceName := ""
 	serviceNameMap := make(map[string]int)
 
@@ -72,7 +79,7 @@ func (cmd *queryBlocksSummaryCmd) Run(ctx *globalOptions) error {
 				if span.EndTimeUnixNano > lastEndTime {
 					lastEndTime = span.EndTimeUnixNano
 				}
-				if span.ParentSpanId == nil {
+				if len(span.ParentSpanId) == 0 {
 					rootSpan = span
 					rootSpanResource = b.Resource
 				}
