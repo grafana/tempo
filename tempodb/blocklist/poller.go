@@ -143,7 +143,7 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 	m := &sync.Mutex{}
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
-
+	anyError := atomic.Error{}
 	consecutiveErrors := 0
 
 	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
@@ -162,6 +162,8 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 				if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
 					level.Error(p.logger).
 						Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+					anyError.Store(err)
+
 					return
 				}
 
@@ -195,6 +197,10 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 	}
 
 	bg.Wait()
+
+	if err := anyError.Load(); err != nil {
+		return nil, nil, err
+	}
 
 	return blocklist, compactedBlocklist, nil
 }
