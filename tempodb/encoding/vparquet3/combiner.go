@@ -126,7 +126,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 	return
 }
 
-// Result returns the final trace and span count.
+// Result returns the final trace, its span count, and a bool indicating whether the trace is a connected graph.
 func (c *Combiner) Result() (*Trace, int, bool) {
 	spanCount := -1
 
