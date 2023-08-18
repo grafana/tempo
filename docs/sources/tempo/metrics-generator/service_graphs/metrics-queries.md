@@ -42,9 +42,7 @@ If you'd like to only see when a single service is the client:
 sum(increase(traces_service_graph_request_server_seconds_count{client="foo"}[7d])) by (server) > 0
 ```
 
-
 In all of the above queries, you can adjust the interval to change the amount of time this is calculated for. So if you wanted the same analysis done over 1d:
-
 
 ```promql
 sum(increase(traces_service_graph_request_server_seconds_count{}[1d])) by (server, client) > 0
