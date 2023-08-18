@@ -59,7 +59,7 @@ func (m *MockRawReader) ReadRange(_ context.Context, _ string, _ KeyPath, _ uint
 	return nil
 }
 
-func (m *MockRawReader) HasFeature(f Feature) bool { return false }
+func (m *MockRawReader) HasFeature(_ Feature) bool { return false }
 
 func (m *MockRawReader) Shutdown() {}
 

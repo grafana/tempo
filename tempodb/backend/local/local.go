@@ -150,7 +150,7 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 }
 
 // Find implements backend.Reader
-func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.FindFunc, start string) (keys []string, err error) {
+func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.FindFunc, _ string) (keys []string, err error) {
 	path := rw.rootPath(keypath)
 	fff := os.DirFS(path)
 	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
