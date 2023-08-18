@@ -3,7 +3,7 @@ title: Bad blocks
 description: Troubleshoot queries failing with an error message indicating bad blocks.
 weight: 475
 aliases:
-- /docs/tempo/troubleshooting/bad-blocks
+- ../operations/troubleshooting/bad-blocks/
 ---
 
 # Bad blocks
@@ -26,7 +26,7 @@ To fix such a block, first download it onto a machine where you can run the `tem
 
 Next run the `tempo-cli`'s `gen index` / `gen bloom` commands depending on which file is corrupt/deleted.
 The command will create a fresh index/bloom-filter from the data file at the required location (in the block folder).
-To view all of the options for this command, see the [cli docs]({{< relref "../../operations/tempo_cli" >}}).
+To view all of the options for this command, see the [cli docs]({{< relref "../operations/tempo_cli" >}}).
 
 Finally, upload the generated index or bloom-filter onto the object store backend under the folder for the block.
 
