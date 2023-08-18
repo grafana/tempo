@@ -108,7 +108,7 @@ If you are using the metrics-generator, then it processes traces and generates s
 tempo_service_graph_request_total{client="app", server="db"} 20
 ```
 
-For information about service graphs and how they are calculated, refer to the [Service Graphs documentation]({{< relref "../metrics-generator/service_graphs.md" >}}).
+For information about service graphs and how they are calculated, refer to the [Service Graphs documentation]({{< relref "../metrics-generator/service_graphs" >}}).
 
 ## Use filters to reveal details
 
