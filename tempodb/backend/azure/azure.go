@@ -120,7 +120,7 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 	}
 
 	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
-		return errors.Wrapf(err, "error deleting blob, name: %s", name)
+		return readError(err)
 	}
 	return nil
 }
