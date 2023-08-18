@@ -1,9 +1,9 @@
 ---
 title: Too many jobs in the queue
-description: Troublehsoot too many jobs in the queue
+description: Troubleshoot too many jobs in the queue
 weight: 474
 aliases:
-- /docs/tempo/troubleshooting/too-many-jobs-in-queue
+- ../operations/troubleshooting/too-many-jobs-in-queue/
 ---
 
 # Too many jobs in the queue
