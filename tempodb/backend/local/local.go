@@ -235,12 +235,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 
 // HasFeature implements backend.Reader
 func (rw *Backend) HasFeature(f backend.Feature) bool {
-	switch f {
-	// case backend.FeatureListShards:
-	// 	return true
-	default:
-		return false
-	}
+	return false
 }
 
 // Shutdown implements backend.Reader. It attempts to clear all tenants
