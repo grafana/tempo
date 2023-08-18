@@ -231,33 +231,53 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 			return false, nil
 		}
 	}
+	f := func(opts FindOpts) (bool, error) {
+		// i.e: <tenantID/<blockID>/meta
+		parts := strings.Split(opts.Key, "/")
+		if len(parts) != 3 {
+			return false, nil
+		}
 
-	// FIXME: only gcs and s3 support listing objects from a starting point.  The number of shards to create should reflect this limitation.
-	bb := util.CreateBlockBoundaries(16)
+		switch parts[2] {
+		case MetaName, CompactedMetaName:
+			return true, nil
+		}
+		return false, nil
+	}
 
-	m := sync.Mutex{}
-	w := sync.WaitGroup{}
 	results := make([]string, 0, 1000)
+	var err error
 
-	for i := 0; i < len(bb)-1; i++ {
-		min := uuid.UUID(bb[i])
-		max := uuid.UUID(bb[i+1])
-		f := newF(min, max)
+	if r.r.HasFeature(FeatureListShards) {
+		bb := util.CreateBlockBoundaries(16)
 
-		w.Add(1)
-		go func() {
-			defer w.Done()
-			rrr, err := r.r.Find(ctx, KeyPath{tenantID}, f, min.String())
-			if err != nil {
-				// TODO: log me
-				return
-				// return nil, nil, errors.Wrap(err, "failed to find blocks")
-			}
+		m := sync.Mutex{}
+		w := sync.WaitGroup{}
 
-			m.Lock()
-			results = append(results, rrr...)
-			m.Unlock()
-		}()
+		for i := 0; i < len(bb)-1; i++ {
+			min := uuid.UUID(bb[i])
+			max := uuid.UUID(bb[i+1])
+			f := newF(min, max)
+
+			w.Add(1)
+			go func() {
+				defer w.Done()
+				rrr, findErr := r.r.Find(ctx, KeyPath{tenantID}, f, min.String())
+				if findErr != nil {
+					// TODO: log me
+					return
+				}
+
+				m.Lock()
+				results = append(results, rrr...)
+				m.Unlock()
+			}()
+		}
+	} else {
+		results, err = r.r.Find(ctx, KeyPath{tenantID}, f, "")
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to find blocks")
+		}
 	}
 
 	mm := make([]uuid.UUID, 0, len(results))
