@@ -428,7 +428,7 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 		rw.cfg.TenantPollConcurrency = DefaultTenantPollConcurrency
 	}
 
-	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
+	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency, "tenant_concurrency", rw.cfg.TenantPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 		PollConcurrency:           rw.cfg.BlocklistPollConcurrency,
