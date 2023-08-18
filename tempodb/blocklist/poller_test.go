@@ -257,10 +257,11 @@ func TestTenantIndexFallback(t *testing.T) {
 			}
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        tc.pollFallback,
-				TenantIndexBuilders: testBuilders,
-				StaleTenantIndex:    tc.staleTenantIndex,
+				PollConcurrency:       testPollConcurrency,
+				PollTenantConcurrency: testPollTenantConcurrency,
+				PollFallback:          tc.pollFallback,
+				TenantIndexBuilders:   testBuilders,
+				StaleTenantIndex:      tc.staleTenantIndex,
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
@@ -347,9 +348,10 @@ func TestPollBlock(t *testing.T) {
 			w := &backend.MockWriter{}
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
+				PollConcurrency:       testPollConcurrency,
+				PollTenantConcurrency: testPollTenantConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID)
 
@@ -567,8 +569,8 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 			poller := NewPoller(&PollerConfig{
 				PollConcurrency:           testPollConcurrency,
-				PollFallback:              testPollFallback,
 				PollTenantConcurrency:     testPollTenantConcurrency,
+				PollFallback:              testPollFallback,
 				TenantIndexBuilders:       testBuilders,
 				TolerateConsecutiveErrors: tc.tolerate,
 			}, s, r, c, w, log.NewNopLogger())
@@ -724,9 +726,10 @@ func TestPollComparePreviousResults(t *testing.T) {
 
 			// This mock reader returns error or nil based on the tenant ID
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
+				PollConcurrency:       testPollConcurrency,
+				PollTenantConcurrency: testPollTenantConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
 			}, s, r, c, w, log.NewNopLogger())
 
 			metas, compactedMetas, err := poller.Do(previous)

@@ -157,23 +157,21 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 
 			newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
 			if err != nil {
-				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+				anyError.Store(err)
+				m.Lock()
 				consecutiveErrors++
-				if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-					level.Error(p.logger).
-						Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
-					anyError.Store(err)
-
-					return
-				}
-
+				m.Unlock()
 				return
 			}
 
-			// TODO: find a better way to reset the consecutive error count
 			m.Lock()
-			consecutiveErrors = 0
+			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+				m.Unlock()
+				return
+			}
 			m.Unlock()
+
 			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
 				m.Lock()
 				blocklist[tenantID] = newBlockList
@@ -199,7 +197,9 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 	bg.Wait()
 
 	if err := anyError.Load(); err != nil {
-		return nil, nil, err
+		if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+			return nil, nil, err
+		}
 	}
 
 	return blocklist, compactedBlocklist, nil
@@ -243,7 +243,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "polling failed")
+		return nil, nil, err
 	}
 
 	// everything is happy, write this tenant index
