@@ -9,9 +9,14 @@
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
+
+
+## v2.2.1 / 2023-08-??
+
 * [BUGFIX] Fix incorrect metrics for index failures [#2781](https://github.com/grafana/tempo/pull/2781) (@zalegrala)
 * [BUGFIX] Fix panic in the metrics-generator when using multiple tenants with default overrides [#2786](https://github.com/grafana/tempo/pull/2786) (@kvrhdn)
-* [BUGFIX] Restore `tenant_header_key` removed in #2414. [#2786](https://github.com/grafana/tempo/pull/2795) (@joe-elliott)
+* [BUGFIX] Restore `tenant_header_key` removed in #2414. [#2795](https://github.com/grafana/tempo/pull/2795) (@joe-elliott)
+* [BUGFIX] Disable streaming over http by default. [#2803](https://github.com/grafana/tempo/pull/2803) (@joe-elliott)
 
 ## v2.2.0 / 2023-07-31
 
