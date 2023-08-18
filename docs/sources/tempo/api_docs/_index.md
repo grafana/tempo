@@ -566,8 +566,18 @@ Displays anonymous usage stats data that is reported back to Grafana Labs.
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
 the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
+By default this service is only offered over the GRPC port. However, one can offer this streaming service over the HTTP port as well (which Grafana expects).
+To enable the streaming service over the http port for use with Grafana set the following. 
+
+> **Note**: Enabling this setting is incompatible with TLS.
+
+```
+stream_over_http_enabled: true
+```
+
 The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response. The
 final response sent is guaranteed to have the entire resultset.
+
 
 ```protobuf
 service StreamingQuerier {

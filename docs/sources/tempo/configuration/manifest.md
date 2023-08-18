@@ -36,11 +36,17 @@ server:
     tls_cipher_suites: ""
     tls_min_version: ""
     http_tls_config:
+        cert: ""
+        key: null
+        client_ca: ""
         cert_file: ""
         key_file: ""
         client_auth_type: ""
         client_ca_file: ""
     grpc_tls_config:
+        cert: ""
+        key: null
+        client_ca: ""
         cert_file: ""
         key_file: ""
         client_auth_type: ""
@@ -81,11 +87,17 @@ internal_server:
     tls_cipher_suites: ""
     tls_min_version: ""
     http_tls_config:
+        cert: ""
+        key: null
+        client_ca: ""
         cert_file: ""
         key_file: ""
         client_auth_type: ""
         client_ca_file: ""
     grpc_tls_config:
+        cert: ""
+        key: null
+        client_ca: ""
         cert_file: ""
         key_file: ""
         client_auth_type: ""
@@ -178,6 +190,8 @@ ingester_client:
             min_period: 100ms
             max_period: 10s
             max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
         tls_enabled: false
         tls_cert_path: ""
         tls_key_path: ""
@@ -186,6 +200,9 @@ ingester_client:
         tls_insecure_skip_verify: false
         tls_cipher_suites: ""
         tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
 metrics_generator_client:
     pool_config:
         checkinterval: 15s
@@ -204,6 +221,8 @@ metrics_generator_client:
             min_period: 100ms
             max_period: 10s
             max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
         tls_enabled: false
         tls_cert_path: ""
         tls_key_path: ""
@@ -212,13 +231,18 @@ metrics_generator_client:
         tls_insecure_skip_verify: false
         tls_cipher_suites: ""
         tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
 querier:
     search:
         query_timeout: 30s
         prefer_self: 10
-        external_endpoints: []
         external_hedge_requests_at: 8s
         external_hedge_requests_up_to: 2
+        external_backend: ""
+        google_cloud_run: null
+        external_endpoints: []
     trace_by_id:
         query_timeout: 10s
     max_concurrent_queries: 20
@@ -239,6 +263,8 @@ querier:
                 min_period: 100ms
                 max_period: 1s
                 max_retries: 5
+            initial_stream_window_size: 0B
+            initial_connection_window_size: 0B
             tls_enabled: false
             tls_cert_path: ""
             tls_key_path: ""
@@ -247,10 +273,14 @@ querier:
             tls_insecure_skip_verify: false
             tls_cipher_suites: ""
             tls_min_version: ""
+            connect_timeout: 0s
+            connect_backoff_base_delay: 0s
+            connect_backoff_max_delay: 0s
     query_relevant_ingesters: false
 query_frontend:
     max_outstanding_per_tenant: 2000
     querier_forget_delay: 0s
+    max_batch_size: 5
     max_retries: 2
     search:
         concurrent_jobs: 1000
@@ -474,6 +504,7 @@ metrics_generator:
                 1: true
                 2: true
             filter_policies: []
+            target_info_excluded_dimensions: []
         local_blocks:
             block:
                 bloom_filter_false_positive: 0.01
@@ -485,6 +516,7 @@ metrics_generator:
                 v2_index_page_size_bytes: 256000
                 v2_encoding: zstd
                 parquet_row_group_size_bytes: 100000000
+                parquet_dedicated_columns: []
             search:
                 chunk_size_bytes: 1000000
                 prefetch_trace_count: 1000
@@ -549,6 +581,7 @@ storage:
             v2_index_page_size_bytes: 256000
             v2_encoding: zstd
             parquet_row_group_size_bytes: 100000000
+            parquet_dedicated_columns: []
         search:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
@@ -647,6 +680,7 @@ overrides:
     metrics_generator_processor_span_metrics_filter_policies: []
     metrics_generator_processor_span_metrics_dimension_mappings: []
     metrics_generator_processor_span_metrics_enable_target_info: false
+    metrics_generator_processor_span_metrics_target_info_excluded_dimensions: []
     metrics_generator_processor_local_blocks_max_live_traces: 0
     metrics_generator_processor_local_blocks_max_block_duration: 0s
     metrics_generator_processor_local_blocks_max_block_bytes: 0
@@ -658,8 +692,65 @@ overrides:
     max_blocks_per_tag_values_query: 0
     max_search_duration: 0s
     max_bytes_per_trace: 5000000
+    parquet_dedicated_columns: []
     per_tenant_override_config: ""
     per_tenant_override_period: 10s
+    user_configurable_overrides:
+        enabled: false
+        poll_interval: 1m0s
+        client:
+            backend: ""
+            confirm_versioning: true
+            local:
+                path: ""
+            gcs:
+                bucket_name: ""
+                prefix: ""
+                chunk_buffer_size: 0
+                endpoint: ""
+                hedge_requests_at: 0s
+                hedge_requests_up_to: 0
+                insecure: false
+                object_cache_control: ""
+                object_metadata: {}
+            s3:
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                bucket: ""
+                prefix: ""
+                endpoint: ""
+                region: ""
+                access_key: ""
+                secret_key: ""
+                session_token: ""
+                insecure: false
+                part_size: 0
+                hedge_requests_at: 0s
+                hedge_requests_up_to: 0
+                signature_v2: false
+                forcepathstyle: false
+                bucket_lookup_type: 0
+                tags: {}
+                storage_class: ""
+                metadata: {}
+            azure:
+                storage_account_name: ""
+                storage_account_key: ""
+                use_managed_identity: false
+                use_federated_token: false
+                user_assigned_id: ""
+                container_name: ""
+                prefix: ""
+                endpoint_suffix: ""
+                max_buffers: 0
+                buffer_size: 0
+                hedge_requests_at: 0s
+                hedge_requests_up_to: 0
 memberlist:
     node_name: ""
     randomize_node_name: true
