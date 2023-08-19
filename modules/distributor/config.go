@@ -32,10 +32,11 @@ type Config struct {
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
-	Receivers         map[string]interface{} `yaml:"receivers"`
-	OverrideRingKey   string                 `yaml:"override_ring_key"`
-	LogReceivedTraces bool                   `yaml:"log_received_traces"` // Deprecated
-	LogReceivedSpans  LogReceivedSpansConfig `yaml:"log_received_spans,omitempty"`
+	Receivers              map[string]interface{} `yaml:"receivers"`
+	OverrideRingKey        string                 `yaml:"override_ring_key"`
+	LogReceivedTraces      bool                   `yaml:"log_received_traces"` // Deprecated
+	LogReceivedSpans       LogReceivedSpansConfig `yaml:"log_received_spans,omitempty"`
+	GracefulShutdownPeriod time.Duration          `yaml:"graceful_shutdown_period"`
 
 	Forwarders forwarder.ConfigList `yaml:"forwarders"`
 
@@ -66,4 +67,5 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.BoolVar(&cfg.LogReceivedSpans.Enabled, util.PrefixConfig(prefix, "log-received-spans.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-received-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
+	f.DurationVar(&cfg.GracefulShutdownPeriod, "distributor.ring.graceful-period", 30*time.Second, "The duration to wait for a graceful shutdown before exiting.")
 }

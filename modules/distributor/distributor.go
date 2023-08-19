@@ -227,7 +227,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, middleware, loggingLevel, cfg.DistributorRing.GracefulShutdownPeriod)
+	receivers, err := receiver.New(cfgReceivers, d, middleware, loggingLevel, cfg.GracefulShutdownPeriod)
 	if err != nil {
 		return nil, err
 	}
