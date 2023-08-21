@@ -98,7 +98,7 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		id := test.ValidTraceID(nil)
 		pbTrace := test.MakeTrace(10, id)
-		pqTrace := traceToParquet(&backend.BlockMeta{}, id, pbTrace, nil)
+		pqTrace, _ := traceToParquet(&backend.BlockMeta{}, id, pbTrace, nil)
 		allTraces = append(allTraces, pqTrace)
 	}
 

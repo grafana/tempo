@@ -36,6 +36,6 @@ For more information about TraceQL’s design, refer to the [TraceQL Concepts de
 ### Future work
 
 - Increase OTEL support: Events, Lists, ILS Scope, etc.
-- Structural Queries
+- Ancestor and parent structural queries
 - Metrics
 - Pipeline comparisons

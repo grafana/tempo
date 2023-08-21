@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -151,8 +152,12 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 	_, latencyOk := desiredProcessors[spanmetrics.Latency.String()]
 	_, sizeOk := desiredProcessors[spanmetrics.Size.String()]
 
+	// Copy the map before modifying it. This map can be shared by multiple instances and is not safe to write to.
+	newDesiredProcessors := map[string]struct{}{}
+	maps.Copy(newDesiredProcessors, desiredProcessors)
+
 	if !allOk {
-		desiredProcessors[spanmetrics.Name] = struct{}{}
+		newDesiredProcessors[spanmetrics.Name] = struct{}{}
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Size] = false
@@ -170,11 +175,11 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 		}
 	}
 
-	delete(desiredProcessors, spanmetrics.Latency.String())
-	delete(desiredProcessors, spanmetrics.Count.String())
-	delete(desiredProcessors, spanmetrics.Size.String())
+	delete(newDesiredProcessors, spanmetrics.Latency.String())
+	delete(newDesiredProcessors, spanmetrics.Count.String())
+	delete(newDesiredProcessors, spanmetrics.Size.String())
 
-	return desiredProcessors, desiredCfg
+	return newDesiredProcessors, desiredCfg
 }
 
 func (i *instance) updateProcessors() error {

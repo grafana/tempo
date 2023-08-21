@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,9 +11,10 @@ import (
 
 func TestAssignNestedSetModelBounds(t *testing.T) {
 	tests := []struct {
-		name     string
-		trace    [][]Span
-		expected [][]Span
+		name              string
+		trace             [][]Span
+		expected          [][]Span
+		expectedConnected bool
 	}{
 		{
 			name: "single span",
@@ -28,6 +28,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 2},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "linear trace",
@@ -45,6 +46,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "branched trace",
@@ -68,6 +70,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("ffffffff"), ParentSpanID: []byte("dddddddd"), NestedSetLeft: 8, NestedSetRight: 9, ParentID: 5},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "multiple scope spans",
@@ -95,6 +98,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("ffffffff"), ParentSpanID: []byte("dddddddd"), NestedSetLeft: 8, NestedSetRight: 9, ParentID: 5},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "multiple roots",
@@ -126,6 +130,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("iiiiiiii"), ParentSpanID: []byte("hhhhhhhh"), NestedSetLeft: 15, NestedSetRight: 16, ParentID: 14},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "interrupted",
@@ -151,6 +156,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("ffffffff"), ParentSpanID: []byte("eeeeeeee")},
 				},
 			},
+			expectedConnected: false,
 		},
 		{
 			name: "partially assigned",
@@ -166,6 +172,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 3, ParentID: 1},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "non unique IDs",
@@ -187,6 +194,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 6, NestedSetRight: 7, ParentID: 3},
 				},
 			},
+			expectedConnected: true,
 		},
 		{
 			name: "non unique IDs 2x",
@@ -208,6 +216,43 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("cccccccc"), Kind: int(v1.Span_SPAN_KIND_SERVER), NestedSetLeft: 5, NestedSetRight: 6, ParentID: 4},
 				},
 			},
+			expectedConnected: true,
+		},
+		{
+			name: "3x IDs - invalid trace",
+			trace: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb")},
+				},
+			},
+			expected: [][]Span{
+				{
+					{SpanID: []byte("aaaaaaaa")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb")},
+				},
+			},
+			expectedConnected: false,
+		},
+		{
+			name: "no roots",
+			trace: [][]Span{
+				{
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa")},
+				},
+			},
+			expected: [][]Span{
+				{
+					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb")},
+					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa")},
+				},
+			},
+			expectedConnected: false,
 		},
 	}
 
@@ -224,8 +269,9 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			trace := makeTrace(tt.trace)
 			expected := makeTrace(tt.expected)
-			assignNestedSetModelBounds(trace)
+			connected := assignNestedSetModelBounds(trace)
 			assertEqualNestedSetModelBounds(t, trace, expected)
+			assert.Equal(t, tt.expectedConnected, connected)
 		})
 	}
 }

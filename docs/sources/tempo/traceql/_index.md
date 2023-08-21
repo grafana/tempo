@@ -22,7 +22,7 @@ Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-
 
 {{< vimeo 796408188 >}}
 
-For information on where the language is headed, see [future work]({{< relref "./architecture" >}}).
+For information on where the language is headed, see [future work]({{< relref "./architecture#future-work" >}}).
 The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
 
 Check the [release notes]({{< relref "../release-notes" >}}) for the latest updates to TraceQL.
