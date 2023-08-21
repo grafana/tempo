@@ -234,7 +234,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 }
 
 // HasFeature implements backend.Reader
-func (rw *Backend) HasFeature(f backend.Feature) bool {
+func (rw *Backend) HasFeature(_ backend.Feature) bool {
 	return false
 }
 
