@@ -138,11 +138,6 @@ func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 		}
 
 		ss.Spans = append(ss.Spans, MakeSpan(traceID))
-
-		// first span should not have parent
-		if len(ss.Spans) == 1 {
-			(*ss.Spans[0]).ParentSpanId = nil //[]byte{}
-		}
 	}
 	return batch
 }

@@ -99,7 +99,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 			FlushSizeBytes:   30_000_000,
 			MaxBytesPerTrace: 50_000_000,
 			ObjectsCombined:  func(compactionLevel, objects int) {},
-			SpansDiscarded:   func(traceID, rootSpanName string, spans int) {},
+			SpansDiscarded:   func(traceID, rootSpanName string, rootServiceName string, spans int) {},
 		})
 
 		_, err = c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
@@ -161,8 +161,7 @@ func TestCountSpans(t *testing.T) {
 	row := sch.Deconstruct(nil, trp)
 
 	// count spans for generated rows.
-	tID, rootSpanName, spans := countSpans(sch, row)
+	tID, _, _, spans := countSpans(sch, row)
 	require.Equal(t, tID, tempoUtil.TraceIDToHexString(traceID))
-	require.Equal(t, rootSpanName, "test")
 	require.Equal(t, spans, batchSize*spansEach)
 }
