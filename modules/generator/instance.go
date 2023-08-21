@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -65,7 +66,7 @@ type instance struct {
 
 	instanceID             string
 	overrides              metricsGeneratorOverrides
-	ingestionSlackOverride time.Duration
+	ingestionSlackOverride int64
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -190,10 +191,12 @@ func (i *instance) updateProcessors() error {
 		return err
 	}
 
-	i.ingestionSlackOverride = i.overrides.MetricsGeneratorIngestionSlack(i.instanceID)
-	if i.ingestionSlackOverride == 0 {
-		i.ingestionSlackOverride = i.cfg.MetricsIngestionSlack
+	ingestionSlackInt := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID).Nanoseconds()
+	if ingestionSlackInt == 0 {
+		ingestionSlackInt = i.cfg.MetricsIngestionSlack.Nanoseconds()
 	}
+
+	atomic.StoreInt64(&i.ingestionSlackOverride, ingestionSlackInt)
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
 
@@ -361,9 +364,13 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			// filter spans that have end time > max_age and end time more than 5 days in the future
 			newSpansArr := make([]*v1.Span, len(ss.Spans))
 			timeNow := time.Now()
+			ingestionSlackNano := atomic.LoadInt64(&i.ingestionSlackOverride)
+			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)
+			maxTimeFuture := uint64(timeNow.UnixNano() + ingestionSlackNano)
+
 			index := 0
 			for _, span := range ss.Spans {
-				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.ingestionSlackOverride).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.ingestionSlackOverride).UnixNano()) {
+				if span.EndTimeUnixNano >= maxTimePast && span.EndTimeUnixNano <= maxTimeFuture {
 					newSpansArr[index] = span
 					index++
 				} else {
