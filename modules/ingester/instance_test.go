@@ -582,7 +582,7 @@ func TestInstancePartialSuccess(t *testing.T) {
 	multiMaxBytes := []int{maxTraceBytes - 300, maxTraceBytes + 200, maxTraceBytes + 200, maxTraceBytes - 300, maxTraceBytes - 200}
 	req := makePushBytesRequestMultiTraces(ids, multiMaxBytes)
 
-	// Pushing fails
+	// Pushing pass
 	// response should contain errors for both LIVE_TRACES_EXCEEDED and TRACE_TOO_LARGE
 	response := i.PushBytesRequest(ctx, req)
 
