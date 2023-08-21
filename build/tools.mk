@@ -11,7 +11,7 @@ GO_MOD_OUTDATED  ?= go-mod-outdated
 TOOL_DIR     ?= tools
 TOOL_CONFIG  ?= $(TOOL_DIR)/tools.go
 
-GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -f '{{ .Imports }}' -tags tools |tr -d '[]')
+GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
 tools:
 	@echo "=== [ tools            ]: Installing tools required by the project..."
