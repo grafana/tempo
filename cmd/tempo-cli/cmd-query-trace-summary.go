@@ -90,6 +90,7 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 	for _, attr := range rootSpanResource.Attributes {
 		if "service.name" == attr.Key {
 			rootServiceName = attr.Value.GetStringValue()
+			break
 		}
 	}
 
