@@ -16,7 +16,7 @@ To help with this, we've provided a collection of useful PromQL queries that can
 ## Instant Queries
 
 An instant query will give a single value at the end of the selected time range.
-[Instant queries](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) are quicker to execute and easier to parse the results. We will prefer them in some scenarios:
+[Instant queries](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) are quicker to execute and it often easier to understand their results. We will prefer them in some scenarios:
 
 ![Instant query in Grafana](screenshot-serv-graph-instant-query.png)
 
@@ -40,7 +40,7 @@ If you'd like to only see when a single service is the client:
 sum(increase(traces_service_graph_request_server_seconds_count{client="foo"}[7d])) by (server) > 0
 ```
 
-In all of the above queries, you can adjust the interval to change the amount of time this is calculated for. So if you wanted the same analysis done over 1d:
+In all of the above queries, you can adjust the interval to change the amount of time this is calculated for. So if you wanted the same analysis done over one day:
 
 ```promql
 sum(increase(traces_service_graph_request_server_seconds_count{}[1d])) by (server, client) > 0
@@ -62,11 +62,11 @@ sum(rate(traces_service_graph_request_server_seconds_count{server="foo"}[5m])) b
 sum(rate(traces_service_graph_request_server_seconds_count{client="foo"}[5m])) by (server) > 0
 ```
 
-Notice that our interval dropped to 1 5m. This is so we only calculate the rate over the past 5 minutes which creates a more responsive graph.
+Notice that our interval dropped to 5m. This is so we only calculate the rate over the past 5 minutes which creates a more responsive graph.
 
 ### Latency percentiles over time between services
 
-The final queries will give us latency quantiles for the above rate. If we were interested in how the latency changed over time between any two services we could use these. In the following query the .9 will calculate the 90th percentile. Adjust this to get a p50, p99, etc.
+These queries will give us latency quantiles for the above rate. If we were interested in how the latency changed over time between any two services we could use these. In the following query the `.9` means we're calculating the 90th percentile. Adjust this value if you want to calculate a different percentile for latency (e.g. p50, p95, p99, etc). 
 
 ```promql
 histogram_quantile(.9, sum(rate(traces_service_graph_request_server_seconds_bucket{client="foo"}[5m])) by (server, le))
