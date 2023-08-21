@@ -34,8 +34,10 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var traceTooLargeError = errors.New(overrides.ErrorPrefixTraceTooLarge)
-var maxLiveTracesError = errors.New(overrides.ErrorPrefixLiveTracesExceeded)
+var (
+	traceTooLargeError = errors.New(overrides.ErrorPrefixTraceTooLarge)
+	maxLiveTracesError = errors.New(overrides.ErrorPrefixLiveTracesExceeded)
+)
 
 func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) error {
 	level.Warn(log.Logger).Log("msg", "%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
