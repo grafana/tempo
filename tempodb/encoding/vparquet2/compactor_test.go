@@ -164,5 +164,4 @@ func TestCountSpans(t *testing.T) {
 	tID, _, _, spans := countSpans(sch, row)
 	require.Equal(t, tID, tempoUtil.TraceIDToHexString(traceID))
 	require.Equal(t, spans, batchSize*spansEach)
-
 }
