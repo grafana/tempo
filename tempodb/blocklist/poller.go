@@ -161,7 +161,6 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 				m.Lock()
 				consecutiveErrors++
 				m.Unlock()
-				return
 			}
 
 			m.Lock()
