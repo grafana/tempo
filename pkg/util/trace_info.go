@@ -266,7 +266,12 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	// maybe choose resource attribute
 	res := batch.Resource
 	if len(res.Attributes) > 0 && r.Int()%2 == 1 {
-		return randFrom(r, res.Attributes)
+		attr := randFrom(r, res.Attributes)
+		// skip service.name because service names have low cardinality and produce queries with
+		// too many results in tempo-vulture
+		if attr.Key != "service.name" {
+			return attr
+		}
 	}
 
 	if len(batch.ScopeSpans) == 0 {
