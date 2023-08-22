@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -265,7 +267,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 				defer w.Done()
 				rrr, findErr := r.r.Find(ctx, KeyPath{tenantID}, f, min.String())
 				if findErr != nil {
-					// TODO: log me
+					level.Error(log.Logger).Log("msg", "failed to poll blocks", "error", err)
 					return
 				}
 
@@ -274,6 +276,10 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 				m.Unlock()
 			}()
 		}
+
+		w.Wait()
+		// TODO: implement this using a channel rather than locking around the list
+
 	} else {
 		results, err = r.r.Find(ctx, KeyPath{tenantID}, f, "")
 		if err != nil {
