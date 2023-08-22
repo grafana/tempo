@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	api "github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -37,7 +37,7 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
 
 	// Update limits for tenant-1
-	userConfigurableLimits := &api.UserConfigurableLimits{
+	userConfigurableLimits := &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
 	_, err := mgr.client.Set(context.Background(), tenant2, userConfigurableLimits, backend.VersionNew)
@@ -64,6 +64,50 @@ func TestUserConfigOverridesManager(t *testing.T) {
 	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant2))
 }
 
+func TestUserConfigOverridesManager_allFields(t *testing.T) {
+	defaultLimits := Overrides{}
+	_, mgr := localUserConfigOverrides(t, defaultLimits)
+
+	assert.Empty(t, mgr.Forwarders(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
+	assert.Equal(t, false, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
+	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+
+	// Inject user-configurable overrides
+	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
+		Forwarders: &[]string{"my-forwarder"},
+		MetricsGenerator: &userconfigurableoverrides.LimitsMetricsGenerator{
+			Processors:        map[string]struct{}{"service-graphs": {}},
+			DisableCollection: boolPtr(true),
+			Processor: &userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
+				ServiceGraphs: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
+					Dimensions:               &[]string{"sg-dimension"},
+					EnableClientServerPrefix: boolPtr(true),
+					PeerAttributes:           &[]string{"attribute"},
+				},
+				SpanMetrics: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
+					Dimensions:       &[]string{"sm-dimension"},
+					EnableTargetInfo: boolPtr(true),
+				},
+			},
+		},
+	}
+
+	// Verify we can get the updated overrides
+	assert.Equal(t, []string{"my-forwarder"}, mgr.Forwarders(tenant1))
+	assert.Equal(t, map[string]struct{}{"service-graphs": {}}, mgr.MetricsGeneratorProcessors(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
+	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+}
+
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
@@ -73,7 +117,7 @@ func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-forwarder"})
 
 	// write directly to backend
-	limits := &api.UserConfigurableLimits{
+	limits := &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
 	writeUserConfigurableOverridesToDisk(t, tempDir, tenant1, limits)
@@ -91,7 +135,7 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 	}
 	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	limits := &api.UserConfigurableLimits{
+	limits := &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
 	_, err := mgr.client.Set(context.Background(), tenant1, limits, backend.VersionNew)
@@ -117,7 +161,7 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	}
 	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
-	limits := &api.UserConfigurableLimits{
+	limits := &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
 	_, err := mgr.client.Set(context.Background(), tenant1, limits, backend.VersionNew)
@@ -140,7 +184,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	_, configurableOverrides := localUserConfigOverrides(t, bl)
 
 	// set user config limits
-	configurableOverrides.tenantLimits["test"] = &api.UserConfigurableLimits{
+	configurableOverrides.tenantLimits["test"] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
 	}
 
@@ -177,7 +221,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides) (string, *user
 
 	cfg := &UserConfigurableOverridesConfig{
 		Enabled: true,
-		ClientConfig: api.UserConfigurableOverridesClientConfig{
+		Client: userconfigurableoverrides.Config{
 			Backend: backend.Local,
 			Local:   &local.Config{Path: path},
 		},
@@ -192,8 +236,8 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides) (string, *user
 	return path, configurableOverrides
 }
 
-func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *api.UserConfigurableLimits) {
-	client, err := api.NewUserConfigOverridesClient(&api.UserConfigurableOverridesClientConfig{
+func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *userconfigurableoverrides.Limits) {
+	client, err := userconfigurableoverrides.New(&userconfigurableoverrides.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: dir},
 	})
@@ -204,7 +248,7 @@ func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant strin
 }
 
 func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant string) {
-	client, err := api.NewUserConfigOverridesClient(&api.UserConfigurableOverridesClientConfig{
+	client, err := userconfigurableoverrides.New(&userconfigurableoverrides.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: dir},
 	})
@@ -216,17 +260,17 @@ func deleteUserConfigurableOverridesFromDisk(t *testing.T, dir string, tenant st
 
 type badClient struct{}
 
-var _ api.Client = (*badClient)(nil)
+var _ userconfigurableoverrides.Client = (*badClient)(nil)
 
 func (b *badClient) List(context.Context) ([]string, error) {
 	return nil, errors.New("no")
 }
 
-func (b *badClient) Get(context.Context, string) (*api.UserConfigurableLimits, backend.Version, error) {
+func (b *badClient) Get(context.Context, string) (*userconfigurableoverrides.Limits, backend.Version, error) {
 	return nil, "", errors.New("no")
 }
 
-func (b *badClient) Set(context.Context, string, *api.UserConfigurableLimits, backend.Version) (backend.Version, error) {
+func (b *badClient) Set(context.Context, string, *userconfigurableoverrides.Limits, backend.Version) (backend.Version, error) {
 	return "", errors.New("no")
 }
 
@@ -235,4 +279,8 @@ func (b *badClient) Delete(context.Context, string, backend.Version) error {
 }
 
 func (b badClient) Shutdown() {
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

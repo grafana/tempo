@@ -80,7 +80,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
    ```bash
    mkdir -p lib
-   export K8S_VERSION=1.22
+   export K8S_VERSION=1.25
    jb install github.com/jsonnet-libs/k8s-libsonnet/${K8S_VERSION}@main
    cat <<EOF > lib/k.libsonnet
    import 'github.com/jsonnet-libs/k8s-libsonnet/${K8S_VERSION}/main.libsonnet'
@@ -208,7 +208,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
          ```bash
           kubectl port-forward --namespace tempo service/minio 9001:9001
           ```
-     1. Navigate to the MinIO admin bash using your browser: `https://localhost:9001`. The sign-in credentials are username `minio` and password `minio123`.
+     1. Navigate to the MinIO admin bash using your browser: `http://localhost:9001`. The sign-in credentials are username `minio` and password `minio123`.
      1. Verify that the Buckets page lists `tempo-data`.
 
 1. Configure the Tempo cluster using the MinIO object storage by updating the contents of the `environments/tempo/main.jsonnet` file by running the following command:
@@ -247,7 +247,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
            ingester+: {
                replicas: 3,
                pvc_size: '10Gi',
-               pvc_storage_class: 'fast',
+               pvc_storage_class: 'standard',
            },
            distributor+: {
                replicas: 3,
@@ -273,6 +273,8 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                replicas: 1,
                ephemeral_storage_request_size: '10Gi',
                ephemeral_storage_limit_size: '11Gi',
+               pvc_size: '10Gi',
+               pvc_storage_class: 'standard',
            },
            memcached+: {
                replicas: 3,

@@ -2,6 +2,7 @@ package traceqlmetrics
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/traceql"
@@ -38,6 +39,12 @@ func TestPercentile(t *testing.T) {
 			durations: []uint64{1},
 			p:         1.0,
 			value:     uint64(1),
+		},
+		{
+			name:      "edge case max bucket",
+			durations: []uint64{math.MaxUint64},
+			p:         1.0,
+			value:     uint64(1 << (maxBuckets - 1)),
 		},
 		{
 			name:      "edge case empty",

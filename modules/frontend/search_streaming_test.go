@@ -11,15 +11,14 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
-	"go.uber.org/atomic"
-	"google.golang.org/grpc/metadata"
-
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc/metadata"
 )
 
 type mockStreamingServer struct {

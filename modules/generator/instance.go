@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -25,7 +26,7 @@ import (
 )
 
 var (
-	allSupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, localblocks.Name}
+	SupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, localblocks.Name}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -151,8 +152,12 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 	_, latencyOk := desiredProcessors[spanmetrics.Latency.String()]
 	_, sizeOk := desiredProcessors[spanmetrics.Size.String()]
 
+	// Copy the map before modifying it. This map can be shared by multiple instances and is not safe to write to.
+	newDesiredProcessors := map[string]struct{}{}
+	maps.Copy(newDesiredProcessors, desiredProcessors)
+
 	if !allOk {
-		desiredProcessors[spanmetrics.Name] = struct{}{}
+		newDesiredProcessors[spanmetrics.Name] = struct{}{}
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Size] = false
@@ -170,11 +175,11 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 		}
 	}
 
-	delete(desiredProcessors, spanmetrics.Latency.String())
-	delete(desiredProcessors, spanmetrics.Count.String())
-	delete(desiredProcessors, spanmetrics.Size.String())
+	delete(newDesiredProcessors, spanmetrics.Latency.String())
+	delete(newDesiredProcessors, spanmetrics.Count.String())
+	delete(newDesiredProcessors, spanmetrics.Size.String())
 
-	return desiredProcessors, desiredCfg
+	return newDesiredProcessors, desiredCfg
 }
 
 func (i *instance) updateProcessors() error {
@@ -252,7 +257,7 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			}
 		default:
 			level.Error(i.logger).Log(
-				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
+				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
 				"processorName", processorName,
 			)
 			err = fmt.Errorf("unknown processor %s", processorName)
@@ -286,7 +291,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		newProcessor = p
 	default:
 		level.Error(i.logger).Log(
-			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
+			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
 			"processorName", processorName,
 		)
 		return fmt.Errorf("unknown processor %s", processorName)
@@ -319,7 +324,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
 func (i *instance) updateProcessorMetrics() {
-	for _, processorName := range allSupportedProcessors {
+	for _, processorName := range SupportedProcessors {
 		isPresent := 0.0
 		if _, ok := i.processors[processorName]; ok {
 			isPresent = 1.0

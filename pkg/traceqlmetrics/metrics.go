@@ -12,11 +12,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+const maxBuckets = 64
+
 type LatencyHistogram struct {
-	buckets [64]int // Exponential buckets, powers of 2
+	buckets [maxBuckets]int // Exponential buckets, powers of 2
 }
 
-func New(buckets [64]int) *LatencyHistogram {
+func New(buckets [maxBuckets]int) *LatencyHistogram {
 	return &LatencyHistogram{buckets: buckets}
 }
 
@@ -26,6 +28,10 @@ func (m *LatencyHistogram) Record(durationNanos uint64) {
 	if durationNanos >= 2 {
 		bucket = int(math.Ceil(math.Log2(float64(durationNanos))))
 	}
+	if bucket >= maxBuckets {
+		bucket = maxBuckets - 1
+	}
+
 	m.buckets[bucket]++
 }
 
@@ -223,7 +229,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	}
 
 	// Ensure that we select the span duration, status, and group-by attributes
-	// if they are not already included in the query.
+	// in the second pass if they are not already part of the first pass.
 	addConditionIfNotPresent := func(a traceql.Attribute) {
 		for _, c := range req.Conditions {
 			if c.Attribute == a {
@@ -231,7 +237,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 			}
 		}
 
-		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: a})
+		req.SecondPassConditions = append(req.SecondPassConditions, traceql.Condition{Attribute: a})
 	}
 	addConditionIfNotPresent(status)
 	addConditionIfNotPresent(duration)
@@ -239,47 +245,8 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 		addConditionIfNotPresent(g[0])
 	}
 
-	// Read the spans in the second pass callback and return nil to discard them.
-	// We do this because it lets the fetch layer repool the spans because it
-	// knows we discarded them.
-	// TODO - Add span.Release() or something that we could use in the loop
-	// at the bottom to repool the spans?
 	req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) {
-		out, err := eval([]*traceql.Spanset{s})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, ss := range out {
-			for _, s := range ss.Spans {
-
-				if start > 0 && s.StartTimeUnixNanos() < start {
-					continue
-				}
-				if end > 0 && s.StartTimeUnixNanos() >= end {
-					continue
-				}
-
-				var (
-					attrs  = s.Attributes()
-					series = MetricSeries{}
-					err    = attrs[status] == statusErr
-				)
-
-				for i, g := range groupBys {
-					series[i] = KeyValue{Key: groupByKeys[i], Value: lookup(g, attrs)}
-				}
-
-				results.Record(series, s.DurationNanos(), err)
-
-				spanCount++
-				if spanLimit > 0 && spanCount >= spanLimit {
-					return nil, io.EOF
-				}
-			}
-		}
-
-		return nil, err
+		return eval([]*traceql.Spanset{s})
 	}
 
 	// Perform the fetch and process the results inside the SecondPass
@@ -303,6 +270,35 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 		if ss == nil {
 			break
 		}
+
+		for _, s := range ss.Spans {
+
+			if start > 0 && s.StartTimeUnixNanos() < start {
+				continue
+			}
+			if end > 0 && s.StartTimeUnixNanos() >= end {
+				continue
+			}
+
+			var (
+				attrs  = s.Attributes()
+				series = MetricSeries{}
+				err    = attrs[status] == statusErr
+			)
+
+			for i, g := range groupBys {
+				series[i] = KeyValue{Key: groupByKeys[i], Value: lookup(g, attrs)}
+			}
+
+			results.Record(series, s.DurationNanos(), err)
+
+			spanCount++
+			if spanLimit > 0 && spanCount >= spanLimit {
+				return nil, io.EOF
+			}
+		}
+
+		ss.Release()
 	}
 
 	// The results are estimated if we bailed early due to limit being reached, but only if spanLimit has been set.

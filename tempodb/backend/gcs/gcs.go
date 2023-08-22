@@ -153,8 +153,7 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
-	return rw.bucket.Object(backend.ObjectFileName(keypath, name)).
-		Delete(ctx)
+	return readError(rw.bucket.Object(backend.ObjectFileName(keypath, name)).Delete(ctx))
 }
 
 // List implements backend.Reader
@@ -229,15 +228,12 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	})
 	defer span.Finish()
 
-	generation, err := strconv.ParseInt(string(version), 10, 64)
+	preconditions, err := createPreconditions(version)
 	if err != nil {
-		return "", errors.New("invalid version number")
+		return "", err
 	}
 
-	preconditions := &storage.Conditions{
-		GenerationMatch: generation,
-	}
-	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), preconditions)
+	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), &preconditions)
 
 	_, err = io.Copy(w, data)
 	if err != nil {
@@ -255,21 +251,15 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 }
 
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
-	object := rw.bucket.Object(backend.ObjectFileName(keypath, name))
+	o := rw.bucket.Object(backend.ObjectFileName(keypath, name))
 
-	if version != backend.VersionNew {
-		generation, err := strconv.ParseInt(string(version), 10, 64)
-		if err != nil {
-			return errors.New("invalid version number")
-		}
-
-		preconditions := storage.Conditions{
-			GenerationMatch: generation,
-		}
-		object.If(preconditions)
+	preconditions, err := createPreconditions(version)
+	if err != nil {
+		return err
 	}
+	o = o.If(preconditions)
 
-	return object.Delete(ctx)
+	return o.Delete(ctx)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
@@ -293,7 +283,7 @@ func toVersion(generation int64) backend.Version {
 
 func (rw *readerWriter) writer(ctx context.Context, name string, conditions *storage.Conditions) *storage.Writer {
 	o := rw.bucket.Object(name)
-	if (conditions != nil && *conditions != storage.Conditions{}) {
+	if conditions != nil {
 		o = o.If(*conditions)
 	}
 	w := o.NewWriter(ctx)
@@ -403,4 +393,18 @@ func readError(err error) error {
 	}
 
 	return err
+}
+
+func createPreconditions(version backend.Version) (preconditions storage.Conditions, err error) {
+	if version == backend.VersionNew {
+		preconditions.DoesNotExist = true
+		return
+	}
+
+	generation, err := strconv.ParseInt(string(version), 10, 64)
+	if err != nil {
+		return storage.Conditions{}, backend.ErrVersionInvalid
+	}
+	preconditions.GenerationMatch = generation
+	return
 }

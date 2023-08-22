@@ -29,6 +29,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
+	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 }
 
 var _ metricsGeneratorOverrides = (overrides.Interface)(nil)

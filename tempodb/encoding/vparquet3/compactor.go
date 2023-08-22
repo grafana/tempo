@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -120,7 +120,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			cmb.ConsumeWithFinal(tr, i == len(rows)-1)
 			pool.Put(row)
 		}
-		tr, _ := cmb.Result()
+		tr, _, connected := cmb.Result()
+		if !connected {
+			c.opts.DisconnectedTrace()
+		}
 
 		c.opts.ObjectsCombined(int(compactionLevel), 1)
 		return sch.Deconstruct(pool.Get(), tr), nil

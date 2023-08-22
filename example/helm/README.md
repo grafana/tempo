@@ -38,7 +38,7 @@ Install Tempo, Grafana and run a K6 job against tempo.
 ```console
 helm upgrade -f microservices-tempo-values.yaml --install tempo grafana/tempo-distributed
 helm upgrade -f microservices-grafana-values.yaml --install grafana grafana/grafana
-kubectl apply -f microservices-loadtest.yaml
+kubectl apply -f microservices-extras.yaml
 ```
 
 ### Single Binary
@@ -63,24 +63,9 @@ helm upgrade -f single-binary-grafana-values.yaml --install grafana grafana/graf
 kubectl create -f single-binary-extras.yaml
 ```
 
-### View a trace
+### Find Traces
 
-After the applications are running check the load generators logs
-
-```console
-# you can find the exact pod name using `kubectl get pods`
-kubectl logs synthetic-load-generator-???
-```
-
-```
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId e9f4add3ac7c7115 for service frontend route /product
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId 3890ea9c4d7fab00 for service frontend route /cart
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId c36fc5169bf0693d for service frontend route /cart
-20/03/03 21:30:01 INFO ScheduledTraceGenerator: Emitted traceId ebaf7d02b96b30fc for service frontend route /cart
-20/03/03 21:30:02 INFO ScheduledTraceGenerator: Emitted traceId 23a09a0efd0d1ef0 for service frontend route /cart
-```
-
-Extract a trace id and view it in Grafana at http://localhost:3000/explore
+Navigate to http://localhost:3000/explore and try a simple TraceQL query like `{}`
 
 ### Clean up
 

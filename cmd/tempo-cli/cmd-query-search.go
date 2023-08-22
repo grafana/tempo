@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

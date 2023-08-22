@@ -342,6 +342,12 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					eventToParquet(e, &ss.Events[ie])
 				}
 
+				// nested set values do not come from the proto, they are calculated
+				// later. set all to 0
+				ss.NestedSetLeft = 0
+				ss.NestedSetRight = 0
+				ss.ParentID = 0
+
 				ss.SpanID = s.SpanId
 				ss.ParentSpanID = s.ParentSpanId
 				ss.Name = s.Name

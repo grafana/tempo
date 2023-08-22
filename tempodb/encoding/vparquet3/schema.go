@@ -259,7 +259,9 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 	}
 }
 
-func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
+// traceToParquet converts a tempopb.Trace to this schema's object model. Returns the new object and
+// a bool indicating if it's a connected trace or not
+func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot *Trace) (*Trace, bool) {
 	if ot == nil {
 		ot = &Trace{}
 	}
@@ -373,6 +375,12 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 					eventToParquet(e, &ss.Events[ie])
 				}
 
+				// nested set values do not come from the proto, they are calculated
+				// later. set all to 0
+				ss.NestedSetLeft = 0
+				ss.NestedSetRight = 0
+				ss.ParentID = 0
+
 				ss.SpanID = s.SpanId
 				ss.ParentSpanID = s.ParentSpanId
 				ss.Name = s.Name
@@ -465,9 +473,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 		}
 	}
 
-	assignNestedSetModelBounds(ot)
-
-	return ot
+	return ot, assignNestedSetModelBounds(ot)
 }
 
 func eventToParquet(e *v1_trace.Span_Event, ee *Event) {

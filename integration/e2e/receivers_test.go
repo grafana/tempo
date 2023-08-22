@@ -5,12 +5,12 @@ import (
 	crand "crypto/rand"
 	"testing"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -109,7 +109,7 @@ func TestReceivers(t *testing.T) {
 					TelemetrySettings: component.TelemetrySettings{
 						Logger:         logger,
 						TracerProvider: trace.NewNoopTracerProvider(),
-						MeterProvider:  metric.NewNoopMeterProvider(),
+						MeterProvider:  metricnoop.NewMeterProvider(),
 					},
 					BuildInfo: component.NewDefaultBuildInfo(),
 				},

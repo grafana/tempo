@@ -7,11 +7,12 @@ weight: 130
 
 # Generic forwarding
 
-Generic forwarding allows asynchronous replication of ingested traces.
-The distributor writes received spans to both the ingester and defined endpoints, if enabled.
-This feature works in a "best-effort" manner, meaning that no retries happen if an error occurs during replication.
+Generic forwarding allows asynchronous replication of ingested traces. The distributor writes received spans to both the ingester and defined endpoints, if enabled. This feature works in a "best-effort" manner, meaning that no retries happen if an error occurs during replication.
 
->**Warning:** Generic forwarding does not work retroactively. Once enabled, the distributor only replicates freshly ingested spans.
+{{% admonition type="warning" %}}
+Generic forwarding does not work retroactively. Once enabled, the distributor only replicates freshly ingested spans.
+{{% /admonition %}}
+
 
 ## Configure generic forwarding
 

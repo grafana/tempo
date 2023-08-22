@@ -19,13 +19,13 @@ import (
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
+	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/logging"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1159,7 +1159,7 @@ func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger lo
 		return ingesters[addr], nil
 	}
 
-	l := logging.Level{}
+	l := dslog.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
 	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())

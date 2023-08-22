@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package proctelemetry // import "go.opentelemetry.io/collector/service/internal/proctelemetry"
 
@@ -25,7 +14,6 @@ import (
 	"go.opencensus.io/metric"
 	"go.opencensus.io/stats"
 	otelmetric "go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/instrument"
 	"go.uber.org/multierr"
 )
 
@@ -48,12 +36,12 @@ type processMetrics struct {
 	rssMemory     *metric.Int64DerivedGauge
 
 	// otel metrics
-	otelProcessUptime instrument.Float64ObservableCounter
-	otelAllocMem      instrument.Int64ObservableGauge
-	otelTotalAllocMem instrument.Int64ObservableCounter
-	otelSysMem        instrument.Int64ObservableGauge
-	otelCPUSeconds    instrument.Float64ObservableCounter
-	otelRSSMemory     instrument.Int64ObservableGauge
+	otelProcessUptime otelmetric.Float64ObservableCounter
+	otelAllocMem      otelmetric.Int64ObservableGauge
+	otelTotalAllocMem otelmetric.Int64ObservableCounter
+	otelSysMem        otelmetric.Int64ObservableGauge
+	otelCPUSeconds    otelmetric.Float64ObservableCounter
+	otelRSSMemory     otelmetric.Int64ObservableGauge
 
 	// mu protects everything bellow.
 	mu         sync.Mutex
@@ -147,11 +135,7 @@ func (pm *processMetrics) recordWithOC(ocRegistry *metric.Registry) error {
 	if err != nil {
 		return err
 	}
-	if err = pm.rssMemory.UpsertEntry(pm.updateRSSMemory); err != nil {
-		return err
-	}
-
-	return nil
+	return pm.rssMemory.UpsertEntry(pm.updateRSSMemory)
 }
 
 func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
@@ -159,9 +143,9 @@ func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
 
 	pm.otelProcessUptime, err = meter.Float64ObservableCounter(
 		"process_uptime",
-		instrument.WithDescription("Uptime of the process"),
-		instrument.WithUnit("s"),
-		instrument.WithFloat64Callback(func(_ context.Context, o instrument.Float64Observer) error {
+		otelmetric.WithDescription("Uptime of the process"),
+		otelmetric.WithUnit("s"),
+		otelmetric.WithFloat64Callback(func(_ context.Context, o otelmetric.Float64Observer) error {
 			o.Observe(pm.updateProcessUptime())
 			return nil
 		}))
@@ -169,9 +153,9 @@ func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
 
 	pm.otelAllocMem, err = meter.Int64ObservableGauge(
 		"process_runtime_heap_alloc_bytes",
-		instrument.WithDescription("Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc')"),
-		instrument.WithUnit("By"),
-		instrument.WithInt64Callback(func(_ context.Context, o instrument.Int64Observer) error {
+		otelmetric.WithDescription("Bytes of allocated heap objects (see 'go doc runtime.MemStats.HeapAlloc')"),
+		otelmetric.WithUnit("By"),
+		otelmetric.WithInt64Callback(func(_ context.Context, o otelmetric.Int64Observer) error {
 			o.Observe(pm.updateAllocMem())
 			return nil
 		}))
@@ -179,9 +163,9 @@ func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
 
 	pm.otelTotalAllocMem, err = meter.Int64ObservableCounter(
 		"process_runtime_total_alloc_bytes",
-		instrument.WithDescription("Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc')"),
-		instrument.WithUnit("By"),
-		instrument.WithInt64Callback(func(_ context.Context, o instrument.Int64Observer) error {
+		otelmetric.WithDescription("Cumulative bytes allocated for heap objects (see 'go doc runtime.MemStats.TotalAlloc')"),
+		otelmetric.WithUnit("By"),
+		otelmetric.WithInt64Callback(func(_ context.Context, o otelmetric.Int64Observer) error {
 			o.Observe(pm.updateTotalAllocMem())
 			return nil
 		}))
@@ -189,9 +173,9 @@ func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
 
 	pm.otelSysMem, err = meter.Int64ObservableGauge(
 		"process_runtime_total_sys_memory_bytes",
-		instrument.WithDescription("Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys')"),
-		instrument.WithUnit("By"),
-		instrument.WithInt64Callback(func(_ context.Context, o instrument.Int64Observer) error {
+		otelmetric.WithDescription("Total bytes of memory obtained from the OS (see 'go doc runtime.MemStats.Sys')"),
+		otelmetric.WithUnit("By"),
+		otelmetric.WithInt64Callback(func(_ context.Context, o otelmetric.Int64Observer) error {
 			o.Observe(pm.updateSysMem())
 			return nil
 		}))
@@ -199,9 +183,9 @@ func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
 
 	pm.otelCPUSeconds, err = meter.Float64ObservableCounter(
 		"process_cpu_seconds",
-		instrument.WithDescription("Total CPU user and system time in seconds"),
-		instrument.WithUnit("s"),
-		instrument.WithFloat64Callback(func(_ context.Context, o instrument.Float64Observer) error {
+		otelmetric.WithDescription("Total CPU user and system time in seconds"),
+		otelmetric.WithUnit("s"),
+		otelmetric.WithFloat64Callback(func(_ context.Context, o otelmetric.Float64Observer) error {
 			o.Observe(pm.updateCPUSeconds())
 			return nil
 		}))
@@ -209,9 +193,9 @@ func (pm *processMetrics) recordWithOtel(meter otelmetric.Meter) error {
 
 	pm.otelRSSMemory, err = meter.Int64ObservableGauge(
 		"process_memory_rss",
-		instrument.WithDescription("Total physical memory (resident set size)"),
-		instrument.WithUnit("By"),
-		instrument.WithInt64Callback(func(_ context.Context, o instrument.Int64Observer) error {
+		otelmetric.WithDescription("Total physical memory (resident set size)"),
+		otelmetric.WithUnit("By"),
+		otelmetric.WithInt64Callback(func(_ context.Context, o otelmetric.Int64Observer) error {
 			o.Observe(pm.updateRSSMemory())
 			return nil
 		}))

@@ -16,7 +16,7 @@ Spans also have a hierarchy, where parent spans can have children or siblings.
 
 In the screenshot below, the left side of the screen (1) shows the list of results for the query. The right side (2) lists each span that makes up the selected trace.
 
-![Traces example with query results and spans](/static/img/docs/tempo/trace-explore-spans.png)
+![Traces example with query results and spans](/static/img/docs/tempo/screenshot-trace-explore-spans-g10.png)
 
 A **span attribute** is a key/value pair that provides context for its span. For example, if the span deals with calling another service via HTTP, an attribute could include the HTTP URL (maybe as the span attribute key `http.url`) and the HTTP status code returned (as the span attribute `http.status_code`). Span attributes can consist of varying, non-null types.
 
@@ -70,7 +70,7 @@ However, adding a span for each method or function call in that loop might not, 
 
 ## Span length
 
-While there are some (high) default limits to the length that a span (and by definition, the traces they belong to) can be, these can be adjusted by [these configurations]({{< relref "../configuration#ingestion-limits" >}}). 
+While there are some (high) default limits to the length that a span (and by definition, the traces they belong to) can be, these can be adjusted by [these configurations]({{< relref "../configuration#ingestion-limits" >}}).
 Traces that include a large number of spans and/or long-running spans can have an impact on the time taken to query them once stored.
 
 For long-running spans and traces, the best way to see this impact on requests is to send a few test cases and see what the performance looks like (and evaluate the trace size).

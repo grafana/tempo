@@ -6,10 +6,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/grafana/tempo/pkg/tempopb"

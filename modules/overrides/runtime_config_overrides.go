@@ -97,6 +97,8 @@ type runtimeConfigOverridesManager struct {
 	subservicesWatcher *services.FailureWatcher
 }
 
+var _ Interface = (*runtimeConfigOverridesManager)(nil)
+
 func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
@@ -410,6 +412,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksFlus
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

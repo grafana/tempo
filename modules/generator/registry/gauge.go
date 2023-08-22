@@ -58,14 +58,18 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 }
 
 func (g *gauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, set)
+	g.updateSeries(labelValueCombo, value, set, true)
 }
 
 func (g *gauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
-	g.updateSeries(labelValueCombo, value, add)
+	g.updateSeries(labelValueCombo, value, add, true)
 }
 
-func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string) {
+func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
+	g.updateSeries(labelValueCombo, value, set, false)
+}
+
+func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
 	hash := labelValueCombo.getHash()
 
 	g.seriesMtx.RLock()
@@ -73,6 +77,10 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	g.seriesMtx.RUnlock()
 
 	if ok {
+		// target_info will always be 1 so if the series exists, we don't need to go through this loop
+		if !updateIfAlreadyExist {
+			return
+		}
 		g.updateSeriesValue(s, value, operation)
 		return
 	}

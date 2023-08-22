@@ -123,7 +123,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		resourceValues := make([]string, 0)
 
 		if p.Cfg.EnableTargetInfo {
-			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes)
+			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
@@ -234,7 +234,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
-			p.spanMetricsTargetInfo.Set(targetInfoRegistryLabelValues, 1)
+			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
 	}
 }
@@ -250,10 +250,5 @@ func sanitizeLabelNameWithCollisions(name string) string {
 }
 
 func isIntrinsicDimension(name string) bool {
-	return name == dimJob ||
-		name == dimSpanName ||
-		name == dimSpanKind ||
-		name == dimStatusCode ||
-		name == dimStatusMessage ||
-		name == dimInstance
+	return processor_util.Contains(name, []string{dimJob, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage, dimInstance})
 }

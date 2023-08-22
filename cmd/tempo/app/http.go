@@ -3,8 +3,8 @@ package app
 import (
 	"net/http"
 
+	"github.com/grafana/dskit/middleware"
 	"github.com/klauspost/compress/gzhttp"
-	"github.com/weaveworks/common/middleware"
 )
 
 func httpGzipMiddleware() middleware.Interface {

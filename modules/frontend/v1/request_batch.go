@@ -3,8 +3,8 @@ package v1
 import (
 	"fmt"
 
+	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/multierror"
-	"github.com/weaveworks/common/httpgrpc"
 )
 
 type requestBatch struct {

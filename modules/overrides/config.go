@@ -4,6 +4,8 @@ import (
 	"flag"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util/listtomap"
+
 	"github.com/grafana/tempo/tempodb/backend"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -77,12 +79,13 @@ type ServiceGraphsOverrides struct {
 }
 
 type SpanMetricsOverrides struct {
-	HistogramBuckets    []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	Dimensions          []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	IntrinsicDimensions map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
-	FilterPolicies      []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
-	DimensionMappings   []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
-	EnableTargetInfo    bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	HistogramBuckets             []float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions                   []string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	IntrinsicDimensions          map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
+	FilterPolicies               []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	DimensionMappings            []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
+	EnableTargetInfo             bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	TargetInfoExcludedDimensions []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
 }
 
 type LocalBlocksOverrides struct {
@@ -103,11 +106,11 @@ type ProcessorOverrides struct {
 }
 
 type MetricsGeneratorOverrides struct {
-	RingSize           int           `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
-	Processors         ListToMap     `yaml:"processors,omitempty" json:"processors,omitempty"`
-	MaxActiveSeries    uint32        `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
-	CollectionInterval time.Duration `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	DisableCollection  bool          `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	RingSize           int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
+	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
+	MaxActiveSeries    uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	CollectionInterval time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	DisableCollection  bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 
 	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 

@@ -65,9 +65,11 @@ type Kong struct {
 	helpFlag      *Flag
 	groups        []Group
 	vars          Vars
+	flagNamer     func(string) string
 
 	// Set temporarily by Options. These are applied after build().
 	postBuildOptions []Option
+	embedded         []embedded
 	dynamicCommands  []*dynamicCommand
 }
 
@@ -84,6 +86,9 @@ func New(grammar interface{}, options ...Option) (*Kong, error) {
 		bindings:      bindings{},
 		helpFormatter: DefaultHelpValueFormatter,
 		ignoreFields:  make([]*regexp.Regexp, 0),
+		flagNamer: func(s string) string {
+			return strings.ToLower(dashedString(s))
+		},
 	}
 
 	options = append(options, Bind(k))
@@ -109,6 +114,25 @@ func New(grammar interface{}, options ...Option) (*Kong, error) {
 	model.Name = filepath.Base(os.Args[0])
 	k.Model = model
 	k.Model.HelpFlag = k.helpFlag
+
+	// Embed any embedded structs.
+	for _, embed := range k.embedded {
+		tag, err := parseTagString(strings.Join(embed.tags, " ")) //nolint:govet
+		if err != nil {
+			return nil, err
+		}
+		tag.Embed = true
+		v := reflect.Indirect(reflect.ValueOf(embed.strct))
+		node, err := buildNode(k, v, CommandNode, tag, map[string]bool{})
+		if err != nil {
+			return nil, err
+		}
+		for _, child := range node.Children {
+			child.Parent = k.Model.Node
+			k.Model.Children = append(k.Model.Children, child)
+		}
+		k.Model.Flags = append(k.Model.Flags, node.Flags...)
+	}
 
 	// Synthesise command nodes.
 	for _, dcmd := range k.dynamicCommands {
@@ -188,6 +212,10 @@ func (k *Kong) interpolateValue(value *Value, vars Vars) (err error) {
 		vars = vars.CloneWith(varsContributor.Vars(value))
 	}
 
+	if value.Enum, err = interpolate(value.Enum, vars, nil); err != nil {
+		return fmt.Errorf("enum for %s: %s", value.Summary(), err)
+	}
+
 	updatedVars := map[string]string{
 		"default": value.Default,
 		"enum":    value.Enum,
@@ -199,11 +227,16 @@ func (k *Kong) interpolateValue(value *Value, vars Vars) (err error) {
 		return fmt.Errorf("enum value for %s: %s", value.Summary(), err)
 	}
 	if value.Flag != nil {
-		if value.Flag.Env, err = interpolate(value.Flag.Env, vars, nil); err != nil {
-			return fmt.Errorf("env value for %s: %s", value.Summary(), err)
+		for i, env := range value.Flag.Envs {
+			if value.Flag.Envs[i], err = interpolate(env, vars, nil); err != nil {
+				return fmt.Errorf("env value for %s: %s", value.Summary(), err)
+			}
 		}
-		value.Tag.Env = value.Flag.Env
-		updatedVars["env"] = value.Flag.Env
+		value.Tag.Envs = value.Flag.Envs
+		updatedVars["env"] = ""
+		if len(value.Flag.Envs) != 0 {
+			updatedVars["env"] = value.Flag.Envs[0]
+		}
 	}
 	value.Help, err = interpolate(value.Help, vars, updatedVars)
 	if err != nil {

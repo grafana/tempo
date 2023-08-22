@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -136,7 +138,7 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 	}
 
 	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
-		return errors.Wrapf(err, "error deleting blob, name: %s", name)
+		return readError(err)
 	}
 	return nil
 }
@@ -183,7 +185,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 	defer span.Finish()
 
 	object := backend.ObjectFileName(keypath, name)
-	b, err := rw.readAll(derivedCtx, object)
+	b, _, err := rw.readAll(derivedCtx, object)
 	if err != nil {
 		return nil, 0, readError(err)
 	}
@@ -220,7 +222,14 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	if err != nil && err != backend.ErrDoesNotExist {
 		return "", err
 	}
-	if err != backend.ErrDoesNotExist && currentVersion != version {
+
+	level.Info(log.Logger).Log("msg", "WriteVersioned - fetching data", "currentVersion", currentVersion, "err", err, "version", version)
+
+	// object does not exist - supplied version must be "0"
+	if err == backend.ErrDoesNotExist && version != backend.VersionNew {
+		return "", backend.ErrVersionDoesNotMatch
+	}
+	if err != backend.ErrDoesNotExist && version != currentVersion {
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
@@ -247,9 +256,18 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
-	// TODO properly extract version from object
-	readCloser, _, err := rw.Read(ctx, name, keypath, false)
-	return readCloser, backend.VersionNew, err
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadVersioned")
+	defer span.Finish()
+
+	object := backend.ObjectFileName(keypath, name)
+	b, etag, err := rw.readAll(derivedCtx, object)
+	if err != nil {
+		return nil, "", readError(err)
+	}
+
+	return io.NopCloser(bytes.NewReader(b)), backend.Version(etag), nil
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
@@ -355,13 +373,13 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	return nil
 }
 
-func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
+func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, blob.ETag, error) {
 	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
 
 	var props *blob.BlobGetPropertiesResponse
 	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	destBuffer := make([]byte, props.ContentLength())
@@ -376,10 +394,10 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 			},
 		},
 	); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return destBuffer, nil
+	return destBuffer, props.ETag(), nil
 }
 
 func readError(err error) error {
