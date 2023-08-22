@@ -52,6 +52,7 @@ func init() {
 	version.Revision = Revision
 	prometheus.MustRegister(version.NewCollector(appName))
 
+	// Register the gogocodec as early as possible.
 	encoding.RegisterCodec(gogocodec.NewCodec())
 }
 
