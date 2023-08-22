@@ -1,4 +1,5 @@
 ## main / unreleased
+* [CHANGE] `RateLimitedLogger` has been replaced with `dskit`'s equivalent. The former has been removed from `tempo`. #2796
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
 * [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
