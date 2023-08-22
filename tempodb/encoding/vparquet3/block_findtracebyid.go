@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/parquetquery"

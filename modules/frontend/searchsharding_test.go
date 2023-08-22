@@ -18,10 +18,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/overrides"

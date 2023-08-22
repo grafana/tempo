@@ -59,7 +59,7 @@ You can find more about other supported syntax [here](https://github.com/drone/e
 
 ## Server
 
-Tempo uses the Weaveworks/common server. For more information on configuration options, see [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54).
+Tempo uses the server from `dskit/server`. For more information on configuration options, see [here](https://github.com/grafana/dskit/blob/main/server/server.go#L66).
 
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
@@ -173,6 +173,15 @@ distributor:
             # Optional.
             # Path to the TLS certificate. This field must be set if insecure = false.
             [cert_file: <string | default = "">]
+       
+        # Optional.
+        # Configures filtering in forwarder that lets you drop spans and span events using
+        # the OpenTelemetry Transformation Language (OTTL) syntax. For detailed overview of
+        # the OTTL syntax, please refer to the official Open Telemetry documentation.
+        filter:
+            traces:
+                span: <list of string>
+                spanevent: <list of string>
       - (repetition of above...)
 
 
@@ -323,9 +332,11 @@ metrics_generator:
             # "name" appears in the metrics, "source_labels" are the actual
             # attributes that will make up the value of the label and "join" is the
             # separator if multiple source_labels are provided
-            [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
-            # Enable target_info metrics
-            [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
+            [dimension_mappings: <list of map>]
+            # Enable traces_target_info metrics
+            [enable_target_info: <bool>]
+            # Drop specific labels from traces_target_info metrics
+            [target_info_excluded_dimensions: <list of string>]
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -1309,9 +1320,11 @@ overrides:
     # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
-    [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+    [metrics_generator_processor_span_metrics_dimension_mapings: <list of map>]
     # Enable target_info metrics
-    [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
+    [metrics_generator_processor_span_metrics_enable_target_info: <bool>]
+    # Drop specific resource labels from traces_target_info
+    [metrics_generator_processor_span_metrics_target_info_excluded_dimensions: <list of string>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.

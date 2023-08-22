@@ -114,13 +114,18 @@ type Scanner struct {
 	args []Token
 }
 
-// Scan creates a new Scanner from args with untyped tokens.
-func Scan(args ...string) *Scanner {
+// ScanAsType creates a new Scanner from args with the given type.
+func ScanAsType(ttype TokenType, args ...string) *Scanner {
 	s := &Scanner{}
 	for _, arg := range args {
-		s.args = append(s.args, Token{Value: arg})
+		s.args = append(s.args, Token{Value: arg, Type: ttype})
 	}
 	return s
+}
+
+// Scan creates a new Scanner from args with untyped tokens.
+func Scan(args ...string) *Scanner {
+	return ScanAsType(UntypedToken, args...)
 }
 
 // ScanFromTokens creates a new Scanner from a slice of tokens.

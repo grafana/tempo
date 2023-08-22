@@ -15,17 +15,42 @@ linters:
     - gocognit
     - gomnd
     - goprintffuncname
+    - paralleltest
+    - nlreturn
+    - goerr113
+    - ifshort
+    - testpackage
+    - wrapcheck
+    - exhaustivestruct
+    - forbidigo
+    - gci
+    - godot
+    - gofumpt
+    - cyclop
+    - errorlint
+    - nestif
+    - golint
+    - scopelint
+    - interfacer
+    - tagliatelle
+    - thelper
+    - godox
+    - goconst
+    - varnamelen
+    - ireturn
+    - exhaustruct
+    - nonamedreturns
+    - nilnil
 
 linters-settings:
   govet:
     check-shadowing: true
   dupl:
     threshold: 100
-  goconst:
-    min-len: 5
-    min-occurrences: 3
   gocyclo:
     min-complexity: 20
+  exhaustive:
+    default-signifies-exhaustive: true
 
 issues:
   max-per-linter: 0
@@ -40,3 +65,4 @@ issues:
     - 'bad syntax for struct tag key'
     - 'bad syntax for struct tag pair'
     - 'result .* \(error\) is always nil'
+    - 'package io/ioutil is deprecated'

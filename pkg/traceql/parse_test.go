@@ -719,6 +719,10 @@ func TestSpansetFilterOperators(t *testing.T) {
 		{in: "{ .a = 3 }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticInt(3)), alsoTestWithoutSpace: true},
 		{in: "{ .a = 3.0 }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticFloat(3)), alsoTestWithoutSpace: true},
 		{in: "{ .a = true }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticBool(true)), alsoTestWithoutSpace: true},
+
+		// existence
+		{in: "{ .a != nil }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
+		{in: "{ .a = nil }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
 	}
 
 	test := func(q string, expected FieldExpression) {

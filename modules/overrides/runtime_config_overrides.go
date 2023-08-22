@@ -59,6 +59,8 @@ type runtimeConfigOverridesManager struct {
 	subservicesWatcher *services.FailureWatcher
 }
 
+var _ Interface = (*runtimeConfigOverridesManager)(nil)
+
 func newRuntimeConfigOverrides(defaults Limits) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
@@ -367,6 +369,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnab
 // MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix enables "client" and "server" prefix
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

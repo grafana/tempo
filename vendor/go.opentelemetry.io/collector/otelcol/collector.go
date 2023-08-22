@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 // Package service handles the command-line, configuration, and runs the
 // OpenTelemetry Collector.
@@ -201,6 +190,15 @@ func (col *Collector) reloadConfiguration(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (col *Collector) DryRun(ctx context.Context) error {
+	cfg, err := col.set.ConfigProvider.Get(ctx, col.set.Factories)
+	if err != nil {
+		return fmt.Errorf("failed to get config: %w", err)
+	}
+
+	return cfg.Validate()
 }
 
 // Run starts the collector according to the given configuration, and waits for it to complete.

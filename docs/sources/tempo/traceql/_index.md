@@ -22,8 +22,10 @@ Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-
 
 {{< vimeo 796408188 >}}
 
-For information on where the language is headed, see [future work]({{< relref "./architecture" >}}).
+For information on where the language is headed, see [future work]({{< relref "./architecture#future-work" >}}).
 The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
+
+Check the [release notes]({{< relref "../release-notes" >}}) for the latest updates to TraceQL.
 
 TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend]({{< relref "..//configuration/parquet" >}}) Tempo documentation.
 
@@ -151,6 +153,11 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 { span.http.method =~ “DELETE|GET” }
 ```
 
+Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+```
+{ .any_attribute != nil }
+```
+
 ### Field expressions
 
 Fields can also be combined in various ways to allow more flexible search criteria. A field expression is a composite of multiple fields that define all of the criteria that must be matched to return results.
@@ -265,8 +272,7 @@ or anything else that comes to mind.
 
 ## Selection
 
-TraceQL can select arbitrary fields from spans. This is particularly performant b/c
-the selected fields are not retrieved until all other criteria is met.
+TraceQL can select arbitrary fields from spans. This is particularly performant because the selected fields are not retrieved until all other criteria is met.
 ```
 { status=error } | select(span.http.status_code, span.http.url)
 ```

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
@@ -665,7 +665,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start uint64, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64, pf *parquet.File, opts common.SearchOptions) (parquetquery.Iterator, error) {
 	// Categorize conditions into span-level or resource-level
 	var (
 		mingledConditions  bool

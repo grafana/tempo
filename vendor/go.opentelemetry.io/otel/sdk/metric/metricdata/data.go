@@ -59,7 +59,8 @@ type Aggregation interface {
 
 // Gauge represents a measurement of the current value of an instrument.
 type Gauge[N int64 | float64] struct {
-	// DataPoints reprents individual aggregated measurements with unique Attributes.
+	// DataPoints are the individual aggregated measurements with unique
+	// Attributes.
 	DataPoints []DataPoint[N]
 }
 
@@ -67,7 +68,8 @@ func (Gauge[N]) privateAggregation() {}
 
 // Sum represents the sum of all measurements of values from an instrument.
 type Sum[N int64 | float64] struct {
-	// DataPoints reprents individual aggregated measurements with unique Attributes.
+	// DataPoints are the individual aggregated measurements with unique
+	// Attributes.
 	DataPoints []DataPoint[N]
 	// Temporality describes if the aggregation is reported as the change from the
 	// last report time, or the cumulative changes since a fixed start time.
@@ -89,21 +91,25 @@ type DataPoint[N int64 | float64] struct {
 	Time time.Time `json:",omitempty"`
 	// Value is the value of this data point.
 	Value N
+
+	// Exemplars is the sampled Exemplars collected during the timeseries.
+	Exemplars []Exemplar[N] `json:",omitempty"`
 }
 
 // Histogram represents the histogram of all measurements of values from an instrument.
-type Histogram struct {
-	// DataPoints reprents individual aggregated measurements with unique Attributes.
-	DataPoints []HistogramDataPoint
+type Histogram[N int64 | float64] struct {
+	// DataPoints are the individual aggregated measurements with unique
+	// Attributes.
+	DataPoints []HistogramDataPoint[N]
 	// Temporality describes if the aggregation is reported as the change from the
 	// last report time, or the cumulative changes since a fixed start time.
 	Temporality Temporality
 }
 
-func (Histogram) privateAggregation() {}
+func (Histogram[N]) privateAggregation() {}
 
 // HistogramDataPoint is a single histogram data point in a timeseries.
-type HistogramDataPoint struct {
+type HistogramDataPoint[N int64 | float64] struct {
 	// Attributes is the set of key value pairs that uniquely identify the
 	// timeseries.
 	Attributes attribute.Set
@@ -121,26 +127,48 @@ type HistogramDataPoint struct {
 	BucketCounts []uint64
 
 	// Min is the minimum value recorded. (optional)
-	Min Extrema
+	Min Extrema[N]
 	// Max is the maximum value recorded. (optional)
-	Max Extrema
+	Max Extrema[N]
 	// Sum is the sum of the values recorded.
-	Sum float64
+	Sum N
+
+	// Exemplars is the sampled Exemplars collected during the timeseries.
+	Exemplars []Exemplar[N] `json:",omitempty"`
 }
 
 // Extrema is the minimum or maximum value of a dataset.
-type Extrema struct {
-	value float64
+type Extrema[N int64 | float64] struct {
+	value N
 	valid bool
 }
 
 // NewExtrema returns an Extrema set to v.
-func NewExtrema(v float64) Extrema {
-	return Extrema{value: v, valid: true}
+func NewExtrema[N int64 | float64](v N) Extrema[N] {
+	return Extrema[N]{value: v, valid: true}
 }
 
 // Value returns the Extrema value and true if the Extrema is defined.
 // Otherwise, if the Extrema is its zero-value, defined will be false.
-func (e Extrema) Value() (v float64, defined bool) {
+func (e Extrema[N]) Value() (v N, defined bool) {
 	return e.value, e.valid
+}
+
+// Exemplar is a measurement sampled from a timeseries providing a typical
+// example.
+type Exemplar[N int64 | float64] struct {
+	// FilteredAttributes are the attributes recorded with the measurement but
+	// filtered out of the timeseries' aggregated data.
+	FilteredAttributes []attribute.KeyValue
+	// Time is the time when the measurement was recorded.
+	Time time.Time
+	// Value is the measured value.
+	Value N
+	// SpanID is the ID of the span that was active during the measurement. If
+	// no span was active or the span was not sampled this will be empty.
+	SpanID []byte `json:",omitempty"`
+	// TraceID is the ID of the trace the active span belonged to during the
+	// measurement. If no span was active or the span was not sampled this will
+	// be empty.
+	TraceID []byte `json:",omitempty"`
 }

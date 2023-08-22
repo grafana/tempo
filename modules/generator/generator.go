@@ -13,9 +13,9 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/generator/storage"
@@ -303,7 +303,8 @@ func (g *Generator) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc rin
 	}
 
 	takenTokens := ringDesc.GetTokens()
-	newTokens := ring.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
+	gen := ring.NewRandomTokenGenerator()
+	newTokens := gen.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
 
 	// Tokens sorting will be enforced by the parent caller.
 	tokens = append(tokens, newTokens...)

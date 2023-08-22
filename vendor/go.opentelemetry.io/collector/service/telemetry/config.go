@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package telemetry // import "go.opentelemetry.io/collector/service/telemetry"
 
@@ -20,6 +9,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/internal/obsreportconfig"
 )
 
 // Config defines the configurable settings for service telemetry.
@@ -116,6 +107,10 @@ type MetricsConfig struct {
 
 	// Address is the [address]:port that metrics exposition should be bound to.
 	Address string `mapstructure:"address"`
+
+	// Readers allow configuration of metric readers to emit metrics to
+	// any number of supported backends.
+	Readers []MetricReader `mapstructure:"readers"`
 }
 
 // TracesConfig exposes the common Telemetry configuration for collector's internal spans.
@@ -125,15 +120,70 @@ type TracesConfig struct {
 	// tracecontext and  b3 are supported. By default, the value is set to empty list and
 	// context propagation is disabled.
 	Propagators []string `mapstructure:"propagators"`
+	// Processors allow configuration of span processors to emit spans to
+	// any number of suported backends.
+	Processors []SpanProcessor `mapstructure:"processors"`
 }
 
 // Validate checks whether the current configuration is valid
 func (c *Config) Validate() error {
-
 	// Check when service telemetry metric level is not none, the metrics address should not be empty
-	if c.Metrics.Level != configtelemetry.LevelNone && c.Metrics.Address == "" {
-		return fmt.Errorf("collector telemetry metric address should exist when metric level is not none")
+	if c.Metrics.Level != configtelemetry.LevelNone && c.Metrics.Address == "" && len(c.Metrics.Readers) == 0 {
+		return fmt.Errorf("collector telemetry metric address or reader should exist when metric level is not none")
 	}
 
 	return nil
+}
+
+func (sp *SpanProcessor) Unmarshal(conf *confmap.Conf) error {
+	if !obsreportconfig.UseOtelWithSDKConfigurationForInternalTelemetryFeatureGate.IsEnabled() {
+		// only unmarshal if feature gate is enabled
+		return nil
+	}
+
+	if conf == nil {
+		return nil
+	}
+
+	if err := conf.Unmarshal(sp); err != nil {
+		return fmt.Errorf("invalid span processor configuration: %w", err)
+	}
+
+	if sp.Batch != nil {
+		if sp.Batch.Exporter.Console == nil {
+			return fmt.Errorf("invalid exporter configuration")
+		}
+		return nil
+	}
+	return fmt.Errorf("unsupported span processor type %s", conf.AllKeys())
+}
+
+func (mr *MetricReader) Unmarshal(conf *confmap.Conf) error {
+	if !obsreportconfig.UseOtelWithSDKConfigurationForInternalTelemetryFeatureGate.IsEnabled() {
+		// only unmarshal if feature gate is enabled
+		return nil
+	}
+
+	if conf == nil {
+		return nil
+	}
+
+	if err := conf.Unmarshal(mr); err != nil {
+		return fmt.Errorf("invalid metric reader configuration: %w", err)
+	}
+
+	if mr.Pull != nil {
+		if mr.Pull.Exporter.Prometheus == nil {
+			return fmt.Errorf("invalid exporter configuration")
+		}
+		return nil
+	}
+	if mr.Periodic != nil {
+		if mr.Periodic.Exporter.Otlp == nil && mr.Periodic.Exporter.Console == nil {
+			return fmt.Errorf("invalid exporter configuration")
+		}
+		return nil
+	}
+
+	return fmt.Errorf("unsupported metric reader type %s", conf.AllKeys())
 }

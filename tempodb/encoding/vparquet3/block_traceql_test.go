@@ -57,7 +57,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		}
 
 		id := test.ValidTraceID(nil)
-		tr := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
 		traces = append(traces, tr)
 	}
 
@@ -568,7 +568,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("2968a567-5873-4e4c-b3cb-21c106c6714b")
+	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/Users/marty/src/tmp/"),
@@ -578,6 +578,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	rr := backend.NewReader(r)
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
+	require.Equal(b, VersionString, meta.Version)
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10

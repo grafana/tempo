@@ -6,9 +6,8 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/segmentio/parquet-go"
-
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
+	"github.com/parquet-go/parquet-go"
 )
 
 type viewSchemaCmd struct {

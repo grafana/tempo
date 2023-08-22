@@ -1,14 +1,15 @@
 package kong
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // An Option applies optional changes to the Kong application.
@@ -19,7 +20,7 @@ type Option interface {
 // OptionFunc is function that adheres to the Option interface.
 type OptionFunc func(k *Kong) error
 
-func (o OptionFunc) Apply(k *Kong) error { return o(k) } // nolint: golint
+func (o OptionFunc) Apply(k *Kong) error { return o(k) } // nolint: revive
 
 // Vars sets the variables to use for interpolation into help strings and default values.
 //
@@ -54,6 +55,51 @@ func Exit(exit func(int)) Option {
 	})
 }
 
+type embedded struct {
+	strct any
+	tags  []string
+}
+
+// Embed a struct into the root of the CLI.
+//
+// "strct" must be a pointer to a structure.
+func Embed(strct any, tags ...string) Option {
+	t := reflect.TypeOf(strct)
+	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct {
+		panic("kong: Embed() must be called with a pointer to a struct")
+	}
+	return OptionFunc(func(k *Kong) error {
+		k.embedded = append(k.embedded, embedded{strct, tags})
+		return nil
+	})
+}
+
+type dynamicCommand struct {
+	name  string
+	help  string
+	group string
+	tags  []string
+	cmd   interface{}
+}
+
+// DynamicCommand registers a dynamically constructed command with the root of the CLI.
+//
+// This is useful for command-line structures that are extensible via user-provided plugins.
+//
+// "tags" is a list of extra tag strings to parse, in the form <key>:"<value>".
+func DynamicCommand(name, help, group string, cmd interface{}, tags ...string) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.dynamicCommands = append(k.dynamicCommands, &dynamicCommand{
+			name:  name,
+			help:  help,
+			group: group,
+			cmd:   cmd,
+			tags:  tags,
+		})
+		return nil
+	})
+}
+
 // NoDefaultHelp disables the default help flags.
 func NoDefaultHelp() Option {
 	return OptionFunc(func(k *Kong) error {
@@ -66,7 +112,7 @@ func NoDefaultHelp() Option {
 // parsing occurs.
 //
 // This is useful for, e.g., adding short options to flags, updating help, etc.
-func (k *Kong) PostBuild(fn func(*Kong) error) Option {
+func PostBuild(fn func(*Kong) error) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.postBuildOptions = append(k.postBuildOptions, OptionFunc(fn))
 		return nil
@@ -75,22 +121,16 @@ func (k *Kong) PostBuild(fn func(*Kong) error) Option {
 
 // Name overrides the application name.
 func Name(name string) Option {
-	return OptionFunc(func(k *Kong) error {
-		k.postBuildOptions = append(k.postBuildOptions, OptionFunc(func(k *Kong) error {
-			k.Model.Name = name
-			return nil
-		}))
+	return PostBuild(func(k *Kong) error {
+		k.Model.Name = name
 		return nil
 	})
 }
 
 // Description sets the application description.
 func Description(description string) Option {
-	return OptionFunc(func(k *Kong) error {
-		k.postBuildOptions = append(k.postBuildOptions, OptionFunc(func(k *Kong) error {
-			k.Model.Help = description
-			return nil
-		}))
+	return PostBuild(func(k *Kong) error {
+		k.Model.Help = description
 		return nil
 	})
 }
@@ -143,8 +183,8 @@ func Writers(stdout, stderr io.Writer) Option {
 //
 // There are two hook points:
 //
-// 		BeforeApply(...) error
-//   	AfterApply(...) error
+//			BeforeApply(...) error
+//	  	AfterApply(...) error
 //
 // Called before validation/assignment, and immediately after validation/assignment, respectively.
 func Bind(args ...interface{}) Option {
@@ -156,11 +196,10 @@ func Bind(args ...interface{}) Option {
 
 // BindTo allows binding of implementations to interfaces.
 //
-// 		BindTo(impl, (*iface)(nil))
+//	BindTo(impl, (*iface)(nil))
 func BindTo(impl, iface interface{}) Option {
 	return OptionFunc(func(k *Kong) error {
-		valueOf := reflect.ValueOf(impl)
-		k.bindings[reflect.TypeOf(iface).Elem()] = func() (reflect.Value, error) { return valueOf, nil }
+		k.bindings.addTo(impl, iface)
 		return nil
 	})
 }
@@ -171,22 +210,7 @@ func BindTo(impl, iface interface{}) Option {
 // not all be initialisable from the main() function.
 func BindToProvider(provider interface{}) Option {
 	return OptionFunc(func(k *Kong) error {
-		pv := reflect.ValueOf(provider)
-		t := pv.Type()
-		if t.Kind() != reflect.Func || t.NumIn() != 0 || t.NumOut() != 2 || t.Out(1) != reflect.TypeOf((*error)(nil)).Elem() {
-			return errors.Errorf("%T must be a function with the signature func()(T, error)", provider)
-		}
-		rt := pv.Type().Out(0)
-		k.bindings[rt] = func() (reflect.Value, error) {
-			out := pv.Call(nil)
-			errv := out[1]
-			var err error
-			if !errv.IsNil() {
-				err = errv.Interface().(error)
-			}
-			return out[0], err
-		}
-		return nil
+		return k.bindings.addProvider(provider)
 	})
 }
 
@@ -198,8 +222,29 @@ func Help(help HelpPrinter) Option {
 	})
 }
 
+// ShortHelp configures the short usage message.
+//
+// It should be used together with kong.ShortUsageOnError() to display a
+// custom short usage message on errors.
+func ShortHelp(shortHelp HelpPrinter) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.shortHelp = shortHelp
+		return nil
+	})
+}
+
 // HelpFormatter configures how the help text is formatted.
+//
+// Deprecated: Use ValueFormatter() instead.
 func HelpFormatter(helpFormatter HelpValueFormatter) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.helpFormatter = helpFormatter
+		return nil
+	})
+}
+
+// ValueFormatter configures how the help text is formatted.
+func ValueFormatter(helpFormatter HelpValueFormatter) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.helpFormatter = helpFormatter
 		return nil
@@ -214,10 +259,75 @@ func ConfigureHelp(options HelpOptions) Option {
 	})
 }
 
+// AutoGroup automatically assigns groups to flags.
+func AutoGroup(format func(parent Visitable, flag *Flag) *Group) Option {
+	return PostBuild(func(kong *Kong) error {
+		parents := []Visitable{kong.Model}
+		return Visit(kong.Model, func(node Visitable, next Next) error {
+			if flag, ok := node.(*Flag); ok && flag.Group == nil {
+				flag.Group = format(parents[len(parents)-1], flag)
+			}
+			parents = append(parents, node)
+			defer func() { parents = parents[:len(parents)-1] }()
+			return next(nil)
+		})
+	})
+}
+
+// Groups associates `group` field tags with group metadata.
+//
+// This option is used to simplify Kong tags while providing
+// rich group information such as title and optional description.
+//
+// Each key in the "groups" map corresponds to the value of a
+// `group` Kong tag, while the first line of the value will be
+// the title, and subsequent lines if any will be the description of
+// the group.
+//
+// See also ExplicitGroups for a more structured alternative.
+type Groups map[string]string
+
+func (g Groups) Apply(k *Kong) error { // nolint: revive
+	for key, info := range g {
+		lines := strings.Split(info, "\n")
+		title := strings.TrimSpace(lines[0])
+		description := ""
+		if len(lines) > 1 {
+			description = strings.TrimSpace(strings.Join(lines[1:], "\n"))
+		}
+		k.groups = append(k.groups, Group{
+			Key:         key,
+			Title:       title,
+			Description: description,
+		})
+	}
+	return nil
+}
+
+// ExplicitGroups associates `group` field tags with their metadata.
+//
+// It can be used to provide a title or header to a command or flag group.
+func ExplicitGroups(groups []Group) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.groups = groups
+		return nil
+	})
+}
+
 // UsageOnError configures Kong to display context-sensitive usage if FatalIfErrorf is called with an error.
 func UsageOnError() Option {
 	return OptionFunc(func(k *Kong) error {
-		k.usageOnError = true
+		k.usageOnError = fullUsage
+		return nil
+	})
+}
+
+// ShortUsageOnError configures Kong to display context-sensitive short
+// usage if FatalIfErrorf is called with an error. The default short
+// usage message can be overridden with kong.ShortHelp(...).
+func ShortUsageOnError() Option {
+	return OptionFunc(func(k *Kong) error {
+		k.usageOnError = shortUsage
 		return nil
 	})
 }
@@ -238,6 +348,31 @@ func Resolvers(resolvers ...Resolver) Option {
 	})
 }
 
+// IgnoreFields will cause kong.New() to skip field names that match any
+// of the provided regex patterns. This is useful if you are not able to add a
+// kong="-" struct tag to a struct/element before the call to New.
+//
+// Example: When referencing protoc generated structs, you will likely want to
+// ignore/skip XXX_* fields.
+func IgnoreFields(regexes ...string) Option {
+	return OptionFunc(func(k *Kong) error {
+		for _, r := range regexes {
+			if r == "" {
+				return errors.New("regex input cannot be empty")
+			}
+
+			re, err := regexp.Compile(r)
+			if err != nil {
+				return fmt.Errorf("unable to compile regex: %v", err)
+			}
+
+			k.ignoreFields = append(k.ignoreFields, re)
+		}
+
+		return nil
+	})
+}
+
 // ConfigurationLoader is a function that builds a resolver from a file.
 type ConfigurationLoader func(r io.Reader) (Resolver, error)
 
@@ -252,12 +387,19 @@ func Configuration(loader ConfigurationLoader, paths ...string) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.loader = loader
 		for _, path := range paths {
-			if _, err := os.Stat(ExpandPath(path)); os.IsNotExist(err) {
-				continue
+			f, err := os.Open(ExpandPath(path))
+			if err != nil {
+				if os.IsNotExist(err) || os.IsPermission(err) {
+					continue
+				}
+
+				return err
 			}
+			f.Close()
+
 			resolver, err := k.LoadConfig(path)
 			if err != nil {
-				return errors.Wrap(err, path)
+				return fmt.Errorf("%s: %v", path, err)
 			}
 			if resolver != nil {
 				k.resolvers = append(k.resolvers, resolver)
@@ -286,4 +428,66 @@ func ExpandPath(path string) string {
 		return path
 	}
 	return abspath
+}
+
+func siftStrings(ss []string, filter func(s string) bool) []string {
+	i := 0
+	ss = append([]string(nil), ss...)
+	for _, s := range ss {
+		if filter(s) {
+			ss[i] = s
+			i++
+		}
+	}
+	return ss[0:i]
+}
+
+// DefaultEnvars option inits environment names for flags.
+// The name will not generate if tag "env" is "-".
+// Predefined environment variables are skipped.
+//
+// For example:
+//
+//	--some.value -> PREFIX_SOME_VALUE
+func DefaultEnvars(prefix string) Option {
+	processFlag := func(flag *Flag) {
+		switch env := flag.Envs; {
+		case flag.Name == "help":
+			return
+		case len(env) == 1 && env[0] == "-":
+			flag.Envs = nil
+			return
+		case len(env) > 0:
+			return
+		}
+		replacer := strings.NewReplacer("-", "_", ".", "_")
+		names := append([]string{prefix}, camelCase(replacer.Replace(flag.Name))...)
+		names = siftStrings(names, func(s string) bool { return !(s == "_" || strings.TrimSpace(s) == "") })
+		name := strings.ToUpper(strings.Join(names, "_"))
+		flag.Envs = append(flag.Envs, name)
+		flag.Value.Tag.Envs = append(flag.Value.Tag.Envs, name)
+	}
+
+	var processNode func(node *Node)
+	processNode = func(node *Node) {
+		for _, flag := range node.Flags {
+			processFlag(flag)
+		}
+		for _, node := range node.Children {
+			processNode(node)
+		}
+	}
+
+	return PostBuild(func(k *Kong) error {
+		processNode(k.Model.Node)
+		return nil
+	})
+}
+
+// FlagNamer allows you to override the default kebab-case automated flag name generation.
+func FlagNamer(namer func(fieldName string) string) Option {
+	return OptionFunc(func(k *Kong) error {
+		k.flagNamer = namer
+		return nil
+	})
 }

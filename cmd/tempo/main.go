@@ -13,12 +13,12 @@ import (
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
+	dslog "github.com/grafana/dskit/log"
+	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
-	"github.com/weaveworks/common/logging"
-	"github.com/weaveworks/common/tracing"
 	oc "go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// Init the logger which will honor the log level set in config.Server
-	if reflect.DeepEqual(&config.Server.LogLevel, &logging.Level{}) {
+	if reflect.DeepEqual(&config.Server.LogLevel, &dslog.Level{}) {
 		level.Error(log.Logger).Log("msg", "invalid log level")
 		os.Exit(1)
 	}

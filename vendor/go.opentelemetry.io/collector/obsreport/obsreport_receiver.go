@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package obsreport // import "go.opentelemetry.io/collector/obsreport"
 
@@ -21,7 +10,6 @@ import (
 	"go.opencensus.io/tag"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/instrument"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -39,7 +27,7 @@ const (
 	receiverScope = scopeName + nameSep + receiverName
 )
 
-// Receiver is a helper to add observability to a receiver.Receiver.
+// Receiver is a helper to add observability to a receiver.
 type Receiver struct {
 	level          configtelemetry.Level
 	spanNamePrefix string
@@ -53,12 +41,12 @@ type Receiver struct {
 	useOtelForMetrics bool
 	otelAttrs         []attribute.KeyValue
 
-	acceptedSpansCounter        instrument.Int64Counter
-	refusedSpansCounter         instrument.Int64Counter
-	acceptedMetricPointsCounter instrument.Int64Counter
-	refusedMetricPointsCounter  instrument.Int64Counter
-	acceptedLogRecordsCounter   instrument.Int64Counter
-	refusedLogRecordsCounter    instrument.Int64Counter
+	acceptedSpansCounter        metric.Int64Counter
+	refusedSpansCounter         metric.Int64Counter
+	acceptedMetricPointsCounter metric.Int64Counter
+	refusedMetricPointsCounter  metric.Int64Counter
+	acceptedLogRecordsCounter   metric.Int64Counter
+	refusedLogRecordsCounter    metric.Int64Counter
 }
 
 // ReceiverSettings are settings for creating an Receiver.
@@ -116,43 +104,43 @@ func (rec *Receiver) createOtelMetrics() error {
 
 	rec.acceptedSpansCounter, err = rec.meter.Int64Counter(
 		obsmetrics.ReceiverPrefix+obsmetrics.AcceptedSpansKey,
-		instrument.WithDescription("Number of spans successfully pushed into the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of spans successfully pushed into the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	rec.refusedSpansCounter, err = rec.meter.Int64Counter(
 		obsmetrics.ReceiverPrefix+obsmetrics.RefusedSpansKey,
-		instrument.WithDescription("Number of spans that could not be pushed into the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of spans that could not be pushed into the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	rec.acceptedMetricPointsCounter, err = rec.meter.Int64Counter(
 		obsmetrics.ReceiverPrefix+obsmetrics.AcceptedMetricPointsKey,
-		instrument.WithDescription("Number of metric points successfully pushed into the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points successfully pushed into the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	rec.refusedMetricPointsCounter, err = rec.meter.Int64Counter(
 		obsmetrics.ReceiverPrefix+obsmetrics.RefusedMetricPointsKey,
-		instrument.WithDescription("Number of metric points that could not be pushed into the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points that could not be pushed into the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	rec.acceptedLogRecordsCounter, err = rec.meter.Int64Counter(
 		obsmetrics.ReceiverPrefix+obsmetrics.AcceptedLogRecordsKey,
-		instrument.WithDescription("Number of log records successfully pushed into the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of log records successfully pushed into the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	rec.refusedLogRecordsCounter, err = rec.meter.Int64Counter(
 		obsmetrics.ReceiverPrefix+obsmetrics.RefusedLogRecordsKey,
-		instrument.WithDescription("Number of log records that could not be pushed into the pipeline."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of log records that could not be pushed into the pipeline."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
@@ -293,7 +281,7 @@ func (rec *Receiver) recordMetrics(receiverCtx context.Context, dataType compone
 }
 
 func (rec *Receiver) recordWithOtel(receiverCtx context.Context, dataType component.DataType, numAccepted, numRefused int) {
-	var acceptedMeasure, refusedMeasure instrument.Int64Counter
+	var acceptedMeasure, refusedMeasure metric.Int64Counter
 	switch dataType {
 	case component.DataTypeTraces:
 		acceptedMeasure = rec.acceptedSpansCounter
@@ -306,8 +294,8 @@ func (rec *Receiver) recordWithOtel(receiverCtx context.Context, dataType compon
 		refusedMeasure = rec.refusedLogRecordsCounter
 	}
 
-	acceptedMeasure.Add(receiverCtx, int64(numAccepted), rec.otelAttrs...)
-	refusedMeasure.Add(receiverCtx, int64(numRefused), rec.otelAttrs...)
+	acceptedMeasure.Add(receiverCtx, int64(numAccepted), metric.WithAttributes(rec.otelAttrs...))
+	refusedMeasure.Add(receiverCtx, int64(numRefused), metric.WithAttributes(rec.otelAttrs...))
 }
 
 func (rec *Receiver) recordWithOC(receiverCtx context.Context, dataType component.DataType, numAccepted, numRefused int) {

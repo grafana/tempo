@@ -5,10 +5,10 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	instr "github.com/grafana/dskit/instrument"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	instr "github.com/weaveworks/common/instrument"
 
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/spanlogger"

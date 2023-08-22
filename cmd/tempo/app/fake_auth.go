@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/grafana/dskit/middleware"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/weaveworks/common/middleware"
-	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
 )
 

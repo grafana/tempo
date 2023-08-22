@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
-	pq "github.com/segmentio/parquet-go"
+	pq "github.com/parquet-go/parquet-go"
 )
 
 // Predicate is a pushdown predicate that can be applied at

@@ -16,15 +16,14 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
 	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
@@ -54,10 +53,11 @@ var tlsVersions = map[string]uint16{
 }
 
 type Backend struct {
-	tempoBackend string
-	tlsEnabled   bool
-	tls          tlsCfg.ClientConfig
-	httpClient   *http.Client
+	tempoBackend    string
+	tlsEnabled      bool
+	tls             tlsCfg.ClientConfig
+	httpClient      *http.Client
+	tenantHeaderKey string
 }
 
 func New(cfg *Config) (*Backend, error) {
@@ -66,10 +66,11 @@ func New(cfg *Config) (*Backend, error) {
 		return nil, err
 	}
 	return &Backend{
-		tempoBackend: cfg.Backend,
-		tlsEnabled:   cfg.TLSEnabled,
-		tls:          cfg.TLS,
-		httpClient:   httpClient,
+		tempoBackend:    cfg.Backend,
+		tlsEnabled:      cfg.TLSEnabled,
+		tls:             cfg.TLS,
+		httpClient:      httpClient,
+		tenantHeaderKey: cfg.TenantHeaderKey,
 	}, nil
 }
 
@@ -434,7 +435,7 @@ func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracin
 
 	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
 	// so we are going to extract the tenant id from the header, if it exists and use it
-	tenantID, found := extractBearerToken(ctx)
+	tenantID, found := extractBearerToken(ctx, b.tenantHeaderKey)
 	if found {
 		req.Header.Set(user.OrgIDHeaderName, tenantID)
 	}
@@ -442,9 +443,9 @@ func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracin
 	return req, nil
 }
 
-func extractBearerToken(ctx context.Context) (string, bool) {
+func extractBearerToken(ctx context.Context, tenantHeader string) (string, bool) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		values := md.Get(shared.BearerTokenKey)
+		values := md.Get(tenantHeader)
 		if len(values) > 0 {
 			return values[0], true
 		}

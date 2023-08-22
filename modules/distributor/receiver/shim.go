@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
@@ -17,7 +18,6 @@ import (
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
-	"github.com/weaveworks/common/logging"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -28,9 +28,8 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
-
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -95,7 +94,7 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel dslog.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
@@ -182,7 +181,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	params := receiver.CreateSettings{TelemetrySettings: component.TelemetrySettings{
 		Logger:         zapLogger,
 		TracerProvider: trace.NewNoopTracerProvider(),
-		MeterProvider:  metric.NewNoopMeterProvider(),
+		MeterProvider:  metricnoop.NewMeterProvider(),
 	}}
 
 	for componentID, cfg := range conf.Receivers {
@@ -313,7 +312,7 @@ func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]c
 }
 
 // observability shims
-func newLogger(level logging.Level) *zap.Logger {
+func newLogger(level dslog.Level) *zap.Logger {
 	zapLevel := zapcore.InfoLevel
 
 	switch level.Logrus {

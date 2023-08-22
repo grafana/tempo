@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grafana/dskit/httpgrpc"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/httpgrpc"
 )
 
 func TestRequestBatchBasics(t *testing.T) {

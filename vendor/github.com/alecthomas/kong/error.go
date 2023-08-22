@@ -8,5 +8,5 @@ type ParseError struct {
 	Context *Context
 }
 
-// Cause returns the original cause of the error.
-func (p *ParseError) Cause() error { return p.error }
+// Unwrap returns the original cause of the error.
+func (p *ParseError) Unwrap() error { return p.error }
