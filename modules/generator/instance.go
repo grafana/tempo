@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -24,6 +23,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/tempodb/wal"
+
+	"go.uber.org/atomic"
 )
 
 var (
@@ -66,7 +67,7 @@ type instance struct {
 
 	instanceID             string
 	overrides              metricsGeneratorOverrides
-	ingestionSlackOverride int64
+	ingestionSlackOverride atomic.Int64
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -196,7 +197,7 @@ func (i *instance) updateProcessors() error {
 		ingestionSlackInt = i.cfg.MetricsIngestionSlack.Nanoseconds()
 	}
 
-	atomic.StoreInt64(&i.ingestionSlackOverride, ingestionSlackInt)
+	i.ingestionSlackOverride.Store(ingestionSlackInt)
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
 
@@ -364,7 +365,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			// filter spans that have end time > max_age and end time more than 5 days in the future
 			newSpansArr := make([]*v1.Span, len(ss.Spans))
 			timeNow := time.Now()
-			ingestionSlackNano := atomic.LoadInt64(&i.ingestionSlackOverride)
+			ingestionSlackNano := i.ingestionSlackOverride.Load()
 			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)
 			maxTimeFuture := uint64(timeNow.UnixNano() + ingestionSlackNano)
 
