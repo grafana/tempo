@@ -36,19 +36,19 @@ import (
 )
 
 var (
-	traceTooLargeError = errors.New(overrides.ErrorPrefixTraceTooLarge)
-	maxLiveTracesError = errors.New(overrides.ErrorPrefixLiveTracesExceeded)
+	errTraceTooLarge = errors.New(overrides.ErrorPrefixTraceTooLarge)
+	errMaxLiveTraces = errors.New(overrides.ErrorPrefixLiveTracesExceeded)
 )
 
 func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) error {
 	level.Warn(log.Logger).Log("msg", "%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
 		overrides.ErrorPrefixTraceTooLarge, maxBytes, reqSize, hex.EncodeToString(traceID), instanceID)
-	return traceTooLargeError
+	return errTraceTooLarge
 }
 
 func newMaxLiveTracesError(instanceID string, limit string) error {
 	level.Warn(log.Logger).Log("msg", "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, instanceID, limit)
-	return maxLiveTracesError
+	return errMaxLiveTraces
 }
 
 // Errors returned on Query.
@@ -158,11 +158,11 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
-			if errors.Is(err, maxLiveTracesError) {
+			if errors.Is(err, errMaxLiveTraces) {
 				response.MaxLiveErrorTraces = append(response.MaxLiveErrorTraces, index)
 			}
 
-			if errors.Is(err, traceTooLargeError) {
+			if errors.Is(err, errTraceTooLarge) {
 				response.TraceTooLargeErrorTraces = append(response.TraceTooLargeErrorTraces, index)
 			}
 		}
