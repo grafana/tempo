@@ -18,7 +18,7 @@ Tempo requires the following configuration to authenticate to and access Azure b
   - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label.
 
 ## Sample configuration
-This sample configuration shows how setup Azure blob storage using access key from kubernetes
+This sample configuration shows how setup Azure blob storage using Helm charts and access key from Kubernetes secrets
 ```yaml
 tempo:
   storage:
