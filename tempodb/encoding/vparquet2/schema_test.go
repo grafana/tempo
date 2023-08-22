@@ -25,10 +25,10 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	// Proto -> Parquet -> Proto
 
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	expectedTrace := parquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceIDA))
+	expectedTrace := ParquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceIDA))
 
 	parquetTrace := traceToParquet(traceIDA, expectedTrace, nil)
-	actualTrace := parquetTraceToTempopbTrace(parquetTrace)
+	actualTrace := ParquetTraceToTempopbTrace(parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
@@ -50,14 +50,14 @@ func TestProtoParquetRando(t *testing.T) {
 		expectedTrace := test.MakeTrace(batches, id)
 
 		parqTr := traceToParquet(id, expectedTrace, trp)
-		actualTrace := parquetTraceToTempopbTrace(parqTr)
+		actualTrace := ParquetTraceToTempopbTrace(parqTr)
 		require.Equal(t, expectedTrace, actualTrace)
 	}
 }
 
 func TestFieldsAreCleared(t *testing.T) {
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	complexTrace := parquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceID))
+	complexTrace := ParquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceID))
 	simpleTrace := &tempopb.Trace{
 		Batches: []*v1_trace.ResourceSpans{
 			{
@@ -103,7 +103,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	tr := &Trace{}
 	_ = traceToParquet(traceID, complexTrace, tr)
 	parqTr := traceToParquet(traceID, simpleTrace, tr)
-	actualTrace := parquetTraceToTempopbTrace(parqTr)
+	actualTrace := ParquetTraceToTempopbTrace(parqTr)
 	require.Equal(t, simpleTrace, actualTrace)
 }
 
