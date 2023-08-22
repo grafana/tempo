@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -25,6 +26,9 @@ const (
 	NotFound       = -3
 
 	TraceIDColumnName = "TraceID"
+
+	EnvVarIndexName          = "VPARQUET_INDEX"
+	EnvVarIndexDisabledValue = "0"
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
@@ -54,6 +58,11 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 }
 
 func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
+	if os.Getenv(EnvVarIndexName) == EnvVarIndexDisabledValue {
+		// Index lookup disabled
+		return true, -1, nil
+	}
+
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkIndex",
 		opentracing.Tags{
 			"blockID":  b.meta.BlockID,
