@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
-	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
