@@ -9,16 +9,16 @@ weight: 300
 
 A collection of useful PromQL queries for service graphs.
 
-In most cases, users want to see a visual representation of their service graph. Grafana uses the service graph metrics created by Tempo and builds that visual for the user. However, in some cases, users may want to interact with the metrics that define that service graph directly. They may want to, for example, programmatically analyze how their services are interconnected and build downstream applications that use this information. 
+In most cases, users want to see a visual representation of their service graph. Grafana uses the service graph metrics created by Tempo and builds that visual for the user. However, in some cases, users may want to interact with the metrics that define that service graph directly. They may want to, for example, programmatically analyze how their services are interconnected and build downstream applications that use this information.
 
-To help with this, we've provided a collection of useful PromQL queries that can be used to explore service graph metrics. 
+To help with this, we've provided a collection of useful PromQL queries that can be used to explore service graph metrics.
 
 ## Instant Queries
 
 An instant query will give a single value at the end of the selected time range.
 [Instant queries](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) are quicker to execute and it often easier to understand their results. We will prefer them in some scenarios:
 
-![Instant query in Grafana](screenshot-serv-graph-instant-query.png)
+![Instant query in Grafana](../screenshot-serv-graph-instant-query.png)
 
 ### Connectivity between services
 
@@ -50,7 +50,7 @@ sum(increase(traces_service_graph_request_server_seconds_count{}[1d])) by (serve
 
 Range queries are nice for calculating service graph info over a time range instead of a single point in time.
 
-![Range query in Grafana](screenshot-serv-graph-range-query.png)
+![Range query in Grafana](../screenshot-serv-graph-range-query.png)
 
 ### Rates over time between services
 
@@ -66,7 +66,7 @@ Notice that our interval dropped to 5m. This is so we only calculate the rate ov
 
 ### Latency percentiles over time between services
 
-These queries will give us latency quantiles for the above rate. If we were interested in how the latency changed over time between any two services we could use these. In the following query the `.9` means we're calculating the 90th percentile. Adjust this value if you want to calculate a different percentile for latency (e.g. p50, p95, p99, etc). 
+These queries will give us latency quantiles for the above rate. If we were interested in how the latency changed over time between any two services we could use these. In the following query the `.9` means we're calculating the 90th percentile. Adjust this value if you want to calculate a different percentile for latency (e.g. p50, p95, p99, etc).
 
 ```promql
 histogram_quantile(.9, sum(rate(traces_service_graph_request_server_seconds_bucket{client="foo"}[5m])) by (server, le))
