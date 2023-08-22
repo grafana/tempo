@@ -27,10 +27,6 @@ const (
 	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )
 
-// func init() {
-// 	encoding.RegisterCodec(NewCodec())
-// }
-
 // GogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger/etcd structs
 type GogoCodec struct{}
 
