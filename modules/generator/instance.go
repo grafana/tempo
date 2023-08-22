@@ -357,6 +357,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0
+	ingestionSlackNano := i.ingestionSlackOverride.Load()
 
 	for _, b := range req.Batches {
 		size += b.Size()
@@ -365,7 +366,6 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			// filter spans that have end time > max_age and end time more than 5 days in the future
 			newSpansArr := make([]*v1.Span, len(ss.Spans))
 			timeNow := time.Now()
-			ingestionSlackNano := i.ingestionSlackOverride.Load()
 			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)
 			maxTimeFuture := uint64(timeNow.UnixNano() + ingestionSlackNano)
 
