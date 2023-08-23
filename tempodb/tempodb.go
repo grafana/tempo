@@ -91,7 +91,7 @@ type Compactor interface {
 type CompactorSharder interface {
 	Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error)
 	Owns(hash string) bool
-	RecordDiscardedSpans(count int, tenantID string, traceID string)
+	RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string)
 }
 
 type CompactorOverrides interface {

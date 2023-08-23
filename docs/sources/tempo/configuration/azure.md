@@ -17,6 +17,30 @@ Tempo requires the following configuration to authenticate to and access Azure b
       - For a user-assigned managed identity, you'll need to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
   - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label.
 
+## Sample configuration
+
+This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
+
+```yaml
+tempo:
+  storage:
+    trace:
+      backend: azure
+      azure:
+        container_name: container-name
+        storage_account_name: storage-account-name
+        storage_account_key: ${STORAGE_ACCOUNT_ACCESS_KEY}
+
+  extraArgs:
+    config.expand-env: true
+  extraEnv:
+    - name: STORAGE_ACCOUNT_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: secret-name
+          key: STORAGE_ACCOUNT_ACCESS_KEY
+```
+
 ## Azure blocklist polling
 
 If you are hosting Tempo on Azure, two values may need to be updated to ensure consistent successful blocklist polling. If you are

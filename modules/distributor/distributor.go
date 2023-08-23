@@ -32,7 +32,6 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
-	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"

@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/flushqueues"
-	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/model"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
