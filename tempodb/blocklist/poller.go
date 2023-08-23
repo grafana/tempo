@@ -143,7 +143,7 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 	m := &sync.Mutex{}
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
-	anyError := atomic.Error{}
+	errs := []error{}
 	consecutiveErrors := 0
 
 	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
@@ -157,8 +157,9 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 
 			newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
 			if err != nil {
-				anyError.Store(err)
+				level.Error(p.logger).Log("msg", "failed to poll tenant and create index", "err", err)
 				m.Lock()
+				errs = append(errs, err)
 				consecutiveErrors++
 				m.Unlock()
 			}
@@ -195,9 +196,9 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 
 	bg.Wait()
 
-	if err := anyError.Load(); err != nil {
+	if len(errs) > 0 {
 		if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-			return nil, nil, err
+			return nil, nil, errors.Join(errs...)
 		}
 	}
 
@@ -229,7 +230,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 		// there was an error, return the error if we're not supposed to fallback to polling
 		if !p.cfg.PollFallback {
-			return nil, nil, errors.Wrap(err, "failed to pull tenant index and no fallback configured")
+			return nil, nil, fmt.Errorf("failed to pull tenant index and no fallback configured: %w", err)
 		}
 
 		// polling fallback is true, log the error and continue in this method to completely poll the backend
