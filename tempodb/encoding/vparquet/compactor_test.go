@@ -150,6 +150,9 @@ func TestCountSpans(t *testing.T) {
 	batchSize := 300 + rand.Intn(25)
 	spansEach := 250 + rand.Intn(25)
 
+	rootSpan := "foo"
+	rootService := "bar"
+
 	sch := parquet.SchemaOf(new(Trace))
 	traceID := make([]byte, 16)
 	_, err := crand.Read(traceID)
@@ -158,10 +161,14 @@ func TestCountSpans(t *testing.T) {
 	// make Trace and convert to parquet.Row
 	tr := test.MakeTraceWithSpanCount(batchSize, spansEach, traceID)
 	trp := traceToParquet(traceID, tr, nil)
+	trp.RootServiceName = rootService
+	trp.RootSpanName = rootSpan
 	row := sch.Deconstruct(nil, trp)
 
 	// count spans for generated rows.
-	tID, _, _, spans := countSpans(sch, row)
+	tID, rootSpanName, rootServiceName, spans := countSpans(sch, row)
 	require.Equal(t, tID, tempoUtil.TraceIDToHexString(traceID))
 	require.Equal(t, spans, batchSize*spansEach)
+	require.Equal(t, rootSpan, rootSpanName)
+	require.Equal(t, rootService, rootServiceName)
 }

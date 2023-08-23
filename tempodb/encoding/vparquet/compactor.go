@@ -323,12 +323,12 @@ func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, rootSp
 		return "", "", "", 0
 	}
 
-	rootSpanNameColumn, found := schema.Lookup(RootSpanNameColumnName)
+	rootSpanNameColumn, found := schema.Lookup(columnPathRootSpanName)
 	if !found {
 		return "", "", "", 0
 	}
 
-	rootServiceNameColumn, found := schema.Lookup(RootServiceNameColumnName)
+	rootServiceNameColumn, found := schema.Lookup(columnPathRootServiceName)
 	if !found {
 		return "", "", "", 0
 	}
