@@ -18,7 +18,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 ## Complete configuration
 
 {{% admonition type="note" %}}
-This manifest was generated on 2023-06-01.
+This manifest was generated on 2023-08-23.
 {{% /admonition %}}
 
 ```yaml
@@ -710,10 +710,10 @@ overrides:
             gcs:
                 bucket_name: ""
                 prefix: ""
-                chunk_buffer_size: 0
+                chunk_buffer_size: 10485760
                 endpoint: ""
                 hedge_requests_at: 0s
-                hedge_requests_up_to: 0
+                hedge_requests_up_to: 2
                 insecure: false
                 object_cache_control: ""
                 object_metadata: {}
@@ -724,7 +724,7 @@ overrides:
                 tls_server_name: ""
                 tls_insecure_skip_verify: false
                 tls_cipher_suites: ""
-                tls_min_version: ""
+                tls_min_version: VersionTLS12
                 bucket: ""
                 prefix: ""
                 endpoint: ""
@@ -735,7 +735,7 @@ overrides:
                 insecure: false
                 part_size: 0
                 hedge_requests_at: 0s
-                hedge_requests_up_to: 0
+                hedge_requests_up_to: 2
                 signature_v2: false
                 forcepathstyle: false
                 bucket_lookup_type: 0
@@ -750,11 +750,11 @@ overrides:
                 user_assigned_id: ""
                 container_name: ""
                 prefix: ""
-                endpoint_suffix: ""
-                max_buffers: 0
-                buffer_size: 0
+                endpoint_suffix: blob.core.windows.net
+                max_buffers: 4
+                buffer_size: 3145728
                 hedge_requests_at: 0s
-                hedge_requests_up_to: 0
+                hedge_requests_up_to: 2
 memberlist:
     node_name: ""
     randomize_node_name: true
