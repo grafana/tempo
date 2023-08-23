@@ -84,10 +84,10 @@ func queryBucket(ctx context.Context, r backend.Reader, c backend.Compactor, ten
 		return nil, err
 	}
 
-	fmt.Println("total blocks: ", len(blockIDs))
+	fmt.Println("total blocks to search: ", len(blockIDs))
 
 	// Load in parallel
-	wg := boundedwaitgroup.New(20)
+	wg := boundedwaitgroup.New(100)
 	resultsCh := make(chan queryResults, len(blockIDs))
 
 	for blockNum, id := range blockIDs {
