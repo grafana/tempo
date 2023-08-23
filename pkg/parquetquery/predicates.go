@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strings"
 
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -402,15 +403,15 @@ func NewOrPredicate(preds ...Predicate) *OrPredicate {
 }
 
 func (p *OrPredicate) String() string {
-	var preds string
+	var preds []string
 	for _, pred := range p.preds {
 		if pred != nil {
-			preds += pred.String() + ","
+			preds = append(preds, pred.String())
 		} else {
-			preds += "nil,"
+			preds = append(preds, "nil")
 		}
 	}
-	return fmt.Sprintf("OrPredicate{%s}", preds)
+	return fmt.Sprintf("OrPredicate{%s}", strings.Join(preds, ","))
 }
 
 func (p *OrPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
