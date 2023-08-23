@@ -39,7 +39,7 @@ func (m *mockSharder) Combine(dataEncoding string, _ string, objs ...[]byte) ([]
 	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
-func (m *mockSharder) RecordDiscardedSpans(int, string, string) {}
+func (m *mockSharder) RecordDiscardedSpans(int, string, string, string, string) {}
 
 type mockJobSharder struct{}
 
