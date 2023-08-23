@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -224,6 +225,9 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		},
 		SpansDiscarded: func(traceId string, spans int) {
 			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId)
+		},
+		DisconnectedTrace: func() {
+			dataquality.WarnDisconnectedTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
 		},
 	}
 

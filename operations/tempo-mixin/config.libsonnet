@@ -18,6 +18,7 @@
       compactions_per_hour_failed: 2,
       flushes_per_hour_failed: 2,
       polls_per_hour_failed: 2,
+      user_configurable_overrides_polls_per_hour_failed: 5,
       max_tenant_index_age_seconds: 600,
       p99_request_threshold_seconds: 3,
       p99_request_exclude_regex: 'metrics|/frontend.Frontend/Process|debug_pprof',

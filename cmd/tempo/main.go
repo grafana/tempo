@@ -28,10 +28,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
+	"google.golang.org/grpc/encoding"
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/pkg/gogocodec"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -49,6 +51,9 @@ func init() {
 	version.Branch = Branch
 	version.Revision = Revision
 	prometheus.MustRegister(version.NewCollector(appName))
+
+	// Register the gogocodec as early as possible.
+	encoding.RegisterCodec(gogocodec.NewCodec())
 }
 
 func main() {

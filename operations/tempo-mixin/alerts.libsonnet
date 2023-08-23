@@ -180,6 +180,20 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBadOverrides',
             },
           },
+          {
+            alert: 'TempoUserConfigurableOverridesReloadFailing',
+            expr: |||
+              sum by (%s) (increase(tempo_overrides_user_configurable_overrides_reload_failed_total{}[1h])) > %s and
+              sum by (%s) (increase(tempo_overrides_user_configurable_overrides_reload_failed_total{}[5m])) > 0
+            ||| % [$._config.group_by_cluster, $._config.alerts.user_configurable_overrides_polls_per_hour_failed, $._config.group_by_cluster],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Greater than %s user-configurable overides reloads failed in the past hour.' % $._config.alerts.user_configurable_overrides_polls_per_hour_failed,
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexFailures',
+            },
+          },
           // ingesters
           {
             alert: 'TempoProvisioningTooManyWrites',

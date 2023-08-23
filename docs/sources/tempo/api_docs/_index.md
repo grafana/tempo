@@ -374,22 +374,6 @@ This endpoint retrieves all discovered values and their data types for the given
 The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. 
 See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
 
-The URL query parameters support the following values:
-
-- `q = (TraceQL query)`: Url encoded [TraceQL query]({{< relref "../traceql" >}}).
-  - If a query is provided, results are filtered down to only those traces that match the query.
-  - Queries can be incomplete (eg. `{ .cluster = }`).
-    Tempo will extract only the valid matchers and build a valid query.
-  - Only queries with a single selector `{}` and AND `&&` operators are supported.
-    - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
-    - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
-
-The following request returns all discovered service names.
-
-```
-GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
-```
-
 #### Example
 
 This example queries Tempo using curl and returns all discovered values for the tag `service.name`.
@@ -421,6 +405,25 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
   ]
 }
 ```
+
+#### Filtered tag values
+If you set Tempo's `autocomplete_filtering_enabled` configuration parameter to `true` (default value is `false`), you can provide an optional URL query parameter, `q` to your request.
+The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}.
+If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters. 
+
+Queries can be incomplete: for example, `{ .cluster = }`. Tempo extracts only the valid matchers and build a valid query. 
+
+Only queries with a single selector `{}` and AND `&&` operators are supported.
+  - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
+  - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
+
+The following request returns all discovered service names on spans with `span.http.method=GET`:
+
+```
+GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
+```
+
+If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it would not be included in the list of values returned. 
 
 ### Query Echo Endpoint
 
@@ -573,8 +576,18 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
 the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
+By default this service is only offered over the GRPC port. However, one can offer this streaming service over the HTTP port as well (which Grafana expects).
+To enable the streaming service over the http port for use with Grafana set the following. 
+
+> **Note**: Enabling this setting is incompatible with TLS.
+
+```
+stream_over_http_enabled: true
+```
+
 The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response. The
 final response sent is guaranteed to have the entire resultset.
+
 
 ```protobuf
 service StreamingQuerier {

@@ -22,10 +22,10 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Install jsonnetfmt and goimports
         run: |
@@ -52,10 +52,10 @@ jobs:
     name: Test packages - pkg
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -67,10 +67,10 @@ jobs:
     name: Test packages - tempodb
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -82,10 +82,10 @@ jobs:
     name: Test packages - tempodb/wal
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -97,10 +97,10 @@ jobs:
     name: Test packages - others
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -112,10 +112,10 @@ jobs:
     name: Test integration e2e suite
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -127,10 +127,10 @@ jobs:
     name: Test serverless integration e2e suite
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -142,10 +142,10 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -166,10 +166,10 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -181,10 +181,10 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -202,10 +202,10 @@ jobs:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v3
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
 
       - name: Install jsonnet, jsonnet-bundler & tanka
         run: |
