@@ -93,6 +93,38 @@ See backend options above.
 tempo-cli query blocks f1cfe82a8eef933b single-tenant
 ```
 
+## Query trace summary command
+Iterate over all backend blocks and dump a summary for a given trace id. 
+
+The summary includes:
+- number of blocks the trace is found in
+- span count
+- trace size
+- trace duration
+- root service name
+- root span info
+- top frequent service names
+
+```bash
+tempo-cli query trace-summary <trace-id> <tenant-id>
+```
+
+ **Note:** can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
+
+Arguments:
+- `trace-id` Trace ID as a hexadecimal string.
+- `tenant-id` Tenant to search.
+
+Options:
+See backend options above.
+
+**Example:**
+```bash
+tempo-cli query trace-summary f1cfe82a8eef933b single-tenant
+```
+
+## 
+
 ## List blocks
 Lists information about all blocks for the given tenant, and optionally perform integrity checks on indexes for duplicate records.
 

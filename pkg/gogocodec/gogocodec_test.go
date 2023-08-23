@@ -15,7 +15,7 @@ import (
 
 func TestCodecMarshallAndUnmarshall_tempo_type(t *testing.T) {
 	// marshal a tempo object using the custom codec
-	c := newCodec()
+	c := NewCodec()
 	req1 := &tempopb.TraceByIDRequest{
 		TraceID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 	}
@@ -31,7 +31,7 @@ func TestCodecMarshallAndUnmarshall_tempo_type(t *testing.T) {
 
 func TestCodecMarshallAndUnmarshall_foreign_type(t *testing.T) {
 	// marshal a foreign object (anything other than Tempo/Cortex/Jaeger) using the custom codec
-	c := newCodec()
+	c := NewCodec()
 	goprotoMessage1 := &emptypb.Empty{}
 	data, err := c.Marshal(goprotoMessage1)
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestCodecMarshallAndUnmarshall_foreign_type(t *testing.T) {
 
 func TestWireCompatibility(t *testing.T) {
 	// marshal a tempo object using the custom codec
-	c := newCodec()
+	c := NewCodec()
 	req1 := &tempopb.TraceByIDRequest{
 		TraceID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 	}
