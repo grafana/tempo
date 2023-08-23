@@ -44,7 +44,7 @@ Always consider which attributes will actually be useful as labels for querying 
 
 An often most reliable solution is by running the metrics-generator in a dry-run mode.
 Using the dry-run mode generates metrics but does not collecting them, thus not writing them to a metrics storage.
-The override `metrics_generator_disable_collection` is defined for this use-case.
+The override `metrics_generator.disable_collection` is defined for this use-case.
 
 To get an estimate, run the metrics-generator normally and set the override to `true`.
 Then, check `tempo_metrics_generator_registry_active_series` to get an estimation of the active series for that set-up.

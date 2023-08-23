@@ -661,42 +661,16 @@ storage:
         memcached: null
         redis: null
 overrides:
-    ingestion_rate_strategy: local
-    ingestion_rate_limit_bytes: 15000000
-    ingestion_burst_size_bytes: 20000000
-    max_traces_per_user: 10000
-    max_global_traces_per_user: 0
-    forwarders: []
-    metrics_generator_ring_size: 0
-    metrics_generator_processors: null
-    metrics_generator_max_active_series: 0
-    metrics_generator_collection_interval: 0s
-    metrics_generator_disable_collection: false
-    metrics_generator_forwarder_queue_size: 0
-    metrics_generator_forwarder_workers: 0
-    metrics_generator_processor_service_graphs_histogram_buckets: []
-    metrics_generator_processor_service_graphs_dimensions: []
-    metrics_generator_processor_service_graphs_peer_attributes: []
-    metrics_generator_processor_service_graphs_enable_client_server_prefix: false
-    metrics_generator_processor_span_metrics_histogram_buckets: []
-    metrics_generator_processor_span_metrics_dimensions: []
-    metrics_generator_processor_span_metrics_intrinsic_dimensions: {}
-    metrics_generator_processor_span_metrics_filter_policies: []
-    metrics_generator_processor_span_metrics_dimension_mappings: []
-    metrics_generator_processor_span_metrics_enable_target_info: false
-    metrics_generator_processor_span_metrics_target_info_excluded_dimensions: []
-    metrics_generator_processor_local_blocks_max_live_traces: 0
-    metrics_generator_processor_local_blocks_max_block_duration: 0s
-    metrics_generator_processor_local_blocks_max_block_bytes: 0
-    metrics_generator_processor_local_blocks_flush_check_period: 0s
-    metrics_generator_processor_local_blocks_trace_idle_period: 0s
-    metrics_generator_processor_local_blocks_complete_block_timeout: 0s
-    block_retention: 0s
-    max_bytes_per_tag_values_query: 5000000
-    max_blocks_per_tag_values_query: 0
-    max_search_duration: 0s
-    max_bytes_per_trace: 5000000
-    parquet_dedicated_columns: []
+    defaults:
+        ingestion:
+            rate_strategy: local
+            rate_limit_bytes: 15000000
+            burst_size_bytes: 20000000
+            max_traces_per_user: 10000
+        read:
+            max_bytes_per_tag_values_query: 5000000
+        global:
+            max_bytes_per_trace: 5000000
     per_tenant_override_config: ""
     per_tenant_override_period: 10s
     user_configurable_overrides:
