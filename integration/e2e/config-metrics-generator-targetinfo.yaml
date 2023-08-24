@@ -42,7 +42,7 @@ memberlist:
     - tempo_e2e-metrics-generator:7946
 
 overrides:
-  defautls:
+  defaults:
     metrics_generator:
       processors: [service-graphs, span-metrics]
       max_active_series: 1000
