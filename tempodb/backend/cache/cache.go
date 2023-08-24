@@ -86,11 +86,6 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 	return err
 }
 
-// HasFeature implements backend.Reader
-func (r *readerWriter) HasFeature(f backend.Feature) bool {
-	return r.nextReader.HasFeature(f)
-}
-
 // Shutdown implements backend.RawReader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
