@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,11 +40,11 @@ type handler struct {
 }
 
 // newHandler creates a handler
-func newHandler(rt http.RoundTripper, queriesPerTenant *prometheus.CounterVec, logger log.Logger) http.Handler {
+func newHandler(rt http.RoundTripper, queries *prometheus.CounterVec, logger log.Logger) http.Handler {
 	return &handler{
 		roundTripper:     rt,
 		logger:           logger,
-		queriesPerTenant: queriesPerTenant,
+		queriesPerTenant: queries,
 	}
 }
 
@@ -60,11 +59,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	orgID, _ := user.ExtractOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
-	var statusCode int
-	defer func(status int) {
-		f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(status)).Inc()
-	}(statusCode)
-
 	// add orgid to existing spans
 	span := opentracing.SpanFromContext(r.Context())
 	if span != nil {
@@ -72,8 +66,9 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := f.roundTripper.RoundTrip(r)
+	f.queriesPerTenant.WithLabelValues(orgID).Inc()
 	if err != nil {
-		statusCode = http.StatusInternalServerError
+		statusCode := http.StatusInternalServerError
 		err = writeError(w, err)
 		level.Info(f.logger).Log(
 			"tenant", orgID,
@@ -89,7 +84,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp == nil {
-		statusCode = http.StatusInternalServerError
+		statusCode := http.StatusInternalServerError
 		err = writeError(w, errors.New(NilResponseError))
 		level.Info(f.logger).Log(
 			"tenant", orgID,
@@ -113,6 +108,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// request/response logging
 	var contentLength int64
+	var statusCode int
 	if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
 		statusCode = int(httpResp.Code)
 		contentLength = int64(len(httpResp.Body))

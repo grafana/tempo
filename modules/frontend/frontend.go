@@ -64,7 +64,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
-	}, []string{"tenant", "op", "status"})
+	}, []string{"tenant", "op"})
 
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
 
