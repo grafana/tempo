@@ -2,7 +2,6 @@ package overrides
 
 import (
 	"context"
-	"flag"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,9 +22,11 @@ const (
 )
 
 func TestUserConfigOverridesManager(t *testing.T) {
-	defaultLimits := Limits{
-		MaxBytesPerTrace: 1024,
-		Forwarders:       []string{"my-forwarder"},
+	defaultLimits := Overrides{
+		Global: GlobalOverrides{
+			MaxBytesPerTrace: 1024,
+		},
+		Forwarders: []string{"my-forwarder"},
 	}
 	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
@@ -64,8 +65,7 @@ func TestUserConfigOverridesManager(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_allFields(t *testing.T) {
-	defaultLimits := Limits{}
-	defaultLimits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	defaultLimits := Overrides{}
 	_, mgr := localUserConfigOverrides(t, defaultLimits)
 
 	assert.Empty(t, mgr.Forwarders(tenant1))
@@ -109,7 +109,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
-	defaultLimits := Limits{
+	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
 	}
 	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
@@ -130,7 +130,7 @@ func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
-	defaultLimits := Limits{
+	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
 	}
 	tempDir, mgr := localUserConfigOverrides(t, defaultLimits)
@@ -156,7 +156,7 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
-	defaultLimits := Limits{
+	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
 	}
 	_, mgr := localUserConfigOverrides(t, defaultLimits)
@@ -180,7 +180,7 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 }
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
-	bl := Limits{Forwarders: []string{"my-forwarder"}}
+	bl := Overrides{Forwarders: []string{"my-forwarder"}}
 	_, configurableOverrides := localUserConfigOverrides(t, bl)
 
 	// set user config limits
@@ -216,7 +216,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	}
 }
 
-func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userConfigurableOverridesManager) {
+func localUserConfigOverrides(t *testing.T, baseLimits Overrides) (string, *userConfigurableOverridesManager) {
 	path := t.TempDir()
 
 	cfg := &UserConfigurableOverridesConfig{
@@ -227,7 +227,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Limits) (string, *userCon
 		},
 	}
 
-	baseOverrides, err := NewOverrides(baseLimits)
+	baseOverrides, err := NewOverrides(Config{Defaults: baseLimits})
 	assert.NoError(t, err)
 
 	configurableOverrides, err := newUserConfigOverrides(cfg, baseOverrides)

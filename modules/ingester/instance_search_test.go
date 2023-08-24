@@ -387,8 +387,12 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTagValuesQuery: 10,
+	limits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxBytesPerTagValuesQuery: 10,
+			},
+		},
 	})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -414,8 +418,12 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{
-		MaxBlocksPerTagValuesQuery: 1,
+	limits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxBlocksPerTagValuesQuery: 1,
+			},
+		},
 	})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -451,7 +459,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.Equal(t, 100, len(respV2.TagValues))
 
 	// Now test with unlimited blocks
-	limits, err = overrides.NewOverrides(overrides.Limits{})
+	limits, err = overrides.NewOverrides(overrides.Config{})
 	assert.NoError(t, err, "unexpected error creating limits")
 
 	i.limiter = NewLimiter(limits, &ringCountMock{count: 1}, 1)

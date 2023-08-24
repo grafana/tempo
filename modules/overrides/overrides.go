@@ -13,19 +13,19 @@ var metricOverridesLimitsDesc = prometheus.NewDesc(
 	nil,
 )
 
-// NewOverrides makes a new Overrides.
-// We store the supplied limits in a global variable to ensure per-tenant limits
+// NewOverrides makes a new Overrides service.
+// We store the supplied overrides in a global variable to ensure per-tenant overrides
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
-func NewOverrides(cfg Limits) (Service, error) {
+func NewOverrides(cfg Config) (Service, error) {
 	overrides, err := newRuntimeConfigOverrides(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	if cfg.UserConfigurableOverrides.Enabled {
+	if cfg.UserConfigurableOverridesConfig.Enabled {
 		// Wrap runtime config with user-config overrides module
-		overrides, err = newUserConfigOverrides(&cfg.UserConfigurableOverrides, overrides)
+		overrides, err = newUserConfigOverrides(&cfg.UserConfigurableOverridesConfig, overrides)
 	}
 
 	return overrides, err

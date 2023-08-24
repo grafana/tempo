@@ -21,7 +21,7 @@ type Service interface {
 type Interface interface {
 	prometheus.Collector
 
-	// Limits
+	// Config
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int

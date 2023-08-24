@@ -20,9 +20,11 @@ This API returns RED metrics (span count, erroring span count, and latency infor
 
 To enable the experimental metrics summary API you must turn on the local blocks processor in the metrics generator. Be aware that the generator will use considerably more resources including disk space if this is enabled:
 
-```
+```yaml
 overrides:
-  metrics_generator_processors: [..., 'local-blocks']
+  defaults:
+    metrics_generator:
+      processors: [..., 'local-blocks']
 ```
 
 ## Request

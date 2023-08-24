@@ -108,8 +108,8 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.Local
 				cfg.StorageConfig.Trace.Local.Path = "/var/tempo"
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.Backend = backend.Local
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.Local.Path = "/var/tempo"
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.Backend = backend.Local
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.Local.Path = "/var/tempo"
 				return cfg
 			}(),
 			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
@@ -121,9 +121,9 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg.StorageConfig.Trace.Backend = backend.GCS
 				cfg.StorageConfig.Trace.GCS.BucketName = "bucketname"
 				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.Backend = backend.GCS
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.GCS.BucketName = "bucketname"
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.GCS.Prefix = "tempo"
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.Backend = backend.GCS
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.BucketName = "bucketname"
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Prefix = "tempo"
 				return cfg
 			}(),
 			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
@@ -134,8 +134,8 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg := newDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.GCS
 				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.Backend = backend.S3
-				cfg.LimitsConfig.UserConfigurableOverrides.Client.S3.Bucket = "my-bucket"
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.Backend = backend.S3
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Bucket = "my-bucket"
 				return cfg
 			}(),
 			expect: nil,

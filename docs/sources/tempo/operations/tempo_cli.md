@@ -336,6 +336,25 @@ Options:
 tempo-cli migrate tenant --source-config source.yaml --config-file dest.yaml my-tenant my-other-tenant
 ```
 
+## Migrate overrides config command
+Migrate overrides config from inline format (legacy) to idented YAML format (new).
+
+```bash
+tempo-cli migrate overrides-config <source config file>
+```
+
+Arguments:
+- `source config file` Configuration file to migrate
+
+Options:
+- `--config-dest <value>` Destination file for the migrated config. If not specified, config is printed to stdout.
+- `--overrides-dest <value>` Destination file for the migrated overrides. If not specified, overrides are printed to stdout.
+
+**Example:**
+```bash
+tempo-cli migrate overrides-config config.yaml --config-dest config-tmp.yaml --overrides-dest overrides-tmp.yaml
+```
+
 ## Analyse block
 Analyses a block and outputs a summary of the block's generic attributes.
 It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
@@ -370,4 +389,3 @@ Options:
 ```bash
 tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
 ```
-

@@ -254,7 +254,7 @@ For more information on configuration options, see [here](https://github.com/gra
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{< relref "../metrics-generator" >}}).
 
-Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator_processors` in the [overrides](#overrides) section.
+Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
 
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
@@ -1231,135 +1231,180 @@ A snippet of a `config.yaml` file showing how the overrides section is [here](ht
 # Overrides configuration block
 overrides:
 
-    # Global ingestion limits configurations
+  # Global ingestion limits configurations
+  defaults:
+    
+    # Ingestion related overrides
+    ingestion:
 
-    # Specifies whether the ingestion rate limits should be applied by each instance
-    # of the distributor and ingester individually, or the limits are to be shared
-    # across all instances. See the "override strategies" section for an example.
-    [ingestion_rate_strategy: <global|local> | default = local]
+      # Specifies whether the ingestion rate limits should be applied by each instance
+      # of the distributor and ingester individually, or the limits are to be shared
+      # across all instances. See the "override strategies" section for an example.
+      [rate_strategy: <global|local> | default = local]
 
-    # Burst size (bytes) used in ingestion.
-    # Results in errors like
-    #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
-    #   adding 10 bytes
-    [ingestion_burst_size_bytes: <int> | default = 20000000 (20MB) ]
+      # Burst size (bytes) used in ingestion.
+      # Results in errors like
+      #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
+      #   adding 10 bytes
+      [burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
-    # Per-user ingestion rate limit (bytes) used in ingestion.
-    # Results in errors like
-    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
-    #   adding 10 bytes
-    [ingestion_rate_limit_bytes: <int> | default = 15000000 (15MB) ]
+      # Per-user ingestion rate limit (bytes) used in ingestion.
+      # Results in errors like
+      #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+      #   adding 10 bytes
+      [rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
-    # Maximum size of a single trace in bytes.  A value of 0 disables the size
-    # check.
-    # This limit is used in 3 places:
-    #  - During search, traces will be skipped when they exceed this threshold.
-    #  - During ingestion, traces that exceed this threshold will be refused.
-    #  - During compaction, traces that exceed this threshold will be partially dropped.
-    # During ingestion, exceeding the threshold results in errors like
-    #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
-    [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
+      # Maximum number of active traces per user, per ingester.
+      # A value of 0 disables the check.
+      # Results in errors like
+      #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded:
+      #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
+      # This override limit is used by the ingester.
+      [max_traces_per_user: <int> | default = 10000]
+      
+      # Maximum number of active traces per user, across the cluster.
+      # A value of 0 disables the check.
+      [max_global_traces_per_user: <int> | default = 0]
+      
+    # Read related overrides
+    read:
+      # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
+      # to populate the autocomplete dropdown. This limit protects the system from
+      # tags with high cardinality or large values such as HTTP URLs or SQL queries.
+      # This override limit is used by the ingester and the querier.
+      # A value of 0 disables the limit.
+      [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
-    # Maximum number of active traces per user, per ingester. A value of 0
-    # disables the check.
-    # Results in errors like
-    #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded:
-    #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
-    # This override limit is used by the ingester.
-    [max_traces_per_user: <int> | default = 10000]
+      # Maximum number of blocks to be inspected for a tag values query. Tag-values
+      # query is used mainly to populate the autocomplete dropdown. This limit
+      # protects the system from long block lists in the ingesters.
+      # This override limit is used by the ingester and the querier.
+      # A value of 0 disables the limit.
+      [max_blocks_per_tag_values_query: <int> | default = 0 (disabled) ]
 
-    # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
-    # to populate the autocomplete dropdown. This limit protects the system from
-    # tags with high cardinality or large values such as HTTP URLs or SQL queries.
-    # This override limit is used by the ingester and the querier.
-    # A value of 0 disables the limit.
-    [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
+      # Per-user max search duration. If this value is set to 0 (default), then max_duration
+      #  in the front-end configuration is used.
+      [max_search_duration: <duration> | default = 0s]
+    
+    # Compaction related overrides
+    compaction:
+      # Per-user block retention. If this value is set to 0 (default),
+      # then block_retention in the compactor configuration is used.
+      [block_retention: <duration> | default = 0s]
+      
+    # Metrics-generator related overrides
+    metrics_generator:
 
-    # Maximum number of blocks to be inspected for a tag values query. Tag-values
-    # query is used mainly to populate the autocomplete dropdown. This limit
-    # protects the system from long block lists in the ingesters.
-    # This override limit is used by the ingester.
-    # A value of 0 disables the limit.
-    [max_blocks_per_tag_values_query: <int> | default = 0 (disabled) ]
+      # Per-user configuration of the metrics-generator ring size. If set, the tenant will use a
+      # ring with at most the given amount of instances. Shuffle sharding is used to spread out
+      # smaller rings across all instances. If the value 0 or a value larger than the total amount
+      # of instances is used, all instances will be included in the ring.
+      #
+      # Together with metrics_generator.max_active_series this can be used to control the total
+      # amount of active series. The total max active series for a specific tenant will be:
+      #   metrics_generator.ring_size * metrics_generator.max_active_series
+      [ring_size: <int>]
 
+      # Per-user configuration of the metrics-generator processors. The following processors are
+      # supported:
+      #  - service-graphs
+      #  - span-metrics
+      #  - local-blocks
+      [processors: <list of strings>]
+
+      # Maximum number of active series in the registry, per instance of the metrics-generator. A
+      # value of 0 disables this check.
+      # If the limit is reached, no new series will be added but existing series will still be
+      # updated. The amount of limited series can be observed with the metric
+      #   tempo_metrics_generator_registry_series_limited_total
+      [max_active_series: <int>]
+
+      # Per-user configuration of the collection interval. A value of 0 means the global default is
+      # used set in the metrics_generator config block.
+      [collection_interval: <duration>]
+
+      # Per-user flag of the registry collection operation. If set, the registry will not be
+      # collected and no samples will be exported from the metrics-generator. The metrics-generator
+      # will still ingest spans and update its internal counters, including the amount of active
+      # series. To disable metrics generation entirely, clear metrics_generator.processors for this
+      # tenant.
+      #
+      # This setting is useful if you wish to test how many active series a tenant will generate, without
+      # actually writing these metrics.
+      [disable_collection: <bool> | default = false]
+
+      # Distributor -> metrics-generator forwarder related overrides
+      forwarder:
+        # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
+        # The length of the queue and the amount of workers pulling from the queue can be configured.
+        [queue_size: <int> | default = 100]
+        [workers: <int> | default = 2]
+      
+      # Per processor configuration
+      processor:
+        
+        # Configuration for the service-graphs processor
+        service_graphs:
+          [histogram_buckets: <list of float>]
+          [dimensions: <list of string>]
+          [peer_attributes: <list of string>]
+          [enable_client_server_prefix: <bool>]
+
+        # Configuration for the span-metrics processor
+        span_metrics:
+          [histogram_buckets: <list of float>]
+          # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
+          [dimensions: <list of string>]
+          [intrinsic_dimensions: <map string to bool>]
+          [filter_policies: [
+            [
+              include/exclude: 
+                match_type: <string> # options: strict, regexp
+                attributes:
+                  - key: <string>
+                    value: <any>
+            ]
+          ]
+          [dimension_mappings: <list of map>]
+          # Enable target_info metrics
+          [enable_target_info: <bool>]
+          # Drop specific resource labels from traces_target_info
+          [target_info_excluded_dimensions: <list of string>]
+
+        # Configuration for the local-blocks processor
+        local-blocks:
+          [max_live_traces: <int>]
+          [max_block_duration: <duration>]
+          [max_block_bytes: <int>]
+          [flush_check_period: <duration>]
+          [trace_idle_period: <duration>]
+          [complete_block_timeout: <duration>]
+      
     # Generic forwarding configuration
 
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
-    [forwarders: <list of strings>]
+    forwarders: <list of string>
+      
+    # Global enforced overrides
+    global:
+      # Maximum size of a single trace in bytes.  A value of 0 disables the size
+      # check.
+      # This limit is used in 3 places:
+      #  - During search, traces will be skipped when they exceed this threshold.
+      #  - During ingestion, traces that exceed this threshold will be refused.
+      #  - During compaction, traces that exceed this threshold will be partially dropped.
+      # During ingestion, exceeding the threshold results in errors like
+      #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
+      [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
 
-    # Metrics-generator configurations
-
-    # Per-user configuration of the metrics-generator ring size. If set, the tenant will use a
-    # ring with at most the given amount of instances. Shuffle sharding is used to spread out
-    # smaller rings across all instances. If the value 0 or a value larger than the total amount
-    # of instances is used, all instances will be included in the ring.
-    #
-    # Together with metrics_generator_max_active_series this can be used to control the total
-    # amount of active series. The total max active series for a specific tenant will be:
-    #   metrics_generator_ring_size * metrics_generator_max_active_series
-    [metrics_generator_ring_size: <int>]
-
-    # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
-    # The length of the queue and the amount of workers pulling from the queue can be configured.
-    [metrics_generator_forwarder_queue_size: <int> | default = 100]
-    [metrics_generator_forwarder_workers: <int> | default = 2]
-
-    # Per-user configuration of the metrics-generator processors. The following processors are
-    # supported:
-    #  - service-graphs
-    #  - span-metrics
-    [metrics_generator_processors: <list of strings>]
-
-    # Per-user configuration of the metrics-generator processors. The following configuration
-    # overrides settings in the global configuration.
-    [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
-    [metrics_generator_processor_service_graphs_dimensions: <list of string>]
-    [metrics_generator_processor_service_graphs_peer_attributes: <list of string>]
-    [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
-    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
-    [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
-    [metrics_generator_processor_span_metrics_dimensions: <list of string>]
-    [metrics_generator_processor_span_metrics_dimension_mapings: <list of map>]
-    # Enable target_info metrics
-    [metrics_generator_processor_span_metrics_enable_target_info: <bool>]
-    # Drop specific resource labels from traces_target_info
-    [metrics_generator_processor_span_metrics_target_info_excluded_dimensions: <list of string>]
-
-    # Maximum number of active series in the registry, per instance of the metrics-generator. A
-    # value of 0 disables this check.
-    # If the limit is reached, no new series will be added but existing series will still be
-    # updated. The amount of limited series can be observed with the metric
-    #   tempo_metrics_generator_registry_series_limited_total
-    [metrics_generator_max_active_series: <int>]
-
-    # Per-user configuration of the collection interval. A value of 0 means the global default is
-    # used set in the metrics_generator config block.
-    [metrics_generator_collection_interval: <duration>]
-
-    # Per-user flag of the registry collection operation. If set, the registry will not be
-    # collected and no samples will be exported from the metrics-generator. The metrics-generator
-    # will still ingest spans and update its internal counters, including the amount of active
-    # series. To disable metrics generation entirely, clear metrics_generator_processors for this
-    # tenant.
-    #
-    # This setting is useful if you wish to test how many active series a tenant will generate, without
-    # actually writing these metrics.
-    [metrics_generator_disable_collection: <bool> | default = false]
-
-    # Per-user block retention. If this value is set to 0 (default), then block_retention
-    #  in the compactor configuration is used.
-    [block_retention: <duration> | default = 0s]
-
-    # Per-user max search duration. If this value is set to 0 (default), then max_duration
-    #  in the front-end configuration is used.
-    [max_search_duration: <duration> | default = 0s]
-
-    # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
-    # generic attribute key-value list. This allows for more efficient searching of these attributes.
-    # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-    # Requires vParquet3
-    parquet_dedicated_columns:
+    # Storage enforced overrides
+    storage:
+      # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+      # generic attribute key-value list. This allows for more efficient searching of these attributes.
+      # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+      # Requires vParquet3
+      parquet_dedicated_columns:
         [
           name: <string>, # name of the attribute
           type: <string>, # type of the attribute. options: string
@@ -1389,18 +1434,22 @@ overrides:
 # Tenant-specific overrides configuration
 overrides:
 
-    "<tenant id>":
-        [ingestion_burst_size_bytes: <int>]
-        [ingestion_rate_limit_bytes: <int>]
-        [max_bytes_per_trace: <int>]
+  "<tenant-id>":
+      ingestion:
+        [burst_size_bytes: <int>]
+        [rate_limit_bytes: <int>]
         [max_traces_per_user: <int>]
+      global:
+        [max_bytes_per_trace: <int>]
 
-    # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
-    "*":
-        [ingestion_burst_size_bytes: <int>]
-        [ingestion_rate_limit_bytes: <int>]
-        [max_bytes_per_trace: <int>]
-        [max_traces_per_user: <int>]
+  # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
+  "*":
+    ingestion:
+      [burst_size_bytes: <int>]
+      [rate_limit_bytes: <int>]
+      [max_traces_per_user: <int>]
+    global:
+      [max_bytes_per_trace: <int>]
 ```
 
 #### Override strategies
@@ -1418,15 +1467,19 @@ The global limit is averaged across all distributors by using the distributor ri
 ```yaml
 # /conf/tempo.yaml
 overrides:
-  [ingestion_rate_strategy: <global|local> | default = local]
+  defaults:
+    ingestion:
+      [rate_strategy: <global|local> | default = local]
 ```
 
 For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
 
 ```yaml
 overrides:
-  - ingestion_rate_strategy: local
-  - ingestion_rate_limit_bytes: 15000000
+  defaults:
+    ingestion:
+      strategy: local
+      limit_bytes: 15000000
 ```
 
 This configuration specifies that together, all distributor instances will apply a limit of `15MB/s`.
@@ -1434,8 +1487,10 @@ So if there are 5 instances, each instance will apply a local limit of `(15MB/s 
 
 ```yaml
 overrides:
-  - ingestion_rate_strategy: global
-  - ingestion_rate_limit_bytes: 15000000
+  defaults:
+    ingestion:
+      strategy: global
+      limit_bytes: 15000000
 ```
 
 ## Usage-report
