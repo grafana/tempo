@@ -39,6 +39,8 @@ defaults:
   metrics_generator:
     processors: [service-graphs, span-metrics]
 ```
+* [CHANGE] Dropped status from tempo_query_frontend_queries_total to better align with the slo metric. This
+  is technically a breaking change, but since the status code was always 0 it's clear no one was using it. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
 
 ## v2.2.1 / 2023-08-??
 
