@@ -359,8 +359,6 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	expiredSpanCount := 0
 	ingestionSlackNano := i.ingestionSlackOverride.Load()
 
-	fmt.Printf("Ingestion slack: %d \n", ingestionSlackNano/1000000)
-
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ss := range b.ScopeSpans {
