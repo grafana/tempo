@@ -92,6 +92,7 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 	return p.progress.result()
 }
 
+// jpe slos on this?
 // newSearchStreamingHandler returns a handler that streams results from the HTTP handler
 func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)

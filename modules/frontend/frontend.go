@@ -67,10 +67,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	metrics := spanMetricsMiddleware.Wrap(next)
 
 	return &QueryFrontend{
-		TraceByIDHandler:          newHandler(traces, traceByIDSLOHook(&cfg.TraceByID.SLO), logger), // jpe add secret sauce here
-		SearchHandler:             newHandler(search, searchSLOHook(&cfg.Search.SLO), logger),
-		SearchTagsHandler:         newHandler(searchTags, nil, logger),
-		SpanMetricsSummaryHandler: newHandler(metrics, nil, logger),
+		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
+		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
+		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
+		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
 		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
 		logger:                    logger,
 	}, nil

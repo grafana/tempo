@@ -42,16 +42,20 @@ var (
 	searchCounter    = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
-func traceByIDSLOHook(cfg *SLOConfig) requestHook {
+func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(sloTraceByIDCounter, traceByIDCounter, cfg)
 }
 
-func searchSLOHook(cfg *SLOConfig) requestHook {
+func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(sloSearchCounter, searchCounter, cfg)
 }
 
-func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, cfg *SLOConfig) requestHook {
-	return func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error) { // jpe add tenant?
+func searchSLOPreHook(ctx context.Context) context.Context {
+	return context.WithValue(ctx, throughputKey, new(float64)) // add a float pointer to the context to communicate throughput back up
+}
+
+func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, cfg SLOConfig) handlerPostHook {
+	return func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error) {
 		// first record all queries
 		allByTenantCounter.WithLabelValues(tenant).Inc()
 
@@ -68,7 +72,7 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 		passedThroughput := true
 		// final check is throughput
 		if cfg.ThroughputBytesSLO > 0 {
-			throughput, ok := ctx.Value(throughputKey).(float64)
+			throughput, ok := thoughputFromContext(ctx)
 
 			// if we didn't find the key, but expected it, we consider throughput a failure
 			passedThroughput = !ok && throughput >= cfg.ThroughputBytesSLO
@@ -86,6 +90,25 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 	}
 }
 
-func addThroughputToContext(ctx context.Context, throughput float64) context.Context {
-	return context.WithValue(ctx, throughputKey, throughput)
+func thoughputFromContext(ctx context.Context) (float64, bool) {
+	throughputPtr, ok := ctx.Value(throughputKey).(*float64)
+	if throughputPtr != nil {
+		return *throughputPtr, ok
+	}
+
+	return 0, ok
+}
+
+func addThroughputToContext(ctx context.Context, throughput float64) {
+	ctxVal := ctx.Value(throughputKey)
+	if ctxVal == nil {
+		return
+	}
+
+	throughputPtr, ok := ctxVal.(*float64)
+	if !ok {
+		return
+	}
+
+	*throughputPtr = throughput
 }
