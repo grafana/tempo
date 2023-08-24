@@ -1333,6 +1333,11 @@ overrides:
       # actually writing these metrics.
       [disable_collection: <bool> | default = false]
 
+      # This option only allows spans with end time that occur within the configured duration to be
+      # considered in metrics generation.
+      # This is to filter out spans that are outdated.
+      [metrics_generator_ingestion_time_range_slack: <duration>]
+
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
         # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
