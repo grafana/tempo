@@ -22,13 +22,13 @@ Tempo comprises of the following top-level components.
 
 The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "./consistent_hash_ring" >}}).
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
-For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto). For this reason
+For best performance, it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto). For this reason
 the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/receiver to send spans to Tempo.
 
 ## Ingester
 
-The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
-Blocks in the backend are generated in the following layout.
+The [Ingester]{{{< relref "../configuration#ingester" >}}} batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
+Blocks in the backend are generated in the following layout:
 
 ```
 <bucketname> / <tenantID> / <blockID> / <meta.json>
@@ -39,6 +39,11 @@ Blocks in the backend are generated in the following layout.
                                         ...
                                       / <bloom_n>
 ```
+
+While a trace is considered live, additional spans can be added.
+A live, or active, trace is a trace that hasn't received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
+After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
+When Tempo receives a new batch, a new live trace is created in memory.
 
 ## Query Frontend
 
