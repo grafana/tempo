@@ -209,7 +209,6 @@ For more information on configuration options, see [here](https://github.com/gra
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
-While a trace is considered live, additional spans can be added.
 A live, or active, trace is a trace that has received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
 After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
 When Tempo receives a new batch, a new live trace is created in memory.
