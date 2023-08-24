@@ -62,4 +62,6 @@ querier:
     frontend_address: tempo:9095
 
 overrides:
-  metrics_generator_processors: ['service-graphs', 'span-metrics']
+  defaults:
+    metrics_generator:
+      processors: ['service-graphs', 'span-metrics']

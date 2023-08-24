@@ -18,10 +18,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -693,7 +693,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				}, nil
 			})
 
-			o, err := overrides.NewOverrides(overrides.Limits{})
+			o, err := overrides.NewOverrides(overrides.Config{})
 			require.NoError(t, err)
 
 			sharder := newSearchSharder(&mockReader{
@@ -756,7 +756,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		}, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	now := time.Now().Add(-10 * time.Minute).Unix()
@@ -803,7 +803,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	sharder := newSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -830,8 +830,12 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
-	o, err = overrides.NewOverrides(overrides.Limits{
-		MaxSearchDuration: model.Duration(time.Minute),
+	o, err = overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxSearchDuration: model.Duration(time.Minute),
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -865,7 +869,7 @@ func TestAdjustLimit(t *testing.T) {
 
 func TestMaxDuration(t *testing.T) {
 	//
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 	sharder := searchSharder{
 		cfg: SearchSharderConfig{
@@ -876,8 +880,12 @@ func TestMaxDuration(t *testing.T) {
 	actual := sharder.maxDuration("test")
 	assert.Equal(t, 5*time.Minute, actual)
 
-	o, err = overrides.NewOverrides(overrides.Limits{
-		MaxSearchDuration: model.Duration(10 * time.Minute),
+	o, err = overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxSearchDuration: model.Duration(10 * time.Minute),
+			},
+		},
 	})
 	require.NoError(t, err)
 	sharder = searchSharder{
@@ -947,7 +955,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		return httptest.NewRecorder().Result(), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	sharder := newSearchSharder(&mockReader{
@@ -1049,7 +1057,7 @@ func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 		}, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(b, err)
 
 	totalMetas := 10000

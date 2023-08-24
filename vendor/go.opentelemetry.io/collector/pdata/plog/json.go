@@ -1,37 +1,26 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package plog // import "go.opentelemetry.io/collector/pdata/plog"
 
 import (
 	"bytes"
+	"fmt"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"go.opentelemetry.io/collector/pdata/internal"
 	otlplogs "go.opentelemetry.io/collector/pdata/internal/data/protogen/logs/v1"
-	"go.opentelemetry.io/collector/pdata/plog/internal/plogjson"
+	"go.opentelemetry.io/collector/pdata/internal/json"
+	"go.opentelemetry.io/collector/pdata/internal/otlp"
 )
-
-var delegate = plogjson.JSONMarshaler
-
-var _ Marshaler = (*JSONMarshaler)(nil)
 
 type JSONMarshaler struct{}
 
 func (*JSONMarshaler) MarshalLogs(ld Logs) ([]byte, error) {
 	buf := bytes.Buffer{}
 	pb := internal.LogsToProto(internal.Logs(ld))
-	err := delegate.Marshal(&buf, &pb)
+	err := json.Marshal(&buf, &pb)
 	return buf.Bytes(), err
 }
 
@@ -40,9 +29,103 @@ var _ Unmarshaler = (*JSONUnmarshaler)(nil)
 type JSONUnmarshaler struct{}
 
 func (*JSONUnmarshaler) UnmarshalLogs(buf []byte) (Logs, error) {
-	var ld otlplogs.LogsData
-	if err := plogjson.UnmarshalLogsData(buf, &ld); err != nil {
-		return Logs{}, err
+	iter := jsoniter.ConfigFastest.BorrowIterator(buf)
+	defer jsoniter.ConfigFastest.ReturnIterator(iter)
+	ld := NewLogs()
+	ld.unmarshalJsoniter(iter)
+	if iter.Error != nil {
+		return Logs{}, iter.Error
 	}
-	return Logs(internal.LogsFromProto(ld)), nil
+	otlp.MigrateLogs(ld.getOrig().ResourceLogs)
+	return ld, nil
+}
+
+func (ms Logs) unmarshalJsoniter(iter *jsoniter.Iterator) {
+	iter.ReadObjectCB(func(iter *jsoniter.Iterator, f string) bool {
+		switch f {
+		case "resource_logs", "resourceLogs":
+			iter.ReadArrayCB(func(iterator *jsoniter.Iterator) bool {
+				ms.ResourceLogs().AppendEmpty().unmarshalJsoniter(iter)
+				return true
+			})
+		default:
+			iter.Skip()
+		}
+		return true
+	})
+}
+
+func (ms ResourceLogs) unmarshalJsoniter(iter *jsoniter.Iterator) {
+	iter.ReadObjectCB(func(iter *jsoniter.Iterator, f string) bool {
+		switch f {
+		case "resource":
+			json.ReadResource(iter, &ms.orig.Resource)
+		case "scope_logs", "scopeLogs":
+			iter.ReadArrayCB(func(iter *jsoniter.Iterator) bool {
+				ms.ScopeLogs().AppendEmpty().unmarshalJsoniter(iter)
+				return true
+			})
+		case "schemaUrl", "schema_url":
+			ms.orig.SchemaUrl = iter.ReadString()
+		default:
+			iter.Skip()
+		}
+		return true
+	})
+}
+
+func (ms ScopeLogs) unmarshalJsoniter(iter *jsoniter.Iterator) {
+	iter.ReadObjectCB(func(iter *jsoniter.Iterator, f string) bool {
+		switch f {
+		case "scope":
+			json.ReadScope(iter, &ms.orig.Scope)
+		case "log_records", "logRecords":
+			iter.ReadArrayCB(func(iter *jsoniter.Iterator) bool {
+				ms.LogRecords().AppendEmpty().unmarshalJsoniter(iter)
+				return true
+			})
+		case "schemaUrl", "schema_url":
+			ms.orig.SchemaUrl = iter.ReadString()
+		default:
+			iter.Skip()
+		}
+		return true
+	})
+}
+
+func (ms LogRecord) unmarshalJsoniter(iter *jsoniter.Iterator) {
+	iter.ReadObjectCB(func(iter *jsoniter.Iterator, f string) bool {
+		switch f {
+		case "timeUnixNano", "time_unix_nano":
+			ms.orig.TimeUnixNano = json.ReadUint64(iter)
+		case "observed_time_unix_nano", "observedTimeUnixNano":
+			ms.orig.ObservedTimeUnixNano = json.ReadUint64(iter)
+		case "severity_number", "severityNumber":
+			ms.orig.SeverityNumber = otlplogs.SeverityNumber(json.ReadEnumValue(iter, otlplogs.SeverityNumber_value))
+		case "severity_text", "severityText":
+			ms.orig.SeverityText = iter.ReadString()
+		case "body":
+			json.ReadValue(iter, &ms.orig.Body)
+		case "attributes":
+			iter.ReadArrayCB(func(iter *jsoniter.Iterator) bool {
+				ms.orig.Attributes = append(ms.orig.Attributes, json.ReadAttribute(iter))
+				return true
+			})
+		case "droppedAttributesCount", "dropped_attributes_count":
+			ms.orig.DroppedAttributesCount = json.ReadUint32(iter)
+		case "flags":
+			ms.orig.Flags = json.ReadUint32(iter)
+		case "traceId", "trace_id":
+			if err := ms.orig.TraceId.UnmarshalJSON([]byte(iter.ReadString())); err != nil {
+				iter.ReportError("readLog.traceId", fmt.Sprintf("parse trace_id:%v", err))
+			}
+		case "spanId", "span_id":
+			if err := ms.orig.SpanId.UnmarshalJSON([]byte(iter.ReadString())); err != nil {
+				iter.ReportError("readLog.spanId", fmt.Sprintf("parse span_id:%v", err))
+			}
+		default:
+			iter.Skip()
+		}
+		return true
+	})
 }

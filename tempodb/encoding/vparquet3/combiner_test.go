@@ -11,8 +11,8 @@ import (
 )
 
 func TestCombiner(t *testing.T) {
-	methods := []func(a, b *Trace) (*Trace, int){
-		func(a, b *Trace) (*Trace, int) {
+	methods := []func(a, b *Trace) (*Trace, int, bool){
+		func(a, b *Trace) (*Trace, int, bool) {
 			c := NewCombiner()
 			c.Consume(a)
 			c.Consume(b)
@@ -222,7 +222,7 @@ func TestCombiner(t *testing.T) {
 
 	for _, tt := range tests {
 		for _, m := range methods {
-			actualTrace, actualTotal := m(tt.traceA, tt.traceB)
+			actualTrace, actualTotal, _ := m(tt.traceA, tt.traceB)
 			assert.Equal(t, tt.expectedTotal, actualTotal)
 			if tt.expectedTrace != nil {
 				assert.Equal(t, tt.expectedTrace, actualTrace)
@@ -240,10 +240,10 @@ func BenchmarkCombine(b *testing.B) {
 	for _, spanCount := range spanCounts {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 			id1 := test.ValidTraceID(nil)
-			tr1 := traceToParquet(&backend.BlockMeta{}, id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1), nil)
+			tr1, _ := traceToParquet(&backend.BlockMeta{}, id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1), nil)
 
 			id2 := test.ValidTraceID(nil)
-			tr2 := traceToParquet(&backend.BlockMeta{}, id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2), nil)
+			tr2, _ := traceToParquet(&backend.BlockMeta{}, id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2), nil)
 
 			b.ResetTimer()
 
@@ -266,7 +266,7 @@ func BenchmarkSortTrace(b *testing.B) {
 	for _, spanCount := range spanCounts {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 			id := test.ValidTraceID(nil)
-			tr := traceToParquet(&backend.BlockMeta{}, id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
+			tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 
 			b.ResetTimer()
 

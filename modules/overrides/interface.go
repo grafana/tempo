@@ -21,7 +21,7 @@ type Service interface {
 type Interface interface {
 	prometheus.Collector
 
-	// Limits
+	// Config
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
@@ -49,6 +49,7 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []config.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
+	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64

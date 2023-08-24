@@ -45,6 +45,9 @@ type Config struct {
 
 	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exlusion.
 	FilterPolicies []filterconfig.FilterPolicy `yaml:"filter_policies"`
+
+	// Allow user to specify labels they want to drop from target_info
+	TargetInfoExcludedDimensions []string `yaml:"target_info_excluded_dimensions"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

@@ -244,8 +244,9 @@ func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte
 }
 
 // RecordDiscardedSpans implements tempodb.CompactorSharder
-func (c *Compactor) RecordDiscardedSpans(count int, tenantID string, traceID string) {
-	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID, "discarded_span_count", count)
+func (c *Compactor) RecordDiscardedSpans(count int, tenantID string, traceID string, rootSpanName string, rootServiceName string) {
+	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID,
+		"rootSpanName", rootSpanName, "rootServiceName", rootServiceName, "discarded_span_count", count)
 	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)
 }
 
@@ -275,7 +276,8 @@ func (c *Compactor) OnRingInstanceRegister(_ *ring.BasicLifecycler, ringDesc rin
 	}
 
 	takenTokens := ringDesc.GetTokens()
-	newTokens := ring.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
+	gen := ring.NewRandomTokenGenerator()
+	newTokens := gen.GenerateTokens(ringNumTokens-len(tokens), takenTokens)
 
 	// Tokens sorting will be enforced by the parent caller.
 	tokens = append(tokens, newTokens...)

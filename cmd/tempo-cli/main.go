@@ -69,7 +69,8 @@ var cli struct {
 			SearchTagValues querySearchTagValuesCmd `cmd:"" help:"query Tempo search tag values"`
 			Search          querySearchCmd          `cmd:"" help:"query Tempo search"`
 		} `cmd:""`
-		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
+		Blocks       queryBlocksCmd       `cmd:"" help:"query for a traceid directly from backend blocks"`
+		TraceSummary queryTraceSummaryCmd `cmd:"" help:"query summary for a traceid directly from backend blocks"`
 	} `cmd:""`
 
 	Search struct {
@@ -82,7 +83,8 @@ var cli struct {
 	} `cmd:""`
 
 	Migrate struct {
-		Tenant migrateTenantCmd `cmd:"" help:"migrate tenant between two backends"`
+		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
+		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
 	} `cmd:""`
 }
 

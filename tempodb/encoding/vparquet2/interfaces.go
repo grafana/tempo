@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 )
 
 type TraceIterator interface {

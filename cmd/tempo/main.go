@@ -13,12 +13,12 @@ import (
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
+	dslog "github.com/grafana/dskit/log"
+	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
-	"github.com/weaveworks/common/logging"
-	"github.com/weaveworks/common/tracing"
 	oc "go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
@@ -28,10 +28,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
+	"google.golang.org/grpc/encoding"
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/pkg/gogocodec"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -49,6 +51,9 @@ func init() {
 	version.Branch = Branch
 	version.Revision = Revision
 	prometheus.MustRegister(version.NewCollector(appName))
+
+	// Register the gogocodec as early as possible.
+	encoding.RegisterCodec(gogocodec.NewCodec())
 }
 
 func main() {
@@ -67,7 +72,7 @@ func main() {
 	}
 
 	// Init the logger which will honor the log level set in config.Server
-	if reflect.DeepEqual(&config.Server.LogLevel, &logging.Level{}) {
+	if reflect.DeepEqual(&config.Server.LogLevel, &dslog.Level{}) {
 		level.Error(log.Logger).Log("msg", "invalid log level")
 		os.Exit(1)
 	}

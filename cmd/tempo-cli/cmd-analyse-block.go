@@ -12,8 +12,7 @@ import (
 	"time"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/stoewer/parquet-cli/pkg/inspect"

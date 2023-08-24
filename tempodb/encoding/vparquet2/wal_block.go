@@ -14,16 +14,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/multierror"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -53,7 +53,7 @@ var walSchema = parquet.SchemaOf(&Trace{})
 // if there are 2 wal files and the second is loaded successfully, but the first fails then b.flushed will contain one entry. then when
 // calling b.openWriter() it will attempt to create a new file as path/folder/00002 which will overwrite the first file. as long as we never
 // append to this file it should be ok.
-func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ time.Duration) (common.WALBlock, error, error) {
+func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (common.WALBlock, error, error) {
 	dir := filepath.Join(path, filename)
 	_, _, version, err := parseName(filename)
 	if err != nil {
@@ -152,7 +152,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+func createWALBlock(id uuid.UUID, tenantID, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:  VersionString,
@@ -338,7 +338,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
 	now := time.Now()
 	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
 	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
@@ -354,7 +354,7 @@ func (b *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalS
 	}
 
 	if warn {
-		warnings.Metric.WithLabelValues(b.meta.TenantID, warnings.ReasonOutsideIngestionSlack).Inc()
+		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
 	}
 
 	return start, end

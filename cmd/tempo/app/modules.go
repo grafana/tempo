@@ -10,15 +10,15 @@ import (
 	"github.com/grafana/dskit/dns"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
+	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/weaveworks/common/middleware"
-	"github.com/weaveworks/common/server"
 
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -27,7 +27,7 @@ import (
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	userconfigurableoverridesapi "github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -93,11 +93,10 @@ func (t *App) initServer() (services.Service, error) {
 
 	DisableSignalHandling(&t.cfg.Server)
 
-	if !t.cfg.DoNotRouteHTTPToGRPC {
-		// this allows us to serve http and grpc over the primary http server.
-		//  to use this register services with GRPCOnHTTPServer
-		t.cfg.Server.RouteHTTPToGRPC = true
-	}
+	// this allows us to serve http and grpc over the primary http server.
+	//  to use this register services with GRPCOnHTTPServer
+	// Note: Enabling this breaks TLS
+	t.cfg.Server.RouteHTTPToGRPC = t.cfg.StreamOverHTTPEnabled
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
@@ -182,15 +181,15 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	o, err := overrides.NewOverrides(t.cfg.LimitsConfig)
+	o, err := overrides.NewOverrides(t.cfg.Overrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
 	t.Overrides = o
 
-	prometheus.MustRegister(&t.cfg.LimitsConfig)
+	prometheus.MustRegister(&t.cfg.Overrides)
 
-	if t.cfg.LimitsConfig.PerTenantOverrideConfig != "" {
+	if t.cfg.Overrides.PerTenantOverrideConfig != "" {
 		prometheus.MustRegister(t.Overrides)
 	}
 
@@ -198,13 +197,13 @@ func (t *App) initOverrides() (services.Service, error) {
 }
 
 func (t *App) initOverridesAPI() (services.Service, error) {
-	cfg := t.cfg.LimitsConfig.UserConfigurableOverridesConfig
+	cfg := t.cfg.Overrides.UserConfigurableOverridesConfig
 
 	if !cfg.Enabled {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	userConfigOverridesAPI, err := userconfigurableapi.NewUserConfigOverridesAPI(&cfg.ClientConfig, NewOverridesValidator(&t.cfg))
+	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.Client, NewOverridesValidator(&t.cfg))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
 	}
@@ -214,10 +213,10 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return t.HTTPAuthMiddleware.Wrap(h)
 	}
 
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetOverridesHandler))
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostOverridesHandler))
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchOverridesHandler))
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteOverridesHandler))
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
+	t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
 
 	return userConfigOverridesAPI, nil
 }
@@ -435,7 +434,6 @@ func (t *App) initStore() (services.Service, error) {
 
 func (t *App) initMemberlistKV() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
-	t.cfg.MemberlistKV.MetricsRegisterer = reg
 	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
 	t.cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),

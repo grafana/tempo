@@ -59,18 +59,27 @@ func GetJobValue(attributes []*v1_common.KeyValue) string {
 	return namespace + svName
 }
 
-func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue) ([]string, []string) {
+func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue, exclude []string) ([]string, []string) {
 	keys := make([]string, 0)
 	values := make([]string, 0)
 	for _, attrs := range attributes {
 		// ignoring job and instance
 		key := attrs.Key
 		value := tempo_util.StringifyAnyValue(attrs.Value)
-		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" {
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !Contains(key, exclude) {
 			keys = append(keys, key)
 			values = append(values, value)
 		}
 	}
 
 	return keys, values
+}
+
+func Contains(key string, list []string) bool {
+	for _, exclude := range list {
+		if key == exclude {
+			return true
+		}
+	}
+	return false
 }

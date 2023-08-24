@@ -171,6 +171,10 @@ func (o BinaryOperation) validate() error {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
+	if rhsT == TypeNil && o.Op == OpEqual {
+		return newUnsupportedError("{.a = nil}")
+	}
+
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
@@ -203,9 +207,9 @@ func (o UnaryOperation) validate() error {
 }
 
 func (n Static) validate() error {
-	if n.Type == TypeNil {
-		return newUnsupportedError("nil")
-	}
+	// if n.Type == TypeNil {
+	// 	return newUnsupportedError("nil")
+	// }
 
 	return nil
 }

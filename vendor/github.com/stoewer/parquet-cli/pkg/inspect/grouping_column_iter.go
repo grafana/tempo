@@ -3,8 +3,8 @@ package inspect
 import (
 	"io"
 
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 )
 
 // newGroupingColumnIterator creates a new groupingColumnIterator.

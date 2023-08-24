@@ -6,10 +6,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -265,8 +265,13 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 
 	// maybe choose resource attribute
 	res := batch.Resource
-	if len(res.Attributes) > 0 && rand.Int()%2 == 1 {
-		return randFrom(r, res.Attributes)
+	if len(res.Attributes) > 0 && r.Int()%2 == 1 {
+		attr := randFrom(r, res.Attributes)
+		// skip service.name because service names have low cardinality and produce queries with
+		// too many results in tempo-vulture
+		if attr.Key != "service.name" {
+			return attr
+		}
 	}
 
 	if len(batch.ScopeSpans) == 0 {

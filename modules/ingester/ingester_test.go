@@ -13,10 +13,10 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -346,11 +346,11 @@ func TestDedicatedColumns(t *testing.T) {
 	require.NoError(t, err, "unexpected error getting tempdir")
 	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
-	limits := overrides.Limits{}
-	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
-	limits.DedicatedColumns = backend.DedicatedColumns{{Scope: "span", Name: "foo", Type: "string"}}
+	cfg := overrides.Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	cfg.Defaults.Storage.DedicatedColumns = backend.DedicatedColumns{{Scope: "span", Name: "foo", Type: "string"}}
 
-	i := defaultIngesterWithOverrides(t, tmpDir, limits)
+	i := defaultIngesterWithOverrides(t, tmpDir, cfg)
 	inst, _ := i.getOrCreateInstance("test")
 	require.NotNil(t, inst)
 
@@ -370,7 +370,7 @@ func TestDedicatedColumns(t *testing.T) {
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))
 
-	assert.Equal(t, limits.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumns)
+	assert.Equal(t, cfg.Defaults.Storage.DedicatedColumns, inst.headBlock.BlockMeta().DedicatedColumns)
 
 	// TODO: This search should find a match once the read path is supported
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -385,7 +385,7 @@ func TestDedicatedColumns(t *testing.T) {
 	// TODO: This check should be included as part of the read path
 	inst.blocksMtx.RLock()
 	for _, b := range inst.completingBlocks {
-		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+		assert.Equal(t, cfg.Defaults.Storage.DedicatedColumns, b.BlockMeta().DedicatedColumns)
 	}
 	inst.blocksMtx.RUnlock()
 
@@ -396,16 +396,16 @@ func TestDedicatedColumns(t *testing.T) {
 	// TODO: This check should be included as part of the read path
 	inst.blocksMtx.RLock()
 	for _, b := range inst.completeBlocks {
-		assert.Equal(t, limits.DedicatedColumns, b.BlockMeta().DedicatedColumns)
+		assert.Equal(t, cfg.Defaults.Storage.DedicatedColumns, b.BlockMeta().DedicatedColumns)
 	}
 	inst.blocksMtx.RUnlock()
 }
 
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
-	return defaultIngesterWithOverrides(t, tmpDir, defaultOverrides())
+	return defaultIngesterWithOverrides(t, tmpDir, defaultOverridesConfig())
 }
 
-func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Limits) *Ingester {
+func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Config) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := overrides.NewOverrides(o)
 	require.NoError(t, err, "unexpected error creating overrides")
@@ -496,10 +496,10 @@ func defaultIngesterTestConfig() Config {
 	return cfg
 }
 
-func defaultOverrides() overrides.Limits {
-	limits := overrides.Limits{}
-	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
-	return limits
+func defaultOverridesConfig() overrides.Config {
+	config := overrides.Config{}
+	config.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	return config
 }
 
 func pushBatchV2(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) {

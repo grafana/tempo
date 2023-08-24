@@ -317,7 +317,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func generateRandomInt(min int64, max int64, r *rand.Rand) int64 {
+func generateRandomInt(min, max int64, r *rand.Rand) int64 {
 	min++
 	number := min + r.Int63n(max-min)
 	return number
@@ -436,7 +436,7 @@ func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, err
 
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
-	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	resp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
@@ -513,8 +513,8 @@ func queryTrace(client *httpclient.Client, info *util.TraceInfo) (traceMetrics, 
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {
-	trace.SortTrace(a)
-	trace.SortTrace(b)
+	trace.SortTraceAndAttributes(a)
+	trace.SortTraceAndAttributes(b)
 
 	return reflect.DeepEqual(a, b)
 }

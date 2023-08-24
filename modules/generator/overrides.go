@@ -24,6 +24,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
+	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes(userID string) uint64

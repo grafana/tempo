@@ -3,7 +3,7 @@ package receiver
 import (
 	"context"
 
-	"github.com/weaveworks/common/user"
+	"github.com/grafana/dskit/user"
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"

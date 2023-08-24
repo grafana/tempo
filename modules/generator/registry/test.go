@@ -140,6 +140,10 @@ func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
 	t.registry.setMetric(t.name, lbls, value)
 }
 
+func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
+	t.Set(labelValueCombo, value)
+}
+
 type testHistogram struct {
 	nameSum    string
 	nameCount  string

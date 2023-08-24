@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/parquet-go/parquet-go"
 	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -25,6 +26,9 @@ const (
 	NotFound       = -3
 
 	TraceIDColumnName = "TraceID"
+
+	EnvVarIndexName          = "VPARQUET_INDEX"
+	EnvVarIndexDisabledValue = "0"
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
@@ -53,6 +57,41 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
+func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
+	if os.Getenv(EnvVarIndexName) == EnvVarIndexDisabledValue {
+		// Index lookup disabled
+		return true, -1, nil
+	}
+
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkIndex",
+		opentracing.Tags{
+			"blockID":  b.meta.BlockID,
+			"tenantID": b.meta.TenantID,
+		})
+	defer span.Finish()
+
+	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, true)
+	if err == backend.ErrDoesNotExist {
+		return true, -1, nil
+	}
+	if err != nil {
+		return false, -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	index, err := unmarshalIndex(indexBytes)
+	if err != nil {
+		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	rowGroup := index.Find(id)
+	if rowGroup == -1 {
+		// Ruled out by index
+		return false, -1, nil
+	}
+
+	return true, rowGroup, nil
+}
+
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
@@ -70,6 +109,14 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, nil
 	}
 
+	ok, rowGroup, err := b.checkIndex(ctx, traceID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
@@ -78,85 +125,91 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		span.SetTag("inspectedBytes", rr.BytesRead())
 	}()
 
-	return findTraceByID(derivedCtx, traceID, b.meta, pf)
+	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File) (*tempopb.Trace, error) {
+func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
 		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
 	}
 
-	numRowGroups := len(pf.RowGroups())
-	buf := make(parquet.Row, 1)
+	// If no index then fallback to binary searching the rowgroups.
+	if rowGroup == -1 {
+		var (
+			numRowGroups = len(pf.RowGroups())
+			buf          = make(parquet.Row, 1)
+			err          error
+		)
 
-	// Cache of row group bounds
-	rowGroupMins := make([]common.ID, numRowGroups+1)
-	// todo: restore using meta min/max id once it works
-	//    https://github.com/grafana/tempo/issues/1903
-	rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
-	rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
+		// Cache of row group bounds
+		rowGroupMins := make([]common.ID, numRowGroups+1)
+		// todo: restore using meta min/max id once it works
+		//    https://github.com/grafana/tempo/issues/1903
+		rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
+		rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
 
-	// Gets the minimum trace ID within the row group. Since the column is sorted
-	// ascending we just read the first value from the first page.
-	getRowGroupMin := func(rgIdx int) (common.ID, error) {
-		min := rowGroupMins[rgIdx]
-		if len(min) > 0 {
-			// Already loaded
+		// Gets the minimum trace ID within the row group. Since the column is sorted
+		// ascending we just read the first value from the first page.
+		getRowGroupMin := func(rgIdx int) (common.ID, error) {
+			min := rowGroupMins[rgIdx]
+			if len(min) > 0 {
+				// Already loaded
+				return min, nil
+			}
+
+			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
+			defer pages.Close()
+
+			page, err := pages.ReadPage()
+			if err != nil {
+				return nil, err
+			}
+
+			c, err := page.Values().ReadValues(buf)
+			if err != nil && err != io.EOF {
+				return nil, err
+			}
+			if c < 1 {
+				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
+			}
+
+			min = buf[0].ByteArray()
+			rowGroupMins[rgIdx] = min
 			return min, nil
 		}
 
-		pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
-		defer pages.Close()
+		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
+			min, err := getRowGroupMin(rgIdx)
+			if err != nil {
+				return 0, err
+			}
 
-		page, err := pages.ReadPage()
+			if check := bytes.Compare(traceID, min); check <= 0 {
+				// Trace is before or in this group
+				return check, nil
+			}
+
+			max, err := getRowGroupMin(rgIdx + 1)
+			if err != nil {
+				return 0, err
+			}
+
+			// This is actually the min of the next group, so check is exclusive not inclusive like min
+			// Except for the last group, it is inclusive
+			check := bytes.Compare(traceID, max)
+			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
+				// Trace is after this group
+				return 1, nil
+			}
+
+			// Must be in this group
+			return 0, nil
+		})
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "error binary searching row groups")
 		}
-
-		c, err := page.Values().ReadValues(buf)
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		if c < 1 {
-			return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
-		}
-
-		min = buf[0].ByteArray()
-		rowGroupMins[rgIdx] = min
-		return min, nil
-	}
-
-	rowGroup, err := binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-		min, err := getRowGroupMin(rgIdx)
-		if err != nil {
-			return 0, err
-		}
-
-		if check := bytes.Compare(traceID, min); check <= 0 {
-			// Trace is before or in this group
-			return check, nil
-		}
-
-		max, err := getRowGroupMin(rgIdx + 1)
-		if err != nil {
-			return 0, err
-		}
-
-		// This is actually the min of the next group, so check is exclusive not inclusive like min
-		// Except for the last group, it is inclusive
-		check := bytes.Compare(traceID, max)
-		if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
-			// Trace is after this group
-			return 1, nil
-		}
-
-		// Must be in this group
-		return 0, nil
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "error binary searching row groups")
 	}
 
 	if rowGroup == -1 {

@@ -27,26 +27,22 @@ const (
 	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )
 
-func init() {
-	encoding.RegisterCodec(newCodec())
-}
+// GogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger/etcd structs
+type GogoCodec struct{}
 
-// gogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger/etcd structs
-type gogoCodec struct{}
+var _ encoding.Codec = (*GogoCodec)(nil)
 
-var _ encoding.Codec = (*gogoCodec)(nil)
-
-func newCodec() *gogoCodec {
-	return &gogoCodec{}
+func NewCodec() *GogoCodec {
+	return &GogoCodec{}
 }
 
 // Name implements encoding.Codec
-func (c *gogoCodec) Name() string {
+func (c *GogoCodec) Name() string {
 	return "proto"
 }
 
 // Marshal implements encoding.Codec
-func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
+func (c *GogoCodec) Marshal(v interface{}) ([]byte, error) {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
@@ -57,7 +53,7 @@ func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 }
 
 // Unmarshal implements encoding.Codec
-func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
+func (c *GogoCodec) Unmarshal(data []byte, v interface{}) error {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
