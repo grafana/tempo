@@ -30,6 +30,10 @@ type mockOverrides struct {
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
 
+func (m *mockOverrides) MetricsGeneratorIngestionSlack(string) time.Duration {
+	return 30 * time.Second
+}
+
 func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(string) uint32 {
 	return 0
 }
