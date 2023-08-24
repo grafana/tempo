@@ -1,7 +1,10 @@
 package gcs
 
 import (
+	"flag"
 	"time"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Config struct {
@@ -16,7 +19,14 @@ type Config struct {
 	ObjectMetadata     map[string]string `yaml:"object_metadata"`
 }
 
-func (c *Config) PathMatches(other *Config) bool {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	f.StringVar(&cfg.BucketName, util.PrefixConfig(prefix, "gcs.bucket"), "", "gcs bucket to store traces in.")
+	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "gcs.prefix"), "", "gcs bucket prefix to store traces in.")
+	cfg.ChunkBufferSize = 10 * 1024 * 1024
+	cfg.HedgeRequestsUpTo = 2
+}
+
+func (cfg *Config) PathMatches(other *Config) bool {
 	// GCS bucket names are globally unique
-	return c.BucketName == other.BucketName && c.Prefix == other.Prefix
+	return cfg.BucketName == other.BucketName && cfg.Prefix == other.Prefix
 }

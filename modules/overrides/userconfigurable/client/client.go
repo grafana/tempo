@@ -62,10 +62,17 @@ type Config struct {
 func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.ConfirmVersioning = true
 
+	// pass in a dummy flagset because we don't want to set any flags for this module
+	dummyFlagSet := &flag.FlagSet{}
+
 	c.Local = &local.Config{}
+	c.Local.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.GCS = &gcs.Config{}
+	c.GCS.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.S3 = &s3.Config{}
+	c.S3.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.Azure = &azure.Config{}
+	c.Azure.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 }
 
 // Client is a collection of methods to manage overrides on a backend.
