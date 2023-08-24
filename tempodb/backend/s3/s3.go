@@ -278,7 +278,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 }
 
 // Find implements backend.Reader
-func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, start string) (keys []string, err error) {
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 

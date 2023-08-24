@@ -66,7 +66,7 @@ type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// Find returns the names of all objects for which the provided FindFunc is true.  Start/End are used to limit the search to a range.
-	Find(ctx context.Context, keypath KeyPath, f FindFunc, start string) ([]string, error)
+	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.
