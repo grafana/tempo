@@ -43,11 +43,11 @@ var (
 )
 
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(sloTraceByIDCounter, traceByIDCounter, cfg)
+	return sloHook(traceByIDCounter, sloTraceByIDCounter, cfg)
 }
 
 func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(sloSearchCounter, searchCounter, cfg)
+	return sloHook(searchCounter, sloSearchCounter, cfg)
 }
 
 func searchSLOPreHook(ctx context.Context) context.Context {
