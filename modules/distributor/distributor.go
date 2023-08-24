@@ -401,19 +401,18 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		}
 
 		response, err := c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
-		// response = {empty}, err = nil ==> entire batch processed successfully
-		// response = nil, err != nill ==> entire batch failed not related to livetraces or tracetoolong error
-		// response != {empty}, err = nil  ==>  at least one trace was discarded
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 
-		if response != nil {
-			mu.Lock()
-			defer mu.Unlock()
-			responses = append(responses, response)
+		if err != nil { // internal error, drop entire batch
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
+			return err
 		}
 
-		return err
+		mu.Lock()
+		defer mu.Unlock()
+		responses = append(responses, response)
+		return nil
+
 	}, func() {})
 	// if err != nil, we discarded everything because of an internal error
 	if err != nil {
@@ -556,9 +555,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTrace, repFactor int) (int, int) {
-	maxLiveDiscardedCount := 0
-	traceTooLargeDiscardedCount := 0
+func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
 	discardedTraces := make([]int, len(traces))
 	numResponses := len(responses)
 	quorum := (repFactor / 2) + 1 // min success required
