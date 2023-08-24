@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -92,9 +93,10 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 	return p.progress.result()
 }
 
-// jpe slos on this?
 // newSearchStreamingHandler returns a handler that streams results from the HTTP handler
 func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
+	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		// build search request and propagate context
@@ -111,6 +113,12 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			return fmt.Errorf("build search request failed: %w", err)
 		}
 		ctx := srv.Context()
+
+		// SLOS - start timer and prep context
+		start := time.Now()
+		tenant, _ := user.ExtractOrgID(ctx)
+		ctx = searchSLOPreHook(ctx)
+
 		httpReq = httpReq.WithContext(ctx)
 
 		// streaming search only accepts requests with backend components
@@ -139,6 +147,9 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			resp, err := rt.RoundTrip(httpReq)
 			resultChan <- roundTripResult{resp, err}
 			close(resultChan)
+
+			// SLOs record results
+			postSLOHook(ctx, resp, tenant, time.Since(start), err)
 		}()
 
 		// collect and return results
@@ -146,6 +157,7 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			select {
 			// handles context canceled or other errors
 			case <-ctx.Done():
+				postSLOHook(ctx, nil, tenant, time.Since(start), ctx.Err())
 				return ctx.Err()
 			// stream results as they come in
 			case <-time.After(500 * time.Millisecond):

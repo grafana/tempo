@@ -65,7 +65,7 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 		}
 
 		// all 200s/300s/400s are success
-		if resp.StatusCode >= 500 {
+		if resp != nil && resp.StatusCode >= 500 {
 			return
 		}
 
