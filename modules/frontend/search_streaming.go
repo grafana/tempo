@@ -125,7 +125,7 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			return p
 		}
 		// build roundtripper
-		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, fn, logger))
+		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, fn, logger))
 
 		type roundTripResult struct {
 			resp *http.Response

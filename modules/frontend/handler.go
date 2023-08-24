@@ -15,7 +15,6 @@ import (
 	"github.com/grafana/dskit/tracing"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -31,20 +30,22 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
+type requestHook func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error)
+
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
-	roundTripper     http.RoundTripper
-	logger           log.Logger
-	queriesPerTenant *prometheus.CounterVec
+	roundTripper http.RoundTripper
+	logger       log.Logger
+	post         requestHook
 }
 
 // newHandler creates a handler
-func newHandler(rt http.RoundTripper, queries *prometheus.CounterVec, logger log.Logger) http.Handler {
+func newHandler(rt http.RoundTripper, post requestHook, logger log.Logger) http.Handler {
 	return &handler{
-		roundTripper:     rt,
-		logger:           logger,
-		queriesPerTenant: queries,
+		roundTripper: rt,
+		logger:       logger,
+		post:         post,
 	}
 }
 
@@ -66,7 +67,11 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := f.roundTripper.RoundTrip(r)
-	f.queriesPerTenant.WithLabelValues(orgID).Inc()
+	elapsed := time.Since(start)
+	if f.post != nil {
+		f.post(ctx, resp, orgID, elapsed, err)
+	}
+
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		err = writeError(w, err)
@@ -75,7 +80,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"method", r.Method,
 			"traceID", traceID,
 			"url", r.URL.RequestURI(),
-			"duration", time.Since(start).String(),
+			"duration", elapsed.String(),
 			"response_size", 0,
 			"status", statusCode,
 			"err", err.Error(),
@@ -91,7 +96,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"method", r.Method,
 			"traceID", traceID,
 			"url", r.URL.RequestURI(),
-			"duration", time.Since(start).String(),
+			"duration", elapsed.String(),
 			"response_size", 0,
 			"status", statusCode,
 			"err", err.Error(),
@@ -122,7 +127,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"method", r.Method,
 		"traceID", traceID,
 		"url", r.URL.RequestURI(),
-		"duration", time.Since(start).String(),
+		"duration", elapsed.String(),
 		"response_size", contentLength,
 		"status", statusCode,
 	)

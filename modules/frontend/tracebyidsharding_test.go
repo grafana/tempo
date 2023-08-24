@@ -253,7 +253,6 @@ func TestShardingWareDoRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			sharder := newTraceByIDSharder(&TraceByIDConfig{
 				QueryShards: 2,
-				SLO:         testSLOcfg,
 			}, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
@@ -334,7 +333,6 @@ func TestConcurrentShards(t *testing.T) {
 	sharder := newTraceByIDSharder(&TraceByIDConfig{
 		QueryShards:      20,
 		ConcurrentShards: concurrency,
-		SLO:              testSLOcfg,
 	}, log.NewNopLogger())
 
 	sawMaxConcurrncy := atomic.NewBool(false)

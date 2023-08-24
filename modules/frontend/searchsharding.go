@@ -40,18 +40,6 @@ var (
 	}, []string{"tenant", "op"})
 
 	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
-
-	// be careful about adding or removing labels from this metric. this, along with the
-	// query_frontend_queries_total metric are used to calculate budget burns.
-	// the labels need to be aligned for accurate calculations
-	sloQueriesPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_queries_within_slo_total",
-		Help:      "Total Queries within SLO per tenant",
-	}, []string{"tenant", "op"})
-
-	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
-	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
 type searchSharder struct {
@@ -61,7 +49,6 @@ type searchSharder struct {
 	progress  searchProgressFactory
 
 	cfg    SearchSharderConfig
-	sloCfg SLOConfig
 	logger log.Logger
 }
 
@@ -81,14 +68,13 @@ type backendReqMsg struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgressFactory, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, progress searchProgressFactory, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
 			cfg:       cfg,
-			sloCfg:    sloCfg,
 			logger:    logger,
 
 			progress: progress,
@@ -111,15 +97,15 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// adjust limit based on config
 	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
 
-	ctx := r.Context()
-	tenantID, err := user.ExtractOrgID(ctx)
+	requestCtx := r.Context()
+	tenantID, err := user.ExtractOrgID(requestCtx)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Body:       io.NopCloser(strings.NewReader(err.Error())),
 		}, nil
 	}
-	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
+	span, ctx := opentracing.StartSpanFromContext(requestCtx, "frontend.ShardSearch")
 	defer span.Finish()
 
 	reqStart := time.Now()
@@ -280,16 +266,19 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	recordSearchSLO(s.sloCfg, tenantID, reqTime, throughput)
+	// see slos.go for why we need to record throughput here
+	addThroughputToContext(requestCtx, throughput)
 
-	return &http.Response{
+	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
 			api.HeaderContentType: {api.HeaderAcceptJSON},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
-	}, nil
+	}
+
+	return resp, nil
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
@@ -505,17 +494,6 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
 	}
 
 	return limit
-}
-
-func recordSearchSLO(sloCfg SLOConfig, tenantID string, reqTime time.Duration, throughput float64) {
-	// only capture if SLOConfig is set
-	if sloCfg.DurationSLO != 0 && sloCfg.ThroughputBytesSLO != 0 {
-		if reqTime < sloCfg.DurationSLO || throughput > sloCfg.ThroughputBytesSLO {
-			// query is within SLO if query returned 200 within DurationSLO seconds OR
-			// processed ThroughputBytesSLO bytes/s data
-			sloSearchCounter.WithLabelValues(tenantID).Inc()
-		}
-	}
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
