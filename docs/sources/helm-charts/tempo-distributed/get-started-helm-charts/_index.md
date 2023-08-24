@@ -258,6 +258,12 @@ The `storage` block defined in the `values.yaml` file is used to configure the s
 The procedure below configures MinIO as the local storage option managed by the Helm chart.
 However, you can use a other storage provides. Refer to the Optional storage section below.
 
+{{% admonition type="note" %}}
+
+The MinIO installation that is included with this Helm chart is for demonstration purposes only, and is configured for a maximum storage size of 5Gi. This MinIO installation is not suitable for production environments and should only be used for example purposes.
+
+{{% /admonition %}}
+
 The Helm chart values provided include the basic MinIO set up values. If you need to customize them, the steps below walk you through which sections to update.
 If you do not need to change the values, you can skip this section.
 
