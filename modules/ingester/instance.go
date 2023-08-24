@@ -40,13 +40,13 @@ var (
 )
 
 func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) error {
-	level.Warn(log.Logger).Log("msg", "%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
-		overrides.ErrorPrefixTraceTooLarge, maxBytes, reqSize, hex.EncodeToString(traceID), instanceID)
+	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
+		overrides.ErrorPrefixTraceTooLarge, maxBytes, reqSize, hex.EncodeToString(traceID), instanceID))
 	return errTraceTooLarge
 }
 
 func newMaxLiveTracesError(instanceID string, limit string) error {
-	level.Warn(log.Logger).Log("msg", "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, instanceID, limit)
+	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, instanceID, limit))
 	return errMaxLiveTraces
 }
 
