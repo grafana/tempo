@@ -8,15 +8,11 @@ import (
 	"io"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -201,37 +197,6 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 
 // Blocks implements backend.Reader
 func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-	newF := func(min, max uuid.UUID) FindFunc {
-		return func(opts FindOpts) (bool, error) {
-			// i.e: <tenantID/<blockID>/meta
-			parts := strings.Split(opts.Key, "/")
-			if len(parts) != 3 {
-				return false, nil
-			}
-
-			id, err := uuid.Parse(parts[1])
-			if err != nil {
-				return false, nil
-			}
-
-			// Check that we are within the range
-			x := bytes.Compare(id[:], min[:])
-			if x < 0 {
-				return false, ErrDone
-			}
-
-			y := bytes.Compare(id[:], max[:])
-			if y > 0 {
-				return false, ErrDone
-			}
-
-			switch parts[2] {
-			case MetaName, CompactedMetaName:
-				return true, nil
-			}
-			return false, nil
-		}
-	}
 	f := func(opts FindOpts) (bool, error) {
 		// i.e: <tenantID/<blockID>/meta
 		parts := strings.Split(opts.Key, "/")
@@ -246,43 +211,9 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 		return false, nil
 	}
 
-	results := make([]string, 0, 1000)
-	var err error
-
-	if r.r.HasFeature(FeatureListShards) {
-		bb := util.CreateBlockBoundaries(16)
-
-		m := sync.Mutex{}
-		w := sync.WaitGroup{}
-
-		for i := 0; i < len(bb)-1; i++ {
-			min := uuid.UUID(bb[i])
-			max := uuid.UUID(bb[i+1])
-			f := newF(min, max)
-
-			w.Add(1)
-			go func() {
-				defer w.Done()
-				rrr, findErr := r.r.Find(ctx, KeyPath{tenantID}, f, min.String())
-				if findErr != nil {
-					level.Error(log.Logger).Log("msg", "failed to poll blocks", "error", err)
-					return
-				}
-
-				m.Lock()
-				results = append(results, rrr...)
-				m.Unlock()
-			}()
-		}
-
-		w.Wait()
-		// TODO: implement this using a channel rather than locking around the list
-
-	} else {
-		results, err = r.r.Find(ctx, KeyPath{tenantID}, f, "")
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "failed to find blocks")
-		}
+	results, err := r.r.Find(ctx, KeyPath{tenantID}, f)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to find blocks")
 	}
 
 	mm := make([]uuid.UUID, 0, len(results))
