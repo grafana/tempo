@@ -34,6 +34,7 @@ type Config struct {
 	// Deprecated
 	// See https://github.com/grafana/tempo/pull/3006 for more details
 	NativeAWSAuthEnabled bool `yaml:"native_aws_auth_enabled"`
+	ConcurrentWalk       int  `yaml:"concurrent_walk"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -44,6 +45,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.MinVersion, util.PrefixConfig(prefix, "s3.tls_min_version"), "VersionTLS12", "minimum version of TLS to use when connecting to s3.")
 	f.Var(&cfg.SecretKey, util.PrefixConfig(prefix, "s3.secret_key"), "s3 secret key.")
 	f.Var(&cfg.SessionToken, util.PrefixConfig(prefix, "s3.session_token"), "s3 session token.")
+	f.IntVar(&cfg.ConcurrentWalk, util.PrefixConfig(prefix, "s3.concurrent_walk"), 3, "number of concurrent list calls to make to backend")
 	cfg.HedgeRequestsUpTo = 2
 }
 

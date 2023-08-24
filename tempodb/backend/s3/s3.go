@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	stdErrs "errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -286,46 +288,71 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		prefix = prefix + "/"
 	}
 
-	if len(start) > 0 {
-		start = prefix + start
-	}
+	ranges := backend.CalculateRanges(rw.cfg.ConcurrentWalk)
+	errChan := make(chan error, len(ranges))
+	wg := sync.WaitGroup{}
 
-	nextToken := ""
-	isTruncated := true
-	var res minio.ListBucketV2Result
+	for _, r := range ranges {
+		wg.Add(1)
+		go func(start, end rune) {
+			defer wg.Done()
+			startAfter := prefix + string(start)
 
-	for isTruncated {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, start, nextToken, "", 0)
-			if err != nil {
-				return nil, errors.Wrapf(err, "error finding objects in s3 bucket, bucket: %s", rw.cfg.Bucket)
-			}
+			nextToken := ""
+			isTruncated := true
+			var res minio.ListBucketV2Result
 
-			isTruncated = res.IsTruncated
-			nextToken = res.NextContinuationToken
-
-			if len(res.Contents) > 0 {
-				for _, c := range res.Contents {
-					opts := backend.FindOpts{
-						Key:      c.Key,
-						Modified: c.LastModified,
-					}
-
-					matched, e := f(opts)
-					if e == backend.ErrDone {
+			for isTruncated {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, nextToken, "", 0)
+					if err != nil {
+						errChan <- errors.Wrapf(err, "error finding objects in s3 bucket, bucket: %s", rw.cfg.Bucket)
 						return
 					}
-					if !matched {
-						continue
-					}
 
-					keys = append(keys, c.Key)
+					isTruncated = res.IsTruncated
+					nextToken = res.NextContinuationToken
+
+					if len(res.Contents) > 0 {
+						for _, c := range res.Contents {
+							x := rune(strings.Split(strings.TrimPrefix(c.Key, prefix), "")[0][0])
+							if x < start || x > end {
+								return
+							}
+
+							opts := backend.FindOpts{
+								Key:      c.Key,
+								Modified: c.LastModified,
+							}
+
+							matched, e := f(opts)
+							if e == backend.ErrDone {
+								return
+							}
+							if !matched {
+								continue
+							}
+
+							keys = append(keys, c.Key)
+						}
+					}
 				}
 			}
-		}
+		}(r.Start, r.End)
+	}
+	wg.Wait()
+	close(errChan)
+
+	var errs []error
+	for e := range errChan {
+		errs = append(errs, e)
+	}
+
+	if len(errs) > 0 {
+		return nil, stdErrs.Join(errs...)
 	}
 
 	level.Debug(rw.logger).Log("msg", "find complete", "keys", len(keys))
