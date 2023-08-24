@@ -40,11 +40,6 @@ Blocks in the backend are generated in the following layout:
                                       / <bloom_n>
 ```
 
-While a trace is considered live, additional spans can be added.
-A live, or active, trace is a trace that hasn't received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
-After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
-When Tempo receives a new batch, a new live trace is created in memory.
-
 ## Query Frontend
 
 The Query Frontend is responsible for sharding the search space for an incoming query.
