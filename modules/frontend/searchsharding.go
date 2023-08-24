@@ -41,6 +41,9 @@ var (
 
 	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
 
+	// be careful about adding or removing labels from this metric. this, along with the
+	// query_frontend_queries_total metric are used to calculate budget burns.
+	// the labels need to be aligned for accurate calculations
 	sloQueriesPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_within_slo_total",

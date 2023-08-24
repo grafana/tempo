@@ -60,6 +60,9 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
+	// be careful about adding or removing labels from this metric. this, along with the
+	// query_frontend_queries_within_slo_total metric are used to calculate budget burns.
+	// the labels need to be aligned for accurate calculations
 	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
