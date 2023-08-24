@@ -576,9 +576,15 @@ func TestInstancePartialSuccess(t *testing.T) {
 	ctx := context.Background()
 	maxTraceBytes := 1000
 
-	limits, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace:      maxTraceBytes,
-		MaxLocalTracesPerUser: 2,
+	limits, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: maxTraceBytes,
+			},
+			Ingestion: overrides.IngestionOverrides{
+				MaxLocalTracesPerUser: 2,
+			},
+		},
 	})
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
