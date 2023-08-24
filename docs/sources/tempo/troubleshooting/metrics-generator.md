@@ -68,12 +68,14 @@ sum(rate(tempo_metrics_generator_registry_series_limited_total{}[1m]))
 
 Use the following setting to update the limit:
 
-```
+```yaml
 overrides:
-  metrics_generator_max_active_series: 0
+  defaults:
+    metrics_generator:
+      max_active_series: 0
 ```
 
-Note that this value is per metrics generator. The actual max series remote written will be `<# of metrics generators> * <metrics_generator_max_active_series>`.
+Note that this value is per metrics generator. The actual max series remote written will be `<# of metrics generators> * <metrics_generator.max_active_series>`.
 
 ### Remote write failures
 

@@ -83,7 +83,8 @@ var cli struct {
 	} `cmd:""`
 
 	Migrate struct {
-		Tenant migrateTenantCmd `cmd:"" help:"migrate tenant between two backends"`
+		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
+		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
 	} `cmd:""`
 }
 

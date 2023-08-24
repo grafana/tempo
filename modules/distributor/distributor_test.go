@@ -766,7 +766,7 @@ func TestDistributor(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
-			limits := &overrides.Limits{}
+			limits := overrides.Config{}
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
@@ -965,7 +965,7 @@ func TestLogSpans(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
-			limits := &overrides.Limits{}
+			limits := overrides.Config{}
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			buf := &bytes.Buffer{}
@@ -1002,14 +1002,18 @@ func TestLogSpans(t *testing.T) {
 
 func TestRateLimitRespected(t *testing.T) {
 	// prepare test data
-	limits := overrides.Limits{
-		IngestionRateStrategy:   overrides.LocalIngestionRateStrategy,
-		IngestionRateLimitBytes: 400,
-		IngestionBurstSizeBytes: 200,
+	overridesConfig := overrides.Config{
+		Defaults: overrides.Overrides{
+			Ingestion: overrides.IngestionOverrides{
+				RateStrategy:   overrides.LocalIngestionRateStrategy,
+				RateLimitBytes: 400,
+				BurstSizeBytes: 200,
+			},
+		},
 	}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, &limits, nil, logger)
+	d := prepare(t, overridesConfig, nil, logger)
 	batches := []*v1.ResourceSpans{
 		makeResourceSpans("test-service", []*v1.ScopeSpans{
 			makeScope(
@@ -1055,14 +1059,14 @@ type logSpan struct {
 	ResourceAttribute2 string `json:"span_resource_attribute2,omitempty"`
 }
 
-func makeAttribute(key string, value string) *v1_common.KeyValue {
+func makeAttribute(key, value string) *v1_common.KeyValue {
 	return &v1_common.KeyValue{
 		Key:   key,
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: value}},
 	}
 }
 
-func makeSpan(traceID string, spanID string, name string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
+func makeSpan(traceID, spanID, name string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
 	if status == nil {
 		status = &v1.Status{Code: v1.Status_STATUS_CODE_OK}
 	}
@@ -1118,7 +1122,7 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger log.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger log.Logger) *Distributor {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -1129,7 +1133,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger l
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(*limits)
+	overrides, err := overrides.NewOverrides(limits)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring

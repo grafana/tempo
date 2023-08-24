@@ -17,8 +17,12 @@ import (
 )
 
 func TestCombineLimitsNotHit(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: math.MaxInt,
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: math.MaxInt,
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -47,8 +51,12 @@ func TestCombineLimitsNotHit(t *testing.T) {
 }
 
 func TestCombineLimitsHit(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: 1,
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: 1,
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -77,8 +85,12 @@ func TestCombineLimitsHit(t *testing.T) {
 }
 
 func TestCombineDoesntEnforceZero(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		MaxBytesPerTrace: 0,
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Global: overrides.GlobalOverrides{
+				MaxBytesPerTrace: math.MaxInt,
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -125,10 +137,14 @@ func TestCountSpans(t *testing.T) {
 }
 
 func TestDedicatedColumns(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Limits{
-		DedicatedColumns: backend.DedicatedColumns{
-			{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
-			{Scope: "span", Name: "dedicated.span.1", Type: "string"},
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Storage: overrides.StorageOverrides{
+				DedicatedColumns: backend.DedicatedColumns{
+					{Scope: "resource", Name: "dedicated.resource.1", Type: "string"},
+					{Scope: "span", Name: "dedicated.span.1", Type: "string"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)

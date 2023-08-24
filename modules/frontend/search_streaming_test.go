@@ -209,7 +209,7 @@ func TestStreamingSearchHandlerFailsDueToError(t *testing.T) {
 func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 	t.Helper()
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	handler := newSearchStreamingHandler(Config{
