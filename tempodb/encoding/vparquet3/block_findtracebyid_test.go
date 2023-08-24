@@ -3,7 +3,7 @@ package vparquet3
 import (
 	"bytes"
 	"context"
-	"path"
+	"os"
 	"sort"
 	"testing"
 
@@ -143,33 +143,66 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	}
 }
 
+/*func genIndex(t require.TestingT, block *backendBlock) *index {
+	pf, _, err := block.openForSearch(context.TODO(), common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	i := &index{}
+
+	for j := range pf.RowGroups() {
+		iter := parquetquery.NewSyncIterator(context.TODO(), pf.RowGroups()[j:j+1], 0, "", 1000, nil, "TraceID")
+		defer iter.Close()
+
+		for {
+			v, err := iter.Next()
+			require.NoError(t, err)
+			if v == nil {
+				break
+			}
+
+			i.Add(v.Entries[0].Value.ByteArray())
+		}
+		i.Flush()
+	}
+
+	return i
+}*/
+
 func BenchmarkFindTraceByID(b *testing.B) {
-	ctx := context.TODO()
-	tenantID := "1"
-	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	// blockID := uuid.MustParse("1a2d50d7-f10e-41f0-850d-158b19ead23d")
+	var (
+		ctx      = context.TODO()
+		tenantID = "1"
+		blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		path     = "/Users/marty/src/tmp/"
+	)
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path,
 	})
 	require.NoError(b, err)
 
 	rr := backend.NewReader(r)
+	// ww := backend.NewWriter(w)
 
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
 
 	traceID := meta.MinID
-	// traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
-	// require.NoError(b, err)
-
 	block := newBackendBlock(meta, rr)
 
-	b.ResetTimer()
+	// index := genIndex(b, block)
+	// writeBlockMeta(ctx, ww, meta, &common.ShardedBloomFilter{}, index)
 
-	for i := 0; i < b.N; i++ {
-		tr, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
-		require.NoError(b, err)
-		require.NotNil(b, tr)
+	for _, tc := range []string{EnvVarIndexDisabledValue, "1"} {
+		b.Run(EnvVarIndexName+"="+tc, func(b *testing.B) {
+			os.Setenv(EnvVarIndexName, tc)
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				tr, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
+				require.NoError(b, err)
+				require.NotNil(b, tr)
+			}
+		})
 	}
 }
