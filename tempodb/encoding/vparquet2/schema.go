@@ -529,7 +529,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
+func ParquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
