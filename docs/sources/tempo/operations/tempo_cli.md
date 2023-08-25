@@ -324,7 +324,7 @@ tempo-cli parquet convert-2-to-3 <in file> <out path> <list of dedicated columns
 ```
 
 Arguments:
-- `in file` Filename of an existing parquet2 file containing Tempo trace data
+- `in file` Filename of an existing vParquet2 file containing Tempo trace data
 - `out path` Path to write the vParquet3 block to. 
 - `list of dedicated columns` Additional params indicating which columns to make dedicated. Max 10.
 
