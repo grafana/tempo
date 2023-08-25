@@ -220,3 +220,31 @@ user_configurable_overrides:
 
 	assert.Equal(t, cfg, legacyCfg)
 }
+
+func TestNumberOfOverrides(t *testing.T) {
+	// Asserts that the number of overrides in the new config is the same as the
+	// number of overrides in the legacy config.
+	assert.Equal(t, countOverrides(LegacyOverrides{}), countOverrides(Overrides{}))
+}
+
+// countOverrides recursively counts the number of non-struct fields in a struct.
+func countOverrides(v any) int {
+	return rvCountFields(reflect.ValueOf(v))
+}
+
+func rvCountFields(rv reflect.Value) int {
+	if rv.Kind() != reflect.Struct {
+		return 0
+	}
+
+	n := 0
+	for i := 0; i < rv.NumField(); i++ {
+		fv := rv.Field(i)
+		if fv.Kind() == reflect.Struct {
+			n += rvCountFields(fv)
+		} else {
+			n++
+		}
+	}
+	return n
+}
