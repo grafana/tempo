@@ -27,7 +27,7 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	req := traceql.MustExtractFetchSpansRequestWithMetadata(`{ span.foo = "bar" || duration > 1s }`)
+	req := traceql.MustExtractFetchSpansRequestWithMetadata(`{ traceDuration > 1s }`)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
 	req.EndTimeUnixNanos = uint64(1001 * time.Second)
