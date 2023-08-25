@@ -13,6 +13,14 @@
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
+* [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
+  This query will now correctly tell you %age of requests that are within SLO:
+  ```
+  sum(rate(tempo_query_frontend_queries_within_slo_total{}[1m])) by (op) 
+  /
+  sum(rate(tempo_query_frontend_queries_total{}[1m])) by (op)
+  ```
+  **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}. 
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
     Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
     Old config:
@@ -38,9 +46,7 @@ defaults:
   forwarders: ['foo']
   metrics_generator:
     processors: [service-graphs, span-metrics]
-```
-* [CHANGE] Dropped status from tempo_query_frontend_queries_total to better align with the slo metric. This
-  is technically a breaking change, but since the status code was always 0 it's clear no one was using it. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
+```  
 
 ## v2.2.1 / 2023-08-??
 
