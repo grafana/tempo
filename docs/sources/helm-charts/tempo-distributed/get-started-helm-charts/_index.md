@@ -260,7 +260,7 @@ However, you can use a other storage provides. Refer to the Optional storage sec
 
 {{% admonition type="note" %}}
 
-The MinIO installation that is included with this Helm chart is for demonstration purposes only, and is configured for a maximum storage size of 5Gi. This MinIO installation is not suitable for production environments and should only be used for example purposes. Performant, Enterprise-grade object storage should always be used in production
+The MinIO installation that is included with this Helm chart is for demonstration purposes only, and is configured for a maximum storage size of 5GB. This MinIO installation is not suitable for production environments and should only be used for example purposes. Performant, Enterprise-grade object storage should always be used in production
 
 {{% /admonition %}}
 
