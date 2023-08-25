@@ -275,7 +275,7 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
 			int(d.ingestionRateLimiter.Limit(now, userID)),
-			tracesSize)
+			tracesSize, userID)
 	}
 
 	return nil
