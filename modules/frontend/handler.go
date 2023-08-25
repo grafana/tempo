@@ -30,8 +30,10 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
-type handlerPostHook func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error)
-type handlerPreHook func(ctx context.Context) context.Context
+type (
+	handlerPostHook func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error)
+	handlerPreHook  func(ctx context.Context) context.Context
+)
 
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
