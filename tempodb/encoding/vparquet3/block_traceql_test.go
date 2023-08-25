@@ -526,7 +526,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
-	opts.TotalPages = 10
+	opts.TotalPages = 1
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
