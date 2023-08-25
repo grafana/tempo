@@ -492,7 +492,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		// span
 		{"spanAttNameNoMatch", "{ span.foo = `bar` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
-		{"spanAttValMatch", "{ span.bloom > 0 }"},
+		{"spanAttValMatch", "{ span.blockSize > 0 }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
 		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
 		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
@@ -528,7 +528,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
-	opts.TotalPages = 10
+	opts.TotalPages = 1
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)

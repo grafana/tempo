@@ -427,10 +427,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 		// if the filter removed all spansets then let's release all back to the pool
 		// no reason to try anything more nuanced than this. it will handle nearly all cases
 		if len(filteredSpansets) == 0 {
-			for _, s := range spanset.Spans {
-				putSpan(s.(*span))
-			}
-			putSpanset(spanset)
+			putSpansetAndSpans(spanset)
 		}
 
 		// flatten spans into i.currentSpans
@@ -1578,11 +1575,9 @@ func (c *spanCollector) String() string {
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var sp *span
 	// look for existing span first. this occurs on the second pass
-	for _, e := range res.OtherEntries {
-		if e.Key == otherEntrySpanKey {
-			sp = e.Value.(*span)
-			break
-		}
+	val := res.OtherValueFromKey(otherEntrySpanKey)
+	if val != nil {
+		sp = val.(*span)
 	}
 
 	// if not found create a new one
@@ -1679,8 +1674,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	res.Entries = res.Entries[:0]
-	res.OtherEntries = res.OtherEntries[:0]
+	res.Reset()
 	res.AppendOtherValue(otherEntrySpanKey, sp)
 
 	return true
@@ -1784,8 +1778,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		return false
 	}
 
-	res.Entries = res.Entries[:0]
-	res.OtherEntries = res.OtherEntries[:0]
+	res.Reset()
 	res.AppendOtherValue(otherEntrySpansetKey, sp)
 
 	return true
@@ -1861,8 +1854,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	res.Entries = res.Entries[:0]
-	res.OtherEntries = res.OtherEntries[:0]
+	res.Reset()
 	res.AppendOtherValue(otherEntrySpansetKey, finalSpanset)
 
 	return true
@@ -1904,9 +1896,8 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	res.Entries = res.Entries[:0]
-	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue(key, val)
+	res.Reset()
+	res.AppendOtherValue(key, val) // jpe added here
 
 	return true
 }
