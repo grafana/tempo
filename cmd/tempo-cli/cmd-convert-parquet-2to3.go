@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -55,9 +56,21 @@ func (cmd *convertParquet2to3) Run() error {
 
 	dedicatedCols := make([]backend.DedicatedColumn, 0, len(cmd.DedicatedColumns))
 	for _, col := range cmd.DedicatedColumns {
+		att, err := traceql.ParseIdentifier(col)
+		if err != nil {
+			return err
+		}
+
+		scope := backend.DedicatedColumnScopeSpan
+		if att.Scope == traceql.AttributeScopeResource {
+			scope = backend.DedicatedColumnScopeResource
+		}
+
+		fmt.Println("scope", scope, "name", att.Name)
+
 		dedicatedCols = append(dedicatedCols, backend.DedicatedColumn{
-			Scope: backend.DedicatedColumnScopeSpan,
-			Name:  col,
+			Scope: scope,
+			Name:  att.Name,
 			Type:  backend.DedicatedColumnTypeString,
 		})
 	}
@@ -91,9 +104,7 @@ func (cmd *convertParquet2to3) Run() error {
 }
 
 type parquetIterator struct {
-	r    *parquet.GenericReader[*vparquet2.Trace]
-	meta *backend.BlockMeta
-
+	r *parquet.GenericReader[*vparquet2.Trace]
 	i int
 }
 
