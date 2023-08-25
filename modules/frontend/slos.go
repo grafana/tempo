@@ -9,11 +9,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+type contextKey string
+
 const (
 	traceByIDOp = "traces"
 	searchOp    = "search"
 
-	throughputKey
+	throughputKey = contextKey("throughput")
 )
 
 var (
