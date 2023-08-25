@@ -69,20 +69,25 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 			return
 		}
 
-		passedThroughput := true
+		passedThroughput := false
 		// final check is throughput
 		if cfg.ThroughputBytesSLO > 0 {
 			throughput, ok := thoughputFromContext(ctx)
 
 			// if we didn't find the key, but expected it, we consider throughput a failure
-			passedThroughput = !ok && throughput >= cfg.ThroughputBytesSLO
+			passedThroughput = ok && throughput >= cfg.ThroughputBytesSLO
 		}
 
-		passedDuration := cfg.DurationSLO == 0 || latency < cfg.DurationSLO
+		passedDuration := false
+		if cfg.DurationSLO > 0 {
+			passedDuration = cfg.DurationSLO == 0 || latency < cfg.DurationSLO
+		}
 
+		hasConfiguredSLO := cfg.DurationSLO > 0 || cfg.ThroughputBytesSLO > 0
 		// throughput and latency are evaluated simultaneously. if either pass then we're good
 		// if both fail then bail out
-		if !passedDuration && !passedThroughput {
+		// only bail out if they were actually configured
+		if !passedDuration && !passedThroughput && hasConfiguredSLO {
 			return
 		}
 
