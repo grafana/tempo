@@ -108,7 +108,7 @@ type parquetIterator struct {
 	i int
 }
 
-func (i *parquetIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+func (i *parquetIterator) Next(_ context.Context) (common.ID, *tempopb.Trace, error) {
 	traces := make([]*vparquet2.Trace, 1)
 
 	i.i++
