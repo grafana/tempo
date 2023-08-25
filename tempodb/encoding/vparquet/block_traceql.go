@@ -144,6 +144,7 @@ const (
 	columnPathSpanKind      = "rs.ils.Spans.Kind"
 	// columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
 	columnPathSpanStatusCode     = "rs.ils.Spans.StatusCode"
+	columnPathSpanStatusMessage  = "rs.ils.Spans.StatusMessage"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
 	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
@@ -168,6 +169,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 }{
 	traceql.IntrinsicName:          {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
 	traceql.IntrinsicStatus:        {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
+	traceql.IntrinsicStatusMessage: {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStatusMessage},
 	traceql.IntrinsicDuration:      {intrinsicScopeSpan, traceql.TypeDuration, ""},
 	traceql.IntrinsicKind:          {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
 	traceql.IntrinsicSpanID:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
@@ -838,6 +840,14 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
+			continue
+		case traceql.IntrinsicStatusMessage:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanStatusMessage, pred)
+			columnSelectAs[columnPathSpanStatusMessage] = columnPathSpanStatusMessage
 			continue
 		}
 

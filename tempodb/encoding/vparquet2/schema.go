@@ -34,7 +34,7 @@ const (
 	LabelHTTPStatusCode         = "http.status_code"
 	LabelStatusCode             = "status.code"
 	LabelStatus                 = "status"
-	LabelStatusMessage          = "statusMessage"
+	LabelStatusMessage          = "status.message"
 	LabelKind                   = "kind"
 	LabelTraceQLRootServiceName = "rootServiceName"
 	LabelTraceQLRootName        = "rootName"

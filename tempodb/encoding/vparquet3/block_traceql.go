@@ -229,6 +229,7 @@ const (
 	columnPathSpanDuration       = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
 	columnPathSpanKind           = "rs.list.element.ss.list.element.Spans.list.element.Kind"
 	columnPathSpanStatusCode     = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
+	columnPathSpanStatusMessage  = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
 	columnPathSpanAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
 	columnPathSpanAttrString     = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value"
 	columnPathSpanAttrInt        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt"
@@ -257,6 +258,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 }{
 	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
 	traceql.IntrinsicStatus:               {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
+	traceql.IntrinsicStatusMessage:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStatusMessage},
 	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathDurationNanos},
 	traceql.IntrinsicKind:                 {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
 	traceql.IntrinsicSpanID:               {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
@@ -923,6 +925,14 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
+			continue
+		case traceql.IntrinsicStatusMessage:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanStatusMessage, pred)
+			columnSelectAs[columnPathSpanStatusMessage] = columnPathSpanStatusMessage
 			continue
 
 		case traceql.IntrinsicStructuralDescendant:
