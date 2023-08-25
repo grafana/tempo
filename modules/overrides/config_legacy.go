@@ -46,6 +46,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:             c.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
 		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:              c.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
 		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:         c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
+		MetricsGeneratorIngestionSlack:                                   c.MetricsGenerator.IngestionSlack,
 
 		BlockRetention: c.Compaction.BlockRetention,
 
@@ -99,6 +100,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod             time.Duration                    `yaml:"metrics_generator_processor_local_blocks_flush_check_period" json:"metrics_generator_processor_local_blocks_flush_check_period"`
 	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod              time.Duration                    `yaml:"metrics_generator_processor_local_blocks_trace_idle_period" json:"metrics_generator_processor_local_blocks_trace_idle_period"`
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout         time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
+	MetricsGeneratorIngestionSlack                                   time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
@@ -141,6 +143,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxActiveSeries:    l.MetricsGeneratorMaxActiveSeries,
 			CollectionInterval: l.MetricsGeneratorCollectionInterval,
 			DisableCollection:  l.MetricsGeneratorDisableCollection,
+			IngestionSlack:     l.MetricsGeneratorIngestionSlack,
 			Forwarder: ForwarderOverrides{
 				QueueSize: l.MetricsGeneratorForwarderQueueSize,
 				Workers:   l.MetricsGeneratorForwarderWorkers,

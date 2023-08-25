@@ -299,7 +299,7 @@ func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Du
 // MetricsGeneratorIngestionSlack is the max amount of time passed since a span's end time
 // for the span to be considered in metrics generation
 func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGenerator.MetricsGeneratorIngestionSlack
+	return o.getOverridesForUser(userID).MetricsGenerator.IngestionSlack
 }
 
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.
