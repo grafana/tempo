@@ -157,7 +157,6 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			select {
 			// handles context canceled or other errors
 			case <-ctx.Done():
-				postSLOHook(ctx, nil, tenant, time.Since(start), ctx.Err())
 				return ctx.Err()
 			// stream results as they come in
 			case <-time.After(500 * time.Millisecond):

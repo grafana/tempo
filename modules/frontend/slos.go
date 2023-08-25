@@ -115,5 +115,9 @@ func addThroughputToContext(ctx context.Context, throughput float64) {
 		return
 	}
 
+	if throughputPtr == nil {
+		return
+	}
+
 	*throughputPtr = throughput
 }
