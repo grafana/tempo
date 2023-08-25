@@ -17,19 +17,11 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
-)
-
-const (
-	traceByIDOp  = "traces"
-	searchOp     = "search"
-	searchTagsOp = "searchtags"
-	metricsOp    = "metrics"
 )
 
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
@@ -60,12 +52,6 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
-	queriesPerTenant := promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_queries_total",
-		Help:      "Total queries received per tenant.",
-	}, []string{"tenant", "op", "status"})
-
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
 
 	// tracebyid middleware
@@ -75,21 +61,16 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(), retryWare)
 
-	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
-	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
-	searchTagsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchTagsOp})
-	spanMetricsCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
-
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	searchTags := searchTagsMiddleware.Wrap(next)
 	metrics := spanMetricsMiddleware.Wrap(next)
 
 	return &QueryFrontend{
-		TraceByIDHandler:          newHandler(traces, traceByIDCounter, logger),
-		SearchHandler:             newHandler(search, searchCounter, logger),
-		SearchTagsHandler:         newHandler(searchTags, searchTagsCounter, logger),
-		SpanMetricsSummaryHandler: newHandler(metrics, spanMetricsCounter, logger),
+		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
+		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
+		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
+		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
 		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
 		logger:                    logger,
 	}, nil
@@ -191,7 +172,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
 func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		searchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, newSearchProgress, logger))
+		searchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, newSearchProgress, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding, so we pass through a special roundtripper

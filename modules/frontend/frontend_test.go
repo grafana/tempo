@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testSLOcfg = SLOConfig{
+	ThroughputBytesSLO: 0,
+	DurationSLO:        0,
+}
+
 type mockNextTripperware struct{}
 
 func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error) {
