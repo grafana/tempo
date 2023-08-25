@@ -74,43 +74,44 @@ const IDURATION = 57369
 const CHILDCOUNT = 57370
 const NAME = 57371
 const STATUS = 57372
-const PARENT = 57373
-const KIND = 57374
-const ROOTNAME = 57375
-const ROOTSERVICENAME = 57376
-const TRACEDURATION = 57377
-const PARENT_DOT = 57378
-const RESOURCE_DOT = 57379
-const SPAN_DOT = 57380
-const COUNT = 57381
-const AVG = 57382
-const MAX = 57383
-const MIN = 57384
-const SUM = 57385
-const BY = 57386
-const COALESCE = 57387
-const SELECT = 57388
-const END_ATTRIBUTE = 57389
-const PIPE = 57390
-const AND = 57391
-const OR = 57392
-const EQ = 57393
-const NEQ = 57394
-const LT = 57395
-const LTE = 57396
-const GT = 57397
-const GTE = 57398
-const NRE = 57399
-const RE = 57400
-const DESC = 57401
-const TILDE = 57402
-const ADD = 57403
-const SUB = 57404
-const NOT = 57405
-const MUL = 57406
-const DIV = 57407
-const MOD = 57408
-const POW = 57409
+const STATUS_MESSAGE = 57373
+const PARENT = 57374
+const KIND = 57375
+const ROOTNAME = 57376
+const ROOTSERVICENAME = 57377
+const TRACEDURATION = 57378
+const PARENT_DOT = 57379
+const RESOURCE_DOT = 57380
+const SPAN_DOT = 57381
+const COUNT = 57382
+const AVG = 57383
+const MAX = 57384
+const MIN = 57385
+const SUM = 57386
+const BY = 57387
+const COALESCE = 57388
+const SELECT = 57389
+const END_ATTRIBUTE = 57390
+const PIPE = 57391
+const AND = 57392
+const OR = 57393
+const EQ = 57394
+const NEQ = 57395
+const LT = 57396
+const LTE = 57397
+const GT = 57398
+const GTE = 57399
+const NRE = 57400
+const RE = 57401
+const DESC = 57402
+const TILDE = 57403
+const ADD = 57404
+const SUB = 57405
+const NOT = 57406
+const MUL = 57407
+const DIV = 57408
+const MOD = 57409
+const POW = 57410
 
 var yyToknames = [...]string{
 	"$end",
@@ -143,6 +144,7 @@ var yyToknames = [...]string{
 	"CHILDCOUNT",
 	"NAME",
 	"STATUS",
+	"STATUS_MESSAGE",
 	"PARENT",
 	"KIND",
 	"ROOTNAME",
@@ -181,6 +183,7 @@ var yyToknames = [...]string{
 	"MOD",
 	"POW",
 }
+
 var yyStatenames = [...]string{}
 
 const yyEofCode = 1
@@ -188,122 +191,121 @@ const yyErrCode = 2
 const yyInitialStackSize = 16
 
 //line yacctab:1
-var yyExca = [...]int{
+var yyExca = [...]int16{
 	-1, 1,
 	1, -1,
 	-2, 0,
-	-1, 194,
+	-1, 195,
 	13, 53,
 	-2, 61,
 }
 
 const yyPrivate = 57344
 
-const yyLast = 644
+const yyLast = 642
 
-var yyAct = [...]int{
-
-	68, 6, 8, 5, 7, 192, 2, 18, 226, 161,
-	162, 163, 172, 41, 172, 40, 159, 160, 64, 161,
-	162, 163, 172, 51, 35, 137, 133, 13, 36, 38,
-	113, 116, 112, 114, 28, 230, 229, 44, 125, 127,
-	128, 129, 130, 220, 173, 174, 164, 165, 166, 167,
-	168, 169, 171, 170, 135, 219, 159, 160, 218, 161,
-	162, 163, 172, 227, 30, 132, 155, 157, 31, 33,
-	175, 176, 177, 59, 60, 217, 61, 62, 63, 64,
-	61, 62, 63, 64, 198, 199, 147, 149, 150, 151,
-	152, 153, 154, 59, 60, 184, 61, 62, 63, 64,
-	28, 136, 46, 47, 132, 48, 49, 50, 51, 185,
-	186, 187, 188, 164, 165, 166, 167, 168, 169, 171,
-	170, 189, 181, 159, 160, 191, 161, 162, 163, 172,
-	189, 48, 49, 50, 51, 113, 116, 112, 114, 133,
-	140, 194, 225, 72, 120, 190, 196, 46, 47, 111,
-	48, 49, 50, 51, 110, 182, 183, 17, 109, 126,
-	200, 201, 202, 203, 204, 205, 206, 207, 208, 209,
-	210, 211, 212, 213, 214, 215, 190, 108, 173, 174,
-	164, 165, 166, 167, 168, 169, 171, 170, 107, 139,
-	159, 160, 66, 161, 162, 163, 172, 41, 65, 41,
-	228, 196, 173, 174, 164, 165, 166, 167, 168, 169,
-	171, 170, 222, 74, 159, 160, 221, 161, 162, 163,
-	172, 44, 134, 44, 75, 76, 77, 81, 100, 180,
-	67, 69, 179, 178, 80, 78, 79, 83, 82, 84,
-	85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
-	96, 95, 97, 98, 99, 103, 101, 102, 34, 37,
-	58, 104, 105, 106, 35, 73, 43, 16, 36, 38,
-	4, 224, 45, 75, 76, 77, 81, 100, 12, 10,
-	69, 70, 71, 80, 78, 79, 83, 82, 84, 85,
-	86, 87, 88, 89, 90, 91, 92, 93, 94, 96,
-	95, 97, 98, 99, 103, 101, 102, 173, 174, 164,
-	165, 166, 167, 168, 169, 171, 170, 223, 156, 159,
-	160, 115, 161, 162, 163, 172, 1, 34, 37, 0,
-	70, 71, 0, 35, 29, 32, 216, 36, 38, 0,
-	30, 0, 0, 0, 31, 33, 42, 11, 0, 0,
-	0, 0, 0, 173, 174, 164, 165, 166, 167, 168,
-	169, 171, 170, 197, 0, 159, 160, 0, 161, 162,
-	163, 172, 173, 174, 164, 165, 166, 167, 168, 169,
-	171, 170, 158, 0, 159, 160, 0, 161, 162, 163,
-	172, 0, 138, 141, 142, 143, 144, 145, 146, 173,
-	174, 164, 165, 166, 167, 168, 169, 171, 170, 137,
-	0, 159, 160, 0, 161, 162, 163, 172, 0, 0,
-	173, 174, 164, 165, 166, 167, 168, 169, 171, 170,
-	0, 0, 159, 160, 0, 161, 162, 163, 172, 0,
-	0, 0, 0, 0, 0, 0, 0, 52, 53, 54,
-	55, 56, 57, 0, 0, 0, 0, 59, 60, 0,
-	61, 62, 63, 64, 52, 53, 54, 55, 56, 57,
-	0, 0, 0, 0, 59, 60, 0, 61, 62, 63,
-	64, 52, 53, 54, 55, 56, 57, 0, 0, 0,
-	0, 46, 47, 0, 48, 49, 50, 51, 19, 20,
-	21, 0, 17, 0, 117, 0, 19, 20, 21, 0,
-	17, 0, 195, 0, 0, 19, 20, 21, 0, 17,
-	0, 193, 0, 19, 20, 21, 0, 17, 0, 9,
-	0, 23, 26, 24, 25, 27, 14, 118, 15, 23,
-	26, 24, 25, 27, 14, 131, 15, 0, 23, 26,
-	24, 25, 27, 14, 22, 15, 23, 26, 24, 25,
-	27, 14, 22, 15, 19, 20, 21, 0, 17, 0,
-	117, 22, 19, 20, 21, 0, 0, 0, 148, 22,
-	0, 29, 32, 39, 3, 0, 0, 30, 0, 0,
-	0, 31, 33, 0, 0, 0, 0, 23, 26, 24,
-	25, 27, 0, 0, 0, 23, 26, 24, 25, 27,
-	0, 0, 0, 119, 121, 122, 123, 124, 0, 0,
-	22, 0, 75, 76, 77, 81, 0, 0, 22, 140,
-	0, 0, 80, 78, 79, 83, 82, 84, 85, 86,
-	87, 88, 89, 90,
+var yyAct = [...]uint8{
+	68, 6, 8, 5, 7, 193, 2, 18, 227, 162,
+	163, 164, 173, 41, 173, 40, 160, 161, 64, 162,
+	163, 164, 173, 51, 138, 134, 28, 13, 231, 133,
+	114, 117, 113, 115, 230, 221, 220, 44, 126, 128,
+	129, 130, 131, 228, 219, 174, 175, 165, 166, 167,
+	168, 169, 170, 172, 171, 218, 72, 160, 161, 185,
+	162, 163, 164, 173, 35, 28, 156, 158, 36, 38,
+	176, 177, 178, 59, 60, 138, 61, 62, 63, 64,
+	61, 62, 63, 64, 133, 137, 148, 150, 151, 152,
+	153, 154, 155, 165, 166, 167, 168, 169, 170, 172,
+	171, 136, 140, 160, 161, 192, 162, 163, 164, 173,
+	186, 187, 188, 189, 52, 53, 54, 55, 56, 57,
+	134, 141, 190, 182, 59, 60, 121, 61, 62, 63,
+	64, 190, 48, 49, 50, 51, 114, 117, 113, 115,
+	30, 226, 195, 112, 31, 33, 191, 197, 199, 200,
+	46, 47, 111, 48, 49, 50, 51, 183, 184, 110,
+	109, 201, 202, 203, 204, 205, 206, 207, 208, 209,
+	210, 211, 212, 213, 214, 215, 216, 191, 174, 175,
+	165, 166, 167, 168, 169, 170, 172, 171, 108, 66,
+	160, 161, 65, 162, 163, 164, 173, 17, 41, 127,
+	41, 229, 197, 174, 175, 165, 166, 167, 168, 169,
+	170, 172, 171, 223, 222, 160, 161, 181, 162, 163,
+	164, 173, 44, 180, 44, 75, 76, 77, 81, 101,
+	179, 67, 69, 74, 73, 80, 78, 79, 83, 82,
+	84, 85, 86, 87, 88, 89, 90, 91, 92, 93,
+	94, 95, 97, 96, 98, 99, 100, 104, 102, 103,
+	59, 60, 58, 61, 62, 63, 64, 105, 106, 107,
+	43, 16, 4, 225, 45, 75, 76, 77, 81, 101,
+	12, 10, 69, 70, 71, 80, 78, 79, 83, 82,
+	84, 85, 86, 87, 88, 89, 90, 91, 92, 93,
+	94, 95, 97, 96, 98, 99, 100, 104, 102, 103,
+	174, 175, 165, 166, 167, 168, 169, 170, 172, 171,
+	224, 157, 160, 161, 116, 162, 163, 164, 173, 1,
+	0, 0, 0, 70, 71, 0, 0, 0, 0, 217,
+	52, 53, 54, 55, 56, 57, 0, 0, 0, 0,
+	59, 60, 0, 61, 62, 63, 64, 174, 175, 165,
+	166, 167, 168, 169, 170, 172, 171, 198, 0, 160,
+	161, 0, 162, 163, 164, 173, 174, 175, 165, 166,
+	167, 168, 169, 170, 172, 171, 159, 0, 160, 161,
+	0, 162, 163, 164, 173, 46, 47, 0, 48, 49,
+	50, 51, 0, 0, 174, 175, 165, 166, 167, 168,
+	169, 170, 172, 171, 0, 0, 160, 161, 0, 162,
+	163, 164, 173, 0, 0, 174, 175, 165, 166, 167,
+	168, 169, 170, 172, 171, 0, 0, 160, 161, 0,
+	162, 163, 164, 173, 52, 53, 54, 55, 56, 57,
+	0, 0, 0, 0, 46, 47, 0, 48, 49, 50,
+	51, 19, 20, 21, 0, 17, 0, 118, 0, 19,
+	20, 21, 0, 17, 0, 196, 0, 0, 19, 20,
+	21, 0, 17, 0, 194, 0, 19, 20, 21, 0,
+	17, 0, 9, 0, 0, 23, 26, 24, 25, 27,
+	14, 119, 15, 23, 26, 24, 25, 27, 14, 135,
+	15, 132, 23, 26, 24, 25, 27, 14, 22, 15,
+	23, 26, 24, 25, 27, 14, 22, 15, 19, 20,
+	21, 0, 17, 0, 118, 22, 19, 20, 21, 0,
+	0, 0, 149, 22, 0, 0, 34, 37, 29, 32,
+	42, 11, 35, 0, 30, 0, 36, 38, 31, 33,
+	0, 0, 23, 26, 24, 25, 27, 0, 0, 0,
+	23, 26, 24, 25, 27, 0, 34, 37, 29, 32,
+	0, 0, 35, 0, 30, 22, 36, 38, 31, 33,
+	0, 0, 0, 22, 0, 0, 139, 142, 143, 144,
+	145, 146, 147, 75, 76, 77, 81, 39, 3, 0,
+	141, 0, 0, 80, 78, 79, 83, 82, 84, 85,
+	86, 87, 88, 89, 90, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 120, 122, 123,
+	124, 125,
 }
-var yyPact = [...]int{
 
-	517, -1000, -14, 285, -1000, 278, -1000, -1000, -1000, 517,
-	-1000, 430, -1000, 413, 186, 180, -1000, 219, -1000, -1000,
-	-1000, -1000, 255, 176, 165, 146, 142, 137, 492, 132,
-	132, 132, 132, 132, 147, 147, 147, 147, 147, 532,
-	91, 209, 41, 88, 396, 617, 128, 128, 128, 128,
-	128, 128, -1000, -1000, -1000, -1000, -1000, -1000, 566, 566,
-	566, 566, 566, 566, 566, 268, 268, -1000, 371, 268,
-	268, 268, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+var yyPact = [...]int16{
+	480, -1000, -23, 528, -1000, 526, -1000, -1000, -1000, 480,
+	-1000, 392, -1000, 288, 180, 177, -1000, 220, -1000, -1000,
+	-1000, -1000, 261, 176, 148, 147, 140, 131, 455, 114,
+	114, 114, 114, 114, 187, 187, 187, 187, 187, 498,
+	71, 496, 88, 72, 62, 598, 109, 109, 109, 109,
+	109, 109, -1000, -1000, -1000, -1000, -1000, -1000, 530, 530,
+	530, 530, 530, 530, 530, 270, 270, -1000, 375, 270,
+	270, 270, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	229, 228, 225, 118, -1000, -1000, -1000, 82, 268, 268,
-	268, 268, 278, -1000, -1000, -1000, -1000, 558, 113, 9,
-	509, -1000, -1000, 9, -1000, -31, 147, -1000, -1000, -31,
-	-1000, -1000, -1000, 492, -1000, -1000, -1000, -1000, 86, -1000,
-	500, 67, 67, -44, -44, -44, -44, 32, 566, 16,
-	16, -49, -49, -49, -49, 350, 71, 153, -1000, 268,
-	268, 268, 268, 268, 268, 268, 268, 268, 268, 268,
-	268, 268, 268, 268, 268, 323, -55, -55, 28, 11,
-	8, -4, 212, 208, -1000, 304, 258, 129, -5, 209,
-	12, 50, 52, 509, -1000, 500, -22, -1000, -1000, 268,
-	-55, -55, -53, -53, -53, -45, -45, -45, -45, -45,
-	-45, -45, -45, -53, 62, 62, -1000, -1000, -1000, -1000,
-	-1000, -11, -12, -1000, -1000, -1000, -1000, -1000, 153, -1000,
-	-1000,
+	-1000, 226, 219, 213, 119, -1000, -1000, -1000, 46, 270,
+	270, 270, 270, 526, -1000, -1000, -1000, -1000, 522, 93,
+	84, 472, -1000, -1000, 84, -1000, 8, 187, -1000, -1000,
+	8, -1000, -1000, -1000, 455, -1000, -1000, -1000, -1000, 333,
+	-1000, 463, 67, 67, -45, -45, -45, -45, 198, 530,
+	15, 15, -50, -50, -50, -50, 354, 135, 153, -1000,
+	270, 270, 270, 270, 270, 270, 270, 270, 270, 270,
+	270, 270, 270, 270, 270, 270, 326, -56, -56, 7,
+	-4, -12, -13, 210, 209, -1000, 307, 260, 128, -5,
+	496, 11, 30, 16, 472, -1000, 463, -24, -1000, -1000,
+	270, -56, -56, -54, -54, -54, -46, -46, -46, -46,
+	-46, -46, -46, -46, -54, 41, 41, -1000, -1000, -1000,
+	-1000, -1000, -14, -20, -1000, -1000, -1000, -1000, -1000, 153,
+	-1000, -1000,
 }
-var yyPgo = [...]int{
 
-	0, 326, 4, 321, 2, 318, 3, 583, 279, 5,
-	278, 1, 260, 270, 346, 27, 267, 266, 7, 0,
-	143, 265, 213,
+var yyPgo = [...]int16{
+	0, 329, 4, 324, 2, 321, 3, 607, 281, 5,
+	280, 1, 262, 272, 550, 27, 271, 270, 7, 0,
+	56, 234, 233,
 }
-var yyR1 = [...]int{
 
+var yyR1 = [...]int8{
 	0, 1, 1, 1, 7, 7, 7, 7, 7, 7,
 	7, 8, 9, 9, 9, 9, 9, 9, 9, 9,
 	9, 2, 3, 4, 5, 5, 6, 6, 6, 6,
@@ -316,10 +318,10 @@ var yyR1 = [...]int{
 	19, 19, 19, 19, 19, 20, 20, 20, 20, 20,
 	20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
 	20, 21, 21, 21, 21, 21, 21, 21, 21, 21,
-	22, 22, 22, 22, 22, 22,
+	21, 22, 22, 22, 22, 22, 22,
 }
-var yyR2 = [...]int{
 
+var yyR2 = [...]int8{
 	0, 1, 1, 1, 3, 3, 3, 3, 3, 3,
 	1, 3, 1, 1, 1, 1, 3, 3, 3, 3,
 	3, 4, 3, 4, 1, 3, 3, 3, 3, 3,
@@ -332,37 +334,37 @@ var yyR2 = [...]int{
 	2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-	3, 3, 3, 3, 4, 4,
+	1, 3, 3, 3, 3, 4, 4,
 }
-var yyChk = [...]int{
 
+var yyChk = [...]int16{
 	-1000, -1, -9, -7, -13, -6, -11, -2, -4, 12,
-	-8, -14, -10, -15, 44, 46, -16, 10, -18, 6,
-	7, 8, 62, 39, 41, 42, 40, 43, 48, 49,
-	55, 59, 50, 60, 49, 55, 59, 50, 60, -7,
-	-9, -6, -14, -17, -15, -12, 61, 62, 64, 65,
-	66, 67, 51, 52, 53, 54, 55, 56, -12, 61,
-	62, 64, 65, 66, 67, 12, 12, 11, -19, 12,
-	62, 63, -20, -21, -22, 5, 6, 7, 16, 17,
+	-8, -14, -10, -15, 45, 47, -16, 10, -18, 6,
+	7, 8, 63, 40, 42, 43, 41, 44, 49, 50,
+	56, 60, 51, 61, 50, 56, 60, 51, 61, -7,
+	-9, -6, -14, -17, -15, -12, 62, 63, 65, 66,
+	67, 68, 52, 53, 54, 55, 56, 57, -12, 62,
+	63, 65, 66, 67, 68, 12, 12, 11, -19, 12,
+	63, 64, -20, -21, -22, 5, 6, 7, 16, 17,
 	15, 8, 19, 18, 20, 21, 22, 23, 24, 25,
-	26, 27, 28, 29, 30, 32, 31, 33, 34, 35,
-	9, 37, 38, 36, 6, 7, 8, 12, 12, 12,
-	12, 12, -6, -11, -2, -3, -4, 12, 45, -7,
-	12, -7, -7, -7, -7, -6, 12, -6, -6, -6,
-	-6, 13, 13, 48, 13, 13, 13, 13, -14, -20,
-	12, -14, -14, -14, -14, -14, -14, -15, 12, -15,
-	-15, -15, -15, -15, -15, -19, -5, -19, 11, 61,
-	62, 64, 65, 66, 51, 52, 53, 54, 55, 56,
-	58, 57, 67, 49, 50, -19, -19, -19, 4, 4,
-	4, 4, 37, 38, 13, -19, -19, -19, -19, -6,
-	-15, 12, -9, 12, -18, 12, -9, 13, 13, 14,
-	-19, -19, -19, -19, -19, -19, -19, -19, -19, -19,
-	-19, -19, -19, -19, -19, -19, 13, 47, 47, 47,
-	47, 4, 4, 13, 13, 13, 13, 13, -19, 47,
-	47,
+	26, 27, 28, 29, 30, 31, 33, 32, 34, 35,
+	36, 9, 38, 39, 37, 6, 7, 8, 12, 12,
+	12, 12, 12, -6, -11, -2, -3, -4, 12, 46,
+	-7, 12, -7, -7, -7, -7, -6, 12, -6, -6,
+	-6, -6, 13, 13, 49, 13, 13, 13, 13, -14,
+	-20, 12, -14, -14, -14, -14, -14, -14, -15, 12,
+	-15, -15, -15, -15, -15, -15, -19, -5, -19, 11,
+	62, 63, 65, 66, 67, 52, 53, 54, 55, 56,
+	57, 59, 58, 68, 50, 51, -19, -19, -19, 4,
+	4, 4, 4, 38, 39, 13, -19, -19, -19, -19,
+	-6, -15, 12, -9, 12, -18, 12, -9, 13, 13,
+	14, -19, -19, -19, -19, -19, -19, -19, -19, -19,
+	-19, -19, -19, -19, -19, -19, -19, 13, 48, 48,
+	48, 48, 4, 4, 13, 13, 13, 13, 13, -19,
+	48, 48,
 }
-var yyDef = [...]int{
 
+var yyDef = [...]int8{
 	0, -2, 1, 2, 3, 12, 13, 14, 15, 0,
 	10, 0, 32, 0, 0, 0, 51, 0, 61, 62,
 	63, 64, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -373,36 +375,37 @@ var yyDef = [...]int{
 	0, 0, 92, 93, 94, 95, 96, 97, 98, 99,
 	100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
 	110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
-	0, 0, 0, 0, 65, 66, 67, 0, 0, 0,
-	0, 0, 16, 17, 18, 19, 20, 0, 0, 5,
-	0, 6, 7, 8, 9, 27, 0, 28, 29, 30,
-	31, 4, 11, 0, 26, 44, 52, 54, 42, 43,
-	0, 45, 46, 47, 48, 49, 50, 35, 0, 55,
-	56, 57, 58, 59, 60, 0, 0, 24, 34, 0,
+	120, 0, 0, 0, 0, 65, 66, 67, 0, 0,
+	0, 0, 0, 16, 17, 18, 19, 20, 0, 0,
+	5, 0, 6, 7, 8, 9, 27, 0, 28, 29,
+	30, 31, 4, 11, 0, 26, 44, 52, 54, 42,
+	43, 0, 45, 46, 47, 48, 49, 50, 35, 0,
+	55, 56, 57, 58, 59, 60, 0, 0, 24, 34,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 90, 91, 0, 0,
-	0, 0, 0, 0, 68, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, -2, 0, 0, 21, 23, 0,
-	74, 75, 76, 77, 78, 79, 80, 81, 82, 83,
-	84, 85, 86, 87, 88, 89, 73, 120, 121, 122,
-	123, 0, 0, 69, 70, 71, 72, 22, 25, 124,
-	125,
+	0, 0, 0, 0, 0, 0, 0, 90, 91, 0,
+	0, 0, 0, 0, 0, 68, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, -2, 0, 0, 21, 23,
+	0, 74, 75, 76, 77, 78, 79, 80, 81, 82,
+	83, 84, 85, 86, 87, 88, 89, 73, 121, 122,
+	123, 124, 0, 0, 69, 70, 71, 72, 22, 25,
+	125, 126,
 }
-var yyTok1 = [...]int{
 
+var yyTok1 = [...]int8{
 	1,
 }
-var yyTok2 = [...]int{
 
+var yyTok2 = [...]int8{
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
 	12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
 	22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
 	32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
 	42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
 	52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
-	62, 63, 64, 65, 66, 67,
+	62, 63, 64, 65, 66, 67, 68,
 }
-var yyTok3 = [...]int{
+
+var yyTok3 = [...]int8{
 	0,
 }
 
@@ -484,9 +487,9 @@ func yyErrorMessage(state, lookAhead int) string {
 	expected := make([]int, 0, 4)
 
 	// Look for shiftable tokens.
-	base := yyPact[state]
+	base := int(yyPact[state])
 	for tok := TOKSTART; tok-1 < len(yyToknames); tok++ {
-		if n := base + tok; n >= 0 && n < yyLast && yyChk[yyAct[n]] == tok {
+		if n := base + tok; n >= 0 && n < yyLast && int(yyChk[int(yyAct[n])]) == tok {
 			if len(expected) == cap(expected) {
 				return res
 			}
@@ -496,13 +499,13 @@ func yyErrorMessage(state, lookAhead int) string {
 
 	if yyDef[state] == -2 {
 		i := 0
-		for yyExca[i] != -1 || yyExca[i+1] != state {
+		for yyExca[i] != -1 || int(yyExca[i+1]) != state {
 			i += 2
 		}
 
 		// Look for tokens that we accept or reduce.
 		for i += 2; yyExca[i] >= 0; i += 2 {
-			tok := yyExca[i]
+			tok := int(yyExca[i])
 			if tok < TOKSTART || yyExca[i+1] == 0 {
 				continue
 			}
@@ -533,30 +536,30 @@ func yylex1(lex yyLexer, lval *yySymType) (char, token int) {
 	token = 0
 	char = lex.Lex(lval)
 	if char <= 0 {
-		token = yyTok1[0]
+		token = int(yyTok1[0])
 		goto out
 	}
 	if char < len(yyTok1) {
-		token = yyTok1[char]
+		token = int(yyTok1[char])
 		goto out
 	}
 	if char >= yyPrivate {
 		if char < yyPrivate+len(yyTok2) {
-			token = yyTok2[char-yyPrivate]
+			token = int(yyTok2[char-yyPrivate])
 			goto out
 		}
 	}
 	for i := 0; i < len(yyTok3); i += 2 {
-		token = yyTok3[i+0]
+		token = int(yyTok3[i+0])
 		if token == char {
-			token = yyTok3[i+1]
+			token = int(yyTok3[i+1])
 			goto out
 		}
 	}
 
 out:
 	if token == 0 {
-		token = yyTok2[1] /* unknown char */
+		token = int(yyTok2[1]) /* unknown char */
 	}
 	if yyDebug >= 3 {
 		__yyfmt__.Printf("lex %s(%d)\n", yyTokname(token), uint(char))
@@ -611,7 +614,7 @@ yystack:
 	yyS[yyp].yys = yystate
 
 yynewstate:
-	yyn = yyPact[yystate]
+	yyn = int(yyPact[yystate])
 	if yyn <= yyFlag {
 		goto yydefault /* simple state */
 	}
@@ -622,8 +625,8 @@ yynewstate:
 	if yyn < 0 || yyn >= yyLast {
 		goto yydefault
 	}
-	yyn = yyAct[yyn]
-	if yyChk[yyn] == yytoken { /* valid shift */
+	yyn = int(yyAct[yyn])
+	if int(yyChk[yyn]) == yytoken { /* valid shift */
 		yyrcvr.char = -1
 		yytoken = -1
 		yyVAL = yyrcvr.lval
@@ -636,7 +639,7 @@ yynewstate:
 
 yydefault:
 	/* default state action */
-	yyn = yyDef[yystate]
+	yyn = int(yyDef[yystate])
 	if yyn == -2 {
 		if yyrcvr.char < 0 {
 			yyrcvr.char, yytoken = yylex1(yylex, &yyrcvr.lval)
@@ -645,18 +648,18 @@ yydefault:
 		/* look through exception table */
 		xi := 0
 		for {
-			if yyExca[xi+0] == -1 && yyExca[xi+1] == yystate {
+			if yyExca[xi+0] == -1 && int(yyExca[xi+1]) == yystate {
 				break
 			}
 			xi += 2
 		}
 		for xi += 2; ; xi += 2 {
-			yyn = yyExca[xi+0]
+			yyn = int(yyExca[xi+0])
 			if yyn < 0 || yyn == yytoken {
 				break
 			}
 		}
-		yyn = yyExca[xi+1]
+		yyn = int(yyExca[xi+1])
 		if yyn < 0 {
 			goto ret0
 		}
@@ -678,10 +681,10 @@ yydefault:
 
 			/* find a state where "error" is a legal shift action */
 			for yyp >= 0 {
-				yyn = yyPact[yyS[yyp].yys] + yyErrCode
+				yyn = int(yyPact[yyS[yyp].yys]) + yyErrCode
 				if yyn >= 0 && yyn < yyLast {
-					yystate = yyAct[yyn] /* simulate a shift of "error" */
-					if yyChk[yystate] == yyErrCode {
+					yystate = int(yyAct[yyn]) /* simulate a shift of "error" */
+					if int(yyChk[yystate]) == yyErrCode {
 						goto yystack
 					}
 				}
@@ -717,7 +720,7 @@ yydefault:
 	yypt := yyp
 	_ = yypt // guard against "declared and not used"
 
-	yyp -= yyR2[yyn]
+	yyp -= int(yyR2[yyn])
 	// yyp is now the index of $0. Perform the default action. Iff the
 	// reduced production is ε, $1 is possibly out of range.
 	if yyp+1 >= len(yyS) {
@@ -728,16 +731,16 @@ yydefault:
 	yyVAL = yyS[yyp+1]
 
 	/* consult goto table to find next state */
-	yyn = yyR1[yyn]
-	yyg := yyPgo[yyn]
+	yyn = int(yyR1[yyn])
+	yyg := int(yyPgo[yyn])
 	yyj := yyg + yyS[yyp].yys + 1
 
 	if yyj >= yyLast {
-		yystate = yyAct[yyg]
+		yystate = int(yyAct[yyg])
 	} else {
-		yystate = yyAct[yyj]
-		if yyChk[yystate] != -yyn {
-			yystate = yyAct[yyg]
+		yystate = int(yyAct[yyj])
+		if int(yyChk[yystate]) != -yyn {
+			yystate = int(yyAct[yyg])
 		}
 	}
 	// dummy call; replaced with literal code
@@ -1431,65 +1434,71 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:283
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatusMessage)
 		}
 	case 116:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:284
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
 		}
 	case 117:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:285
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
 		}
 	case 118:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:286
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
 		}
 	case 119:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:287
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
 	case 120:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:291
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:288
 		{
-			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
 		}
 	case 121:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:292
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
+			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
 		}
 	case 122:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:293
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
 		}
 	case 123:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:294
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
 		}
 	case 124:
-		yyDollar = yyS[yypt-4 : yypt+1]
+		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:295
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
 		}
 	case 125:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:296
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
+		}
+	case 126:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:297
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, true, yyDollar[3].staticStr)
 		}

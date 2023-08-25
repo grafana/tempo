@@ -75,7 +75,7 @@ import (
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
-                        IDURATION CHILDCOUNT NAME STATUS PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION
+                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION
                         PARENT_DOT RESOURCE_DOT SPAN_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
@@ -280,6 +280,7 @@ intrinsicField:
   | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
   | NAME            { $$ = NewIntrinsic(IntrinsicName)             }
   | STATUS          { $$ = NewIntrinsic(IntrinsicStatus)           }
+  | STATUS_MESSAGE  { $$ = NewIntrinsic(IntrinsicStatusMessage)    }
   | KIND            { $$ = NewIntrinsic(IntrinsicKind)             }
   | PARENT          { $$ = NewIntrinsic(IntrinsicParent)           }
   | ROOTNAME        { $$ = NewIntrinsic(IntrinsicTraceRootSpan)    }

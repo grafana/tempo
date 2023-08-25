@@ -659,6 +659,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicStatus:
 		return TypeStatus
+	case IntrinsicStatusMessage:
+		return TypeString
 	case IntrinsicKind:
 		return TypeKind
 	case IntrinsicParent:

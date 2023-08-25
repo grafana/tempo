@@ -663,6 +663,7 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ name }", expected: NewIntrinsic(IntrinsicName)},
 		{in: "{ parent }", expected: NewIntrinsic(IntrinsicParent)},
 		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus)},
+		{in: "{ statusMessage }", expected: NewIntrinsic(IntrinsicStatusMessage)},
 		{in: "{ 4321 }", expected: NewStaticInt(4321)},
 		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
 		{in: "{ nil }", expected: NewStaticNil()},
@@ -829,6 +830,7 @@ func TestIntrinsics(t *testing.T) {
 		{in: "childCount", expected: IntrinsicChildCount},
 		{in: "name", expected: IntrinsicName},
 		{in: "status", expected: IntrinsicStatus},
+		{in: "statusMessage", expected: IntrinsicStatusMessage},
 		{in: "kind", expected: IntrinsicKind},
 		{in: "parent", expected: IntrinsicParent},
 		{in: "traceDuration", expected: IntrinsicTraceDuration},
@@ -950,6 +952,7 @@ func TestParseIdentifier(t *testing.T) {
 	testCases := map[string]Attribute{
 		"name":             NewIntrinsic(IntrinsicName),
 		"status":           NewIntrinsic(IntrinsicStatus),
+		"statusMessage":    NewIntrinsic(IntrinsicStatusMessage),
 		"kind":             NewIntrinsic(IntrinsicKind),
 		".name":            NewAttribute("name"),
 		".status":          NewAttribute("status"),
