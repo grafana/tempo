@@ -315,8 +315,8 @@ Arguments:
 tempo-cli parquet convert data.parquet out.parquet
 ```
 ## Parquet convert 2 to 3 command
-Converts a parquet2 file (actual data.parquet) to a parquet3 block with an optional list of dedicated columns.
-This utility command is useful when testing the impact of different combinations of dedicated columns. Currently
+Converts a vParquet2 file (actual data.parquet) to a vParquet3 block with an optional list of dedicated columns.
+This utility command is useful when testing the impact of different combinations of dedicated columns. Currently,
 all listed columns are assumed to be at the span scope.
 
 ```bash
