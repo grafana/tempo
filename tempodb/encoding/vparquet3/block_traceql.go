@@ -1628,6 +1628,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				status = traceql.Status(kv.Value.Uint64())
 			}
 			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
+		case columnPathSpanStatusMessage:
+			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatusMessage)] = traceql.NewStaticString(kv.Value.String())
 		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
