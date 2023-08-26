@@ -36,7 +36,6 @@ const (
 	LabelHTTPStatusCode         = "http.status_code"
 	LabelStatusCode             = "status.code"
 	LabelStatus                 = "status"
-	LabelStatusMessage          = "status.message"
 	LabelKind                   = "kind"
 	LabelTraceQLRootServiceName = "rootServiceName"
 	LabelTraceQLRootName        = "rootName"
@@ -85,7 +84,6 @@ var (
 		LabelHTTPUrl:          "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
 		LabelHTTPStatusCode:   "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 		LabelStatusCode:       "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
-		LabelStatusMessage:    "rs.list.element.ss.list.element.Spans.list.element.StatusMessage",
 	}
 	// the two below are used in tag name search. they only include
 	//  custom attributes that are mapped to parquet "special" columns
