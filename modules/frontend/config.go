@@ -16,10 +16,11 @@ import (
 var statVersion = usagestats.NewString("frontend_version")
 
 type Config struct {
-	Config     v1.Config       `yaml:",inline"`
-	MaxRetries int             `yaml:"max_retries,omitempty"`
-	Search     SearchConfig    `yaml:"search"`
-	TraceByID  TraceByIDConfig `yaml:"trace_by_id"`
+	Config                    v1.Config       `yaml:",inline"`
+	MaxRetries                int             `yaml:"max_retries,omitempty"`
+	Search                    SearchConfig    `yaml:"search"`
+	TraceByID                 TraceByIDConfig `yaml:"trace_by_id"`
+	MultitenantQueriesEnabled bool            `yaml:"multitenant_queries_enabled"`
 }
 
 type SearchConfig struct {
@@ -53,6 +54,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.Config.MaxBatchSize = 5
 	cfg.MaxRetries = 2
+	cfg.MultitenantQueriesEnabled = false
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
