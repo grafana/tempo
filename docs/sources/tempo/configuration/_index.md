@@ -130,6 +130,14 @@ distributor:
         otlp:
             protocols:
                 grpc:
+                  endpoint: 0.0.0.0:4317
+                  keepalive:
+                    server_parameters:
+                      max_connection_idle: 60s
+                      max_connection_age: 300s
+                      max_connection_age_grace: 30s
+                      time: 10s
+                      timeout: 10s
                 http:
         jaeger:
             protocols:
