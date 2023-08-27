@@ -137,7 +137,7 @@ distributor:
                       max_connection_age: 300s
                       max_connection_age_grace: 30s
                       time: 10s
-                      timeout: 10s
+                      timeout: 20s
                 http:
         jaeger:
             protocols:
