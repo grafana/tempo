@@ -109,7 +109,7 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 
@@ -128,6 +128,8 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 		reader = vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
 	case vparquet2.VersionString:
 		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta.BlockID, meta.TenantID)
+	case vparquet3.VersionString:
+		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta.BlockID, meta.TenantID)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
