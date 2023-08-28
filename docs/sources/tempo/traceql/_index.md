@@ -255,7 +255,7 @@ TraceQL supports a grouping pipeline operator that can be used to group by arbit
 find someting like a single service with more than 1 error:
 
 ```
-{ error = true } | by(resource.service.name) | count() > 1
+{ status = error } | by(resource.service.name) | count() > 1
 ```
 
 ## Arithmetic
