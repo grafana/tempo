@@ -416,7 +416,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		defer mu.Unlock()
 		responses = append(responses, response)
 		return nil
-
 	}, func() {})
 	// if err != nil, we discarded everything because of an internal error
 	if err != nil {
@@ -571,6 +570,9 @@ func countDiscaredSpans(responses []*tempopb.PushResponse, traces []*rebatchedTr
 
 	// if a trace triggers two different errors in two different responses, the error that triggers the maxError count will be used
 	for _, response := range responses {
+		if response == nil { // no errors
+			continue
+		}
 		for _, traceIndex := range response.MaxLiveErrorTraces {
 			traceIndex := int(traceIndex)
 			discardedTraces[traceIndex]++
