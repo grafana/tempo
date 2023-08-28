@@ -425,10 +425,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 		// if the filter removed all spansets then let's release all back to the pool
 		// no reason to try anything more nuanced than this. it will handle nearly all cases
 		if len(filteredSpansets) == 0 {
-			for _, s := range spanset.Spans {
-				putSpan(s.(*span))
-			}
-			putSpanset(spanset)
+			putSpansetAndSpans(spanset)
 		}
 
 		// flatten spans into i.currentSpans
