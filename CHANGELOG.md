@@ -9,11 +9,21 @@
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
 * [ENHANCEMENT] Update /api/metrics/summary to correctly handle missing attributes and improve performance of TraceQL `select()` queries. [#2765](https://github.com/grafana/tempo/pull/2765) (@mdisibio)
+* [ENHANCEMENT] Tempo CLI command to convert from vParquet2 -> 3. [#2828](https://github.com/grafana/tempo/pull/2828) (@joe-elliott)
 * [ENHANCEMENT] Add `TempoUserConfigurableOverridesReloadFailing` alert [#2784](https://github.com/grafana/tempo/pull/2784) (@kvrhdn)
 * [ENHANCEMENT] Add RootSpanName and RootServiceName to log about discarded spans [#2816](https://github.com/grafana/tempo/pull/2816) (@marcinginszt)
+* [ENHANCEMENT] Add `UserID` to log message about rate limiting [#2850](https://github.com/grafana/tempo/pull/2850) (@lshippy)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
+* [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
+  This query will now correctly tell you %age of requests that are within SLO:
+  ```
+  sum(rate(tempo_query_frontend_queries_within_slo_total{}[1m])) by (op) 
+  /
+  sum(rate(tempo_query_frontend_queries_total{}[1m])) by (op)
+  ```
+  **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}. 
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
     Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
     Old config:
@@ -39,7 +49,7 @@ defaults:
   forwarders: ['foo']
   metrics_generator:
     processors: [service-graphs, span-metrics]
-```
+```  
 
 ## v2.2.1 / 2023-08-??
 

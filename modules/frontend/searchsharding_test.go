@@ -34,11 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var testSLOcfg = SLOConfig{
-	ThroughputBytesSLO: 0,
-	DurationSLO:        0,
-}
-
 // implements tempodb.Reader interface
 type mockReader struct {
 	metas []*backend.BlockMeta
@@ -709,7 +704,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+			}, newSearchProgress, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -775,7 +770,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
@@ -810,7 +805,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -843,7 +838,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -972,7 +967,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		ConcurrentRequests:    10,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		DefaultLimit:          2,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 
 	// return some things and assert the right subrequests are cancelled
 	// 500, err, limit
@@ -1078,7 +1073,7 @@ func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 	}, o, SearchSharderConfig{
 		ConcurrentRequests:    100,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work

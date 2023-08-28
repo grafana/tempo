@@ -552,9 +552,9 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 func (c *SyncIterator) String() string {
 	filter := "nil"
 	if c.filter != nil {
-		filter = util.TabOut(c.filter)
+		filter = c.filter.String()
 	}
-	return fmt.Sprintf("SyncIterator: %s \n\t%s", c.columnName, filter)
+	return fmt.Sprintf("SyncIterator: %s : %s", c.columnName, filter)
 }
 
 func (c *SyncIterator) Next() (*IteratorResult, error) {
@@ -1204,7 +1204,7 @@ func (j *JoinIterator) String() string {
 	for _, iter := range j.iters {
 		iters += "\n\t" + util.TabOut(iter)
 	}
-	return fmt.Sprintf("JoinIterator: %d\t%s\n%s)", j.definitionLevel, iters, j.pred)
+	return fmt.Sprintf("JoinIterator: %d: %s\t%s)", j.definitionLevel, j.pred, iters)
 }
 
 func (j *JoinIterator) Next() (*IteratorResult, error) {
@@ -1372,13 +1372,13 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 func (j *LeftJoinIterator) String() string {
 	srequired := "required: "
 	for _, r := range j.required {
-		srequired += "\n\t\t" + util.TabOut(r)
+		srequired += "\n\t" + util.TabOut(r)
 	}
 	soptional := "optional: "
 	for _, o := range j.optional {
-		soptional += "\n\t\t" + util.TabOut(o)
+		soptional += "\n\t" + util.TabOut(o)
 	}
-	return fmt.Sprintf("LeftJoinIterator: %d\n\t%s\n\t%s\n\t%s", j.definitionLevel, srequired, soptional, j.pred)
+	return fmt.Sprintf("LeftJoinIterator: %d: %s\n%s\n%s", j.definitionLevel, j.pred, srequired, soptional)
 }
 
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
@@ -1567,12 +1567,13 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	return &j
 }
 
+// jpe
 func (u *UnionIterator) String() string {
 	var iters string
 	for _, iter := range u.iters {
-		iters += iter.String() + ", "
+		iters += "\n\t" + util.TabOut(iter)
 	}
-	return fmt.Sprintf("UnionIterator(%s)", iters)
+	return fmt.Sprintf("UnionIterator: %d: %s\t%s)", u.definitionLevel, u.pred, iters)
 }
 
 func (u *UnionIterator) Next() (*IteratorResult, error) {
