@@ -490,7 +490,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		// span
 		{"spanAttNameNoMatch", "{ span.foo = `bar` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
-		{"spanAttValMatch", "{ span.bloom > 0 }"},
+		{"spanAttValMatch", "{ span.blockSize > 0 }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
 		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
 		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
