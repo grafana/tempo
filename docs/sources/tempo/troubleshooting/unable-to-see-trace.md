@@ -3,8 +3,8 @@ title: Unable to find traces
 description: Troubleshoot missing traces
 weight: 473
 aliases:
-- /docs/tempo/troubleshooting/missing-trace
-- /docs/tempo/troubleshooting/unable-to-see-trace
+- ../operations/troubleshooting/missing-trace/
+- ../operations/troubleshooting/unable-to-see-trace/
 ---
 
 # Unable to find traces
@@ -101,7 +101,7 @@ If the pipeline is not reporting any dropped spans, check whether application sp
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
 
 {{% admonition type="note" %}}
-Check the [ingestion limits page]({{< relref "../../configuration#ingestion-limits" >}}) for further information on limits.
+Check the [ingestion limits page]({{< relref "../configuration#ingestion-limits" >}}) for further information on limits.
 {{% /admonition %}}
 
 ## Section 3: Diagnose and fix issues with querying traces
@@ -130,7 +130,7 @@ Possible reasons for the above errors are:
 
 ### Solutions
 
-To fix connection issues
+To fix connection issues:
   - If the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
     ```yaml
     querier:
