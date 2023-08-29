@@ -1,24 +1,34 @@
 ## main / unreleased
+## main / unreleased
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
-* [FEATURE] Add `tempo-cli` commands `analyse block` and `analyse blocks` to analyse parquet blocks and output summaries of generic attribute columns [#2622](https://github.com/grafana/tempo/pull/2622) (@mapno)
 * [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
 * [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
-* [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
+* [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
+* [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
+* [CHANGE] Allow to disable client metrics in service graphs processor [#2667](https://github.com/grafana/tempo/pull/2667) (@mapno)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
 * [ENHANCEMENT] Update /api/metrics/summary to correctly handle missing attributes and improve performance of TraceQL `select()` queries. [#2765](https://github.com/grafana/tempo/pull/2765) (@mdisibio)
+* [ENHANCEMENT] Tempo CLI command to convert from vParquet2 -> 3. [#2828](https://github.com/grafana/tempo/pull/2828) (@joe-elliott)
 * [ENHANCEMENT] Add `TempoUserConfigurableOverridesReloadFailing` alert [#2784](https://github.com/grafana/tempo/pull/2784) (@kvrhdn)
 * [ENHANCEMENT] Add RootSpanName and RootServiceName to log about discarded spans [#2816](https://github.com/grafana/tempo/pull/2816) (@marcinginszt)
+* [ENHANCEMENT] Add `UserID` to log message about rate limiting [#2850](https://github.com/grafana/tempo/pull/2850) (@lshippy)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
-* [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
-* [CHANGE] Allow to disable client metrics in service graphs processor [#2667](https://github.com/grafana/tempo/pull/2667) (@mapno)
+* [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
+  This query will now correctly tell you %age of requests that are within SLO:
+  ```
+  sum(rate(tempo_query_frontend_queries_within_slo_total{}[1m])) by (op) 
+  /
+  sum(rate(tempo_query_frontend_queries_total{}[1m])) by (op)
+  ```
+  **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}.
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
-    Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
-    Old config:
+  Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
+  Old config:
 ```
 overrides:
 ingestion_rate_strategy: local
@@ -41,7 +51,7 @@ defaults:
   forwarders: ['foo']
   metrics_generator:
     processors: [service-graphs, span-metrics]
-```
+```  
 
 ## v2.2.1 / 2023-08-??
 

@@ -23,6 +23,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/tempodb/wal"
+
+	"go.uber.org/atomic"
 )
 
 var (
@@ -63,8 +65,9 @@ const (
 type instance struct {
 	cfg *Config
 
-	instanceID string
-	overrides  metricsGeneratorOverrides
+	instanceID             string
+	overrides              metricsGeneratorOverrides
+	ingestionSlackOverride atomic.Int64
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -188,6 +191,13 @@ func (i *instance) updateProcessors() error {
 	if err != nil {
 		return err
 	}
+
+	ingestionSlackInt := i.overrides.MetricsGeneratorIngestionSlack(i.instanceID).Nanoseconds()
+	if ingestionSlackInt == 0 {
+		ingestionSlackInt = i.cfg.MetricsIngestionSlack.Nanoseconds()
+	}
+
+	i.ingestionSlackOverride.Store(ingestionSlackInt)
 
 	desiredProcessors, desiredCfg = i.updateSubprocessors(desiredProcessors, desiredCfg)
 
@@ -347,6 +357,8 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0
+	ingestionSlackNano := i.ingestionSlackOverride.Load()
+
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ss := range b.ScopeSpans {
@@ -354,9 +366,12 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			// filter spans that have end time > max_age and end time more than 5 days in the future
 			newSpansArr := make([]*v1.Span, len(ss.Spans))
 			timeNow := time.Now()
+			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)
+			maxTimeFuture := uint64(timeNow.UnixNano() + ingestionSlackNano)
+
 			index := 0
 			for _, span := range ss.Spans {
-				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.cfg.MetricsIngestionSlack).UnixNano()) {
+				if span.EndTimeUnixNano >= maxTimePast && span.EndTimeUnixNano <= maxTimeFuture {
 					newSpansArr[index] = span
 					index++
 				} else {

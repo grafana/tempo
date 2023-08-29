@@ -1688,7 +1688,7 @@ type batchCollector struct {
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
 
 func (c *batchCollector) String() string {
-	return fmt.Sprintf("batchCollector{%v, %d}", c.requireAtLeastOneMatchOverall, c.minAttributes)
+	return fmt.Sprintf("batchCollector(%v, %d)", c.requireAtLeastOneMatchOverall, c.minAttributes)
 }
 
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
@@ -1790,7 +1790,7 @@ type traceCollector struct {
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
 
 func (c *traceCollector) String() string {
-	return "traceCollector{}"
+	return "traceCollector()"
 }
 
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {

@@ -144,13 +144,13 @@ For example, to find all traces where an `http.status_code` attribute in a span 
 This works for `http.status_code` values that are strings as well using lexographic ordering:
 
 ```
-{ span.http.status_code >= "400"}
+{ span.http.status_code >= "400" }
 ```
 
 Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 
 ```
-{ span.http.method =~ “DELETE|GET” }
+{ span.http.method =~ "DELETE|GET" }
 ```
 
 Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
@@ -255,7 +255,7 @@ TraceQL supports a grouping pipeline operator that can be used to group by arbit
 find someting like a single service with more than 1 error:
 
 ```
-{ error = true } | by(resource.service.name) | count() > 1
+{ status = error } | by(resource.service.name) | count() > 1
 ```
 
 ## Arithmetic

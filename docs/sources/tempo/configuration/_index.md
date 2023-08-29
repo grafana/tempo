@@ -173,7 +173,7 @@ distributor:
             # Optional.
             # Path to the TLS certificate. This field must be set if insecure = false.
             [cert_file: <string | default = "">]
-       
+
         # Optional.
         # Configures filtering in forwarder that lets you drop spans and span events using
         # the OpenTelemetry Transformation Language (OTTL) syntax. For detailed overview of
@@ -208,6 +208,10 @@ distributor:
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
+
+A live, or active, trace is a trace that has received a new batch of spans in more than a configured amount of time (default 10 seconds, set by `ingester.trace_idle_period`).
+After 10 seconds (or the configured amount of time), the trace is flushed to disk and appended to the WAL.
+When Tempo receives a new batch, a new live trace is created in memory.
 
 ```yaml
 # Ingester configuration block
@@ -562,7 +566,7 @@ Compactors stream blocks from the storage backend, combine them and write them b
 compactor:
 
     # Optional. Disables backend compaction.  Default is false.
-    # Note: This should only be used in a non-prodution context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
+    # Note: This should only be used in a non-production context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
     [disabled: <bool>]
 
     ring:
@@ -1119,7 +1123,7 @@ storage:
             # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
             # Requires vParquet3
             parquet_dedicated_columns:
-                [ 
+                [
                   name: <string>, # name of the attribute
                   type: <string>, # type of the attribute. options: string
                   scope: <string> # scope of the attribute. options: resource, span
@@ -1332,6 +1336,11 @@ overrides:
       # This setting is useful if you wish to test how many active series a tenant will generate, without
       # actually writing these metrics.
       [disable_collection: <bool> | default = false]
+
+      # This option only allows spans with end time that occur within the configured duration to be
+      # considered in metrics generation.
+      # This is to filter out spans that are outdated.
+      [ingestion_time_range_slack: <duration>]
 
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
