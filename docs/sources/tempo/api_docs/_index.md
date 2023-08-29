@@ -408,7 +408,7 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
 
 #### Filtered tag values
 If you set Tempo's `autocomplete_filtering_enabled` configuration parameter to `true` (default value is `false`), you can provide an optional URL query parameter, `q` to your request.
-The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}.
+The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
 If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters. 
 
 Queries can be incomplete: for example, `{ .cluster = }`. Tempo extracts only the valid matchers and build a valid query. 
