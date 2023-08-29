@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	blob "github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
@@ -60,31 +62,27 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	ctx := context.TODO()
 
-	marker := blob.Marker{}
+	prefix := backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
+	pager := rw.containerURL.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
+		Include: container.ListBlobsInclude{},
+		Prefix:  &prefix,
+	})
 
-	for {
-		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, "", blob.ListBlobsSegmentOptions{
-			Prefix:  backend.RootPath(blockID, tenantID, rw.cfg.Prefix),
-			Details: blob.BlobListingDetails{},
-		})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+
 		if err != nil {
 			warning = err
 			continue
 		}
-		marker = list.NextMarker
 
-		for _, blob := range list.Segment.BlobItems {
-			err = rw.delete(ctx, blob.Name)
+		for _, b := range page.ListBlobsHierarchySegmentResponse.Segment.BlobItems {
+			err = rw.delete(ctx, *b.Name)
 			if err != nil {
 				warning = err
 				continue
 			}
 		}
-		// Continue iterating if we are not done.
-		if !marker.NotDone() {
-			break
-		}
-
 	}
 
 	return warning
@@ -127,33 +125,38 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	return bytes, att.LastModified, nil
 }
 
-// Attributes returns information about the specified blob using his name.
+// getAttributes returns information about the specified blob using its name.
 func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
-	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
+	blobClient, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
+		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob client, name: %s", name)
 	}
 
-	var props *blob.BlobGetPropertiesResponse
-	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
+	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{
+		AccessConditions: nil,
+		CPKInfo:          nil,
+	})
+
 	if err != nil {
 		return BlobAttributes{}, err
 	}
 
 	return BlobAttributes{
-		Size:         props.ContentLength(),
-		LastModified: props.LastModified(),
+		// TODO can these be nil?
+		Size:         *props.ContentLength,
+		LastModified: *props.LastModified,
 	}, nil
 }
 
 // Delete removes the blob with the given name.
 func (rw *readerWriter) delete(ctx context.Context, name string) error {
-	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
+	blobClient, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
+		return errors.Wrapf(err, "cannot get Azure blob client, name: %s", name)
 	}
 
-	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
+	deleteSnapshots := azblob.DeleteSnapshotsOptionTypeInclude
+	if _, err := blobClient.Delete(ctx, &blob.DeleteOptions{DeleteSnapshots: &deleteSnapshots}); err != nil {
 		return errors.Wrapf(err, "error deleting blob, name: %s", name)
 	}
 	return nil
