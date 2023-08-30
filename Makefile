@@ -302,13 +302,13 @@ docs-test:
 
 ### jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
-jsonnet:
+jsonnet: tools
 	$(MAKE) -C operations/jsonnet-compiled/util gen
 
-jsonnet-check:
+jsonnet-check: tools
 	$(MAKE) -C operations/jsonnet-compiled/util check
 
-jsonnet-test:
+jsonnet-test: tools
 	$(MAKE) -C operations/jsonnet/microservices test
 
 ### serverless
