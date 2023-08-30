@@ -3,6 +3,7 @@ module github.com/grafana/tempo/tools
 go 1.21
 
 require (
+	github.com/google/go-jsonnet v0.20.0
 	github.com/psampaz/go-mod-outdated v0.9.0
 	golang.org/x/tools v0.10.0
 	gotest.tools/gotestsum v1.10.0
@@ -24,4 +25,6 @@ require (
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
+	gopkg.in/yaml.v2 v2.2.7 // indirect
+	sigs.k8s.io/yaml v1.1.0 // indirect
 )

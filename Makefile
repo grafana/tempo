@@ -150,7 +150,7 @@ check-fmt: fmt
 	@git diff --exit-code -- $(FILES_TO_FMT)
 
 .PHONY: jsonnetfmt check-jsonnetfmt
-jsonnetfmt:
+jsonnetfmt: tools
 	@jsonnetfmt -i $(FILES_TO_JSONNETFMT)
 
 check-jsonnetfmt: jsonnetfmt
@@ -321,10 +321,10 @@ test-serverless:
 
 ### tempo-mixin
 .PHONY: tempo-mixin tempo-mixin-check
-tempo-mixin:
+tempo-mixin: tools
 	$(MAKE) -C operations/tempo-mixin all
 
-tempo-mixin-check:
+tempo-mixin-check: tools
 	$(MAKE) -C operations/tempo-mixin check
 
 ### drone

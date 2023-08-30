@@ -27,13 +27,6 @@ jobs:
         with:
           go-version: 1.21.x
 
-      - name: Install jsonnetfmt and goimports
-        run: |
-          curl -fSL -o jsonnet.tar.gz https://github.com/google/jsonnet/releases/download/v0.17.0/jsonnet-bin-v0.17.0-linux.tar.gz
-          tar -xvf jsonnet.tar.gz -C /usr/local/bin/
-          chmod a+x /usr/local/bin/jsonnetfmt
-          go install golang.org/x/tools/cmd/goimports@v0.1.12
-
       - name: Check out code
         uses: actions/checkout@v4
 
