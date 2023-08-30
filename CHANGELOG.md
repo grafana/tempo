@@ -15,7 +15,6 @@
 * [ENHANCEMENT] Add RootSpanName and RootServiceName to log about discarded spans [#2816](https://github.com/grafana/tempo/pull/2816) (@marcinginszt)
 * [ENHANCEMENT] Add `UserID` to log message about rate limiting [#2850](https://github.com/grafana/tempo/pull/2850) (@lshippy)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
-* [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
 * [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
 * [BUGFIX] To support blob storage in Azure Stack Hub as backend. [#2853](https://github.com/grafana/tempo/pull/2853) (@chlislb)
@@ -53,7 +52,11 @@ defaults:
     processors: [service-graphs, span-metrics]
 ```  
 
-## v2.2.1 / 2023-08-??
+# v2.2.2 / 2023-08-30
+
+* [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
+
+# v2.2.1 / 2023-08-21
 
 * [BUGFIX] Fix incorrect metrics for index failures [#2781](https://github.com/grafana/tempo/pull/2781) (@zalegrala)
 * [BUGFIX] Fix panic in the metrics-generator when using multiple tenants with default overrides [#2786](https://github.com/grafana/tempo/pull/2786) (@kvrhdn)
