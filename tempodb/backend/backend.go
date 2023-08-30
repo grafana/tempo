@@ -85,7 +85,6 @@ const (
 
 func CalculateRanges(numShards int) []struct{ Start, End rune } {
 	runeCount := len(characterSet)
-	// shardSize := int(math.Ceil(float64(runeCount) / float64(numShards)))
 	shardSize := runeCount / numShards // Calculate shard size
 
 	ranges := make([]struct{ Start, End rune }, numShards)
@@ -95,9 +94,6 @@ func CalculateRanges(numShards int) []struct{ Start, End rune } {
 		endIdx := (i + 1) * shardSize
 
 		// Adjust endIdx if it exceeds the runeCount
-		// if endIdx > runeCount {
-		// 	endIdx = runeCount
-		// }
 		if i == numShards-1 {
 			endIdx = runeCount
 		}
