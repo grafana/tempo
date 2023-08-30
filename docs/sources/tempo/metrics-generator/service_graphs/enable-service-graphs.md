@@ -7,7 +7,6 @@ description: Learn how to enable service graphs
 weight: 300
 ---
 
-
 ## Enable service graphs
 
 Service graphs are generated in Tempo and pushed to a metrics storage.
@@ -23,6 +22,8 @@ To learn more about cardinality and how to perform a dry run of the metrics gene
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `service-graphs` generator.
 For more information, refer to the [configuration details]({{< relref "../../configuration#metrics-generator" >}}).
+
+To enable service graphs when using Grafana Agent, refer to the [Grafana Agent and service graphs documentation]({{< relref "../../configuration/grafana-agent/service-graphs" >}}).
 
 ### Enable service graphs in Grafana
 
