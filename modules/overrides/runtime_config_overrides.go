@@ -363,6 +363,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientMetrics(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientMetrics
+}
+
 // MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
 // by the span metrics processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
@@ -396,6 +400,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnab
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
+}
+
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksMaxLiveTraces(userID string) uint64 {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces
 }
@@ -418,17 +426,6 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksFlus
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
-}
-
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableClientMetrics(userID string) bool {
-	if v := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientMetrics; v != nil {
-		return *v
-	}
-	return *o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.EnableClientMetrics
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

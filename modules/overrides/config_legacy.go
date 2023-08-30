@@ -33,7 +33,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsDimensions:                 c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:             c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:   c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
-		MetricsGeneratorProcessorServiceGraphsEnableClientMetrics:        *c.MetricsGenerator.Processor.ServiceGraphs.EnableClientMetrics,
+		MetricsGeneratorProcessorServiceGraphsEnableClientMetrics:        c.MetricsGenerator.Processor.ServiceGraphs.EnableClientMetrics,
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:             c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
 		MetricsGeneratorProcessorSpanMetricsDimensions:                   c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:          c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
@@ -156,7 +156,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					Dimensions:               l.MetricsGeneratorProcessorServiceGraphsDimensions,
 					PeerAttributes:           l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
 					EnableClientServerPrefix: l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
-					EnableClientMetrics:      &l.MetricsGeneratorProcessorServiceGraphsEnableClientMetrics,
+					EnableClientMetrics:      l.MetricsGeneratorProcessorServiceGraphsEnableClientMetrics,
 				},
 				SpanMetrics: SpanMetricsOverrides{
 					HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,

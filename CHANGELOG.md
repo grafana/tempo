@@ -1,5 +1,4 @@
 ## main / unreleased
-## main / unreleased
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
 * [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
@@ -27,8 +26,8 @@
   ```
   **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}.
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
-  Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
-  Old config:
+    Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
+    Old config:
 ```
 overrides:
 ingestion_rate_strategy: local
@@ -53,13 +52,12 @@ defaults:
     processors: [service-graphs, span-metrics]
 ```  
 
-## v2.2.1 / 2023-08-??
+## v2.2.1 / 2023-08-21
 
 * [BUGFIX] Fix incorrect metrics for index failures [#2781](https://github.com/grafana/tempo/pull/2781) (@zalegrala)
 * [BUGFIX] Fix panic in the metrics-generator when using multiple tenants with default overrides [#2786](https://github.com/grafana/tempo/pull/2786) (@kvrhdn)
 * [BUGFIX] Restore `tenant_header_key` removed in #2414. [#2795](https://github.com/grafana/tempo/pull/2795) (@joe-elliott)
 * [BUGFIX] Disable streaming over http by default. [#2803](https://github.com/grafana/tempo/pull/2803) (@joe-elliott)
->>>>>>> origin/main
 
 ## v2.2.0 / 2023-07-31
 
@@ -97,6 +95,7 @@ To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add new API to summarize span metrics from generators [#2481](https://github.com/grafana/tempo/pull/2481) (@zalegrala)
 * [FEATURE] Add `select()` to TraceQL [#2494](https://github.com/grafana/tempo/pull/2494) (@joe-elliott)
 * [FEATURE] Add `traceDuration`, `rootName` and `rootServiceName` intrinsics to TraceQL [#2503](https://github.com/grafana/tempo/pull/2503) (@joe-elliott)
+* [FEATURE] Add `tempo-cli` commands `analyse block` and `analyse blocks` to analyse parquet blocks and output summaries of generic attribute columns [#2622](https://github.com/grafana/tempo/pull/2622) (@mapno)
 * [ENHANCEMENT] Add support for query batching between frontend and queriers to improve throughput [#2677](https://github.com/grafana/tempo/pull/2677) (@joe-elliott)
 * [ENHANCEMENT] Add initial RBAC support for serverless backend queries, limited to Google CloudRun [#2487](https://github.com/grafana/tempo/pull/2593) (@modulitos)
 * [ENHANCEMENT] Add capability to flush all remaining traces to backend when ingester is stopped [#2538](https://github.com/grafana/tempo/pull/2538)

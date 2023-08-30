@@ -76,7 +76,7 @@ type ServiceGraphsOverrides struct {
 	Dimensions               []string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	PeerAttributes           []string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
 	EnableClientServerPrefix bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
-	EnableClientMetrics      *bool     `yaml:"enable_client_metrics,omitempty" json:"enable_client_metrics,omitempty"`
+	EnableClientMetrics      bool      `yaml:"enable_client_metrics,omitempty" json:"enable_client_metrics,omitempty"`
 }
 
 type SpanMetricsOverrides struct {
@@ -227,6 +227,9 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+
+	// MetricsGenerator limits
+	f.BoolVar(&c.Defaults.MetricsGenerator.Processor.ServiceGraphs.EnableClientMetrics, "metrics-generator.enable-client-metrics", true, "Enable client metrics for metrics-generator")
 
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
