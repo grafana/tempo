@@ -1896,8 +1896,13 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	// if this row didn't match up a key/value pair then just drop it
+	if val.Type == traceql.TypeNil || key == "" {
+		return false
+	}
+
 	res.Reset()
-	res.AppendOtherValue(key, val) // jpe added here
+	res.AppendOtherValue(key, val)
 
 	return true
 }
