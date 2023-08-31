@@ -211,7 +211,9 @@ The second expression returns no traces because it's impossible for a single spa
 These spanset operators look at the structure of a trace and the relationship between the spans.
 
 - `{condA} >> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`
+- `{condA} << {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`
 - `{condA} > {condB}` - The child operator (`>`) looks for spans matching `{condB}` that are direct child spans of a parent matching `{condA}`
+- `{condA} > {condB}` - The parent operator (`<`) looks for spans matching `{condB}` that are direct parent spans of a child matching `{condA}`
 - `{condA} ~ {condB}` - The sibling operator (`~`) checks that spans matching `{condA}` and `{condB}` are siblings of the same parent span.
 
 For example, to find a trace where a specific HTTP API interacted with a specific database:
