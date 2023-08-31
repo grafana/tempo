@@ -67,10 +67,8 @@ const (
 	// DescdendantOf, AncestorOf, SiblingOf, ChildOf and ParentOf.  The details of those methods
 	// and how these intrinsics are handled is left to the implementation.
 	IntrinsicStructuralDescendant
-	IntrinsicStructuralAncestor
 	IntrinsicStructuralSibling
 	IntrinsicStructuralChild
-	IntrinsicStructuralParent
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer

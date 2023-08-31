@@ -234,9 +234,7 @@ func checkConditions(conditions []traceql.Condition) error {
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicStructuralDescendant,
-			traceql.IntrinsicStructuralAncestor,
 			traceql.IntrinsicStructuralChild,
-			traceql.IntrinsicStructuralParent,
 			traceql.IntrinsicStructuralSibling:
 			return common.ErrUnsupported
 		}

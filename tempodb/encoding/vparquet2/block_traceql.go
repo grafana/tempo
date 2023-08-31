@@ -263,9 +263,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicSpanID:               {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
 	traceql.IntrinsicSpanStartTime:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
 	traceql.IntrinsicStructuralDescendant: {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
-	traceql.IntrinsicStructuralAncestor:   {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 	traceql.IntrinsicStructuralChild:      {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
-	traceql.IntrinsicStructuralParent:     {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 	traceql.IntrinsicStructuralSibling:    {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
@@ -936,11 +934,11 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			columnSelectAs[columnPathSpanStatusMessage] = columnPathSpanStatusMessage
 			continue
 
-		case traceql.IntrinsicStructuralDescendant, traceql.IntrinsicStructuralAncestor:
+		case traceql.IntrinsicStructuralDescendant:
 			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
 			selectColumnIfNotAlready(columnPathSpanNestedSetRight)
 
-		case traceql.IntrinsicStructuralChild, traceql.IntrinsicStructuralParent:
+		case traceql.IntrinsicStructuralChild:
 			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
 			selectColumnIfNotAlready(columnPathSpanParentID)
 
