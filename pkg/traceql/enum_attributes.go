@@ -64,11 +64,13 @@ const (
 
 	// These intrinsics do not map to specific data points, but are used to
 	// indicate that Spans must be able to answer the structural methods
-	// DescdendantOf, SiblingOf, and ChildOf.  The details of those methods
+	// DescdendantOf, AncestorOf, SiblingOf, ChildOf and ParentOf.  The details of those methods
 	// and how these intrinsics are handled is left to the implementation.
 	IntrinsicStructuralDescendant
+	IntrinsicStructuralAncestor
 	IntrinsicStructuralSibling
 	IntrinsicStructuralChild
+	IntrinsicStructuralParent
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer

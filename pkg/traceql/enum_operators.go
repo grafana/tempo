@@ -24,7 +24,9 @@ const (
 	OpOr
 	OpNot
 	OpSpansetChild
+	OpSpansetParent
 	OpSpansetDescendant
+	OpSpansetAncestor
 	OpSpansetAnd
 	OpSpansetUnion
 	OpSpansetSibling
@@ -149,8 +151,12 @@ func (op Operator) String() string {
 		return "!"
 	case OpSpansetChild:
 		return ">"
+	case OpSpansetParent:
+		return "<"
 	case OpSpansetDescendant:
 		return ">>"
+	case OpSpansetAncestor:
+		return "<<"
 	case OpSpansetAnd:
 		return "&&"
 	case OpSpansetSibling:

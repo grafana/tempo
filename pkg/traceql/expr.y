@@ -84,7 +84,7 @@ import (
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
 %left <binOp> AND OR
-%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC TILDE
+%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE TILDE
 %left <binOp> ADD SUB
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
@@ -107,7 +107,9 @@ spansetPipelineExpression: // shares the same operators as spansetExpression. sp
     OPEN_PARENS spansetPipelineExpression CLOSE_PARENS           { $$ = $2 }
   | spansetPipelineExpression AND   spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetAnd, $1, $3) }
   | spansetPipelineExpression GT    spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetChild, $1, $3) }
+  | spansetPipelineExpression LT    spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetParent, $1, $3) }
   | spansetPipelineExpression DESC  spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetDescendant, $1, $3) }
+  | spansetPipelineExpression ANCE  spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetAncestor, $1, $3) }
   | spansetPipelineExpression OR    spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetUnion, $1, $3) }
   | spansetPipelineExpression TILDE spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetSibling, $1, $3) }
   | wrappedSpansetPipeline                                       { $$ = $1 }
@@ -149,7 +151,9 @@ spansetExpression: // shares the same operators as scalarPipelineExpression. spl
     OPEN_PARENS spansetExpression CLOSE_PARENS   { $$ = $2 }
   | spansetExpression AND   spansetExpression    { $$ = newSpansetOperation(OpSpansetAnd, $1, $3) }
   | spansetExpression GT    spansetExpression    { $$ = newSpansetOperation(OpSpansetChild, $1, $3) }
+  | spansetExpression LT    spansetExpression    { $$ = newSpansetOperation(OpSpansetParent, $1, $3) }
   | spansetExpression DESC  spansetExpression    { $$ = newSpansetOperation(OpSpansetDescendant, $1, $3) }
+  | spansetExpression ANCE  spansetExpression    { $$ = newSpansetOperation(OpSpansetAncestor, $1, $3) }
   | spansetExpression OR    spansetExpression    { $$ = newSpansetOperation(OpSpansetUnion, $1, $3) }
   | spansetExpression TILDE spansetExpression    { $$ = newSpansetOperation(OpSpansetSibling, $1, $3) }
   | spansetFilter                                { $$ = $1 } 

@@ -241,9 +241,17 @@ func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
 		})
+	case OpSpansetAncestor:
+		request.Conditions = append(request.Conditions, Condition{
+			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
+		})
 	case OpSpansetChild:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralChild),
+		})
+	case OpSpansetParent:
+		request.Conditions = append(request.Conditions, Condition{
+			Attribute: NewIntrinsic(IntrinsicStructuralParent),
 		})
 	case OpSpansetSibling:
 		request.Conditions = append(request.Conditions, Condition{
