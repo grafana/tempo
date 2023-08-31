@@ -495,6 +495,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
 		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
 		{"spanAttIntrinsicRegexMatch", "{ name =~ `gcs.ReadRange` }"},
+		{"spanAttOrs", "{ resource.host.name = `foo` || resource.host.name = `bar` || resource.host.name = `baz` }"},
 
 		// resource
 		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
