@@ -495,7 +495,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
 		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
 		{"spanAttIntrinsicRegexMatch", "{ name =~ `gcs.ReadRange` }"},
-		{"spanAttOrs", "{ resource.host.name = `foo` || resource.host.name = `bar` || resource.host.name = `baz` }"},
 
 		// resource
 		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
@@ -503,6 +502,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
 		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
+		{"resourceAttOrs", "{ resource.host.name = `foo` || resource.host.name = `bar` || resource.host.name = `baz` }"},
+		{"spansetAnd", "{ resource.host.name = `foo` } && { resource.host.name = `baz` }"},
 
 		// mixed
 		{"mixedNameNoMatch", "{ .foo = `bar` }"},
