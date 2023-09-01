@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -376,6 +377,9 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		op = ring.Write
 	}
 
+	var mu sync.Mutex
+	responses := make([]int, 0)
+
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
 		defer cancel()
@@ -398,13 +402,25 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		}
 
 		_, err = c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
+		mu.Lock()
+		defer mu.Unlock()
+		if(err != nil ){
+			responses = append(responses, 1)
+		}else{
+			responses = append(responses, 0)
+		}
+		
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 		if err != nil {
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
 		}
 		return err
 	}, func() {})
-
+	mu.Lock()
+	defer mu.Unlock()
+	fmt.Printf("num of responses: %d \n", len(responses))
+	fmt.Printf("responses: %d \n", responses)
+	fmt.Printf("result: %s \n", err)
 	return err
 }
 

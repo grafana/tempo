@@ -155,11 +155,15 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
-	for j := range req.Traces {
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
-		if err != nil {
-			return err
-		}
+	// for j := range req.Traces {
+	// 	err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+	timeNowNano := time.Now().Nanosecond()
+	if(timeNowNano % 2 == 1){
+		return errors.New("err")
 	}
 	return nil
 }
