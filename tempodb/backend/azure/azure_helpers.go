@@ -27,23 +27,7 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	var err error
 
 	retry := policy.RetryOptions{
-		// This configuration option was called "MaxTries" in the old blob.RetryOptions.
-		// It stated:
-		//
-		// "A value of 1 means 1 try and no retries."
-		//
-		// Since the new option is "MaxRetries" (retries instead of tries), we need to set it to (previous value - 1)
-		// to get the same behaviour.
-		MaxRetries: int32(maxRetries) - 1,
-		// The below three values were set with blob.RetryPolicyExponential in the old SDK.
-		// blob.RetryPolicyExponential was a shorthand for setting these defaults:
-		//
-		//    IfDefault(&o.TryTimeout, 1*time.Minute)
-		//    IfDefault(&o.RetryDelay, 4*time.Second)
-		//    IfDefault(&o.MaxRetryDelay, 120*time.Second)
-		//
-		// The new SDK contains no shorthand, so we manually set the same defaults.
-		// TODO should these be configuration options in Tempo?
+		MaxRetries:    int32(maxRetries) - 1,
 		TryTimeout:    1 * time.Minute,
 		RetryDelay:    4 * time.Second,
 		MaxRetryDelay: 120 * time.Second,
