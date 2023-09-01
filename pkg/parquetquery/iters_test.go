@@ -32,13 +32,32 @@ func TestNext(t *testing.T) {
 	rn2 := RowNumber{0, 0, 0, 0, 0, 0}
 
 	for i := 0; i < 1000; i++ {
-		r := rand.Intn(6)
-		d := rand.Intn(6)
+		r := rand.Intn(MaxDefinitionLevel + 1)
+		d := rand.Intn(MaxDefinitionLevel + 1)
 
 		rn1.Next(r, d)
 		rn2.nextSlow(r, d)
 
 		require.Equal(t, rn1, rn2)
+	}
+}
+
+func TestTruncateRowNumber(t *testing.T) {
+	rn1 := RowNumber{0, 0, 0, 0, 0, 0}
+	rn2 := RowNumber{0, 0, 0, 0, 0, 0}
+
+	for i := 0; i < 1000; i++ {
+		for j := 0; j <= MaxDefinitionLevel; j++ {
+			rando := int64(rand.Intn(100))
+			rn1[j] = rando
+			rn2[j] = rando
+		}
+		upto := rand.Intn(MaxDefinitionLevel + 1)
+
+		rn1 = TruncateRowNumber(upto, rn1)
+		rn2 = truncateRowNumberSlow(upto, rn2)
+
+		require.Equal(t, rn2, rn1, "upto=%d", upto)
 	}
 }
 
@@ -271,6 +290,15 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 		require.NoError(t, err)
 		require.Less(t, readSize+res2, count)
 	})
+}
+
+func BenchmarkTruncateRowNumber(b *testing.B) {
+	rn := EmptyRowNumber()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j <= MaxDefinitionLevel; j++ {
+			rn = TruncateRowNumber(j, rn)
+		}
+	}
 }
 
 func BenchmarkColumnIterator(b *testing.B) {

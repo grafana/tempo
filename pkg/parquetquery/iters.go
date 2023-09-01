@@ -63,6 +63,35 @@ func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 }
 
 func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
+	if definitionLevelToKeep < 3 {
+		n := EmptyRowNumber()
+		switch definitionLevelToKeep {
+		case 0:
+			n[0] = t[0]
+		case 1:
+			n[0] = t[0]
+			n[1] = t[1]
+		case 2:
+			n[0] = t[0]
+			n[1] = t[1]
+			n[2] = t[2]
+		}
+		return n
+	}
+
+	switch definitionLevelToKeep {
+	case 3:
+		t[4] = -1
+		t[5] = -1
+	case 4:
+		t[5] = -1
+	case 5:
+	}
+
+	return t
+}
+
+func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
 	n := EmptyRowNumber()
 	for i := 0; i <= definitionLevelToKeep; i++ {
 		n[i] = t[i]
