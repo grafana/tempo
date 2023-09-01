@@ -465,7 +465,6 @@ func (i *instance) getOrCreateTrace(traceID []byte, fp uint32, maxBytes int) *li
 
 	trace = newTrace(traceID, maxBytes)
 	i.traces[fp] = trace
-	i.tracesCreatedTotal.Inc()
 	i.traceCount.Inc()
 
 	return trace
@@ -536,6 +535,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint
 	i.headBlockMtx.Lock()
 	defer i.headBlockMtx.Unlock()
 
+	i.tracesCreatedTotal.Inc()
 	err := i.headBlock.Append(id, b, start, end)
 	if err != nil {
 		return err

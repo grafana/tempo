@@ -6,6 +6,7 @@
 * [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
+* [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
