@@ -140,8 +140,6 @@ func (rw *readerWriter) CloseAppend(context.Context, backend.AppendTracker) erro
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
-		// TODO are we good to reword errors?
-		// Should be fine since errors are not surfaced externally?
 		return errors.Wrapf(err, "cannot get Azure blob client, name: %s", backend.ObjectFileName(keypath, name))
 	}
 
