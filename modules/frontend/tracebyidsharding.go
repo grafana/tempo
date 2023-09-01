@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -53,15 +52,13 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
 
-	tenantID, err := user.ExtractOrgID(ctx)
+	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Body:       io.NopCloser(strings.NewReader(err.Error())),
 		}, nil
 	}
-
-	reqStart := time.Now()
 
 	// context propagation
 	r = r.WithContext(ctx)
@@ -151,8 +148,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	wg.Wait()
 
-	reqTime := time.Since(reqStart)
-
 	if overallError != nil {
 		return nil, overallError
 	}
@@ -164,9 +159,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		// the bad request was due to a bug on our side, so return 500 instead.
 		if statusCode != http.StatusNotFound {
 			statusCode = 500
-		} else {
-			// 404 is valid response for TraceByID search, and should be recorded in SLOs
-			recordTraceByIDSLO(s.cfg.SLO, tenantID, reqTime)
 		}
 
 		return &http.Response{
@@ -184,8 +176,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
 		return nil, err
 	}
-
-	recordTraceByIDSLO(s.cfg.SLO, tenantID, reqTime)
 
 	return &http.Response{
 		StatusCode: http.StatusOK,
@@ -276,15 +266,4 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	}
 
 	return false
-}
-
-func recordTraceByIDSLO(sloCfg SLOConfig, tenantID string, reqTime time.Duration) {
-	// only record metric when SLOs enabled and within slo
-	if sloCfg.DurationSLO != 0 {
-		if reqTime < sloCfg.DurationSLO {
-			// we are within SLO if query returned 200 within DurationSLO seconds
-			// TODO: we don't have throughput metrics for TraceByID.
-			sloTraceByIDCounter.WithLabelValues(tenantID).Inc()
-		}
-	}
 }

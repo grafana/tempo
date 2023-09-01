@@ -120,7 +120,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			cmb.ConsumeWithFinal(tr, i == len(rows)-1)
 			pool.Put(row)
 		}
-		tr, _ := cmb.Result()
+		tr, _, connected := cmb.Result()
+		if !connected {
+			c.opts.DisconnectedTrace()
+		}
 
 		c.opts.ObjectsCombined(int(compactionLevel), 1)
 		return sch.Deconstruct(pool.Get(), tr), nil
@@ -318,15 +321,25 @@ func estimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
 // countSpans counts the number of spans in the given trace in deconstructed
 // parquet row format and returns traceId.
 // It simply counts the number of values for span ID, which is always present.
-func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, spans int) {
+func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, rootSpanName string, rootServiceName string, spans int) {
 	traceIDColumn, found := schema.Lookup(TraceIDColumnName)
 	if !found {
-		return "", 0
+		return "", "", "", 0
+	}
+
+	rootSpanNameColumn, found := schema.Lookup(columnPathRootSpanName)
+	if !found {
+		return "", "", "", 0
+	}
+
+	rootServiceNameColumn, found := schema.Lookup(columnPathRootServiceName)
+	if !found {
+		return "", "", "", 0
 	}
 
 	spanID, found := schema.Lookup("rs", "list", "element", "ss", "list", "element", "Spans", "list", "element", "SpanID")
 	if !found {
-		return "", 0
+		return "", "", "", 0
 	}
 
 	for _, v := range row {
@@ -336,6 +349,14 @@ func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, spans 
 
 		if v.Column() == traceIDColumn.ColumnIndex {
 			traceID = tempoUtil.TraceIDToHexString(v.ByteArray())
+		}
+
+		if v.Column() == rootSpanNameColumn.ColumnIndex {
+			rootSpanName = v.String()
+		}
+
+		if v.Column() == rootServiceNameColumn.ColumnIndex {
+			rootServiceName = v.String()
 		}
 	}
 

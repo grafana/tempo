@@ -54,7 +54,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			trp = traceToParquet(meta, id, tr, trp)
+			trp, _ = traceToParquet(meta, id, tr, trp) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
 
 			row := sch.Deconstruct(completeBlockRowPool.Get(), trp)
 
@@ -99,6 +99,7 @@ type streamingBlock struct {
 	w     *backendWriter
 	r     backend.Reader
 	to    backend.Writer
+	index *index
 
 	currentBufferedTraces int
 	currentBufferedBytes  int
@@ -126,6 +127,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		w:     w,
 		r:     r,
 		to:    to,
+		index: &index{},
 	}
 }
 
@@ -136,6 +138,7 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	}
 	id := tr.TraceID
 
+	b.index.Add(id)
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
@@ -150,6 +153,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 		return err
 	}
 
+	b.index.Add(id)
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
@@ -168,6 +172,7 @@ func (b *streamingBlock) CurrentBufferedObjects() int {
 
 func (b *streamingBlock) Flush() (int, error) {
 	// Flush row group
+	b.index.Flush()
 	err := b.pw.Flush()
 	if err != nil {
 		return 0, err
@@ -185,6 +190,7 @@ func (b *streamingBlock) Flush() (int, error) {
 
 func (b *streamingBlock) Complete() (int, error) {
 	// Flush final row group
+	b.index.Flush()
 	b.meta.TotalRecords++
 	err := b.pw.Flush()
 	if err != nil {
@@ -228,7 +234,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
 
-	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
+	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom, b.index)
 }
 
 // estimateMarshalledSizeFromTrace attempts to estimate the size of trace in bytes. This is used to make choose

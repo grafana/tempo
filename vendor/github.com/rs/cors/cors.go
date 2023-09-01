@@ -305,7 +305,12 @@ func (c *Cors) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		c.logf("  Preflight aborted: method '%s' not allowed", reqMethod)
 		return
 	}
-	reqHeaders := parseHeaderList(r.Header.Get("Access-Control-Request-Headers"))
+	// Amazon API Gateway is sometimes feeding multiple values for
+	// Access-Control-Request-Headers in a way where r.Header.Values() picks
+	// them all up, but r.Header.Get() does not.
+	// I suspect it is something like this: https://stackoverflow.com/a/4371395
+	reqHeaderList := strings.Join(r.Header.Values("Access-Control-Request-Headers"), ",")
+	reqHeaders := parseHeaderList(reqHeaderList)
 	if !c.areHeadersAllowed(reqHeaders) {
 		c.logf("  Preflight aborted: headers '%v' not allowed", reqHeaders)
 		return

@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package obsreport // import "go.opentelemetry.io/collector/obsreport"
 
@@ -21,7 +10,7 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric/instrument"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -39,7 +28,7 @@ var (
 	scraperScope = scopeName + nameSep + scraperName
 )
 
-// Scraper is a helper to add observability to a component.Scraper.
+// Scraper is a helper to add observability to a scraper.
 type Scraper struct {
 	level      configtelemetry.Level
 	receiverID component.ID
@@ -51,8 +40,8 @@ type Scraper struct {
 
 	useOtelForMetrics    bool
 	otelAttrs            []attribute.KeyValue
-	scrapedMetricsPoints instrument.Int64Counter
-	erroredMetricsPoints instrument.Int64Counter
+	scrapedMetricsPoints metric.Int64Counter
+	erroredMetricsPoints metric.Int64Counter
 }
 
 // ScraperSettings are settings for creating a Scraper.
@@ -102,15 +91,15 @@ func (s *Scraper) createOtelMetrics(cfg ScraperSettings) error {
 
 	s.scrapedMetricsPoints, err = meter.Int64Counter(
 		obsmetrics.ScraperPrefix+obsmetrics.ScrapedMetricPointsKey,
-		instrument.WithDescription("Number of metric points successfully scraped."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points successfully scraped."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
 	s.erroredMetricsPoints, err = meter.Int64Counter(
 		obsmetrics.ScraperPrefix+obsmetrics.ErroredMetricPointsKey,
-		instrument.WithDescription("Number of metric points that were unable to be scraped."),
-		instrument.WithUnit("1"),
+		metric.WithDescription("Number of metric points that were unable to be scraped."),
+		metric.WithUnit("1"),
 	)
 	errors = multierr.Append(errors, err)
 
@@ -167,8 +156,8 @@ func (s *Scraper) EndMetricsOp(
 
 func (s *Scraper) recordMetrics(scraperCtx context.Context, numScrapedMetrics, numErroredMetrics int) {
 	if s.useOtelForMetrics {
-		s.scrapedMetricsPoints.Add(scraperCtx, int64(numScrapedMetrics), s.otelAttrs...)
-		s.erroredMetricsPoints.Add(scraperCtx, int64(numErroredMetrics), s.otelAttrs...)
+		s.scrapedMetricsPoints.Add(scraperCtx, int64(numScrapedMetrics), metric.WithAttributes(s.otelAttrs...))
+		s.erroredMetricsPoints.Add(scraperCtx, int64(numErroredMetrics), metric.WithAttributes(s.otelAttrs...))
 	} else { // OC for metrics
 		stats.Record(
 			scraperCtx,

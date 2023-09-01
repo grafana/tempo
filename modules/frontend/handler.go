@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/grafana/dskit/tracing"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -32,20 +30,27 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
+type (
+	handlerPostHook func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error)
+	handlerPreHook  func(ctx context.Context) context.Context
+)
+
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
-	roundTripper     http.RoundTripper
-	logger           log.Logger
-	queriesPerTenant *prometheus.CounterVec
+	roundTripper http.RoundTripper
+	logger       log.Logger
+	post         handlerPostHook
+	pre          handlerPreHook
 }
 
 // newHandler creates a handler
-func newHandler(rt http.RoundTripper, queriesPerTenant *prometheus.CounterVec, logger log.Logger) http.Handler {
+func newHandler(rt http.RoundTripper, post handlerPostHook, pre handlerPreHook, logger log.Logger) http.Handler {
 	return &handler{
-		roundTripper:     rt,
-		logger:           logger,
-		queriesPerTenant: queriesPerTenant,
+		roundTripper: rt,
+		logger:       logger,
+		post:         post,
+		pre:          pre,
 	}
 }
 
@@ -60,27 +65,31 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	orgID, _ := user.ExtractOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
-	var statusCode int
-	defer func(status int) {
-		f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(status)).Inc()
-	}(statusCode)
-
 	// add orgid to existing spans
 	span := opentracing.SpanFromContext(r.Context())
 	if span != nil {
 		span.SetTag("orgID", orgID)
 	}
 
+	if f.pre != nil {
+		ctx = f.pre(ctx)
+		r = r.WithContext(ctx)
+	}
 	resp, err := f.roundTripper.RoundTrip(r)
+	elapsed := time.Since(start)
+	if f.post != nil {
+		f.post(ctx, resp, orgID, elapsed, err)
+	}
+
 	if err != nil {
-		statusCode = http.StatusInternalServerError
+		statusCode := http.StatusInternalServerError
 		err = writeError(w, err)
 		level.Info(f.logger).Log(
 			"tenant", orgID,
 			"method", r.Method,
 			"traceID", traceID,
 			"url", r.URL.RequestURI(),
-			"duration", time.Since(start).String(),
+			"duration", elapsed.String(),
 			"response_size", 0,
 			"status", statusCode,
 			"err", err.Error(),
@@ -89,14 +98,14 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp == nil {
-		statusCode = http.StatusInternalServerError
+		statusCode := http.StatusInternalServerError
 		err = writeError(w, errors.New(NilResponseError))
 		level.Info(f.logger).Log(
 			"tenant", orgID,
 			"method", r.Method,
 			"traceID", traceID,
 			"url", r.URL.RequestURI(),
-			"duration", time.Since(start).String(),
+			"duration", elapsed.String(),
 			"response_size", 0,
 			"status", statusCode,
 			"err", err.Error(),
@@ -113,6 +122,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// request/response logging
 	var contentLength int64
+	var statusCode int
 	if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
 		statusCode = int(httpResp.Code)
 		contentLength = int64(len(httpResp.Body))
@@ -126,7 +136,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"method", r.Method,
 		"traceID", traceID,
 		"url", r.URL.RequestURI(),
-		"duration", time.Since(start).String(),
+		"duration", elapsed.String(),
 		"response_size", contentLength,
 		"status", statusCode,
 	)

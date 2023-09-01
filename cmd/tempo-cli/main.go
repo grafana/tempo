@@ -69,7 +69,8 @@ var cli struct {
 			SearchTagValues querySearchTagValuesCmd `cmd:"" help:"query Tempo search tag values"`
 			Search          querySearchCmd          `cmd:"" help:"query Tempo search"`
 		} `cmd:""`
-		Blocks queryBlocksCmd `cmd:"" help:"query for a traceid directly from backend blocks"`
+		Blocks       queryBlocksCmd       `cmd:"" help:"query for a traceid directly from backend blocks"`
+		TraceSummary queryTraceSummaryCmd `cmd:"" help:"query summary for a traceid directly from backend blocks"`
 	} `cmd:""`
 
 	Search struct {
@@ -78,11 +79,13 @@ var cli struct {
 
 	Parquet struct {
 		Convert     convertParquet     `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
-		Convert1to2 convertParquet1to2 `cmd:"" help:"convert an exiting vParquet file to vParquet2 schema"`
+		Convert1to2 convertParquet1to2 `cmd:"" help:"convert an existing vParquet file to vParquet2 schema"`
+		Convert2to3 convertParquet2to3 `cmd:"" help:"convert an existing vParquet2 file to vParquet3 block"`
 	} `cmd:""`
 
 	Migrate struct {
-		Tenant migrateTenantCmd `cmd:"" help:"migrate tenant between two backends"`
+		Tenant          migrateTenantCmd          `cmd:"" help:"migrate tenant between two backends"`
+		OverridesConfig migrateOverridesConfigCmd `cmd:"" help:"migrate overrides config"`
 	} `cmd:""`
 }
 

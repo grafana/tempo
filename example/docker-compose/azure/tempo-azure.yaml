@@ -46,4 +46,6 @@ storage:
       storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" # Default azurite sorage key
 
 overrides:
-  metrics_generator_processors: [service-graphs, span-metrics]
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]

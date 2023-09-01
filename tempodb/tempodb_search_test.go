@@ -44,7 +44,9 @@ func TestSearchCompleteBlock(t *testing.T) {
 				traceQLRunner,
 				advancedTraceQLRunner,
 				groupTraceQLRunner,
-				traceQLStructural)
+				traceQLStructural,
+				traceQLExistence,
+			)
 		})
 	}
 }
@@ -593,6 +595,100 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		}
 		require.NoError(t, err, "search request: %+v", tc)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", tc)
+	}
+}
+
+// existence
+func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+	ctx := context.Background()
+	e := traceql.NewEngine()
+	const intrinsicName = "name"
+
+	type expected struct {
+		key string
+	}
+
+	type test struct {
+		req      *tempopb.SearchRequest
+		expected expected
+	}
+
+	searchesThatMatch := []*test{
+		{
+			req: &tempopb.SearchRequest{Query: "{ name != nil }", Limit: 10},
+			expected: expected{
+				key: intrinsicName,
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ duration != nil }", Limit: 10},
+			expected: expected{
+				key: "duration",
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ resource.service.name != nil }", Limit: 10},
+			expected: expected{
+				key: "resource.service.name",
+			},
+		},
+	}
+	// TODO re-enable commented searches after fixing structural operator bugs in vParquet3
+	//      https://github.com/grafana/tempo/issues/2674
+	searchesThatDontMatch := []*tempopb.SearchRequest{
+		{Query: "{ name = nil }"},
+		{Query: "{ duration = nil }"},
+		{Query: "{ .not_an_attribute = nil }"},
+	}
+
+	for _, tc := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", tc)
+
+		// the actual spanset is impossible to predict since it's chosen randomly from the Spansets slice
+		// so set it to nil here and just test the slice using the testcases above
+		for _, tr := range res.Traces {
+			tr.SpanSet = nil
+		}
+
+		// make sure every spanset returned has the attribute we searched for
+		for _, tr := range res.Traces {
+			spanSet := tr.SpanSets[0]
+			for _, span := range spanSet.Spans {
+				switch tc.expected.key {
+				case intrinsicName:
+					require.NotNil(t, span.Name)
+				case "duration":
+					require.NotNil(t, span.DurationNanos)
+				default:
+					for _, attribute := range span.Attributes {
+						if attribute.Key == "service.name" {
+							require.NotNil(t, attribute.Value)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for _, tc := range searchesThatDontMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		_, err := e.ExecuteSearch(ctx, tc, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+		require.Error(t, err, "search request: %+v", tc)
 	}
 }
 

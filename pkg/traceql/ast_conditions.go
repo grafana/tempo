@@ -20,11 +20,19 @@ func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	case Attribute:
 		switch o.RHS.(type) {
 		case Static:
-			request.appendCondition(Condition{
-				Attribute: o.LHS.(Attribute),
-				Op:        o.Op,
-				Operands:  []Static{o.RHS.(Static)},
-			})
+			if o.RHS.(Static).Type == TypeNil && o.Op == OpNotEqual {
+				request.appendCondition(Condition{
+					Attribute: o.LHS.(Attribute),
+					Op:        OpNone,
+					Operands:  nil,
+				})
+			} else {
+				request.appendCondition(Condition{
+					Attribute: o.LHS.(Attribute),
+					Op:        o.Op,
+					Operands:  []Static{o.RHS.(Static)},
+				})
+			}
 		case Attribute:
 			// Both sides are attributes, just fetch both
 			request.appendCondition(Condition{
@@ -52,11 +60,20 @@ func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 			// 2 statics, don't need to send any conditions
 			return
 		case Attribute:
-			request.appendCondition(Condition{
-				Attribute: o.RHS.(Attribute),
-				Op:        o.Op,
-				Operands:  []Static{o.LHS.(Static)},
-			})
+			if o.LHS.(Static).Type == TypeNil && o.Op == OpNotEqual {
+				request.appendCondition(Condition{
+					Attribute: o.RHS.(Attribute),
+					Op:        OpNone,
+					Operands:  nil,
+				})
+			} else {
+				request.appendCondition(Condition{
+					Attribute: o.RHS.(Attribute),
+					Op:        o.Op,
+					Operands:  []Static{o.LHS.(Static)},
+				})
+			}
+
 		default:
 			o.RHS.extractConditions(request)
 		}

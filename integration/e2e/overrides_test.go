@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grafana/e2e"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -13,18 +14,21 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/modules/overrides/userconfigurableapi"
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/httpclient"
 )
 
 func TestOverrides(t *testing.T) {
 	testBackends := []struct {
-		name       string
-		configFile string
+		name           string
+		skipVersioning bool
+		configFile     string
 	}{
 		{
-			name:       "local",
-			configFile: configAllInOneLocal,
+			name: "local",
+			// local backend does not enforce versioning
+			skipVersioning: true,
+			configFile:     configAllInOneLocal,
 		},
 		{
 			name:       "s3",
@@ -61,38 +65,136 @@ func TestOverrides(t *testing.T) {
 			orgID := ""
 			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), orgID)
 
-			// Modify overrides
-			fmt.Println("* Setting overrides.forwarders")
-			_, err = apiClient.SetOverrides(&userconfigurableapi.UserConfigurableLimits{
-				Forwarders: &[]string{},
-			}, "0")
-			require.NoError(t, err)
+			// Create overrides
+			initialLimits := &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+
+			if !tc.skipVersioning {
+				fmt.Println("* Creating overrides with non-0 version")
+				_, err = apiClient.SetOverrides(initialLimits, "123")
+				assert.ErrorContains(t, err, "412") // precondition failed
+			}
+
+			fmt.Println("* Creating overrides")
+			_, err = apiClient.SetOverrides(initialLimits, "0")
+			assert.NoError(t, err)
 
 			limits, version, err := apiClient.GetOverrides()
-			printLimits(limits)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+			printLimits(limits, version)
 
-			require.NotNil(t, limits)
-			require.NotNil(t, limits.Forwarders)
-			assert.ElementsMatch(t, *limits.Forwarders, []string{})
+			disableCollection, ok := limits.GetMetricsGenerator().GetDisableCollection()
+			assert.True(t, ok)
+			assert.True(t, disableCollection)
 
-			// We fetched the overrides once manually, but we also expect at least one poll_interval to have happened
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(1), "tempo_overrides_user_configurable_overrides_fetch_total"))
+			// Update overrides - POST
+			updatedLimits := &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: nil,
+					Processors:        map[string]struct{}{"span-metrics": {}},
+				},
+			}
 
-			// Clear overrides
+			if !tc.skipVersioning {
+				fmt.Println("* Update overrides with bogus version number")
+				_, err = apiClient.SetOverrides(updatedLimits, "abc")
+				assert.ErrorContains(t, err, "412") // precondition failed
+
+				fmt.Println("* Update overrides with backend.VersionNew")
+				_, err = apiClient.SetOverrides(updatedLimits, "0")
+				assert.ErrorContains(t, err, "412") // precondition failed
+
+				fmt.Println("* Update overrides with wrong version number")
+				_, err = apiClient.SetOverrides(updatedLimits, "123")
+				assert.ErrorContains(t, err, "412") // precondition failed
+			}
+
+			fmt.Println("* Update overrides")
+			_, err = apiClient.SetOverrides(updatedLimits, version)
+			assert.NoError(t, err)
+
+			limits, version, err = apiClient.GetOverrides()
+
+			assert.NoError(t, err)
+			printLimits(limits, version)
+
+			_, ok = limits.GetMetricsGenerator().GetDisableCollection()
+			assert.False(t, ok) // is not set anymore
+			processors, ok := limits.GetMetricsGenerator().GetProcessors()
+			assert.True(t, ok)
+			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
+
+			// Modify overrides - PATCH
+			patch := &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+
+			fmt.Println("* Patch overrides")
+			limits, version, err = apiClient.PatchOverrides(patch)
+			assert.NoError(t, err)
+
+			disableCollection, ok = limits.GetMetricsGenerator().GetDisableCollection()
+			assert.True(t, ok)
+			assert.True(t, disableCollection)
+			processors, ok = limits.GetMetricsGenerator().GetProcessors()
+			assert.True(t, ok)
+			assert.ElementsMatch(t, keys(processors.GetMap()), []string{"span-metrics"})
+
+			// Delete overrides
+			if !tc.skipVersioning && tc.name != "gcs" {
+				// Delete with preconditions is not supported by fake-gcs-server https://github.com/fsouza/fake-gcs-server/issues/1282
+				fmt.Println("* Deleting overrides - don't respect version")
+				err = apiClient.DeleteOverrides("123")
+				assert.ErrorContains(t, err, "412") // precondition failed
+			}
+
 			fmt.Println("* Deleting overrides")
 			err = apiClient.DeleteOverrides(version)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
+			// Get overrides - 404
+			fmt.Println("* Get overrides - 404")
 			_, _, err = apiClient.GetOverrides()
-			require.ErrorIs(t, err, httpclient.ErrNotFound)
+			assert.ErrorIs(t, err, httpclient.ErrNotFound)
+
+			// Recreate overrides - PATCH
+			patch = &client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					DisableCollection: boolPtr(true),
+				},
+			}
+
+			fmt.Println("* Patch overrides - overrides don't exist yet")
+			_, _, err = apiClient.PatchOverrides(patch)
+			assert.NoError(t, err)
 		})
 	}
 }
 
-func printLimits(limits *userconfigurableapi.UserConfigurableLimits) {
-	fmt.Printf("* Overrides: %+v\n", limits)
-	if limits != nil && limits.Forwarders != nil {
-		fmt.Printf("*   Fowarders: %+v\n", *limits.Forwarders)
+func printLimits(limits *client.Limits, version string) {
+	var str string
+	if limits != nil {
+		bytes, err := jsoniter.Marshal(limits)
+		if err == nil {
+			str = string(bytes)
+		}
 	}
+	fmt.Printf("* Overrides (version = %s): %+v\n", version, str)
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func keys(m map[string]struct{}) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

@@ -33,6 +33,7 @@ type Config struct {
 	Target                       string `yaml:"target,omitempty"`
 	AuthEnabled                  bool   `yaml:"auth_enabled,omitempty"`
 	MultitenancyEnabled          bool   `yaml:"multitenancy_enabled,omitempty"`
+	StreamOverHTTPEnabled        bool   `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix                string `yaml:"http_api_prefix"`
 	UseOTelTracer                bool   `yaml:"use_otel_tracer,omitempty"`
 	EnableGoRuntimeMetrics       bool   `yaml:"enable_go_runtime_metrics,omitempty"`
@@ -49,14 +50,9 @@ type Config struct {
 	Ingester        ingester.Config         `yaml:"ingester,omitempty"`
 	Generator       generator.Config        `yaml:"metrics_generator,omitempty"`
 	StorageConfig   storage.Config          `yaml:"storage,omitempty"`
-	LimitsConfig    overrides.Limits        `yaml:"overrides,omitempty"`
+	Overrides       overrides.Config        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
-
-	// This is used by applications hosting Tempo to disable the default behavior
-	// of routing grpc over the main http server. Specifically this is for
-	// Grafana Enterprise Traces gateway module which does its own protocol muxing.
-	DoNotRouteHTTPToGRPC bool `yaml:"-"`
 }
 
 func newDefaultConfig() *Config {
@@ -69,6 +65,7 @@ func newDefaultConfig() *Config {
 // RegisterFlagsAndApplyDefaults registers flag.
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Target = SingleBinary
+	c.StreamOverHTTPEnabled = false
 	// global settings
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
@@ -117,7 +114,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.GeneratorClient)
 	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
-	c.LimitsConfig.RegisterFlagsAndApplyDefaults(f)
+	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingester"), f)
@@ -200,6 +197,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTracesAndUserConfigurableOverridesStorageConflict)
 	}
 
+	if c.Overrides.ConfigType == overrides.ConfigTypeLegacy {
+		warnings = append(warnings, warnLegacyOverridesConfig)
+	}
+
 	return warnings
 }
 
@@ -254,6 +255,10 @@ var (
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
 	}
+	warnLegacyOverridesConfig = ConfigWarning{
+		Message: "Inline, unscoped overrides are deprecated. Please use the new overrides config format.",
+	}
+
 	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{
 		Message: "Trace storage conflicts with user-configurable overrides storage",
 	}
@@ -268,7 +273,7 @@ func newV2Warning(setting string) ConfigWarning {
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace
-	overridesStorage := c.LimitsConfig.UserConfigurableOverridesConfig.ClientConfig
+	overridesStorage := c.Overrides.UserConfigurableOverridesConfig.Client
 
 	if traceStorage.Backend != overridesStorage.Backend {
 		return false

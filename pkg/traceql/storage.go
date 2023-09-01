@@ -109,10 +109,24 @@ type Spanset struct {
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
 	Attributes         []*SpansetAttribute
+
+	// Set this function to provide upstream callers with a method to
+	// release this spanset and all its spans when finished. This method will be
+	// called with the spanset itself as the argument. This is done for a worthwhile
+	// memory savings as the same function pointer can then be reused across spansets.
+	ReleaseFn func(*Spanset)
 }
 
 func (s *Spanset) AddAttribute(key string, value Static) {
 	s.Attributes = append(s.Attributes, &SpansetAttribute{Name: key, Val: value})
+}
+
+// Release the spanset and all its span. This is just a wrapper of ReleaseFn that
+// performs nil checks.
+func (s *Spanset) Release() {
+	if s.ReleaseFn != nil {
+		s.ReleaseFn(s)
+	}
 }
 
 func (s *Spanset) clone() *Spanset {

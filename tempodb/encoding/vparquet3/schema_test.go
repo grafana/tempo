@@ -31,7 +31,8 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 
 	expectedTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceIDA))
 
-	parquetTrace := traceToParquet(&meta, traceIDA, expectedTrace, nil)
+	parquetTrace, connected := traceToParquet(&meta, traceIDA, expectedTrace, nil)
+	require.True(t, connected)
 	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
@@ -42,7 +43,8 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 		ResourceSpans: nil,
 	}
 
-	got := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil)
+	got, connected := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil)
+	require.False(t, connected)
 	require.Equal(t, want, got)
 }
 
@@ -53,7 +55,7 @@ func TestProtoParquetRando(t *testing.T) {
 		id := test.ValidTraceID(nil)
 		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))
 
-		parqTr := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
+		parqTr, _ := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
 		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
 		require.Equal(t, expectedTrace, actualTrace)
 	}
@@ -109,9 +111,9 @@ func TestFieldsAreCleared(t *testing.T) {
 	// first convert a trace that sets all fields and then convert
 	// a minimal trace to make sure nothing bleeds through
 	tr := &Trace{}
-	_ = traceToParquet(&meta, traceID, complexTrace, tr)
+	_, _ = traceToParquet(&meta, traceID, complexTrace, tr)
 
-	parqTr := traceToParquet(&meta, traceID, simpleTrace, tr)
+	parqTr, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
 	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr)
 	require.Equal(t, simpleTrace, actualTrace)
 }
@@ -342,7 +344,7 @@ func BenchmarkProtoToParquet(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = traceToParquet(&meta, id, tr, nil)
+				_, _ = traceToParquet(&meta, id, tr, nil)
 			}
 		})
 	}
@@ -410,7 +412,7 @@ func BenchmarkDeconstruct(b *testing.B) {
 				dbt := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
 				test.AddDedicatedAttributes(dbt)
 
-				tr := traceToParquet(&meta, id, dbt, nil)
+				tr, _ := traceToParquet(&meta, id, dbt, nil)
 				sch := parquet.SchemaOf(tr)
 
 				b.ResetTimer()

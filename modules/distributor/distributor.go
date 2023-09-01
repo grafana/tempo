@@ -32,7 +32,6 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
-	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -273,10 +272,10 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
 		return status.Errorf(codes.ResourceExhausted,
-			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes",
+			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
 			int(d.ingestionRateLimiter.Limit(now, userID)),
-			tracesSize)
+			tracesSize, userID)
 	}
 
 	return nil

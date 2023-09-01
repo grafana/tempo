@@ -90,6 +90,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` <= 100s}`),
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = error}`),
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = 2}`),
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "STATUS_CODE_ERROR"}`),
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = client }`),
 		// Resource well-known attributes
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "spanservicename"}`), // Overridden at span
@@ -144,6 +145,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo = "abc"}`), // Resource-level only
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo = "def"}`),     // Span-level only
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo}`),                 // Projection only
+
+		// existence
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo != nil}`), // Exist
+
 		makeReq(
 			// Matches either condition
 			parse(t, `{.foo = "baz"}`),
@@ -234,6 +239,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true}`),                                    // Bool not match
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = ok}`),                            // Intrinsic: status
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "abc"}`),                     // Intrinsic: statusMessage
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = "nothello"}`),                      // Intrinsic: name
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = producer }`),                       // Intrinsic: kind
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "notmyservice"}`),          // Well-known attribute: service.name not match
@@ -555,6 +561,7 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	rr := backend.NewReader(r)
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
+	require.Equal(b, VersionString, meta.Version)
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10

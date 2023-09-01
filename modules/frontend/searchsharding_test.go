@@ -34,11 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var testSLOcfg = SLOConfig{
-	ThroughputBytesSLO: 0,
-	DurationSLO:        0,
-}
-
 // implements tempodb.Reader interface
 type mockReader struct {
 	metas []*backend.BlockMeta
@@ -693,7 +688,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				}, nil
 			})
 
-			o, err := overrides.NewOverrides(overrides.Limits{})
+			o, err := overrides.NewOverrides(overrides.Config{})
 			require.NoError(t, err)
 
 			sharder := newSearchSharder(&mockReader{
@@ -709,7 +704,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+			}, newSearchProgress, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -756,7 +751,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		}, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	now := time.Now().Add(-10 * time.Minute).Unix()
@@ -775,7 +770,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
@@ -803,14 +798,14 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	sharder := newSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -830,8 +825,12 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
-	o, err = overrides.NewOverrides(overrides.Limits{
-		MaxSearchDuration: model.Duration(time.Minute),
+	o, err = overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxSearchDuration: model.Duration(time.Minute),
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -839,7 +838,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -865,7 +864,7 @@ func TestAdjustLimit(t *testing.T) {
 
 func TestMaxDuration(t *testing.T) {
 	//
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 	sharder := searchSharder{
 		cfg: SearchSharderConfig{
@@ -876,8 +875,12 @@ func TestMaxDuration(t *testing.T) {
 	actual := sharder.maxDuration("test")
 	assert.Equal(t, 5*time.Minute, actual)
 
-	o, err = overrides.NewOverrides(overrides.Limits{
-		MaxSearchDuration: model.Duration(10 * time.Minute),
+	o, err = overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Read: overrides.ReadOverrides{
+				MaxSearchDuration: model.Duration(10 * time.Minute),
+			},
+		},
 	})
 	require.NoError(t, err)
 	sharder = searchSharder{
@@ -947,7 +950,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		return httptest.NewRecorder().Result(), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
 	sharder := newSearchSharder(&mockReader{
@@ -964,7 +967,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		ConcurrentRequests:    10,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		DefaultLimit:          2,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 
 	// return some things and assert the right subrequests are cancelled
 	// 500, err, limit
@@ -1049,7 +1052,7 @@ func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 		}, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(b, err)
 
 	totalMetas := 10000
@@ -1070,7 +1073,7 @@ func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 	}, o, SearchSharderConfig{
 		ConcurrentRequests:    100,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, testSLOcfg, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work

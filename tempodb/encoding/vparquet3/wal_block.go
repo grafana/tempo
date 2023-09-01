@@ -14,12 +14,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/multierror"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -321,7 +321,11 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 }
 
 func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
-	b.buffer = traceToParquet(b.meta, id, trace, b.buffer)
+	var connected bool
+	b.buffer, connected = traceToParquet(b.meta, id, trace, b.buffer)
+	if !connected {
+		dataquality.WarnDisconnectedTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
+	}
 
 	start, end = b.adjustTimeRangeForSlack(start, end, 0)
 
@@ -355,7 +359,7 @@ func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 	}
 
 	if warn {
-		warnings.Metric.WithLabelValues(b.meta.TenantID, warnings.ReasonOutsideIngestionSlack).Inc()
+		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
 	}
 
 	return start, end
@@ -470,7 +474,10 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 			completeBlockRowPool.Put(row)
 		}
 
-		t := CombineTraces(ts...)
+		// TODO: walBlock.Iterator is called when creating a complete block from a wal block. it would be
+		// nice to track trace disconnectd metrics while doing this. unfortunately there is no clean way for this
+		// code to know that it's being called in that context. perhaps find a way to do this in the future
+		t := combineTraces(ts...)
 		row := completeBlockRowPool.Get()
 		row = sch.Deconstruct(row, t)
 

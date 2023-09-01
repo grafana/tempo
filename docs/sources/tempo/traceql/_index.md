@@ -22,7 +22,7 @@ Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-
 
 {{< vimeo 796408188 >}}
 
-For information on where the language is headed, see [future work]({{< relref "./architecture" >}}).
+For information on where the language is headed, see [future work]({{< relref "./architecture#future-work" >}}).
 The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
 
 Check the [release notes]({{< relref "../release-notes" >}}) for the latest updates to TraceQL.
@@ -67,6 +67,7 @@ The following table shows the current intrinsic fields:
 | **Field**       | **Type**    | **Definition**                                                  | **Example**                     |
 |-----------------|-------------|-----------------------------------------------------------------|---------------------------------|
 | status          | status enum | status: error, ok, or unset                                     | { status = ok }                 |
+| statusMessage   | string      | optional text accompanying the span status                      | { statusMessage = "Forbidden" } |
 | duration        | duration    | end - start time of the span                                    | { duration > 100ms }            |
 | name            | string      | operation or span name                                          | { name = "HTTP POST" }          |
 | kind            | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }               |
@@ -144,13 +145,18 @@ For example, to find all traces where an `http.status_code` attribute in a span 
 This works for `http.status_code` values that are strings as well using lexographic ordering:
 
 ```
-{ span.http.status_code >= "400"}
+{ span.http.status_code >= "400" }
 ```
 
 Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 
 ```
-{ span.http.method =~ “DELETE|GET” }
+{ span.http.method =~ "DELETE|GET" }
+```
+
+Find all traces where `any_attribute` is not `nil` or where `any_attribute` exists in a span
+```
+{ .any_attribute != nil }
 ```
 
 ### Field expressions
@@ -250,7 +256,7 @@ TraceQL supports a grouping pipeline operator that can be used to group by arbit
 find someting like a single service with more than 1 error:
 
 ```
-{ error = true } | by(resource.service.name) | count() > 1
+{ status = error } | by(resource.service.name) | count() > 1
 ```
 
 ## Arithmetic
@@ -267,8 +273,7 @@ or anything else that comes to mind.
 
 ## Selection
 
-TraceQL can select arbitrary fields from spans. This is particularly performant b/c
-the selected fields are not retrieved until all other criteria is met.
+TraceQL can select arbitrary fields from spans. This is particularly performant because the selected fields are not retrieved until all other criteria is met.
 ```
 { status=error } | select(span.http.status_code, span.http.url)
 ```

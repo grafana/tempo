@@ -93,6 +93,38 @@ See backend options above.
 tempo-cli query blocks f1cfe82a8eef933b single-tenant
 ```
 
+## Query trace summary command
+Iterate over all backend blocks and dump a summary for a given trace id. 
+
+The summary includes:
+- number of blocks the trace is found in
+- span count
+- trace size
+- trace duration
+- root service name
+- root span info
+- top frequent service names
+
+```bash
+tempo-cli query trace-summary <trace-id> <tenant-id>
+```
+
+ **Note:** can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
+
+Arguments:
+- `trace-id` Trace ID as a hexadecimal string.
+- `tenant-id` Tenant to search.
+
+Options:
+See backend options above.
+
+**Example:**
+```bash
+tempo-cli query trace-summary f1cfe82a8eef933b single-tenant
+```
+
+## 
+
 ## List blocks
 Lists information about all blocks for the given tenant, and optionally perform integrity checks on indexes for duplicate records.
 
@@ -282,6 +314,26 @@ Arguments:
 ```bash
 tempo-cli parquet convert data.parquet out.parquet
 ```
+## Parquet convert 2 to 3 command
+Converts a vParquet2 file (actual data.parquet) to a vParquet3 block with an optional list of dedicated columns.
+This utility command is useful when testing the impact of different combinations of dedicated columns. Currently,
+all listed columns are assumed to be at the span scope.
+
+```bash
+tempo-cli parquet convert-2-to-3 <in file> <out path> <list of dedicated columns> 
+```
+
+Arguments:
+- `in file` Filename of an existing vParquet2 file containing Tempo trace data
+- `out path` Path to write the vParquet3 block to. 
+- `list of dedicated columns` Additional params indicating which columns to make dedicated. Max 10. Dedicated columns
+  should be named using TraceQL syntax with scope. i.e. `span.db.statement` or `resource.namespace`.
+
+**Example:**
+```bash
+tempo-cli parquet convert-2-to-3 data.parquet ./out db.statement db.name
+```
+
 
 ## Migrate tenant command
 Copy blocks from one backend and tenant to another. Blocks can be copied within the same backend or between two
@@ -302,6 +354,25 @@ Options:
 **Example:**
 ```bash
 tempo-cli migrate tenant --source-config source.yaml --config-file dest.yaml my-tenant my-other-tenant
+```
+
+## Migrate overrides config command
+Migrate overrides config from inline format (legacy) to idented YAML format (new).
+
+```bash
+tempo-cli migrate overrides-config <source config file>
+```
+
+Arguments:
+- `source config file` Configuration file to migrate
+
+Options:
+- `--config-dest <value>` Destination file for the migrated config. If not specified, config is printed to stdout.
+- `--overrides-dest <value>` Destination file for the migrated overrides. If not specified, overrides are printed to stdout.
+
+**Example:**
+```bash
+tempo-cli migrate overrides-config config.yaml --config-dest config-tmp.yaml --overrides-dest overrides-tmp.yaml
 ```
 
 ## Analyse block
@@ -338,4 +409,3 @@ Options:
 ```bash
 tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
 ```
-

@@ -57,6 +57,7 @@ type MockRawWriter struct {
 	appendBuffer      []byte
 	closeAppendCalled bool
 	deleteCalls       map[string]map[string]int
+	err               error
 }
 
 func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ bool) error {
@@ -89,7 +90,7 @@ func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath, 
 	}
 
 	m.deleteCalls[name][strings.Join(keypath, "/")]++
-	return nil
+	return m.err
 }
 
 // MockCompactor

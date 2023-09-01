@@ -159,14 +159,17 @@ func getSpan() *span {
 	return spanPool.Get().(*span)
 }
 
-var spansetPool = sync.Pool{
-	New: func() interface{} {
-		return &traceql.Spanset{}
-	},
-}
+var spansetPool = sync.Pool{}
 
 func getSpanset() *traceql.Spanset {
-	return spansetPool.Get().(*traceql.Spanset)
+	ss := spansetPool.Get()
+	if ss == nil {
+		return &traceql.Spanset{
+			ReleaseFn: putSpansetAndSpans,
+		}
+	}
+
+	return ss.(*traceql.Spanset)
 }
 
 // putSpanset back into the pool.  Does not repool the spans.
@@ -181,6 +184,17 @@ func putSpanset(ss *traceql.Spanset) {
 	ss.Spans = ss.Spans[:0]
 
 	spansetPool.Put(ss)
+}
+
+func putSpansetAndSpans(ss *traceql.Spanset) {
+	if ss != nil {
+		for _, s := range ss.Spans {
+			if span, ok := s.(*span); ok {
+				putSpan(span)
+			}
+		}
+		putSpanset(ss)
+	}
 }
 
 // Helper function to create an iterator, that abstracts away
@@ -215,6 +229,7 @@ const (
 	columnPathSpanDuration       = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
 	columnPathSpanKind           = "rs.list.element.ss.list.element.Spans.list.element.Kind"
 	columnPathSpanStatusCode     = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
+	columnPathSpanStatusMessage  = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
 	columnPathSpanAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
 	columnPathSpanAttrString     = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value"
 	columnPathSpanAttrInt        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt"
@@ -243,6 +258,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 }{
 	traceql.IntrinsicName:                 {intrinsicScopeSpan, traceql.TypeString, columnPathSpanName},
 	traceql.IntrinsicStatus:               {intrinsicScopeSpan, traceql.TypeStatus, columnPathSpanStatusCode},
+	traceql.IntrinsicStatusMessage:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStatusMessage},
 	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathDurationNanos},
 	traceql.IntrinsicKind:                 {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
 	traceql.IntrinsicSpanID:               {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
@@ -429,6 +445,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
+		parquetquery.ReleaseResult(res)
+
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
 		})
@@ -443,7 +461,8 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := &parquetquery.IteratorResult{RowNumber: s.rowNum}
+	res := parquetquery.GetResult()
+	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
 	return res
@@ -548,6 +567,9 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
+		parquetquery.ReleaseResult(res)
+		putSpanset(ss) // Repool the spanset but not the spans which have been moved to nextSpans as needed.
+
 		res = i.resultFromNextSpans()
 		if res != nil {
 			return res, nil
@@ -562,7 +584,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := &parquetquery.IteratorResult{}
+			res := parquetquery.GetResult()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -601,6 +623,8 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 	if res == nil {
 		return nil, nil
 	}
+
+	defer parquetquery.ReleaseResult(res)
 
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)
@@ -901,6 +925,14 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
+			continue
+		case traceql.IntrinsicStatusMessage:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanStatusMessage, pred)
+			columnSelectAs[columnPathSpanStatusMessage] = columnPathSpanStatusMessage
 			continue
 
 		case traceql.IntrinsicStructuralDescendant:
@@ -1596,6 +1628,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				status = traceql.Status(kv.Value.Uint64())
 			}
 			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
+		case columnPathSpanStatusMessage:
+			sp.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatusMessage)] = traceql.NewStaticString(kv.Value.String())
 		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
@@ -1666,7 +1700,7 @@ type batchCollector struct {
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
 
 func (c *batchCollector) String() string {
-	return fmt.Sprintf("batchCollector{%v, %d}", c.requireAtLeastOneMatchOverall, c.minAttributes)
+	return fmt.Sprintf("batchCollector(%v, %d)", c.requireAtLeastOneMatchOverall, c.minAttributes)
 }
 
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
@@ -1768,7 +1802,7 @@ type traceCollector struct {
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
 
 func (c *traceCollector) String() string {
-	return "traceCollector{}"
+	return "traceCollector()"
 }
 
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {

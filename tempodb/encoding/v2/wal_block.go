@@ -15,11 +15,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -364,7 +364,7 @@ func (a *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalS
 	}
 
 	if warn {
-		warnings.Metric.WithLabelValues(a.meta.TenantID, warnings.ReasonOutsideIngestionSlack).Inc()
+		dataquality.WarnOutsideIngestionSlack(a.meta.TenantID)
 	}
 
 	return start, end
