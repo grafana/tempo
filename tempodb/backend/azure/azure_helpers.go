@@ -93,9 +93,44 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	}
 
 	var client *azblob.Client
+	accountKey := getStorageAccountKey(cfg)
 
-	if !cfg.UseFederatedToken && !cfg.UseManagedIdentity && cfg.UserAssignedID == "" {
-		credential, err := azblob.NewSharedKeyCredential(getStorageAccountName(cfg), getStorageAccountKey(cfg))
+	switch {
+	case cfg.UseFederatedToken:
+		credential, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{})
+		if err != nil {
+			return container.Client{}, err
+		}
+
+		client, err = azblob.NewClient(u.String(), credential, &opts)
+
+		if err != nil {
+			return container.Client{}, err
+		}
+	case cfg.UseManagedIdentity:
+		var id azidentity.ManagedIDKind
+
+		if cfg.UserAssignedID != "" {
+			id = azidentity.ClientID(cfg.UserAssignedID)
+		}
+
+		// azidentity.NewManagedIdentityCredential defaults to a system-assigned identity.
+		// We only set options.ID if we want a user-assigned identity.
+		// See azidentity.ManagedIdentityCredential.
+		credential, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
+			ID: id,
+		})
+		if err != nil {
+			return container.Client{}, err
+		}
+
+		client, err = azblob.NewClient(u.String(), credential, &opts)
+
+		if err != nil {
+			return container.Client{}, err
+		}
+	case accountName != "" && accountKey != "":
+		credential, err := azblob.NewSharedKeyCredential(accountName, getStorageAccountKey(cfg))
 		if err != nil {
 			return container.Client{}, err
 		}
@@ -105,9 +140,9 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 		if err != nil {
 			return container.Client{}, err
 		}
-	} else {
-		// TODO does this cover all of our previous authentication mechanisms?
-		credential, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+	// If no authentication mechanism has been explicitly specified, assume workload identity.
+	default:
+		credential, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{})
 		if err != nil {
 			return container.Client{}, err
 		}
