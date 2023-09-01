@@ -566,7 +566,7 @@ Compactors stream blocks from the storage backend, combine them and write them b
 compactor:
 
     # Optional. Disables backend compaction.  Default is false.
-    # Note: This should only be used in a non-prodution context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
+    # Note: This should only be used in a non-production context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
     [disabled: <bool>]
 
     ring:

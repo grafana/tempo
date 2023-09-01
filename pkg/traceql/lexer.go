@@ -53,6 +53,7 @@ var tokens = map[string]int{
 	"childCount":      CHILDCOUNT,
 	"name":            NAME,
 	"status":          STATUS,
+	"statusMessage":   STATUS_MESSAGE,
 	"kind":            KIND,
 	"rootName":        ROOTNAME,
 	"rootServiceName": ROOTSERVICENAME,

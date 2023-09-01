@@ -103,7 +103,7 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 	// If the endpoint doesn't start with blob.core we can assume Azurite is being used
 	// So the endpoint should follow Azurite URL style
 	// https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob#emulated-storage-service-uri
-	if !strings.HasPrefix(cfg.Endpoint, "blob.core") {
+	if !strings.HasPrefix(cfg.Endpoint, "blob.") {
 		u, err = url.Parse(fmt.Sprintf("http://%s/%s", cfg.Endpoint, accountName))
 	}
 
