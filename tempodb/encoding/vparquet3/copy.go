@@ -48,7 +48,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 
 	// Index (may not exist)
 	err = cpy(common.NameIndex)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return err
 	}
 
