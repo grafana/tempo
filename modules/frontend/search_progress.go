@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -156,6 +157,11 @@ func (r *searchProgress) result() *shardedSearchResults {
 			for _, ss := range m.SpanSets {
 				mCopy.SpanSets = append(mCopy.SpanSets, copySpanset(ss))
 			}
+		}
+
+		// substitute empty root span
+		if mCopy.RootServiceName == "" {
+			mCopy.RootServiceName = search.RootSpanNotYetReceivedText
 		}
 
 		mdCopy = append(mdCopy, mCopy)

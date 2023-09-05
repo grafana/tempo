@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/stretchr/testify/assert"
@@ -107,7 +108,12 @@ func TestSearchProgressCombineResults(t *testing.T) {
 	expected := &shardedSearchResults{
 		response: &tempopb.SearchResponse{
 			Traces: []*tempopb.TraceSearchMetadata{
-				{TraceID: traceID, StartTimeUnixNano: uint64(start.UnixNano()), DurationMs: uint32(time.Hour.Milliseconds())},
+				{
+					TraceID:           traceID,
+					StartTimeUnixNano: uint64(start.UnixNano()),
+					DurationMs:        uint32(time.Hour.Milliseconds()),
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+				},
 			},
 			Metrics: &tempopb.SearchMetrics{
 				CompletedJobs: 1,
