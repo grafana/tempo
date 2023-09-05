@@ -52,6 +52,7 @@ defaults:
   metrics_generator:
     processors: [service-graphs, span-metrics]
 ```  
+* [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
 
 # v2.2.2 / 2023-08-30
 
