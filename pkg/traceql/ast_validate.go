@@ -181,7 +181,9 @@ func (o BinaryOperation) validate() error {
 
 	switch o.Op {
 	case OpSpansetChild,
+		OpSpansetParent,
 		OpSpansetDescendant,
+		OpSpansetAncestor,
 		OpSpansetSibling:
 		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
 	}

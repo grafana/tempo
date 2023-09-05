@@ -116,9 +116,43 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				output = append(output, matchingSpanset)
 			}
 
+		case OpSpansetAncestor:
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				// In case of ancestor the lhs becomes descendant of rhs
+				return l.DescendantOf(r)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = append([]Span(nil), spans...)
+				output = append(output, matchingSpanset)
+			}
+
 		case OpSpansetChild:
 			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
 				return r.ChildOf(l)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = append([]Span(nil), spans...)
+				output = append(output, matchingSpanset)
+			}
+
+		case OpSpansetParent:
+			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+				// In case of parent the lhs becomes child of rhs
+				return l.ChildOf(r)
 			})
 			if err != nil {
 				return nil, err

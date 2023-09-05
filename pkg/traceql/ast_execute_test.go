@@ -360,6 +360,20 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			},
 		},
 		{
+			"{ .child } << { .parent }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent", true).WithNestedSetInfo(0, 1, 4),
+					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent", true).WithNestedSetInfo(0, 1, 4),
+				}},
+			},
+		},
+		{
 			"{ .parent } > { .child }",
 			[]*Spanset{
 				{Spans: []Span{
@@ -370,6 +384,20 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+		},
+		{
+			"{ .child } < { .parent }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent", true).WithNestedSetInfo(0, 1, 4),
+					newMockSpan([]byte{1}).WithAttrBool("child", true).WithNestedSetInfo(1, 2, 3),
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent", true).WithNestedSetInfo(0, 1, 4),
 				}},
 			},
 		},
@@ -393,6 +421,16 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 				{Spans: []Span{
 					newMockSpan([]byte{1}).WithAttrBool("child1", true).WithNestedSetInfo(1, 2, 3),
 					newMockSpan([]byte{1}).WithAttrBool("child2", true).WithNestedSetInfo(1, 4, 5),
+				}},
+			},
+			[]*Spanset{},
+		},
+		{ // tests that parent operators do not modify the spanset
+			"{ } < { } < { } < { }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent1", true).WithNestedSetInfo(1, 2, 3),
+					newMockSpan([]byte{1}).WithAttrBool("parent2", true).WithNestedSetInfo(1, 4, 5),
 				}},
 			},
 			[]*Spanset{},

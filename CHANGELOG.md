@@ -1,4 +1,5 @@
 ## main / unreleased
+* [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
