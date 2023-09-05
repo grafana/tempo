@@ -54,7 +54,8 @@ var _ RawIterator = (*rawIterator)(nil)
 func (i *rawIterator) getTraceID(r parquet.Row) common.ID {
 	for _, v := range r {
 		if v.Column() == i.traceIDIndex {
-			return v.ByteArray()
+			// Important - clone to get a detached copy that lives outside the pool.
+			return v.Clone().ByteArray()
 		}
 	}
 	return nil
