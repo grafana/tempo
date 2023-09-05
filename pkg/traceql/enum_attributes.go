@@ -52,6 +52,7 @@ const (
 	IntrinsicDuration
 	IntrinsicName
 	IntrinsicStatus
+	IntrinsicStatusMessage
 	IntrinsicKind
 	IntrinsicChildCount
 	IntrinsicTraceRootService
@@ -87,6 +88,8 @@ func (i Intrinsic) String() string {
 		return "name"
 	case IntrinsicStatus:
 		return "status"
+	case IntrinsicStatusMessage:
+		return "statusMessage"
 	case IntrinsicKind:
 		return "kind"
 	case IntrinsicChildCount:
@@ -122,6 +125,8 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicName
 	case "status":
 		return IntrinsicStatus
+	case "statusMessage":
+		return IntrinsicStatusMessage
 	case "kind":
 		return IntrinsicKind
 	case "childCount":
