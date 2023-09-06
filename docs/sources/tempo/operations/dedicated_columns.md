@@ -6,7 +6,7 @@ weight: 42
 
 # Dedicated attribute columns
 
-Dedicated attribute columns improve query performance by storing the most frequently used columns in their own columns,
+Dedicated attribute columns improve query performance by storing the most frequently used attributes in their own columns,
 rather than in the generic attribute key-value list.
 
 Introduced with `vParquet3`, dedicated attribute columns are only available when using this storage format.
