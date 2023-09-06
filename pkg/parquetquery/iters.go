@@ -1538,19 +1538,11 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 
 	return j.Next()
 }
-
-var A = map[int]int{}
-
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 	if EqualRowNumbers(d, t, j.lastSeekAll) {
 		return nil
 	}
 	j.lastSeekAll = t
-
-	// A[j.definitionLevel]++
-	// if j.definitionLevel == 4 {
-	// 	fmt.Println(t, j.definitionLevel, d)
-	// }
 
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.required {
