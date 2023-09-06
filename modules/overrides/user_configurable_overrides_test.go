@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -72,6 +73,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.Forwarders(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorDisableCollection(tenant1))
+	assert.Equal(t, 0*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
@@ -83,8 +85,9 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-forwarder"},
 		MetricsGenerator: &userconfigurableoverrides.LimitsMetricsGenerator{
-			Processors:        map[string]struct{}{"service-graphs": {}},
-			DisableCollection: boolPtr(true),
+			Processors:         map[string]struct{}{"service-graphs": {}},
+			DisableCollection:  boolPtr(true),
+			CollectionInterval: durationPtr(60 * time.Second),
 			Processor: &userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
@@ -126,6 +129,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"service-graphs": {}}, mgr.MetricsGeneratorProcessors(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorDisableCollection(tenant1))
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
+	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
@@ -316,4 +320,8 @@ func (b badClient) Shutdown() {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func durationPtr(d time.Duration) *time.Duration {
+	return &d
 }
