@@ -50,6 +50,26 @@ func MaxRowNumber() RowNumber {
 // For example, definition level 1 means that row numbers are compared
 // at two levels of nesting, the top-level and 1 level of nesting
 // below.
+func EqualRowNumbers(upToDefinitionLevel int, a, b RowNumber) bool {
+	// unroll compare rownumbers
+	switch upToDefinitionLevel {
+	case 0:
+		return a[0] == b[0]
+	case 1:
+		return a[0] == b[0] && a[1] == b[1]
+	case 2:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2]
+	case 3:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]
+	case 4:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4]
+	case 5:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] && a[5] == b[5]
+	}
+
+	return false
+}
+
 func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 	for i := 0; i <= upToDefinitionLevel; i++ {
 		if a[i] < b[i] {
@@ -1325,7 +1345,7 @@ func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (j *JoinIterator) seekAll(t RowNumber, d int) error {
-	if CompareRowNumbers(d, t, j.lastSeekAll) == 0 {
+	if EqualRowNumbers(d, t, j.lastSeekAll) {
 		return nil
 	}
 	j.lastSeekAll = t
@@ -1375,7 +1395,7 @@ func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
-		for j.peeks[i] != nil && j.peeks[i] != neverIteratedResult && CompareRowNumbers(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) == 0 {
+		for j.peeks[i] != nil && j.peeks[i] != neverIteratedResult && EqualRowNumbers(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) {
 			result.Append(j.peeks[i])
 
 			ReleaseResult(j.peeks[i])
@@ -1522,7 +1542,7 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 var A = map[int]int{}
 
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
-	if CompareRowNumbers(d, t, j.lastSeekAll) == 0 {
+	if EqualRowNumbers(d, t, j.lastSeekAll) {
 		return nil
 	}
 	j.lastSeekAll = t
@@ -1584,7 +1604,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
 		for i := range iters {
 			// Collect matches
-			for peeks[i] != nil && peeks[i] != neverIteratedResult && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) == 0 {
+			for peeks[i] != nil && peeks[i] != neverIteratedResult && EqualRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) {
 				result.Append(peeks[i])
 				ReleaseResult(peeks[i])
 				peeks[i], err = iters[i].Next()
@@ -1636,7 +1656,6 @@ type UnionIterator struct {
 
 var _ Iterator = (*UnionIterator)(nil)
 
-// jpe add here
 func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate) *UnionIterator {
 	j := UnionIterator{
 		definitionLevel: definitionLevel,
@@ -1653,7 +1672,6 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	return &j
 }
 
-// jpe
 func (u *UnionIterator) String() string {
 	var iters string
 	for _, iter := range u.iters {
@@ -1719,10 +1737,10 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 }
 
 func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
-	if CompareRowNumbers(d, t, u.lastSeekTo) == 0 { // jpe RowNumbersEqual
+	if EqualRowNumbers(d, t, u.lastSeekTo) {
 		return nil, nil
 	}
-	u.lastSeekTo = t // jpe compare d?
+	u.lastSeekTo = t
 
 	var err error
 	t = TruncateRowNumber(d, t)
@@ -1767,7 +1785,7 @@ func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorR
 	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
-		for u.peeks[iterNum] != nil && u.peeks[iterNum] != neverIteratedResult && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) == 0 {
+		for u.peeks[iterNum] != nil && u.peeks[iterNum] != neverIteratedResult && EqualRowNumbers(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) {
 
 			result.Append(u.peeks[iterNum])
 
