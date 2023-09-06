@@ -60,7 +60,7 @@ Similarly, default overrides take precedence over storage block configuration.
 ## Usage
 
 Dedicated attribute columns are limited to 10 span attributes and 10 resource attributes with string values.
-As a rule of thumb, good candidates for dedicated columns are attributes that contribute the most to the block size, 
+As a rule of thumb, good candidates for dedicated attribute columns are attributes that contribute the most to the block size, 
 even if they are not frequently queried.
 Reducing the generic attribute key-value list size significantly improves query performance.
 
