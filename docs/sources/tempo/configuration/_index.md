@@ -1118,7 +1118,7 @@ storage:
             #  this field directly and it may vary based on workload. This is roughly a lower bound.
             [parquet_row_group_size_bytes: <int> | default = 100MB]
 
-            # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+            # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
             # generic attribute key-value list. This allows for more efficient searching of these attributes.
             # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
             # Requires vParquet3
@@ -1409,7 +1409,7 @@ overrides:
 
     # Storage enforced overrides
     storage:
-      # Configures attributes to be stored as dedicated columns in the parquet file, rather than in the
+      # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
       # generic attribute key-value list. This allows for more efficient searching of these attributes.
       # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
       # Requires vParquet3
