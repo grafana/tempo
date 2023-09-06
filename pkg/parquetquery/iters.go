@@ -1538,6 +1538,7 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 
 	return j.Next()
 }
+
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 	if EqualRowNumbers(d, t, j.lastSeekAll) {
 		return nil
