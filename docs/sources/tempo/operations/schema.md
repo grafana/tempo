@@ -78,6 +78,8 @@ The table below uses these abbreviations:
 |rs.Resource.Attrs.ValueBool|bool|The attribute value if boolean type, else null.|
 |rs.Resource.Attrs.ValueArray|byte array|The attribute value if nested array type, else null. Protocol buffer encoded binary data.|
 |rs.Resource.Attrs.ValueKVList|byte array|The attribute value if nested key/value map type, else null. Protocol buffer encoded binary data.|
+|rs.Resource.DedicatedAttributes| |Group containing spares for dedicated attribute columns with resource scope|
+|rs.Resource.DedicatedAttributes.String01 ... String10|string|10 spare columns for dedicated attribute columns|
 |rs.ss| |Shorthand for ResourceSpans.ScopeSpans|
 |rs.ss.Scope| |Shorthand for ResourceSpans.ScopeSpans.Scope|
 |rs.ss.Scope.Name|string|Scope name if present, else empty string. https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope|
@@ -104,6 +106,8 @@ The table below uses these abbreviations:
 |rs.ss.Spans.Attrs.ValueBool|bool|The attribute value if boolean type, else null.|
 |rs.ss.Spans.Attrs.ValueArray|byte array|The attribute value if nested array type, else null. Protocol buffer encoded binary data.|
 |rs.ss.Spans.Attrs.ValueKVList|byte array|The attribute value if nested key/value map type, else null. Protocol buffer encoded binary data.|
+|rs.ss.Spans.DedicatedAttributes| |Group containing spares for dedicated attribute columns with span scope|
+|rs.ss.Spans.DedicatedAttributes.String01 ... String10|string|10 spare columns used for dedicated attributes|
 |rs.ss.Spans.DroppedEventsCount|int|The number of events that were dropped|
 |rs.ss.Spans.Events.TimeUnixNano|int64|The timestamp of the event, as nanoseconds since unix epoch.|
 |rs.ss.Spans.Events.Name|string|The event name or message.|
@@ -121,6 +125,12 @@ To increase the readability table omits the groups `list.element` that are added
 ```
 message Trace {
   required binary TraceID;
+  required binary TraceIDText (STRING);
+  required int64 StartTimeUnixNano (INTEGER(64,false));
+  required int64 EndTimeUnixNano (INTEGER(64,false));
+  required int64 DurationNano (INTEGER(64,false));
+  required binary RootServiceName (STRING);
+  required binary RootSpanName (STRING);
   required group rs (LIST) {
     repeated group list {
       required group element {
@@ -147,7 +157,18 @@ message Trace {
           optional binary K8sNamespaceName (STRING);
           optional binary K8sPodName (STRING);
           optional binary K8sContainerName (STRING);
-          optional binary Test (STRING);
+          required group DedicatedAttributes {
+            optional binary String01 (STRING);
+            optional binary String02 (STRING);
+            optional binary String03 (STRING);
+            optional binary String04 (STRING);
+            optional binary String05 (STRING);
+            optional binary String06 (STRING);
+            optional binary String07 (STRING);
+            optional binary String08 (STRING);
+            optional binary String09 (STRING);
+            optional binary String10 (STRING);
+          }
         }
         required group ss (LIST) {
           repeated group list {
@@ -199,7 +220,6 @@ message Trace {
                             }
                           }
                           required int32 DroppedAttributesCount (INTEGER(32,true));
-                          optional binary Test (STRING);
                         }
                       }
                     }
@@ -209,6 +229,18 @@ message Trace {
                     optional binary HttpMethod (STRING);
                     optional binary HttpUrl (STRING);
                     optional int64 HttpStatusCode (INTEGER(64,true));
+                    required group DedicatedAttributes {
+                      optional binary String01 (STRING);
+                      optional binary String02 (STRING);
+                      optional binary String03 (STRING);
+                      optional binary String04 (STRING);
+                      optional binary String05 (STRING);
+                      optional binary String06 (STRING);
+                      optional binary String07 (STRING);
+                      optional binary String08 (STRING);
+                      optional binary String09 (STRING);
+                      optional binary String10 (STRING);
+                    }
                   }
                 }
               }
@@ -218,12 +250,6 @@ message Trace {
       }
     }
   }
-  required binary TraceIDText (STRING);
-  required int64 StartTimeUnixNano (INTEGER(64,false));
-  required int64 EndTimeUnixNano (INTEGER(64,false));
-  required int64 DurationNano (INTEGER(64,false));
-  required binary RootServiceName (STRING);
-  required binary RootSpanName (STRING);
 }
 ```
 ## Trace-level attributes
