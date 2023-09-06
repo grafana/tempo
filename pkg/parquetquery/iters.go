@@ -1217,6 +1217,7 @@ type JoinIterator struct {
 	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
+	lastSeekAll     RowNumber
 }
 
 var _ Iterator = (*JoinIterator)(nil)
@@ -1228,6 +1229,7 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
+		lastSeekAll:     EmptyRowNumber(),
 	}
 	// fill peeks with never iterated values
 	for i := range j.peeks {
@@ -1323,6 +1325,11 @@ func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (j *JoinIterator) seekAll(t RowNumber, d int) error {
+	if CompareRowNumbers(d, t, j.lastSeekAll) == 0 {
+		return nil
+	}
+	j.lastSeekAll = t
+
 	var err error
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
@@ -1398,6 +1405,7 @@ type LeftJoinIterator struct {
 	lowestIters                  []int
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
+	lastSeekAll                  RowNumber
 }
 
 var _ Iterator = (*LeftJoinIterator)(nil)
@@ -1411,6 +1419,7 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
+		lastSeekAll:     EmptyRowNumber(),
 	}
 	// fill peeks with never iterated values
 	for i := range j.peeksRequired {
@@ -1513,8 +1522,12 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 var A = map[int]int{}
 
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
-	// A[j.definitionLevel]++
+	if CompareRowNumbers(d, t, j.lastSeekAll) == 0 {
+		return nil
+	}
+	j.lastSeekAll = t
 
+	// A[j.definitionLevel]++
 	// if j.definitionLevel == 4 {
 	// 	fmt.Println(t, j.definitionLevel, d)
 	// }
@@ -1618,6 +1631,7 @@ type UnionIterator struct {
 	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
+	lastSeekTo      RowNumber
 }
 
 var _ Iterator = (*UnionIterator)(nil)
@@ -1630,6 +1644,7 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
+		lastSeekTo:      EmptyRowNumber(),
 	}
 	// fill peeks with never iterated values
 	for i := range j.peeks {
@@ -1704,6 +1719,11 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 }
 
 func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
+	if CompareRowNumbers(d, t, u.lastSeekTo) == 0 { // jpe RowNumbersEqual
+		return nil, nil
+	}
+	u.lastSeekTo = t // jpe compare d?
+
 	var err error
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
