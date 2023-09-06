@@ -363,6 +363,10 @@ type IteratorResult struct {
 	}
 }
 
+// neverIteratedResult is a sentinel value iterators can use to indicate that this iterator
+// has never been iterated
+var neverIteratedResult = &IteratorResult{}
+
 func (r *IteratorResult) Reset() {
 	r.Entries = r.Entries[:0]
 	r.OtherEntries = r.OtherEntries[:0]
@@ -509,7 +513,7 @@ func GetResult() *IteratorResult {
 
 // ReleaseResult returns the buffer struct back to the internal memory pool.
 func ReleaseResult(r *IteratorResult) {
-	if r != nil {
+	if r != nil && r != neverIteratedResult {
 		r.Reset()
 		columnIteratorResultPool.Put(r)
 	}
@@ -1225,6 +1229,10 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
 	}
+	// fill peeks with never iterated values
+	for i := range j.peeks {
+		j.peeks[i] = neverIteratedResult
+	}
 	return &j
 }
 
@@ -1318,7 +1326,11 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	var err error
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
-		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
+		if j.peeks[iterNum] == nil {
+			continue
+		}
+
+		if j.peeks[iterNum] == neverIteratedResult || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
 			ReleaseResult(j.peeks[iterNum])
 			j.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
@@ -1331,12 +1343,18 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 
 func (j *JoinIterator) peek(iterNum int) (*IteratorResult, error) {
 	var err error
+	// if the subiterator is nil, that means it is exhausted
 	if j.peeks[iterNum] == nil {
+		return nil, nil
+	}
+
+	if j.peeks[iterNum] == neverIteratedResult {
 		j.peeks[iterNum], err = j.iters[iterNum].Next()
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	return j.peeks[iterNum], nil
 }
 
@@ -1350,8 +1368,7 @@ func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
-		for j.peeks[i] != nil && CompareRowNumbers(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) == 0 {
-
+		for j.peeks[i] != nil && j.peeks[i] != neverIteratedResult && CompareRowNumbers(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) == 0 {
 			result.Append(j.peeks[i])
 
 			ReleaseResult(j.peeks[i])
@@ -1394,6 +1411,10 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
+	}
+	// fill peeks with never iterated values
+	for i := range j.peeksRequired {
+		j.peeksRequired[i] = neverIteratedResult
 	}
 	return &j
 }
@@ -1489,10 +1510,22 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	return j.Next()
 }
 
+var A = map[int]int{}
+
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
+	// A[j.definitionLevel]++
+
+	// if j.definitionLevel == 4 {
+	// 	fmt.Println(t, j.definitionLevel, d)
+	// }
+
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.required {
-		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+		if j.peeksRequired[iterNum] == nil {
+			continue
+		}
+
+		if j.peeksRequired[iterNum] == neverIteratedResult || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
 			ReleaseResult(j.peeksRequired[iterNum])
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
@@ -1515,6 +1548,10 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 	var err error
 	if j.peeksRequired[iterNum] == nil {
+		return nil, nil
+	}
+
+	if j.peeksRequired[iterNum] == neverIteratedResult {
 		j.peeksRequired[iterNum], err = j.required[iterNum].Next()
 		if err != nil {
 			return nil, err
@@ -1534,7 +1571,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
 		for i := range iters {
 			// Collect matches
-			for peeks[i] != nil && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) == 0 {
+			for peeks[i] != nil && peeks[i] != neverIteratedResult && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) == 0 {
 				result.Append(peeks[i])
 				ReleaseResult(peeks[i])
 				peeks[i], err = iters[i].Next()
@@ -1585,6 +1622,7 @@ type UnionIterator struct {
 
 var _ Iterator = (*UnionIterator)(nil)
 
+// jpe add here
 func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate) *UnionIterator {
 	j := UnionIterator{
 		definitionLevel: definitionLevel,
@@ -1592,6 +1630,10 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
+	}
+	// fill peeks with never iterated values
+	for i := range j.peeks {
+		j.peeks[i] = neverIteratedResult
 	}
 	return &j
 }
@@ -1665,7 +1707,12 @@ func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	var err error
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
-		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
+		p := u.peeks[iterNum]
+		if p == nil {
+			continue
+		}
+
+		if p == neverIteratedResult || CompareRowNumbers(d, p.RowNumber, t) == -1 {
 			u.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return nil, errors.Wrap(err, "union iterator seek to failed")
@@ -1678,6 +1725,10 @@ func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 func (u *UnionIterator) peek(iterNum int) (*IteratorResult, error) {
 	var err error
 	if u.peeks[iterNum] == nil {
+		return nil, nil
+	}
+
+	if u.peeks[iterNum] == neverIteratedResult {
 		u.peeks[iterNum], err = u.iters[iterNum].Next()
 		if err != nil {
 			return nil, err
@@ -1696,7 +1747,7 @@ func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorR
 	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
-		for u.peeks[iterNum] != nil && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) == 0 {
+		for u.peeks[iterNum] != nil && u.peeks[iterNum] != neverIteratedResult && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) == 0 {
 
 			result.Append(u.peeks[iterNum])
 
