@@ -18,6 +18,8 @@ while additional compactors will more aggressively reduce the length of your blo
 >**Note:** All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}})
 can only be used for trace by id lookup.
 
+>**Note:** Tempo 2.3 and higher supports [Dedicated attribute columns]({{< relref "./dedicated_columns" >}}) which is another great method to improve search performance.
+
 ## General guidelines
 
 Tuning the search pipeline can be difficult as it requires balancing a number of different configuration parameters. The below tips

@@ -27,14 +27,14 @@ The default block format is `vParquet2`, which is the latest iteration of Tempo'
 It is still possible to use the previous format `vParquet`.
 To enable it, set the block version option to `vParquet` in the Storage section of the configuration file.
 
-Since v2.2, `vParquet3` is also available.
-It introduces dedicated columns, which improve query performance by storing attributes in dedicated columns,
+Since v2.3, the block format `vParquet3` is available.
+It introduces dedicated attribute columns, which improve query performance by storing attributes in own columns,
 rather than in the generic attribute key-value list.
-For more information, see [Dedicated columns]({{< relref "../operations/tempo_cli" >}}).
+For more information, see [Dedicated attribute columns]({{< relref "../operations/tempo_cli" >}}).
 
 ```yaml
 # block format version. options: v2, vParquet, vParquet2, vParquet3
-[version: vParquet]
+[version: vParquet3]
 ```
 
 It is possible to disable Parquet and use the previous `v2` block format. This disables all forms of search, but also reduces resource consumption, and may be desired for a high-throughput cluster that does not need these capabilities. Set the block version option to `v2` in the Storage section of the configuration file.
