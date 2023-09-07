@@ -25,6 +25,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const timeBuffer = 5 * time.Minute
+
 type Processor struct {
 	tenant   string
 	Cfg      Config
@@ -266,6 +268,13 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		startNano = uint64(time.Unix(int64(req.Start), 0).UnixNano())
 		endNano   = uint64(time.Unix(int64(req.End), 0).UnixNano())
 	)
+
+	if startNano > 0 && endNano > 0 {
+		cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
+		if startNano < uint64(cutoff.UnixNano()) {
+			return nil, fmt.Errorf("time range exceeds the limit of last %v", p.Cfg.CompleteBlockTimeout)
+		}
+	}
 
 	// Blocks to check
 	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
