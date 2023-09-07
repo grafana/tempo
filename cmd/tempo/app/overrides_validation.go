@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"golang.org/x/exp/slices"
 
@@ -54,6 +55,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 			if err := filterconfig.ValidateFilterPolicy(fp); err != nil {
 				return err
 			}
+    }
+  }
+
+	if collectionInterval, ok := limits.GetMetricsGenerator().GetCollectionInterval(); ok {
+		if collectionInterval < 15*time.Second || collectionInterval > 5*time.Minute {
+			return fmt.Errorf("metrics_generator.collection_interval \"%s\" is outside acceptable range of 15s to 5m", collectionInterval.String())
 		}
 	}
 
