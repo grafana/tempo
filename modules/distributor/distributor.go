@@ -50,6 +50,9 @@ const (
 	reasonInternalError = "internal_error"
 
 	distributorRingKey = "distributor"
+
+	maxLiveTracesErrInt   = 1
+	traceTooLargeErrorInt = 2
 )
 
 var (
@@ -360,11 +363,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
-type iwant struct {
-	index []int
-	res int
-}
-
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, totalSpanCount int, traces []*rebatchedTrace, keys []uint32) error {
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
@@ -385,9 +383,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	// 0 = no error, 1 = max_live_traces, 2 = trace_too_large
 	// batchResults{[[0,0,0], [1,0,1]]} represents two traces where trace 1 was successfully pushed 3 times and trace 2 received max_live_traces error twice
 	var mu sync.Mutex
-
-	fmt.Println("*******************************************")
-	fmt.Println(keys)
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
@@ -418,43 +413,28 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			return err
 		}
 
-		/*
-		reqBatch: [0, 1, 2 , 3]
-		indexes: [1, 2, 3] 
-		PushResponse : MLT:[0], TTL:[1]
-		ringBathResults: [0, 0, 0] 
-		=> [1, 0, 0] => [1, 2, 0]
-		batchResults = [ [0], [1], [2], [0] ]
-		*/
-
 		// assign a number for each index that had an error
+		// maxLive = 1, traceTooLarge = 2
 		// indexes that do not have an error will have a default 0 value
 		ringBatchResults := make([]int, len(indexes))
 		for _, value := range response.MaxLiveErrorTraces {
-			ringBatchResults[value] = 1
+			ringBatchResults[value] = maxLiveTracesErrInt
 		}
 		for _, value := range response.TraceTooLargeErrorTraces {
-			ringBatchResults[value] = 2
+			ringBatchResults[value] = traceTooLargeErrorInt
 		}
-
 
 		mu.Lock()
 		defer mu.Unlock()
 
 		for ringIndex, traceResult := range ringBatchResults {
 			// translate index of ring batch and req batch
-			// since traces get split up to batches based on the indexes
+			// since the request batch gets split up into smaller batches based on the indexes
 			// like [0,1] [1] [2] [0,2]
 			reqBatchIndex := indexes[ringIndex]
 			batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], traceResult)
 		}
 
-		fmt.Printf("indexes: %d \n", indexes)
-		fmt.Printf("MLT :%d \n", response.MaxLiveErrorTraces)
-		fmt.Printf("TTL: %d \n", response.TraceTooLargeErrorTraces)
-		fmt.Printf("results: %d \n", ringBatchResults)
-		fmt.Println("-----------------")
-	
 		return nil
 	}, func() {})
 	// if err != nil, we discarded everything because of an internal error
@@ -466,15 +446,12 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	// count discarded span count
 	mu.Lock()
 	defer mu.Unlock()
-	fmt.Printf("Results : %d \n", batchResults)
-	
+
 	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(batchResults, traces, d.ingestersRing.ReplicationFactor())
 
 	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
 	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
 
-	fmt.Printf("Max Live Discarded: %d \n", maxLiveDiscardedCount)
-	fmt.Printf("Trace Too Large Discarded: %d \n", traceTooLargeDiscardedCount)
 	return nil
 }
 
@@ -600,27 +577,26 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 }
 
 func countDiscaredSpans(responses [][]int, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
-	quorum := int(math.Floor(float64(repFactor) / 2)) + 1 // min success required
+	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
 
 	for reqBatchIndex, results := range responses {
 		numSuccess := 0
 		lastError := 0
 		for _, err := range results {
 			if err == 0 {
-				numSuccess ++
-			}else{
+				numSuccess++
+			} else {
 				lastError = err
 			}
 		}
+		// we will count anything that did not receive min success as discarded
 		if numSuccess < quorum {
 			spanCount := traces[reqBatchIndex].spanCount
 			switch lastError {
 			case 1:
 				maxLiveDiscardedCount += spanCount
-				fmt.Printf("MLT caught, span count: %d at index: %d \n", spanCount, reqBatchIndex)
 			case 2:
 				traceTooLargeDiscardedCount += spanCount
-				fmt.Printf("TTL caught, span count: %d at index: %d \n", spanCount, reqBatchIndex)
 			}
 		}
 	}
