@@ -60,7 +60,7 @@ func (l *LimitsMetricsGenerator) GetCollectionInterval() (time.Duration, bool) {
 	if l != nil && l.CollectionInterval != nil {
 		return *l.CollectionInterval, true
 	}
-	return time.Minute, false
+	return 0, false
 }
 
 type LimitsMetricsGeneratorProcessor struct {
