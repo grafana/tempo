@@ -7,6 +7,10 @@ import (
 	"strings"
 	"sync"
 
+	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
+	"go.uber.org/atomic"
+
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
@@ -19,8 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
-	"go.uber.org/atomic"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -139,7 +141,7 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 			resp, err = e.Search(ctx, req, opts)
 		}
 
-		if err == common.ErrUnsupported {
+		if errors.Is(err, common.ErrUnsupported) {
 			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockID)
 			return
 		}
@@ -189,7 +191,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 			return nil
 		}
 		err = s.SearchTags(ctx, attributeScope, dv.Collect, common.DefaultSearchOptions())
-		if err != nil && err != common.ErrUnsupported {
+		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tags: %w", err)
 		}
 
@@ -306,7 +308,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 
 		inspectedBlocks++
 		err = s.SearchTagValues(ctx, tagName, dv.Collect, common.DefaultSearchOptions())
-		if err != nil && err != common.ErrUnsupported {
+		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
 		}
 

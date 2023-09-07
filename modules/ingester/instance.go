@@ -165,7 +165,7 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
 	i.measureReceivedBytes(traceBytes)
 
 	if !validation.ValidTraceID(id) {
@@ -575,7 +575,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 		// If meta missing then block was not successfully written.
 		meta, err := i.localReader.BlockMeta(ctx, id, i.instanceID)
 		if err != nil {
-			if err == backend.ErrDoesNotExist {
+			if errors.Is(err, backend.ErrDoesNotExist) {
 				// Partial/incomplete block found, remove, it will be recreated from data in the wal.
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)

@@ -156,7 +156,7 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 }
 
 // GetMetrics
-func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
+func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
 	identifiers := strings.Split(groupBy, ",")
 
 	if len(identifiers) > maxGroupBys {
@@ -253,7 +253,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	// callback.  No actual results will be returned from this fetch call,
 	// But we still need to call Next() at least once.
 	res, err := fetcher.Fetch(ctx, *req)
-	if err == util.ErrUnsupported {
+	if errors.Is(err, util.ErrUnsupported) {
 		return nil, nil
 	}
 	if err != nil {

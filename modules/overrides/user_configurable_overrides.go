@@ -154,7 +154,7 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 	// For every tenant with user-configurable overrides, download and cache them
 	for _, tenant := range tenants {
 		limits, _, err := o.client.Get(ctx, tenant)
-		if err == backend.ErrDoesNotExist {
+		if errors.Is(err, backend.ErrDoesNotExist) {
 			o.setTenantLimit(tenant, nil)
 			continue
 		}

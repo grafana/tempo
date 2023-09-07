@@ -89,8 +89,7 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 
 	for _, batch := range req.Batches {
 		if batch = filterBatch(batch); batch != nil {
-			switch err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces); err {
-			case errMaxExceeded:
+			if err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces); errors.Is(err, errMaxExceeded) {
 				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			}
 		}
@@ -553,7 +552,7 @@ func (p *Processor) reloadBlocks() error {
 	for _, id := range ids {
 		meta, err := r.BlockMeta(ctx, id, t)
 
-		if err == backend.ErrDoesNotExist {
+		if errors.Is(err, backend.ErrDoesNotExist) {
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {

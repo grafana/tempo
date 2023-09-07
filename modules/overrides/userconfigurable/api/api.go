@@ -102,18 +102,18 @@ func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patc
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	currLimits, currVersion, err := a.client.Get(ctx, userID)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, "", err
 	}
 
 	level.Info(a.logger).Log("traceID", traceID, "msg", "patching user-configurable overrides", "userID", userID, "patch", patch, "currLimits", logLimits(currLimits), "currVersion", currVersion)
 
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		currVersion = backend.VersionNew
 	}
 
 	patchedBytes := patch
-	if err != backend.ErrDoesNotExist {
+	if !errors.Is(err, backend.ErrDoesNotExist) {
 		currBytes, err := json.Marshal(currLimits)
 		if err != nil {
 			return nil, "", err
@@ -131,7 +131,7 @@ func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patc
 	}
 
 	version, err := a.set(ctx, userID, patchedLimits, currVersion)
-	if err == backend.ErrVersionDoesNotMatch {
+	if errors.Is(err, backend.ErrVersionDoesNotMatch) {
 		return nil, "", errors.New("overrides have been modified during request processing, try again")
 	}
 	if err != nil {

@@ -8,6 +8,8 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -127,13 +129,13 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 	}
 
 	meta, err := r.BlockMeta(context.Background(), id, tenantID)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-		if err != nil && err != backend.ErrDoesNotExist {
+		if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 			return nil, err
 		}
 

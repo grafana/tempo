@@ -312,17 +312,17 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	// be overwritten.
 	// TODO use rw.hedgedCore.GetObject, don't download the full object
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return "", err
 	}
 
 	level.Info(rw.logger).Log("msg", "WriteVersioned - fetching data", "currentVersion", currentVersion, "err", err, "version", version)
 
 	// object does not exist - supplied version must be "0"
-	if err == backend.ErrDoesNotExist && version != backend.VersionNew {
+	if errors.Is(err, backend.ErrDoesNotExist) && version != backend.VersionNew {
 		return "", backend.ErrVersionDoesNotMatch
 	}
-	if err != backend.ErrDoesNotExist && version != currentVersion {
+	if !errors.Is(err, backend.ErrDoesNotExist) && version != currentVersion {
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
@@ -342,10 +342,10 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	// be overwritten.
 	// TODO use rw.hedgedCore.GetObject, don't download the full object
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return err
 	}
-	if err != backend.ErrDoesNotExist && currentVersion != version {
+	if !errors.Is(err, backend.ErrDoesNotExist) && currentVersion != version {
 		return backend.ErrVersionDoesNotMatch
 	}
 
@@ -408,7 +408,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	totalBytes := 0
 	for {
 		byteCount, err := reader.Read(buffer[totalBytes:])
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
