@@ -43,6 +43,7 @@ output:
 linters:
   enable:
     - errcheck
+    - errorlint
     - goconst
     - gofmt
     - goimports
@@ -60,6 +61,8 @@ linters:
 linters-settings:
   errcheck:
     exclude: ./.errcheck-exclude.txt
+  errorlint:
+    errorf: false # don't check whether fmt.Errorf uses the %w errors
 
 issues:
   exclude:
