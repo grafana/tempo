@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -11,6 +12,8 @@ import (
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -164,5 +167,113 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 	return &queryResults{
 		blockID: id,
 		trace:   trace,
+	}, nil
+}
+
+func queryBucketNotCombined(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) (*TraceSummary, error) {
+	blockIDs, err := r.Blocks(context.Background(), tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("total blocks to search: ", len(blockIDs))
+
+	// Load in parallel
+	wg := boundedwaitgroup.New(100)
+	resultsCh := make(chan queryResults, len(blockIDs))
+
+	for blockNum, id := range blockIDs {
+		wg.Add(1)
+
+		go func(blockNum2 int, id2 uuid.UUID) {
+			defer wg.Done()
+
+			// search here
+			q, err := queryBlock(ctx, r, c, blockNum2, id2, tenantID, traceID)
+			if err != nil {
+				fmt.Println("Error querying block:", err)
+				return
+			}
+
+			if q != nil {
+				resultsCh <- *q
+			}
+		}(blockNum, id)
+	}
+
+	wg.Wait()
+	close(resultsCh)
+
+	var rootSpan *v1.Span
+	var rootSpanResource *v1resource.Resource
+
+	numBlock := 0
+	size := 0
+	spanCount := 0
+
+	firstStartTime := uint64(math.MaxUint64)
+	lastEndTime := uint64(0)
+
+	rootServiceName := ""
+	serviceNameMap := make(map[string]int)
+
+	for q := range resultsCh {
+		numBlock++
+		for _, b := range q.trace.Batches {
+			size += b.Size()
+			for _, attr := range b.Resource.Attributes {
+				if "service.name" == attr.Key {
+					serviceNameMap[attr.Value.GetStringValue()]++
+					break
+				}
+			}
+			for _, scope := range b.ScopeSpans {
+				spanCount += len(scope.Spans)
+				for _, span := range scope.Spans {
+					if span.StartTimeUnixNano < firstStartTime {
+						firstStartTime = span.StartTimeUnixNano
+					}
+					if span.EndTimeUnixNano > lastEndTime {
+						lastEndTime = span.EndTimeUnixNano
+					}
+					if len(span.ParentSpanId) == 0 {
+						rootSpan = span
+						rootSpanResource = b.Resource
+					}
+				}
+			}
+		}
+
+		for _, attr := range rootSpanResource.Attributes {
+			if "service.name" == attr.Key {
+				rootServiceName = attr.Value.GetStringValue()
+				break
+			}
+		}
+	}
+
+	duration := lastEndTime - firstStartTime
+	durationSecond := duration / 1000000000
+
+	// get top 5 most frequent service names
+	topFiveSortedPL := sortServiceNames(serviceNameMap)
+	topFiveServiceName := make([]string, 5)
+	length := len(topFiveSortedPL)
+	if length > 5 {
+		length = 5
+	}
+	for index := 0; index < length; index++ {
+		topFiveServiceName[index] = topFiveSortedPL[index].Key
+	}
+
+	return &TraceSummary{
+		NumBlock:         numBlock,
+		SpanCount:        spanCount,
+		TraceSize:        size,
+		TraceDuration:    durationSecond,
+		RootServiceName:  rootServiceName,
+		RootSpan:         rootSpan,
+		RootSpanResource: rootSpanResource,
+		ServiceNames:     topFiveServiceName,
 	}, nil
 }

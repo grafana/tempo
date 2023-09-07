@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/gogo/protobuf/jsonpb"
 
-	"github.com/grafana/tempo/pkg/model/trace"
 	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -33,99 +31,45 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	results, err := queryBucket(context.Background(), r, c, cmd.TenantID, id)
+	traceSummary, err := queryBucketNotCombined(context.Background(), r, c, cmd.TenantID, id)
 	if err != nil {
 		return err
 	}
 
 	var (
-		combiner   = trace.NewCombiner()
 		marshaller = new(jsonpb.Marshaler)
 		jsonBytes  = bytes.Buffer{}
 	)
 
-	fmt.Println()
-	for i, result := range results {
-		combiner.ConsumeWithFinal(result.trace, i == len(results)-1)
-	}
-
-	combinedTrace, _ := combiner.Result()
-
-	var rootSpan *v1.Span
-	var rootSpanResource *v1resource.Resource
-
-	size := 0
-	spanCount := 0
-
-	firstStartTime := uint64(math.MaxUint64)
-	lastEndTime := uint64(0)
-
-	rootServiceName := ""
-	serviceNameMap := make(map[string]int)
-
-	for _, b := range combinedTrace.Batches {
-		size += b.Size()
-		for _, attr := range b.Resource.Attributes {
-			if "service.name" == attr.Key {
-				serviceNameMap[attr.Value.GetStringValue()]++
-			}
-		}
-		for _, scope := range b.ScopeSpans {
-			spanCount += len(scope.Spans)
-			for _, span := range scope.Spans {
-				if span.StartTimeUnixNano < firstStartTime {
-					firstStartTime = span.StartTimeUnixNano
-				}
-				if span.EndTimeUnixNano > lastEndTime {
-					lastEndTime = span.EndTimeUnixNano
-				}
-				if len(span.ParentSpanId) == 0 {
-					rootSpan = span
-					rootSpanResource = b.Resource
-				}
-			}
-		}
-	}
-
-	for _, attr := range rootSpanResource.Attributes {
-		if "service.name" == attr.Key {
-			rootServiceName = attr.Value.GetStringValue()
-			break
-		}
-	}
-
-	// get top 5 most frequent service names
-	topFiveSortedPL := sortServiceNames(serviceNameMap)
-	topFiveServiceName := make([]string, 5)
-	length := len(topFiveSortedPL)
-	if length > 5 {
-		length = 5
-	}
-	for index := 0; index < length; index++ {
-		topFiveServiceName[index] = topFiveSortedPL[index].Key
-	}
-
-	duration := lastEndTime - firstStartTime
-	durationSecond := duration / 1000000000
-
 	// jsonify rootspan
-	err = marshaller.Marshal(&jsonBytes, rootSpan)
+	err = marshaller.Marshal(&jsonBytes, traceSummary.RootSpan)
 	if err != nil {
 		fmt.Println("failed to marshal to json: ", err)
 		return nil
 	}
 
-	fmt.Printf("Number of blocks: %d \n", len(results))
-	fmt.Printf("Span count: %d \n", spanCount)
-	fmt.Printf("Trace size: %d MB \n", size/1000000)
-	fmt.Printf("Trace duration: %d seconds \n", durationSecond)
-	fmt.Printf("Root service name: %s \n", rootServiceName)
+	fmt.Printf("Number of blocks: %d \n", traceSummary.NumBlock)
+	fmt.Printf("Span count: %d \n", traceSummary.SpanCount)
+	fmt.Printf("Trace size: %d MB \n", traceSummary.TraceSize)
+	fmt.Printf("Trace duration: %d seconds \n", traceSummary.TraceDuration)
+	fmt.Printf("Root service name: %s \n", traceSummary.RootServiceName)
 	fmt.Println("Root span info:")
 	fmt.Println(jsonBytes.String())
 	fmt.Println("top frequent service.names: ")
-	fmt.Println(topFiveServiceName)
+	fmt.Println(traceSummary.ServiceNames)
 
 	return nil
+}
+
+type TraceSummary struct {
+	NumBlock         int
+	SpanCount        int
+	TraceSize        int
+	TraceDuration    uint64
+	RootServiceName  string
+	RootSpan         *v1.Span
+	RootSpanResource *v1resource.Resource
+	ServiceNames     []string
 }
 
 func sortServiceNames(nameFrequencies map[string]int) PairList {
