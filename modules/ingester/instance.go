@@ -153,19 +153,25 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
 	response := &tempopb.PushResponse{}
 
-	for j := range req.Traces {
-		index := int32(j)
+	// for j := range req.Traces {
+	// 	index := int32(j)
 
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
-		if err != nil {
-			if errors.Is(err, errMaxLiveTraces) {
-				response.MaxLiveErrorTraces = append(response.MaxLiveErrorTraces, index)
-			}
+	// 	err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
+	// 	if err != nil {
+	// 		if errors.Is(err, errMaxLiveTraces) {
+	// 			response.MaxLiveErrorTraces = append(response.MaxLiveErrorTraces, index)
+	// 		}
 
-			if errors.Is(err, errTraceTooLarge) {
-				response.TraceTooLargeErrorTraces = append(response.TraceTooLargeErrorTraces, index)
-			}
-		}
+	// 		if errors.Is(err, errTraceTooLarge) {
+	// 			response.TraceTooLargeErrorTraces = append(response.TraceTooLargeErrorTraces, index)
+	// 		}
+	// 	}
+	// }
+	random := time.Now().Nanosecond()
+	if(random % 3 == 1){
+		response.TraceTooLargeErrorTraces = append(response.TraceTooLargeErrorTraces, 0)
+	}else if(random % 3 == 2){
+		response.MaxLiveErrorTraces = append(response.MaxLiveErrorTraces, 0)
 	}
 
 	return response
