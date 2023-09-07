@@ -18,7 +18,8 @@ This API returns RED metrics (span count, erroring span count, and latency infor
 
 ## Configuration
 
-To enable the experimental metrics summary API you must turn on the local blocks processor in the metrics generator. Be aware that the generator will use considerably more resources including disk space if this is enabled:
+To enable the experimental metrics summary API, you must turn on the local blocks processor in the metrics generator.
+Be aware that the generator will use considerably more resources, including disk space, if this is enabled:
 
 ```yaml
 overrides:
@@ -29,7 +30,7 @@ overrides:
 
 ## Request
 
-To make a request to this API, use the following endoint on the query-frontend:
+To make a request to this API, use the following endpoint on the query-frontend:
 
 ```
 GET http://<tempo>/api/metrics/summary

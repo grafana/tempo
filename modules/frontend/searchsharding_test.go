@@ -26,6 +26,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -608,10 +609,12 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					{
 						TraceID:           "1234",
 						StartTimeUnixNano: 1,
+						RootServiceName:   search.RootSpanNotYetReceivedText,
 					},
 					{
 						TraceID:           "5678",
 						StartTimeUnixNano: 0,
+						RootServiceName:   search.RootSpanNotYetReceivedText,
 					},
 				},
 				Metrics: &tempopb.SearchMetrics{

@@ -805,9 +805,6 @@ func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, r
 	}
 
 	for _, t := range traces {
-		if t.RootServiceName == "" {
-			t.RootServiceName = search.RootSpanNotYetReceivedText
-		}
 		response.Traces = append(response.Traces, t)
 	}
 

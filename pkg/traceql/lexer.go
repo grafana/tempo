@@ -48,6 +48,7 @@ var tokens = map[string]int{
 	"!":               NOT,
 	"|":               PIPE,
 	">>":              DESC,
+	"<<":              ANCE,
 	"~":               TILDE,
 	"duration":        IDURATION,
 	"childCount":      CHILDCOUNT,
