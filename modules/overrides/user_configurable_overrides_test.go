@@ -87,7 +87,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 		MetricsGenerator: &userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:         map[string]struct{}{"service-graphs": {}},
 			DisableCollection:  boolPtr(true),
-			CollectionInterval: durationPtr(60 * time.Second),
+			CollectionInterval: &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
 			Processor: &userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
@@ -320,8 +320,4 @@ func (b badClient) Shutdown() {
 
 func boolPtr(b bool) *bool {
 	return &b
-}
-
-func durationPtr(d time.Duration) *time.Duration {
-	return &d
 }

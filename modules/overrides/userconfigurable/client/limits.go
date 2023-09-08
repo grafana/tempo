@@ -40,14 +40,14 @@ func (d *Duration) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements json.Unmarshaler.
 func (d *Duration) UnmarshalJSON(input []byte) error {
-	var unmarshalledJson interface{}
+	var unmarshalledJSON interface{}
 
-	err := json.Unmarshal(input, &unmarshalledJson)
+	err := json.Unmarshal(input, &unmarshalledJSON)
 	if err != nil {
 		return err
 	}
 
-	switch value := unmarshalledJson.(type) {
+	switch value := unmarshalledJSON.(type) {
 	case float64:
 		d.Duration = time.Duration(value)
 	case string:
@@ -56,14 +56,16 @@ func (d *Duration) UnmarshalJSON(input []byte) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("invalid duration: %#v", unmarshalledJson)
+		return fmt.Errorf("invalid duration: %#v", unmarshalledJSON)
 	}
 
 	return nil
 }
 
-var _ json.Marshaler = (*Duration)(nil)
-var _ json.Unmarshaler = (*Duration)(nil)
+var (
+	_ json.Marshaler   = (*Duration)(nil)
+	_ json.Unmarshaler = (*Duration)(nil)
+)
 
 type LimitsMetricsGenerator struct {
 	Processors         listtomap.ListToMap `json:"processors,omitempty"`

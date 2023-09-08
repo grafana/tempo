@@ -102,7 +102,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: &client.LimitsMetricsGenerator{
-					CollectionInterval: durationPtr(60 * time.Second),
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
 				},
 			},
 		},
@@ -111,7 +111,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: &client.LimitsMetricsGenerator{
-					CollectionInterval: durationPtr(1 * time.Second),
+					CollectionInterval: &client.Duration{Duration: 1 * time.Second},
 				},
 			},
 			expErr: "metrics_generator.collection_interval \"1s\" is outside acceptable range of 15s to 5m",
@@ -121,7 +121,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				MetricsGenerator: &client.LimitsMetricsGenerator{
-					CollectionInterval: durationPtr(10 * time.Minute),
+					CollectionInterval: &client.Duration{Duration: 10 * time.Minute},
 				},
 			},
 			expErr: "metrics_generator.collection_interval \"10m0s\" is outside acceptable range of 15s to 5m",
@@ -140,8 +140,4 @@ func Test_overridesValidator(t *testing.T) {
 			}
 		})
 	}
-}
-
-func durationPtr(d time.Duration) *time.Duration {
-	return &d
 }
