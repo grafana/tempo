@@ -96,8 +96,17 @@ func Test_overridesValidator(t *testing.T) {
 				}}}},
 			},
 			expErr: "invalid include policy: invalid match type: invalid",
-    },
-    {
+		},
+		{
+			name: "metrics_generator.collection_interval valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					CollectionInterval: durationPtr(60 * time.Second),
+				},
+			},
+		},
+		{
 			name: "metrics_generator.collection_interval minimum",
 			cfg:  Config{},
 			limits: client.Limits{

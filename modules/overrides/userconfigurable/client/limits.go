@@ -1,6 +1,8 @@
 package client
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
@@ -27,10 +29,40 @@ func (l *Limits) GetMetricsGenerator() *LimitsMetricsGenerator {
 	return nil
 }
 
+type Duration struct {
+	time.Duration
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (d *Duration) UnmarshalJSON(input []byte) error {
+	var unmarshalledJson interface{}
+
+	err := json.Unmarshal(input, &unmarshalledJson)
+	if err != nil {
+		return err
+	}
+
+	switch value := unmarshalledJson.(type) {
+	case float64:
+		d.Duration = time.Duration(value)
+	case string:
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid duration: %#v", unmarshalledJson)
+	}
+
+	return nil
+}
+
+var _ json.Unmarshaler = (*Duration)(nil)
+
 type LimitsMetricsGenerator struct {
 	Processors         listtomap.ListToMap `json:"processors,omitempty"`
 	DisableCollection  *bool               `json:"disable_collection,omitempty"`
-	CollectionInterval *time.Duration      `json:"collection_interval,omitempty"`
+	CollectionInterval *Duration           `json:"collection_interval,omitempty"`
 
 	Processor *LimitsMetricsGeneratorProcessor `json:"processor,omitempty"`
 }
@@ -58,7 +90,7 @@ func (l *LimitsMetricsGenerator) GetProcessor() *LimitsMetricsGeneratorProcessor
 
 func (l *LimitsMetricsGenerator) GetCollectionInterval() (time.Duration, bool) {
 	if l != nil && l.CollectionInterval != nil {
-		return *l.CollectionInterval, true
+		return l.CollectionInterval.Duration, true
 	}
 	return 0, false
 }
