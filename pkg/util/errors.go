@@ -46,7 +46,8 @@ func (es *MultiError) Add(err error) {
 	if err == nil {
 		return
 	}
-	if merr, ok := err.(MultiError); ok {
+	var merr MultiError
+	if ok := errors.As(err, &merr); ok {
 		*es = append(*es, merr...)
 	} else {
 		*es = append(*es, err)
