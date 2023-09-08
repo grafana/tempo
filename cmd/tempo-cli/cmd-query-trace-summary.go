@@ -162,10 +162,12 @@ func queryBucketForSummary(ctx context.Context, r backend.Reader, c backend.Comp
 			}
 		}
 
-		for _, attr := range rootSpanResource.Attributes {
-			if "service.name" == attr.Key {
-				rootServiceName = attr.Value.GetStringValue()
-				break
+		if rootSpanResource != nil {
+			for _, attr := range rootSpanResource.Attributes {
+				if attr.Key == "service.name" {
+					rootServiceName = attr.Value.GetStringValue()
+					break
+				}
 			}
 		}
 	}
