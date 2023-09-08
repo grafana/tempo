@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
@@ -47,7 +46,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// delete the old file
-	return rw.delete(ctx, metaFilename)
+	return rw.Delete(ctx, metaFilename, []string{}, false)
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -76,7 +75,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		}
 
 		for _, b := range page.Segment.BlobItems {
-			err = rw.delete(ctx, *b.Name)
+			err = rw.Delete(ctx, *b.Name, []string{}, false)
 			if err != nil {
 				warning = err
 				continue
@@ -140,18 +139,4 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 		Size:         *props.ContentLength,
 		LastModified: *props.LastModified,
 	}, nil
-}
-
-// Delete removes the blob with the given name.
-func (rw *readerWriter) delete(ctx context.Context, name string) error {
-	blobClient, err := getBlobClient(ctx, rw.cfg, name)
-	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob client, name: %s", name)
-	}
-
-	deleteSnapshots := azblob.DeleteSnapshotsOptionTypeInclude
-	if _, err := blobClient.Delete(ctx, &blob.DeleteOptions{DeleteSnapshots: &deleteSnapshots}); err != nil {
-		return errors.Wrapf(err, "error deleting blob, name: %s", name)
-	}
-	return nil
 }
