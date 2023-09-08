@@ -27,7 +27,11 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	var err error
 
 	retry := policy.RetryOptions{
-		MaxRetries:    maxRetries,
+		MaxRetries: maxRetries,
+		// The values for TryTimeout, RetryDelay and MaxRetryDelay are inherited from the old Azure SDK
+		// (azure-storage-blob-go).
+		//
+		// See https://github.com/Azure/azure-storage-blob-go/blob/905b628ceb292e8d769ae62fb7cc5c5e949360db/azblob/zc_policy_retry.go#L89.
 		TryTimeout:    1 * time.Minute,
 		RetryDelay:    4 * time.Second,
 		MaxRetryDelay: 120 * time.Second,
