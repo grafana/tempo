@@ -64,7 +64,7 @@ const (
 
 	// These intrinsics do not map to specific data points, but are used to
 	// indicate that Spans must be able to answer the structural methods
-	// DescdendantOf, SiblingOf, and ChildOf.  The details of those methods
+	// DescdendantOf, SiblingOf and ChildOf.  The details of those methods
 	// and how these intrinsics are handled is left to the implementation.
 	IntrinsicStructuralDescendant
 	IntrinsicStructuralSibling

@@ -315,7 +315,7 @@ Arguments:
 tempo-cli parquet convert data.parquet out.parquet
 ```
 ## Parquet convert 2 to 3 command
-Converts a vParquet2 file (actual data.parquet) to a vParquet3 block with an optional list of dedicated columns.
+Converts a vParquet2 file (actual data.parquet) to a vParquet3 block with an optional list of dedicated attribute columns.
 This utility command is useful when testing the impact of different combinations of dedicated columns. Currently,
 all listed columns are assumed to be at the span scope.
 
@@ -377,7 +377,7 @@ tempo-cli migrate overrides-config config.yaml --config-dest config-tmp.yaml --o
 
 ## Analyse block
 Analyses a block and outputs a summary of the block's generic attributes.
-It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
+It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3.
 
 Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
@@ -394,7 +394,7 @@ tempo-cli analyse block --backend=local --bucket=./cmd/tempo-cli/test-data/ sing
 
 ## Analyse blocks
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
-It's of particular use when trying to determine what attributes to configure for dedicated columns in vParquet3.
+It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3.
 
 Arguments:
 - `tenant-id` The tenant ID.  Use `single-tenant` for single-tenant setups.

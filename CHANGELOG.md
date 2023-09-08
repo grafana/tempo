@@ -1,4 +1,5 @@
 ## main / unreleased
+* [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
@@ -6,6 +7,7 @@
 * [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
+* [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
@@ -53,6 +55,7 @@ defaults:
   metrics_generator:
     processors: [service-graphs, span-metrics]
 ```  
+* [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
 
 # v2.2.2 / 2023-08-30
 

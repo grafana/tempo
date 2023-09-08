@@ -109,7 +109,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, nil
 	}
 
-	ok, rowGroup, err := b.checkIndex(ctx, traceID)
+	ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
 	}
