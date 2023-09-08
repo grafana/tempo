@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
@@ -196,7 +197,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
-		Delimiter: ".json",
+		Delimiter: "",
 		Versions:  false,
 	})
 
@@ -212,19 +213,18 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 			return nil, nil, errors.Wrap(err, "iterating blocks")
 		}
 
-		obj := strings.TrimPrefix(attrs.Prefix, prefix)
-		parts = strings.Split(obj, "/")
-		// ie: <blockID>/meta.json
-		if len(parts) != 2 {
+		parts = strings.Split(attrs.Name, "/")
+		// ie: <tenant>/<blockID>/meta.json
+		if len(parts) != 3 {
 			continue
 		}
 
-		id, err = uuid.Parse(parts[0])
+		id, err = uuid.Parse(parts[1])
 		if err != nil {
 			return nil, nil, err
 		}
 
-		switch parts[1] {
+		switch parts[2] {
 		case backend.MetaName:
 			blockIDs = append(blockIDs, id)
 		case backend.CompactedMetaName:
