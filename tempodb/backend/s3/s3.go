@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -24,6 +25,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -277,6 +279,111 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	}
 
 	return objects, nil
+}
+
+func (rw *readerWriter) ListBlocks(
+	ctx context.Context,
+	keypath backend.KeyPath,
+) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	bb := util.CreateBlockBoundaries(rw.cfg.ConcurrentWalk)
+
+	errChan := make(chan error, len(bb))
+	wg := sync.WaitGroup{}
+
+	mtx := sync.Mutex{}
+
+	var min uuid.UUID
+	var max uuid.UUID
+
+	for i := 0; i < len(bb)-1; i++ {
+
+		min = uuid.UUID(bb[i])
+		max = uuid.UUID(bb[i+1])
+
+		wg.Add(1)
+		go func(min, max uuid.UUID) {
+			defer wg.Done()
+
+			startAfter := prefix + min.String()
+			nextToken := ""
+			isTruncated := true
+			var res minio.ListBucketV2Result
+
+			for isTruncated {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, nextToken, "", 0)
+					if err != nil {
+						errChan <- errors.Wrapf(err, "error finding objects in s3 bucket, bucket: %s", rw.cfg.Bucket)
+						return
+					}
+
+					isTruncated = res.IsTruncated
+					nextToken = res.NextContinuationToken
+
+					if len(res.Contents) > 0 {
+						for _, c := range res.Contents {
+
+							// i.e: <tenantID/<blockID>/meta
+							parts := strings.Split(c.Key, "/")
+							if len(parts) != 3 {
+								continue
+							}
+
+							id, err := uuid.Parse(parts[1])
+							if err != nil {
+								continue
+							}
+
+							x := bytes.Compare(id[:], min[:])
+							if x < 0 {
+								return
+							}
+
+							y := bytes.Compare(id[:], max[:])
+							if y > 0 {
+								return
+							}
+
+							switch parts[2] {
+							case backend.MetaName:
+								mtx.Lock()
+								blockIDs = append(blockIDs, id)
+								mtx.Unlock()
+							case backend.CompactedMetaName:
+								mtx.Lock()
+								compactedBlockIDs = append(compactedBlockIDs, id)
+								mtx.Unlock()
+							}
+						}
+					}
+				}
+			}
+		}(min, max)
+	}
+	wg.Wait()
+	close(errChan)
+
+	var errs []error
+	for e := range errChan {
+		errs = append(errs, e)
+	}
+
+	if len(errs) > 0 {
+		return nil, nil, stdErrs.Join(errs...)
+	}
+
+	level.Debug(rw.logger).Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
+
+	return
 }
 
 // Find implements backend.Reader

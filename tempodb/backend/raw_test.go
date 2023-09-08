@@ -92,11 +92,10 @@ func TestReader(t *testing.T) {
 	uuid1, uuid2, uuid3 := uuid.New(), uuid.New(), uuid.New()
 	expectedBlocks := []uuid.UUID{uuid1, uuid2}
 	expectedCompactedBlocks := []uuid.UUID{uuid3}
-	m.FindResult = []string{
-		"test/" + uuid1.String() + "/" + MetaName,
-		"test/" + uuid2.String() + "/" + MetaName,
-		"test/" + uuid3.String() + "/" + CompactedMetaName,
-	}
+
+	m.BlockIDs = append(m.BlockIDs, uuid1)
+	m.BlockIDs = append(m.BlockIDs, uuid2)
+	m.CompactedBlockIDs = append(m.CompactedBlockIDs, uuid3)
 
 	actualBlocks, actualCompactedBlocks, err := r.Blocks(ctx, "test")
 	assert.NoError(t, err)

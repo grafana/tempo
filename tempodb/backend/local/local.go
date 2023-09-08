@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -147,6 +148,40 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 	}
 
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *Backend) ListBlocks(_ context.Context, keypath backend.KeyPath) (metas []uuid.UUID, compactedMetas []uuid.UUID, err error) {
+	rootPath := rw.rootPath(keypath)
+	fff := os.DirFS(rootPath)
+	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		tenantFilePath := filepath.Join(filepath.Join(keypath...), path)
+
+		parts := strings.Split(tenantFilePath, "/")
+		// i.e: <tenantID/<blockID>/meta
+		if len(parts) != 3 {
+			return nil
+		}
+
+		id, err := uuid.Parse(parts[1])
+		if err != nil {
+			return err
+		}
+		switch parts[2] {
+		case backend.MetaName:
+			metas = append(metas, id)
+		case backend.CompactedMetaName:
+			compactedMetas = append(compactedMetas, id)
+		}
+
+		return nil
+	})
+
+	return
 }
 
 // Find implements backend.Reader

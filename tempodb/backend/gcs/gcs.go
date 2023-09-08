@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
@@ -184,6 +185,54 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	}
 
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Prefix:    prefix,
+		Delimiter: ".json",
+		Versions:  false,
+	})
+
+	var parts []string
+	var id uuid.UUID
+
+	for {
+		attrs, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "iterating blocks")
+		}
+
+		obj := strings.TrimPrefix(attrs.Prefix, prefix)
+		parts = strings.Split(obj, "/")
+		// ie: <blockID>/meta.json
+		if len(parts) != 2 {
+			continue
+		}
+
+		id, err = uuid.Parse(parts[0])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		switch parts[1] {
+		case backend.MetaName:
+			blockIDs = append(blockIDs, id)
+		case backend.CompactedMetaName:
+			compactedBlockIDs = append(compactedBlockIDs, id)
+		}
+	}
+
+	return
 }
 
 // Find implements backend.Reader
