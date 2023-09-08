@@ -75,6 +75,10 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		}
 
 		for _, b := range page.Segment.BlobItems {
+			if b.Name == nil {
+				return errors.New(fmt.Sprintf("unexpected empty blob name when listing %s", prefix))
+			}
+
 			err = rw.Delete(ctx, *b.Name, []string{}, false)
 			if err != nil {
 				warning = err
@@ -133,6 +137,14 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
 	if err != nil {
 		return BlobAttributes{}, err
+	}
+
+	if props.ContentLength == nil {
+		return BlobAttributes{}, errors.New(fmt.Sprintf("expected content length but got none for blob %s", name))
+	}
+
+	if props.LastModified == nil {
+		return BlobAttributes{}, errors.New(fmt.Sprintf("expected last modified but got none for blob %s", name))
 	}
 
 	return BlobAttributes{
