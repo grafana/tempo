@@ -358,7 +358,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 		size = *props.ContentLength - offset
 	}
 
-	if _, err := blobClient.DownloadBuffer(context.Background(), destBuffer, &blob.DownloadBufferOptions{
+	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
 		Range: blob.HTTPRange{
 			Offset: offset,
 			Count:  size,
