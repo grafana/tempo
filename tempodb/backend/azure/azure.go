@@ -388,6 +388,10 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, azcor
 		return nil, "", err
 	}
 
+	if props.ContentLength == nil {
+		return nil, "", errors.New(fmt.Sprintf("expected content length but got none for blob %s", name))
+	}
+
 	destBuffer := make([]byte, *props.ContentLength)
 
 	if _, err := blobClient.DownloadBuffer(context.Background(), destBuffer, &blob.DownloadBufferOptions{
