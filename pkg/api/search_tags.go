@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -27,13 +28,18 @@ func ParseSearchTagValuesRequestV2(r *http.Request) (*tempopb.SearchTagValuesReq
 
 func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb.SearchTagValuesRequest, error) {
 	vars := mux.Vars(r)
-	tagName, ok := vars[muxVarTagName]
+	escapedTagName, ok := vars[muxVarTagName]
 	if !ok {
 		return nil, errors.New("please provide a tagName")
 	}
 
-	if tagName == "" {
+	if escapedTagName == "" {
 		return nil, errors.New("please provide a non-empty tagName")
+	}
+
+	tagName, unescapingError := url.QueryUnescape(escapedTagName)
+	if unescapingError != nil {
+		return nil, errors.New("error in unescaping tagName")
 	}
 
 	if enforceTraceQL {
