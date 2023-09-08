@@ -33,6 +33,11 @@ type Duration struct {
 	time.Duration
 }
 
+// MarshalJSON implements json.Marshaler.
+func (d *Duration) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
+}
+
 // UnmarshalJSON implements json.Unmarshaler.
 func (d *Duration) UnmarshalJSON(input []byte) error {
 	var unmarshalledJson interface{}
@@ -57,6 +62,7 @@ func (d *Duration) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+var _ json.Marshaler = (*Duration)(nil)
 var _ json.Unmarshaler = (*Duration)(nil)
 
 type LimitsMetricsGenerator struct {
