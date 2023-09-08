@@ -186,7 +186,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
       ports:
         - port: 9000
           targetPort: 9000
-          protocol: TCPo
+          protocol: TCP
           name: api
         - port: 9001
           targetPort: 9001
