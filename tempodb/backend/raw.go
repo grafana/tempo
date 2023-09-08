@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,6 +62,8 @@ type RawReader interface {
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// Find returns the names of all objects for which the provided FindFunc is true.  Start/End are used to limit the search to a range.
 	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
+	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
+	ListBlocks(ctx context.Context, keypath KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.
@@ -197,39 +198,7 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 
 // Blocks implements backend.Reader
 func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-	f := func(opts FindOpts) (bool, error) {
-		// i.e: <tenantID/<blockID>/meta
-		parts := strings.Split(opts.Key, "/")
-		if len(parts) != 3 {
-			return false, nil
-		}
-
-		switch parts[2] {
-		case MetaName, CompactedMetaName:
-			return true, nil
-		}
-		return false, nil
-	}
-
-	results, err := r.r.Find(ctx, KeyPath{tenantID}, f)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to find blocks")
-	}
-
-	mm := make([]uuid.UUID, 0, len(results))
-	cm := make([]uuid.UUID, 0, len(results))
-
-	for _, result := range results {
-		parts := strings.Split(result, "/")
-		switch parts[2] {
-		case MetaName:
-			mm = append(mm, uuid.MustParse(parts[1]))
-		case CompactedMetaName:
-			cm = append(cm, uuid.MustParse(parts[1]))
-		}
-	}
-
-	return mm, cm, nil
+	return r.r.ListBlocks(ctx, KeyPath([]string{tenantID}))
 }
 
 // BlockMeta implements backend.Reader
