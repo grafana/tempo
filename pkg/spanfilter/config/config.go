@@ -8,8 +8,8 @@ import (
 )
 
 type FilterPolicy struct {
-	Include *PolicyMatch `yaml:"include"`
-	Exclude *PolicyMatch `yaml:"exclude"`
+	Include *PolicyMatch `yaml:"include" json:"include,omitempty"`
+	Exclude *PolicyMatch `yaml:"exclude" json:"exclude,omitempty"`
 }
 
 type MatchType string
@@ -26,13 +26,13 @@ var supportedIntrinsics = []traceql.Intrinsic{
 }
 
 type PolicyMatch struct {
-	MatchType  MatchType              `yaml:"match_type"`
-	Attributes []MatchPolicyAttribute `yaml:"attributes"`
+	MatchType  MatchType              `yaml:"match_type" json:"match_type"`
+	Attributes []MatchPolicyAttribute `yaml:"attributes" json:"attributes"`
 }
 
 type MatchPolicyAttribute struct {
-	Key   string      `yaml:"key"`
-	Value interface{} `yaml:"value"`
+	Key   string      `yaml:"key" json:"key"`
+	Value interface{} `yaml:"value" json:"value"`
 }
 
 func ValidateFilterPolicy(policy FilterPolicy) error {
