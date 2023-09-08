@@ -173,6 +173,9 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 		}
 
 		for _, b := range page.Segment.BlobPrefixes {
+			if b.Name == nil {
+				return objects, errors.New(fmt.Sprintf("unexpected empty blob name when listing %s", prefix))
+			}
 			objects = append(objects, strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix))
 		}
 	}
@@ -344,6 +347,10 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 
 	length := int64(len(destBuffer))
 	var size int64
+
+	if props.ContentLength == nil {
+		return errors.New(fmt.Sprintf("expected content length but got none for blob %s", name))
+	}
 
 	if length > 0 && length <= *props.ContentLength-offset {
 		size = length
