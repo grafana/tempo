@@ -89,7 +89,8 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 
 	for _, batch := range req.Batches {
 		if batch = filterBatch(batch); batch != nil {
-			if err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces); errors.Is(err, errMaxExceeded) {
+			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
+			if errors.Is(err, errMaxExceeded) {
 				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			}
 		}

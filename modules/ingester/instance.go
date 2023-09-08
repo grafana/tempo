@@ -200,9 +200,8 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 
 	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
-		var ttlErr traceTooLargeError
-		if ok := errors.As(err, &ttlErr); ok {
-			return status.Errorf(codes.FailedPrecondition, ttlErr.Error())
+		if ok := errors.As(err, &traceTooLargeError{}); ok {
+			return status.Errorf(codes.FailedPrecondition, err.Error())
 		}
 		return err
 	}

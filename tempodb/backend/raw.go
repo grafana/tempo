@@ -93,7 +93,8 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 	// If meta and compactedMeta are empty, call delete the tenant index.
 	if len(meta) == 0 && len(compactedMeta) == 0 {
 		// Skip returning an error when the object is already deleted.
-		if err := w.w.Delete(ctx, TenantIndexName, KeyPath([]string{tenantID}), false); err != nil && !errors.Is(err, ErrDoesNotExist) {
+		err := w.w.Delete(ctx, TenantIndexName, []string{tenantID}, false)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
 		return nil

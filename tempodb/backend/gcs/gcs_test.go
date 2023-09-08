@@ -18,11 +18,11 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	raw "google.golang.org/api/storage/v1"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHedge(t *testing.T) {

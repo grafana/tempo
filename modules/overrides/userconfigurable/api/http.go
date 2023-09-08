@@ -137,9 +137,8 @@ func writeError(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusPreconditionFailed)
 		return
 	}
-	var valErr validationError
-	if ok := errors.As(err, &valErr); ok {
-		http.Error(w, valErr.Error(), http.StatusBadRequest)
+	if ok := errors.As(err, &validationError{}); ok {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
