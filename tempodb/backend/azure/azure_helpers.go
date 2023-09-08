@@ -27,7 +27,7 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	var err error
 
 	retry := policy.RetryOptions{
-		MaxRetries:    int32(maxRetries) - 1,
+		MaxRetries:    maxRetries,
 		TryTimeout:    1 * time.Minute,
 		RetryDelay:    4 * time.Second,
 		MaxRetryDelay: 120 * time.Second,
