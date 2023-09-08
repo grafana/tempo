@@ -712,6 +712,20 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
 		},
+		{
+			name:              "with previous compactions removed, should be forgotten",
+			previousPerTenant: PerTenant{},
+			previousCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+				},
+			},
+			currentPerTenant:           PerTenant{},
+			currentCompactedPerTenant:  PerTenantCompacted{},
+			expectedPerTenant:          PerTenant{},
+			expectedCompactedPerTenant: PerTenantCompacted{},
+			expectedBlockMetaCalls:     map[string]map[uuid.UUID]int{},
+		},
 	}
 
 	for _, tc := range testCases {
