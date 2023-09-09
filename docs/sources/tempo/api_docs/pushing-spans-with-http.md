@@ -57,7 +57,7 @@ curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
 }]'
 ```
 
-Note that the `timestamp` field is in microseconds and was obtained by running `date +%s%6N`.  The `duration` field is also in microseconds and so 100000 is 100 milliseconds.
+Note that the `timestamp` field is in microseconds and was obtained by running `date +%s%6`.  The `duration` field is also in microseconds and so 100000 is 100 milliseconds.
 
 ## Retrieve traces
 
