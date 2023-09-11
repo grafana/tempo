@@ -50,10 +50,6 @@ func (m *MockRawReader) ListBlocks(ctx context.Context, keypath KeyPath) ([]uuid
 	return m.BlockIDs, m.CompactedBlockIDs, nil
 }
 
-func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {
-	return m.FindResult, nil
-}
-
 func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
 	if m.ReadFn != nil {
 		return m.ReadFn(ctx, name, keypath, shouldCache)

@@ -184,40 +184,6 @@ func (rw *Backend) ListBlocks(_ context.Context, keypath backend.KeyPath) (metas
 	return
 }
 
-// Find implements backend.Reader
-func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
-	path := rw.rootPath(keypath)
-	fff := os.DirFS(path)
-	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-
-		tenantFilePath := filepath.Join(filepath.Join(keypath...), path)
-		opts := backend.FindOpts{
-			Key:      tenantFilePath,
-			Modified: info.ModTime(),
-		}
-
-		matched, e := f(opts)
-		if e == backend.ErrDone {
-			return e
-		}
-		if matched {
-			keys = append(keys, tenantFilePath)
-		}
-
-		return nil
-	})
-
-	return
-}
-
 // Read implements backend.Reader
 func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	if err := ctx.Err(); err != nil {

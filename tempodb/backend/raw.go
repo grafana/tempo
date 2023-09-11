@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"path"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -25,16 +24,6 @@ const (
 // KeyPath is an ordered set of strings that govern where data is read/written
 // from the backend
 type KeyPath []string
-
-// FundFunc is used to match objects in a backend.  The returned boolean
-// indicates if the object should be returned.  If an error is returned, it
-// should indicate that the search should stop.
-type FindFunc func(FindOpts) (bool, error)
-
-type FindOpts struct {
-	Key      string
-	Modified time.Time
-}
 
 var ErrDone = errors.New("done")
 
@@ -60,8 +49,6 @@ type RawWriter interface {
 type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
-	// Find returns the names of all objects for which the provided FindFunc is true.  Start/End are used to limit the search to a range.
-	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
 	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
 	ListBlocks(ctx context.Context, keypath KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
