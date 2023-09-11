@@ -26,9 +26,9 @@ import (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler http.Handler
-	streamingSearch                                                               streamingSearchHandler
-	logger                                                                        log.Logger
+	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler, SearchWSHandler http.Handler
+	streamingSearch                                                                                streamingSearchHandler
+	logger                                                                                         log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -70,7 +70,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
 		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
 		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
-		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
+		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
+		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
 		logger:                    logger,
 	}, nil
 }

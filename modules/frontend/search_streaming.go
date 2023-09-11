@@ -14,8 +14,11 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/gorilla/websocket"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -93,8 +96,8 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 	return p.progress.result()
 }
 
-// newSearchStreamingHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
+// newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
+func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	// jpe err := srv.Send(result.response)
 	searcher := streamingSearcher{
 		logger:      logger,
@@ -125,6 +128,65 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			return srv.Send(resp)
 		})
 	}
+}
+
+func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) http.Handler {
+	// jpe err := srv.Send(result.response)
+	searcher := streamingSearcher{
+		logger:      logger,
+		downstream:  downstream,
+		reader:      reader,
+		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
+		o:           o,
+		cfg:         &cfg,
+	}
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	// jpe
+	//  - add ping from loki?
+	//  - add client msg reader? yes - handle client closures
+
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+	fnHandler := func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			level.Error(logger).Log("msg", "error in upgrading websocket", "err", err)
+			server.WriteError(w, err)
+			return
+		}
+
+		defer func() {
+			if err := conn.Close(); err != nil {
+				level.Error(logger).Log("msg", "error closing websocket", "err", err)
+			}
+		}()
+
+		// jpe - we only have to do this if we host the ws on a different path than search
+		// the other option would be to use a query param to select ws=true?
+		r.URL.Path = downstreamPath
+		r.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
+
+		jsonMarshaler := &jsonpb.Marshaler{}
+		err = searcher.handle(r, func(resp *tempopb.SearchResponse) error {
+			msg, err := jsonMarshaler.MarshalToString(resp)
+			if err != nil {
+				return err
+			}
+
+			return conn.WriteMessage(websocket.TextMessage, []byte(msg))
+		})
+		if err != nil {
+			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()))
+			if err != nil {
+				level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
+			}
+		}
+	}
+
+	return http.HandlerFunc(fnHandler)
 }
 
 type streamingSearcher struct {

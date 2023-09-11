@@ -212,7 +212,7 @@ func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 	o, err := overrides.NewOverrides(overrides.Config{})
 	require.NoError(t, err)
 
-	handler := newSearchStreamingHandler(Config{
+	handler := newSearchStreamingGRPCHandler(Config{
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
