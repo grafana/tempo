@@ -248,3 +248,14 @@ func rvCountFields(rv reflect.Value) int {
 	}
 	return n
 }
+
+func TestConfigParsingError(t *testing.T) {
+	rawYaml := `
+defaults:
+  compaction:
+    block_retentionnnn: 14s
+`
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	assert.ErrorContains(t, yaml.UnmarshalStrict([]byte(rawYaml), &cfg), "field block_retentionnnn not found in type overrides.CompactionOverrides")
+}

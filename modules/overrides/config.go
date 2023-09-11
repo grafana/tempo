@@ -4,15 +4,15 @@ import (
 	"flag"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util/listtomap"
-
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
+	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/prometheus/common/model"
+	"github.com/grafana/tempo/pkg/util/listtomap"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type ConfigType string
@@ -183,6 +183,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		c.ConfigType = ConfigTypeNew
 		return nil
 	}
+	// hold on to the error for later
+	originalError := err
+	if typeError, ok := originalError.(*yaml.TypeError); ok {
+		// make a deep copy to avoid having the error overwritten by next call of unmarshal
+		originalError = &yaml.TypeError{Errors: slices.Clone(typeError.Errors)}
+	}
 
 	// Try to unmarshal inline limits
 	type legacyConfig struct {
@@ -200,7 +206,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	legacyCfg.UserConfigurableOverridesConfig = c.UserConfigurableOverridesConfig
 
 	if err := unmarshal(&legacyCfg); err != nil {
-		return err
+		// unmarshaling failed twice, return the first error
+		return originalError
 	}
 
 	c.Defaults = legacyCfg.DefaultOverrides.toNewLimits()
