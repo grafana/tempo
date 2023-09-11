@@ -49,7 +49,7 @@ func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSi
 	}
 }
 
-func (e traceTooLargeError) Error() string {
+func (e *traceTooLargeError) Error() string {
 	return fmt.Sprintf(
 		"%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
 		overrides.ErrorPrefixTraceTooLarge, e.maxBytes, e.reqSize, hex.EncodeToString(e.traceID), e.instanceID)
@@ -192,7 +192,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		prevSize := int(i.traceSizes[tkn])
 		reqSize := len(traceBytes)
 		if prevSize+reqSize > maxBytes {
-			return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error()))
+			return status.Errorf(codes.FailedPrecondition, newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error())
 		}
 	}
 
@@ -200,7 +200,8 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 
 	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
-		if ok := errors.As(err, &traceTooLargeError{}); ok {
+		var ttlErr *traceTooLargeError
+		if ok := errors.As(err, &ttlErr); ok {
 			return status.Errorf(codes.FailedPrecondition, err.Error())
 		}
 		return err
