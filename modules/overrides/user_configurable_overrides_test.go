@@ -12,6 +12,7 @@ import (
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
@@ -76,6 +77,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1))
 
 	// Inject user-configurable overrides
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
@@ -92,6 +94,28 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 				SpanMetrics: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:       &[]string{"sm-dimension"},
 					EnableTargetInfo: boolPtr(true),
+					FilterPolicies: &[]filterconfig.FilterPolicy{
+						{
+							Include: &filterconfig.PolicyMatch{
+								MatchType: filterconfig.Strict,
+								Attributes: []filterconfig.MatchPolicyAttribute{
+									{
+										Key:   "span.kind",
+										Value: "SPAN_KIND_SERVER",
+									},
+								},
+							},
+							Exclude: &filterconfig.PolicyMatch{
+								MatchType: filterconfig.Strict,
+								Attributes: []filterconfig.MatchPolicyAttribute{
+									{
+										Key:   "span.kind",
+										Value: "SPAN_KIND_CONSUMER",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -106,6 +130,15 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+
+	filterPolicies := mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1)
+	assert.NotEmpty(t, filterPolicies)
+	assert.Equal(t, filterconfig.Strict, filterPolicies[0].Include.MatchType)
+	assert.Equal(t, filterconfig.Strict, filterPolicies[0].Exclude.MatchType)
+	assert.Equal(t, "span.kind", filterPolicies[0].Include.Attributes[0].Key)
+	assert.Equal(t, "span.kind", filterPolicies[0].Exclude.Attributes[0].Key)
+	assert.Equal(t, "SPAN_KIND_SERVER", filterPolicies[0].Include.Attributes[0].Value)
+	assert.Equal(t, "SPAN_KIND_CONSUMER", filterPolicies[0].Exclude.Attributes[0].Value)
 }
 
 func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {

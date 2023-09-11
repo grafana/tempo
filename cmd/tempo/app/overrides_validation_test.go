@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 func Test_overridesValidator(t *testing.T) {
@@ -61,6 +62,39 @@ func Test_overridesValidator(t *testing.T) {
 				},
 			},
 			expErr: fmt.Sprintf("metrics_generator.processor \"span-span\" is not a known processor, valid values: %v", generator.SupportedProcessors),
+		},
+		{
+			name: "filter policies",
+			cfg:  Config{},
+			limits: client.Limits{
+				Forwarders: &[]string{},
+				MetricsGenerator: &client.LimitsMetricsGenerator{Processor: &client.LimitsMetricsGeneratorProcessor{SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{FilterPolicies: &[]filterconfig.FilterPolicy{{
+					Include: &filterconfig.PolicyMatch{
+						MatchType: filterconfig.Strict,
+						Attributes: []filterconfig.MatchPolicyAttribute{
+							{
+								Key:   "span.kind",
+								Value: "SPAN_KIND_SERVER",
+							},
+						},
+					},
+				}}}}},
+			},
+		},
+		{
+			name: "filter policies - invalid",
+			cfg:  Config{},
+			limits: client.Limits{
+				Forwarders: &[]string{},
+				MetricsGenerator: &client.LimitsMetricsGenerator{Processor: &client.LimitsMetricsGeneratorProcessor{SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{FilterPolicies: &[]filterconfig.FilterPolicy{
+					{
+						Include: &filterconfig.PolicyMatch{
+							MatchType: "invalid",
+						},
+					},
+				}}}},
+			},
+			expErr: "invalid include policy: invalid match type: invalid",
 		},
 	}
 
