@@ -35,8 +35,8 @@ const (
 
 type readerWriter struct {
 	cfg                   *Config
-	containerClient       container.Client
-	hedgedContainerClient container.Client
+	containerClient       *container.Client
+	hedgedContainerClient *container.Client
 }
 
 var (

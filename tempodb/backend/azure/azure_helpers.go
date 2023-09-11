@@ -23,7 +23,7 @@ const (
 	maxRetries = 1
 )
 
-func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container.Client, error) {
+func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (*container.Client, error) {
 	var err error
 
 	retry := policy.RetryOptions{
@@ -54,7 +54,7 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	if hedge && cfg.HedgeRequestsAt != 0 {
 		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 		instrumentation.PublishHedgedMetrics(stats)
 	}
@@ -77,7 +77,7 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	}
 
 	if err != nil {
-		return container.Client{}, err
+		return nil, err
 	}
 
 	var client *azblob.Client
@@ -86,13 +86,13 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	case cfg.UseFederatedToken:
 		credential, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{})
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 
 		client, err = azblob.NewClient(u.String(), credential, &opts)
 
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 	case cfg.UseManagedIdentity:
 		var id azidentity.ManagedIDKind
@@ -108,44 +108,44 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 			ID: id,
 		})
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 
 		client, err = azblob.NewClient(u.String(), credential, &opts)
 
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 	// If no authentication mechanism has been explicitly specified, assume shared key credential.
 	default:
 		credential, err := azblob.NewSharedKeyCredential(accountName, getStorageAccountKey(cfg))
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 
 		client, err = azblob.NewClientWithSharedKeyCredential(u.String(), credential, &opts)
 
 		if err != nil {
-			return container.Client{}, err
+			return nil, err
 		}
 	}
 
-	return *client.ServiceClient().NewContainerClient(cfg.ContainerName), nil
+	return client.ServiceClient().NewContainerClient(cfg.ContainerName), nil
 }
 
-func getBlobClient(ctx context.Context, conf *Config, blobName string) (blob.Client, error) {
+func getBlobClient(ctx context.Context, conf *Config, blobName string) (*blob.Client, error) {
 	c, err := getContainerClient(ctx, conf, false)
 	if err != nil {
-		return blob.Client{}, err
+		return nil, err
 	}
 
-	return *c.NewBlobClient(blobName), nil
+	return c.NewBlobClient(blobName), nil
 }
 
-func CreateContainer(ctx context.Context, conf *Config) (container.Client, error) {
+func CreateContainer(ctx context.Context, conf *Config) (*container.Client, error) {
 	c, err := getContainerClient(ctx, conf, false)
 	if err != nil {
-		return container.Client{}, err
+		return nil, err
 	}
 	_, err = c.Create(ctx, &container.CreateOptions{})
 	return c, err
