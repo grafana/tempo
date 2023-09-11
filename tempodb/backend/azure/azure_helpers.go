@@ -81,7 +81,6 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 	}
 
 	var client *azblob.Client
-	accountKey := getStorageAccountKey(cfg)
 
 	switch {
 	case cfg.UseFederatedToken:
@@ -117,25 +116,14 @@ func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (container
 		if err != nil {
 			return container.Client{}, err
 		}
-	case accountName != "" && accountKey != "":
+	// If no authentication mechanism has been explicitly specified, assume shared key credential.
+	default:
 		credential, err := azblob.NewSharedKeyCredential(accountName, getStorageAccountKey(cfg))
 		if err != nil {
 			return container.Client{}, err
 		}
 
 		client, err = azblob.NewClientWithSharedKeyCredential(u.String(), credential, &opts)
-
-		if err != nil {
-			return container.Client{}, err
-		}
-	// If no authentication mechanism has been explicitly specified, assume workload identity.
-	default:
-		credential, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{})
-		if err != nil {
-			return container.Client{}, err
-		}
-
-		client, err = azblob.NewClient(u.String(), credential, &opts)
 
 		if err != nil {
 			return container.Client{}, err
