@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -13,8 +14,10 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -23,6 +26,10 @@ const (
 	headerIfMatch = "If-Match"
 
 	errNoIfMatchHeader = "must specify If-Match header"
+
+	queryParamScope = "scope"
+	scopeApi        = "api"
+	scopeMerged     = "merged"
 )
 
 // GetHandler retrieves the user-configured overrides from the backend.
@@ -37,10 +44,22 @@ func (a *UserConfigOverridesAPI) GetHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	scope := scopeApi
+	if value, ok := r.URL.Query()[queryParamScope]; ok {
+		scope = value[0]
+	}
+	if scope != scopeApi && scope != scopeMerged {
+		http.Error(w, fmt.Sprintf("unknown scope \"%s\", valid options are api and merged", scope), http.StatusBadRequest)
+	}
+
 	limits, version, err := a.get(ctx, userID)
 	if err != nil {
 		writeError(w, err)
 		return
+	}
+
+	if scope == scopeMerged {
+		limits = limitsFromOverrides(a.overrides, userID)
 	}
 
 	err = writeLimits(w, limits, version)
@@ -173,4 +192,38 @@ func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string,
 
 		span.Finish()
 	}
+}
+
+func limitsFromOverrides(overrides overrides.Interface, userID string) *client.Limits {
+	return &client.Limits{
+		Forwarders: strArrPtr(overrides.Forwarders(userID)),
+		MetricsGenerator: &client.LimitsMetricsGenerator{
+			Processors:        overrides.MetricsGeneratorProcessors(userID),
+			DisableCollection: boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
+			Processor: &client.LimitsMetricsGeneratorProcessor{
+				ServiceGraphs: &client.LimitsMetricsGeneratorProcessorServiceGraphs{
+					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
+					EnableClientServerPrefix: boolPtr(overrides.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)),
+					PeerAttributes:           strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)),
+				},
+				SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{
+					Dimensions:       strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
+					EnableTargetInfo: boolPtr(overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)),
+					FilterPolicies:   filterPoliciesPtr(overrides.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)),
+				},
+			},
+		},
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func strArrPtr(s []string) *[]string {
+	return &s
+}
+
+func filterPoliciesPtr(p []config.FilterPolicy) *[]config.FilterPolicy {
+	return &p
 }
