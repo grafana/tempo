@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -247,6 +248,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsE
 		return enableTargetInfo
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	if filterPolicies, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetFilterPolicies(); ok {
+		return filterPolicies
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)
 }
 
 // statusUserConfigurableOverrides used to marshal userconfigurableoverrides.Limits for tenants
