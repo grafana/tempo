@@ -272,7 +272,7 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	if startNano > 0 && endNano > 0 {
 		cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 		if startNano < uint64(cutoff.UnixNano()) {
-			return nil, fmt.Errorf("time range exceeds the limit of last %v", p.Cfg.CompleteBlockTimeout)
+			return nil, fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
 		}
 	}
 
