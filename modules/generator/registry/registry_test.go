@@ -3,14 +3,15 @@ package registry
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"math/rand"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestManagedRegistry_concurrency(*testing.T) {
@@ -253,51 +254,28 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 	assert.Equal(t, false, appender.isRolledback)
 
 	actualSamples := appender.samples
-
 	require.Equal(t, len(expectedSamples), len(actualSamples))
 
-	// This loop performs equality comparison of expected and actual samples agnostic of order of both samples
-	// and labels within samples.
-	for _, expected := range expectedSamples {
-		if i, ok := match(expected, actualSamples); ok {
-			// Remove matching sample to prevent multiple matches on the same sample.
-			actualSamples = remove(actualSamples, i)
-			continue
-		}
+	// Ensure that both slices are ordered consistently.
+	for _, slice := range [][]sample{expectedSamples, actualSamples} {
+		sort.Slice(slice, func(i, j int) bool {
+			this := slice[i]
+			next := slice[j]
 
-		t.Fatalf("no match found for expected sample %s", expected.String())
+			// The actual order doesn't matter, the only thing that matters is that it is consistent.
+			return this.String() < next.String()
+		})
 	}
-}
 
-// match checks if actualSamples contains at least one sample that matches the expected sample.
-// The returned integer is the index of the found match; the returned boolean indicates whether a match was found.
-func match(expected sample, actualSamples []sample) (int, bool) {
-	for i, actual := range actualSamples {
-		if expected.t != actual.t {
-			continue
-		}
+	for i, expected := range expectedSamples {
+		actual := actualSamples[i]
 
-		if expected.v != actual.v {
-			continue
-		}
-
+		assert.Equal(t, expected.t, actual.t)
+		assert.Equal(t, expected.v, actual.v)
 		// Rely on the fact that Go prints map keys in sorted order.
 		// See https://tip.golang.org/doc/go1.12#fmt.
-		if fmt.Sprint(expected.l.Map()) != fmt.Sprint(actual.l.Map()) {
-			continue
-		}
-
-		return i, true
+		assert.Equal(t, fmt.Sprint(expected.l.Map()), fmt.Sprint(actual.l.Map()))
 	}
-
-	return 0, false
-}
-
-// remove item from slice.
-// https://stackoverflow.com/a/37335777
-func remove(samples []sample, i int) []sample {
-	samples[i] = samples[len(samples)-1]
-	return samples[:len(samples)-1]
 }
 
 type mockOverrides struct {
