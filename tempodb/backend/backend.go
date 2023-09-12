@@ -77,30 +77,3 @@ type Blocklist interface {
 	Metas(tenantID string) []*BlockMeta
 	CompactedMetas(tenantID string) []*CompactedBlockMeta
 }
-
-const (
-	// Order matters
-	characterSet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-)
-
-func CalculateRanges(numShards int) []struct{ Start, End rune } {
-	runeCount := len(characterSet)
-	shardSize := runeCount / numShards // Calculate shard size
-
-	ranges := make([]struct{ Start, End rune }, numShards)
-
-	for i := 0; i < numShards; i++ {
-		startIdx := i * shardSize
-		endIdx := (i + 1) * shardSize
-
-		// Adjust endIdx if it exceeds the runeCount
-		if i == numShards-1 {
-			endIdx = runeCount
-		}
-
-		ranges[i].Start = rune(characterSet[startIdx])
-		ranges[i].End = rune(characterSet[endIdx-1])
-	}
-
-	return ranges
-}
