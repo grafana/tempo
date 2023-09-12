@@ -2,6 +2,23 @@ package traceql
 
 func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	f.Expression.extractConditions(request)
+
+	// For empty spansets { } we need something that matches all spans.
+	// So select duration which we would be select anyway,
+	// unless there is a different intrinsic already present.
+	if s, ok := f.Expression.(Static); ok && s.Type == TypeBoolean && s.B {
+		for _, c := range request.Conditions {
+			if c.Attribute.Intrinsic != IntrinsicNone {
+				// A different intrinsic is already present.
+				return
+			}
+		}
+
+		request.appendCondition(Condition{
+			Attribute: NewIntrinsic(IntrinsicDuration),
+			Op:        OpNone,
+		})
+	}
 }
 
 // extractConditions on Select puts its conditions into the SecondPassConditions
