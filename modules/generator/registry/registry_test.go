@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"math/rand"
 	"os"
 	"sort"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManagedRegistry_concurrency(*testing.T) {
