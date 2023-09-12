@@ -62,7 +62,7 @@ linters-settings:
   errcheck:
     exclude: ./.errcheck-exclude.txt
   errorlint:
-    errorf: false # don't check whether fmt.Errorf uses the %w errors
+    errorf: false # don't check whether fmt.Errorf uses %w to wrap errors
 
 issues:
   exclude:
