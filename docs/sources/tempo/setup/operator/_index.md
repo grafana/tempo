@@ -15,10 +15,11 @@ Some of the operator features are:
 
 * **Resource Limits** - Specify overall resource requests and limits in the `TempoStack` CR; the operator assigns fractions of it to each component
 * **AuthN and AuthZ** - Supports OpenID Control (OIDC) and role-based access control (RBAC)
+* **Managed upgrades**: Updating the operator will automatically update all managed Tempo clusters
 * **Multitenancy** - Multiple tenants can send traces to the same Tempo cluster
 * **mTLS** - Communication between the Tempo components can be secured via mTLS
 * **Jaeger UI** - Traces can be visualized in Jaeger UI and exposed via Ingress or OpenShift Route
-* **Observability** - The operator and `TempoStack` operands expose telemetry (metrics, traces) and integrate with Prometheus `ServiceMonitors`
+* **Observability** - The operator and `TempoStack` operands expose telemetry (metrics, traces) and integrate with Prometheus `ServiceMonitor` and `PrometheusRule`
 
 The source of the Tempo Operator can be found at [grafana/tempo-operator](https://github.com/grafana/tempo-operator).
 
