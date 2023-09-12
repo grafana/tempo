@@ -2,13 +2,16 @@ package registry
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManagedRegistry_concurrency(*testing.T) {
@@ -249,7 +252,30 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 
 	assert.Equal(t, true, appender.isCommitted)
 	assert.Equal(t, false, appender.isRolledback)
-	assert.ElementsMatch(t, expectedSamples, appender.samples)
+
+	actualSamples := appender.samples
+	require.Equal(t, len(expectedSamples), len(actualSamples))
+
+	// Ensure that both slices are ordered consistently.
+	for _, slice := range [][]sample{expectedSamples, actualSamples} {
+		sort.Slice(slice, func(i, j int) bool {
+			this := slice[i]
+			next := slice[j]
+
+			// The actual order doesn't matter, the only thing that matters is that it is consistent.
+			return this.String() < next.String()
+		})
+	}
+
+	for i, expected := range expectedSamples {
+		actual := actualSamples[i]
+
+		assert.Equal(t, expected.t, actual.t)
+		assert.Equal(t, expected.v, actual.v)
+		// Rely on the fact that Go prints map keys in sorted order.
+		// See https://tip.golang.org/doc/go1.12#fmt.
+		assert.Equal(t, fmt.Sprint(expected.l.Map()), fmt.Sprint(actual.l.Map()))
+	}
 }
 
 type mockOverrides struct {
