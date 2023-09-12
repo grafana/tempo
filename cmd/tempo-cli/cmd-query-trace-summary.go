@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -9,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -45,25 +44,18 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	var (
-		marshaller = new(jsonpb.Marshaler)
-		jsonBytes  = bytes.Buffer{}
-	)
-
-	// jsonify rootspan
-	err = marshaller.Marshal(&jsonBytes, traceSummary.RootSpan)
-	if err != nil {
-		fmt.Println("failed to marshal to json: ", err)
-		return nil
-	}
-
 	fmt.Printf("Number of blocks: %d \n", traceSummary.NumBlock)
 	fmt.Printf("Span count: %d \n", traceSummary.SpanCount)
 	fmt.Printf("Trace size: %d B \n", traceSummary.TraceSize)
 	fmt.Printf("Trace duration: %d seconds \n", traceSummary.TraceDuration)
 	fmt.Printf("Root service name: %s \n", traceSummary.RootServiceName)
-	fmt.Println("Root span info:")
-	fmt.Println(jsonBytes.String())
+
+	if traceSummary.RootSpan != nil {
+		fmt.Println("Root span info:")
+		scs := spew.ConfigState{DisableMethods: true, Indent: " "}
+		scs.Dump(traceSummary.RootSpan)
+	}
+
 	fmt.Println("top frequent service.names: ")
 	fmt.Println(traceSummary.ServiceNames)
 

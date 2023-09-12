@@ -134,16 +134,7 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 	}
 
 	if errors.Is(err, backend.ErrDoesNotExist) {
-		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-		if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
-			return nil, err
-		}
-
-		if compactedMeta == nil {
-			return nil, fmt.Errorf("compacted meta nil?")
-		}
-
-		meta = &compactedMeta.BlockMeta
+		return nil, nil
 	}
 
 	block, err := encoding.OpenBlock(meta, r)
