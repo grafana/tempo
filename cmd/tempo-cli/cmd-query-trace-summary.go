@@ -50,10 +50,12 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 	fmt.Printf("Trace duration: %d seconds \n", traceSummary.TraceDuration)
 	fmt.Printf("Root service name: %s \n", traceSummary.RootServiceName)
 
+	fmt.Println("Root span info:")
 	if traceSummary.RootSpan != nil {
-		fmt.Println("Root span info:")
 		scs := spew.ConfigState{DisableMethods: true, Indent: " "}
 		scs.Dump(traceSummary.RootSpan)
+	} else {
+		fmt.Println("No root span found")
 	}
 
 	fmt.Println("top frequent service.names: ")
