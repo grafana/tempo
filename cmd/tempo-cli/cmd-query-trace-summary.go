@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
@@ -23,6 +25,8 @@ type queryTraceSummaryCmd struct {
 
 	TraceID  string `arg:"" help:"trace ID to retrieve"`
 	TenantID string `arg:"" help:"tenant ID to search"`
+
+	Percentage float32 `help:"percentage of blocks to scan e.g..1 for 10%"`
 }
 
 func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
@@ -36,7 +40,7 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	traceSummary, err := queryBucketForSummary(context.Background(), r, c, cmd.TenantID, id)
+	traceSummary, err := queryBucketForSummary(context.Background(), cmd.Percentage, r, c, cmd.TenantID, id)
 	if err != nil {
 		return err
 	}
@@ -55,7 +59,7 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 
 	fmt.Printf("Number of blocks: %d \n", traceSummary.NumBlock)
 	fmt.Printf("Span count: %d \n", traceSummary.SpanCount)
-	fmt.Printf("Trace size: %d MB \n", traceSummary.TraceSize)
+	fmt.Printf("Trace size: %d B \n", traceSummary.TraceSize)
 	fmt.Printf("Trace duration: %d seconds \n", traceSummary.TraceDuration)
 	fmt.Printf("Root service name: %s \n", traceSummary.RootServiceName)
 	fmt.Println("Root span info:")
@@ -88,39 +92,56 @@ func sortServiceNames(nameFrequencies map[string]int) PairList {
 	return pl
 }
 
-func queryBucketForSummary(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) (*TraceSummary, error) {
+func queryBucketForSummary(ctx context.Context, percentage float32, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) (*TraceSummary, error) {
 	blockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}
 
+	if percentage > 0 {
+		// shuffle
+		rand.Shuffle(len(blockIDs), func(i, j int) { blockIDs[i], blockIDs[j] = blockIDs[j], blockIDs[i] })
+
+		// get the first n%
+		total := len(blockIDs)
+		total = int(float32(total) * percentage)
+		blockIDs = blockIDs[:total]
+	}
+
 	fmt.Println("total blocks to search: ", len(blockIDs))
 
 	// Load in parallel
-	wg := boundedwaitgroup.New(100)
-	resultsCh := make(chan queryResults, len(blockIDs))
+	wg := boundedwaitgroup.New(50)
+	resultsCh := make(chan *queryResults)
 
-	for blockNum, id := range blockIDs {
-		wg.Add(1)
+	go func() {
+		for blockNum, id := range blockIDs {
+			wg.Add(1)
 
-		go func(blockNum2 int, id2 uuid.UUID) {
-			defer wg.Done()
+			go func(blockNum2 int, id2 uuid.UUID) {
+				defer wg.Done()
 
-			// search here
-			q, err := queryBlock(ctx, r, c, blockNum2, id2, tenantID, traceID)
-			if err != nil {
-				fmt.Println("Error querying block:", err)
-				return
-			}
+				// search here
+				q, err := queryBlock(ctx, r, c, blockNum2, id2, tenantID, traceID)
+				if err != nil {
+					fmt.Println("Error querying block:", err)
+					return
+				}
 
-			if q != nil {
-				resultsCh <- *q
-			}
-		}(blockNum, id)
-	}
+				if q != nil {
+					resultsCh <- q
+				}
+			}(blockNum, id)
+		}
+	}()
 
-	wg.Wait()
-	close(resultsCh)
+	// cheap way to let the wait group get at least one .Add()
+	time.Sleep(time.Second)
+
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
 
 	var rootSpan *v1.Span
 	var rootSpanResource *v1resource.Resource
