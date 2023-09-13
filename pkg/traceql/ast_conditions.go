@@ -8,8 +8,8 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	// unless there is a different intrinsic already present.
 	if s, ok := f.Expression.(Static); ok && s.Type == TypeBoolean && s.B {
 		for _, c := range request.Conditions {
-			if c.Attribute.Intrinsic != IntrinsicNone {
-				// A different intrinsic is already present.
+			if c.Attribute.Intrinsic != IntrinsicNone && c.Op == OpNone {
+				// A different match-all intrinsic is already present.
 				return
 			}
 		}
