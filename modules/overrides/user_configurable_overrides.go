@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -214,6 +215,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(use
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+	if collectionInterval, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetCollectionInterval(); ok {
+		return collectionInterval
+	}
+	return o.Interface.MetricsGeneratorCollectionInterval(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
 		return dimensions
@@ -247,6 +255,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsE
 		return enableTargetInfo
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
+	if filterPolicies, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetFilterPolicies(); ok {
+		return filterPolicies
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)
 }
 
 // statusUserConfigurableOverrides used to marshal userconfigurableoverrides.Limits for tenants

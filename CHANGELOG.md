@@ -1,4 +1,5 @@
 ## main / unreleased
+* [ENHANCEMENT] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
 * [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
@@ -8,6 +9,7 @@
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
+* [CHANGE] Metrics summary API validate the requested time range [#2902](https://github.com/grafana/tempo/pull/2902) (@mdisibio)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
@@ -16,6 +18,8 @@
 * [ENHANCEMENT] Add `TempoUserConfigurableOverridesReloadFailing` alert [#2784](https://github.com/grafana/tempo/pull/2784) (@kvrhdn)
 * [ENHANCEMENT] Add RootSpanName and RootServiceName to log about discarded spans [#2816](https://github.com/grafana/tempo/pull/2816) (@marcinginszt)
 * [ENHANCEMENT] Add `UserID` to log message about rate limiting [#2850](https://github.com/grafana/tempo/pull/2850) (@lshippy)
+* [ENHANCEMENT] Add span metrics filter policies to user-configurable overrides [#2906](https://github.com/grafana/tempo/pull/2906) (@rlankfo)
+* [ENHANCEMENT] Add collection-interval to metrics-generator config in user-configurable overrides [#2899](https://github.com/grafana/tempo/pull/2899) (@rlankfo)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
 * [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
@@ -54,6 +58,10 @@ defaults:
     processors: [service-graphs, span-metrics]
 ```  
 * [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
+
+# v2.2.3 / 2023-09-13
+
+* [BUGFIX] Fix S3 credentials providers configuration [#2889](https://github.com/grafana/tempo/pull/2889) (@mapno)
 
 # v2.2.2 / 2023-08-30
 

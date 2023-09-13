@@ -1,6 +1,9 @@
 package client
 
 import (
+	"time"
+
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 )
 
@@ -25,8 +28,9 @@ func (l *Limits) GetMetricsGenerator() *LimitsMetricsGenerator {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors        listtomap.ListToMap `json:"processors,omitempty"`
-	DisableCollection *bool               `json:"disable_collection,omitempty"`
+	Processors         listtomap.ListToMap `json:"processors,omitempty"`
+	DisableCollection  *bool               `json:"disable_collection,omitempty"`
+	CollectionInterval *Duration           `json:"collection_interval,omitempty"`
 
 	Processor *LimitsMetricsGeneratorProcessor `json:"processor,omitempty"`
 }
@@ -50,6 +54,13 @@ func (l *LimitsMetricsGenerator) GetProcessor() *LimitsMetricsGeneratorProcessor
 		return l.Processor
 	}
 	return nil
+}
+
+func (l *LimitsMetricsGenerator) GetCollectionInterval() (time.Duration, bool) {
+	if l != nil && l.CollectionInterval != nil {
+		return l.CollectionInterval.Duration, true
+	}
+	return 0, false
 }
 
 type LimitsMetricsGeneratorProcessor struct {
@@ -99,8 +110,9 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetPeerAttributes() ([]st
 }
 
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions       *[]string `json:"dimensions,omitempty"`
-	EnableTargetInfo *bool     `json:"enable_target_info,omitempty"`
+	Dimensions       *[]string                    `json:"dimensions,omitempty"`
+	EnableTargetInfo *bool                        `json:"enable_target_info,omitempty"`
+	FilterPolicies   *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -115,4 +127,11 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetEnableTargetInfo() (bool
 		return *l.EnableTargetInfo, true
 	}
 	return false, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetFilterPolicies() ([]filterconfig.FilterPolicy, bool) {
+	if l != nil && l.FilterPolicies != nil {
+		return *l.FilterPolicies, true
+	}
+	return nil, true
 }
