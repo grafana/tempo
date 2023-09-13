@@ -27,6 +27,6 @@ This feature is automatically available in Grafana 10 (and newer) and Grafana Cl
 
 To enable the TraceQL query builder in self-hosted Grafana through version 10.1, [enable the `traceqlSearch` feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).
 
-[//]: # 'Shared content for the Search - TraceQL query builder'
+[//]: # "Shared content for the Search - TraceQL query builder"
 
 {{< docs/shared source="grafana" lookup="datasources/tempo-search-traceql.md" leveloffset="+1" version="<GRAFANA VERSION>" >}}

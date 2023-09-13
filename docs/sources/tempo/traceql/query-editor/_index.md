@@ -1,4 +1,6 @@
 ---
+cascade:
+  GRAFANA VERSION: latest
 title: Write TraceQL queries in Grafana
 menuTitle: Write TraceQL queries in Grafana
 description: Learn how to create TraceQL queries in Grafana using the query editor and search.
@@ -27,7 +29,6 @@ The TraceQL query builder, located on the **Explore** > **Query type** > **Searc
 Refer to the [Search using the TraceQL query builder documentation]({{< relref "./traceql-search" >}}) to learn more about creating queries using convenient drop-down menus.
 
 ![The TraceQL query builder](/static/img/docs/tempo/screenshot-traceql-query-type-search-v10.png)
-
 
 ## TraceQL query editor
 
