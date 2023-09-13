@@ -31,7 +31,6 @@
   sum(rate(tempo_query_frontend_queries_total{}[1m])) by (op)
   ```
   **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}. 
-* [BUGFIX] Fix S3 credentials providers configuration [#2889](https://github.com/grafana/tempo/pull/2889) (@mapno)
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
     Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
     Old config:
@@ -59,6 +58,10 @@ defaults:
     processors: [service-graphs, span-metrics]
 ```  
 * [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
+
+# v2.2.3 / 2023-09-13
+
+* [BUGFIX] Fix S3 credentials providers configuration [#2889](https://github.com/grafana/tempo/pull/2889) (@mapno)
 
 # v2.2.2 / 2023-08-30
 
