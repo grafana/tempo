@@ -7,6 +7,47 @@
 * [ENHANCEMENT] Update /api/metrics/summary to correctly handle missing attributes and improve performance of TraceQL `select()` queries. [#2765](https://github.com/grafana/tempo/pull/2765) (@mdisibio)
 * [ENHANCEMENT] Add `TempoUserConfigurableOverridesReloadFailing` alert [#2784](https://github.com/grafana/tempo/pull/2784) (@kvrhdn)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
+* [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
+* [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
+* [BUGFIX] To support blob storage in Azure Stack Hub as backend. [#2853](https://github.com/grafana/tempo/pull/2853) (@chlislb)
+  This query will now correctly tell you %age of requests that are within SLO:
+  ```
+  sum(rate(tempo_query_frontend_queries_within_slo_total{}[1m])) by (op) 
+  /
+  sum(rate(tempo_query_frontend_queries_total{}[1m])) by (op)
+  ```
+  **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}. 
+* [BUGFIX] Fix S3 credentials providers configuration [#2889](https://github.com/grafana/tempo/pull/2889) (@mapno)
+* [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
+    Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
+    Old config:
+```
+overrides:
+ingestion_rate_strategy: local
+ingestion_rate_limit_bytes: 12345
+ingestion_burst_size_bytes: 67890
+max_search_duration: 17s
+forwarders: ['foo']
+metrics_generator_processors: [service-graphs, span-metrics]
+```
+New config:
+```
+overrides:
+defaults:
+  ingestion:
+    rate_strategy: local
+    rate_limit_bytes: 12345
+    burst_size_bytes: 67890
+  read:
+    max_search_duration: 17s
+  forwarders: ['foo']
+  metrics_generator:
+    processors: [service-graphs, span-metrics]
+```  
+* [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
+
+# v2.2.2 / 2023-08-30
+
 * [BUGFIX] Fix node role auth IDMSv1 [#2760](https://github.com/grafana/tempo/pull/2760) (@coufalja)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
 * [BUGFIX] Fix incorrect metrics for index failures [#2781](https://github.com/grafana/tempo/pull/2781) (@zalegrala)
