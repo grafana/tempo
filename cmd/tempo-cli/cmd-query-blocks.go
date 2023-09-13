@@ -122,7 +122,7 @@ func queryBucket(ctx context.Context, r backend.Reader, c backend.Compactor, ten
 	return results, nil
 }
 
-func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, blockNum int, id uuid.UUID, tenantID string, traceID common.ID) (*queryResults, error) {
+func queryBlock(ctx context.Context, r backend.Reader, _ backend.Compactor, blockNum int, id uuid.UUID, tenantID string, traceID common.ID) (*queryResults, error) {
 	fmt.Print(".")
 	if blockNum%100 == 0 {
 		fmt.Print(strconv.Itoa(blockNum))
