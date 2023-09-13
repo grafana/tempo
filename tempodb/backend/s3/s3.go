@@ -15,9 +15,9 @@ import (
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	minio "github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -355,25 +355,35 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return p
 	}
 
-	creds := credentials.NewChainCredentials([]credentials.Provider{
-		wrapCredentialsProvider(NewAWSSDKAuth(cfg.Region)),
-		wrapCredentialsProvider(&credentials.EnvAWS{}),
-		wrapCredentialsProvider(&credentials.Static{
-			Value: credentials.Value{
-				AccessKeyID:     cfg.AccessKey,
-				SecretAccessKey: cfg.SecretKey.String(),
-				SessionToken:    cfg.SessionToken.String(),
-			},
-		}),
-		wrapCredentialsProvider(&credentials.EnvMinio{}),
-		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
-		wrapCredentialsProvider(&credentials.FileMinioClient{}),
-		wrapCredentialsProvider(&credentials.IAM{
-			Client: &http.Client{
-				Transport: http.DefaultTransport,
-			},
-		}),
-	})
+	var chain []credentials.Provider
+
+	if cfg.NativeAWSAuthEnabled {
+		chain = []credentials.Provider{
+			wrapCredentialsProvider(NewAWSSDKAuth(cfg.Region)),
+		}
+	} else if cfg.AccessKey != "" {
+		chain = []credentials.Provider{
+			wrapCredentialsProvider(&credentials.Static{
+				Value: credentials.Value{
+					AccessKeyID:     cfg.AccessKey,
+					SecretAccessKey: cfg.SecretKey.String(),
+					SessionToken:    cfg.SessionToken.String(),
+				},
+			}),
+		}
+	} else {
+		chain = []credentials.Provider{
+			wrapCredentialsProvider(&credentials.EnvAWS{}),
+			wrapCredentialsProvider(&credentials.EnvMinio{}),
+			wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
+			wrapCredentialsProvider(&credentials.FileMinioClient{}),
+			wrapCredentialsProvider(&credentials.IAM{
+				Client: &http.Client{
+					Transport: http.DefaultTransport,
+				},
+			}),
+		}
+	}
 
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
 	if err != nil {
@@ -404,7 +414,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	opts := &minio.Options{
 		Region:    cfg.Region,
 		Secure:    !cfg.Insecure,
-		Creds:     creds,
+		Creds:     credentials.NewChainCredentials(chain),
 		Transport: transport,
 	}
 
