@@ -28,7 +28,7 @@ const (
 	errNoIfMatchHeader = "must specify If-Match header"
 
 	queryParamScope = "scope"
-	scopeApi        = "api"
+	scopeAPI        = "api"
 	scopeMerged     = "merged"
 )
 
@@ -44,11 +44,11 @@ func (a *UserConfigOverridesAPI) GetHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	scope := scopeApi
+	scope := scopeAPI
 	if value, ok := r.URL.Query()[queryParamScope]; ok {
 		scope = value[0]
 	}
-	if scope != scopeApi && scope != scopeMerged {
+	if scope != scopeAPI && scope != scopeMerged {
 		http.Error(w, fmt.Sprintf("unknown scope \"%s\", valid options are api and merged", scope), http.StatusBadRequest)
 	}
 
