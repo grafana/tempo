@@ -1,6 +1,8 @@
 package client
 
 import (
+	"time"
+
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util/listtomap"
 )
@@ -26,8 +28,9 @@ func (l *Limits) GetMetricsGenerator() *LimitsMetricsGenerator {
 }
 
 type LimitsMetricsGenerator struct {
-	Processors        listtomap.ListToMap `json:"processors,omitempty"`
-	DisableCollection *bool               `json:"disable_collection,omitempty"`
+	Processors         listtomap.ListToMap `json:"processors,omitempty"`
+	DisableCollection  *bool               `json:"disable_collection,omitempty"`
+	CollectionInterval *Duration           `json:"collection_interval,omitempty"`
 
 	Processor *LimitsMetricsGeneratorProcessor `json:"processor,omitempty"`
 }
@@ -51,6 +54,13 @@ func (l *LimitsMetricsGenerator) GetProcessor() *LimitsMetricsGeneratorProcessor
 		return l.Processor
 	}
 	return nil
+}
+
+func (l *LimitsMetricsGenerator) GetCollectionInterval() (time.Duration, bool) {
+	if l != nil && l.CollectionInterval != nil {
+		return l.CollectionInterval.Duration, true
+	}
+	return 0, false
 }
 
 type LimitsMetricsGeneratorProcessor struct {
