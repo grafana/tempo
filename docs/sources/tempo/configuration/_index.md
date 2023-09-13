@@ -911,8 +911,8 @@ storage:
         [blocklist_poll_tolerate_consecutive_errors: <int>]
 
         # The number of tenants to poll concurrently.  This will multiply the
-        number of Go routines created created by any backend calls, and so
-        users should be mindful of raising this too high.
+        # number of Go routines created created by any backend calls, and so
+        # users should be mindful of raising this too high.
         # Default 5
         [tenant_poll_concurrency: <int>]
 
