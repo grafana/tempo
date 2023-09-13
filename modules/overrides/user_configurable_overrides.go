@@ -243,6 +243,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
+	if histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetHistogramBuckets(); ok {
+		return histogramBuckets
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
 		return dimensions
@@ -262,6 +269,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsF
 		return filterPolicies
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
+	if histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets(); ok {
+		return histogramBuckets
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
 }
 
 // statusUserConfigurableOverrides used to marshal userconfigurableoverrides.Limits for tenants
