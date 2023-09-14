@@ -19,6 +19,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
   - [Querier](#querier)
+  - [GRPC streaming](#grpc-streaming)
   - [Compactor](#compactor)
   - [Storage](#storage)
     - [Local storage recommendations](#local-storage-recommendations)
@@ -555,6 +556,17 @@ querier:
 
 It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
+
+## GRPC streaming
+
+Tempo has a [GRPC streaming](https://grpc.io/docs/what-is-grpc/core-concepts/#bidirectional-streaming-rpc) endpoint in Tempo’s query frontend that allows a client to stream search results from Tempo.
+The Tempo CLI also uses this new streaming endpoint.
+
+{{% admonition type="note" %}}
+As of version 10.1, Grafana supports GRPC streaming by enabling the `traceQLStreaming` feature toggle.
+{{% /admonition %}}
+
+For configuration instructions and more information, refer to the [Tempo GRPC API documentation]({{< relref "../api_docs#tempo-grpc-api" >}}).
 
 ## Compactor
 
@@ -1241,7 +1253,7 @@ overrides:
 
   # Global ingestion limits configurations
   defaults:
-    
+
     # Ingestion related overrides
     ingestion:
 
@@ -1269,11 +1281,11 @@ overrides:
       #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
       # This override limit is used by the ingester.
       [max_traces_per_user: <int> | default = 10000]
-      
+
       # Maximum number of active traces per user, across the cluster.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
-      
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
@@ -1293,13 +1305,13 @@ overrides:
       # Per-user max search duration. If this value is set to 0 (default), then max_duration
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
-    
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [block_retention: <duration> | default = 0s]
-      
+
     # Metrics-generator related overrides
     metrics_generator:
 
@@ -1352,10 +1364,10 @@ overrides:
         # The length of the queue and the amount of workers pulling from the queue can be configured.
         [queue_size: <int> | default = 100]
         [workers: <int> | default = 2]
-      
+
       # Per processor configuration
       processor:
-        
+
         # Configuration for the service-graphs processor
         service_graphs:
           [histogram_buckets: <list of float>]
@@ -1371,7 +1383,7 @@ overrides:
           [intrinsic_dimensions: <map string to bool>]
           [filter_policies: [
             [
-              include/exclude: 
+              include/exclude:
                 match_type: <string> # options: strict, regexp
                 attributes:
                   - key: <string>
@@ -1392,13 +1404,13 @@ overrides:
           [flush_check_period: <duration>]
           [trace_idle_period: <duration>]
           [complete_block_timeout: <duration>]
-      
+
     # Generic forwarding configuration
 
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
     forwarders: <list of string>
-      
+
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes.  A value of 0 disables the size
