@@ -296,9 +296,14 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func handleError(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+
 	if errors.Is(err, context.Canceled) {
 		// ignore this error. we regularly cancel context once queries are complete
 		return
 	}
+
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }

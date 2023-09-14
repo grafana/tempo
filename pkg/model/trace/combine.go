@@ -125,6 +125,14 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 	return
 }
 
+func (c *Combiner) Size() int {
+	if c.result == nil {
+		return 0
+	}
+
+	return c.result.Size()
+}
+
 // Result returns the final trace and span count.
 func (c *Combiner) Result() (*tempopb.Trace, int) {
 	spanCount := -1

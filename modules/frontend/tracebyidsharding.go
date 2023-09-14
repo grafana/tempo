@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto" //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -28,12 +30,13 @@ const (
 	maxQueryShards = 100_000
 )
 
-func newTraceByIDSharder(cfg *TraceByIDConfig, logger log.Logger) Middleware {
+func newTraceByIDSharder(cfg *TraceByIDConfig, o overrides.Interface, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			cfg:             cfg,
 			logger:          logger,
+			o:               o,
 			blockBoundaries: createBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
 		}
 	})
@@ -43,6 +46,7 @@ type shardQuery struct {
 	next            http.RoundTripper
 	cfg             *TraceByIDConfig
 	logger          log.Logger
+	o               overrides.Interface
 	blockBoundaries [][]byte
 }
 
@@ -52,7 +56,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
 
-	_, err := user.ExtractOrgID(ctx)
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -81,6 +85,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
+	maxSize := s.o.MaxBytesPerTrace(userID)
 	for _, req := range reqs {
 		wg.Add(1)
 		go func(innerR *http.Request) {
@@ -106,7 +111,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			// if the status code is anything but happy, save the error and pass it down the line
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+			if isDownstreamStatusOK(resp.StatusCode) {
 				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
 				statusCode = resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
@@ -144,6 +149,13 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			// happy path
 			statusCode = http.StatusOK
 			combiner.Consume(traceResp.Trace)
+
+			sz := combiner.Size()
+			if maxSize > 0 && sz > maxSize {
+				statusCode = http.StatusBadRequest
+				statusMsg = fmt.Sprintf("trace exceeds max size in the frontend. size: %d, max: %d", sz, maxSize)
+				return
+			}
 		}(req)
 	}
 	wg.Wait()
@@ -153,7 +165,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	overallTrace, _ := combiner.Result()
-	if overallTrace == nil || statusCode != http.StatusOK {
+	if overallTrace == nil || !isDownstreamStatusOK(statusCode) {
+		// TODO: reevaluate - should we propagate 400's back to the user?
 		// translate non-404s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
@@ -254,6 +267,10 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	return blockBoundaries
 }
 
+func isDownstreamStatusOK(statusCode int) bool {
+	return statusCode < 400 || statusCode == http.StatusNotFound
+}
+
 func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if err != nil {
 		return true
@@ -261,7 +278,7 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if ctx.Err() != nil {
 		return true
 	}
-	if statusCode/100 == 5 { // bail on any 5xx's
+	if !isDownstreamStatusOK(statusCode) {
 		return true
 	}
 

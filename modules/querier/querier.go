@@ -42,6 +42,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// jpe - ditch unretyrable error
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -222,7 +223,7 @@ func (q *Querier) stopping(_ error) error {
 // FindTraceByID implements tempopb.Querier.
 func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
-		return nil, fmt.Errorf("invalid trace id")
+		return nil, errors.New("invalid trace id")
 	}
 
 	userID, err := user.ExtractOrgID(ctx)
@@ -275,7 +276,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		span.LogFields(ot_log.String("msg", "searching store"))
 		span.LogFields(ot_log.String("timeStart", fmt.Sprint(timeStart)))
 		span.LogFields(ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
-		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd)
+
+		opts := common.DefaultSearchOptionsWithMaxBytes(q.limits.MaxBytesPerTrace(userID))
+		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 			ot_log.Error(retErr)
@@ -290,8 +293,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.String("msg", "done searching store"),
 			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
+		maxSize := q.limits.MaxBytesPerTrace(userID)
 		for _, partialTrace := range partialTraces {
 			combiner.Consume(partialTrace)
+
+			sz := combiner.Size()
+			if maxSize > 0 && sz > maxSize {
+				return nil, fmt.Errorf("trace exceeds max size in the querier. size: %d, max: %d", sz, maxSize)
+			}
 		}
 	}
 
