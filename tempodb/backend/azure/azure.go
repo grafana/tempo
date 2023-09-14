@@ -11,7 +11,13 @@ import (
 	"path"
 	"strings"
 
-	blob "github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -28,9 +34,9 @@ const (
 )
 
 type readerWriter struct {
-	cfg                *Config
-	containerURL       blob.ContainerURL
-	hedgedContainerURL blob.ContainerURL
+	cfg                   *Config
+	containerClient       *container.Client
+	hedgedContainerClient *container.Client
 }
 
 var (
@@ -66,28 +72,28 @@ func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error
 func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	ctx := context.Background()
 
-	container, err := GetContainer(ctx, cfg, false)
+	c, err := getContainerClient(ctx, cfg, false)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting storage container")
 	}
 
-	hedgedContainer, err := GetContainer(ctx, cfg, true)
+	hedgedContainer, err := getContainerClient(ctx, cfg, true)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting hedged storage container")
 	}
 
 	if confirm {
 		// Getting container properties to check if container exists
-		_, err = container.GetProperties(ctx, blob.LeaseAccessConditions{})
+		_, err = c.GetProperties(ctx, &container.GetPropertiesOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to GetProperties: %w", err)
 		}
 	}
 
 	rw := &readerWriter{
-		cfg:                cfg,
-		containerURL:       container,
-		hedgedContainerURL: hedgedContainer,
+		cfg:                   cfg,
+		containerClient:       c,
+		hedgedContainerClient: hedgedContainer,
 	}
 
 	return rw, nil
@@ -132,12 +138,13 @@ func (rw *readerWriter) CloseAppend(context.Context, backend.AppendTracker) erro
 }
 
 func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
-	blobURL, err := GetBlobURL(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
+	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", backend.ObjectFileName(keypath, name))
+		return errors.Wrapf(err, "cannot get Azure blob client, name: %s", backend.ObjectFileName(keypath, name))
 	}
 
-	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
+	snapshotType := blob.DeleteSnapshotsOptionTypeInclude
+	if _, err = blobClient.Delete(ctx, &blob.DeleteOptions{DeleteSnapshots: &snapshotType}); err != nil {
 		return readError(err)
 	}
 	return nil
@@ -147,31 +154,29 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
-	marker := blob.Marker{}
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
 		prefix = prefix + dir
 	}
 
+	pager := rw.containerClient.NewListBlobsHierarchyPager(dir, &container.ListBlobsHierarchyOptions{
+		Include: container.ListBlobsInclude{},
+		Prefix:  &prefix,
+	})
+
 	objects := make([]string, 0)
-	for {
-		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
-			Prefix:  prefix,
-			Details: blob.BlobListingDetails{},
-		})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return objects, errors.Wrap(err, "iterating tenants")
 		}
-		marker = list.NextMarker
 
-		for _, blob := range list.Segment.BlobPrefixes {
-			objects = append(objects, strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix))
-		}
-
-		// Continue iterating if we are not done.
-		if !marker.NotDone() {
-			break
+		for _, b := range page.Segment.BlobPrefixes {
+			if b.Name == nil {
+				return objects, errors.Errorf("unexpected empty blob name when listing %s", prefix)
+			}
+			objects = append(objects, strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix))
 		}
 	}
 	return objects, nil
@@ -280,7 +285,7 @@ func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) err
 }
 
 func (rw *readerWriter) append(ctx context.Context, src []byte, name string) error {
-	appendBlobURL := rw.containerURL.NewBlockBlobURL(name)
+	appendBlobClient := rw.containerClient.NewBlockBlobClient(name)
 
 	// These helper functions convert a binary block ID to a base-64 string and vice versa
 	// NOTE: The blockID must be <= 64 bytes and ALL blockIDs for the block must be the same length
@@ -292,7 +297,7 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 		return blockIDBinaryToBase64(binaryBlockID)
 	}
 
-	l, err := appendBlobURL.GetBlockList(ctx, blob.BlockListAll, blob.LeaseAccessConditions{})
+	l, err := appendBlobClient.GetBlockList(ctx, blockblob.BlockListTypeAll, &blockblob.GetBlockListOptions{})
 	if err != nil {
 		return err
 	}
@@ -300,20 +305,20 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 	// generate the next block id
 	id := blockIDIntToBase64(len(l.CommittedBlocks) + 1)
 
-	_, err = appendBlobURL.StageBlock(ctx, id, bytes.NewReader(src), blob.LeaseAccessConditions{}, nil, blob.ClientProvidedKeyOptions{})
+	_, err = appendBlobClient.StageBlock(ctx, id, streaming.NopCloser(bytes.NewReader(src)), &blockblob.StageBlockOptions{})
 	if err != nil {
 		return err
 	}
 
 	base64BlockIDs := make([]string, len(l.CommittedBlocks)+1)
 	for i := 0; i < len(l.CommittedBlocks); i++ {
-		base64BlockIDs[i] = l.CommittedBlocks[i].Name
+		base64BlockIDs[i] = *l.CommittedBlocks[i].Name
 	}
 
 	base64BlockIDs[len(l.CommittedBlocks)] = id
 
 	// After all the blocks are uploaded, atomically commit them to the blob.
-	_, err = appendBlobURL.CommitBlockList(ctx, base64BlockIDs, blob.BlobHTTPHeaders{}, blob.Metadata{}, blob.BlobAccessConditions{}, blob.DefaultAccessTier, blob.BlobTagsMap{}, blob.ClientProvidedKeyOptions{}, blob.ImmutabilityPolicyOptions{})
+	_, err = appendBlobClient.CommitBlockList(ctx, base64BlockIDs, &blockblob.CommitBlockListOptions{})
 	if err != nil {
 		return err
 	}
@@ -321,24 +326,21 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 }
 
 func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) error {
-	blobURL := rw.containerURL.NewBlockBlobURL(name)
+	blobClient := rw.containerClient.NewBlockBlobClient(name)
 
-	if _, err := blob.UploadStreamToBlockBlob(ctx, src, blobURL,
-		blob.UploadStreamToBlockBlobOptions{
-			BufferSize: rw.cfg.BufferSize,
-			MaxBuffers: rw.cfg.MaxBuffers,
-		},
-	); err != nil {
+	if _, err := blobClient.UploadStream(ctx, src, &azblob.UploadStreamOptions{
+		BlockSize:   int64(rw.cfg.BufferSize),
+		Concurrency: rw.cfg.MaxBuffers,
+	}); err != nil {
 		return errors.Wrapf(err, "cannot upload blob, name: %s", name)
 	}
 	return nil
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
-	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
+	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
-	var props *blob.BlobGetPropertiesResponse
-	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
+	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
 	if err != nil {
 		return err
 	}
@@ -346,22 +348,27 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	length := int64(len(destBuffer))
 	var size int64
 
-	if length > 0 && length <= props.ContentLength()-offset {
-		size = length
-	} else {
-		size = props.ContentLength() - offset
+	if props.ContentLength == nil {
+		return errors.Errorf("expected content length but got none for blob %s", name)
 	}
 
-	if err := blob.DownloadBlobToBuffer(context.Background(), blobURL.BlobURL, offset, size,
-		destBuffer, blob.DownloadFromBlobOptions{
-			BlockSize:   blob.BlobDefaultDownloadBlockSize,
-			Parallelism: maxParallelism,
-			Progress:    nil,
-			RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-				MaxRetryRequests: maxRetries,
-			},
+	if length > 0 && length <= *props.ContentLength-offset {
+		size = length
+	} else {
+		size = *props.ContentLength - offset
+	}
+
+	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
+		Range: blob.HTTPRange{
+			Offset: offset,
+			Count:  size,
 		},
-	); err != nil {
+		BlockSize:   blob.DefaultDownloadBlockSize,
+		Concurrency: maxParallelism,
+		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
+			MaxRetries: maxRetries,
+		},
+	}); err != nil {
 		return err
 	}
 
@@ -373,42 +380,46 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	return nil
 }
 
-func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, blob.ETag, error) {
-	blobURL := rw.hedgedContainerURL.NewBlockBlobURL(name)
+func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
+	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
-	var props *blob.BlobGetPropertiesResponse
-	props, err := blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
+	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
 	if err != nil {
 		return nil, "", err
 	}
 
-	destBuffer := make([]byte, props.ContentLength())
+	if props.ContentLength == nil {
+		return nil, "", errors.Errorf("expected content length but got none for blob %s", name)
+	}
 
-	if err := blob.DownloadBlobToBuffer(context.Background(), blobURL.BlobURL, 0, props.ContentLength(),
-		destBuffer, blob.DownloadFromBlobOptions{
-			BlockSize:   blob.BlobDefaultDownloadBlockSize,
-			Parallelism: uint16(maxParallelism),
-			Progress:    nil,
-			RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-				MaxRetryRequests: maxRetries,
-			},
+	destBuffer := make([]byte, *props.ContentLength)
+
+	if _, err := blobClient.DownloadBuffer(context.Background(), destBuffer, &blob.DownloadBufferOptions{
+		Range: blob.HTTPRange{
+			Offset: 0,
+			Count:  *props.ContentLength,
 		},
-	); err != nil {
+		BlockSize:   blob.DefaultDownloadBlockSize,
+		Concurrency: maxParallelism,
+		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
+			MaxRetries: maxRetries,
+		},
+	}); err != nil {
 		return nil, "", err
 	}
 
-	return destBuffer, props.ETag(), nil
+	var etag azcore.ETag
+	if props.ETag != nil {
+		etag = *props.ETag
+	}
+
+	return destBuffer, etag, nil
 }
 
 func readError(err error) error {
-	var storageError blob.StorageError
-	errors.As(err, &storageError)
-
-	if storageError == nil {
-		return errors.Wrap(err, "reading storage container")
-	}
-	if storageError.ServiceCode() == blob.ServiceCodeBlobNotFound {
+	if bloberror.HasCode(err, bloberror.BlobNotFound) {
 		return backend.ErrDoesNotExist
 	}
-	return errors.Wrap(storageError, "reading Azure blob container")
+
+	return errors.Wrap(err, "reading Azure blob container")
 }
