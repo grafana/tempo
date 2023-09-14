@@ -10,6 +10,7 @@
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
 * [CHANGE] Upgrade from deprecated [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) SDK to [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go) [#2835](https://github.com/grafana/tempo/issues/2835) (@LasseHels)
+* [CHANGE] Metrics summary API validate the requested time range [#2902](https://github.com/grafana/tempo/pull/2902) (@mdisibio)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
@@ -20,6 +21,7 @@
 * [ENHANCEMENT] Add `UserID` to log message about rate limiting [#2850](https://github.com/grafana/tempo/pull/2850) (@lshippy)
 * [ENHANCEMENT] Requests to Azure Blob Storage will now be retried once instead of zero times [#2835](https://github.com/grafana/tempo/issues/2835) (@LasseHels)
 * [ENHANCEMENT] Add span metrics filter policies to user-configurable overrides [#2906](https://github.com/grafana/tempo/pull/2906) (@rlankfo)
+* [ENHANCEMENT] Add collection-interval to metrics-generator config in user-configurable overrides [#2899](https://github.com/grafana/tempo/pull/2899) (@rlankfo)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix rare deadlock when uploading blocks to Azure Blob Storage [#2129](https://github.com/grafana/tempo/issues/2129) (@LasseHels)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
@@ -59,6 +61,10 @@ defaults:
     processors: [service-graphs, span-metrics]
 ```  
 * [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
+
+# v2.2.3 / 2023-09-13
+
+* [BUGFIX] Fix S3 credentials providers configuration [#2889](https://github.com/grafana/tempo/pull/2889) (@mapno)
 
 # v2.2.2 / 2023-08-30
 
