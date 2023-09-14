@@ -215,6 +215,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(use
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+	if collectionInterval, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetCollectionInterval(); ok {
+		return collectionInterval
+	}
+	return o.Interface.MetricsGeneratorCollectionInterval(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
 	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
 		return dimensions
