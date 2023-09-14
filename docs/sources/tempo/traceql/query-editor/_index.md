@@ -1,6 +1,4 @@
 ---
-cascade:
-  GRAFANA VERSION: latest
 title: Write TraceQL queries in Grafana
 menuTitle: Write TraceQL queries in Grafana
 description: Learn how to create TraceQL queries in Grafana using the query editor and search.
