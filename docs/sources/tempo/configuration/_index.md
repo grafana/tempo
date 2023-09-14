@@ -18,8 +18,8 @@ This document explains the configuration options for Tempo as well as the detail
   - [Ingester](#ingester)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
+    - [GRPC streaming](#grpc-streaming)
   - [Querier](#querier)
-  - [GRPC streaming](#grpc-streaming)
   - [Compactor](#compactor)
   - [Storage](#storage)
     - [Local storage recommendations](#local-storage-recommendations)
@@ -480,6 +480,13 @@ query_frontend:
         [duration_slo: <duration> | default = 0s ]
 ```
 
+### GRPC streaming
+
+Tempo has a [GRPC streaming](https://grpc.io/docs/what-is-grpc/core-concepts/#bidirectional-streaming-rpc) endpoint in Tempo’s query frontend that allows a client to stream search results from Tempo.
+The Tempo CLI also uses this new streaming endpoint.
+
+For configuration instructions, refer to the [Tempo GRPC API documentation]({{< relref "../api_docs#tempo-grpc-api" >}}).
+
 ## Querier
 
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
@@ -556,17 +563,6 @@ querier:
 
 It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
-
-## GRPC streaming
-
-Tempo has a [GRPC streaming](https://grpc.io/docs/what-is-grpc/core-concepts/#bidirectional-streaming-rpc) endpoint in Tempo’s query frontend that allows a client to stream search results from Tempo.
-The Tempo CLI also uses this new streaming endpoint.
-
-{{% admonition type="note" %}}
-As of version 10.1, Grafana supports GRPC streaming by enabling the `traceQLStreaming` feature toggle.
-{{% /admonition %}}
-
-For configuration instructions and more information, refer to the [Tempo GRPC API documentation]({{< relref "../api_docs#tempo-grpc-api" >}}).
 
 ## Compactor
 
