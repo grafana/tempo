@@ -76,7 +76,7 @@ docs-rm: ## Remove the docs container.
 
 .PHONY: docs-pull
 docs-pull: ## Pull documentation base image.
-	$(PODMAN) pull $(DOCS_IMAGE)
+	$(PODMAN) pull -q $(DOCS_IMAGE)
 
 make-docs: ## Fetch the latest make-docs script.
 make-docs:
@@ -104,11 +104,6 @@ docs-debug: make-docs
 doc-validator: ## Run doc-validator on the entire docs folder.
 doc-validator: make-docs
 	DOCS_IMAGE=$(DOC_VALIDATOR_IMAGE) $(PWD)/make-docs $(PROJECTS)
-
-.PHONY: doc-validator/%
-doc-validator/%: ## Run doc-validator on a specific path. To lint the path /docs/sources/administration, run 'make doc-validator/administration'.
-doc-validator/%: make-docs
-	DOCS_IMAGE=$(DOC_VALIDATOR_IMAGE) DOC_VALIDATOR_INCLUDE=$(subst doc-validator/,,$@) $(PWD)/make-docs $(PROJECTS)
 
 .PHONY: vale
 vale: ## Run vale on the entire docs folder.
