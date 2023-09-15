@@ -108,9 +108,9 @@ curl http://localhost:3200/api/traces/5b8efff798038103d269b633813fc700
 
 1. Copy and paste the updated `curl` command into a terminal window.
 
-### Use TracedQL to search for a trace
+### Use TraceQL to search for a trace
 
-Alternatively, you can also use [TraceQL]({{< relref "../traceql" >}}) to also search for the trace that was pushed.
+Alternatively, you can also use [TraceQL]({{< relref "../traceql" >}}) to search for the trace that was pushed.
 You can search by using the unique trace attributes that were set:
 
 ```bash
@@ -119,7 +119,7 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name 
 {"traces":[{"traceID":"5b8efff798038103d269b633813fc700","rootServiceName":"my.service","rootTraceName":"I am a span!","startTimeUnixNano":"1694718625557000000","durationMs":10000,"spanSet":{"spans":[{"spanID":"eee19b7ec3c1b100","startTimeUnixNano":"1694718625557000000","durationNanos":"10000000000","attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]}],"matched":1},"spanSets":[{"spans":[{"spanID":"eee19b7ec3c1b100","startTimeUnixNano":"1694718625557000000","durationNanos":"10000000000","attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]}],"matched":1}]}],"metrics":{"inspectedBytes":"292781","completedJobs":1,"totalJobs":1}}
 ```
 
-To format this in a more human-readable output, consider using a [tool such as `jq`](https://jqlang.github.io/jq/), which  lets you to run the same `curl` command and pipe it to `jq` to format the block, for example:
+To format this in a more human-readable output, consider using a [tool such as `jq`](https://jqlang.github.io/jq/), which lets you to run the same `curl` command and pipe it to `jq` to format the block. For example:
 
 ```bash
 curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }' | jq
