@@ -20,7 +20,7 @@ To use this procedure, you need to have Docker and `docker compose` installed.
 
 ## Start Tempo using the quick start
 
-Use the instructions in the [Quick start for Tempo documentation]({{< relref "../getting-started/docker-example/" >}}) to start a local instance of Tempo and Grafana.
+Use the instructions in the [Quick start for Tempo documentation]({{< relref "../getting-started/docker-example" >}}) to start a local instance of Tempo and Grafana.
 
 ## Push spans with OTLP
 
