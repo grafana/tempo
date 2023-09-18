@@ -170,7 +170,7 @@ func TestSelect_extractConditions(t *testing.T) {
 		{
 			query: `{ } | select(.name,name)`,
 			conditions: []Condition{
-				newCondition(NewIntrinsic(IntrinsicDuration), OpNone),
+				newCondition(NewIntrinsic(IntrinsicSpanStartTime), OpNone),
 			},
 			secondPassConditions: []Condition{
 				newCondition(NewAttribute("name"), OpNone),
