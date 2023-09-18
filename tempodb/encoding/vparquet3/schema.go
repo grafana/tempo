@@ -44,6 +44,7 @@ const (
 // These definition levels match the schema below
 const (
 	DefinitionLevelTrace                     = 0
+	DefinitionLevelServiceStats              = 1
 	DefinitionLevelResourceSpans             = 1
 	DefinitionLevelResourceAttrs             = 2
 	DefinitionLevelResourceSpansILSSpan      = 3
@@ -60,6 +61,10 @@ const (
 	FieldSpanAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt"
 	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble"
 	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool"
+)
+
+const (
+	MaxServiceStats = 100
 )
 
 var (
@@ -226,6 +231,11 @@ type ResourceSpans struct {
 	ScopeSpans []ScopeSpans `parquet:"ss,list"`
 }
 
+type ServiceStats struct {
+	SpanCount  uint32 `parquet:",delta"`
+	ErrorCount uint32 `parquet:",delta"`
+}
+
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
 	TraceID []byte `parquet:""`
@@ -234,11 +244,12 @@ type Trace struct {
 	TraceIDText string `parquet:",snappy"`
 
 	// Trace-level attributes for searching
-	StartTimeUnixNano uint64 `parquet:",delta"`
-	EndTimeUnixNano   uint64 `parquet:",delta"`
-	DurationNano      uint64 `parquet:",delta"`
-	RootServiceName   string `parquet:",dict"`
-	RootSpanName      string `parquet:",dict"`
+	StartTimeUnixNano uint64                  `parquet:",delta"`
+	EndTimeUnixNano   uint64                  `parquet:",delta"`
+	DurationNano      uint64                  `parquet:",delta"`
+	RootServiceName   string                  `parquet:",dict"`
+	RootSpanName      string                  `parquet:",dict"`
+	ServiceStats      map[string]ServiceStats `parquet:""`
 
 	ResourceSpans []ResourceSpans `parquet:"rs,list"`
 }
@@ -482,6 +493,25 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 				ot.RootServiceName = a.Value.GetStringValue()
 				break
 			}
+		}
+	}
+
+	// Calculate service meta information/statistics per trace if the trace contains less than MaxServiceStats services
+	ot.ServiceStats = map[string]ServiceStats{}
+	if len(ot.ResourceSpans) < MaxServiceStats {
+		for _, res := range ot.ResourceSpans {
+			stats := ot.ServiceStats[res.Resource.ServiceName]
+
+			for _, ss := range res.ScopeSpans {
+				stats.SpanCount += uint32(len(ss.Spans))
+				for _, s := range ss.Spans {
+					if s.StatusCode == int(v1_trace.Status_STATUS_CODE_ERROR) {
+						stats.ErrorCount++
+					}
+				}
+			}
+
+			ot.ServiceStats[res.Resource.ServiceName] = stats
 		}
 	}
 

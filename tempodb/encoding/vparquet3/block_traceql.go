@@ -281,6 +281,7 @@ func putSpanset(ss *traceql.Spanset) {
 	ss.Scalar = traceql.Static{}
 	ss.StartTimeUnixNanos = 0
 	ss.TraceID = nil
+	clear(ss.ServiceStats)
 	ss.Spans = ss.Spans[:0]
 
 	spansetPool.Put(ss)
@@ -308,6 +309,9 @@ const (
 	columnPathDurationNanos            = "DurationNano"
 	columnPathRootSpanName             = "RootSpanName"
 	columnPathRootServiceName          = "RootServiceName"
+	columnPathServiceStatsServiceName  = "ServiceStats.key_value.key"
+	columnPathServiceStatsSpanCount    = "ServiceStats.key_value.value.SpanCount"
+	columnPathServiceStatsErrorCount   = "ServiceStats.key_value.value.ErrorCount"
 	columnPathResourceAttrKey          = "rs.list.element.Resource.Attrs.list.element.Key"
 	columnPathResourceAttrString       = "rs.list.element.Resource.Attrs.list.element.Value"
 	columnPathResourceAttrInt          = "rs.list.element.Resource.Attrs.list.element.ValueInt"
@@ -664,6 +668,9 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 			if sp.cbSpanset.StartTimeUnixNanos == 0 {
 				sp.cbSpanset.StartTimeUnixNanos = ss.StartTimeUnixNanos
+			}
+			if len(sp.cbSpanset.ServiceStats) == 0 {
+				sp.cbSpanset.ServiceStats = ss.ServiceStats
 			}
 
 			i.nextSpans = append(i.nextSpans, sp)
@@ -1283,6 +1290,15 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required, iters, batchCol), nil
 }
 
+func createServiceStatsIterator(makeIter makeIterFn) parquetquery.Iterator {
+	serviceStatsIters := []parquetquery.Iterator{
+		makeIter(columnPathServiceStatsServiceName, nil, columnPathServiceStatsServiceName),
+		makeIter(columnPathServiceStatsSpanCount, nil, columnPathServiceStatsSpanCount),
+		makeIter(columnPathServiceStatsErrorCount, nil, columnPathServiceStatsErrorCount),
+	}
+	return parquetquery.NewJoinIterator(DefinitionLevelServiceStats, serviceStatsIters, &serviceStatsCollector{})
+}
+
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
 
@@ -1332,6 +1348,9 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	// order is interesting here. would it be more efficient to grab the span/resource conditions first
 	// or the time range filtering first?
 	traceIters = append(traceIters, resourceIter)
+
+	// collect service stats of the trace
+	traceIters = append(traceIters, createServiceStatsIterator(makeIter))
 
 	// evaluate time range
 	// Time range filtering?
@@ -1961,9 +1980,48 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	finalSpanset.ServiceStats = make(map[string]traceql.ServiceStats)
+	for _, e := range res.OtherEntries {
+		if serviceStats, ok := e.Value.(traceql.ServiceStats); ok {
+			finalSpanset.ServiceStats[e.Key] = serviceStats
+		}
+	}
+
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(otherEntrySpansetKey, finalSpanset)
+
+	return true
+}
+
+// serviceStatsCollector receives rows from the service stats
+// columns and joins them together into map[string]ServiceStats entries.
+type serviceStatsCollector struct{}
+
+var _ parquetquery.GroupPredicate = (*serviceStatsCollector)(nil)
+
+func (c *serviceStatsCollector) String() string {
+	return "serviceStatsCollector{}"
+}
+
+func (c *serviceStatsCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	var key string
+	var stats traceql.ServiceStats
+
+	for _, e := range res.Entries {
+		switch e.Key {
+		case columnPathServiceStatsServiceName:
+			key = e.Value.String()
+		case columnPathServiceStatsSpanCount:
+			stats.SpanCount = e.Value.Uint32()
+		case columnPathServiceStatsErrorCount:
+			stats.ErrorCount = e.Value.Uint32()
+		}
+	}
+
+	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
+	res.AppendOtherValue(key, stats)
 
 	return true
 }

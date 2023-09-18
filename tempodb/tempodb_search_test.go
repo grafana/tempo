@@ -99,6 +99,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		require.NotNil(t, actual, "search request: %v", req)
 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
 		actual.SpanSets = nil
+		actual.ServiceStats = nil
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
@@ -269,6 +270,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		require.NotNil(t, actual, "search request: %v", req)
 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
 		actual.SpanSets = nil
+		actual.ServiceStats = nil
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
@@ -462,6 +464,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
@@ -799,6 +802,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)

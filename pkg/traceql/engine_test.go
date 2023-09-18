@@ -166,6 +166,7 @@ func TestEngine_Execute(t *testing.T) {
 			TraceID:         "1",
 			RootServiceName: "my-service",
 			RootTraceName:   "HTTP GET",
+			ServiceStats:    map[string]*tempopb.ServiceStats{},
 			SpanSet:         expectedSpanset,
 			SpanSets:        []*tempopb.SpanSet{expectedSpanset},
 		},
@@ -320,6 +321,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		RootTraceName:     "HTTP GET",
 		StartTimeUnixNano: 1000,
 		DurationMs:        uint32(time.Second.Milliseconds()),
+		ServiceStats:      map[string]*tempopb.ServiceStats{},
 		SpanSet:           expectedSpanset,
 		SpanSets:          []*tempopb.SpanSet{expectedSpanset},
 	}
