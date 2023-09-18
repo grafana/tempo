@@ -3,9 +3,9 @@ package traceql
 func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	f.Expression.extractConditions(request)
 
-	// For empty spansets { } we need something that matches all spans.
-	// So select duration which we would be select anyway,
-	// unless there is a different intrinsic already present.
+	// For empty spansets { } ensure there is something that matches all spans.
+	// Use duration which would have been selected as part of the second pass
+	// metadata.
 	if s, ok := f.Expression.(Static); ok && s.Type == TypeBoolean && s.B {
 		for _, c := range request.Conditions {
 			if c.Attribute.Intrinsic != IntrinsicNone && c.Op == OpNone {
