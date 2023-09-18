@@ -4,8 +4,8 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	f.Expression.extractConditions(request)
 
 	// For empty spansets { } ensure there is something that matches all spans.
-	// Use duration which would have been selected as part of the second pass
-	// metadata.
+	// Use start time which would have been selected as part of the second pass
+	// metadata, and is still fairly efficient to pull back.
 	if s, ok := f.Expression.(Static); ok && s.Type == TypeBoolean && s.B {
 		for _, c := range request.Conditions {
 			if c.Attribute.Intrinsic != IntrinsicNone && c.Op == OpNone {
@@ -15,7 +15,7 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 		}
 
 		request.appendCondition(Condition{
-			Attribute: NewIntrinsic(IntrinsicDuration),
+			Attribute: NewIntrinsic(IntrinsicSpanStartTime),
 			Op:        OpNone,
 		})
 	}
