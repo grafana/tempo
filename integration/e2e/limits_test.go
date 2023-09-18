@@ -167,7 +167,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 	}
 
 	// 3 traces with trace_too_large and 1 with no error
-	req := test.MakeReqWithMultipleTraceWithSpanCount([]int{4, 4, 4, 1}, traceIDs)
+	req := test.MakeReqWithMultipleTraceWithSpanCount([]int{4, 5, 6, 1}, traceIDs)
 
 	b, err := req.Marshal()
 	require.NoError(t, err)
@@ -196,8 +196,8 @@ func TestLimitsPartialSuccess(t *testing.T) {
 	assert.Equal(t, 1, len(result.Batches))
 
 	// test metrics
-	// 3 traces with trace_too_large each with 4 spans
-	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(3*4),
+	// 3 traces with trace_too_large each with 4+5+6 spans
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(15),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 	)

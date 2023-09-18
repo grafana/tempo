@@ -409,7 +409,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			return err
 		}
 
-		response, err := c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
+		pushResponse, err := c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 
 		if err != nil { // internal error, drop entire batch
@@ -417,26 +417,15 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			return err
 		}
 
-		// assign a number for each index that had an error
-		// maxLive = 1, traceTooLarge = 2
-		// indexes that do not have an error will have a default 0 value
-		ringBatchResults := make([]int, len(indexes))
-		for _, value := range response.MaxLiveErrorTraces {
-			ringBatchResults[value] = maxLiveTracesErrInt
-		}
-		for _, value := range response.TraceTooLargeErrorTraces {
-			ringBatchResults[value] = traceTooLargeErrorInt
-		}
-
 		mu.Lock()
 		defer mu.Unlock()
 
-		for ringIndex, traceResult := range ringBatchResults {
+		for ringIndex, traceResult := range pushResponse.Results {
 			// translate index of ring batch and req batch
 			// since the request batch gets split up into smaller batches based on the indexes
 			// like [0,1] [1] [2] [0,2]
 			reqBatchIndex := indexes[ringIndex]
-			batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], traceResult)
+			batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], int(traceResult))
 		}
 
 		return nil
@@ -598,9 +587,9 @@ func countDiscaredSpans(responses [][]int, traces []*rebatchedTrace, repFactor i
 		if numSuccess < quorum {
 			spanCount := traces[reqBatchIndex].spanCount
 			switch lastError {
-			case 1:
+			case maxLiveTracesErrInt:
 				maxLiveDiscardedCount += spanCount
-			case 2:
+			case traceTooLargeErrorInt:
 				traceTooLargeDiscardedCount += spanCount
 			}
 		}

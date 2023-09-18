@@ -173,8 +173,8 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		request := makeRequest([]byte{})
 		response := i.PushBytesRequest(context.Background(), request)
-		require.Empty(t, response.MaxLiveErrorTraces)
-		require.Empty(t, response.TraceTooLargeErrorTraces)
+		errored, _, _ := CheckPushBytesError(response)
+		require.False(t, errored)
 	})
 
 	go concurrent(func() {
@@ -317,14 +317,18 @@ func TestInstanceLimits(t *testing.T) {
 			for j, push := range tt.pushes {
 				response := i.PushBytesRequest(context.Background(), push.req)
 				if push.expectsError && push.errorReason == traceTooLarge {
-					require.Emptyf(t, response.MaxLiveErrorTraces, "push %d failed: %w", j, err)
-					require.NotEmptyf(t, response.TraceTooLargeErrorTraces, "push %d failed: %w", j, err)
+					errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
+					require.True(t, errored)
+					require.Zero(t, maxLiveCount, "push %d failed: %w", j, err)
+					require.NotZero(t, traceTooLargeCount, "push %d failed: %w", j, err)
 				} else if push.expectsError && push.errorReason == maxLiveTraces {
-					require.NotEmptyf(t, response.MaxLiveErrorTraces, "push %d failed: %w", j, err)
-					require.Emptyf(t, response.TraceTooLargeErrorTraces, "push %d failed: %w", j, err)
+					errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
+					require.True(t, errored)
+					require.NotZero(t, maxLiveCount, "push %d failed: %w", j, err)
+					require.Zero(t, traceTooLargeCount, "push %d failed: %w", j, err)
 				} else {
-					require.Emptyf(t, response.MaxLiveErrorTraces, "push %d failed: %w", j, err)
-					require.Emptyf(t, response.TraceTooLargeErrorTraces, "push %d failed: %w", j, err)
+					errored, _, _ := CheckPushBytesError(response)
+					require.False(t, errored, "push %d failed: %w", j, err)
 				}
 
 			}
@@ -516,8 +520,8 @@ func TestInstanceMetrics(t *testing.T) {
 	for j := 0; j < count; j++ {
 		request := makeRequest([]byte{})
 		response := i.PushBytesRequest(context.Background(), request)
-		require.Empty(t, response.MaxLiveErrorTraces)
-		require.Empty(t, response.TraceTooLargeErrorTraces)
+		errored, _, _ := CheckPushBytesError(response)
+		require.False(t, errored, "push %d failed: %w", j, response.Results)
 	}
 	cutAndVerify(count)
 	cutAndVerify(0)
@@ -551,25 +555,27 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 
 	// Fill up trace to max
 	response := i.PushBytesRequest(ctx, req)
-	require.Empty(t, response.MaxLiveErrorTraces)
-	require.Empty(t, response.TraceTooLargeErrorTraces)
+	errored, _, _ := CheckPushBytesError(response)
+	require.False(t, errored, "push failed: %w", response.Results)
 
 	// Pushing again fails
 	response = i.PushBytesRequest(ctx, req)
-	assert.Equal(t, true, len(response.TraceTooLargeErrorTraces) > 0)
+	_, _, traceTooLargeCount := CheckPushBytesError(response)
+	assert.Equal(t, true, traceTooLargeCount > 0)
 
 	// Pushing still fails after flush
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
 	response = i.PushBytesRequest(ctx, req)
-	assert.Equal(t, true, len(response.TraceTooLargeErrorTraces) > 0)
+	_, _, traceTooLargeCount = CheckPushBytesError(response)
+	assert.Equal(t, true, traceTooLargeCount > 0)
 
 	// Cut block and then pushing works again
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	response = i.PushBytesRequest(ctx, req)
-	require.Empty(t, response.MaxLiveErrorTraces)
-	require.Empty(t, response.TraceTooLargeErrorTraces)
+	errored, _, _ = CheckPushBytesError(response)
+	require.False(t, errored, "push failed: %w", response.Results)
 }
 
 func TestInstancePartialSuccess(t *testing.T) {
@@ -612,9 +618,11 @@ func TestInstancePartialSuccess(t *testing.T) {
 	// Pushing pass
 	// response should contain errors for both LIVE_TRACES_EXCEEDED and TRACE_TOO_LARGE
 	response := i.PushBytesRequest(ctx, req)
+	errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
 
-	assert.Equal(t, true, len(response.MaxLiveErrorTraces) > 0)
-	assert.Equal(t, true, len(response.TraceTooLargeErrorTraces) > 0)
+	assert.True(t, errored)
+	assert.Equal(t, true, maxLiveCount > 0)
+	assert.Equal(t, true, traceTooLargeCount > 0)
 
 	// check that the two good ones actually made it
 	result, err := i.FindTraceByID(ctx, ids[0])
@@ -700,8 +708,8 @@ func BenchmarkInstancePush(b *testing.B) {
 		// Rotate trace ID
 		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
 		response := instance.PushBytesRequest(context.Background(), request)
-		assert.Empty(b, response.MaxLiveErrorTraces)
-		assert.Empty(b, response.TraceTooLargeErrorTraces)
+		errored, _, _ := CheckPushBytesError(response)
+		require.False(b, errored, "push failed: %w", response.Results)
 	}
 }
 
@@ -712,8 +720,8 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		response := instance.PushBytesRequest(context.Background(), request)
-		assert.Empty(b, response.MaxLiveErrorTraces)
-		assert.Empty(b, response.TraceTooLargeErrorTraces)
+		errored, _, _ := CheckPushBytesError(response)
+		require.False(b, errored, "push failed: %w", response.Results)
 	}
 }
 
@@ -722,8 +730,8 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	traceID := test.ValidTraceID([]byte{1, 2, 3, 4, 5, 6, 7, 8})
 	request := makeRequest(traceID)
 	response := instance.PushBytesRequest(context.Background(), request)
-	assert.Empty(b, response.MaxLiveErrorTraces)
-	assert.Empty(b, response.TraceTooLargeErrorTraces)
+	errored, _, _ := CheckPushBytesError(response)
+	require.False(b, errored, "push failed: %w", response.Results)
 
 	// force the trace to be in a complete block
 	err := instance.CutCompleteTraces(0, true)
@@ -756,8 +764,8 @@ func benchmarkInstanceSearch(b testing.TB) {
 	for i := 0; i < 1000; i++ {
 		request := makeRequest(nil)
 		response := instance.PushBytesRequest(context.Background(), request)
-		require.Empty(b, response.MaxLiveErrorTraces)
-		require.Empty(b, response.TraceTooLargeErrorTraces)
+		errored, _, _ := CheckPushBytesError(response)
+		require.False(b, errored, "push failed: %w", response.Results)
 
 		if i%100 == 0 {
 			err := instance.CutCompleteTraces(0, true)
@@ -863,8 +871,8 @@ func BenchmarkInstanceContention(t *testing.B) {
 	go concurrent(func() {
 		request := makeRequestWithByteLimit(10_000, nil)
 		response := i.PushBytesRequest(ctx, request)
-		assert.Empty(t, response.MaxLiveErrorTraces)
-		assert.Empty(t, response.TraceTooLargeErrorTraces)
+		errored, _, _ := CheckPushBytesError(response)
+		require.False(t, errored, "push failed: %w", response.Results)
 		pushes++
 	})
 
@@ -990,4 +998,22 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 		Traces:     byteTraces,
 		SpanCounts: byteSpanCounts,
 	}
+}
+
+func CheckPushBytesError(response *tempopb.PushResponse) (errored bool, maxLiveTracesCount int, traceTooLargeCount int) {
+
+	for _, result := range response.Results {
+		switch result {
+		case maxLiveTracesErrInt:
+			maxLiveTracesCount++
+		case traceTooLargeErrorInt:
+			traceTooLargeCount++
+		}
+	}
+
+	if (maxLiveTracesCount + traceTooLargeCount) > 0 {
+		errored = true
+	}
+
+	return errored, maxLiveTracesCount, traceTooLargeCount
 }

@@ -1306,11 +1306,11 @@ type mockIngester struct {
 var _ tempopb.PusherClient = (*mockIngester)(nil)
 
 func (i *mockIngester) PushBytes(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return nil, nil
+	return &tempopb.PushResponse{}, nil
 }
 
 func (i *mockIngester) PushBytesV2(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return nil, nil
+	return &tempopb.PushResponse{}, nil
 }
 
 func (i *mockIngester) Close() error {

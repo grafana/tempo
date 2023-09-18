@@ -176,8 +176,7 @@ message Trace {
 
 // Write
 message PushResponse {
-  repeated int32 maxLiveErrorTraces = 1;
-  repeated int32 traceTooLargeErrorTraces = 2;
+  repeated int32 results = 1;
 }
 
 // PushBytesRequest pushes slices of traces, ids and searchdata. Traces are encoded using the

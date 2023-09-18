@@ -56,7 +56,9 @@ var (
 )
 
 const (
-	traceDataType = "trace"
+	traceDataType         = "trace"
+	maxLiveTracesErrInt   = 1
+	traceTooLargeErrorInt = 2
 )
 
 var (
@@ -150,24 +152,27 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
-	response := &tempopb.PushResponse{}
+	pr := &tempopb.PushResponse{}
 
 	for j := range req.Traces {
-		index := int32(j)
 
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
 			if errors.Is(err, errMaxLiveTraces) {
-				response.MaxLiveErrorTraces = append(response.MaxLiveErrorTraces, index)
+				pr.Results = append(pr.Results, maxLiveTracesErrInt)
+				continue
 			}
 
 			if errors.Is(err, errTraceTooLarge) {
-				response.TraceTooLargeErrorTraces = append(response.TraceTooLargeErrorTraces, index)
+				pr.Results = append(pr.Results, traceTooLargeErrorInt)
+				continue
 			}
+		} else {
+			pr.Results = append(pr.Results, 0)
 		}
 	}
 
-	return response
+	return pr
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
