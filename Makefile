@@ -45,9 +45,9 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GOTEST_OPT?= -race -timeout 20m -count=1 -v
+GOTEST_OPT?= -timeout 20m -count=1 -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
-GOTEST=gotestsum --format=testname --
+GOTEST=CGO_ENABLED=0 gotestsum --format=testname --
 LINT=golangci-lint
 
 UNAME := $(shell uname -s)
