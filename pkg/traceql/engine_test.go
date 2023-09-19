@@ -382,7 +382,6 @@ func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteReq
 	}
 
 	return nil
-
 }
 
 type MockSpanSetFetcher struct {
