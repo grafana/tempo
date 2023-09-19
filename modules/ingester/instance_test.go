@@ -1001,7 +1001,6 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 }
 
 func CheckPushBytesError(response *tempopb.PushResponse) (errored bool, maxLiveTracesCount int, traceTooLargeCount int) {
-
 	for _, result := range response.Results {
 		switch result {
 		case maxLiveTracesErrInt:
