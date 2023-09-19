@@ -210,7 +210,9 @@ func (t *App) Run() error {
 				err = service.FailureCase()
 				if errors.Is(err, modules.ErrStopProcess) {
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
-				} else if err != nil && !errors.Is(err, context.Canceled) {
+				} else if errors.Is(err, context.Canceled) {
+					return
+				} else if err != nil {
 					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
 				}
 				return
