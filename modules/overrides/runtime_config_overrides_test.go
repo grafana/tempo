@@ -251,7 +251,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 		perTenantOverrides                   *perTenantOverrides
 		expectedEnableTargetInfo             map[string]bool
 		expectedDimensionMappings            map[string][]sharedconfig.DimensionMappings
-		expectedTargetInfoExcludedDimensions []string
+		expectedTargetInfoExcludedDimensions map[string][]string
 	}{
 		{
 			name: "limits only",
@@ -406,7 +406,9 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
-			expectedTargetInfoExcludedDimensions: []string{"some-label"},
+			expectedTargetInfoExcludedDimensions: map[string][]string{
+				"user1": {"some-label"},
+			},
 		},
 	}
 
@@ -441,6 +443,10 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedDimensionMappings {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(user))
+			}
+
+			for user, expectedVal := range tt.expectedTargetInfoExcludedDimensions {
+				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(user))
 			}
 
 			// if srv != nil {
