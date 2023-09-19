@@ -464,7 +464,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}(b)
 	}
 
-	// TODO: Support completing blocks
 	// completing blocks
 	for _, b := range i.completingBlocks {
 		wg.Add(1)

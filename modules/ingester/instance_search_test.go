@@ -321,8 +321,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	// TODO: Autocomplete not supported for **completing** blocks
-	//testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
