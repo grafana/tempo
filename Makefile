@@ -107,7 +107,7 @@ test-with-cover-pkg: tools
 # tests in tempodb (excluding tempodb/wal)
 .PHONY: test-with-cover-tempodb
 test-with-cover-tempodb: tools
-	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
+	GOMEMLIMIT=6GiB $(GOTEST) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
