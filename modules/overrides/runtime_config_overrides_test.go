@@ -246,11 +246,12 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 
 func TestMetricsGeneratorOverrides(t *testing.T) {
 	tests := []struct {
-		name                      string
-		defaultLimits             Overrides
-		perTenantOverrides        *perTenantOverrides
-		expectedEnableTargetInfo  map[string]bool
-		expectedDimensionMappings map[string][]sharedconfig.DimensionMappings
+		name                                 string
+		defaultLimits                        Overrides
+		perTenantOverrides                   *perTenantOverrides
+		expectedEnableTargetInfo             map[string]bool
+		expectedDimensionMappings            map[string][]sharedconfig.DimensionMappings
+		expectedTargetInfoExcludedDimensions []string
 	}{
 		{
 			name: "limits only",
@@ -355,6 +356,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 											Join:        "/",
 										},
 									},
+									TargetInfoExcludedDimensions: []string{"some-label"},
 								},
 							},
 						},
@@ -404,6 +406,7 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 					},
 				},
 			},
+			expectedTargetInfoExcludedDimensions: []string{"some-label"},
 		},
 	}
 
