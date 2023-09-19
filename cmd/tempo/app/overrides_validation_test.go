@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -95,6 +96,35 @@ func Test_overridesValidator(t *testing.T) {
 				}}}},
 			},
 			expErr: "invalid include policy: invalid match type: invalid",
+		},
+		{
+			name: "metrics_generator.collection_interval valid",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+		},
+		{
+			name: "metrics_generator.collection_interval minimum",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 1 * time.Second},
+				},
+			},
+			expErr: "metrics_generator.collection_interval \"1s\" is outside acceptable range of 15s to 5m",
+		},
+		{
+			name: "metrics_generator.collection_interval maximum",
+			cfg:  Config{},
+			limits: client.Limits{
+				MetricsGenerator: &client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expErr: "metrics_generator.collection_interval \"10m0s\" is outside acceptable range of 15s to 5m",
 		},
 	}
 
