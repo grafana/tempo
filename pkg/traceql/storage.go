@@ -2,6 +2,8 @@ package traceql
 
 import (
 	"context"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type Operands []Static
@@ -147,6 +149,32 @@ type FetchSpansResponse struct {
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+}
+
+type AutocompleteCallback func(tempopb.TagValue) bool
+
+type AutocompleteRequest struct {
+	Conditions []Condition
+	TagName    string
+	// TODO: Add start and end time?
+}
+
+type AutocompleteFetcher interface {
+	Fetch(context.Context, AutocompleteRequest, AutocompleteCallback) error
+}
+
+type AutocompleteFetcherWrapper struct {
+	f func(context.Context, AutocompleteRequest, AutocompleteCallback) error
+}
+
+var _ AutocompleteFetcher = (*AutocompleteFetcherWrapper)(nil)
+
+func NewAutocompleteFetcherWrapper(f func(context.Context, AutocompleteRequest, AutocompleteCallback) error) AutocompleteFetcher {
+	return AutocompleteFetcherWrapper{f}
+}
+
+func (s AutocompleteFetcherWrapper) Fetch(ctx context.Context, req AutocompleteRequest, cb AutocompleteCallback) error {
+	return s.f(ctx, req, cb)
 }
 
 // MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns

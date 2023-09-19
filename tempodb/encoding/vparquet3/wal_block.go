@@ -670,6 +670,46 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}, nil
 }
 
+func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return errors.Wrap(err, "conditions invalid")
+	}
+
+	blockFlushes := b.readFlushes()
+	for _, page := range blockFlushes {
+		file, err := page.file()
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+
+		pf := file.parquetFile
+
+		iter, err := autocompleteIter(ctx, req, cb, pf, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return errors.Wrap(err, "creating fetch iter")
+		}
+
+		// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
+		for {
+			// Exhaust the iterator
+			fmt.Println("exhausting iter in walBlock")
+			res, err := iter.Next()
+			fmt.Println(res, err)
+			if err != nil {
+				return errors.Wrap(err, "iterating spans")
+			}
+			if res == nil {
+				break
+			}
+		}
+		fmt.Println("done exhausting iter in walBlock")
+	}
+
+	// combine iters?
+	return nil
+}
+
 func (b *walBlock) walPath() string {
 	filename := fmt.Sprintf("%s+%s+%s", b.meta.BlockID, b.meta.TenantID, VersionString)
 	return filepath.Join(b.path, filename)

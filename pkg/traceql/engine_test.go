@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -332,6 +333,58 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	assert.Equal(t, expectedTraceSearchMetadata, traceSearchMetadata)
 }
 
+var _ AutocompleteFetcher = (*MockAutocompleteFetcher)(nil)
+
+type MockAutocompleteFetcher struct {
+	query    string
+	iterator SpansetIterator
+}
+
+func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteRequest, cb AutocompleteCallback) error {
+	rootExpr, err := Parse(m.query)
+	if err != nil {
+		return err
+	}
+	if err := rootExpr.validate(); err != nil {
+		return err
+	}
+
+	for {
+		spanset, err := m.iterator.Next(ctx)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if spanset == nil {
+			break
+		}
+		if len(spanset.Spans) == 0 {
+			continue
+		}
+
+		evalSS, _ := rootExpr.Pipeline.evaluate([]*Spanset{spanset})
+
+		for _, ss := range evalSS {
+			for _, s := range ss.Spans {
+				for attr, static := range s.Attributes() {
+					if attr.Name != req.TagName {
+						continue
+					}
+					tv := tempopb.TagValue{
+						Type:  "String",
+						Value: static.S,
+					}
+					if cb(tv) {
+						return nil
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+
+}
+
 type MockSpanSetFetcher struct {
 	iterator        SpansetIterator
 	capturedRequest FetchSpansRequest
@@ -467,11 +520,14 @@ func TestExamplesInEngine(t *testing.T) {
 }
 
 func TestExecuteTagValues(t *testing.T) {
+	// TODO: This test is stupid, it's using the traceql engine to execute the query
+	//  and doesn't actually test the ExecuteTagValues function
 	now := time.Now()
 	e := Engine{}
 
-	mockSpansetFetcher := func() SpansetFetcher {
-		return &MockSpanSetFetcher{
+	mockSpansetFetcher := func(query string) AutocompleteFetcher {
+		return &MockAutocompleteFetcher{
+			query: query,
 			iterator: &MockSpanSetIterator{
 				results: []*Spanset{
 					{
@@ -558,11 +614,10 @@ func TestExecuteTagValues(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-			cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
 
 			tag, err := ParseIdentifier(tc.attribute)
 			assert.NoError(t, err)
-			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, cb, mockSpansetFetcher()))
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, distinctValues.Collect, mockSpansetFetcher(tc.query)))
 			values := distinctValues.Values()
 			sort.Slice(values, func(i, j int) bool {
 				return values[i].Value < values[j].Value

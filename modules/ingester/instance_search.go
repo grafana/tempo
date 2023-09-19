@@ -401,9 +401,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	query := extractMatchers(req.Query)
 
-	var searchBlock func(common.Searcher) error
+	var searchBlock func(common.SuperSearcher) error
 	if i.autocompleteFilteringEnabled && len(query) > 0 {
-		searchBlock = func(s common.Searcher) error {
+		searchBlock = func(s common.SuperSearcher) error {
 			if anyErr.Load() != nil {
 				return nil // Early exit if any error has occurred
 			}
@@ -412,14 +412,14 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				return nil
 			}
 
-			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return s.Fetch(ctx, req, common.DefaultSearchOptions())
+			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+				return s.SuperFetch(ctx, req, cb, common.DefaultSearchOptions())
 			})
 
-			return engine.ExecuteTagValues(ctx, tag, query, cb, fetcher)
+			return engine.ExecuteTagValues(ctx, tag, query, distinctValues.Collect, fetcher)
 		}
 	} else {
-		searchBlock = func(s common.Searcher) error {
+		searchBlock = func(s common.SuperSearcher) error {
 			if anyErr.Load() != nil {
 				return nil // Early exit if any error has occurred
 			}
@@ -464,6 +464,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}(b)
 	}
 
+	// TODO: Support completing blocks
 	// completing blocks
 	for _, b := range i.completingBlocks {
 		wg.Add(1)

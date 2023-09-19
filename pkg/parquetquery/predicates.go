@@ -39,8 +39,11 @@ func NewStringInPredicate(ss []string) Predicate {
 
 func (p *StringInPredicate) String() string {
 	var strings string
-	for _, s := range p.ss {
-		strings += fmt.Sprintf("%s, ", string(s))
+	for i, s := range p.ss {
+		if i > 0 {
+			strings += ", "
+		}
+		strings += string(s)
 	}
 	return fmt.Sprintf("StringInPredicate{%s}", strings)
 }

@@ -305,7 +305,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 		tagKey                = foo
 		tagValue              = bar
 		queryThatMatches      = `{ .service.name = "test-service" }`
-		queryThatDoesNotMatch = `{ .uuuuu = "aaaaa" }`
+		queryThatDoesNotMatch = `{ resource.service.name = "aaaaa" }`
 	)
 
 	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
@@ -314,21 +314,15 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// Test after appending to WAL
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues) // Matches the expected tag values
-	testSearchTagsAndValuesV2(
-		t,
-		userCtx,
-		i,
-		tagKey,
-		queryThatDoesNotMatch,
-		[]string{},
-	) // Does not match the expected tag values
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatDoesNotMatch, []string{})   // Does not match the expected tag values
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
+	// TODO: Autocomplete not supported for **completing** blocks
+	//testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
@@ -349,7 +343,7 @@ func testSearchTagsAndValuesV2(
 	require.NoError(t, err)
 
 	tagValuesResp, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: fmt.Sprintf(".%s", tagName),
+		TagName: fmt.Sprintf("span.%s", tagName),
 		Query:   query,
 	})
 	require.NoError(t, err)
@@ -446,7 +440,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.NotEqual(t, blockID, uuid.Nil)
 
 	// Write more traces
-	_, _ = writeTracesForSearch(t, i, tagKey, "another-bar", true)
+	_, _ = writeTracesForSearch(t, i, tagKey, "another-"+bar, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 

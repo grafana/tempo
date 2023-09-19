@@ -137,8 +137,8 @@ func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	tag Attribute,
 	query string,
-	cb func(v Static) bool,
-	fetcher SpansetFetcher,
+	cb AutocompleteCallback,
+	fetcher AutocompleteFetcher,
 ) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.Finish()
@@ -170,87 +170,16 @@ func (e *Engine) ExecuteTagValues(
 		Op:        OpNone,
 	})
 
+	// TODO: Build AutocompleteRequest directly instead of going through FetchSpansRequest
+	autocompleteReq := AutocompleteRequest{
+		Conditions: fetchSpansRequest.Conditions,
+		TagName:    tag.Name,
+	}
+
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
-	var collectAttributeValue func(s Span) bool
-	switch tag.Scope {
-	case AttributeScopeResource,
-		AttributeScopeSpan: // If tag is scoped, we can check the map directly
-		collectAttributeValue = func(s Span) bool {
-			if v, ok := s.Attributes()[tag]; ok {
-				return cb(v)
-			}
-			return false
-		}
-	case AttributeScopeNone:
-		// If tag is unscoped, it can either be an intrinsic (eg. `name`) or an unscoped attribute (eg. `.namespace`)
-		//
-		// If the tag is intrinsic Attribute.Intrinsic is set to the Intrinsic it corresponds,
-		// so we can check against `!= IntrinsicNone` and use tag directly.
-		//
-		// If the tag is unscoped, we need to check resource and span scoped manually by building a new Attribute with each scope.
-		collectAttributeValue = func(s Span) bool {
-			if tag.Intrinsic != IntrinsicNone { // it's intrinsic
-				if v, ok := s.Attributes()[tag]; ok {
-					return cb(v)
-				}
-			} else { // it's unscoped
-				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
-					scopedAttr := Attribute{Scope: scope, Parent: tag.Parent, Name: tag.Name}
-					if v, ok := s.Attributes()[scopedAttr]; ok {
-						return cb(v)
-					}
-				}
-			}
-
-			return false
-		}
-	default:
-		return fmt.Errorf("unknown attribute scope: %s", tag)
-	}
-
-	fetchSpansResponse, err := fetcher.Fetch(ctx, fetchSpansRequest)
-	if err != nil {
-		return err
-	}
-	iterator := fetchSpansResponse.Results
-	defer iterator.Close()
-
-	for {
-		spanset, err := iterator.Next(ctx)
-		if err != nil && err != io.EOF {
-			span.LogKV("msg", "iterator.Next", "err", err)
-			return err
-		}
-		if spanset == nil {
-			break
-		}
-		if len(spanset.Spans) == 0 {
-			continue
-		}
-
-		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{spanset})
-		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
-			return err
-		}
-
-		if len(evalSS) == 0 {
-			continue
-		}
-
-		for _, ss := range evalSS {
-			for _, s := range ss.Spans {
-				if collectAttributeValue(s) {
-					return nil // exit early if we've exceed max bytes
-				}
-			}
-		}
-
-	}
-
-	return nil
+	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
