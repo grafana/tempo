@@ -22,7 +22,8 @@ func Parse(s string) (expr *RootExpr, err error) {
 		if r := recover(); r != nil {
 			var ok bool
 			if err, ok = r.(error); ok {
-				if errors.Is(err, &ParseError{}) {
+				var parseErr *ParseError
+				if errors.As(err, &parseErr) {
 					return
 				}
 				err = newParseError(err.Error(), 0, 0)
