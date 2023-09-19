@@ -168,11 +168,15 @@ func (a *UserConfigOverridesAPI) parseLimits(body io.Reader) (*client.Limits, er
 
 // validationError is returned when the request can not be accepted because of a client error
 type validationError struct {
-	error
+	err error
 }
 
-func newValidationError(err error) validationError {
-	return validationError{err}
+func (e *validationError) Error() string {
+	return e.err.Error()
+}
+
+func newValidationError(err error) *validationError {
+	return &validationError{err: err}
 }
 
 func logLimits(limits *client.Limits) string {
