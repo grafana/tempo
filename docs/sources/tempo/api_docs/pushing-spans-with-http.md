@@ -76,7 +76,7 @@ Note that the `startTimeUnixNano` field is in nanoseconds and can be obtained by
 
 1. Copy and paste the curl command into a text editor.
 
-1. Replace `startTimeUnixNano` and endTimeUnixNano with current values for the last 24 hours to allow you to search for them using a 24 hour relative time range. You can get this in seconds and milliseconds from the following link.
+1. Replace `startTimeUnixNano` and `endTimeUnixNano` with current values for the last 24 hours to allow you to search for them using a 24 hour relative time range. You can get this in seconds and milliseconds from the following link.
 Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You can do this from a bash terminal with:
 
    ```bash
@@ -87,9 +87,9 @@ Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You ca
 
 1. View the trace in Grafana:
    1. Open a browser window to http://localhost:3000.
-   1. Open the Explorer page and select the Tempo data source.
-   1. Select the Search query type.
-   1. Select Run query to list available traces.
+   1. Open the **Explorer** page and select the Tempo data source.
+   1. Select the **Search** query type.
+   1. Select **Run query** to list available traces.
    1. Select the trace ID (yellow box) to view details about the trace and its spans.
 
 ![Using the TraceQL query builder on Explore to view pushed trace in Grafana.](/static/img/docs/tempo/push-spans-search-span-grafana.png "View the span in Grafana")
@@ -98,7 +98,7 @@ Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You ca
 
 The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
-1. Replace the trace ID in the curl command with the trace ID that was generated from the push (you could use Grafana’s Explorer page to find this, as shown in the previous section).
+1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
 
 ```bash
 curl http://localhost:3200/api/traces/5b8efff798038103d269b633813fc700

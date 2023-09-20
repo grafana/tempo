@@ -17,7 +17,7 @@ To learn more, read the [local storage example README](https://github.com/grafan
 
 ## Alternative: Complete MLTP example
 
-If you would like to use a demo with Tempo, Mimir, Loki, and Grafana, then try the [Introduction to Metrics, Logs, Traces and Profiling in Grafana](https://github.com/grafana/intro-to-mlt).
+If you would like to use a demo with Tempo, Mimir, Loki, and Grafana, then try the [Introduction to Metrics, Logs, Traces, and Profiling in Grafana](https://github.com/grafana/intro-to-mlt).
 `Intro-to-mltp` provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana.
 The project includes detailed explanations of each component and annotated configurations for a single-instance deployment.
 Data from `intro-to-mltp` can also be pushed to Grafana Cloud.
