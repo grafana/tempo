@@ -80,6 +80,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
 
 	// Inject user-configurable overrides
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
@@ -119,6 +120,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 							},
 						},
 					},
+					TargetInfoExcludedDimensions: &[]string{"some-label"},
 				},
 			},
 		},
@@ -134,6 +136,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+	assert.Equal(t, []string{"some-label"}, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
 
 	filterPolicies := mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1)
 	assert.NotEmpty(t, filterPolicies)
