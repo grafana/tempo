@@ -69,10 +69,10 @@ _For more information, please check out the official documentation of [pprof](ht
 ### Ingest
 
 Tempo distributor uses the OpenTelemetry Receivers as a shim to ingest trace data.
-Note that these APIs are meant to be consumed by the corresponding client SDK or a pipeline service like Grafana 
+Note that these APIs are meant to be consumed by the corresponding client SDK or a pipeline service like Grafana
 Agent / OpenTelemetry Collector / Jaeger Agent.
 
-|  Protocol | Type | Docs | 
+|  Protocol | Type | Docs |
 |  -------- | ---- | ---- |
 |  OpenTelemetry | GRPC | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
 |  OpenTelemetry | HTTP | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
@@ -82,11 +82,11 @@ Agent / OpenTelemetry Collector / Jaeger Agent.
 |  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-_For information on how to use the Zipkin endpoint with curl (for debugging purposes) check [here](pushing-spans-with-http)._ 
+_For information on how to use the Zipkin endpoint with curl (for debugging purposes) check [here](pushing-spans-with-http)._
 
 ### Query
 
-Tempo's Query API is simple. The following request is used to retrieve a trace from the query frontend service in 
+Tempo's Query API is simple. The following request is used to retrieve a trace from the query frontend service in
 a microservices deployment, or the Tempo endpoint in a single binary deployment.
 
 ```
@@ -111,7 +111,7 @@ Parameters:
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 
-Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query 
+Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query
 frontend.
 
 Returns:
@@ -267,14 +267,14 @@ Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollo
 GET,POST /shutdown
 ```
 
-Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the 
+Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the
 ingester service.
 
 **Note**: This is usually used at the time of scaling down a cluster.
 
 ### Distributor ring status
 
-> Note: this endpoint is only available when Tempo is configured with [the global override strategy](../configuration/ingestion-limit#override-strategies).
+> Note: this endpoint is only available when Tempo is configured with [the global override strategy](../configuration#ingestion-limits).
 
 ```
 GET /distributor/ring
