@@ -22,6 +22,7 @@
 * [ENHANCEMENT] Requests to Azure Blob Storage will now be retried once instead of zero times [#2835](https://github.com/grafana/tempo/issues/2835) (@LasseHels)
 * [ENHANCEMENT] Add span metrics filter policies to user-configurable overrides [#2906](https://github.com/grafana/tempo/pull/2906) (@rlankfo)
 * [ENHANCEMENT] Add collection-interval to metrics-generator config in user-configurable overrides [#2899](https://github.com/grafana/tempo/pull/2899) (@rlankfo)
+* [ENHANCEMENT] Add `target_info_excluded_dimensions` to user-config api [#2945](https://github.com/grafana/tempo/pull/2945) (@ie-pham)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix rare deadlock when uploading blocks to Azure Blob Storage [#2129](https://github.com/grafana/tempo/issues/2129) (@LasseHels)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
