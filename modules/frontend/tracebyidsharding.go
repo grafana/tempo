@@ -111,7 +111,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			// if the status code is anything but happy, save the error and pass it down the line
-			if isDownstreamStatusOK(resp.StatusCode) {
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
 				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
 				statusCode = resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
@@ -152,7 +152,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			sz := combiner.Size()
 			if maxSize > 0 && sz > maxSize {
-				statusCode = http.StatusBadRequest
+				statusCode = http.StatusInternalServerError
 				statusMsg = fmt.Sprintf("trace exceeds max size in the frontend. size: %d, max: %d", sz, maxSize)
 				return
 			}
@@ -165,13 +165,13 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	overallTrace, _ := combiner.Result()
-	if overallTrace == nil || !isDownstreamStatusOK(statusCode) {
+	if overallTrace == nil || statusCode != http.StatusOK {
 		// TODO: reevaluate - should we propagate 400's back to the user?
 		// translate non-404s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
 		if statusCode != http.StatusNotFound {
-			statusCode = 500
+			statusCode = http.StatusInternalServerError
 		}
 
 		return &http.Response{
@@ -267,10 +267,6 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	return blockBoundaries
 }
 
-func isDownstreamStatusOK(statusCode int) bool {
-	return statusCode < 400 || statusCode == http.StatusNotFound
-}
-
 func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if err != nil {
 		return true
@@ -278,7 +274,7 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if ctx.Err() != nil {
 		return true
 	}
-	if !isDownstreamStatusOK(statusCode) {
+	if statusCode/100 == 5 { // bail on any 5xx's
 		return true
 	}
 
