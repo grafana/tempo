@@ -171,12 +171,16 @@ type validationError struct {
 	err error
 }
 
+func newValidationError(err error) *validationError {
+	return &validationError{err: err}
+}
+
 func (e *validationError) Error() string {
 	return e.err.Error()
 }
 
-func newValidationError(err error) *validationError {
-	return &validationError{err: err}
+func (e *validationError) Unwrap() error {
+	return errors.Unwrap(e.err)
 }
 
 func logLimits(limits *client.Limits) string {
