@@ -1,4 +1,4 @@
-package azure
+package v2
 
 import (
 	"bufio"
@@ -24,6 +24,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/azure/config"
 )
 
 const (
@@ -33,43 +34,24 @@ const (
 	maxParallelism = 3
 )
 
-type readerWriter struct {
-	cfg                   *Config
+type V2 struct {
+	cfg                   *config.Config
 	containerClient       *container.Client
 	hedgedContainerClient *container.Client
 }
 
 var (
-	_ backend.RawReader             = (*readerWriter)(nil)
-	_ backend.RawWriter             = (*readerWriter)(nil)
-	_ backend.Compactor             = (*readerWriter)(nil)
-	_ backend.VersionedReaderWriter = (*readerWriter)(nil)
+	_ backend.RawReader             = (*V2)(nil)
+	_ backend.RawWriter             = (*V2)(nil)
+	_ backend.Compactor             = (*V2)(nil)
+	_ backend.VersionedReaderWriter = (*V2)(nil)
 )
 
 type appendTracker struct {
 	Name string
 }
 
-// NewNoConfirm gets the Azure blob container without testing it
-func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	rw, err := internalNew(cfg, false)
-	return rw, rw, rw, err
-}
-
-// New gets the Azure blob container
-func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	rw, err := internalNew(cfg, true)
-	return rw, rw, rw, err
-}
-
-// NewVersionedReaderWriter creates a client to perform versioned requests. Note that write requests are
-// best-effort for now. We need to update the SDK to make use of the precondition headers.
-// https://github.com/grafana/tempo/issues/2705
-func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
-	return internalNew(cfg, true)
-}
-
-func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
+func New(cfg *config.Config, confirm bool) (*V2, error) {
 	ctx := context.Background()
 
 	c, err := getContainerClient(ctx, cfg, false)
@@ -90,7 +72,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		}
 	}
 
-	rw := &readerWriter{
+	rw := &V2{
 		cfg:                   cfg,
 		containerClient:       c,
 		hedgedContainerClient: hedgedContainer,
@@ -100,7 +82,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+func (rw *V2) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Write")
@@ -110,7 +92,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 }
 
 // Append implements backend.Writer
-func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+func (rw *V2) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	var a appendTracker
 	if tracker == nil {
@@ -133,11 +115,11 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 }
 
 // CloseAppend implements backend.Writer
-func (rw *readerWriter) CloseAppend(context.Context, backend.AppendTracker) error {
+func (rw *V2) CloseAppend(context.Context, backend.AppendTracker) error {
 	return nil
 }
 
-func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+func (rw *V2) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return errors.Wrapf(err, "cannot get Azure blob client, name: %s", backend.ObjectFileName(keypath, name))
@@ -151,7 +133,7 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 }
 
 // List implements backend.Reader
-func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+func (rw *V2) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	prefix := path.Join(keypath...)
@@ -183,7 +165,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+func (rw *V2) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Read")
@@ -199,7 +181,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+func (rw *V2) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadRange", opentracing.Tags{
@@ -218,10 +200,10 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 }
 
 // Shutdown implements backend.Reader
-func (rw *readerWriter) Shutdown() {
+func (rw *V2) Shutdown() {
 }
 
-func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
+func (rw *V2) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
@@ -247,7 +229,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	return currentVersion, err
 }
 
-func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+func (rw *V2) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
@@ -260,7 +242,7 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 	return rw.Delete(ctx, name, keypath, false)
 }
 
-func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
+func (rw *V2) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadVersioned")
@@ -275,7 +257,7 @@ func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath 
 	return io.NopCloser(bytes.NewReader(b)), backend.Version(etag), nil
 }
 
-func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {
+func (rw *V2) writeAll(ctx context.Context, name string, b []byte) error {
 	err := rw.writer(ctx, bytes.NewReader(b), name)
 	if err != nil {
 		return err
@@ -284,7 +266,7 @@ func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) err
 	return nil
 }
 
-func (rw *readerWriter) append(ctx context.Context, src []byte, name string) error {
+func (rw *V2) append(ctx context.Context, src []byte, name string) error {
 	appendBlobClient := rw.containerClient.NewBlockBlobClient(name)
 
 	// These helper functions convert a binary block ID to a base-64 string and vice versa
@@ -325,7 +307,7 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 	return nil
 }
 
-func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) error {
+func (rw *V2) writer(ctx context.Context, src io.Reader, name string) error {
 	blobClient := rw.containerClient.NewBlockBlobClient(name)
 
 	if _, err := blobClient.UploadStream(ctx, src, &azblob.UploadStreamOptions{
@@ -337,7 +319,7 @@ func (rw *readerWriter) writer(ctx context.Context, src io.Reader, name string) 
 	return nil
 }
 
-func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
+func (rw *V2) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
 	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
 	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
@@ -380,7 +362,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	return nil
 }
 
-func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
+func (rw *V2) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
 	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
 
 	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})

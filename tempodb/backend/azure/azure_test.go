@@ -3,7 +3,6 @@ package azure
 import (
 	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
@@ -12,8 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/pkg/errors"
@@ -21,10 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/azure/config"
 )
 
 func TestCredentials(t *testing.T) {
-	_, _, _, err := New(&Config{})
+	_, _, _, err := New(&config.Config{})
 	require.Error(t, err)
 
 	os.Setenv("AZURE_STORAGE_ACCOUNT", "testing")
@@ -34,9 +33,9 @@ func TestCredentials(t *testing.T) {
 	defer os.Unsetenv("AZURE_STORAGE_KEY")
 
 	count := int32(0)
-	server := fakeServer(t, 1*time.Second, &count, nil)
+	server := fakeServer(t, 1*time.Second, &count)
 
-	_, _, _, err = New(&Config{
+	_, _, _, err = New(&config.Config{
 		Endpoint: server.URL[7:], // [7:] -> strip http://,
 	})
 	require.NoError(t, err)
@@ -69,14 +68,9 @@ func TestHedge(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			count := int32(0)
-			// The Azure SDK returns an error if write requests don't return 201.
-			// We hardcode the UUID of the written block to ensure a consistent path on which to match.
-			codes := map[string]int{
-				"/testing/blerg/tenant/f97223f3-d60c-4923-b255-bb7b8140b389/object": http.StatusCreated,
-			}
-			server := fakeServer(t, tc.returnIn, &count, codes)
+			server := fakeServer(t, tc.returnIn, &count)
 
-			r, w, _, err := New(&Config{
+			r, w, _, err := New(&config.Config{
 				StorageAccountName: "testing",
 				StorageAccountKey:  flagext.SecretWithValue("YQo="),
 				MaxBuffers:         3,
@@ -113,36 +107,21 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			blockSize := 2000000
-			u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
-			require.NoError(t, err)
-			_ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, false)
+			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, false)
 			// Write consists of two operations:
 			// - Put Block operation
 			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
 			// - Put Block List operation
 			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-			//
-			// If the written bytes can fit in a single block, the Azure SDK will not call Put Block List, and will
-			// instead perform a single upload.
-			// In order to more closely resemble a real-world upload scenario, and to force the SDK to call
-			// Put Block List, we deliberately create a payload that exceeds the size of a single block, forcing the
-			// SDK to make three requests in total: one request for each of the two blocks, and a final commit request.
-			// See azblob.UploadStreamOptions.BlockSize.
-			assert.Equal(t, int32(3), atomic.LoadInt32(&count))
+			assert.Equal(t, int32(2), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})
 	}
 }
 
-func fakeServer(t *testing.T, returnIn time.Duration, counter *int32, codes map[string]int) *httptest.Server {
+func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(returnIn)
-
-		// If this path requires a certain response code, set that here.
-		if code, ok := codes[r.URL.Path]; ok {
-			w.WriteHeader(code)
-		}
 
 		atomic.AddInt32(counter, 1)
 		_, _ = w.Write([]byte(`{}`))
@@ -154,7 +133,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32, codes map[
 
 func TestReadError(t *testing.T) {
 	// confirm blobNotFoundError converts to ErrDoesNotExist
-	blobNotFoundError := blobStorageError(string(bloberror.BlobNotFound))
+	blobNotFoundError := blobStorageError(string(blob.ServiceCodeBlobNotFound))
 	err := readError(blobNotFoundError)
 	require.Equal(t, backend.ErrDoesNotExist, err)
 
@@ -169,7 +148,7 @@ func TestReadError(t *testing.T) {
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
 
 	// other azure error is not returned as ErrDoesNotExist
-	otherAzureError := blobStorageError(string(bloberror.InternalError))
+	otherAzureError := blobStorageError(string(blob.ServiceCodeInternalError))
 	err = readError(otherAzureError)
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
 }
@@ -179,52 +158,58 @@ func blobStorageError(serviceCode string) error {
 		Header: http.Header{
 			textproto.CanonicalMIMEHeaderKey("x-ms-error-code"): []string{serviceCode},
 		},
-		// We need to set both Request and Body to prevent the Azure SDK from panicking.
-		Request: httptest.NewRequest("GET", "/blobby/blob", nil),
-		Body:    io.NopCloser(bytes.NewReader([]byte("some response"))),
+		Request: httptest.NewRequest("GET", "/blobby/blob", nil), // azure error handling code will panic if Request is unset
 	}
 
-	return runtime.NewResponseError(resp)
+	return blob.NewResponseError(nil, resp, "")
 }
 
 func TestObjectWithPrefix(t *testing.T) {
 	tests := []struct {
-		name         string
-		prefix       string
-		objectName   string
-		keyPath      backend.KeyPath
-		expectedPath string
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
 	}{
 		{
-			name:         "with prefix",
-			prefix:       "test_prefix",
-			objectName:   "object",
-			keyPath:      backend.KeyPath{"test_path"},
-			expectedPath: "/testing_account/blerg/test_prefix/test_path/object",
+			name:       "with prefix",
+			prefix:     "test_prefix",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test_path"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(""))
+						return
+					}
+
+					assert.Equal(t, "/testing_account/blerg/test_prefix/test_path/object", r.URL.Path)
+				}
+			},
 		},
 		{
-			name:         "without prefix",
-			prefix:       "",
-			objectName:   "object",
-			keyPath:      backend.KeyPath{"test_path"},
-			expectedPath: "/testing_account/blerg/test_path/object",
+			name:       "without prefix",
+			prefix:     "",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test_path"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(""))
+						return
+					}
+
+					assert.Equal(t, "/testing_account/blerg/test_path/object", r.URL.Path)
+				}
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
-				// Handle the initial call to get container properties.
-				if r.Method == "GET" {
-					_, _ = w.Write([]byte(""))
-					return
-				}
-
-				// The Azure SDK expects that successful write requests return 201, and will error if they don't.
-				w.WriteHeader(http.StatusCreated)
-				assert.Equal(t, tc.expectedPath, r.URL.Path)
-			})
-			_, w, _, err := New(&Config{
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&config.Config{
 				StorageAccountName: "testing_account",
 				StorageAccountKey:  flagext.SecretWithValue("YQo="),
 				MaxBuffers:         3,
