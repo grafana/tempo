@@ -370,6 +370,10 @@ func (q *Querier) forIngesterRings(ctx context.Context, getReplicationSet replic
 
 	wg.Wait()
 
+	if responseErr != nil {
+		return nil, responseErr
+	}
+
 	return responses, nil
 }
 

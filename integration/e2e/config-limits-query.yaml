@@ -1,0 +1,50 @@
+target: all
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  log_received_traces: true
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+compactor:
+  compaction:
+    block_retention: 1h            
+
+overrides:
+  defaults:
+    compaction:
+      block_retention: 1h
+    ingestion:
+      max_traces_per_user: 1
+      rate_limit_bytes: 500
+      burst_size_bytes: 500
+    global:
+      max_bytes_per_trace: 100
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 1ms
+  flush_check_period: 1ms
+  complete_block_timeout: 10s
+
+storage:
+  trace:
+    blocklist_poll: 1s
+    backend: local
+    local:
+      path: /tmp/tempo/blocks
+    wal:
+      path: /tmp/tempo/wal
+    pool:
+      max_workers: 10
+      queue_depth: 100
