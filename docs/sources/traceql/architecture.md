@@ -23,7 +23,7 @@ The default Tempo search reviews the whole trace. TraceQL provides a method for 
 
 For an indepth look at TraceQL, read the [TraceQL: A first-of-its-kind query language to accelerate trace analysis in Tempo 2.0"](https://grafana.com/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/) blog post by Trevor Jones.
 
-For examples of query syntax, refer to [Perform a query]({{<relref "traceql#construct-a-traceql-query" >}}).
+For examples of query syntax, refer to [Perform a query]({{<relref "../traceql#construct-a-traceql-query" >}}).
 
 {{< vimeo 773194063 >}}
 
