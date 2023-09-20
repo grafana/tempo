@@ -113,17 +113,20 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			t.Skip("todo: fix this test")
-			blockSize := 2000000
-			u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
-			require.NoError(t, err)
-			_ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, false)
+			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, false)
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+
 			// Write consists of two operations:
 			// - Put Block operation
 			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
 			// - Put Block List operation
 			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-			//
+
+			t.Skip("todo: fix this test")
+			blockSize := 2000000
+			u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
+			require.NoError(t, err)
+			_ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, false)
 			// If the written bytes can fit in a single block, the Azure SDK will not call Put Block List, and will
 			// instead perform a single upload.
 			// In order to more closely resemble a real-world upload scenario, and to force the SDK to call
