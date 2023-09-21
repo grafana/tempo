@@ -224,17 +224,17 @@ func (rw *readerWriter) Shutdown() {
 func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return "", err
 	}
 
 	level.Info(log.Logger).Log("msg", "WriteVersioned - fetching data", "currentVersion", currentVersion, "err", err, "version", version)
 
 	// object does not exist - supplied version must be "0"
-	if err == backend.ErrDoesNotExist && version != backend.VersionNew {
+	if errors.Is(err, backend.ErrDoesNotExist) && version != backend.VersionNew {
 		return "", backend.ErrVersionDoesNotMatch
 	}
-	if err != backend.ErrDoesNotExist && version != currentVersion {
+	if !errors.Is(err, backend.ErrDoesNotExist) && version != currentVersion {
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
@@ -250,10 +250,10 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
 	// TODO use conditional if-match API
 	_, currentVersion, err := rw.ReadVersioned(ctx, name, keypath)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return err
 	}
-	if err != backend.ErrDoesNotExist && currentVersion != version {
+	if !errors.Is(err, backend.ErrDoesNotExist) && currentVersion != version {
 		return backend.ErrVersionDoesNotMatch
 	}
 

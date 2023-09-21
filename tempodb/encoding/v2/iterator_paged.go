@@ -6,6 +6,8 @@ import (
 	"io"
 	"math"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -39,7 +41,7 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader IndexReader, dataReader
 
 // newPartialPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 // through a contiguous and limited set of pages in object storage.
-func newPartialPagedIterator(chunkSizeBytes uint32, indexReader IndexReader, dataReader DataReader, objectRW ObjectReaderWriter, startIndexPage int, totalIndexPages int) BytesIterator {
+func newPartialPagedIterator(chunkSizeBytes uint32, indexReader IndexReader, dataReader DataReader, objectRW ObjectReaderWriter, startIndexPage, totalIndexPages int) BytesIterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
 		indexReader:    indexReader,
@@ -66,9 +68,9 @@ func (i *pagedIterator) NextBytes(ctx context.Context) (common.ID, []byte, error
 
 	// dataReader returns pages in the raw format, so this works
 	i.activePage, id, object, err = i.objectRW.UnmarshalAndAdvanceBuffer(i.activePage)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, fmt.Errorf("error unmarshalling active page, err: %w", err)
-	} else if err != io.EOF {
+	} else if !errors.Is(err, io.EOF) {
 		return id, object, nil
 	}
 

@@ -2,6 +2,8 @@ package io
 
 import (
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 // ReadAllWithEstimate is a fork of https://go.googlesource.com/go/+/go1.16.3/src/io/io.go#626
@@ -20,7 +22,7 @@ func ReadAllWithEstimate(r io.Reader, estimatedBytes int64) ([]byte, error) {
 		n, err := r.Read(b[len(b):cap(b)])
 		b = b[:len(b)+n]
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			return b, err
@@ -50,7 +52,7 @@ func ReadAllWithBuffer(r io.Reader, estimatedBytes int, b []byte) ([]byte, error
 		n, err := r.Read(b[len(b):cap(b)])
 		b = b[:len(b)+n]
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			return b, err

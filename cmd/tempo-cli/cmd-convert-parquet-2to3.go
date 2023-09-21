@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/parquet-go/parquet-go"
+	"github.com/pkg/errors"
 )
 
 type convertParquet2to3 struct {
@@ -117,7 +118,7 @@ func (i *parquetIterator) Next(_ context.Context) (common.ID, *tempopb.Trace, er
 	}
 
 	_, err := i.r.Read(traces)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil, nil, io.EOF
 	}
 	if err != nil {

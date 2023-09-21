@@ -263,7 +263,7 @@ func (t *App) initIngester() (services.Service, error) {
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
-	if err == generator.ErrUnconfigured && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
 	}

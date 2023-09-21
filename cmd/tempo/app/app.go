@@ -207,14 +207,14 @@ func (t *App) Run() error {
 		// let's find out which module failed
 		for m, s := range serviceMap {
 			if s == service {
-				switch service.FailureCase() {
-				case modules.ErrStopProcess:
-					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", service.FailureCase())
-				case context.Canceled:
-				default:
-					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", service.FailureCase())
+				err = service.FailureCase()
+				if errors.Is(err, modules.ErrStopProcess) {
+					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
+				} else if errors.Is(err, context.Canceled) {
+					return
+				} else if err != nil {
+					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
 				}
-
 				return
 			}
 		}

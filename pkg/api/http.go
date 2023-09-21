@@ -161,7 +161,8 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		}
 
 		if err := decoder.Err(); err != nil {
-			if syntaxErr, ok := err.(*logfmt.SyntaxError); ok {
+			var syntaxErr *logfmt.SyntaxError
+			if ok := errors.As(err, &syntaxErr); ok {
 				return nil, fmt.Errorf("invalid tags: %s at pos %d", syntaxErr.Msg, syntaxErr.Pos)
 			}
 			return nil, fmt.Errorf("invalid tags: %w", err)

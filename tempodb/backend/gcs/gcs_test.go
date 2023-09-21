@@ -17,10 +17,12 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	raw "google.golang.org/api/storage/v1"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestHedge(t *testing.T) {
@@ -202,7 +204,7 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 
 			for {
 				part, err := reader.NextPart()
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				require.NoError(t, err)

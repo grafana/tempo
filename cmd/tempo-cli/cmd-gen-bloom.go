@@ -8,6 +8,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/pkg/errors"
+
 	"github.com/google/uuid"
 	willf_bloom "github.com/willf/bloom"
 
@@ -43,7 +45,7 @@ func ReplayBlockAndDoForEachRecord(meta *backend.BlockMeta, filepath string, for
 	objectRW := v2.NewObjectReaderWriter()
 	for {
 		buffer, _, err := dataReader.NextPage(buffer)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -64,7 +66,7 @@ func ReplayBlockAndDoForEachRecord(meta *backend.BlockMeta, filepath string, for
 			}
 		}
 
-		if iterErr != io.EOF {
+		if !errors.Is(iterErr, io.EOF) {
 			return iterErr
 		}
 	}

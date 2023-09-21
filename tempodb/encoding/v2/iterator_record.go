@@ -33,7 +33,7 @@ func newRecordIterator(r []Record, dataR DataReader, objectRW ObjectReaderWriter
 func (i *recordIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentIterator != nil {
 		id, object, err := i.currentIterator.NextBytes(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, nil, err
 		}
 		if id != nil {
