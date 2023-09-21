@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -76,7 +75,7 @@ func (rw *V2) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 		for _, b := range page.Segment.BlobItems {
 			if b.Name == nil {
-				return errors.Errorf("unexpected empty blob name when listing %s", prefix)
+				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
 			}
 
 			err = rw.Delete(ctx, *b.Name, []string{}, false)
@@ -131,7 +130,7 @@ func (rw *V2) readAllWithModTime(ctx context.Context, name string) ([]byte, time
 func (rw *V2) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
 	blobClient, err := getBlobClient(ctx, rw.cfg, name)
 	if err != nil {
-		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob client, name: %s", name)
+		return BlobAttributes{}, fmt.Errorf("cannot get Azure blob client, name: %s: %w", name, err)
 	}
 
 	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
@@ -140,11 +139,11 @@ func (rw *V2) getAttributes(ctx context.Context, name string) (BlobAttributes, e
 	}
 
 	if props.ContentLength == nil {
-		return BlobAttributes{}, errors.Errorf("expected content length but got none for blob %s", name)
+		return BlobAttributes{}, fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
 	}
 
 	if props.LastModified == nil {
-		return BlobAttributes{}, errors.Errorf("expected last modified but got none for blob %s", name)
+		return BlobAttributes{}, fmt.Errorf("expected last modified but got none for blob %s: %w", name, err)
 	}
 
 	return BlobAttributes{

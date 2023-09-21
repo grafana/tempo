@@ -1457,28 +1457,28 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+				return nil, fmt.Errorf("creating attribute predicate %w", err)
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
 		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+				return nil, fmt.Errorf("creating attribute predicate %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
 		case traceql.TypeFloat:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+				return nil, fmt.Errorf("creating attribute predicate %w", err)
 			}
 			attrFltPreds = append(attrFltPreds, pred)
 
 		case traceql.TypeBoolean:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, fmt.Errorf("creating attribute predicate: %w", err)
+				return nil, fmt.Errorf("creating attribute predicate %w", err)
 			}
 			boolPreds = append(boolPreds, pred)
 		}
