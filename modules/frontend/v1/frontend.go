@@ -377,7 +377,7 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
 
 	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
-	if err == queue.ErrTooManyRequests {
+	if errors.Is(err, queue.ErrTooManyRequests) {
 		return errTooManyRequest
 	}
 	return err

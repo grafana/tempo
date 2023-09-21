@@ -417,7 +417,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 		}
 
 		filteredSpansets, err := i.cb(spanset)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, nil
 		}
 		if err != nil {

@@ -123,7 +123,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 				defer pgs.Close()
 				for {
 					pg, err := pgs.ReadPage()
-					if err == io.EOF || pg == nil {
+					if errors.Is(err, io.EOF) || pg == nil {
 						break
 					}
 					if err != nil {
@@ -163,7 +163,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 				// there is only one dictionary per column chunk, so just read it from the first page
 				// and be done.
 				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
+				if errors.Is(err, io.EOF) || pg == nil {
 					return nil
 				}
 				if err != nil {

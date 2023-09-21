@@ -47,7 +47,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		sch := parquet.SchemaOf(trp)
 		next = func(context.Context) (common.ID, parquet.Row, error) {
 			id, tr, err := i.Next(ctx)
-			if err == io.EOF || tr == nil {
+			if errors.Is(err, io.EOF) || tr == nil {
 				return id, nil, err
 			}
 
@@ -64,7 +64,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 	for {
 		id, row, err := next(ctx)
-		if err == io.EOF || row == nil {
+		if errors.Is(err, io.EOF) || row == nil {
 			break
 		}
 

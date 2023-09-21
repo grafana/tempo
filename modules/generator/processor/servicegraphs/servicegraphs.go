@@ -60,7 +60,7 @@ type tooManySpansError struct {
 	droppedSpans int
 }
 
-func (t tooManySpansError) Error() string {
+func (t *tooManySpansError) Error() string {
 	return fmt.Sprintf("dropped %d spans", t.droppedSpans)
 }
 
@@ -141,7 +141,8 @@ func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	defer span.Finish()
 
 	if err := p.consume(req.Batches); err != nil {
-		if errors.As(err, &tooManySpansError{}) {
+		var tmsErr *tooManySpansError
+		if errors.As(err, &tmsErr) {
 			level.Warn(p.logger).Log("msg", "skipped processing of spans", "maxItems", p.Cfg.MaxItems, "err", err)
 		} else {
 			level.Error(p.logger).Log("msg", "failed consuming traces", "err", err)
@@ -231,7 +232,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	}
 
 	if totalDroppedSpans > 0 {
-		return tooManySpansError{
+		return &tooManySpansError{
 			droppedSpans: totalDroppedSpans,
 		}
 	}
@@ -239,7 +240,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 	return nil
 }
 
-func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
+func (p *Processor) upsertDimensions(prefix string, m map[string]string, resourceAttr, spanAttr []*v1_common.KeyValue) {
 	for _, dim := range p.Cfg.Dimensions {
 		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
 			if p.Cfg.EnableClientServerPrefix {
