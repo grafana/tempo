@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"testing"
 	"time"
 
@@ -99,12 +98,23 @@ func TestQueryLimits(t *testing.T) {
 
 	// now try to query it back. this should fail b/c the trace is too large
 	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
+	querierClient := httpclient.New("http://"+tempo.Endpoint(3200)+"/querier", tempoUtil.FakeTenantID)
+
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, "failed with response: 500") // confirm frontend returns 500
+
+	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, "failed with response: 500") // todo: this should return 400 ideally so the frontend does not retry, but does not currently
 
 	// complete block timeout  is 10 seconds
 	time.Sleep(15 * time.Second)
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
-	fmt.Println("err!", err)
+	require.ErrorContains(t, err, "failed with response: 500") // confirm frontend returns 500
+
+	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
+	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, "failed with response: 400") // confirm querier returns 400
 }

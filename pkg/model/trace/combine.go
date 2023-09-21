@@ -32,6 +32,8 @@ func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 	return token(h.Sum64())
 }
 
+var ErrTraceTooLarge = fmt.Errorf("trace exceeds max size")
+
 // Combiner combines multiple partial traces into one, deduping spans based on
 // ID and kind.  Note that it is destructive. There are design decisions for
 // efficiency:
@@ -136,7 +138,7 @@ func (c *Combiner) sizeError() error {
 	}
 
 	if c.result.Size() > c.maxSizeBytes {
-		return fmt.Errorf("trace exceeds max size (%d > %d)", c.result.Size(), c.maxSizeBytes)
+		return fmt.Errorf("%w (%d > %d)", ErrTraceTooLarge, c.result.Size(), c.maxSizeBytes)
 	}
 
 	return nil
