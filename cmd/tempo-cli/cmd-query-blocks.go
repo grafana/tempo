@@ -134,6 +134,8 @@ func queryBlock(ctx context.Context, r backend.Reader, _ backend.Compactor, bloc
 	}
 
 	if errors.Is(err, backend.ErrDoesNotExist) {
+		// tempo proper searches compacted blocks, b/c each querier has a different view of the backend blocks.
+		// however, with a single snaphot of the backend, we can only search the noncompacted blocks.
 		return nil, nil
 	}
 
