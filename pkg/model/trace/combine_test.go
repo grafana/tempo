@@ -17,9 +17,11 @@ import (
 func TestCombineProtoTotals(t *testing.T) {
 	methods := []func(a, b *tempopb.Trace) (*tempopb.Trace, int){
 		func(a, b *tempopb.Trace) (*tempopb.Trace, int) {
-			c := NewCombiner()
-			c.Consume(a)
-			c.Consume(b)
+			c := NewCombiner(0)
+			_, err := c.Consume(a)
+			require.NoError(t, err)
+			_, err = c.Consume(b)
+			require.NoError(t, err)
 			return c.Result()
 		},
 	}
@@ -56,6 +58,27 @@ func TestCombineProtoTotals(t *testing.T) {
 		for _, m := range methods {
 			_, actualTotal := m(tt.traceA, tt.traceB)
 			assert.Equal(t, tt.expectedTotal, actualTotal)
+		}
+	}
+}
+
+func TestCombinerChecksMaxBytes(t *testing.T) {
+	// Ensure that the combiner checks max bytes when consuming a trace.
+	for _, maxBytes := range []int{0, 100, 1000, 10000} {
+		c := NewCombiner(maxBytes)
+		curSize := 0
+
+		// attempt up to 20 traces to exceed max bytes
+		for i := 0; i < 20; i++ {
+			tr := test.MakeTraceWithSpanCount(1, 1, []byte{0x01})
+			curSize += tr.Size()
+
+			_, err := c.Consume(tr)
+			if curSize > maxBytes && maxBytes != 0 {
+				require.Error(t, err)
+				continue
+			}
+			require.NoError(t, err)
 		}
 	}
 }
@@ -124,9 +147,10 @@ func BenchmarkCombine(b *testing.B) {
 		{
 			"Combiner",
 			func(traces []*tempopb.Trace) int {
-				c := NewCombiner()
+				c := NewCombiner(0)
 				for i := range traces {
-					c.ConsumeWithFinal(traces[i], i == len(traces)-1)
+					_, err := c.ConsumeWithFinal(traces[i], i == len(traces)-1)
+					require.NoError(b, err)
 				}
 				_, spanCount := c.Result()
 				return spanCount

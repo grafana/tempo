@@ -87,14 +87,17 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace,
 		return dedupedID, tr, nil
 	}
 
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(0)
 	for j, obj := range currentObjects {
 		tr, err := i.decoder.PrepareForRead(obj)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		combiner.ConsumeWithFinal(tr, j == len(currentObjects)-1)
+		_, err = combiner.ConsumeWithFinal(tr, j == len(currentObjects)-1)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	tr, _ := combiner.Result()

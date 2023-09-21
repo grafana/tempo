@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -80,12 +79,11 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	mtx := sync.Mutex{}
 
 	var overallError error
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(s.o.MaxBytesPerTrace(userID))
 	combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
-	maxSize := s.o.MaxBytesPerTrace(userID)
 	for _, req := range reqs {
 		wg.Add(1)
 		go func(innerR *http.Request) {
@@ -148,13 +146,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			statusCode = http.StatusOK
-			combiner.Consume(traceResp.Trace)
-
-			sz := combiner.Size()
-			if maxSize > 0 && sz > maxSize {
-				statusCode = http.StatusInternalServerError
-				statusMsg = fmt.Sprintf("trace exceeds max size in the frontend. size: %d, max: %d", sz, maxSize)
-				return
+			_, err = combiner.Consume(traceResp.Trace)
+			if err != nil {
+				overallError = err
 			}
 		}(req)
 	}

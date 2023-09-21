@@ -40,14 +40,17 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 }
 
 func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
-	c := trace.NewCombiner()
+	c := trace.NewCombiner(0)
 	for i, obj := range objs {
 		t, err := staticDecoder.PrepareForRead(obj)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
 
-		c.ConsumeWithFinal(t, i == len(obj)-1)
+		_, err = c.ConsumeWithFinal(t, i == len(obj)-1)
+		if err != nil {
+			return nil, fmt.Errorf("error combining trace: %w", err)
+		}
 	}
 	combinedTrace, _ := c.Result()
 

@@ -407,11 +407,14 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 	i.tracesMtx.Unlock()
 
-	combiner := trace.NewCombiner()
-	combiner.Consume(completeTrace)
-
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+	combiner := trace.NewCombiner(maxBytes)
+	_, err = combiner.Consume(completeTrace)
+	if err != nil {
+		return nil, err
+	}
 
 	// headBlock
 	i.headBlockMtx.RLock()
@@ -420,9 +423,8 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
-	combiner.Consume(tr)
-
-	if err := checkSize(combiner, maxBytes); err != nil {
+	_, err = combiner.Consume(tr)
+	if err != nil {
 		return nil, err
 	}
 
@@ -435,9 +437,8 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
-		combiner.Consume(tr)
-
-		if err := checkSize(combiner, maxBytes); err != nil {
+		_, err = combiner.Consume(tr)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -448,23 +449,14 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
-		combiner.Consume(found)
-
-		if err := checkSize(combiner, maxBytes); err != nil {
+		_, err = combiner.Consume(found)
+		if err != nil {
 			return nil, err
 		}
 	}
 
 	result, _ := combiner.Result()
 	return result, nil
-}
-
-func checkSize(combiner *trace.Combiner, maxBytes int) error {
-	sz := combiner.Size()
-	if maxBytes > 0 && sz > maxBytes {
-		return fmt.Errorf("trace exceeds max size in the ingester. size: %d, max: %d", sz, maxBytes)
-	}
-	return nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.

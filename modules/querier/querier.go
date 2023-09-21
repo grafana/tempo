@@ -236,7 +236,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	span.SetTag("queryMode", req.QueryMode)
 
-	combiner := trace.NewCombiner()
+	maxBytes := q.limits.MaxBytesPerTrace(userID)
+	combiner := trace.NewCombiner(maxBytes)
+
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		var getRSFn replicationSetFn
@@ -260,7 +262,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			t := r.response.(*tempopb.TraceByIDResponse).Trace
 			if t != nil {
-				spanCount = combiner.Consume(t)
+				spanCount, err = combiner.Consume(t)
+				if err != nil {
+					return nil, err
+				}
+
 				spanCountTotal += spanCount
 				traceCountTotal++
 				found = true
@@ -277,7 +283,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		span.LogFields(ot_log.String("timeStart", fmt.Sprint(timeStart)))
 		span.LogFields(ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
 
-		opts := common.DefaultSearchOptionsWithMaxBytes(q.limits.MaxBytesPerTrace(userID))
+		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := errors.Wrap(err, "error querying store in Querier.FindTraceByID")
@@ -293,13 +299,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.String("msg", "done searching store"),
 			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
-		maxSize := q.limits.MaxBytesPerTrace(userID)
 		for _, partialTrace := range partialTraces {
 			combiner.Consume(partialTrace)
-
-			sz := combiner.Size()
-			if maxSize > 0 && sz > maxSize {
-				return nil, fmt.Errorf("trace exceeds max size in the querier. size: %d, max: %d", sz, maxSize)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}

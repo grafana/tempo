@@ -39,14 +39,17 @@ func (cmd *queryTraceSummaryCmd) Run(ctx *globalOptions) error {
 	}
 
 	var (
-		combiner   = trace.NewCombiner()
+		combiner   = trace.NewCombiner(0)
 		marshaller = new(jsonpb.Marshaler)
 		jsonBytes  = bytes.Buffer{}
 	)
 
 	fmt.Println()
 	for i, result := range results {
-		combiner.ConsumeWithFinal(result.trace, i == len(results)-1)
+		_, err = combiner.ConsumeWithFinal(result.trace, i == len(results)-1)
+		if err != nil {
+			return fmt.Errorf("error combining trace: %w", err)
+		}
 	}
 
 	combinedTrace, _ := combiner.Result()
