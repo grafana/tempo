@@ -191,11 +191,11 @@ func loadConfig() (*tempodb.Config, error) {
 	v := viper.NewWithOptions()
 	b, err := yaml.Marshal(defaultConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal default config %w", err)
+		return nil, fmt.Errorf("failed to marshal default config: %w", err)
 	}
 	v.SetConfigType("yaml")
 	if err = v.MergeConfig(bytes.NewReader(b)); err != nil {
-		return nil, fmt.Errorf("failed to merge config %w", err)
+		return nil, fmt.Errorf("failed to merge config: %w", err)
 	}
 
 	v.AutomaticEnv()
@@ -205,7 +205,7 @@ func loadConfig() (*tempodb.Config, error) {
 	cfg := &tempodb.Config{}
 	err = v.Unmarshal(cfg, setTagName, setDecodeHooks)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config %w", err)
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	return cfg, nil

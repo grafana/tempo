@@ -67,13 +67,13 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 	metaPath := filepath.Join(dir, backend.MetaName)
 	metaBytes, err := os.ReadFile(metaPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading wal meta json: %s %w", metaPath, err)
+		return nil, nil, fmt.Errorf("error reading wal meta json: %s: %w", metaPath, err)
 	}
 
 	meta := &backend.BlockMeta{}
 	err = json.Unmarshal(metaBytes, meta)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s %w", metaPath, err)
+		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s: %w", metaPath, err)
 	}
 
 	// below we're going to iterate all of the parquet files in the wal and build the meta, this will correctly
@@ -103,7 +103,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		// opened but not flushed.
 		i, err := f.Info()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting file info: %s %w", f.Name(), err)
+			return nil, nil, fmt.Errorf("error getting file info: %s: %w", f.Name(), err)
 		}
 		if i.Size() == 0 {
 			continue
@@ -114,7 +114,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 		file, err := page.file()
 		if err != nil {
-			warning = fmt.Errorf("error opening file info: %s %w", page.path, err)
+			warning = fmt.Errorf("error opening file info: %s: %w", page.path, err)
 			continue
 		}
 
@@ -510,13 +510,13 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.Se
 
 			err = r.SeekToRow(rowNumber)
 			if err != nil {
-				return nil, fmt.Errorf("seek to row %w", err)
+				return nil, fmt.Errorf("seek to row: %w", err)
 			}
 
 			tr := new(Trace)
 			err = r.Read(tr)
 			if err != nil {
-				return nil, fmt.Errorf("error reading row from backend %w", err)
+				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 
 			trp := ParquetTraceToTempopbTrace(tr)
@@ -624,7 +624,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
-		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid %w", err)
+		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
 
 	blockFlushes := b.readFlushes()
@@ -641,7 +641,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		iter, err := fetch(ctx, req, pf, opts)
 		if err != nil {
-			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter %w", err)
+			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 		}
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}

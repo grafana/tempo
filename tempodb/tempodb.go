@@ -244,12 +244,12 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
 	if err != nil {
-		return nil, fmt.Errorf("error creating block %w", err)
+		return nil, fmt.Errorf("error creating block: %w", err)
 	}
 
 	backendBlock, err := encoding.OpenBlock(newMeta, r)
 	if err != nil {
-		return nil, fmt.Errorf("error opening new block %w", err)
+		return nil, fmt.Errorf("error opening new block: %w", err)
 	}
 
 	return backendBlock, nil

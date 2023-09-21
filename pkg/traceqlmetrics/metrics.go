@@ -180,7 +180,7 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 
 		attr, err := traceql.ParseIdentifier(id)
 		if err != nil {
-			return nil, fmt.Errorf("parsing groupby attribute %w", err)
+			return nil, fmt.Errorf("parsing groupby attribute: %w", err)
 		}
 
 		var lookups []traceql.Attribute
@@ -205,7 +205,7 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 
 	eval, req, err := traceql.NewEngine().Compile(query)
 	if err != nil {
-		return nil, fmt.Errorf("compiling query %w", err)
+		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
 	var (

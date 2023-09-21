@@ -75,7 +75,7 @@ func (p *dataWriter) CutPage() (int, error) {
 	// case of issues while writing to disk
 	// for more details hop on to https://github.com/grafana/tempo/issues/1374
 	if marshalErr != nil {
-		return 0, fmt.Errorf("error marshalling page to writer %w", marshalErr)
+		return 0, fmt.Errorf("error marshalling page to writer: %w", marshalErr)
 	}
 
 	return bytesWritten, err

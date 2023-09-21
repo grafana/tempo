@@ -84,7 +84,7 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if dimensions := o.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID); dimensions != nil {
 		err := copyCfg.SpanMetrics.IntrinsicDimensions.ApplyFromMap(dimensions)
 		if err != nil {
-			return ProcessorConfig{}, fmt.Errorf("fail to apply overrides %w", err)
+			return ProcessorConfig{}, fmt.Errorf("fail to apply overrides: %w", err)
 		}
 	}
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {

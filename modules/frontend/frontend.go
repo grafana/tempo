@@ -130,7 +130,7 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
-					return nil, fmt.Errorf("error reading response body at query frontend %w", err)
+					return nil, fmt.Errorf("error reading response body at query frontend: %w", err)
 				}
 				responseObject := &tempopb.TraceByIDResponse{}
 				err = proto.Unmarshal(body, responseObject)

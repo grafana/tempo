@@ -21,7 +21,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 	newBlock, err := NewStreamingBlock(cfg, meta.BlockID, meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	if err != nil {
-		return nil, fmt.Errorf("error creating streaming block %w", err)
+		return nil, fmt.Errorf("error creating streaming block: %w", err)
 	}
 
 	bytesIterator, isBytesIterator := i.(BytesIterator)
@@ -60,7 +60,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	for {
 		id, trBytes, err := next(ctx)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("error iterating %w", err)
+			return nil, fmt.Errorf("error iterating: %w", err)
 		}
 
 		if id == nil {
@@ -70,20 +70,20 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		// This assumes the incoming bytes are the same data encoding.
 		err = newBlock.AddObject(id, trBytes)
 		if err != nil {
-			return nil, fmt.Errorf("error adding object to compactor block %w", err)
+			return nil, fmt.Errorf("error adding object to compactor block: %w", err)
 		}
 
 		if newBlock.CurrentBufferLength() > DefaultFlushSizeBytes {
 			tracker, _, err = newBlock.FlushBuffer(ctx, tracker, to)
 			if err != nil {
-				return nil, fmt.Errorf("error flushing compactor block %w", err)
+				return nil, fmt.Errorf("error flushing compactor block: %w", err)
 			}
 		}
 	}
 
 	_, err = newBlock.Complete(ctx, tracker, to)
 	if err != nil {
-		return nil, fmt.Errorf("error completing compactor block %w", err)
+		return nil, fmt.Errorf("error completing compactor block: %w", err)
 	}
 
 	return newBlock.BlockMeta(), nil

@@ -224,7 +224,7 @@ func installOpenTracingTracer(config *app.Config) (func(), error) {
 	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
 	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
 	if err != nil {
-		return nil, fmt.Errorf("error initialising tracer %w", err)
+		return nil, fmt.Errorf("error initialising tracer: %w", err)
 	}
 	return func() {
 		if err := trace.Close(); err != nil {
@@ -242,7 +242,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 
 	exp, err := jaeger.New(jaeger.WithCollectorEndpoint())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jaeger exporter %w", err)
+		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
 	}
 
 	resources, err := resource.New(context.Background(),
@@ -253,7 +253,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 		resource.WithHost(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialise trace resources %w", err)
+		return nil, fmt.Errorf("failed to initialise trace resources: %w", err)
 	}
 
 	tp := tracesdk.NewTracerProvider(

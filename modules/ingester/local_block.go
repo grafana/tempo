@@ -70,12 +70,12 @@ func (c *localBlock) SetFlushed(ctx context.Context) error {
 	flushedTime := time.Now()
 	flushedBytes, err := flushedTime.MarshalText()
 	if err != nil {
-		return fmt.Errorf("error marshalling flush time to text %w", err)
+		return fmt.Errorf("error marshalling flush time to text: %w", err)
 	}
 
 	err = c.writer.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes, false)
 	if err != nil {
-		return fmt.Errorf("error writing ingester block flushed file %w", err)
+		return fmt.Errorf("error writing ingester block flushed file: %w", err)
 	}
 
 	c.flushedTime.Store(flushedTime.Unix())
@@ -85,7 +85,7 @@ func (c *localBlock) SetFlushed(ctx context.Context) error {
 func (c *localBlock) Write(ctx context.Context, w backend.Writer) error {
 	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.reader, w)
 	if err != nil {
-		return fmt.Errorf("error copying block from local to remote backen %w", err)
+		return fmt.Errorf("error copying block from local to remote backen: %w", err)
 	}
 
 	err = c.SetFlushed(ctx)

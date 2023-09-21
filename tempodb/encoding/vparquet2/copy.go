@@ -66,7 +66,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 		nameBloom := common.BloomName(i)
 		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, true)
 		if err != nil {
-			return fmt.Errorf("unexpected error writing bloom-%d %w", i, err)
+			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
 	}
 
@@ -83,7 +83,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	// meta
 	err = w.WriteBlockMeta(ctx, meta)
 	if err != nil {
-		return fmt.Errorf("unexpected error writing meta %w", err)
+		return fmt.Errorf("unexpected error writing meta: %w", err)
 	}
 
 	return nil

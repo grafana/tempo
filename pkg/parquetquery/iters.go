@@ -1223,7 +1223,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 		for iterNum := range j.iters {
 			res, err := j.peek(iterNum)
 			if err != nil {
-				return nil, fmt.Errorf("join iterator peek failed %w", err)
+				return nil, fmt.Errorf("join iterator peek failed: %w", err)
 			}
 
 			if res == nil {
@@ -1255,7 +1255,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 			// Get the data
 			result, err := j.collect(lowestRowNumber)
 			if err != nil {
-				return nil, fmt.Errorf("join iterator collect failed %w", err)
+				return nil, fmt.Errorf("join iterator collect failed: %w", err)
 			}
 
 			// Keep group?
@@ -1272,7 +1272,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 		// to find matches before that.
 		err := j.seekAll(highestRowNumber, j.definitionLevel)
 		if err != nil {
-			return nil, fmt.Errorf("join iterator seekAll failed %w", err)
+			return nil, fmt.Errorf("join iterator seekAll failed: %w", err)
 		}
 	}
 }
@@ -1280,7 +1280,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	err := j.seekAll(t, d)
 	if err != nil {
-		return nil, fmt.Errorf("join iterator seekAll failed %w", err)
+		return nil, fmt.Errorf("join iterator seekAll failed: %w", err)
 	}
 	return j.Next()
 }
@@ -1587,7 +1587,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 		for iterNum := range u.iters {
 			rn, err := u.peek(iterNum)
 			if err != nil {
-				return nil, fmt.Errorf("union iterator peek failed %w", err)
+				return nil, fmt.Errorf("union iterator peek failed: %w", err)
 			}
 
 			// If this iterator is exhausted go to the next one
@@ -1612,7 +1612,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 		// Consume lowest iterators
 		result, err := u.collect(u.lowestIters, lowestRowNumber)
 		if err != nil {
-			return nil, fmt.Errorf("union iterator collect failed %w", err)
+			return nil, fmt.Errorf("union iterator collect failed: %w", err)
 		}
 
 		// After each pass it is guaranteed to have found something
@@ -1638,7 +1638,7 @@ func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
 			u.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
-				return nil, fmt.Errorf("union iterator seek to failed %w", err)
+				return nil, fmt.Errorf("union iterator seek to failed: %w", err)
 			}
 		}
 	}

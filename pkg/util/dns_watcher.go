@@ -63,7 +63,7 @@ func (w *dnsWatcher) watchDNSLoop(servCtx context.Context) error {
 			if servCtx.Err() != nil {
 				return nil
 			}
-			return fmt.Errorf("error from DNS watcher %w", err)
+			return fmt.Errorf("error from DNS watcher: %w", err)
 		}
 
 		for _, update := range updates {

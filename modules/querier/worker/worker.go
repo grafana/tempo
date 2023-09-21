@@ -92,7 +92,7 @@ func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, _ prom
 	if cfg.QuerierID == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get hostname for configuring querier ID %w", err)
+			return nil, fmt.Errorf("failed to get hostname for configuring querier ID: %w", err)
 		}
 		cfg.QuerierID = hostname
 	}
@@ -130,7 +130,7 @@ func newQuerierWorkerWithProcessor(cfg Config, log log.Logger, processor process
 	if len(servs) > 0 {
 		subservices, err := services.NewManager(servs...)
 		if err != nil {
-			return nil, fmt.Errorf("querier worker subservices %w", err)
+			return nil, fmt.Errorf("querier worker subservices: %w", err)
 		}
 
 		f.subservices = subservices

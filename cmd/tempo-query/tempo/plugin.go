@@ -180,7 +180,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed GET to tempo %w", err)
+		return nil, fmt.Errorf("failed GET to tempo: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -320,7 +320,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed GET to tempo %w", err)
+		return nil, fmt.Errorf("failed GET to tempo: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -348,7 +348,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	for i, traceMetadata := range searchResponse.Traces {
 		jaegerTraceID, err := jaeger.TraceIDFromString(traceMetadata.TraceID)
 		if err != nil {
-			return nil, fmt.Errorf("could not convert traceID into Jaeger's traceID %w", err)
+			return nil, fmt.Errorf("could not convert traceID into Jaeger's traceID: %w", err)
 		}
 		jaegerTraceIDs[i] = jaegerTraceID
 	}
@@ -388,7 +388,7 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed GET to tempo %w", err)
+		return nil, fmt.Errorf("failed GET to tempo: %w", err)
 	}
 	defer resp.Body.Close()
 

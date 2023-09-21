@@ -226,7 +226,7 @@ func (b *streamingBlock) Complete() (int, error) {
 	buf := make([]byte, 8)
 	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf, false)
 	if err != nil {
-		return 0, fmt.Errorf("error reading parquet file footer %w", err)
+		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
 	if string(buf[4:8]) != "PAR1" {
 		return 0, errors.New("Failed to confirm magic footer while writing a new parquet block")

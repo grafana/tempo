@@ -132,7 +132,7 @@ func (f *Frontend) starting(ctx context.Context) error {
 	f.subservicesWatcher.WatchManager(f.subservices)
 
 	if err := services.StartManagerAndAwaitHealthy(ctx, f.subservices); err != nil {
-		return fmt.Errorf("unable to start frontend subservices %w", err)
+		return fmt.Errorf("unable to start frontend subservices: %w", err)
 	}
 
 	return nil
@@ -144,7 +144,7 @@ func (f *Frontend) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-f.subservicesWatcher.Chan():
-			return fmt.Errorf("frontend subservice failed %w", err)
+			return fmt.Errorf("frontend subservice failed: %w", err)
 		}
 	}
 }
@@ -321,7 +321,7 @@ func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan 
 			err = reqBatch.reportResultsToPipeline(resp.HttpResponseBatch)
 		}
 		if err != nil {
-			return fmt.Errorf("unexpected error reporting results upstream %w", err)
+			return fmt.Errorf("unexpected error reporting results upstream: %w", err)
 		}
 	}
 

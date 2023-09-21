@@ -79,7 +79,7 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 
 	lowestObject, err := m.combine(lowestObjects)
 	if err != nil {
-		return nil, nil, fmt.Errorf("combining %w", err)
+		return nil, nil, fmt.Errorf("combining: %w", err)
 	}
 
 	for _, b := range lowestBookmarks {

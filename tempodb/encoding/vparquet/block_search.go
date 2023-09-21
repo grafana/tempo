@@ -302,7 +302,7 @@ func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return nil, fmt.Errorf("searchRaw next failed %w", err)
+			return nil, fmt.Errorf("searchRaw next failed: %w", err)
 		}
 		if match == nil {
 			break
@@ -333,7 +333,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	for {
 		match, err := iter2.Next()
 		if err != nil {
-			return nil, fmt.Errorf("rawToResults next failed %w", err)
+			return nil, fmt.Errorf("rawToResults next failed: %w", err)
 		}
 		if match == nil {
 			break

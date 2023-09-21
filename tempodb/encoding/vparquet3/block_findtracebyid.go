@@ -208,7 +208,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 			return 0, nil
 		})
 		if err != nil {
-			return nil, fmt.Errorf("error binary searching row groups %w", err)
+			return nil, fmt.Errorf("error binary searching row groups: %w", err)
 		}
 	}
 
@@ -242,13 +242,13 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	r := parquet.NewReader(pf)
 	err = r.SeekToRow(rowMatch)
 	if err != nil {
-		return nil, fmt.Errorf("seek to row %w", err)
+		return nil, fmt.Errorf("seek to row: %w", err)
 	}
 
 	tr := new(Trace)
 	err = r.Read(tr)
 	if err != nil {
-		return nil, fmt.Errorf("error reading row from backend %w", err)
+		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}
 
 	if maxTraceSizeBytes > 0 {

@@ -143,7 +143,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("error iterating input blocks %w", err)
+			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
 		// make a new block if necessary
@@ -168,7 +168,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
-				return nil, fmt.Errorf("error writing partial block %w", err)
+				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
 
@@ -185,7 +185,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
-				return nil, fmt.Errorf("error writing partial block %w", err)
+				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
 
@@ -251,7 +251,7 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 
 	bytesFlushed, err := block.Complete()
 	if err != nil {
-		return fmt.Errorf("error completing block %w", err)
+		return fmt.Errorf("error completing block: %w", err)
 	}
 
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))

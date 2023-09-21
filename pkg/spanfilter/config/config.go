@@ -41,13 +41,13 @@ func ValidateFilterPolicy(policy FilterPolicy) error {
 
 	if policy.Include != nil {
 		if err := ValidatePolicyMatch(policy.Include); err != nil {
-			return fmt.Errorf("invalid include policy %w", err)
+			return fmt.Errorf("invalid include policy: %w", err)
 		}
 	}
 
 	if policy.Exclude != nil {
 		if err := ValidatePolicyMatch(policy.Exclude); err != nil {
-			return fmt.Errorf("invalid exclude policy %w", err)
+			return fmt.Errorf("invalid exclude policy: %w", err)
 		}
 	}
 

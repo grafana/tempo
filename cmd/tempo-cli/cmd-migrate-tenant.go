@@ -22,7 +22,7 @@ func (cmd *migrateTenantCmd) Run(opts *globalOptions) error {
 
 	readerSource, readerDest, writerDest, err := cmd.setupBackends(opts)
 	if err != nil {
-		return fmt.Errorf("setting up backends %w", err)
+		return fmt.Errorf("setting up backends: %w", err)
 	}
 	defer func() {
 		readerSource.Shutdown()
@@ -31,7 +31,7 @@ func (cmd *migrateTenantCmd) Run(opts *globalOptions) error {
 
 	sourceTenantIndex, err := readerSource.TenantIndex(ctx, cmd.SourceTenantID)
 	if err != nil {
-		return fmt.Errorf("reading source tenant index %w", err)
+		return fmt.Errorf("reading source tenant index: %w", err)
 	}
 	fmt.Printf("Blocks in source: %d, compacted: %d\n", len(sourceTenantIndex.Meta), len(sourceTenantIndex.CompactedMeta))
 
@@ -61,12 +61,12 @@ blocks:
 
 		encoder, err := encoding.FromVersion(sourceBlockMeta.Version)
 		if err != nil {
-			return fmt.Errorf("creating encoder from version %w", err)
+			return fmt.Errorf("creating encoder from version: %w", err)
 		}
 
 		err = encoder.MigrateBlock(ctx, sourceBlockMeta, &destBlockMeta, readerSource, writerDest)
 		if err != nil {
-			return fmt.Errorf("copying block %w", err)
+			return fmt.Errorf("copying block: %w", err)
 		}
 
 		copiedBlocks++

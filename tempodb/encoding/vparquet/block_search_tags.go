@@ -271,7 +271,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldResourceAttrValBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return fmt.Errorf("search resource key values %w", err)
+			return fmt.Errorf("search resource key values: %w", err)
 		}
 	}
 
@@ -284,7 +284,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldSpanAttrValBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return fmt.Errorf("search span key values %w", err)
+			return fmt.Errorf("search span key values: %w", err)
 		}
 	}
 
@@ -336,7 +336,7 @@ func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return fmt.Errorf("iter.Next failed %w", err)
+			return fmt.Errorf("iter.Next failed: %w", err)
 		}
 		if match == nil {
 			break
