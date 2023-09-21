@@ -300,7 +300,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
 		for _, partialTrace := range partialTraces {
-			combiner.Consume(partialTrace)
+			_, err = combiner.Consume(partialTrace)
 			if err != nil {
 				return nil, err
 			}
