@@ -3,6 +3,7 @@ package localblocks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -22,7 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/pkg/errors"
 )
 
 const timeBuffer = 5 * time.Minute
@@ -67,7 +67,7 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 
 	err := p.reloadBlocks()
 	if err != nil {
-		return nil, errors.Wrap(err, "replaying blocks")
+		return nil, fmt.Errorf("replaying blocks: %w", err)
 	}
 
 	p.wg.Add(4)

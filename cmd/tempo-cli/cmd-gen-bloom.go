@@ -3,12 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
-
-	"github.com/pkg/errors"
 
 	"github.com/google/uuid"
 	willf_bloom "github.com/willf/bloom"

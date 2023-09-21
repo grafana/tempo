@@ -2,11 +2,11 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/grafana/dskit/services"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 )

@@ -1,6 +1,7 @@
 package vparquet3
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

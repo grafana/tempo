@@ -2,13 +2,13 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 

@@ -16,7 +16,6 @@ import (
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	oc "go.opencensus.io/trace"
@@ -225,7 +224,7 @@ func installOpenTracingTracer(config *app.Config) (func(), error) {
 	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
 	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
 	if err != nil {
-		return nil, errors.Wrap(err, "error initialising tracer")
+		return nil, fmt.Errorf("error initialising tracer %w", err)
 	}
 	return func() {
 		if err := trace.Close(); err != nil {
@@ -243,7 +242,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 
 	exp, err := jaeger.New(jaeger.WithCollectorEndpoint())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create Jaeger exporter")
+		return nil, fmt.Errorf("failed to create Jaeger exporter %w", err)
 	}
 
 	resources, err := resource.New(context.Background(),
@@ -254,7 +253,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 		resource.WithHost(),
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialise trace resuorces")
+		return nil, fmt.Errorf("failed to initialise trace resources %w", err)
 	}
 
 	tp := tracesdk.NewTracerProvider(

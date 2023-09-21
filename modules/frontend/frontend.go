@@ -15,7 +15,6 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -131,7 +130,7 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
-					return nil, errors.Wrap(err, "error reading response body at query frontend")
+					return nil, fmt.Errorf("error reading response body at query frontend %w", err)
 				}
 				responseObject := &tempopb.TraceByIDResponse{}
 				err = proto.Unmarshal(body, responseObject)

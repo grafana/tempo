@@ -2,9 +2,8 @@ package model
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-
-	"github.com/pkg/errors"
 )
 
 type objectCombiner struct{}

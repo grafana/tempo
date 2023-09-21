@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -132,7 +132,7 @@ func (f *Frontend) starting(ctx context.Context) error {
 	f.subservicesWatcher.WatchManager(f.subservices)
 
 	if err := services.StartManagerAndAwaitHealthy(ctx, f.subservices); err != nil {
-		return errors.Wrap(err, "unable to start frontend subservices")
+		return fmt.Errorf("unable to start frontend subservices %w", err)
 	}
 
 	return nil
@@ -144,7 +144,7 @@ func (f *Frontend) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-f.subservicesWatcher.Chan():
-			return errors.Wrap(err, "frontend subservice failed")
+			return fmt.Errorf("frontend subservice failed %w", err)
 		}
 	}
 }
@@ -321,7 +321,7 @@ func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan 
 			err = reqBatch.reportResultsToPipeline(resp.HttpResponseBatch)
 		}
 		if err != nil {
-			return errors.Wrap(err, "unexpected error reporting results upstream")
+			return fmt.Errorf("unexpected error reporting results upstream %w", err)
 		}
 	}
 

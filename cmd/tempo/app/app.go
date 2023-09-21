@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/signals"
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"google.golang.org/grpc"
@@ -276,7 +276,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 	case "":
 		output = t.cfg
 	default:
-		return errors.Errorf("unknown value for mode query parameter: %v", mode)
+		return fmt.Errorf("unknown value for mode query parameter: %v", mode)
 	}
 
 	out, err := yaml.Marshal(output)
@@ -410,7 +410,7 @@ func (t *App) statusHandler() http.HandlerFunc {
 					if err == nil {
 						err = e
 					} else {
-						err = errors.Wrap(err, e.Error())
+						err = fmt.Errorf("%w", err)
 					}
 				}
 			}
@@ -488,7 +488,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 		return nil
 	})
 	if err != nil {
-		return errors.Wrap(err, "error walking routes")
+		return fmt.Errorf("error walking routes %w", err)
 	}
 
 	sort.Slice(endpoints[:], func(i, j int) bool {
@@ -510,7 +510,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n\n", apiDocs)))
 	if err != nil {
-		return errors.Wrap(err, "error writing status endpoints")
+		return fmt.Errorf("error writing status endpoints %w", err)
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -14,7 +15,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
 	"github.com/grafana/gomemcache/memcache"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sony/gobreaker"
@@ -214,7 +214,7 @@ func (c *memcachedClient) Set(item *memcache.Item) error {
 		return err
 	}
 
-	return errors.Wrapf(err, "server=%s", addr)
+	return fmt.Errorf("server=%s: %w", addr, err)
 }
 
 func (c *memcachedClient) updateLoop(updateInterval time.Duration) {

@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
@@ -141,7 +141,7 @@ func (i *Ingester) loop(ctx context.Context) error {
 			return nil
 
 		case err := <-i.subservicesWatcher.Chan():
-			return fmt.Errorf("ingester subservice failed %w", err)
+			return fmt.Errorf("ingester subservice failed: %w", err)
 		}
 	}
 }
@@ -208,13 +208,13 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	for i, t := range req.Traces {
 		trace, err := v1Decoder.PrepareForRead([][]byte{t.Slice})
 		if err != nil {
-			return nil, fmt.Errorf("error calling v1.PrepareForRead %w", err)
+			return nil, fmt.Errorf("error calling v1.PrepareForRead: %w", err)
 		}
 
 		now := uint32(time.Now().Unix())
 		v2Slice, err := v2Decoder.PrepareForWrite(trace, now, now)
 		if err != nil {
-			return nil, fmt.Errorf("error calling v2.PrepareForWrite %w", err)
+			return nil, fmt.Errorf("error calling v2.PrepareForWrite: %w", err)
 		}
 
 		req.Traces[i].Slice = v2Slice
@@ -285,7 +285,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 
 func (i *Ingester) CheckReady(ctx context.Context) error {
 	if err := i.lifecycler.CheckReady(ctx); err != nil {
-		return fmt.Errorf("ingester check ready failed %w", err)
+		return fmt.Errorf("ingester check ready failed: %w", err)
 	}
 
 	return nil
@@ -393,7 +393,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 	reader := backend.NewReader(i.local)
 	tenants, err := reader.Tenants(ctx)
 	if err != nil {
-		return errors.Wrap(err, "getting local tenants")
+		return fmt.Errorf("getting local tenants: %w", err)
 	}
 
 	level.Info(log.Logger).Log("msg", "reloading local blocks", "tenants", len(tenants))
@@ -416,7 +416,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 
 		newBlocks, err := inst.rediscoverLocalBlocks(ctx)
 		if err != nil {
-			return errors.Wrapf(err, "getting local blocks for tenant %v", t)
+			return fmt.Errorf("getting local blocks for tenant %v: %w", t, err)
 		}
 
 		// Requeue needed flushes

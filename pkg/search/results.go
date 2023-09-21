@@ -2,9 +2,9 @@ package search
 
 import (
 	"context"
+	"errors"
 	"sync"
 
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/tempopb"

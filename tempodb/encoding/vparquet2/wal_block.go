@@ -3,6 +3,7 @@ package vparquet2
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -23,7 +24,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -510,13 +510,13 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.Se
 
 			err = r.SeekToRow(rowNumber)
 			if err != nil {
-				return nil, errors.Wrap(err, "seek to row")
+				return nil, fmt.Errorf("seek to row %w", err)
 			}
 
 			tr := new(Trace)
 			err = r.Read(tr)
 			if err != nil {
-				return nil, errors.Wrap(err, "error reading row from backend")
+				return nil, fmt.Errorf("error reading row from backend %w", err)
 			}
 
 			trp := ParquetTraceToTempopbTrace(tr)
@@ -624,7 +624,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
-		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
+		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid %w", err)
 	}
 
 	blockFlushes := b.readFlushes()
@@ -641,7 +641,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		iter, err := fetch(ctx, req, pf, opts)
 		if err != nil {
-			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
+			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter %w", err)
 		}
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
