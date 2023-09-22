@@ -15,6 +15,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -30,12 +31,13 @@ type UserConfigOverridesAPI struct {
 	services.Service
 
 	client    client.Client
+	overrides overrides.Interface
 	validator Validator
 
 	logger log.Logger
 }
 
-func New(config *client.Config, validator Validator) (*UserConfigOverridesAPI, error) {
+func New(config *client.Config, overrides overrides.Interface, validator Validator) (*UserConfigOverridesAPI, error) {
 	client, err := client.New(config)
 	if err != nil {
 		return nil, err
@@ -43,6 +45,7 @@ func New(config *client.Config, validator Validator) (*UserConfigOverridesAPI, e
 
 	api := &UserConfigOverridesAPI{
 		client:    client,
+		overrides: overrides,
 		validator: validator,
 
 		logger: log.With(tempo_log.Logger, "component", "overrides-api"),
