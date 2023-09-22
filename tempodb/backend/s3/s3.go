@@ -429,34 +429,28 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return p
 	}
 
-	var chain []credentials.Provider
+	chain := []credentials.Provider{
+		wrapCredentialsProvider(&credentials.EnvAWS{}),
+		wrapCredentialsProvider(&credentials.Static{
+			Value: credentials.Value{
+				AccessKeyID:     cfg.AccessKey,
+				SecretAccessKey: cfg.SecretKey.String(),
+			},
+		}),
+		wrapCredentialsProvider(&credentials.EnvMinio{}),
+		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
+		wrapCredentialsProvider(&credentials.FileMinioClient{}),
+		wrapCredentialsProvider(&credentials.IAM{
+			Client: &http.Client{
+				Transport: http.DefaultTransport,
+			},
+		}),
+	}
 
-	if cfg.NativeAWSAuthEnabled {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(NewAWSSDKAuth(cfg.Region)),
-		}
-	} else if cfg.AccessKey != "" {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(&credentials.Static{
-				Value: credentials.Value{
-					AccessKeyID:     cfg.AccessKey,
-					SecretAccessKey: cfg.SecretKey.String(),
-					SessionToken:    cfg.SessionToken.String(),
-				},
-			}),
-		}
-	} else {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(&credentials.EnvAWS{}),
-			wrapCredentialsProvider(&credentials.EnvMinio{}),
-			wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
-			wrapCredentialsProvider(&credentials.FileMinioClient{}),
-			wrapCredentialsProvider(&credentials.IAM{
-				Client: &http.Client{
-					Transport: http.DefaultTransport,
-				},
-			}),
-		}
+	creds := credentials.NewChainCredentials(chain)
+
+	if _, err := creds.Get(); err != nil {
+		return nil, errors.Wrap(err, "creds.Get")
 	}
 
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
@@ -488,7 +482,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	opts := &minio.Options{
 		Region:    cfg.Region,
 		Secure:    !cfg.Insecure,
-		Creds:     credentials.NewChainCredentials(chain),
+		Creds:     creds,
 		Transport: transport,
 	}
 
