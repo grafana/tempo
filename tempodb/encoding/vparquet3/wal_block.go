@@ -500,7 +500,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -533,9 +533,12 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.Searc
 		}
 	}
 
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(opts.MaxBytes)
 	for i, tr := range trs {
-		combiner.ConsumeWithFinal(tr, i == len(trs)-1)
+		_, err := combiner.ConsumeWithFinal(tr, i == len(trs)-1)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tr, _ := combiner.Result()
@@ -787,11 +790,11 @@ func newCommonIterator(meta *backend.BlockMeta, iter *MultiBlockIterator[parquet
 
 func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
 	id, row, err := i.iter.Next(ctx)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, err
 	}
 
-	if row == nil || err == io.EOF {
+	if row == nil || errors.Is(err, io.EOF) {
 		return nil, nil, nil
 	}
 

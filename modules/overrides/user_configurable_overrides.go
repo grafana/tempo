@@ -155,7 +155,7 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 	// For every tenant with user-configurable overrides, download and cache them
 	for _, tenant := range tenants {
 		limits, _, err := o.client.Get(ctx, tenant)
-		if err == backend.ErrDoesNotExist {
+		if errors.Is(err, backend.ErrDoesNotExist) {
 			o.setTenantLimit(tenant, nil)
 			continue
 		}
@@ -276,6 +276,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsH
 		return histogramBuckets
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
+	if targetInfoExcludedDimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetTargetInfoExcludedDimensions(); ok {
+		return targetInfoExcludedDimensions
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
 }
 
 // statusUserConfigurableOverrides used to marshal userconfigurableoverrides.Limits for tenants

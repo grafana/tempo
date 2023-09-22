@@ -10,6 +10,7 @@ import (
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/golang/protobuf/proto"  //nolint:all //ProtoReflect
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -296,9 +297,21 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func handleError(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+
 	if errors.Is(err, context.Canceled) {
+		// todo: context is also canceled when we hit the query timeout. research what the behavior is
 		// ignore this error. we regularly cancel context once queries are complete
 		return
 	}
+
+	// todo: better understand all errors returned from queriers and categorize more as 4XX
+	if errors.Is(err, trace.ErrTraceTooLarge) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }

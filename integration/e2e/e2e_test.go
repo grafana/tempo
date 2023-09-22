@@ -434,7 +434,7 @@ func makeThriftBatchWithSpanCountAttributeAndName(n int, name, tagValue string) 
 			OperationName: name,
 			References:    nil,
 			Flags:         0,
-			StartTime:     time.Now().Unix(),
+			StartTime:     time.Now().UnixNano() / 1000, // microsecconds
 			Duration:      1,
 			Tags: []*thrift.Tag{
 				{

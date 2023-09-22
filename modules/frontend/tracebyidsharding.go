@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto" //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -28,12 +29,13 @@ const (
 	maxQueryShards = 100_000
 )
 
-func newTraceByIDSharder(cfg *TraceByIDConfig, logger log.Logger) Middleware {
+func newTraceByIDSharder(cfg *TraceByIDConfig, o overrides.Interface, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			cfg:             cfg,
 			logger:          logger,
+			o:               o,
 			blockBoundaries: createBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
 		}
 	})
@@ -43,6 +45,7 @@ type shardQuery struct {
 	next            http.RoundTripper
 	cfg             *TraceByIDConfig
 	logger          log.Logger
+	o               overrides.Interface
 	blockBoundaries [][]byte
 }
 
@@ -52,7 +55,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
 
-	_, err := user.ExtractOrgID(ctx)
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
@@ -76,8 +79,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	mtx := sync.Mutex{}
 
 	var overallError error
-	combiner := trace.NewCombiner()
-	combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
+	combiner := trace.NewCombiner(s.o.MaxBytesPerTrace(userID))
+	_, _ = combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -143,7 +146,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			statusCode = http.StatusOK
-			combiner.Consume(traceResp.Trace)
+			_, err = combiner.Consume(traceResp.Trace)
+			if err != nil {
+				overallError = err
+			}
 		}(req)
 	}
 	wg.Wait()
@@ -154,11 +160,12 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	overallTrace, _ := combiner.Result()
 	if overallTrace == nil || statusCode != http.StatusOK {
+		// TODO: reevaluate - should we propagate 400's back to the user?
 		// translate non-404s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
 		if statusCode != http.StatusNotFound {
-			statusCode = 500
+			statusCode = http.StatusInternalServerError
 		}
 
 		return &http.Response{

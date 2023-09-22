@@ -172,7 +172,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	var objects []string
 	for {
 		attrs, err := iter.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -325,7 +325,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	totalBytes := 0
 	for {
 		byteCount, err := r.Read(buffer[totalBytes:])
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -388,7 +388,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 }
 
 func readError(err error) error {
-	if err == storage.ErrObjectNotExist {
+	if errors.Is(err, storage.ErrObjectNotExist) {
 		return backend.ErrDoesNotExist
 	}
 

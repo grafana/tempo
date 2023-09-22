@@ -49,7 +49,7 @@ func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSi
 	}
 }
 
-func (e traceTooLargeError) Error() string {
+func (e *traceTooLargeError) Error() string {
 	return fmt.Sprintf(
 		"%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
 		overrides.ErrorPrefixTraceTooLarge, e.maxBytes, e.reqSize, hex.EncodeToString(e.traceID), e.instanceID)
@@ -165,7 +165,7 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
 	i.measureReceivedBytes(traceBytes)
 
 	if !validation.ValidTraceID(id) {
@@ -192,7 +192,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		prevSize := int(i.traceSizes[tkn])
 		reqSize := len(traceBytes)
 		if prevSize+reqSize > maxBytes {
-			return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error()))
+			return status.Errorf(codes.FailedPrecondition, newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error())
 		}
 	}
 
@@ -200,8 +200,9 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 
 	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
-		if e, ok := err.(*traceTooLargeError); ok {
-			return status.Errorf(codes.FailedPrecondition, e.Error())
+		var ttlErr *traceTooLargeError
+		if ok := errors.As(err, &ttlErr); ok {
+			return status.Errorf(codes.FailedPrecondition, err.Error())
 		}
 		return err
 	}
@@ -407,37 +408,52 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 	i.tracesMtx.Unlock()
 
-	combiner := trace.NewCombiner()
-	combiner.Consume(completeTrace)
+	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+	combiner := trace.NewCombiner(maxBytes)
+	_, err = combiner.Consume(completeTrace)
+	if err != nil {
+		return nil, err
+	}
 
 	// headBlock
 	i.headBlockMtx.RLock()
-	tr, err := i.headBlock.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+	tr, err := i.headBlock.FindTraceByID(ctx, id, searchOpts)
 	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
-	combiner.Consume(tr)
+	_, err = combiner.Consume(tr)
+	if err != nil {
+		return nil, err
+	}
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		tr, err = c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+		tr, err = c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
-		combiner.Consume(tr)
+		_, err = combiner.Consume(tr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// completeBlock
 	for _, c := range i.completeBlocks {
-		found, err := c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+		found, err := c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
-		combiner.Consume(found)
+		_, err = combiner.Consume(found)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result, _ := combiner.Result()
@@ -575,7 +591,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 		// If meta missing then block was not successfully written.
 		meta, err := i.localReader.BlockMeta(ctx, id, i.instanceID)
 		if err != nil {
-			if err == backend.ErrDoesNotExist {
+			if errors.Is(err, backend.ErrDoesNotExist) {
 				// Partial/incomplete block found, remove, it will be recreated from data in the wal.
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)

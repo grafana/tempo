@@ -11,6 +11,7 @@ import (
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
 	otlog "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -118,16 +119,16 @@ type result struct {
 
 func memcacheStatusCode(err error) string {
 	// See https://godoc.org/github.com/bradfitz/gomemcache/memcache#pkg-variables
-	switch err {
-	case nil:
-		return "200"
-	case memcache.ErrCacheMiss:
+	if errors.Is(err, memcache.ErrCacheMiss) {
 		return "404"
-	case memcache.ErrMalformedKey:
+	}
+	if errors.Is(err, memcache.ErrMalformedKey) {
 		return "400"
-	default:
+	}
+	if err != nil {
 		return "500"
 	}
+	return "200"
 }
 
 // Fetch gets keys from the cache. The keys that are found must be in the order of the keys requested.

@@ -156,15 +156,12 @@ func copyHeader(dst, src http.Header) {
 // httpgrpc errors can bubble up to here and should be translated to http errors. It returns
 // httpgrpc error.
 func writeError(w http.ResponseWriter, err error) error {
-	switch err {
-	case context.Canceled:
+	if errors.Is(err, context.Canceled) {
 		err = errCanceled
-	case context.DeadlineExceeded:
+	} else if errors.Is(err, context.DeadlineExceeded) {
 		err = errDeadlineExceeded
-	default:
-		if isRequestBodyTooLarge(err) {
-			err = errRequestEntityTooLarge
-		}
+	} else if isRequestBodyTooLarge(err) {
+		err = errRequestEntityTooLarge
 	}
 	server.WriteError(w, err)
 	return err

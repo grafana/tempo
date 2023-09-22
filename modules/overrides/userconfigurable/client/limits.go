@@ -118,10 +118,11 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetHistogramBuckets() ([]
 }
 
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions       *[]string                    `json:"dimensions,omitempty"`
-	EnableTargetInfo *bool                        `json:"enable_target_info,omitempty"`
-	FilterPolicies   *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
-	HistogramBuckets *[]float64                   `json:"histogram_buckets,omitempty"`
+	Dimensions                   *[]string                    `json:"dimensions,omitempty"`
+	EnableTargetInfo             *bool                        `json:"enable_target_info,omitempty"`
+	FilterPolicies               *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
+	HistogramBuckets             *[]float64                   `json:"histogram_buckets,omitempty"`
+	TargetInfoExcludedDimensions *[]string                    `json:"target_info_excluded_dimensions,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -150,4 +151,11 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetHistogramBuckets() ([]fl
 		return *l.HistogramBuckets, true
 	}
 	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimensions() ([]string, bool) {
+	if l != nil && l.TargetInfoExcludedDimensions != nil {
+		return *l.TargetInfoExcludedDimensions, true
+	}
+	return nil, true
 }

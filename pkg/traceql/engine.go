@@ -7,6 +7,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -105,7 +107,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	combiner := NewMetadataCombiner()
 	for {
 		spanset, err := iterator.Next(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			span.LogKV("msg", "iterator.Next", "err", err)
 			return nil, err
 		}
@@ -219,7 +221,7 @@ func (e *Engine) ExecuteTagValues(
 
 	for {
 		spanset, err := iterator.Next(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			span.LogKV("msg", "iterator.Next", "err", err)
 			return err
 		}

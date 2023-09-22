@@ -77,7 +77,7 @@ type lexer struct {
 	scanner.Scanner
 	expr   *RootExpr
 	parser *yyParserImpl
-	errs   []ParseError
+	errs   []*ParseError
 
 	parsingAttribute bool
 }
