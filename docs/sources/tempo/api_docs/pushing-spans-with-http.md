@@ -9,101 +9,126 @@ aliases:
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
 or a span ingestion pipeline in order to push spans.  This guide aims to show an extremely basic technique for
-pushing spans with HTTP/JSON from a Bash script using the [Zipkin](https://zipkin.io/) receiver.
+pushing spans with HTTP/JSON from a Bash script using the [OpenTelemetry](https://opentelemetry.io/docs/specs/otlp/) receiver.
 
-## Start Tempo
+## Before you begin
 
-Let's first start Tempo with the Zipkin receiver configured.  In order to do this create a config file like so:
+This procedure uses an example Docker Compose setup to run Tempo, so you do not need an existing installation. The Docker image also includes a Grafana container which will allow us to visualize traces.
 
-```yaml
-server:
-  http_listen_port: 3200
+To use this procedure, you need to have Docker and `docker compose` installed.
 
-distributor:
-  receivers:
-    zipkin:
 
-storage:
-  trace:
-    backend: local
-    local:
-      path: /tmp/tempo/blocks
-```
+## Start Tempo using the quick start
 
-and run Tempo using it:
+Use the instructions in the [Quick start for Tempo documentation]({{< relref "../getting-started/docker-example" >}}) to start a local instance of Tempo and Grafana.
+
+## Push spans with OTLP
+
+Now that Tempo is running and listening on port 4318 for [OTLP spans](https://opentelemetry.io/docs/specs/otlp/#otlphttp), let’s push a span to it using `curl`.
+
+Before you can use this example, you need to update the start and end time as instructed.
 
 ```bash
-docker run -p 9411:9411 -p 3200:3200 -v $(pwd)/config.yaml:/config.yaml grafana/tempo:latest -config.file /config.yaml
+curl -X POST -H 'Content-Type: application/json' http://localhost:4318/v1/traces -d '
+{
+	"resourceSpans": [{
+    	"resource": {
+        	"attributes": [{
+            	"key": "service.name",
+            	"value": {
+                	"stringValue": "my.service"
+            	}
+        	}]
+    	},
+    	"scopeSpans": [{
+        	"scope": {
+            	"name": "my.library",
+            	"version": "1.0.0",
+            	"attributes": [{
+                	"key": "my.scope.attribute",
+                	"value": {
+                    	"stringValue": "some scope attribute"
+                	}
+            	}]
+        	},
+        	"spans": [
+        	{
+            	"traceId": "5B8EFFF798038103D269B633813FC700",
+            	"spanId": "EEE19B7EC3C1B100",
+            	"name": "I am a span!",
+            	"startTimeUnixNano": 1689969302000000000,
+            	"endTimeUnixNano": 1689970000000000000,
+            	"kind": 2,
+            	"attributes": [
+            	{
+                	"key": "my.span.attr",
+                	"value": {
+                    	"stringValue": "some value"
+                	}
+            	}]
+        	}]
+    	}]
+	}]
+}'
 ```
 
-## Push spans
+Note that the `startTimeUnixNano` field is in nanoseconds and can be obtained by any tool that provides the epoch date in nanoseconds (for example, under Linux, `date +%s%8N`). The `endTimeUnixNano` field is also in nanoseconds, where 100000000 nanoseconds is 100 milliseconds.
 
-Now that Tempo is running and listening on port 9411 for [Zipkin spans](https://zipkin.io/zipkin-api/#/default/post_spans), let's push a span to it using `curl`.
+1. Copy and paste the curl command into a text editor.
 
-```bash
-curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
- "id": "1234",
- "traceId": "0123456789abcdef",
- "timestamp": 1608239395286533,
- "duration": 100000,
- "name": "span from bash!",
- "tags": {
-    "http.method": "GET",
-    "http.path": "/api"
-  },
-  "localEndpoint": {
-    "serviceName": "shell script"
-  }
-}]'
-```
+1. Replace `startTimeUnixNano` and `endTimeUnixNano` with current values for the last 24 hours to allow you to search for them using a 24 hour relative time range. You can get this in seconds and milliseconds from the following link.
+Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You can do this from a bash terminal with:
 
-Note that the `timestamp` field is in microseconds and was obtained by running `date +%s%6N`.  The `duration` field is also in microseconds and so 100000 is 100 milliseconds.
+   ```bash
+   echo $((<epochTimeMilliseconds> * 1000000))
+   ```
+
+1. Copy the updated curl command to a terminal window and run it.
+
+1. View the trace in Grafana:
+   1. Open a browser window to http://localhost:3000.
+   1. Open the **Explorer** page and select the Tempo data source.
+   1. Select the **Search** query type.
+   1. Select **Run query** to list available traces.
+   1. Select the trace ID (yellow box) to view details about the trace and its spans.
+
+![Using the TraceQL query builder on Explore to view pushed trace in Grafana.](/static/img/docs/tempo/push-spans-search-span-grafana.png "View the span in Grafana")
 
 ## Retrieve traces
 
 The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
-```bash
-curl http://localhost:3200/api/traces/0123456789abcdef
-
-{"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"shell script"}}]},"instrumentationLibrarySpans":[{"spans":[{"traceId":"AAAAAAAAAAABI0VniavN7w==","spanId":"AAAAAAAAEjQ=","name":"span from bash!","startTimeUnixNano":"1608239395286533000","endTimeUnixNano":"1608239395386533000","attributes":[{"key":"http.path","value":{"stringValue":"/api"}},{"key":"http.method","value":{"stringValue":"GET"}}]}]}]}]}
-```
-
-However, staring at a json blob in bash is not very fun.  Let's start up Tempo query so we can visualize our trace.  Tempo query is [Jaeger Query](https://hub.docker.com/r/jaegertracing/jaeger-query/) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
+1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
 
 ```bash
-docker run --env BACKEND=localhost:3200 --net host grafana/tempo-query:latest
+curl http://localhost:3200/api/traces/5b8efff798038103d269b633813fc700
+
+{"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]},"scopeSpans":[{"scope":{"name":"my.library","version":"1.0.0"},"spans":[{"traceId":"W47/95gDgQPSabYzgT/HAA==","spanId":"7uGbfsPBsQA=","name":"I am a span!","kind":"SPAN_KIND_SERVER","startTimeUnixNano":"1689969302000000000","endTimeUnixNano":"1689970000000000000","attributes":[{"key":"my.span.attr","value":{"stringValue":"some value"}}],"status":{}}]}]}]}
 ```
 
-And open `http://localhost:16686/trace/0123456789abcdef` in the browser of your choice to see:
+1. Copy and paste the updated `curl` command into a terminal window.
 
-<p align="center"><img src="../pushing-spans-with-http.png" alt="single span"></p>
+### Use TraceQL to search for a trace
 
-## More spans
-
-Now that we have the basics down, it's easy to continue building our trace.  By specifying the same trace ID and a parent span ID, we can start building a trace.
+Alternatively, you can also use [TraceQL]({{< relref "../traceql" >}}) to search for the trace that was pushed.
+You can search by using the unique trace attributes that were set:
 
 ```bash
-curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
- "id": "5678",
- "traceId": "0123456789abcdef",
- "parentId": "1234",
- "timestamp": 1608239395316533,
- "duration": 100000,
- "name": "child span from bash!",
-  "localEndpoint": {
-    "serviceName": "shell script"
-  }
-}]'
+curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }'
+
+{"traces":[{"traceID":"5b8efff798038103d269b633813fc700","rootServiceName":"my.service","rootTraceName":"I am a span!","startTimeUnixNano":"1694718625557000000","durationMs":10000,"spanSet":{"spans":[{"spanID":"eee19b7ec3c1b100","startTimeUnixNano":"1694718625557000000","durationNanos":"10000000000","attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]}],"matched":1},"spanSets":[{"spans":[{"spanID":"eee19b7ec3c1b100","startTimeUnixNano":"1694718625557000000","durationNanos":"10000000000","attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]}],"matched":1}]}],"metrics":{"inspectedBytes":"292781","completedJobs":1,"totalJobs":1}}
 ```
 
-And now the UI shows:
-<p align="center"><img src="../pushing-spans-with-http2.png" alt="parent and child spans"></p>
+To format this in a more human-readable output, consider using a [tool such as `jq`](https://jqlang.github.io/jq/), which lets you to run the same `curl` command and pipe it to `jq` to format the block. For example:
+
+```bash
+curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }' | jq
+```
 
 ## Spans from everything!
 
 Tracing is not limited to enterprise languages with complex frameworks.  As you can see it's easy to store and track events from your js, python or bash scripts.
-You can use Tempo/distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows or anything else
+You can use Tempo/distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows, or anything else
 you can think of.
 
 Happy tracing!
