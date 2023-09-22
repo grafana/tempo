@@ -154,7 +154,7 @@ check-jsonnetfmt: jsonnetfmt
 
 .PHONY: lint
 lint:
-	$(LINT) run
+	$(LINT) run --config .golangci.yml
 
 ### Docker Images
 

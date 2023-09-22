@@ -679,7 +679,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 			if pg == nil || err != nil {
 				// No more pages in this column chunk,
 				// cleanup and exit.
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					err = nil
 				}
 				pq.Release(pg)
@@ -734,7 +734,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 
 		if c.currPage == nil {
 			pg, err := c.currChunk.NextPage()
-			if pg == nil || err == io.EOF {
+			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
 				continue
@@ -758,7 +758,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
 			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
 			}
 			c.currBuf = c.currBuf[:n]
@@ -982,7 +982,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			}()
 			for {
 				pg, err := col.NextPage()
-				if pg == nil || err == io.EOF {
+				if pg == nil || errors.Is(err, io.EOF) {
 					break
 				}
 				if err != nil {
@@ -1053,7 +1053,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 						// Error checks MUST occur after processing any returned data
 						// following io.Reader behavior.
-						if err == io.EOF {
+						if errors.Is(err, io.EOF) {
 							break
 						}
 						if err != nil {

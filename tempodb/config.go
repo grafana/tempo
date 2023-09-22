@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/tempodb/backend/azure"
+	azure "github.com/grafana/tempo/tempodb/backend/azure/config"
 	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
 	"github.com/grafana/tempo/tempodb/backend/cache/redis"
 	"github.com/grafana/tempo/tempodb/backend/gcs"

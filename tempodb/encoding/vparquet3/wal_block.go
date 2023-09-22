@@ -790,11 +790,11 @@ func newCommonIterator(meta *backend.BlockMeta, iter *MultiBlockIterator[parquet
 
 func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
 	id, row, err := i.iter.Next(ctx)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, err
 	}
 
-	if row == nil || err == io.EOF {
+	if row == nil || errors.Is(err, io.EOF) {
 		return nil, nil, nil
 	}
 

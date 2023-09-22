@@ -16,6 +16,7 @@ import (
 	"github.com/go-test/deep"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -467,7 +468,7 @@ func queryTrace(client *httpclient.Client, info *util.TraceInfo) (traceMetrics, 
 
 	trace, err := client.QueryTrace(hexID)
 	if err != nil {
-		if err == util.ErrTraceNotFound {
+		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++
 		} else {
 			tm.requestFailed++

@@ -15,18 +15,20 @@ The Tempo examples running with Docker using docker-compose all include a versio
 This quick start guide uses the `local` example running Tempo as a single binary (monolithic). Any data is stored locally in the `tempo-data` folder.
 To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
 
-## Alternative: Complete MLT example
+## Alternative: Complete MLTP example
 
-If you would like to use a demo with Tempo, Mimir, Loki and Grafana, then try the [Introduction to Metrics, Logs and Traces in Grafana](https://github.com/grafana/intro-to-mlt).
-Intro-to-mlt provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana.
-It includes detailed explanations of each component and annotated configurations for a single-instance deployment.
-Data from intro-to-mlt can also be pushed to Grafana Cloud.
+If you would like to use a demo with Tempo, Mimir, Loki, and Grafana, then try the [Introduction to Metrics, Logs, Traces, and Profiling in Grafana](https://github.com/grafana/intro-to-mlt).
+`Intro-to-mltp` provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana.
+The project includes detailed explanations of each component and annotated configurations for a single-instance deployment.
+Data from `intro-to-mltp` can also be pushed to Grafana Cloud.
 
 ## Before you begin
 
 To follow this guide, you need:
 
-- Git, Docker, and the docker-compose plugin
+- Git
+- Docker
+- The docker-compose plugin
 
 ## Clone the Tempo repository and start Docker
 

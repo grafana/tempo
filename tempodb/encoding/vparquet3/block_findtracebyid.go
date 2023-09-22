@@ -71,7 +71,7 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 	defer span.Finish()
 
 	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, true)
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		return true, -1, nil
 	}
 	if err != nil {
@@ -168,7 +168,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 			}
 
 			c, err := page.Values().ReadValues(buf)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return nil, err
 			}
 			if c < 1 {

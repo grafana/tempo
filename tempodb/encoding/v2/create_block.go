@@ -59,7 +59,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	var tracker backend.AppendTracker
 	for {
 		id, trBytes, err := next(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, errors.Wrap(err, "error iterating")
 		}
 

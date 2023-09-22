@@ -1,4 +1,4 @@
-package azure
+package config
 
 import (
 	"flag"
@@ -22,6 +22,7 @@ type Config struct {
 	BufferSize         int            `yaml:"buffer_size"`
 	HedgeRequestsAt    time.Duration  `yaml:"hedge_requests_at"`
 	HedgeRequestsUpTo  int            `yaml:"hedge_requests_up_to"`
+	UseV2SDK           bool           `yaml:"use_v2_sdk"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -31,6 +32,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Prefix, util.PrefixConfig(prefix, "azure.prefix"), "", "Azure container prefix to store blocks in.")
 	f.StringVar(&cfg.Endpoint, util.PrefixConfig(prefix, "azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
 	f.IntVar(&cfg.MaxBuffers, util.PrefixConfig(prefix, "azure.max_buffers"), 4, "Number of simultaneous uploads.")
+	f.BoolVar(&cfg.UseV2SDK, util.PrefixConfig(prefix, "azure.use_v2_sdk"), false, "Use the new Azure SDK, disabled by default.")
 	cfg.BufferSize = 3 * 1024 * 1024
 	cfg.HedgeRequestsUpTo = 2
 }
