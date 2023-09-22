@@ -68,7 +68,7 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 		return i.getTraceID(rows[0]), rows[0], nil
 	}
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil, nil, nil
 	}
 

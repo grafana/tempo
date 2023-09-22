@@ -56,7 +56,7 @@ func TestPrefetchIterates(t *testing.T) {
 		count := 0
 		for {
 			id, obj, err := prefetchIter.NextBytes(context.TODO())
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			if err != nil {

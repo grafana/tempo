@@ -56,7 +56,7 @@ func searchRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchM
 
 	for _, req := range searchesThatMatch {
 		res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
-		if err == common.ErrUnsupported {
+		if errors.Is(err, common.ErrUnsupported) {
 			return
 		}
 		require.NoError(t, err, "search request: %+v", req)

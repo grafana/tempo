@@ -8,6 +8,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
+	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -50,7 +51,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	for {
 		attrs, err := iter.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

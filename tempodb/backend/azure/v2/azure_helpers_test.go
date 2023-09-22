@@ -1,4 +1,4 @@
-package azure
+package v2
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/grafana/tempo/tempodb/backend/azure/config"
 )
 
 const (
@@ -17,14 +19,14 @@ const (
 // TestGetStorageAccountName* explicitly broken out into
 // separate tests instead of table-driven due to usage of t.SetEnv
 func TestGetStorageAccountNameInConfig(t *testing.T) {
-	cfg := Config{StorageAccountName: TestStorageAccountName}
+	cfg := config.Config{StorageAccountName: TestStorageAccountName}
 
 	actual := getStorageAccountName(&cfg)
 	assert.Equal(t, TestStorageAccountName, actual)
 }
 
 func TestGetStorageAccountNameInEnv(t *testing.T) {
-	cfg := Config{}
+	cfg := config.Config{}
 	os.Setenv("AZURE_STORAGE_ACCOUNT", TestStorageAccountName)
 	defer os.Unsetenv("AZURE_STORAGE_ACCOUNT")
 
@@ -33,7 +35,7 @@ func TestGetStorageAccountNameInEnv(t *testing.T) {
 }
 
 func TestGetStorageAccountNameNotSet(t *testing.T) {
-	cfg := Config{}
+	cfg := config.Config{}
 
 	actual := getStorageAccountName(&cfg)
 	assert.Equal(t, "", actual)
@@ -43,14 +45,14 @@ func TestGetStorageAccountNameNotSet(t *testing.T) {
 // separate tests instead of table-driven due to usage of t.SetEnv
 func TestGetStorageAccountKeyInConfig(t *testing.T) {
 	storageAccountKeySecret := flagext.SecretWithValue(TestStorageAccountKey)
-	cfg := Config{StorageAccountKey: storageAccountKeySecret}
+	cfg := config.Config{StorageAccountKey: storageAccountKeySecret}
 
 	actual := getStorageAccountKey(&cfg)
 	assert.Equal(t, TestStorageAccountKey, actual)
 }
 
 func TestGetStorageAccountKeyInEnv(t *testing.T) {
-	cfg := Config{}
+	cfg := config.Config{}
 	os.Setenv("AZURE_STORAGE_KEY", TestStorageAccountKey)
 	defer os.Unsetenv("AZURE_STORAGE_KEY")
 
@@ -59,14 +61,14 @@ func TestGetStorageAccountKeyInEnv(t *testing.T) {
 }
 
 func TestGetStorageAccountKeyNotSet(t *testing.T) {
-	cfg := Config{}
+	cfg := config.Config{}
 
 	actual := getStorageAccountKey(&cfg)
 	assert.Equal(t, "", actual)
 }
 
 func TestGetContainerClient(t *testing.T) {
-	cfg := Config{
+	cfg := config.Config{
 		StorageAccountName: "devstoreaccount1",
 		StorageAccountKey:  flagext.SecretWithValue("dGVzdAo="),
 		ContainerName:      "traces",

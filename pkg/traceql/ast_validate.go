@@ -7,11 +7,11 @@ type unsupportedError struct {
 	feature string
 }
 
-func newUnsupportedError(feature string) unsupportedError {
-	return unsupportedError{feature: feature}
+func newUnsupportedError(feature string) *unsupportedError {
+	return &unsupportedError{feature: feature}
 }
 
-func (e unsupportedError) Error() string {
+func (e *unsupportedError) Error() string {
 	return e.feature + " not yet supported"
 }
 

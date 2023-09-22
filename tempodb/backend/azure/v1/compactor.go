@@ -1,4 +1,4 @@
-package azure
+package v1
 
 import (
 	"context"
@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
+	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
@@ -22,7 +21,7 @@ type BlobAttributes struct {
 	LastModified time.Time `json:"last_modified"`
 }
 
-func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *V1) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return backend.ErrEmptyTenantID
 	}
@@ -46,10 +45,10 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// delete the old file
-	return rw.Delete(ctx, metaFilename, []string{}, false)
+	return rw.delete(ctx, metaFilename)
 }
 
-func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *V1) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	var warning error
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
@@ -61,36 +60,37 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	ctx := context.TODO()
 
-	prefix := backend.RootPath(blockID, tenantID, rw.cfg.Prefix)
-	pager := rw.containerClient.NewListBlobsHierarchyPager("", &container.ListBlobsHierarchyOptions{
-		Include: container.ListBlobsInclude{},
-		Prefix:  &prefix,
-	})
+	marker := blob.Marker{}
 
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
+	for {
+		list, err := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, "", blob.ListBlobsSegmentOptions{
+			Prefix:  backend.RootPath(blockID, tenantID, rw.cfg.Prefix),
+			Details: blob.BlobListingDetails{},
+		})
 		if err != nil {
 			warning = err
 			continue
 		}
+		marker = list.NextMarker
 
-		for _, b := range page.Segment.BlobItems {
-			if b.Name == nil {
-				return errors.Errorf("unexpected empty blob name when listing %s", prefix)
-			}
-
-			err = rw.Delete(ctx, *b.Name, []string{}, false)
+		for _, blob := range list.Segment.BlobItems {
+			err = rw.delete(ctx, blob.Name)
 			if err != nil {
 				warning = err
 				continue
 			}
 		}
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+
 	}
 
 	return warning
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *V1) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -114,7 +114,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	return out, nil
 }
 
-func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
+func (rw *V1) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
 	bytes, _, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -127,28 +127,34 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 	return bytes, att.LastModified, nil
 }
 
-// getAttributes returns information about the specified blob using its name.
-func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
-	blobClient, err := getBlobClient(ctx, rw.cfg, name)
+// Attributes returns information about the specified blob using his name.
+func (rw *V1) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
+	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob client, name: %s", name)
+		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
 	}
 
-	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
+	var props *blob.BlobGetPropertiesResponse
+	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{}, blob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return BlobAttributes{}, err
 	}
 
-	if props.ContentLength == nil {
-		return BlobAttributes{}, errors.Errorf("expected content length but got none for blob %s", name)
-	}
-
-	if props.LastModified == nil {
-		return BlobAttributes{}, errors.Errorf("expected last modified but got none for blob %s", name)
-	}
-
 	return BlobAttributes{
-		Size:         *props.ContentLength,
-		LastModified: *props.LastModified,
+		Size:         props.ContentLength(),
+		LastModified: props.LastModified(),
 	}, nil
+}
+
+// Delete removes the blob with the given name.
+func (rw *V1) delete(ctx context.Context, name string) error {
+	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
+	if err != nil {
+		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
+	}
+
+	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
+		return errors.Wrapf(err, "error deleting blob, name: %s", name)
+	}
+	return nil
 }

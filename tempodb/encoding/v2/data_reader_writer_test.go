@@ -7,9 +7,11 @@ import (
 	"io"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 func TestReaderNextPage(t *testing.T) {
@@ -67,7 +69,7 @@ func BenchmarkWriter(b *testing.B) {
 }
 
 // nolint:unparam
-func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte) {
+func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, ids, objs [][]byte, buffer []byte) {
 	reader := bytes.NewReader(buffer)
 	r, err := NewDataReader(backend.NewContextReaderWithAllReader(reader), enc)
 	require.NoError(t, err)
@@ -78,7 +80,7 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 	i := 0
 	for {
 		tempBuffer, _, err = r.NextPage(tempBuffer)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -88,7 +90,7 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 
 		for {
 			id, obj, err = o.UnmarshalObjectFromReader(bufferReader)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -102,7 +104,7 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 }
 
 // nolint:unparam
-func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte, recs Records) {
+func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids, objs [][]byte, buffer []byte, recs Records) {
 	reader := bytes.NewReader(buffer)
 	r, err := NewDataReader(backend.NewContextReaderWithAllReader(reader), enc)
 	require.NoError(t, err)
@@ -122,7 +124,7 @@ func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids []
 		page := pages[0]
 		for {
 			page, id, obj, err = o.UnmarshalAndAdvanceBuffer(page)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -136,7 +138,7 @@ func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids []
 }
 
 // nolint:unparam
-func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte, Records) {
+func createTestData(t require.TestingT, totalObjects, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte, Records) {
 	buffer := &bytes.Buffer{}
 
 	w, err := NewDataWriter(buffer, enc)
