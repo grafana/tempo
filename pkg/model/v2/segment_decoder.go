@@ -28,7 +28,7 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 }
 
 func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(0)
 	for i, obj := range segments {
 		obj, _, _, err := stripStartEnd(obj)
 		if err != nil {
@@ -41,7 +41,10 @@ func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, erro
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
 
-		combiner.ConsumeWithFinal(t, i == len(segments)-1)
+		_, err = combiner.ConsumeWithFinal(t, i == len(segments)-1)
+		if err != nil {
+			return nil, fmt.Errorf("error combining trace: %w", err)
+		}
 	}
 
 	combinedTrace, _ := combiner.Result()

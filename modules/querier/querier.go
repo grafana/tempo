@@ -42,6 +42,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// jpe - ditch unretyrable error
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -222,7 +223,7 @@ func (q *Querier) stopping(_ error) error {
 // FindTraceByID implements tempopb.Querier.
 func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
-		return nil, fmt.Errorf("invalid trace id")
+		return nil, errors.New("invalid trace id")
 	}
 
 	userID, err := user.ExtractOrgID(ctx)
@@ -235,7 +236,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	span.SetTag("queryMode", req.QueryMode)
 
-	combiner := trace.NewCombiner()
+	maxBytes := q.limits.MaxBytesPerTrace(userID)
+	combiner := trace.NewCombiner(maxBytes)
+
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		var getRSFn replicationSetFn
@@ -259,7 +262,11 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		for _, r := range responses {
 			t := r.response.(*tempopb.TraceByIDResponse).Trace
 			if t != nil {
-				spanCount = combiner.Consume(t)
+				spanCount, err = combiner.Consume(t)
+				if err != nil {
+					return nil, err
+				}
+
 				spanCountTotal += spanCount
 				traceCountTotal++
 				found = true
@@ -275,7 +282,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		span.LogFields(ot_log.String("msg", "searching store"))
 		span.LogFields(ot_log.String("timeStart", fmt.Sprint(timeStart)))
 		span.LogFields(ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
-		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd)
+
+		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 			ot_log.Error(retErr)
@@ -291,7 +300,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
 		for _, partialTrace := range partialTraces {
-			combiner.Consume(partialTrace)
+			_, err = combiner.Consume(partialTrace)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -360,6 +372,10 @@ func (q *Querier) forIngesterRings(ctx context.Context, getReplicationSet replic
 	}
 
 	wg.Wait()
+
+	if responseErr != nil {
+		return nil, responseErr
+	}
 
 	return responses, nil
 }
