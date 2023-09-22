@@ -319,12 +319,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		r := rw.getReaderForBlock(meta, curTime)
 		block, err := encoding.OpenBlock(meta, r)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("error opening block for reading, blockID: %s: ", meta.BlockID.String()), "%w", err)
+			return nil, fmt.Errorf("error opening block for reading, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
 		foundObject, err := block.FindTraceByID(ctx, id, opts)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("error finding trace by id, blockID: %s: ", meta.BlockID.String()), "%w", err)
+			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)

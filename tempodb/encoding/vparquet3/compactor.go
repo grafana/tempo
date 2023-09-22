@@ -198,7 +198,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
 			err := c.finishBlock(ctx, currentBlockPtrCopy, l)
 			if err != nil {
-				return nil, fmt.Errorf(fmt.Sprintf("error shipping block to backend, blockID %s: ", currentBlockPtrCopy.meta.BlockID.String()), "%w", err)
+				return nil, fmt.Errorf("error shipping block to backend, blockID %s: %w", currentBlockPtrCopy.meta.BlockID.String(), err)
 			}
 			currentBlock = nil
 		}
@@ -210,7 +210,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		currentBlock.meta.EndTime = maxBlockEnd
 		err := c.finishBlock(ctx, currentBlock, l)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("error shipping block to backend, blockID %s: ", currentBlock.meta.BlockID.String()), "%w", err)
+			return nil, fmt.Errorf("error shipping block to backend, blockID %s: %w", currentBlock.meta.BlockID.String(), err)
 		}
 	}
 

@@ -392,12 +392,12 @@ func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet,
 
 		client, err := pool.GetClientFor(ingester.Addr)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("failed to get client for %s: ", ingester.Addr), "%w", err)
+			return nil, fmt.Errorf("failed to get client for %s: %w", ingester.Addr, err)
 		}
 
 		resp, err := f(funcCtx, client.(tempopb.QuerierClient))
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("failed to execute f() for %s: ", ingester.Addr), "%w", err)
+			return nil, fmt.Errorf("failed to execute f() for %s: %w", ingester.Addr, err)
 		}
 
 		return responseFromIngesters{ingester.Addr, resp}, nil
@@ -428,12 +428,12 @@ func (q *Querier) forGivenGenerators(
 
 		client, err := q.generatorPool.GetClientFor(generator.Addr)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("failed to get client for %s: ", generator.Addr), "%w", err)
+			return nil, fmt.Errorf("failed to get client for %s: %w", generator.Addr, err)
 		}
 
 		resp, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("failed to execute f() for %s: ", generator.Addr), "%w", err)
+			return nil, fmt.Errorf("failed to execute f() for %s: %w", generator.Addr, err)
 		}
 
 		return responseFromGenerators{generator.Addr, resp}, nil

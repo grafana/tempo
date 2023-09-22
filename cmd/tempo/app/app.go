@@ -410,7 +410,7 @@ func (t *App) statusHandler() http.HandlerFunc {
 					if err == nil {
 						err = e
 					} else {
-						err = fmt.Errorf(e.Error(), ": %w", err)
+						err = fmt.Errorf("%s: %w", e.Error(), err)
 					}
 				}
 			}

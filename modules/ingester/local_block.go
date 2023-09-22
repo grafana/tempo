@@ -85,7 +85,7 @@ func (c *localBlock) SetFlushed(ctx context.Context) error {
 func (c *localBlock) Write(ctx context.Context, w backend.Writer) error {
 	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.reader, w)
 	if err != nil {
-		return fmt.Errorf("error copying block from local to remote backen: %w", err)
+		return fmt.Errorf("error copying block from local to remote backend: %w", err)
 	}
 
 	err = c.SetFlushed(ctx)
