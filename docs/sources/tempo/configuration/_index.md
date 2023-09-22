@@ -736,7 +736,7 @@ storage:
             number of Go routines.  Keep in mind that the number of Go routines
             created here will also be multipled by the number of tenants being
             polled concurrently.  Default is 3
-            [concurrent_walk: <int>]
+            [list_blocks_concurrency: <int>]
 
             # optional.
             # By default the region is inferred from the endpoint,

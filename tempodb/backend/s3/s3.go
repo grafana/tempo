@@ -291,7 +291,7 @@ func (rw *readerWriter) ListBlocks(
 		prefix = prefix + "/"
 	}
 
-	bb := util.CreateBlockBoundaries(rw.cfg.ConcurrentWalk)
+	bb := util.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
 
 	errChan := make(chan error, len(bb))
 	wg := sync.WaitGroup{}
