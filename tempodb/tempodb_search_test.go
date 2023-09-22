@@ -281,6 +281,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 			expected: []*tempopb.TraceSearchMetadata{
 				{
 					SpanSets: []*tempopb.SpanSet{
+						// Spanset for value
 						{
 							Spans: []*tempopb.Span{
 								{
@@ -305,6 +306,30 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 							Matched: 2,
 							Attributes: []*v1_common.KeyValue{
 								{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "Bar"}}},
+								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
+							},
+						},
+						// Spanset for nil
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes:        nil,
+								},
+								{
+									SpanID:            "0000000000000000",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes:        nil,
+								},
+							},
+							Matched: 2,
+							Attributes: []*v1_common.KeyValue{
+								{Key: "by(span.foo)", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "nil"}}},
 								{Key: "count()", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
 							},
 						},
@@ -395,7 +420,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
-		{Query: "{} | by(span.foo) | count() = 1"},
+		{Query: "{} | by(span.foo) | count() = 1"}, // Both spansets (foo!=nil, and foo=nil) have 2 spans
 		{Query: "{} | by(resource.service.name) | count() = 3"},
 	}
 
