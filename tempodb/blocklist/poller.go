@@ -158,7 +158,6 @@ func (p *Poller) Do(previous Blocklist) (PerTenant, PerTenantCompacted, error) {
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
 	errs := []error{}
-	consecutiveErrors := 0
 
 	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
 	for _, tenantID := range tenants {
@@ -174,13 +173,12 @@ func (p *Poller) Do(previous Blocklist) (PerTenant, PerTenantCompacted, error) {
 				level.Error(p.logger).Log("msg", "failed to poll tenant and create index", "err", err)
 				m.Lock()
 				errs = append(errs, err)
-				consecutiveErrors++
 				m.Unlock()
 			}
 
 			m.Lock()
-			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+			if len(errs) > p.cfg.TolerateConsecutiveErrors {
+				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", len(errs))
 				m.Unlock()
 				return
 			}
@@ -210,10 +208,8 @@ func (p *Poller) Do(previous Blocklist) (PerTenant, PerTenantCompacted, error) {
 
 	bg.Wait()
 
-	if len(errs) > 0 {
-		if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-			return nil, nil, errors.Join(errs...)
-		}
+	if len(errs) > p.cfg.TolerateConsecutiveErrors {
+		return nil, nil, errors.Join(errs...)
 	}
 
 	return blocklist, compactedBlocklist, nil
