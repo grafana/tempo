@@ -110,9 +110,10 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetPeerAttributes() ([]st
 }
 
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions       *[]string                    `json:"dimensions,omitempty"`
-	EnableTargetInfo *bool                        `json:"enable_target_info,omitempty"`
-	FilterPolicies   *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
+	Dimensions                   *[]string                    `json:"dimensions,omitempty"`
+	EnableTargetInfo             *bool                        `json:"enable_target_info,omitempty"`
+	FilterPolicies               *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
+	TargetInfoExcludedDimensions *[]string                    `json:"target_info_excluded_dimensions,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -132,6 +133,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetEnableTargetInfo() (bool
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetFilterPolicies() ([]filterconfig.FilterPolicy, bool) {
 	if l != nil && l.FilterPolicies != nil {
 		return *l.FilterPolicies, true
+	}
+	return nil, true
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimensions() ([]string, bool) {
+	if l != nil && l.TargetInfoExcludedDimensions != nil {
+		return *l.TargetInfoExcludedDimensions, true
 	}
 	return nil, true
 }

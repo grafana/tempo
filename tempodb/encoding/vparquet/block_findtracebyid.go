@@ -116,7 +116,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		}
 
 		c, err := page.Values().ReadValues(buf)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, err
 		}
 		if c < 1 {

@@ -1,8 +1,10 @@
 package httpgrpcutil
 
 import (
-	"github.com/grafana/dskit/httpgrpc"
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
+
+	"github.com/grafana/dskit/httpgrpc"
 )
 
 // Used to transfer trace information from/to HTTP request.
@@ -33,7 +35,7 @@ func GetParentSpanForRequest(tracer opentracing.Tracer, req *httpgrpc.HTTPReques
 
 	carrier := (*HttpgrpcHeadersCarrier)(req)
 	extracted, err := tracer.Extract(opentracing.HTTPHeaders, carrier)
-	if err == opentracing.ErrSpanContextNotFound {
+	if errors.Is(err, opentracing.ErrSpanContextNotFound) {
 		err = nil
 	}
 	return extracted, err

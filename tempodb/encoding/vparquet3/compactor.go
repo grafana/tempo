@@ -138,7 +138,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	for {
 		lowestID, lowestObject, err := m.Next(ctx)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -321,7 +321,7 @@ func estimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
 // countSpans counts the number of spans in the given trace in deconstructed
 // parquet row format and returns traceId.
 // It simply counts the number of values for span ID, which is always present.
-func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, rootSpanName string, rootServiceName string, spans int) {
+func countSpans(schema *parquet.Schema, row parquet.Row) (traceID, rootSpanName, rootServiceName string, spans int) {
 	traceIDColumn, found := schema.Lookup(TraceIDColumnName)
 	if !found {
 		return "", "", "", 0
