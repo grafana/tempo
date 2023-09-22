@@ -275,7 +275,7 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsH
 	if histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets(); ok {
 		return histogramBuckets
 	}
-	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
