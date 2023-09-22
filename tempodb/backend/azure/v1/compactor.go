@@ -8,7 +8,6 @@ import (
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -131,7 +130,7 @@ func (rw *V1) readAllWithModTime(ctx context.Context, name string) ([]byte, time
 func (rw *V1) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
+		return BlobAttributes{}, fmt.Errorf("cannot get Azure blob URL, name: %s: %w", name, err)
 	}
 
 	var props *blob.BlobGetPropertiesResponse
@@ -150,11 +149,11 @@ func (rw *V1) getAttributes(ctx context.Context, name string) (BlobAttributes, e
 func (rw *V1) delete(ctx context.Context, name string) error {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, name)
 	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", name)
+		return fmt.Errorf("cannot get Azure blob URL, name: %s: %w", name, err)
 	}
 
 	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
-		return errors.Wrapf(err, "error deleting blob, name: %s", name)
+		return fmt.Errorf("error deleting blob, name: %s: %w", name, err)
 	}
 	return nil
 }
