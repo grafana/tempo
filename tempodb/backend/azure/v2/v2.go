@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/util/log"
@@ -162,6 +163,55 @@ func (rw *V2) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 		}
 	}
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
+
+	var parts []string
+	var id uuid.UUID
+
+	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
+		Include: container.ListBlobsInclude{},
+		Prefix:  &prefix,
+	})
+
+	for pager.More() {
+		page, pagerErr := pager.NextPage(ctx)
+		if pagerErr != nil {
+			return nil, nil, errors.Wrap(pagerErr, "iterating objects")
+		}
+
+		for _, b := range page.Segment.BlobItems {
+			obj := strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
+			parts = strings.Split(obj, "/")
+
+			// ie: <blockID>/meta.json
+			if len(parts) != 2 {
+				continue
+			}
+
+			id, err = uuid.Parse(parts[0])
+			if err != nil {
+				return nil, nil, err
+			}
+
+			switch parts[1] {
+			case backend.MetaName:
+				blockIDs = append(blockIDs, id)
+			case backend.CompactedMetaName:
+				compactedBlockIDs = append(compactedBlockIDs, id)
+			}
+		}
+	}
+	return
 }
 
 // Read implements backend.Reader
