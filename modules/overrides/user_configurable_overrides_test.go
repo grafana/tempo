@@ -123,7 +123,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 							},
 						},
 					},
-					HistogramBuckets: &[]float64{10, 20, 30, 40, 50},
+					HistogramBuckets:             &[]float64{10, 20, 30, 40, 50},
 					TargetInfoExcludedDimensions: &[]string{"some-label"},
 				},
 			},
