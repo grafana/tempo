@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -289,14 +290,14 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	var compactedBlockMeta *backend.CompactedBlockMeta
 	blockMeta, err := p.reader.BlockMeta(ctx, blockID, tenantID)
 	// if the normal meta doesn't exist maybe it's compacted.
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		blockMeta = nil
 		compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
 	}
 
 	// blocks in intermediate states may not have a compacted or normal block meta.
 	//   this is not necessarily an error, just bail out
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, nil
 	}
 

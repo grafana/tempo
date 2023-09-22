@@ -3,9 +3,10 @@ package vparquet3
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestDedicatedColumnsToColumnMapping(t *testing.T) {

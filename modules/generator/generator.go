@@ -135,7 +135,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 
 	err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
 	if err != nil {
-		return fmt.Errorf("unable to start mertics-generator dependencies: %w", err)
+		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
 	}
 
 	return nil

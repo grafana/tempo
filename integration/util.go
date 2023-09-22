@@ -347,7 +347,7 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 				break
 			}
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)

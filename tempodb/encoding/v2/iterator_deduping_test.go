@@ -6,9 +6,11 @@ import (
 	"io"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type mockIterator struct {
@@ -112,7 +114,7 @@ func TestDedupingIterator(t *testing.T) {
 
 		for {
 			id, obj, err := iter.NextBytes(context.Background())
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			assert.NoError(t, err)

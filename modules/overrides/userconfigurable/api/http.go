@@ -12,6 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
@@ -128,15 +129,16 @@ func (a *UserConfigOverridesAPI) DeleteHandler(w http.ResponseWriter, r *http.Re
 }
 
 func writeError(w http.ResponseWriter, err error) {
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	if err == backend.ErrVersionDoesNotMatch || err == backend.ErrVersionInvalid {
+	if errors.Is(err, backend.ErrVersionDoesNotMatch) || errors.Is(err, backend.ErrVersionInvalid) {
 		http.Error(w, err.Error(), http.StatusPreconditionFailed)
 		return
 	}
-	if err, ok := err.(validationError); ok {
+	var valErr *validationError
+	if ok := errors.As(err, &valErr); ok {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -165,7 +167,7 @@ func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string,
 	return ctx, func(errPtr *error) {
 		err := *errPtr
 
-		if err != nil && err != backend.ErrDoesNotExist {
+		if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 			span.LogFields(ot_log.Error(err))
 			ext.Error.Set(span, true)
 			level.Error(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI(), "user-agent", r.UserAgent(), "err", err)

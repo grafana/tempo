@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 var testLogger log.Logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
@@ -61,7 +62,7 @@ func TestBookmarkIteration(t *testing.T) {
 	i := 0
 	for {
 		id, data, err := bm.current(context.Background())
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -91,7 +92,7 @@ func TestMultiblockSorts(t *testing.T) {
 	lastID := -1
 	for {
 		id, _, err := iter.NextBytes(context.TODO())
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)

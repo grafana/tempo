@@ -4,9 +4,10 @@ import (
 	"context"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
-
+	"github.com/pkg/errors"
 	"github.com/uber-go/atomic"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type prefetchIterator struct {
@@ -71,7 +72,7 @@ func (i *prefetchIterator) iterate(ctx context.Context) {
 
 	for {
 		id, obj, err := i.iter.NextBytes(ctx)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return
 		}
 		if err != nil {

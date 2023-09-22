@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
+	azureconfig "github.com/grafana/tempo/tempodb/backend/azure/config"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -184,7 +185,7 @@ func loadConfig() (*tempodb.Config, error) {
 		Local: &local.Config{},
 		GCS:   &gcs.Config{},
 		S3:    &s3.Config{},
-		Azure: &azure.Config{},
+		Azure: &azureconfig.Config{},
 	}
 
 	// horrible viper dance since it won't unmarshal to a struct from env: https://github.com/spf13/viper/issues/188

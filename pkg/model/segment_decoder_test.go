@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSegmentDecoderToObjectDecoder(t *testing.T) {
@@ -65,7 +67,7 @@ func TestSegmentDecoderToObjectDecoderRange(t *testing.T) {
 
 			// test range
 			actualStart, actualEnd, err := objectDecoder.FastRange(object)
-			if err == decoder.ErrUnsupported {
+			if errors.Is(err, decoder.ErrUnsupported) {
 				return
 			}
 
@@ -93,7 +95,7 @@ func TestSegmentDecoderFastRange(t *testing.T) {
 
 			// test range
 			actualStart, actualEnd, err := segmentDecoder.FastRange(segment)
-			if err == decoder.ErrUnsupported {
+			if errors.Is(err, decoder.ErrUnsupported) {
 				return
 			}
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -41,7 +43,7 @@ func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, data
 	}
 
 	i.currentID, i.currentObject, err = i.iter.NextBytes(context.Background())
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
@@ -112,7 +114,7 @@ func (i *dedupingIterator) next(ctx context.Context) (common.ID, [][]byte, error
 
 	for {
 		id, obj, err := i.iter.NextBytes(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, nil, err
 		}
 

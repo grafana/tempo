@@ -12,6 +12,7 @@
 
 # - Improved consistency of the webserver request loop by polling the Hugo port rather than the proxy port.
 
+
 # ## 4.2.0 (2023-09-01)
 
 # ### Added
@@ -475,7 +476,8 @@ POSIX_HERESTRING
         fi
       done
       echo
-      echo 'Press Ctrl+c to stop the server'
+
+      echo 'Press Ctrl+C to stop the server'
 
       unset i max req url
       return

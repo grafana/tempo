@@ -185,7 +185,8 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	require.NoError(t, err)
 
 	err = p.(*Processor).consume(request.Batches)
-	assert.True(t, errors.As(err, &tooManySpansError{}))
+	var tmsErr *tooManySpansError
+	assert.True(t, errors.As(err, &tmsErr))
 }
 
 func TestServiceGraphs_virtualNodes(t *testing.T) {
