@@ -1,4 +1,4 @@
-package util
+package blockboundary
 
 import (
 	"encoding/binary"

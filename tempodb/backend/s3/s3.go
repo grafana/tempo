@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -24,8 +25,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -291,7 +292,7 @@ func (rw *readerWriter) ListBlocks(
 		prefix = prefix + "/"
 	}
 
-	bb := util.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
 
 	errChan := make(chan error, len(bb))
 	wg := sync.WaitGroup{}

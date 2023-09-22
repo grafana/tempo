@@ -14,14 +14,15 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestBuildShardedRequests(t *testing.T) {
@@ -31,7 +32,7 @@ func TestBuildShardedRequests(t *testing.T) {
 		cfg: &TraceByIDConfig{
 			QueryShards: queryShards,
 		},
-		blockBoundaries: util.CreateBlockBoundaries(queryShards - 1),
+		blockBoundaries: blockboundary.CreateBlockBoundaries(queryShards - 1),
 	}
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")

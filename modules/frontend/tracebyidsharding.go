@@ -18,10 +18,10 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/blockboundary"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -36,7 +36,7 @@ func newTraceByIDSharder(cfg *TraceByIDConfig, o overrides.Interface, logger log
 			cfg:             cfg,
 			logger:          logger,
 			o:               o,
-			blockBoundaries: util.CreateBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
+			blockBoundaries: blockboundary.CreateBlockBoundaries(cfg.QueryShards - 1), // one shard will be used to query ingesters
 		}
 	})
 }
