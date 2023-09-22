@@ -524,7 +524,7 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.Se
 			tr := new(Trace)
 			err = r.Read(tr)
 			if err != nil {
-				return nil, fmt.Errorf("error reading row from backen: %w", err)
+				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 
 			trp := parquetTraceToTempopbTrace(b.meta, tr)
