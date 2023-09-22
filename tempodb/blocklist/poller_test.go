@@ -829,7 +829,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 	}
 }
 
-func newMockBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) backend.Blocklist {
+func newMockBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) Blocklist {
 	return &backend.MockBlocklist{
 		MetasFn: func(tenantID string) []*backend.BlockMeta {
 			if _, ok := metas[tenantID]; !ok {

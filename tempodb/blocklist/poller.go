@@ -71,6 +71,11 @@ var (
 	}, []string{"tenant"})
 )
 
+type Blocklist interface {
+	Metas(tenantID string) []*backend.BlockMeta
+	CompactedMetas(tenantID string) []*backend.CompactedBlockMeta
+}
+
 // Config is used to configure the poller
 type PollerConfig struct {
 	PollConcurrency           uint
@@ -134,7 +139,7 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do(previous Blocklist) (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -217,7 +222,7 @@ func (p *Poller) Do(previous backend.Blocklist) (PerTenant, PerTenantCompacted, 
 func (p *Poller) pollTenantAndCreateIndex(
 	ctx context.Context,
 	tenantID string,
-	previous backend.Blocklist,
+	previous Blocklist,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "poll tenant index")
 	defer span.Finish()
@@ -270,7 +275,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
-	previous backend.Blocklist,
+	previous Blocklist,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(ctx, tenantID)
 	if err != nil {

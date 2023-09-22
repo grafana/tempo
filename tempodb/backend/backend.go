@@ -72,8 +72,3 @@ type Compactor interface {
 	// CompactedBlockMeta returns the compacted blockmeta given a block and tenant id
 	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 }
-
-type Blocklist interface {
-	Metas(tenantID string) []*BlockMeta
-	CompactedMetas(tenantID string) []*CompactedBlockMeta
-}
