@@ -220,7 +220,7 @@ func NewTempoQuery() *e2e.HTTPService {
 func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	content, err := os.ReadFile(src)
 	if err != nil {
-		return fmt.Errorf("unable to read local file %s%w", src, err)
+		return fmt.Errorf("unable to read local file %s: %w", src, err)
 	}
 
 	_, err = writeFileToSharedDir(s, dst, content)
