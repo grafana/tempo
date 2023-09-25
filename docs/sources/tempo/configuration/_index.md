@@ -732,10 +732,10 @@ storage:
             [endpoint: <string>]
 
             # The number of list calls to make in parallel to the backend.
-            Adjustments here will impact the polling time, as well as the
-            number of Go routines.  Keep in mind that the number of Go routines
-            created here will also be multipled by the number of tenants being
-            polled concurrently.  Default is 3
+            # Adjustments here will impact the polling time, as well as the
+            # number of Go routines.  Keep in mind that the number of Go routines
+            # created here will also be multipled by the number of tenants being
+            # polled concurrently.  Default is 3
             [list_blocks_concurrency: <int>]
 
             # optional.
