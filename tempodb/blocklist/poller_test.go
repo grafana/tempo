@@ -3,6 +3,8 @@ package blocklist
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math/rand"
 	"strconv"
 	"testing"
 	"time"
@@ -588,6 +590,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 func TestPollComparePreviousResults(t *testing.T) {
 	zero := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	aaa := uuid.MustParse("00000000-0000-0000-0000-00000000000A")
 	eff := uuid.MustParse("00000000-0000-0000-0000-00000000000F")
 
 	testCases := []struct {
@@ -633,9 +636,8 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					// Hmm: 2?
-					zero: 2,
-					eff:  2,
+					zero: 1,
+					eff:  1,
 				},
 			},
 		},
@@ -644,18 +646,21 @@ func TestPollComparePreviousResults(t *testing.T) {
 			previousPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
 					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			previousCompactedPerTenant: PerTenantCompacted{},
 			currentPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
 					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			currentCompactedPerTenant: PerTenantCompacted{},
 			expectedPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
 					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
@@ -668,25 +673,37 @@ func TestPollComparePreviousResults(t *testing.T) {
 			previousPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
 					{BlockID: zero},
+					{BlockID: aaa},
 				},
 			},
 			previousCompactedPerTenant: PerTenantCompacted{},
-			currentPerTenant:           PerTenant{},
+			currentPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: eff},
+				},
+			},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
 				},
 			},
 			expectedPerTenant: PerTenant{
-				"test": []*backend.BlockMeta{},
+				"test": []*backend.BlockMeta{
+					{BlockID: eff},
+				},
 			},
-
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
 				},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					eff: 1,
+				},
+			},
 		},
 		{
 			name:              "with previous compactions should be known",
@@ -694,12 +711,16 @@ func TestPollComparePreviousResults(t *testing.T) {
 			previousCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			currentPerTenant: PerTenant{},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			expectedPerTenant: PerTenant{
@@ -708,6 +729,8 @@ func TestPollComparePreviousResults(t *testing.T) {
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
@@ -781,11 +804,17 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 
 func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsError bool) backend.Reader {
 	tenants := []string{}
+	ttt := make(map[string]bool)
+
 	for t := range list {
-		tenants = append(tenants, t)
+		ttt[t] = true
 	}
 	for t := range compactedList {
-		tenants = append(tenants, t)
+		ttt[t] = true
+	}
+
+	for k := range ttt {
+		tenants = append(tenants, k)
 	}
 
 	return &backend.MockReader{
