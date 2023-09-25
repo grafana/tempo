@@ -779,6 +779,135 @@ func TestPollComparePreviousResults(t *testing.T) {
 	}
 }
 
+func BenchmarkPoller10k(b *testing.B) {
+	tests := []struct {
+		tenantCount     int
+		blocksPerTenant int
+	}{
+		{
+			tenantCount:     1,
+			blocksPerTenant: 100,
+		},
+		{
+			tenantCount:     1,
+			blocksPerTenant: 1000,
+		},
+		{
+			tenantCount:     1,
+			blocksPerTenant: 10000,
+		},
+	}
+
+	for _, tc := range tests {
+		previousPerTenant := newPerTenant(tc.tenantCount, tc.blocksPerTenant)
+		previousPerTenantCompacted := newPerTenantCompacted(tc.tenantCount, tc.blocksPerTenant)
+
+		// currentPerTenant := newPerTenant(uuids, tc.tenantCount, tc.blocksPerTenant)
+		// currentPerTenantCompacted := newPerTenantCompacted(uuids, tc.tenantCount, tc.blocksPerTenant)
+		currentPerTenant := previousPerTenant
+		currentPerTenantCompacted := previousPerTenantCompacted
+
+		var (
+			c        = newMockCompactor(currentPerTenantCompacted, false)
+			w        = &backend.MockWriter{}
+			s        = &mockJobSharder{owns: true}
+			r        = newMockReader(currentPerTenant, currentPerTenantCompacted, false)
+			previous = newMockBlocklist(previousPerTenant, previousPerTenantCompacted)
+		)
+
+		// This mock reader returns error or nil based on the tenant ID
+		poller := NewPoller(&PollerConfig{
+			PollConcurrency:       testPollConcurrency,
+			PollTenantConcurrency: testPollTenantConcurrency,
+			PollFallback:          testPollFallback,
+			TenantIndexBuilders:   testBuilders,
+		}, s, r, c, w, log.NewNopLogger())
+
+		runName := fmt.Sprintf("%d-%d", tc.tenantCount, tc.blocksPerTenant)
+		b.Run(runName, func(b *testing.B) {
+			for tenant := range previousPerTenant {
+				benchmarkPollTenant(b, poller, tenant, previous)
+			}
+		})
+	}
+}
+
+func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous Blocklist) {
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
+		require.NoError(b, err)
+	}
+}
+
+func newBlockMetas(count int) []*backend.BlockMeta {
+	metas := []*backend.BlockMeta{}
+	for i := 0; i < count; i++ {
+		metas = append(metas, &backend.BlockMeta{
+			BlockID: uuid.New(),
+		})
+	}
+
+	return metas
+}
+
+func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
+	metas := []*backend.CompactedBlockMeta{}
+	for i := 0; i < count; i++ {
+		metas = append(metas, &backend.CompactedBlockMeta{
+			BlockMeta: backend.BlockMeta{
+				BlockID: uuid.New(),
+			},
+		})
+	}
+
+	return metas
+}
+
+var chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = chars[rand.Intn(len(chars))]
+	}
+	return string(b)
+}
+
+func newPerTenant(tenantCount, blockCount int) PerTenant {
+	perTenant := make(PerTenant)
+	metas := []*backend.BlockMeta{}
+	for i := 0; i < tenantCount; i++ {
+		for ii := 0; ii < blockCount; ii++ {
+			metas = newBlockMetas(blockCount)
+		}
+		id := randString(5)
+		perTenant[id] = metas
+	}
+
+	return perTenant
+}
+
+func newPerTenantCompacted(tenantCount, blockCount int) PerTenantCompacted {
+	perTenantCompacted := make(PerTenantCompacted)
+	metas := []*backend.CompactedBlockMeta{}
+	for i := 0; i < tenantCount; i++ {
+		for ii := 0; ii < blockCount; ii++ {
+			metas = newCompactedMetas(blockCount)
+		}
+		id := randString(5)
+		perTenantCompacted[id] = metas
+	}
+
+	return perTenantCompacted
+}
+
+func metaToCompacted(meta backend.BlockMeta) backend.CompactedBlockMeta {
+	return backend.CompactedBlockMeta{
+		BlockMeta: meta,
+	}
+}
+
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
 	return &backend.MockCompactor{
 		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
