@@ -254,7 +254,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	if maxTraceSizeBytes > 0 {
 		estimatedSize := estimateMarshalledSizeFromTrace(tr)
 		if estimatedSize > maxTraceSizeBytes {
-			return nil, errors.Errorf("trace exceeds max size in the block. size: %d, max: %d", estimatedSize, maxTraceSizeBytes)
+			return nil, errors.Errorf("trace exceeds max size in the block. (%d bytes)", maxTraceSizeBytes)
 		}
 	}
 

@@ -138,7 +138,7 @@ func (c *Combiner) sizeError() error {
 	}
 
 	if c.result.Size() > c.maxSizeBytes {
-		return fmt.Errorf("%w (%d > %d)", ErrTraceTooLarge, c.result.Size(), c.maxSizeBytes)
+		return fmt.Errorf("%w (%d bytes)", ErrTraceTooLarge, c.maxSizeBytes)
 	}
 
 	return nil
