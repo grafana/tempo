@@ -203,7 +203,7 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.Client, NewOverridesValidator(&t.cfg))
+	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.Client, t.Overrides, NewOverridesValidator(&t.cfg))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
 	}
@@ -537,7 +537,7 @@ func (t *App) setupModuleManager() error {
 		// InternalServer: nil,
 		Server:                {InternalServer},
 		Overrides:             {Server},
-		OverridesAPI:          {Server},
+		OverridesAPI:          {Server, Overrides},
 		MemberlistKV:          {Server},
 		UsageReport:           {MemberlistKV},
 		IngesterRing:          {Server, MemberlistKV},

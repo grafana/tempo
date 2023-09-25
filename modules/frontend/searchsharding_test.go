@@ -40,7 +40,7 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) Find(context.Context, string, common.ID, string, string, int64, int64) ([]*tempopb.Trace, []error, error) {
+func (m *mockReader) Find(context.Context, string, common.ID, string, string, int64, int64, common.SearchOptions) ([]*tempopb.Trace, []error, error) {
 	return nil, nil, nil
 }
 

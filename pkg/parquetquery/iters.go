@@ -1567,7 +1567,6 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	return &j
 }
 
-// jpe
 func (u *UnionIterator) String() string {
 	var iters string
 	for _, iter := range u.iters {

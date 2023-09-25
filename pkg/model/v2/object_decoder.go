@@ -57,7 +57,7 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	var minStart, maxEnd uint32
 	minStart = math.MaxUint32
 
-	c := trace.NewCombiner()
+	c := trace.NewCombiner(0)
 	for i, obj := range objs {
 		t, err := d.PrepareForRead(obj)
 		if err != nil {
@@ -78,7 +78,10 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 			}
 		}
 
-		c.ConsumeWithFinal(t, i == len(objs)-1)
+		_, err = c.ConsumeWithFinal(t, i == len(objs)-1)
+		if err != nil {
+			return nil, fmt.Errorf("error combining trace: %w", err)
+		}
 	}
 
 	combinedTrace, _ := c.Result()

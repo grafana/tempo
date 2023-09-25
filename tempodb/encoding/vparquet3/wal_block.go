@@ -500,7 +500,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -533,9 +533,12 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.Searc
 		}
 	}
 
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(opts.MaxBytes)
 	for i, tr := range trs {
-		combiner.ConsumeWithFinal(tr, i == len(trs)-1)
+		_, err := combiner.ConsumeWithFinal(tr, i == len(trs)-1)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tr, _ := combiner.Result()
