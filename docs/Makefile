@@ -1,9 +1,8 @@
-.PHONY: docs
-docs:
-	docker pull grafana/grafana-docs-dev:latest
-	docker run  --rm -it -v ${PWD}/tempo/website:/hugo/content/docs/tempo/latest -p 3002:3002 grafana/grafana-docs-dev:latest /bin/bash -c 'make server-quick'
+.ONESHELL:
+.DELETE_ON_ERROR:
+export SHELL     := bash
+export SHELLOPTS := pipefail:errexit
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rule
 
-.PHONY: docs-test
-docs-test:
-	docker pull grafana/docs-base:latest
-	docker run --rm -it -v ${PWD}/tempo/website:/hugo/content/docs/tempo/latest -p 3002:3002 grafana/docs-base:latest /bin/bash -c 'make prod'
+include docs.mk

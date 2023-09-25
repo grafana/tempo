@@ -87,7 +87,7 @@ If the pipeline is not reporting any dropped spans, check whether application sp
   The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
 
-> **Note**: Check the [ingestion limits page](../../configuration/ingestion-limit) for further information on limits.
+> **Note**: Check the [ingestion limits page](../../configuration#ingestion-limits) for further information on limits.
 
 ## Section 3: Diagnosing and fixing issues with querying traces
 If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data. A quick thing to check is your version of Grafana. The way Tempo is queried differs from 7.4.x to 7.5.x. Please refer to [the querying documentation](https://grafana.com/docs/tempo/latest/configuration/querying/) for help. If this is not a Grafana version issue, proceed!
