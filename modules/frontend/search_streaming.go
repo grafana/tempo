@@ -97,6 +97,8 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 }
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
+// jpe - confirm streaming spss supported
+// jpe - why doesnt fakeGRPCAuthStreamMiddleware work
 func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	// jpe err := srv.Send(result.response)
 	searcher := streamingSearcher{
@@ -124,12 +126,22 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 			return fmt.Errorf("build search request failed: %w", err)
 		}
 
+		// extract grpc org id and add it to the http req
+		_, ctx, err := user.ExtractFromGRPCRequest(srv.Context())
+		if err != nil {
+			level.Error(logger).Log("msg", "search streaming: extract org id failed", "err", err)
+			return err
+		}
+		httpReq = httpReq.WithContext(ctx)
+
 		return searcher.handle(httpReq, func(resp *tempopb.SearchResponse) error {
 			return srv.Send(resp)
 		})
 	}
 }
 
+// jpe - confirm streaming spss supported
+// jpe - check SLOs
 func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) http.Handler {
 	// jpe err := srv.Send(result.response)
 	searcher := streamingSearcher{
