@@ -176,6 +176,22 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 		defer cancel() // jpe - test client cancel logic
 		r = r.WithContext(ctx)
 
+		// set up a ping to keep long lived connections alive - jpe -test
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					level.Error(logger).Log("msg", "Error writing ping message to websocket. Cancelling request.", "err", err)
+					cancel()
+					return
+				}
+			}
+		}()
+
 		// set the path correctly, RequestUri is used by the httpgrpc bridge
 		r.URL.Path = downstreamPath
 		r.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
