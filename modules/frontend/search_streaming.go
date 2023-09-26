@@ -18,7 +18,6 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -157,27 +156,27 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 
-	// jpe
-	//  - add ping from loki?
-	//  - add client msg reader? yes - handle client closures
-
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	fnHandler := func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			level.Error(logger).Log("msg", "error in upgrading websocket", "err", err)
-			server.WriteError(w, err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
+		// defer closing of the websocket
 		defer func() {
 			if err := conn.Close(); err != nil {
 				level.Error(logger).Log("msg", "error closing websocket", "err", err)
 			}
 		}()
 
-		// jpe - we only have to do this if we host the ws on a different path than search
-		// the other option would be to use a query param to select ws=true?
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel() // jpe - test client cancel logic
+		r = r.WithContext(ctx)
+
+		// set the path correctly, RequestUri is used by the httpgrpc bridge
 		r.URL.Path = downstreamPath
 		r.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
 
@@ -190,11 +189,15 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 
 			return conn.WriteMessage(websocket.TextMessage, []byte(msg))
 		})
+
+		// send a close msg to the client now that we are done
 		if err != nil {
-			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()))
-			if err != nil {
-				level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
-			}
+			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()))
+		} else {
+			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "query complete"))
+		}
+		if err != nil {
+			level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
 		}
 	}
 

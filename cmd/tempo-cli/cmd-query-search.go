@@ -121,6 +121,11 @@ func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
+				if closeErr, ok := err.(*websocket.CloseError); ok {
+					if closeErr.Code == websocket.CloseNormalClosure {
+						break
+					}
+				}
 				panic("failed to read msg: " + err.Error())
 			}
 			resp := &tempopb.SearchResponse{}
