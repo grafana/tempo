@@ -94,10 +94,10 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 		l.updateInternal(tenantID, l.added[tenantID], l.removed[tenantID], l.compactedAdded[tenantID], l.compactedRemoved[tenantID])
 	}
 
-	l.added = make(PerTenant)
-	l.removed = make(PerTenant)
-	l.compactedAdded = make(PerTenantCompacted)
-	l.compactedRemoved = make(PerTenantCompacted)
+	clear(l.added)
+	clear(l.removed)
+	clear(l.compactedAdded)
+	clear(l.compactedRemoved)
 }
 
 // Update Adds and removes regular or compacted blocks from the in-memory blocklist.
