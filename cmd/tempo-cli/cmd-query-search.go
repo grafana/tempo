@@ -21,10 +21,10 @@ import (
 )
 
 type querySearchCmd struct {
-	APIEndpoint string `arg:"" help:"tempo api endpoint"` // jpe - change name
-	TraceQL     string `arg:"" optional:"" help:"traceql query"`
-	Start       string `arg:"" optional:"" help:"start time in ISO8601 format"`
-	End         string `arg:"" optional:"" help:"end time in ISO8601 format"`
+	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
+	TraceQL  string `arg:"" optional:"" help:"traceql query"`
+	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
+	End      string `arg:"" optional:"" help:"end time in ISO8601 format"`
 
 	OrgID   string `help:"optional orgID"`
 	UseGRPC bool   `help:"stream search results over GRPC"`
@@ -59,7 +59,6 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 	return cmd.searchHTTP(req)
 }
 
-// jpe - not working?
 func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 	ctx := user.InjectOrgID(context.Background(), cmd.OrgID)
 	ctx, err := user.InjectIntoGRPCRequest(ctx)
@@ -67,7 +66,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 		return err
 	}
 
-	clientConn, err := grpc.DialContext(ctx, cmd.APIEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	clientConn, err := grpc.DialContext(ctx, cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
@@ -105,7 +104,7 @@ func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
 	// steal http request url and replace with websocket path/scheme
 	u := httpReq.URL
 	u.Scheme = "ws"
-	u.Host = cmd.APIEndpoint
+	u.Host = cmd.HostPort
 	u.Path = api.PathWSSearch
 
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -163,7 +162,7 @@ func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
 }
 
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
-	client := httpclient.New("http://"+cmd.APIEndpoint, cmd.OrgID)
+	client := httpclient.New("http://"+cmd.HostPort, cmd.OrgID)
 	resp, err := client.SearchTraceQLWithRange(req.Query, int64(req.Start), int64(req.End))
 	if err != nil {
 		return err

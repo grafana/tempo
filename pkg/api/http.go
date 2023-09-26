@@ -65,7 +65,7 @@ const (
 
 	PathTraces             = "/api/traces/{traceID}"
 	PathSearch             = "/api/search"
-	PathWSSearch           = "/api/search/ws" // jpe - better path?
+	PathWSSearch           = "/api/search-ws"
 	PathSearchTags         = "/api/search/tags"
 	PathSearchTagValues    = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho               = "/api/echo"
