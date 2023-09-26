@@ -17,6 +17,7 @@ You'll need:
 
 * Grafana 9.0.0 or higher
 * Microservice deployments require the Tempo querier URL, for example: `http://query-frontend.tempo.svc.cluster.local:3200`
+* [OpenTelemetry telmemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
 
 Refer to [Deploy Grafana on Kubernetes](/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
 Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for more information.
@@ -123,45 +124,40 @@ To fix the error, [upgrade your Grafana to 9.0 or later](/docs/grafana/latest/se
 Once you have created a data source, you can visualize your traces in the **Grafana Explore** page.
 For more information, refer to [Tempo in Grafana]({{< relref "../getting-started/tempo-in-grafana" >}}).
 
-### Test your configuration using the TNS application
+### Use OpenTelemetry `telemetrygen` to generate tracing data
 
-You can use The New Stack (TNS) application to test Tempo data.
+Next, you can use [OpenTelemetry `telemetrygen`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) to generate tracing data to test your Tempo installation.
 
-1. Create a new directory to store the TNS manifests.
-1. Navigate to `https://github.com/grafana/tns/tree/main/production/k8s-yamls` to get the Kubernetes manifests for the TNS application.
-1. Clone the repository using commands similar to the ones below (where `<targetDir>` is the directory you used to store the manifests):
+In the following instructions we assume the endpoints for both the Grafana Agent and the Tempo distributor are those described above, for example:
+* `grafana-agent-traces.default.svc.cluster.local` for Grafana Agent
+* `distributor.tempo.svc.cluster.local` for the Tempo distributor
+Replace these appropriately if you have altered the endpoint targets.
 
-    ```bash
-      mkdir ~/tmp
-      cd ~/tmp
-      git clone git+ssh://github.com/grafana/tns
-      cp tns/production/k8s-yamls/* <targetDir>
-    ```
+1. Install `telemetrygen` using the [installation procedure](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen).
+   **NOTE**: You do not need to configure an OpenTelemetry Collector as we are using the Grafana Agent.
 
-1. Change to the new directory: `cd <targetDir>` .
-1. In each of the `-dep.yaml` manifests, alter the `JAEGER_AGENT_HOST` to the Grafana Agent location. For example, based on the above Grafana Agent install:
-   ```yaml
-   env:
-   - name: JAEGER_AGENT_HOST
-     value: grafana-agent-traces.default.svc.cluster.local
-   ```
-1. Deploy the TNS application. It will deploy into the default namespace.
+1. Generate traces using `telemtrygen`:
    ```bash
-	 kubectl apply -f app-svc.yaml,db-svc.yaml,loadgen-svc.yaml,app-dep.yaml,db-dep.yaml,loadgen-dep.yaml
+   telemetrygen traces --otlp-insecure --rate 20 --duration 5s grafana-agent-traces.default.svc.cluster.local:4317
    ```
-1. Once the application is running, look at the logs for one of the pods (such as the App pod) and find a relevant trace ID. For example:
-   ```bash
-  	kubectl logs $(kubectl get pod -l name=app -o jsonpath="{.items[0].metadata.name}")
-    level=debug traceID=50075ac8b434e8f7 msg="GET / (200) 1.950625ms"
-    level=info msg="HTTP client success" status=200 url=http://db duration=1.297806ms traceID=2c2fd669c388e76
-    level=debug traceID=2c2fd669c388e76 msg="GET / (200) 1.70755ms"
-    level=info msg="HTTP client success" status=200 url=http://db duration=1.853271ms traceID=79058bb9cc39acfb
-    level=debug traceID=79058bb9cc39acfb msg="GET / (200) 2.300922ms"
-    level=info msg="HTTP client success" status=200 url=http://db duration=1.381894ms traceID=7b0e0526f5958549
-    level=debug traceID=7b0e0526f5958549 msg="GET / (200) 2.105263ms"
-   ```
+  This configuration sends traces to Grafana Agent for 5 seconds, at a rate of 20 traces per second.
+
+  Optionally, you can also send the trace directly to the Tempo database without using Grafana Agent as a collector by using the following:
+  ```bash
+  telemetrygen traces --otlp-insecure --rate 20 --duration 5s distributor.tempo.svc.cluster.local:4317
+  ```
+
+### View tracing data in Grafana
+
+To view the tracing data:
+
 1. Go to Grafana and select the **Explore** menu item.
+
 1. Select the **Tempo data source** from the list of data sources.
+
 1. Copy the trace ID into the **Trace ID** edit field.
+
 1. Select **Run query**.
-1. Confirm that the trace is displayed in the traces **Explore** panel.
+
+1. Confirm that traces are displayed in the traces **Explore** panel. You should see 5 seconds worth of traces, 100 traces in total per run of `telemetrygen`.
+
