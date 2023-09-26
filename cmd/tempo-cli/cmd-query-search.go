@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"time"
 
 	"google.golang.org/grpc"
@@ -16,7 +19,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -26,11 +28,12 @@ type querySearchCmd struct {
 	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
 	End      string `arg:"" optional:"" help:"end time in ISO8601 format"`
 
-	OrgID   string `help:"optional orgID"`
-	UseGRPC bool   `help:"stream search results over GRPC"`
-	UseWS   bool   `help:"stream search results over websocket"`
-	SPSS    int    `help:"spans per spanset" default:"0"`
-	Limit   int    `help:"limit number of results" default:"0"`
+	OrgID      string `help:"optional orgID"`
+	UseGRPC    bool   `help:"stream search results over GRPC"`
+	UseWS      bool   `help:"stream search results over websocket"`
+	SPSS       int    `help:"spans per spanset" default:"0"`
+	Limit      int    `help:"limit number of results" default:"0"`
+	PathPrefix string `help:"string to prefix all http paths with"`
 }
 
 func (cmd *querySearchCmd) Run(_ *globalOptions) error {
@@ -100,20 +103,25 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 }
 
 func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
-	httpReq, err := api.BuildSearchRequest(nil, req)
+	httpReq, err := http.NewRequest("GET", "ws://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathWSSearch), nil)
 	if err != nil {
 		return err
 	}
 
-	// steal http request url and replace with websocket path/scheme
-	u := httpReq.URL
-	u.Scheme = "ws"
-	u.Host = cmd.HostPort
-	u.Path = api.PathWSSearch
-
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	httpReq, err = api.BuildSearchRequest(httpReq, req)
 	if err != nil {
 		return err
+	}
+
+	httpReq.Header = http.Header{}
+	err = user.InjectOrgIDIntoHTTPRequest(user.InjectOrgID(context.Background(), cmd.OrgID), httpReq)
+	if err != nil {
+		return err
+	}
+
+	conn, resp, err := websocket.DefaultDialer.Dial(httpReq.URL.String(), httpReq.Header)
+	if err != nil {
+		return fmt.Errorf("ws dial failed: %w, resp: %s", err, resp)
 	}
 	defer conn.Close()
 
@@ -166,19 +174,24 @@ func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
 }
 
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
-	httpReq, err := api.BuildSearchRequest(nil, req)
+	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathSearch), nil)
 	if err != nil {
 		return err
 	}
 
-	// steal http request url and replace with websocket path/scheme
-	u := httpReq.URL
-	u.Scheme = "http"
-	u.Host = cmd.HostPort
-	u.Path = api.PathSearch
+	httpReq, err = api.BuildSearchRequest(httpReq, req)
+	if err != nil {
+		return err
+	}
 
-	client := httpclient.New("http://"+cmd.HostPort, cmd.OrgID)
-	httpResp, err := client.Do(httpReq)
+	httpReq.Header = http.Header{}
+	err = user.InjectOrgIDIntoHTTPRequest(user.InjectOrgID(context.Background(), cmd.OrgID), httpReq)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(httpReq)
+	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return err
 	}
@@ -187,6 +200,10 @@ func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		return err
+	}
+
+	if httpResp.StatusCode != http.StatusOK {
+		return errors.New("failed to query: " + string(body))
 	}
 
 	resp := &tempopb.SearchResponse{}
