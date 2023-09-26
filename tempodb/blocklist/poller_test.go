@@ -152,7 +152,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			c := newMockCompactor(tc.compactedList, tc.expectsError)
 			r := newMockReader(tc.list, tc.compactedList, tc.expectsError)
 			w := &backend.MockWriter{}
-			b := newMockBlocklist(PerTenant{}, PerTenantCompacted{})
+			b := newBlocklist(PerTenant{}, PerTenantCompacted{})
 
 			poller := NewPoller(&PollerConfig{
 				PollConcurrency:       testPollConcurrency,
@@ -245,7 +245,7 @@ func TestTenantIndexFallback(t *testing.T) {
 				"test": []*backend.BlockMeta{},
 			}, nil, false)
 			w := &backend.MockWriter{}
-			b := newMockBlocklist(PerTenant{}, PerTenantCompacted{})
+			b := newBlocklist(PerTenant{}, PerTenantCompacted{})
 
 			r.(*backend.MockReader).TenantIndexFn = func(ctx context.Context, tenantID string) (*backend.TenantIndex, error) {
 				if tc.errorOnCreateTenantIndex {
@@ -514,7 +514,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 		c = newMockCompactor(PerTenantCompacted{}, false)
 		w = &backend.MockWriter{}
 		s = &mockJobSharder{owns: true}
-		b = newMockBlocklist(PerTenant{}, PerTenantCompacted{})
+		b = newBlocklist(PerTenant{}, PerTenantCompacted{})
 	)
 
 	testCases := []struct {
@@ -758,7 +758,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 				w        = &backend.MockWriter{}
 				s        = &mockJobSharder{owns: true}
 				r        = newMockReader(tc.currentPerTenant, tc.currentCompactedPerTenant, tc.readerErr)
-				previous = newMockBlocklist(tc.previousPerTenant, tc.previousCompactedPerTenant)
+				previous = newBlocklist(tc.previousPerTenant, tc.previousCompactedPerTenant)
 			)
 
 			// This mock reader returns error or nil based on the tenant ID
@@ -812,7 +812,7 @@ func BenchmarkPoller10k(b *testing.B) {
 			w        = &backend.MockWriter{}
 			s        = &mockJobSharder{owns: true}
 			r        = newMockReader(currentPerTenant, currentPerTenantCompacted, false)
-			previous = newMockBlocklist(previousPerTenant, previousPerTenantCompacted)
+			previous = newBlocklist(previousPerTenant, previousPerTenantCompacted)
 		)
 
 		// This mock reader returns error or nil based on the tenant ID
@@ -832,7 +832,7 @@ func BenchmarkPoller10k(b *testing.B) {
 	}
 }
 
-func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous Blocklist) {
+func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
@@ -900,12 +900,6 @@ func newPerTenantCompacted(tenantCount, blockCount int) PerTenantCompacted {
 	}
 
 	return perTenantCompacted
-}
-
-func metaToCompacted(meta backend.BlockMeta) backend.CompactedBlockMeta {
-	return backend.CompactedBlockMeta{
-		BlockMeta: meta,
-	}
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
@@ -987,20 +981,10 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 	}
 }
 
-func newMockBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) Blocklist {
-	return &backend.MockBlocklist{
-		MetasFn: func(tenantID string) []*backend.BlockMeta {
-			if _, ok := metas[tenantID]; !ok {
-				return nil
-			}
-			return metas[tenantID]
-		},
-		CompactedMetasFn: func(tenantID string) []*backend.CompactedBlockMeta {
-			if _, ok := compactedMetas[tenantID]; !ok {
-				return nil
-			}
+func newBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) *List {
+	l := New()
 
-			return compactedMetas[tenantID]
-		},
-	}
+	l.ApplyPollResults(metas, compactedMetas)
+
+	return l
 }
