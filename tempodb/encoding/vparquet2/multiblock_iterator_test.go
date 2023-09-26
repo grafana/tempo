@@ -2,10 +2,10 @@ package vparquet2
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"

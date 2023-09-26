@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -14,7 +15,6 @@ import (
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -50,12 +50,12 @@ func New(cfg *config.Config, confirm bool) (*V1, error) {
 
 	container, err := GetContainer(ctx, cfg, false)
 	if err != nil {
-		return nil, errors.Wrap(err, "getting storage container")
+		return nil, fmt.Errorf("getting storage container: %w", err)
 	}
 
 	hedgedContainer, err := GetContainer(ctx, cfg, true)
 	if err != nil {
-		return nil, errors.Wrap(err, "getting hedged storage container")
+		return nil, fmt.Errorf("getting hedged storage container: %w", err)
 	}
 
 	if confirm {
@@ -116,7 +116,7 @@ func (rw *V1) CloseAppend(context.Context, backend.AppendTracker) error {
 func (rw *V1) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob URL, name: %s", backend.ObjectFileName(keypath, name))
+		return fmt.Errorf("cannot get Azure blob URL, name: %s: %w", backend.ObjectFileName(keypath, name), err)
 	}
 
 	if _, err = blobURL.Delete(ctx, blob.DeleteSnapshotsOptionInclude, blob.BlobAccessConditions{}); err != nil {
@@ -143,7 +143,7 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
-			return objects, errors.Wrap(err, "iterating tenants")
+			return objects, fmt.Errorf("iterating tenants: %w", err)
 		}
 		marker = list.NextMarker
 
@@ -311,7 +311,7 @@ func (rw *V1) writer(ctx context.Context, src io.Reader, name string) error {
 			MaxBuffers: rw.cfg.MaxBuffers,
 		},
 	); err != nil {
-		return errors.Wrapf(err, "cannot upload blob, name: %s", name)
+		return fmt.Errorf("cannot upload blob, name: %s: %w", name, err)
 	}
 	return nil
 }
@@ -387,10 +387,10 @@ func readError(err error) error {
 	errors.As(err, &storageError)
 
 	if storageError == nil {
-		return errors.Wrap(err, "reading storage container")
+		return fmt.Errorf("reading storage container: %w", err)
 	}
 	if storageError.ServiceCode() == blob.ServiceCodeBlobNotFound {
 		return backend.ErrDoesNotExist
 	}
-	return errors.Wrap(storageError, "reading Azure blob container")
+	return fmt.Errorf("reading Azure blob container: %w", storageError)
 }

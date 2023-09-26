@@ -1,8 +1,9 @@
 package otlpgrpc
 
 import (
+	"errors"
+
 	"github.com/grafana/dskit/flagext"
-	"github.com/pkg/errors"
 )
 
 type Config struct {

@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"

@@ -242,7 +242,7 @@ func (r *receiversShim) starting(ctx context.Context) error {
 	for _, receiver := range r.receivers {
 		err := receiver.Start(ctx, r)
 		if err != nil {
-			return fmt.Errorf("error starting receiver %w", err)
+			return fmt.Errorf("error starting receiver: %w", err)
 		}
 	}
 

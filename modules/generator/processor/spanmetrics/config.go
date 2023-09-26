@@ -2,10 +2,10 @@ package spanmetrics
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -84,7 +84,7 @@ func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 		case dimStatusMessage:
 			ic.StatusMessage = active
 		default:
-			return errors.Errorf("%s is not a valid intrinsic dimension", label)
+			return fmt.Errorf("%s is not a valid intrinsic dimension", label)
 		}
 	}
 	return nil

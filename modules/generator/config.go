@@ -2,9 +2,8 @@ package generator
 
 import (
 	"flag"
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
@@ -85,7 +84,7 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if dimensions := o.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID); dimensions != nil {
 		err := copyCfg.SpanMetrics.IntrinsicDimensions.ApplyFromMap(dimensions)
 		if err != nil {
-			return ProcessorConfig{}, errors.Wrap(err, "fail to apply overrides")
+			return ProcessorConfig{}, fmt.Errorf("fail to apply overrides: %w", err)
 		}
 	}
 	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {

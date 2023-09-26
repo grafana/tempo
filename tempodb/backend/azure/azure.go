@@ -1,8 +1,10 @@
 package azure
 
 import (
+	"errors"
+	"fmt"
+
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure/config"
@@ -47,10 +49,11 @@ func readError(err error) error {
 	errors.As(err, &storageError)
 
 	if storageError == nil {
-		return errors.Wrap(err, "reading storage container")
+		return fmt.Errorf("reading storage container: %w", err)
 	}
 	if storageError.ServiceCode() == blob.ServiceCodeBlobNotFound {
 		return backend.ErrDoesNotExist
 	}
-	return errors.Wrap(storageError, "reading Azure blob container")
+
+	return fmt.Errorf("reading Azure blob container: %w", err)
 }

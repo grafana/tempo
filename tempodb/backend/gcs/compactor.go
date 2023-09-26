@@ -3,12 +3,12 @@ package gcs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
-	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 
 	"github.com/grafana/tempo/tempodb/backend"

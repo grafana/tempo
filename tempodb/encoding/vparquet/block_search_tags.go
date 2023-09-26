@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 var translateTagToAttribute = map[string]traceql.Attribute{
@@ -271,7 +271,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldResourceAttrValBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return errors.Wrap(err, "search resource key values")
+			return fmt.Errorf("search resource key values: %w", err)
 		}
 	}
 
@@ -284,7 +284,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldSpanAttrValBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return errors.Wrap(err, "search span key values")
+			return fmt.Errorf("search span key values: %w", err)
 		}
 	}
 
@@ -336,7 +336,7 @@ func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return errors.Wrap(err, "iter.Next failed")
+			return fmt.Errorf("iter.Next failed: %w", err)
 		}
 		if match == nil {
 			break

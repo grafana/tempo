@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/atomic"
@@ -12,7 +13,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 )
 
 const nameFlushed = "flushed"
@@ -70,12 +70,12 @@ func (c *localBlock) SetFlushed(ctx context.Context) error {
 	flushedTime := time.Now()
 	flushedBytes, err := flushedTime.MarshalText()
 	if err != nil {
-		return errors.Wrap(err, "error marshalling flush time to text")
+		return fmt.Errorf("error marshalling flush time to text: %w", err)
 	}
 
 	err = c.writer.Write(ctx, nameFlushed, c.BlockMeta().BlockID, c.BlockMeta().TenantID, flushedBytes, false)
 	if err != nil {
-		return errors.Wrap(err, "error writing ingester block flushed file")
+		return fmt.Errorf("error writing ingester block flushed file: %w", err)
 	}
 
 	c.flushedTime.Store(flushedTime.Unix())
@@ -85,7 +85,7 @@ func (c *localBlock) SetFlushed(ctx context.Context) error {
 func (c *localBlock) Write(ctx context.Context, w backend.Writer) error {
 	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.reader, w)
 	if err != nil {
-		return errors.Wrap(err, "error copying block from local to remote backend")
+		return fmt.Errorf("error copying block from local to remote backend: %w", err)
 	}
 
 	err = c.SetFlushed(ctx)

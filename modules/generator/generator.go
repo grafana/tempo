@@ -148,7 +148,7 @@ func (g *Generator) running(ctx context.Context) error {
 			return nil
 
 		case err := <-g.subservicesWatcher.Chan():
-			return fmt.Errorf("metrics-generator subservice failed %w", err)
+			return fmt.Errorf("metrics-generator subservice failed: %w", err)
 		}
 	}
 }

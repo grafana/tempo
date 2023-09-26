@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -245,12 +244,12 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
 	if err != nil {
-		return nil, errors.Wrap(err, "error creating block")
+		return nil, fmt.Errorf("error creating block: %w", err)
 	}
 
 	backendBlock, err := encoding.OpenBlock(newMeta, r)
 	if err != nil {
-		return nil, errors.Wrap(err, "error opening new block")
+		return nil, fmt.Errorf("error opening new block: %w", err)
 	}
 
 	return backendBlock, nil
@@ -320,12 +319,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		r := rw.getReaderForBlock(meta, curTime)
 		block, err := encoding.OpenBlock(meta, r)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("error opening block for reading, blockID: %s", meta.BlockID.String()))
+			return nil, fmt.Errorf("error opening block for reading, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
 		foundObject, err := block.FindTraceByID(ctx, id, opts)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("error finding trace by id, blockID: %s", meta.BlockID.String()))
+			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)

@@ -3,6 +3,8 @@ package vparquet2
 import (
 	"context"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/google/uuid"
@@ -10,7 +12,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 type backendWriter struct {
@@ -225,7 +226,7 @@ func (b *streamingBlock) Complete() (int, error) {
 	buf := make([]byte, 8)
 	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf, false)
 	if err != nil {
-		return 0, errors.Wrap(err, "error reading parquet file footer")
+		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
 	if string(buf[4:8]) != "PAR1" {
 		return 0, errors.New("Failed to confirm magic footer while writing a new parquet block")

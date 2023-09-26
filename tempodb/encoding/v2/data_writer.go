@@ -2,9 +2,8 @@ package v2
 
 import (
 	"bytes"
+	"fmt"
 	"io"
-
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -76,7 +75,7 @@ func (p *dataWriter) CutPage() (int, error) {
 	// case of issues while writing to disk
 	// for more details hop on to https://github.com/grafana/tempo/issues/1374
 	if marshalErr != nil {
-		return 0, errors.Wrap(marshalErr, "error marshalling page to writer")
+		return 0, fmt.Errorf("error marshalling page to writer: %w", marshalErr)
 	}
 
 	return bytesWritten, err

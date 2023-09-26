@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
 	otlog "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
