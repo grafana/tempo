@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	stdErrs "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -323,7 +322,7 @@ func (rw *readerWriter) ListBlocks(
 				default:
 					res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, nextToken, "", 0)
 					if err != nil {
-						errChan <- errors.Wrapf(err, "error finding objects in s3 bucket, bucket: %s", rw.cfg.Bucket)
+						errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 						return
 					}
 
@@ -379,7 +378,7 @@ func (rw *readerWriter) ListBlocks(
 	}
 
 	if len(errs) > 0 {
-		return nil, nil, stdErrs.Join(errs...)
+		return nil, nil, errors.Join(errs...)
 	}
 
 	level.Debug(rw.logger).Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))

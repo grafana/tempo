@@ -210,7 +210,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 			break
 		}
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "iterating blocks")
+			return nil, nil, fmt.Errorf("iterating blocks: %w", err)
 		}
 
 		parts = strings.Split(attrs.Name, "/")

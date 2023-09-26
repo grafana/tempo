@@ -180,7 +180,7 @@ func (rw *V1) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 			Details: blob.BlobListingDetails{},
 		})
 		if listErr != nil {
-			return nil, nil, errors.Wrap(listErr, "iterating objects")
+			return nil, nil, fmt.Errorf("iterating objects: %w", listErr)
 		}
 		marker = list.NextMarker
 

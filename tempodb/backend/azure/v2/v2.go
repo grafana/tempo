@@ -186,7 +186,7 @@ func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 	for pager.More() {
 		page, pagerErr := pager.NextPage(ctx)
 		if pagerErr != nil {
-			return nil, nil, errors.Wrap(pagerErr, "iterating objects")
+			return nil, nil, fmt.Errorf("iterating objects: %w", pagerErr)
 		}
 
 		for _, b := range page.Segment.BlobItems {
