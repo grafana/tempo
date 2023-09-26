@@ -126,7 +126,7 @@ func TestAllInOne(t *testing.T) {
 			now := time.Now()
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
-			// find the trace with streaming. using the http server b/c that's what Grafana will do
+			// find the trace with streaming. using the http server b/c that's what Grafana will do - jpe -add ws test
 			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(3200))
 			require.NoError(t, err)
 

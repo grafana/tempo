@@ -96,7 +96,6 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 }
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-// jpe - confirm streaming spss supported
 func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	searcher := streamingSearcher{
 		logger:      logger,
@@ -109,7 +108,6 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		// jpe - does the httpreq mangling go in the streamingsearcher or outside?
 		httpReq, err := api.BuildSearchRequest(&http.Request{
 			URL: &url.URL{
 				Path: downstreamPath,
@@ -131,10 +129,8 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 	}
 }
 
-// jpe - confirm streaming spss supported
 // jpe - check SLOs
 func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) http.Handler {
-	// jpe err := srv.Send(result.response)
 	searcher := streamingSearcher{
 		logger:      logger,
 		downstream:  downstream,
@@ -216,12 +212,12 @@ type streamingSearcher struct {
 	logger      log.Logger
 	downstream  http.RoundTripper
 	reader      tempodb.Reader
-	postSLOHook handlerPostHook // jpe create this once or many times?
+	postSLOHook handlerPostHook
 	o           overrides.Interface
 	cfg         *Config
 }
 
-func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error { // jpe - should forwardResults return an error?
+func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error {
 	ctx := r.Context()
 
 	// SLOS - start timer and prep context

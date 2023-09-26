@@ -29,6 +29,8 @@ type querySearchCmd struct {
 	OrgID   string `help:"optional orgID"`
 	UseGRPC bool   `help:"stream search results over GRPC"`
 	UseWS   bool   `help:"stream search results over websocket"`
+	SPSS    int    `help:"spans per spanset" default:"0"`
+	Limit   int    `help:"limit number of results" default:"0"`
 }
 
 func (cmd *querySearchCmd) Run(_ *globalOptions) error {
@@ -45,9 +47,11 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 	end := endDate.Unix()
 
 	req := &tempopb.SearchRequest{
-		Query: cmd.TraceQL,
-		Start: uint32(start),
-		End:   uint32(end),
+		Query:           cmd.TraceQL,
+		Start:           uint32(start),
+		End:             uint32(end),
+		SpansPerSpanSet: uint32(cmd.SPSS),
+		Limit:           uint32(cmd.Limit),
 	}
 
 	if cmd.UseGRPC {
@@ -162,10 +166,33 @@ func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
 }
 
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
-	client := httpclient.New("http://"+cmd.HostPort, cmd.OrgID)
-	resp, err := client.SearchTraceQLWithRange(req.Query, int64(req.Start), int64(req.End))
+	httpReq, err := api.BuildSearchRequest(nil, req)
 	if err != nil {
 		return err
+	}
+
+	// steal http request url and replace with websocket path/scheme
+	u := httpReq.URL
+	u.Scheme = "http"
+	u.Host = cmd.HostPort
+	u.Path = api.PathSearch
+
+	client := httpclient.New("http://"+cmd.HostPort, cmd.OrgID)
+	httpResp, err := client.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer httpResp.Body.Close()
+
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return err
+	}
+
+	resp := &tempopb.SearchResponse{}
+	err = jsonpb.Unmarshal(bytes.NewReader(body), resp)
+	if err != nil {
+		panic("failed to parse resp: " + err.Error())
 	}
 	err = printAsJSON(resp)
 	if err != nil {
