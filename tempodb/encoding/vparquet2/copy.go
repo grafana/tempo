@@ -2,9 +2,8 @@ package vparquet2
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -15,7 +14,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 	copyStream := func(name string) error {
 		reader, size, err := from.StreamReader(ctx, name, fromMeta.BlockID, fromMeta.TenantID)
 		if err != nil {
-			return errors.Wrapf(err, "error reading %s", name)
+			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 		defer reader.Close()
 
@@ -26,7 +25,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 	cpy := func(name string) error {
 		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, true)
 		if err != nil {
-			return errors.Wrapf(err, "error reading %s", name)
+			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
 		return to.Write(ctx, name, toMeta.BlockID, toMeta.TenantID, b, true)
@@ -67,7 +66,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 		nameBloom := common.BloomName(i)
 		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, true)
 		if err != nil {
-			return fmt.Errorf("unexpected error writing bloom-%d %w", i, err)
+			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
 	}
 
@@ -84,7 +83,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	// meta
 	err = w.WriteBlockMeta(ctx, meta)
 	if err != nil {
-		return fmt.Errorf("unexpected error writing meta %w", err)
+		return fmt.Errorf("unexpected error writing meta: %w", err)
 	}
 
 	return nil

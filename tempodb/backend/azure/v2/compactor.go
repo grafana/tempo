@@ -1,4 +1,4 @@
-package azure
+package v2
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -22,7 +21,7 @@ type BlobAttributes struct {
 	LastModified time.Time `json:"last_modified"`
 }
 
-func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *V2) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return backend.ErrEmptyTenantID
 	}
@@ -49,7 +48,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	return rw.Delete(ctx, metaFilename, []string{}, false)
 }
 
-func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *V2) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	var warning error
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
@@ -76,7 +75,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 		for _, b := range page.Segment.BlobItems {
 			if b.Name == nil {
-				return errors.Errorf("unexpected empty blob name when listing %s", prefix)
+				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
 			}
 
 			err = rw.Delete(ctx, *b.Name, []string{}, false)
@@ -90,7 +89,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return warning
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *V2) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -114,7 +113,7 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	return out, nil
 }
 
-func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
+func (rw *V2) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
 	bytes, _, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -128,10 +127,10 @@ func (rw *readerWriter) readAllWithModTime(ctx context.Context, name string) ([]
 }
 
 // getAttributes returns information about the specified blob using its name.
-func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
+func (rw *V2) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
 	blobClient, err := getBlobClient(ctx, rw.cfg, name)
 	if err != nil {
-		return BlobAttributes{}, errors.Wrapf(err, "cannot get Azure blob client, name: %s", name)
+		return BlobAttributes{}, fmt.Errorf("cannot get Azure blob client, name: %s: %w", name, err)
 	}
 
 	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
@@ -140,11 +139,11 @@ func (rw *readerWriter) getAttributes(ctx context.Context, name string) (BlobAtt
 	}
 
 	if props.ContentLength == nil {
-		return BlobAttributes{}, errors.Errorf("expected content length but got none for blob %s", name)
+		return BlobAttributes{}, fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
 	}
 
 	if props.LastModified == nil {
-		return BlobAttributes{}, errors.Errorf("expected last modified but got none for blob %s", name)
+		return BlobAttributes{}, fmt.Errorf("expected last modified but got none for blob %s: %w", name, err)
 	}
 
 	return BlobAttributes{

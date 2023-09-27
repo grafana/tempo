@@ -2,9 +2,8 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 type UpdateFn func(current io.ReadCloser) ([]byte, error)

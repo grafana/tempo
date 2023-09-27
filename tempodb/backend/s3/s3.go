@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -153,7 +153,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 	)
 	if err != nil {
 		span.SetTag("error", true)
-		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
+		return fmt.Errorf("error writing object to s3 backend, object %s: %w", objName, err)
 	}
 	level.Debug(rw.logger).Log("msg", "object uploaded to s3", "objectName", objName, "size", info.Size)
 
@@ -202,7 +202,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 		minio.PutObjectPartOptions{},
 	)
 	if err != nil {
-		return a, errors.Wrap(err, "error in multipart upload")
+		return a, fmt.Errorf("error in multipart upload: %w", err)
 	}
 	a.parts = append(a.parts, objPart)
 
@@ -233,7 +233,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 		minio.PutObjectOptions{},
 	)
 	if err != nil {
-		return errors.Wrapf(err, "error completing multipart upload, object: %s, obj etag: %s", a.objectName, uploadInfo.ETag)
+		return fmt.Errorf("error completing multipart upload, object: %s, obj etag: %s: %w", a.objectName, uploadInfo.ETag, err)
 	}
 
 	return nil
@@ -260,7 +260,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
 		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, "/", 0)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error listing blocks in s3 bucket, bucket: %s", rw.cfg.Bucket)
+			return nil, fmt.Errorf("error listing blocks in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 		}
 		isTruncated = res.IsTruncated
 		nextMarker = res.NextMarker
@@ -382,13 +382,13 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
-		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error fetching object from s3 backend")
+		return nil, minio.ObjectInfo{}, fmt.Errorf("error fetching object from s3 backend: %w", err)
 	}
 	defer reader.Close()
 
 	buf, err := tempo_io.ReadAllWithEstimate(reader, info.Size)
 	if err != nil {
-		return nil, minio.ObjectInfo{}, errors.Wrap(err, "error reading response from s3 backend")
+		return nil, minio.ObjectInfo{}, fmt.Errorf("error reading response from s3 backend: %w", err)
 	}
 	return buf, info, nil
 }
@@ -397,11 +397,11 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	options := minio.GetObjectOptions{}
 	err := options.SetRange(offset, offset+int64(len(buffer)))
 	if err != nil {
-		return errors.Wrap(err, "error setting headers for range read in s3")
+		return fmt.Errorf("error setting headers for range read in s3: %w", err)
 	}
 	reader, _, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, objName, options)
 	if err != nil {
-		return errors.Wrapf(err, "error in range read from s3 backend, bucket: %s, objName: %s", rw.cfg.Bucket, objName)
+		return fmt.Errorf("error in range read from s3 backend, bucket: %s, objName: %s: %w", rw.cfg.Bucket, objName, err)
 	}
 	defer reader.Close()
 
@@ -412,7 +412,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 			return nil
 		}
 		if err != nil {
-			return errors.Wrap(err, "error in range read from s3 backend")
+			return fmt.Errorf("error in range read from s3 backend: %w", err)
 		}
 		if byteCount == 0 {
 			return nil
@@ -461,12 +461,12 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
 	if err != nil {
-		return nil, errors.Wrap(err, "create minio.DefaultTransport")
+		return nil, fmt.Errorf("create minio.DefaultTransport: %w", err)
 	}
 
 	tlsConfig, err := cfg.GetTLSConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create TLS config")
+		return nil, fmt.Errorf("failed to create TLS config: %w", err)
 	}
 
 	if tlsConfig != nil {

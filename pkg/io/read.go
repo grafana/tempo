@@ -1,9 +1,8 @@
 package io
 
 import (
+	"errors"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 // ReadAllWithEstimate is a fork of https://go.googlesource.com/go/+/go1.16.3/src/io/io.go#626

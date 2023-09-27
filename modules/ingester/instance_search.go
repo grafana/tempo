@@ -2,13 +2,13 @@ package ingester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
@@ -254,7 +254,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 
 			resp, err := i.SearchTags(ctx, scope)
 			if err != nil {
-				overallError.Store(fmt.Errorf("error searching tags: %s, %w", scope, err))
+				overallError.Store(fmt.Errorf("error searching tags: %s: %w", scope, err))
 				return
 			}
 

@@ -2,6 +2,7 @@ package trace
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"hash/fnv"
 
@@ -31,6 +32,8 @@ func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 	return token(h.Sum64())
 }
 
+var ErrTraceTooLarge = fmt.Errorf("trace exceeds max size")
+
 // Combiner combines multiple partial traces into one, deduping spans based on
 // ID and kind.  Note that it is destructive. There are design decisions for
 // efficiency:
@@ -38,25 +41,29 @@ func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 // * Only sort the final result once and if needed.
 // * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
-	result   *tempopb.Trace
-	spans    map[token]struct{}
-	combined bool
+	result       *tempopb.Trace
+	spans        map[token]struct{}
+	combined     bool
+	maxSizeBytes int
 }
 
-func NewCombiner() *Combiner {
-	return &Combiner{}
+func NewCombiner(maxSizeBytes int) *Combiner {
+	return &Combiner{
+		maxSizeBytes: maxSizeBytes,
+	}
 }
 
 // Consume the given trace and destructively combines its contents.
-func (c *Combiner) Consume(tr *tempopb.Trace) (spanCount int) {
+func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 	return c.ConsumeWithFinal(tr, false)
 }
 
 // ConsumeWithFinal consumes the trace, but allows for performance savings when
 // it is known that this is the last expected input trace.
-func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount int) {
+func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) {
+	var spanCount int
 	if tr == nil {
-		return
+		return spanCount, c.sizeError()
 	}
 
 	h := newHash()
@@ -83,7 +90,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 				}
 			}
 		}
-		return
+		return spanCount, c.sizeError()
 	}
 
 	// loop through every span and copy spans in B that don't exist to A
@@ -122,7 +129,19 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 	}
 
 	c.combined = true
-	return
+	return spanCount, c.sizeError()
+}
+
+func (c *Combiner) sizeError() error {
+	if c.result == nil || c.maxSizeBytes <= 0 {
+		return nil
+	}
+
+	if c.result.Size() > c.maxSizeBytes {
+		return fmt.Errorf("%w (max bytes: %d)", ErrTraceTooLarge, c.maxSizeBytes)
+	}
+
+	return nil
 }
 
 // Result returns the final trace and span count.

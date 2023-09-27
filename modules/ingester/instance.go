@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -15,7 +16,6 @@ import (
 	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -57,7 +57,7 @@ func (e *traceTooLargeError) Error() string {
 
 // Errors returned on Query.
 var (
-	ErrTraceMissing = errors.New("Trace missing")
+	ErrTraceMissing = errors.New("trace missing")
 )
 
 const (
@@ -318,7 +318,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i.localReader, i.localWriter)
 	if err != nil {
-		return errors.Wrap(err, "error completing wal block with local backend")
+		return fmt.Errorf("error completing wal block with local backend: %w", err)
 	}
 
 	ingesterBlock := newLocalBlock(ctx, backendBlock, i.local)
@@ -408,37 +408,52 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 	i.tracesMtx.Unlock()
 
-	combiner := trace.NewCombiner()
-	combiner.Consume(completeTrace)
+	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+
+	combiner := trace.NewCombiner(maxBytes)
+	_, err = combiner.Consume(completeTrace)
+	if err != nil {
+		return nil, err
+	}
 
 	// headBlock
 	i.headBlockMtx.RLock()
-	tr, err := i.headBlock.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+	tr, err := i.headBlock.FindTraceByID(ctx, id, searchOpts)
 	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
-	combiner.Consume(tr)
+	_, err = combiner.Consume(tr)
+	if err != nil {
+		return nil, err
+	}
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		tr, err = c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+		tr, err = c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
-		combiner.Consume(tr)
+		_, err = combiner.Consume(tr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// completeBlock
 	for _, c := range i.completeBlocks {
-		found, err := c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+		found, err := c.FindTraceByID(ctx, id, searchOpts)
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
-		combiner.Consume(found)
+		_, err = combiner.Consume(found)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result, _ := combiner.Result()
@@ -581,7 +596,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)
 				if err != nil {
-					return nil, errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
+					return nil, fmt.Errorf("deleting bad local block tenant %v block %v: %w", i.instanceID, id.String(), err)
 				}
 			} else {
 				// Block with unknown error

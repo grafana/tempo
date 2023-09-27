@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -26,8 +27,12 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	}
+
+	o, err := overrides.NewOverrides(overrides.Config{})
+	assert.NoError(t, err)
+
 	validator := &mockValidator{}
-	overridesAPI, err := New(&cfg, validator)
+	overridesAPI, err := New(&cfg, o, validator)
 	require.NoError(t, err)
 
 	// Provision some data
@@ -171,10 +176,13 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			o, err := overrides.NewOverrides(overrides.Config{})
+			assert.NoError(t, err)
+
 			overridesAPI, err := New(&client.Config{
 				Backend: backend.Local,
 				Local:   &local.Config{Path: t.TempDir()},
-			}, &mockValidator{})
+			}, o, &mockValidator{})
 			require.NoError(t, err)
 
 			if tc.current != "" {
@@ -203,10 +211,13 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Config{})
+	assert.NoError(t, err)
+
 	overridesAPI, err := New(&client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
-	}, &mockValidator{})
+	}, o, &mockValidator{})
 	require.NoError(t, err)
 
 	// inject our client
@@ -241,10 +252,13 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Config{})
+	assert.NoError(t, err)
+
 	overridesAPI, err := New(&client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
-	}, &mockValidator{})
+	}, o, &mockValidator{})
 	require.NoError(t, err)
 
 	// inject our client

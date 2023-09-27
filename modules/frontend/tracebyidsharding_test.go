@@ -16,6 +16,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -249,11 +250,14 @@ func TestShardingWareDoRequest(t *testing.T) {
 		},
 	}
 
+	o, err := overrides.NewOverrides(overrides.Config{})
+	require.NoError(t, err)
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			sharder := newTraceByIDSharder(&TraceByIDConfig{
 				QueryShards: 2,
-			}, log.NewNopLogger())
+			}, o, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
@@ -330,10 +334,13 @@ func TestShardingWareDoRequest(t *testing.T) {
 func TestConcurrentShards(t *testing.T) {
 	concurrency := 2
 
+	o, err := overrides.NewOverrides(overrides.Config{})
+	require.NoError(t, err)
+
 	sharder := newTraceByIDSharder(&TraceByIDConfig{
 		QueryShards:      20,
 		ConcurrentShards: concurrency,
-	}, log.NewNopLogger())
+	}, o, log.NewNopLogger())
 
 	sawMaxConcurrncy := atomic.NewBool(false)
 	currentlyExecuting := atomic.NewInt32(0)
@@ -370,7 +377,7 @@ func TestConcurrentShards(t *testing.T) {
 	ctx = user.InjectOrgID(ctx, "blerg")
 	req = req.WithContext(ctx)
 
-	_, err := testRT.RoundTrip(req)
+	_, err = testRT.RoundTrip(req)
 	require.NoError(t, err)
 	require.True(t, sawMaxConcurrncy.Load())
 }

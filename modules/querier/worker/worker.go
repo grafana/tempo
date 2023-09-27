@@ -2,7 +2,9 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -12,7 +14,6 @@ import (
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/services"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
@@ -91,7 +92,7 @@ func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, _ prom
 	if cfg.QuerierID == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get hostname for configuring querier ID")
+			return nil, fmt.Errorf("failed to get hostname for configuring querier ID: %w", err)
 		}
 		cfg.QuerierID = hostname
 	}
@@ -129,7 +130,7 @@ func newQuerierWorkerWithProcessor(cfg Config, log log.Logger, processor process
 	if len(servs) > 0 {
 		subservices, err := services.NewManager(servs...)
 		if err != nil {
-			return nil, errors.Wrap(err, "querier worker subservices")
+			return nil, fmt.Errorf("querier worker subservices: %w", err)
 		}
 
 		f.subservices = subservices

@@ -3,12 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -49,7 +49,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 	}
 
 	var (
-		combiner   = trace.NewCombiner()
+		combiner   = trace.NewCombiner(0)
 		marshaller = new(jsonpb.Marshaler)
 		jsonBytes  = bytes.Buffer{}
 	)
@@ -66,7 +66,10 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 
 		fmt.Println(jsonBytes.String())
 		jsonBytes.Reset()
-		combiner.ConsumeWithFinal(result.trace, i == len(results)-1)
+		_, err = combiner.ConsumeWithFinal(result.trace, i == len(results)-1)
+		if err != nil {
+			return fmt.Errorf("error combining trace: %w", err)
+		}
 	}
 
 	combinedTrace, _ := combiner.Result()
@@ -122,7 +125,7 @@ func queryBucket(ctx context.Context, r backend.Reader, c backend.Compactor, ten
 	return results, nil
 }
 
-func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, blockNum int, id uuid.UUID, tenantID string, traceID common.ID) (*queryResults, error) {
+func queryBlock(ctx context.Context, r backend.Reader, _ backend.Compactor, blockNum int, id uuid.UUID, tenantID string, traceID common.ID) (*queryResults, error) {
 	fmt.Print(".")
 	if blockNum%100 == 0 {
 		fmt.Print(strconv.Itoa(blockNum))
@@ -134,16 +137,9 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 	}
 
 	if errors.Is(err, backend.ErrDoesNotExist) {
-		compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-		if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
-			return nil, err
-		}
-
-		if compactedMeta == nil {
-			return nil, fmt.Errorf("compacted meta nil?")
-		}
-
-		meta = &compactedMeta.BlockMeta
+		// tempo proper searches compacted blocks, b/c each querier has a different view of the backend blocks.
+		// however, with a single snaphot of the backend, we can only search the noncompacted blocks.
+		return nil, nil
 	}
 
 	block, err := encoding.OpenBlock(meta, r)

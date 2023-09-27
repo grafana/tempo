@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
@@ -59,7 +59,7 @@ func NewVersionedReaderWriter(cfg *Config, confirmVersioning bool) (backend.Vers
 	if confirmVersioning {
 		bucketAttrs, err := rw.bucket.Attrs(context.Background())
 		if err != nil {
-			return nil, errors.Wrap(err, "getting bucket attrs")
+			return nil, fmt.Errorf("getting bucket attrs: %w", err)
 		}
 
 		if !bucketAttrs.VersioningEnabled {
@@ -75,18 +75,18 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	bucket, err := createBucket(ctx, cfg, false)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating bucket")
+		return nil, fmt.Errorf("creating bucket: %w", err)
 	}
 
 	hedgedBucket, err := createBucket(ctx, cfg, true)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating hedged bucket")
+		return nil, fmt.Errorf("creating hedged bucket: %w", err)
 	}
 
 	// Check bucket exists by getting attrs
 	if confirm {
 		if _, err = bucket.Attrs(ctx); err != nil {
-			return nil, errors.Wrap(err, "getting bucket attrs")
+			return nil, fmt.Errorf("getting bucket attrs: %w", err)
 		}
 	}
 
@@ -113,7 +113,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 	if err != nil {
 		w.Close()
 		span.SetTag("error", true)
-		return errors.Wrap(err, "failed to write")
+		return fmt.Errorf("failed to write: %w", err)
 	}
 
 	return w.Close()
@@ -176,7 +176,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 			break
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "iterating blocks")
+			return nil, fmt.Errorf("iterating blocks: %w", err)
 		}
 
 		obj := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, prefix), "/")
@@ -239,7 +239,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	if err != nil {
 		w.Close()
 		span.SetTag("error", true)
-		return "", errors.Wrap(err, "failed to write")
+		return "", fmt.Errorf("failed to write: %w", err)
 	}
 
 	err = w.Close()
@@ -352,7 +352,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 	transport, err := google_http.NewTransport(ctx, customTransport, transportOptions...)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating google http transport")
+		return nil, fmt.Errorf("creating google http transport: %w", err)
 	}
 
 	// add instrumentation
@@ -380,7 +380,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 	client, err := storage.NewClient(ctx, storageClientOptions...)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating storage client")
+		return nil, fmt.Errorf("creating storage client: %w", err)
 	}
 
 	// Build bucket

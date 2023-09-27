@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"

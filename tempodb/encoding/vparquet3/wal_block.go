@@ -3,6 +3,7 @@ package vparquet3
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -23,7 +24,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -67,13 +67,13 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 	metaPath := filepath.Join(dir, backend.MetaName)
 	metaBytes, err := os.ReadFile(metaPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading wal meta json: %s %w", metaPath, err)
+		return nil, nil, fmt.Errorf("error reading wal meta json: %s: %w", metaPath, err)
 	}
 
 	meta := &backend.BlockMeta{}
 	err = json.Unmarshal(metaBytes, meta)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s %w", metaPath, err)
+		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s: %w", metaPath, err)
 	}
 
 	// below we're going to iterate all of the parquet files in the wal and build the meta, this will correctly
@@ -103,7 +103,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		// opened but not flushed.
 		i, err := f.Info()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting file info: %s %w", f.Name(), err)
+			return nil, nil, fmt.Errorf("error getting file info: %s: %w", f.Name(), err)
 		}
 		if i.Size() == 0 {
 			continue
@@ -114,7 +114,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 		file, err := page.file()
 		if err != nil {
-			warning = fmt.Errorf("error opening file info: %s %w", page.path, err)
+			warning = fmt.Errorf("error opening file info: %s: %w", page.path, err)
 			continue
 		}
 
@@ -500,7 +500,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -518,13 +518,13 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.Searc
 
 			err = r.SeekToRow(rowNumber)
 			if err != nil {
-				return nil, errors.Wrap(err, "seek to row")
+				return nil, fmt.Errorf("seek to row: %w", err)
 			}
 
 			tr := new(Trace)
 			err = r.Read(tr)
 			if err != nil {
-				return nil, errors.Wrap(err, "error reading row from backend")
+				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 
 			trp := parquetTraceToTempopbTrace(b.meta, tr)
@@ -533,9 +533,12 @@ func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, _ common.Searc
 		}
 	}
 
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(opts.MaxBytes)
 	for i, tr := range trs {
-		combiner.ConsumeWithFinal(tr, i == len(trs)-1)
+		_, err := combiner.ConsumeWithFinal(tr, i == len(trs)-1)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tr, _ := combiner.Result()
@@ -629,7 +632,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
-		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
+		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
 
 	blockFlushes := b.readFlushes()
@@ -646,7 +649,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		iter, err := fetch(ctx, req, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
-			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
+			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 		}
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}

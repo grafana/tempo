@@ -2,11 +2,11 @@ package vparquet3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -72,7 +72,7 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 		return nil, nil, nil
 	}
 
-	return nil, nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
+	return nil, nil, fmt.Errorf("error iterating through block %s: %w", i.blockID, err)
 }
 
 func (i *rawIterator) peekNextID(context.Context) (common.ID, error) { // nolint:unused // this is required to satisfy the bookmarkIterator interface

@@ -2,6 +2,7 @@ package vparquet2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
@@ -302,7 +302,7 @@ func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return nil, errors.Wrap(err, "searchRaw next failed")
+			return nil, fmt.Errorf("searchRaw next failed: %w", err)
 		}
 		if match == nil {
 			break
@@ -333,7 +333,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	for {
 		match, err := iter2.Next()
 		if err != nil {
-			return nil, errors.Wrap(err, "rawToResults next failed")
+			return nil, fmt.Errorf("rawToResults next failed: %w", err)
 		}
 		if match == nil {
 			break

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -8,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -45,7 +45,7 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 	if enforceTraceQL {
 		_, err := traceql.ParseIdentifier(tagName)
 		if err != nil {
-			return nil, errors.Wrap(err, "please provide a valid tagName")
+			return nil, fmt.Errorf("please provide a valid tagName: %w", err)
 		}
 	}
 

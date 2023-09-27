@@ -15,7 +15,6 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -55,7 +54,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
 
 	// tracebyid middleware
-	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
+	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, o, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, logger), retryWare)
 	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(), retryWare)
 
@@ -81,7 +80,7 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
+func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
@@ -90,7 +89,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 		rt := NewRoundTripper(
 			next,
 			newDeduper(logger),
-			newTraceByIDSharder(&cfg.TraceByID, logger),
+			newTraceByIDSharder(&cfg.TraceByID, o, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)
 
@@ -131,7 +130,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
-					return nil, errors.Wrap(err, "error reading response body at query frontend")
+					return nil, fmt.Errorf("error reading response body at query frontend: %w", err)
 				}
 				responseObject := &tempopb.TraceByIDResponse{}
 				err = proto.Unmarshal(body, responseObject)

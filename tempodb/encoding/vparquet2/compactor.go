@@ -2,6 +2,7 @@ package vparquet2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"runtime"
@@ -14,7 +15,6 @@ import (
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -140,7 +140,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		if err != nil {
-			return nil, errors.Wrap(err, "error iterating input blocks")
+			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
 		// make a new block if necessary
@@ -164,7 +164,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
-				return nil, errors.Wrap(err, "error writing partial block")
+				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
 
@@ -181,7 +181,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
-				return nil, errors.Wrap(err, "error writing partial block")
+				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
 
@@ -194,7 +194,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
 			err := c.finishBlock(ctx, currentBlockPtrCopy, l)
 			if err != nil {
-				return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlockPtrCopy.meta.BlockID.String()))
+				return nil, fmt.Errorf("error shipping block to backend, blockID %s: %w", currentBlockPtrCopy.meta.BlockID.String(), err)
 			}
 			currentBlock = nil
 		}
@@ -206,7 +206,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		currentBlock.meta.EndTime = maxBlockEnd
 		err := c.finishBlock(ctx, currentBlock, l)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlock.meta.BlockID.String()))
+			return nil, fmt.Errorf("error shipping block to backend, blockID %s: %w", currentBlock.meta.BlockID.String(), err)
 		}
 	}
 
@@ -247,7 +247,7 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 
 	bytesFlushed, err := block.Complete()
 	if err != nil {
-		return errors.Wrap(err, "error completing block")
+		return fmt.Errorf("error completing block: %w", err)
 	}
 
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))

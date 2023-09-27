@@ -5,6 +5,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -18,7 +19,6 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -220,7 +220,7 @@ func NewTempoQuery() *e2e.HTTPService {
 func CopyFileToSharedDir(s *e2e.Scenario, src, dst string) error {
 	content, err := os.ReadFile(src)
 	if err != nil {
-		return errors.Wrapf(err, "unable to read local file %s", src)
+		return fmt.Errorf("unable to read local file %s: %w", src, err)
 	}
 
 	_, err = writeFileToSharedDir(s, dst, content)

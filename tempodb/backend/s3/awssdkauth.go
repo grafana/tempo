@@ -1,10 +1,11 @@
 package s3
 
 import (
+	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	mcreds "github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/pkg/errors"
 )
 
 func NewAWSSDKAuth(region string) *AWSSDKAuth {
@@ -24,7 +25,7 @@ type AWSSDKAuth struct {
 func (a *AWSSDKAuth) Retrieve() (mcreds.Value, error) {
 	val, err := a.creds.Get()
 	if err != nil {
-		return mcreds.Value{}, errors.Wrap(err, "retrieve AWS SDK credentials")
+		return mcreds.Value{}, fmt.Errorf("retrieve AWS SDK credentials: %w", err)
 	}
 	return mcreds.Value{
 		AccessKeyID:     val.AccessKeyID,

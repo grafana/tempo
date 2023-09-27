@@ -181,7 +181,7 @@ func (s *Client) Search(ctx context.Context, maxBytes int, searchReq *tempopb.Se
 	var searchResp tempopb.SearchResponse
 	err = jsonpb.Unmarshal(bytes.NewReader(body), &searchResp)
 	if err != nil {
-		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s, %w", string(body), err)
+		return nil, fmt.Errorf("external endpoint failed to unmarshal body: %s: %w", string(body), err)
 	}
 
 	return &searchResp, nil

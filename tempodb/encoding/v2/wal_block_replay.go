@@ -2,11 +2,10 @@ package v2
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )

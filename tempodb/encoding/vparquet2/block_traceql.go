@@ -2,6 +2,7 @@ package vparquet2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -302,7 +302,7 @@ var wellKnownColumnLookups = map[string]struct {
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	err := checkConditions(req.Conditions)
 	if err != nil {
-		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
+		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
 
 	pf, rr, err := b.openForSearch(ctx, opts)
@@ -312,7 +312,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	iter, err := fetch(ctx, req, pf, opts)
 	if err != nil {
-		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
+		return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 	}
 
 	return traceql.FetchSpansResponse{
@@ -836,12 +836,12 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 
 	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span iterator")
+		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
 	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating resource iterator")
+		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
 	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, allConditions)
@@ -958,7 +958,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				addPredicate(entry.columnPath, pred)
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
@@ -973,7 +973,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
@@ -1067,7 +1067,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, fmt.Errorf("creating predicate: %w", err)
 				}
 				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
@@ -1085,7 +1085,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
@@ -1457,28 +1457,28 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
 		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
 		case traceql.TypeFloat:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrFltPreds = append(attrFltPreds, pred)
 
 		case traceql.TypeBoolean:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			boolPreds = append(boolPreds, pred)
 		}

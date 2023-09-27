@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -75,7 +74,7 @@ type Writer interface {
 type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
@@ -245,12 +244,12 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
 	if err != nil {
-		return nil, errors.Wrap(err, "error creating block")
+		return nil, fmt.Errorf("error creating block: %w", err)
 	}
 
 	backendBlock, err := encoding.OpenBlock(newMeta, r)
 	if err != nil {
-		return nil, errors.Wrap(err, "error opening new block")
+		return nil, fmt.Errorf("error opening new block: %w", err)
 	}
 
 	return backendBlock, nil
@@ -264,7 +263,7 @@ func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -310,7 +309,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
-	opts := common.DefaultSearchOptions()
 	if rw.cfg != nil && rw.cfg.Search != nil {
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
@@ -321,12 +319,12 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		r := rw.getReaderForBlock(meta, curTime)
 		block, err := encoding.OpenBlock(meta, r)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("error opening block for reading, blockID: %s", meta.BlockID.String()))
+			return nil, fmt.Errorf("error opening block for reading, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
 		foundObject, err := block.FindTraceByID(ctx, id, opts)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("error finding trace by id, blockID: %s", meta.BlockID.String()))
+			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
