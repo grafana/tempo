@@ -521,7 +521,7 @@ func TestInstanceMetrics(t *testing.T) {
 		request := makeRequest([]byte{})
 		response := i.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
-		require.False(t, errored, "push %d failed: %w", j, response.Results)
+		require.False(t, errored, "push %d failed: %w", j, response.ErrorsByTrace)
 	}
 	cutAndVerify(count)
 	cutAndVerify(0)
@@ -556,7 +556,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	// Fill up trace to max
 	response := i.PushBytesRequest(ctx, req)
 	errored, _, _ := CheckPushBytesError(response)
-	require.False(t, errored, "push failed: %w", response.Results)
+	require.False(t, errored, "push failed: %w", response.ErrorsByTrace)
 
 	// Pushing again fails
 	response = i.PushBytesRequest(ctx, req)
@@ -575,7 +575,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	require.NoError(t, err)
 	response = i.PushBytesRequest(ctx, req)
 	errored, _, _ = CheckPushBytesError(response)
-	require.False(t, errored, "push failed: %w", response.Results)
+	require.False(t, errored, "push failed: %w", response.ErrorsByTrace)
 }
 
 func TestInstancePartialSuccess(t *testing.T) {
@@ -709,7 +709,7 @@ func BenchmarkInstancePush(b *testing.B) {
 		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
-		require.False(b, errored, "push failed: %w", response.Results)
+		require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
 	}
 }
 
@@ -721,7 +721,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
-		require.False(b, errored, "push failed: %w", response.Results)
+		require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
 	}
 }
 
@@ -731,7 +731,7 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	request := makeRequest(traceID)
 	response := instance.PushBytesRequest(context.Background(), request)
 	errored, _, _ := CheckPushBytesError(response)
-	require.False(b, errored, "push failed: %w", response.Results)
+	require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
 
 	// force the trace to be in a complete block
 	err := instance.CutCompleteTraces(0, true)
@@ -765,7 +765,7 @@ func benchmarkInstanceSearch(b testing.TB) {
 		request := makeRequest(nil)
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
-		require.False(b, errored, "push failed: %w", response.Results)
+		require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
 
 		if i%100 == 0 {
 			err := instance.CutCompleteTraces(0, true)
@@ -824,17 +824,12 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 		panic(err)
 	}
 
-	spanCount, _ := tempo_util.HexStringToTraceID("1")
-
 	return &tempopb.PushBytesRequest{
 		Ids: []tempopb.PreallocBytes{{
 			Slice: traceID,
 		}},
 		Traces: []tempopb.PreallocBytes{{
 			Slice: buffer,
-		}},
-		SpanCounts: []tempopb.PreallocBytes{{
-			Slice: spanCount,
 		}},
 	}
 }
@@ -872,7 +867,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 		request := makeRequestWithByteLimit(10_000, nil)
 		response := i.PushBytesRequest(ctx, request)
 		errored, _, _ := CheckPushBytesError(response)
-		require.False(t, errored, "push failed: %w", response.Results)
+		require.False(t, errored, "push failed: %w", response.ErrorsByTrace)
 		pushes++
 	})
 
@@ -996,16 +991,15 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 	return &tempopb.PushBytesRequest{
 		Ids:        byteIDs,
 		Traces:     byteTraces,
-		SpanCounts: byteSpanCounts,
 	}
 }
 
 func CheckPushBytesError(response *tempopb.PushResponse) (errored bool, maxLiveTracesCount int, traceTooLargeCount int) {
-	for _, result := range response.Results {
+	for _, result := range response.ErrorsByTrace {
 		switch result {
-		case maxLiveTracesErrInt:
+		case tempopb.PushErrorReason_MAX_LIVE_TRACES:
 			maxLiveTracesCount++
-		case traceTooLargeErrorInt:
+		case tempopb.PushErrorReason_TRACE_TOO_LARGE:
 			traceTooLargeCount++
 		}
 	}

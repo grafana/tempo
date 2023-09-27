@@ -33,6 +33,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	pklog "github.com/grafana/tempo/pkg/util/log"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -49,9 +50,6 @@ const (
 	reasonInternalError = "internal_error"
 
 	distributorRingKey = "distributor"
-
-	maxLiveTracesErrInt   = 1
-	traceTooLargeErrorInt = 2
 )
 
 var (
@@ -382,7 +380,8 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		op = ring.Write
 	}
 
-	batchResults := make([][]int, len(keys))
+	numOfTraces := len(keys)
+	batchResults := make([][]tempopb.PushErrorReason, numOfTraces)
 	// batch results will be represent the entire batch of traces and each index will have the pushResponses for each trace
 	// 0 = no error, 1 = max_live_traces, 2 = trace_too_large
 	// batchResults{[[0,0,0], [1,0,1]]} represents two traces where trace 1 was successfully pushed 3 times and trace 2 received max_live_traces error twice
@@ -420,12 +419,16 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		mu.Lock()
 		defer mu.Unlock()
 
-		for ringIndex, traceResult := range pushResponse.Results {
+		for ringIndex, pushError := range pushResponse.ErrorsByTrace {
 			// translate index of ring batch and req batch
 			// since the request batch gets split up into smaller batches based on the indexes
 			// like [0,1] [1] [2] [0,2]
 			reqBatchIndex := indexes[ringIndex]
-			batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], int(traceResult))
+			if reqBatchIndex < numOfTraces {
+				batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
+			}else {
+				level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+			}
 		}
 
 		return nil
@@ -570,14 +573,14 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func countDiscaredSpans(responses [][]int, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
+func countDiscaredSpans(batchResults [][]tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
 	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
 
-	for reqBatchIndex, results := range responses {
+	for reqBatchIndex, errorsByTrace := range batchResults {
 		numSuccess := 0
-		lastError := 0
-		for _, err := range results {
-			if err == 0 {
+		var lastError tempopb.PushErrorReason
+		for _, err := range errorsByTrace {
+			if err == tempopb.PushErrorReason_NO_ERROR {
 				numSuccess++
 			} else {
 				lastError = err
@@ -587,9 +590,28 @@ func countDiscaredSpans(responses [][]int, traces []*rebatchedTrace, repFactor i
 		if numSuccess < quorum {
 			spanCount := traces[reqBatchIndex].spanCount
 			switch lastError {
-			case maxLiveTracesErrInt:
+			case tempopb.PushErrorReason_MAX_LIVE_TRACES:
 				maxLiveDiscardedCount += spanCount
-			case traceTooLargeErrorInt:
+			case tempopb.PushErrorReason_TRACE_TOO_LARGE:
+				traceTooLargeDiscardedCount += spanCount
+			}
+		}
+	}
+
+	return maxLiveDiscardedCount, traceTooLargeDiscardedCount
+}
+
+func countDiscaredSpansTwo(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
+	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
+
+	for traceIndex, numSuccess := range numSuccessByTraceIndex {
+		// we will count anything that did not receive min success as discarded
+		if numSuccess < quorum {
+			spanCount := traces[traceIndex].spanCount
+			switch lastErrorReasonByTraceIndex[traceIndex] {
+			case tempopb.PushErrorReason_MAX_LIVE_TRACES:
+				maxLiveDiscardedCount += spanCount
+			case tempopb.PushErrorReason_TRACE_TOO_LARGE:
 				traceTooLargeDiscardedCount += spanCount
 			}
 		}

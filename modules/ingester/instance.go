@@ -40,25 +40,18 @@ var (
 )
 
 func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) error {
-	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
+	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s: max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
 		overrides.ErrorPrefixTraceTooLarge, maxBytes, reqSize, hex.EncodeToString(traceID), instanceID))
 	return errTraceTooLarge
 }
 
 func newMaxLiveTracesError(instanceID string, limit string) error {
-	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, instanceID, limit))
+	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s: max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, instanceID, limit))
 	return errMaxLiveTraces
 }
 
-// Errors returned on Query.
-var (
-	ErrTraceMissing = errors.New("trace missing")
-)
-
 const (
 	traceDataType         = "trace"
-	maxLiveTracesErrInt   = 1
-	traceTooLargeErrorInt = 2
 )
 
 var (
@@ -152,23 +145,25 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
-	pr := &tempopb.PushResponse{}
+	pr := &tempopb.PushResponse{
+		ErrorsByTrace: make([]tempopb.PushErrorReason, 0, len(req.Traces)),
+	}
 
 	for j := range req.Traces {
 
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
 			if errors.Is(err, errMaxLiveTraces) {
-				pr.Results = append(pr.Results, maxLiveTracesErrInt)
+				pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_MAX_LIVE_TRACES)
 				continue
 			}
 
 			if errors.Is(err, errTraceTooLarge) {
-				pr.Results = append(pr.Results, traceTooLargeErrorInt)
+				pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_TRACE_TOO_LARGE)
 				continue
 			}
 		} else {
-			pr.Results = append(pr.Results, 0)
+			pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_NO_ERROR)
 		}
 	}
 
