@@ -156,9 +156,12 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
 	for _, tenantID := range tenants {
+		m.Lock()
 		if len(errs) > p.cfg.TolerateConsecutiveErrors {
+			m.Unlock()
 			break
 		}
+		m.Unlock()
 
 		bg.Add(1)
 		go func(tenantID string) {
