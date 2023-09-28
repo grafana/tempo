@@ -276,59 +276,57 @@ func (p *Poller) pollTenantBlocks(
 		return nil, nil, err
 	}
 
-	previousMetas := previous.Metas(tenantID)
-	previousCompactedMetas := previous.CompactedMetas(tenantID)
+	metas := previous.Metas(tenantID)
+	compactedMetas := previous.CompactedMetas(tenantID)
 
-	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
+	// mm, cm := metaMap(previous.Metas(tenantID), previous.CompactedMetas(tenantID))
+
+	mm := make(map[uuid.UUID]*backend.BlockMeta, len(metas))
+	cm := make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
+
+	for _, i := range metas {
+		mm[i.BlockID] = i
+	}
+
+	for _, i := range compactedMetas {
+		cm[i.BlockID] = i
+	}
+
 	chMeta := make(chan *backend.BlockMeta, len(currentBlockIDs))
 	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(currentCompactedBlockIDs))
 	anyError := atomic.Error{}
 
 	newBlockIDs := []uuid.UUID{}
 	for _, blockID := range currentBlockIDs {
-		// if we don't have this block id in our current our or previous block list, add it to the new list
-		if uuidInBlocklist(blockID, previousMetas, previousCompactedMetas) {
-			// write the block meta to the channel
-			for _, previousMeta := range previousMetas {
-				if previousMeta.BlockID == blockID {
-					chMeta <- previousMeta
-					break
-				}
-			}
-		} else {
-			newBlockIDs = append(newBlockIDs, blockID)
+		// if we already have this block id in our previous list, use the existing data.
+		if v, ok := mm[blockID]; ok {
+			chMeta <- v
+			continue
 		}
+		newBlockIDs = append(newBlockIDs, blockID)
 	}
 
-	var compactedFound bool
 	for _, blockID := range currentCompactedBlockIDs {
-		compactedFound = false
-		// if we don't have this block id in our current our or previous block list, add it to the new lists
-		if uuidInBlocklist(blockID, previousMetas, previousCompactedMetas) {
-			// write the block meta to the channel
-			for _, previousCompactedMeta := range previousCompactedMetas {
-				if previousCompactedMeta.BlockID == blockID {
-					compactedFound = true
-					chCompactedMeta <- previousCompactedMeta
-					break
-				}
-			}
-
-			if !compactedFound {
-				for _, previousMeta := range previousMetas {
-					if previousMeta.BlockID == blockID {
-						chCompactedMeta <- &backend.CompactedBlockMeta{
-							BlockMeta: *previousMeta,
-						}
-						break
-					}
-				}
-			}
-		} else {
-			newBlockIDs = append(newBlockIDs, blockID)
+		// if we already have this block id in our previous list, use the existing data.
+		if v, ok := cm[blockID]; ok {
+			chCompactedMeta <- v
+			continue
 		}
+
+		// TODO: Review this hack to avoid polling for compacted blocks that we
+		// know about.  But we need to poll this to ensure that we have the correct
+		// time. Probably.
+		// if v, ok := mm[blockID]; ok {
+		// 	chCompactedMeta <- &backend.CompactedBlockMeta{
+		// 		BlockMeta: *v,
+		// 		// CompactedTime: time.Now(),
+		// 	}
+		// 	continue
+		// }
+		newBlockIDs = append(newBlockIDs, blockID)
 	}
 
+	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
 	for _, blockID := range newBlockIDs {
 		bg.Add(1)
 		go func(id uuid.UUID) {
@@ -466,20 +464,4 @@ func sumTotalBackendMetaMetrics(
 		blockMetaTotalBytes:            sumTotalBytesBM,
 		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
 	}
-}
-
-func uuidInBlocklist(id uuid.UUID, metas []*backend.BlockMeta, compactedMetas []*backend.CompactedBlockMeta) bool {
-	for _, i := range metas {
-		if i.BlockID == id {
-			return true
-		}
-	}
-
-	for _, i := range compactedMetas {
-		if i.BlockID == id {
-			return true
-		}
-	}
-
-	return false
 }

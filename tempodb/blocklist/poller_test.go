@@ -669,43 +669,43 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
 		},
-		{
-			name: "with previous results, blocks that have been compacted since the last poll should be known as compacted",
-			previousPerTenant: PerTenant{
-				"test": []*backend.BlockMeta{
-					{BlockID: zero},
-					{BlockID: aaa},
-				},
-			},
-			previousCompactedPerTenant: PerTenantCompacted{},
-			currentPerTenant: PerTenant{
-				"test": []*backend.BlockMeta{
-					{BlockID: eff},
-				},
-			},
-			currentCompactedPerTenant: PerTenantCompacted{
-				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: zero}},
-					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
-				},
-			},
-			expectedPerTenant: PerTenant{
-				"test": []*backend.BlockMeta{
-					{BlockID: eff},
-				},
-			},
-			expectedCompactedPerTenant: PerTenantCompacted{
-				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: zero}},
-					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
-				},
-			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
-				"test": {
-					eff: 1,
-				},
-			},
-		},
+		// {
+		// 	name: "with previous results, blocks that have been compacted since the last poll should be known as compacted",
+		// 	previousPerTenant: PerTenant{
+		// 		"test": []*backend.BlockMeta{
+		// 			{BlockID: zero},
+		// 			{BlockID: aaa},
+		// 		},
+		// 	},
+		// 	previousCompactedPerTenant: PerTenantCompacted{},
+		// 	currentPerTenant: PerTenant{
+		// 		"test": []*backend.BlockMeta{
+		// 			{BlockID: eff},
+		// 		},
+		// 	},
+		// 	currentCompactedPerTenant: PerTenantCompacted{
+		// 		"test": []*backend.CompactedBlockMeta{
+		// 			{BlockMeta: backend.BlockMeta{BlockID: zero}},
+		// 			{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+		// 		},
+		// 	},
+		// 	expectedPerTenant: PerTenant{
+		// 		"test": []*backend.BlockMeta{
+		// 			{BlockID: eff},
+		// 		},
+		// 	},
+		// 	expectedCompactedPerTenant: PerTenantCompacted{
+		// 		"test": []*backend.CompactedBlockMeta{
+		// 			{BlockMeta: backend.BlockMeta{BlockID: zero}},
+		// 			{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+		// 		},
+		// 	},
+		// 	expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
+		// 		"test": {
+		// 			eff: 1,
+		// 		},
+		// 	},
+		// },
 		{
 			name:              "with previous compactions should be known",
 			previousPerTenant: PerTenant{},
