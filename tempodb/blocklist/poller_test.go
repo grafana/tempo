@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -796,6 +797,10 @@ func BenchmarkPoller10k(b *testing.B) {
 			tenantCount:     1,
 			blocksPerTenant: 10000,
 		},
+		{
+			tenantCount:     1,
+			blocksPerTenant: 100000,
+		},
 	}
 
 	for _, tc := range tests {
@@ -804,8 +809,8 @@ func BenchmarkPoller10k(b *testing.B) {
 
 		// currentPerTenant := newPerTenant(uuids, tc.tenantCount, tc.blocksPerTenant)
 		// currentPerTenantCompacted := newPerTenantCompacted(uuids, tc.tenantCount, tc.blocksPerTenant)
-		currentPerTenant := previousPerTenant
-		currentPerTenantCompacted := previousPerTenantCompacted
+		currentPerTenant := maps.Clone(previousPerTenant)
+		currentPerTenantCompacted := maps.Clone(previousPerTenantCompacted)
 
 		var (
 			c        = newMockCompactor(currentPerTenantCompacted, false)
@@ -841,24 +846,24 @@ func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *
 }
 
 func newBlockMetas(count int) []*backend.BlockMeta {
-	metas := []*backend.BlockMeta{}
+	metas := make([]*backend.BlockMeta, count)
 	for i := 0; i < count; i++ {
-		metas = append(metas, &backend.BlockMeta{
+		metas[i] = &backend.BlockMeta{
 			BlockID: uuid.New(),
-		})
+		}
 	}
 
 	return metas
 }
 
 func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
-	metas := []*backend.CompactedBlockMeta{}
+	metas := make([]*backend.CompactedBlockMeta, count)
 	for i := 0; i < count; i++ {
-		metas = append(metas, &backend.CompactedBlockMeta{
+		metas[i] = &backend.CompactedBlockMeta{
 			BlockMeta: backend.BlockMeta{
 				BlockID: uuid.New(),
 			},
-		})
+		}
 	}
 
 	return metas
@@ -875,13 +880,12 @@ func randString(n int) string {
 }
 
 func newPerTenant(tenantCount, blockCount int) PerTenant {
-	perTenant := make(PerTenant)
-	metas := []*backend.BlockMeta{}
+	perTenant := make(PerTenant, tenantCount)
+	var metas []*backend.BlockMeta
+	var id string
 	for i := 0; i < tenantCount; i++ {
-		for ii := 0; ii < blockCount; ii++ {
-			metas = newBlockMetas(blockCount)
-		}
-		id := randString(5)
+		metas = newBlockMetas(blockCount)
+		id = randString(5)
 		perTenant[id] = metas
 	}
 
@@ -890,12 +894,11 @@ func newPerTenant(tenantCount, blockCount int) PerTenant {
 
 func newPerTenantCompacted(tenantCount, blockCount int) PerTenantCompacted {
 	perTenantCompacted := make(PerTenantCompacted)
-	metas := []*backend.CompactedBlockMeta{}
+	var metas []*backend.CompactedBlockMeta
+	var id string
 	for i := 0; i < tenantCount; i++ {
-		for ii := 0; ii < blockCount; ii++ {
-			metas = newCompactedMetas(blockCount)
-		}
-		id := randString(5)
+		metas = newCompactedMetas(blockCount)
+		id = randString(5)
 		perTenantCompacted[id] = metas
 	}
 
