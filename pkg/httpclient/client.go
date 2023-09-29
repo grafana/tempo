@@ -230,7 +230,7 @@ func (c *Client) SearchWithWebsocket(req *tempopb.SearchRequest, f func(*tempopb
 
 	conn, resp, err := websocket.DefaultDialer.Dial(httpReq.URL.String(), httpReq.Header)
 	if err != nil {
-		return nil, fmt.Errorf("ws dial failed: %w, resp: %s", err, resp)
+		return nil, fmt.Errorf("ws dial failed: %w, resp: %v", err, resp)
 	}
 	defer conn.Close()
 
