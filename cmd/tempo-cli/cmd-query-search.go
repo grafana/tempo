@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"os/signal"
 	"path"
 	"time"
 
@@ -16,9 +14,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gorilla/websocket"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -103,74 +101,20 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 }
 
 func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
-	httpReq, err := http.NewRequest("GET", "ws://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathWSSearch), nil)
+	client := httpclient.New("ws://"+path.Join(cmd.HostPort, cmd.PathPrefix), cmd.OrgID)
+
+	resp, err := client.SearchWithWebsocket(req, func(resp *tempopb.SearchResponse) {
+		fmt.Println("--- streaming response ---")
+		printAsJSON(resp)
+	})
 	if err != nil {
 		return err
 	}
 
-	httpReq, err = api.BuildSearchRequest(httpReq, req)
-	if err != nil {
-		return err
-	}
+	fmt.Println("--- final response ---")
+	printAsJSON(resp)
 
-	httpReq.Header = http.Header{}
-	err = user.InjectOrgIDIntoHTTPRequest(user.InjectOrgID(context.Background(), cmd.OrgID), httpReq)
-	if err != nil {
-		return err
-	}
-
-	conn, resp, err := websocket.DefaultDialer.Dial(httpReq.URL.String(), httpReq.Header)
-	if err != nil {
-		return fmt.Errorf("ws dial failed: %w, resp: %s", err, resp)
-	}
-	defer conn.Close()
-
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				if closeErr, ok := err.(*websocket.CloseError); ok {
-					if closeErr.Code == websocket.CloseNormalClosure {
-						break
-					}
-				}
-				panic("failed to read msg: " + err.Error())
-			}
-			resp := &tempopb.SearchResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(message), resp)
-			if err != nil {
-				panic("failed to parse resp: " + err.Error())
-			}
-			printAsJSON(resp)
-		}
-	}()
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	for {
-		select {
-		case <-done:
-			return nil
-		case <-interrupt:
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				return err
-			}
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return nil
-		}
-	}
+	return nil
 }
 
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
