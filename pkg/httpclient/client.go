@@ -243,7 +243,8 @@ func (c *Client) SearchWithWebsocket(req *tempopb.SearchRequest, f func(*tempopb
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-				if closeErr, ok := err.(*websocket.CloseError); ok {
+				var closeErr *websocket.CloseError
+				if errors.As(err, &closeErr) {
 					if closeErr.Code == websocket.CloseNormalClosure {
 						break
 					}

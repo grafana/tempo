@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/gorilla/websocket"
 	"go.uber.org/atomic"
 
@@ -170,7 +170,8 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 			for {
 				_, _, err := conn.ReadMessage()
 				if err != nil {
-					if closeErr, ok := err.(*websocket.CloseError); ok {
+					var closeErr *websocket.CloseError
+					if errors.As(err, &closeErr) {
 						if closeErr.Code == websocket.CloseNormalClosure {
 							return // graceful closure. exit silently
 						}

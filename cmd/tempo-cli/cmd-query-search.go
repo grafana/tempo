@@ -105,16 +105,17 @@ func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
 
 	resp, err := client.SearchWithWebsocket(req, func(resp *tempopb.SearchResponse) {
 		fmt.Println("--- streaming response ---")
-		printAsJSON(resp)
+		err := printAsJSON(resp)
+		if err != nil {
+			panic(err)
+		}
 	})
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("--- final response ---")
-	printAsJSON(resp)
-
-	return nil
+	return printAsJSON(resp)
 }
 
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
