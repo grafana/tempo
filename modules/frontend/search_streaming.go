@@ -145,6 +145,10 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	fnHandler := func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		r = r.WithContext(ctx)
+
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			level.Error(logger).Log("msg", "error in upgrading websocket", "err", err)
@@ -159,21 +163,21 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 			}
 		}()
 
-		ctx, cancel := context.WithCancel(r.Context())
-		defer cancel() // jpe - test client cancel logic
-		r = r.WithContext(ctx)
-
-		// set up a ping to keep long lived connections alive
+		// watch for graceful closure from client
 		go func() {
-			ticker := time.NewTicker(5 * time.Second)
+			// cancel the context when we exit to cancel downstream requests
+			defer cancel()
+			for {
+				_, _, err := conn.ReadMessage()
+				if err != nil {
+					if closeErr, ok := err.(*websocket.CloseError); ok {
+						if closeErr.Code == websocket.CloseNormalClosure {
+							return // graceful closure. exit silently
+						}
+					}
 
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					level.Error(logger).Log("msg", "Error writing ping message to websocket. Cancelling request.", "err", err)
-					cancel()
+					// on an unexpected closure, the error "use of closed network connection" will be logged
+					level.Error(logger).Log("msg", "unexpected error from client", "err", err)
 					return
 				}
 			}
