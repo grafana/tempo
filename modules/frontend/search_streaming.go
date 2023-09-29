@@ -129,7 +129,6 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 	}
 }
 
-// jpe - check SLOs
 func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) http.Handler {
 	searcher := streamingSearcher{
 		logger:      logger,
@@ -164,7 +163,7 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 		defer cancel() // jpe - test client cancel logic
 		r = r.WithContext(ctx)
 
-		// set up a ping to keep long lived connections alive - jpe -test
+		// set up a ping to keep long lived connections alive
 		go func() {
 			ticker := time.NewTicker(5 * time.Second)
 

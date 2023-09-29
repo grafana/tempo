@@ -228,8 +228,6 @@ func (c *Client) SearchWithWebsocket(req *tempopb.SearchRequest, f func(*tempopb
 		return nil, err
 	}
 
-	fmt.Println(httpReq.URL.String())
-
 	conn, resp, err := websocket.DefaultDialer.Dial(httpReq.URL.String(), httpReq.Header)
 	if err != nil {
 		return nil, fmt.Errorf("ws dial failed: %w, resp: %s", err, resp)
@@ -285,9 +283,6 @@ func (c *Client) SearchWithWebsocket(req *tempopb.SearchRequest, f func(*tempopb
 			return finalResponse, finalErr
 		}
 	}
-
-	return finalResponse, finalErr
-
 }
 
 func (c *Client) buildQueryURL(queryType string, query string, start int64, end int64) string {
