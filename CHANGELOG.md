@@ -29,6 +29,7 @@
 * [ENHANCEMENT] Add `target_info_excluded_dimensions` to user-config api [#2945](https://github.com/grafana/tempo/pull/2945) (@ie-pham)
 * [ENHANCEMENT] User-configurable overrides: add scope query parameter to return merged overrides for tenant [#2915](https://github.com/grafana/tempo/pull/2915) (@kvrhdn)
 * [ENHANCEMENT] Add histogram buckets to metrics-generator config in user-configurable overrides [#2928](https://github.com/grafana/tempo/pull/2928) (@mar4uk)
+* [ENHANCEMENT] metrics-generator disable x-scope-orgid header append [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix rare deadlock when uploading blocks to Azure Blob Storage [#2129](https://github.com/grafana/tempo/issues/2129) (@LasseHels)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
