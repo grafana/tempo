@@ -376,6 +376,9 @@ metrics_generator:
         # How long to wait when flushing samples on shutdown
         [remote_write_flush_deadline: <duration> | default = 1m]
 
+        # Whether to remove X-Scope-OrgID header in remote write requests
+        [remote_write_remove_org_id_header: <bool> | default = false]
+
         # A list of remote write endpoints.
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
         remote_write:

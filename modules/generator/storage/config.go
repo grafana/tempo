@@ -17,6 +17,9 @@ type Config struct {
 	// How long to wait when flushing sample on shutdown
 	RemoteWriteFlushDeadline time.Duration `yaml:"remote_write_flush_deadline"`
 
+	// Add X-Scope-OrgID header in remote write requests
+	RemoteWriteRemoveOrgIDHeader bool `yaml:"remote_write_remove_org_id_header,omitempty"`
+
 	// Prometheus remote write config
 	// https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
 	RemoteWrite []prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`

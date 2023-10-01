@@ -12,8 +12,8 @@ import (
 )
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
-// X-Scope-OrgID header present for the given tenant, unless Tempo is run in single tenant mode.
-func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWriteConfig, tenant string, logger log.Logger) []*prometheus_config.RemoteWriteConfig {
+// X-Scope-OrgID header present for the given tenant, unless Tempo is run in single tenant mode or instructed to remove X-Scope-OrgID header.
+func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWriteConfig, tenant string, removeOrgIDHeader bool, logger log.Logger) []*prometheus_config.RemoteWriteConfig {
 	var cloneCfgs []*prometheus_config.RemoteWriteConfig
 
 	for _, originalCfg := range originalCfgs {
@@ -34,6 +34,15 @@ func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWri
 			}
 
 			cloneCfg.Headers[user.OrgIDHeaderName] = tenant
+		}
+
+		if removeOrgIDHeader {
+			for k, v := range cloneCfg.Headers {
+				if strings.EqualFold(user.OrgIDHeaderName, strings.TrimSpace(k)) {
+					level.Warn(logger).Log("msg", "Removing X-Scope-OrgId header", "key", k, "value", v)
+					delete(cloneCfg.Headers, k)
+				}
+			}
 		}
 
 		cloneCfgs = append(cloneCfgs, cloneCfg)
