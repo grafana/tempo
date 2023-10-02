@@ -139,6 +139,7 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 		cfg:         &cfg,
 	}
 
+	// since this is a backend DB we allow websockets to originate from anywhere
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
@@ -168,6 +169,10 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 			// cancel the context when we exit to cancel downstream requests
 			defer cancel()
 			for {
+				// generally websockets allow bi-directional communication. however, in tempo, we have decided to only accept and service
+				// a single query per websocket. this code drops all messages from the client except for graceful closures.
+				// Both graceful closures and unexpected closures are signaled through the error return of the conn.ReadMessage() method.
+				// In both cases we cancel the context to signal to the downstream request to stop.
 				_, _, err := conn.ReadMessage()
 				if err != nil {
 					var closeErr *websocket.CloseError
