@@ -251,7 +251,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 }
 ```
 
-### Search With Websockets
+### Search with websockets
 
 Tempo supports streaming results returned over a websocket at the `/api/search-ws` endpoint. This endpoint supports all of the same
 parameters as [search](#search). For a given query, Tempo will return a series of intermediate results, a final result and will then
