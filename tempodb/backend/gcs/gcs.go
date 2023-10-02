@@ -192,6 +192,9 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 
 // ListBlocks implements backend.Reader
 func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
+	defer span.Finish()
+
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {

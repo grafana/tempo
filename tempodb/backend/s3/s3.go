@@ -285,10 +285,13 @@ func (rw *readerWriter) ListBlocks(
 	ctx context.Context,
 	keypath backend.KeyPath,
 ) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
+	defer span.Finish()
+
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 
 	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
@@ -327,45 +330,45 @@ func (rw *readerWriter) ListBlocks(
 
 					isTruncated = res.IsTruncated
 					nextToken = res.NextContinuationToken
+					if len(res.Contents) == 0 {
+						continue
+					}
 
-					if len(res.Contents) > 0 {
-						for _, c := range res.Contents {
+					for _, c := range res.Contents {
+						// i.e: <tenantID/<blockID>/meta
+						parts := strings.Split(c.Key, "/")
+						if len(parts) != 3 {
+							continue
+						}
 
-							// i.e: <tenantID/<blockID>/meta
-							parts := strings.Split(c.Key, "/")
-							if len(parts) != 3 {
-								continue
-							}
+						if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+							continue
+						}
 
-							if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
-								continue
-							}
+						id, err := uuid.Parse(parts[1])
+						if err != nil {
+							continue
+						}
 
-							id, err := uuid.Parse(parts[1])
-							if err != nil {
-								continue
-							}
+						x := bytes.Compare(id[:], min[:])
+						if x < 0 {
+							return
+						}
 
-							x := bytes.Compare(id[:], min[:])
-							if x < 0 {
-								return
-							}
+						y := bytes.Compare(id[:], max[:])
+						if y > 0 {
+							return
+						}
 
-							y := bytes.Compare(id[:], max[:])
-							if y > 0 {
-								return
-							}
-
-							switch parts[2] {
-							case backend.MetaName:
-								mtx.Lock()
-								blockIDs = append(blockIDs, id)
-								mtx.Unlock()
-							case backend.CompactedMetaName:
-								mtx.Lock()
-								compactedBlockIDs = append(compactedBlockIDs, id)
-								mtx.Unlock()
-							}
+						switch parts[2] {
+						case backend.MetaName:
+							mtx.Lock()
+							blockIDs = append(blockIDs, id)
+							mtx.Unlock()
+						case backend.CompactedMetaName:
+							mtx.Lock()
+							compactedBlockIDs = append(compactedBlockIDs, id)
+							mtx.Unlock()
 						}
 					}
 				}

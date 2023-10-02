@@ -162,6 +162,9 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 
 // ListBlocks implements backend.Reader
 func (rw *V1) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "V1.ListBlocks")
+	defer span.Finish()
+
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	marker := blob.Marker{}
