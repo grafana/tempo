@@ -257,7 +257,7 @@ Tempo supports streaming results returned over a websocket at the `/api/search-w
 parameters as [search](#search). For a given query Tempo will return a series of intermediate results, a final result and will then
 gracefully close the websocket connection. 
 
-You can test this endpoint using curl like so:
+You can test this endpoint using curl:
 ```bash
 curl -G -s http://localhost:3200/api/search-ws \
 	-H 'Connection: Upgrade' \
