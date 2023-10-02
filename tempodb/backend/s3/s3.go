@@ -295,7 +295,6 @@ func (rw *readerWriter) ListBlocks(
 
 	errChan := make(chan error, len(bb))
 	wg := sync.WaitGroup{}
-
 	mtx := sync.Mutex{}
 
 	var min uuid.UUID
@@ -376,7 +375,7 @@ func (rw *readerWriter) ListBlocks(
 	wg.Wait()
 	close(errChan)
 
-	var errs []error
+	errs := make([]error, 0, len(errChan))
 	for e := range errChan {
 		errs = append(errs, e)
 	}
@@ -387,7 +386,7 @@ func (rw *readerWriter) ListBlocks(
 
 	level.Debug(rw.logger).Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
 
-	return
+	return blockIDs, compactedBlockIDs, nil
 }
 
 // Read implements backend.Reader

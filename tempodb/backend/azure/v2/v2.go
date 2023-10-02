@@ -215,7 +215,7 @@ func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 			}
 		}
 	}
-	return
+	return blockIDs, compactedBlockIDs, nil
 }
 
 // Read implements backend.Reader
