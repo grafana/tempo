@@ -258,7 +258,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
 			span.LogFields(
 				spanlog.Int32("metas", int32(len(i.Meta))),
-				spanlog.Int32("compactedMetas", int32(len(i.Meta))),
+				spanlog.Int32("compactedMetas", int32(len(i.CompactedMeta))),
 			)
 			return i.Meta, i.CompactedMeta, nil
 		}
