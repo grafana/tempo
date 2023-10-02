@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	opentracing "github.com/opentracing/opentracing-go"
+	spanlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -142,7 +143,12 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 	}()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "Poller.Do")
+	defer span.Finish()
+
 	tenants, err := p.reader.Tenants(ctx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
@@ -156,55 +162,62 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
 	for _, tenantID := range tenants {
-		m.Lock()
-		if len(errs) > p.cfg.TolerateConsecutiveErrors {
-			m.Unlock()
-			break
-		}
-		m.Unlock()
-
-		bg.Add(1)
-		go func(tenantID string) {
-			defer bg.Done()
-
-			level.Info(p.logger).Log("msg", "polling tenant", "tenant", tenantID)
-
-			newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
-			if err != nil {
-				level.Error(p.logger).Log("msg", "failed to poll tenant and create index", "err", err)
-				m.Lock()
-				errs = append(errs, err)
-				m.Unlock()
-			}
-
+		select {
+		case <-ctx.Done():
+			continue
+		default:
 			m.Lock()
 			if len(errs) > p.cfg.TolerateConsecutiveErrors {
-				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", len(errs))
 				m.Unlock()
-				return
+				cancel()
+				break
 			}
 			m.Unlock()
 
-			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+			bg.Add(1)
+			go func(tenantID string) {
+				defer bg.Done()
+
+				level.Info(p.logger).Log("msg", "polling tenant", "tenant", tenantID)
+
+				newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+				if err != nil {
+					level.Error(p.logger).Log("msg", "failed to poll tenant and create index", "err", err)
+					m.Lock()
+					errs = append(errs, err)
+					m.Unlock()
+				}
+
 				m.Lock()
-				blocklist[tenantID] = newBlockList
-				compactedBlocklist[tenantID] = newCompactedBlockList
+				if len(errs) > p.cfg.TolerateConsecutiveErrors {
+					level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", len(errs))
+					m.Unlock()
+					cancel()
+					return
+				}
 				m.Unlock()
 
-				metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+				if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+					m.Lock()
+					blocklist[tenantID] = newBlockList
+					compactedBlocklist[tenantID] = newCompactedBlockList
+					m.Unlock()
 
-				backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-				metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-				metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-				metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-				metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-				return
-			}
-			metricBlocklistLength.DeleteLabelValues(tenantID)
-			metricBackendObjects.DeleteLabelValues(tenantID)
-			metricBackendObjects.DeleteLabelValues(tenantID)
-			metricBackendBytes.DeleteLabelValues(tenantID)
-		}(tenantID)
+					metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+
+					backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+					metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+					metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+					metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+					metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+					return
+				}
+				metricBlocklistLength.DeleteLabelValues(tenantID)
+				metricBackendObjects.DeleteLabelValues(tenantID)
+				metricBackendObjects.DeleteLabelValues(tenantID)
+				metricBackendBytes.DeleteLabelValues(tenantID)
+			}(tenantID)
+		}
 	}
 
 	bg.Wait()
@@ -221,12 +234,21 @@ func (p *Poller) pollTenantAndCreateIndex(
 	tenantID string,
 	previous *List,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "poll tenant index")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantAndCreateIndex")
 	defer span.Finish()
+
+	span.LogFields(
+		spanlog.String("tenant", tenantID),
+	)
 
 	// are we a tenant index builder?
 	if !p.tenantIndexBuilder(tenantID) {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
+
+		span.LogFields(
+			spanlog.Bool("tenant_index_builder", false),
+			spanlog.Bool("poll_fallback", p.cfg.PollFallback),
+		)
 
 		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
 		err = p.tenantIndexPollError(i, err)
@@ -234,10 +256,17 @@ func (p *Poller) pollTenantAndCreateIndex(
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
+			span.LogFields(
+				spanlog.Int32("metas", int32(len(i.Meta))),
+				spanlog.Int32("compactedMetas", int32(len(i.Meta))),
+			)
 			return i.Meta, i.CompactedMeta, nil
 		}
 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
+		span.LogFields(
+			spanlog.Error(err),
+		)
 
 		// there was an error, return the error if we're not supposed to fallback to polling
 		if !p.cfg.PollFallback {
@@ -274,16 +303,22 @@ func (p *Poller) pollTenantBlocks(
 	tenantID string,
 	previous *List,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(ctx, tenantID)
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantBlocks")
+	defer span.Finish()
+
+	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	readPreviousSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "readPreviousResults")
 	metas := previous.Metas(tenantID)
 	compactedMetas := previous.CompactedMetas(tenantID)
+	readPreviousSpan.Finish()
 
 	// mm, cm := metaMap(previous.Metas(tenantID), previous.CompactedMetas(tenantID))
 
+	assembleSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "assemblePreviousResults")
 	mm := make(map[uuid.UUID]*backend.BlockMeta, len(metas))
 	cm := make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
 
@@ -294,11 +329,13 @@ func (p *Poller) pollTenantBlocks(
 	for _, i := range compactedMetas {
 		cm[i.BlockID] = i
 	}
+	assembleSpan.Finish()
 
 	chMeta := make(chan *backend.BlockMeta, len(currentBlockIDs))
 	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(currentCompactedBlockIDs))
 	anyError := atomic.Error{}
 
+	learnSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "learnFromPrevious")
 	newBlockIDs := []uuid.UUID{}
 	for _, blockID := range currentBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
@@ -328,7 +365,9 @@ func (p *Poller) pollTenantBlocks(
 		// }
 		newBlockIDs = append(newBlockIDs, blockID)
 	}
+	learnSpan.Finish()
 
+	pollSpan, pollSpanCtx := opentracing.StartSpanFromContext(derivedCtx, "pollUnknown")
 	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
 	for _, blockID := range newBlockIDs {
 		bg.Add(1)
@@ -339,12 +378,18 @@ func (p *Poller) pollTenantBlocks(
 				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
 			}
 
-			m, cm, pollBlockErr := p.pollBlock(ctx, tenantID, id)
+			m, cm, pollBlockErr := p.pollBlock(pollSpanCtx, tenantID, id)
 			if m != nil {
 				chMeta <- m
-			} else if cm != nil {
+				return
+			}
+
+			if cm != nil {
 				chCompactedMeta <- cm
-			} else if pollBlockErr != nil {
+				return
+			}
+
+			if pollBlockErr != nil {
 				anyError.Store(err)
 			}
 		}(blockID)
@@ -353,19 +398,14 @@ func (p *Poller) pollTenantBlocks(
 	bg.Wait()
 	close(chMeta)
 	close(chCompactedMeta)
+	pollSpan.Finish()
 
 	if err = anyError.Load(); err != nil {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		return nil, nil, err
 	}
 
-	return p.flushMetaChannels(chMeta, chCompactedMeta)
-}
-
-func (p *Poller) flushMetaChannels(
-	chMeta chan *backend.BlockMeta,
-	chCompactedMeta chan *backend.CompactedBlockMeta,
-) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	// return p.flushMetaChannels(chMeta, chCompactedMeta)
 	newBlockList := make([]*backend.BlockMeta, 0, len(chMeta))
 	for m := range chMeta {
 		newBlockList = append(newBlockList, m)
@@ -390,8 +430,16 @@ func (p *Poller) pollBlock(
 	tenantID string,
 	blockID uuid.UUID,
 ) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollBlock")
+	defer span.Finish()
+
+	span.LogFields(
+		spanlog.String("tenant", tenantID),
+		spanlog.String("block", blockID.String()),
+	)
+
 	var compactedBlockMeta *backend.CompactedBlockMeta
-	blockMeta, err := p.reader.BlockMeta(ctx, blockID, tenantID)
+	blockMeta, err := p.reader.BlockMeta(derivedCtx, blockID, tenantID)
 	// if the normal meta doesn't exist maybe it's compacted.
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		blockMeta = nil
