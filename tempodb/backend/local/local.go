@@ -167,10 +167,15 @@ func (rw *Backend) ListBlocks(_ context.Context, keypath backend.KeyPath) (metas
 			return nil
 		}
 
+		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+			return nil
+		}
+
 		id, err := uuid.Parse(parts[1])
 		if err != nil {
 			return err
 		}
+
 		switch parts[2] {
 		case backend.MetaName:
 			metas = append(metas, id)

@@ -193,7 +193,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
-		prefix = prefix + "/"
+		prefix += "/"
 	}
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Prefix:    prefix,
@@ -216,6 +216,10 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 		parts = strings.Split(attrs.Name, "/")
 		// ie: <tenant>/<blockID>/meta.json
 		if len(parts) != 3 {
+			continue
+		}
+
+		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
 			continue
 		}
 

@@ -172,7 +172,7 @@ func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
-		prefix = prefix + dir
+		prefix += dir
 	}
 
 	var parts []string
@@ -195,6 +195,10 @@ func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 
 			// ie: <blockID>/meta.json
 			if len(parts) != 2 {
+				continue
+			}
+
+			if parts[1] != backend.MetaName && parts[1] != backend.CompactedMetaName {
 				continue
 			}
 

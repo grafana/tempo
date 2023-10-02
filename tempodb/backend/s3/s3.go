@@ -338,6 +338,10 @@ func (rw *readerWriter) ListBlocks(
 								continue
 							}
 
+							if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+								continue
+							}
+
 							id, err := uuid.Parse(parts[1])
 							if err != nil {
 								continue
