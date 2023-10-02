@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -23,6 +24,7 @@ import (
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
+	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -195,48 +197,100 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	if len(prefix) > 0 {
 		prefix += "/"
 	}
-	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Prefix:    prefix,
-		Delimiter: "",
-		Versions:  false,
-	})
 
-	var parts []string
-	var id uuid.UUID
+	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
 
-	for {
-		attrs, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return nil, nil, fmt.Errorf("iterating blocks: %w", err)
-		}
+	errChan := make(chan error, len(bb))
+	wg := sync.WaitGroup{}
+	mtx := sync.Mutex{}
 
-		parts = strings.Split(attrs.Name, "/")
-		// ie: <tenant>/<blockID>/meta.json
-		if len(parts) != 3 {
-			continue
-		}
+	var min uuid.UUID
+	var max uuid.UUID
 
-		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
-			continue
-		}
+	for i := 0; i < len(bb)-1; i++ {
+		min = uuid.UUID(bb[i])
+		max = uuid.UUID(bb[i+1])
 
-		id, err = uuid.Parse(parts[1])
-		if err != nil {
-			return nil, nil, err
-		}
+		wg.Add(1)
+		go func(min, max uuid.UUID) {
+			defer wg.Done()
 
-		switch parts[2] {
-		case backend.MetaName:
-			blockIDs = append(blockIDs, id)
-		case backend.CompactedMetaName:
-			compactedBlockIDs = append(compactedBlockIDs, id)
-		}
+			iter := rw.bucket.Objects(ctx, &storage.Query{
+				Prefix:      prefix,
+				Delimiter:   "",
+				Versions:    false,
+				StartOffset: prefix + min.String(),
+			})
+
+			var parts []string
+			var id uuid.UUID
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					attrs, err := iter.Next()
+					if errors.Is(err, iterator.Done) {
+						return
+					}
+					if err != nil {
+						errChan <- fmt.Errorf("iterating blocks: %w", err)
+						return
+					}
+
+					parts = strings.Split(attrs.Name, "/")
+					// ie: <tenant>/<blockID>/meta.json
+					if len(parts) != 3 {
+						continue
+					}
+
+					if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+						continue
+					}
+
+					id, err = uuid.Parse(parts[1])
+					if err != nil {
+						continue
+					}
+
+					x := bytes.Compare(id[:], min[:])
+					if x < 0 {
+						return
+					}
+
+					y := bytes.Compare(id[:], max[:])
+					if y > 0 {
+						return
+					}
+
+					switch parts[2] {
+					case backend.MetaName:
+						mtx.Lock()
+						blockIDs = append(blockIDs, id)
+						mtx.Unlock()
+					case backend.CompactedMetaName:
+						mtx.Lock()
+						compactedBlockIDs = append(compactedBlockIDs, id)
+						mtx.Unlock()
+					}
+				}
+			}
+		}(min, max)
+	}
+	wg.Wait()
+	close(errChan)
+
+	errs := make([]error, 0, len(errChan))
+	for e := range errChan {
+		errs = append(errs, e)
 	}
 
-	return
+	if len(errs) > 0 {
+		return nil, nil, errors.Join(errs...)
+	}
+
+	return blockIDs, compactedBlockIDs, nil
 }
 
 // Read implements backend.Reader
