@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/operations/caching/
 title: Caching
 weight: 6
 ---

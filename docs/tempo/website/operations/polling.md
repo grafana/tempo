@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/operations/polling/
 title: Polling
 weight: 8
 ---

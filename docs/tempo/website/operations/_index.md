@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/operations/
 title: Deployment and Operations
 weight: 300
 ---

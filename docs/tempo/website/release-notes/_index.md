@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/release-notes/
 title: Release notes
 weight: 100
 ---

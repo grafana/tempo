@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/api_docs/
 title: API documentation
 weight: 350
 ---

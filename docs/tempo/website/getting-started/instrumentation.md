@@ -1,7 +1,8 @@
 ---
-title: Instrumentation
 aliases:
-- /docs/tempo/latest/guides/instrumentation/
+- /docs/tempo/v1.2.1/getting-started/instrumentation/
+- /docs/tempo/v1.2.x/guides/instrumentation/
+title: Instrumentation
 weight: 100
 ---
 

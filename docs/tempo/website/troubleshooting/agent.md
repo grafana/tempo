@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/troubleshooting/agent/
 title: Agent Troubleshooting
 weight: 472
 ---

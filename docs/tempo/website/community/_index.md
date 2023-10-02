@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/community/
 title: Community
 weight: 600
 ---

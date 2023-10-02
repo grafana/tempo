@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/configuration/querying/
 title: Querying with Grafana
 weight: 3
 ---

@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/grafana-agent/
 title: Grafana Agent
 weight: 400
 ---

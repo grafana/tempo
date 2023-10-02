@@ -1,8 +1,9 @@
 ---
-title: Deployment
 aliases:
-  - /docs/tempo/latest/deployment
-  - /docs/tempo/latest/deployment/deployment
+- /docs/tempo/v1.2.1/operations/deployment/
+- /docs/tempo/v1.2.x/deployment/
+- /docs/tempo/v1.2.x/deployment/deployment/
+title: Deployment
 weight: 3
 ---
 

@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/configuration/manifest/
 title: Manifest
 weight: 7
 ---

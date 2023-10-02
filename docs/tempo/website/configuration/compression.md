@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/configuration/compression/
 title: Compression/Encoding
 weight: 5
 ---

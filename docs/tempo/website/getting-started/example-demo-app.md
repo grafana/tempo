@@ -1,8 +1,9 @@
 ---
-title: Example Setups
 aliases:
-- /docs/tempo/latest/getting-started/quickstart-tempo/
-- /docs/tempo/latest/guides/loki-derived-fields/
+- /docs/tempo/v1.2.1/getting-started/example-demo-app/
+- /docs/tempo/v1.2.x/getting-started/quickstart-tempo/
+- /docs/tempo/v1.2.x/guides/loki-derived-fields/
+title: Example Setups
 weight: 200
 ---
 
