@@ -44,16 +44,16 @@ var (
 )
 
 type bridgeSpanContext struct {
-	bag baggage.Baggage
-	trace.SpanContext
+	bag             baggage.Baggage
+	otelSpanContext trace.SpanContext
 }
 
 var _ ot.SpanContext = &bridgeSpanContext{}
 
 func newBridgeSpanContext(otelSpanContext trace.SpanContext, parentOtSpanContext ot.SpanContext) *bridgeSpanContext {
 	bCtx := &bridgeSpanContext{
-		bag:         baggage.Baggage{},
-		SpanContext: otelSpanContext,
+		bag:             baggage.Baggage{},
+		otelSpanContext: otelSpanContext,
 	}
 	if parentOtSpanContext != nil {
 		parentOtSpanContext.ForeachBaggageItem(func(key, value string) bool {
@@ -425,7 +425,7 @@ func (t *BridgeTracer) StartSpan(operationName string, opts ...ot.StartSpanOptio
 	attributes, kind, hadTrueErrorTag := otTagsToOTelAttributesKindAndError(sso.Tags)
 	checkCtx := migration.WithDeferredSetup(context.Background())
 	if parentBridgeSC != nil {
-		checkCtx = trace.ContextWithRemoteSpanContext(checkCtx, parentBridgeSC.SpanContext)
+		checkCtx = trace.ContextWithRemoteSpanContext(checkCtx, parentBridgeSC.otelSpanContext)
 	}
 	checkCtx2, otelSpan := t.setTracer.tracer().Start(
 		checkCtx,
@@ -546,14 +546,6 @@ func otTagToOTelAttr(k string, v interface{}) attribute.KeyValue {
 		return key.String(fmt.Sprintf("%d", val))
 	case float64:
 		return key.Float64(val)
-	case int8:
-		return key.Int64(int64(val))
-	case uint8:
-		return key.Int64(int64(val))
-	case int16:
-		return key.Int64(int64(val))
-	case uint16:
-		return key.Int64(int64(val))
 	case int32:
 		return key.Int64(int64(val))
 	case uint32:
@@ -606,7 +598,7 @@ func otSpanReferencesToParentAndLinks(references []ot.SpanReference) (*bridgeSpa
 
 func otSpanReferenceToOTelLink(bridgeSC *bridgeSpanContext, refType ot.SpanReferenceType) trace.Link {
 	return trace.Link{
-		SpanContext: bridgeSC.SpanContext,
+		SpanContext: bridgeSC.otelSpanContext,
 		Attributes:  otSpanReferenceTypeToOTelLinkAttributes(refType),
 	}
 }
@@ -651,7 +643,7 @@ func (t *BridgeTracer) Inject(sm ot.SpanContext, format interface{}, carrier int
 	if !ok {
 		return ot.ErrInvalidSpanContext
 	}
-	if !bridgeSC.IsValid() {
+	if !bridgeSC.otelSpanContext.IsValid() {
 		return ot.ErrInvalidSpanContext
 	}
 
@@ -661,29 +653,29 @@ func (t *BridgeTracer) Inject(sm ot.SpanContext, format interface{}, carrier int
 	}
 
 	var textCarrier propagation.TextMapCarrier
-	var err error
 
 	switch builtinFormat {
 	case ot.HTTPHeaders:
-		if hhcarrier, ok := carrier.(ot.HTTPHeadersCarrier); ok {
-			textCarrier = propagation.HeaderCarrier(hhcarrier)
-		} else {
-			textCarrier, err = newTextMapWrapperForInject(carrier)
+		hhcarrier, ok := carrier.(ot.HTTPHeadersCarrier)
+		if !ok {
+			return ot.ErrInvalidCarrier
 		}
+
+		textCarrier = propagation.HeaderCarrier(hhcarrier)
 	case ot.TextMap:
 		if textCarrier, ok = carrier.(propagation.TextMapCarrier); !ok {
-			textCarrier, err = newTextMapWrapperForInject(carrier)
+			var err error
+			if textCarrier, err = newTextMapWrapperForInject(carrier); err != nil {
+				return err
+			}
 		}
 	default:
-		err = ot.ErrUnsupportedFormat
-	}
-	if err != nil {
-		return err
+		return ot.ErrUnsupportedFormat
 	}
 
 	fs := fakeSpan{
 		Span: noopSpan,
-		sc:   bridgeSC.SpanContext,
+		sc:   bridgeSC.otelSpanContext,
 	}
 	ctx := trace.ContextWithSpan(context.Background(), fs)
 	ctx = baggage.ContextWithBaggage(ctx, bridgeSC.bag)
@@ -702,33 +694,33 @@ func (t *BridgeTracer) Extract(format interface{}, carrier interface{}) (ot.Span
 	}
 
 	var textCarrier propagation.TextMapCarrier
-	var err error
 
 	switch builtinFormat {
 	case ot.HTTPHeaders:
-		if hhcarrier, ok := carrier.(ot.HTTPHeadersCarrier); ok {
-			textCarrier = propagation.HeaderCarrier(hhcarrier)
-		} else {
-			textCarrier, err = newTextMapWrapperForExtract(carrier)
+		hhcarrier, ok := carrier.(ot.HTTPHeadersCarrier)
+		if !ok {
+			return nil, ot.ErrInvalidCarrier
 		}
+
+		textCarrier = propagation.HeaderCarrier(hhcarrier)
 	case ot.TextMap:
 		if textCarrier, ok = carrier.(propagation.TextMapCarrier); !ok {
-			textCarrier, err = newTextMapWrapperForExtract(carrier)
+			var err error
+			if textCarrier, err = newTextMapWrapperForExtract(carrier); err != nil {
+				return nil, err
+			}
 		}
 	default:
-		err = ot.ErrUnsupportedFormat
-	}
-	if err != nil {
-		return nil, err
+		return nil, ot.ErrUnsupportedFormat
 	}
 
 	ctx := t.getPropagator().Extract(context.Background(), textCarrier)
 	bag := baggage.FromContext(ctx)
 	bridgeSC := &bridgeSpanContext{
-		bag:         bag,
-		SpanContext: trace.SpanContextFromContext(ctx),
+		bag:             bag,
+		otelSpanContext: trace.SpanContextFromContext(ctx),
 	}
-	if !bridgeSC.IsValid() {
+	if !bridgeSC.otelSpanContext.IsValid() {
 		return nil, ot.ErrSpanContextNotFound
 	}
 	return bridgeSC, nil

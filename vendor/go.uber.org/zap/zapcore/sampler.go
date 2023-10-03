@@ -21,8 +21,9 @@
 package zapcore
 
 import (
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 const (
@@ -65,16 +66,16 @@ func (c *counter) IncCheckReset(t time.Time, tick time.Duration) uint64 {
 	tn := t.UnixNano()
 	resetAfter := c.resetAt.Load()
 	if resetAfter > tn {
-		return c.counter.Add(1)
+		return c.counter.Inc()
 	}
 
 	c.counter.Store(1)
 
 	newResetAfter := tn + tick.Nanoseconds()
-	if !c.resetAt.CompareAndSwap(resetAfter, newResetAfter) {
+	if !c.resetAt.CAS(resetAfter, newResetAfter) {
 		// We raced with another goroutine trying to reset, and it also reset
 		// the counter to 1, so we need to reincrement the counter.
-		return c.counter.Add(1)
+		return c.counter.Inc()
 	}
 
 	return 1

@@ -17,7 +17,9 @@ import (
 	"encoding/json"
 	"os"
 
+	"go.opentelemetry.io/otel/internal/global"
 	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/aggregation"
 )
 
 // config contains options for the exporter.
@@ -98,7 +100,22 @@ func (t temporalitySelectorOption) apply(c config) config {
 // package or the aggregation explicitly passed for a view matching an
 // instrument.
 func WithAggregationSelector(selector metric.AggregationSelector) Option {
-	return aggregationSelectorOption{selector: selector}
+	// Deep copy and validate before using.
+	wrapped := func(ik metric.InstrumentKind) aggregation.Aggregation {
+		a := selector(ik)
+		cpA := a.Copy()
+		if err := cpA.Err(); err != nil {
+			cpA = metric.DefaultAggregationSelector(ik)
+			global.Error(
+				err, "using default aggregation instead",
+				"aggregation", a,
+				"replacement", cpA,
+			)
+		}
+		return cpA
+	}
+
+	return aggregationSelectorOption{selector: wrapped}
 }
 
 type aggregationSelectorOption struct {

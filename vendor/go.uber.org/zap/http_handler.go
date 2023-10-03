@@ -69,13 +69,6 @@ import (
 //
 //	curl -X PUT localhost:8080/log/level -H "Content-Type: application/json" -d '{"level":"debug"}'
 func (lvl AtomicLevel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := lvl.serveHTTP(w, r); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "internal error: %v", err)
-	}
-}
-
-func (lvl AtomicLevel) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	type errorResponse struct {
 		Error string `json:"error"`
 	}
@@ -87,20 +80,19 @@ func (lvl AtomicLevel) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 
 	switch r.Method {
 	case http.MethodGet:
-		return enc.Encode(payload{Level: lvl.Level()})
-
+		enc.Encode(payload{Level: lvl.Level()})
 	case http.MethodPut:
 		requestedLvl, err := decodePutRequest(r.Header.Get("Content-Type"), r)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			return enc.Encode(errorResponse{Error: err.Error()})
+			enc.Encode(errorResponse{Error: err.Error()})
+			return
 		}
 		lvl.SetLevel(requestedLvl)
-		return enc.Encode(payload{Level: lvl.Level()})
-
+		enc.Encode(payload{Level: lvl.Level()})
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		return enc.Encode(errorResponse{
+		enc.Encode(errorResponse{
 			Error: "Only GET and PUT are supported.",
 		})
 	}
@@ -137,4 +129,5 @@ func decodePutJSON(body io.Reader) (zapcore.Level, error) {
 		return 0, errors.New("must specify logging level")
 	}
 	return *pld.Level, nil
+
 }

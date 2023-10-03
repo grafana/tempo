@@ -23,8 +23,7 @@ package zapcore
 import (
 	"fmt"
 	"reflect"
-
-	"go.uber.org/zap/internal/pool"
+	"sync"
 )
 
 // Encodes the given error into fields of an object. A field with the given
@@ -98,18 +97,15 @@ func (errs errArray) MarshalLogArray(arr ArrayEncoder) error {
 		}
 
 		el := newErrArrayElem(errs[i])
-		err := arr.AppendObject(el)
+		arr.AppendObject(el)
 		el.Free()
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
 
-var _errArrayElemPool = pool.New(func() *errArrayElem {
+var _errArrayElemPool = sync.Pool{New: func() interface{} {
 	return &errArrayElem{}
-})
+}}
 
 // Encodes any error into a {"error": ...} re-using the same errors logic.
 //
@@ -117,7 +113,7 @@ var _errArrayElemPool = pool.New(func() *errArrayElem {
 type errArrayElem struct{ err error }
 
 func newErrArrayElem(err error) *errArrayElem {
-	e := _errArrayElemPool.Get()
+	e := _errArrayElemPool.Get().(*errArrayElem)
 	e.err = err
 	return e
 }

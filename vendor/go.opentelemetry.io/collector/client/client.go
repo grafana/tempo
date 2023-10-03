@@ -67,14 +67,14 @@
 //	  authprinter:
 //	    attribute: subject
 //	exporters:
-//	  debug:
+//	  logging:
 //	service:
 //	  extensions: [oidc]
 //	  pipelines:
 //	    traces:
 //	      receivers: [otlp]
 //	      processors: [authprinter]
-//	      exporters: [debug]
+//	      exporters: [logging]
 package client // import "go.opentelemetry.io/collector/client"
 
 import (

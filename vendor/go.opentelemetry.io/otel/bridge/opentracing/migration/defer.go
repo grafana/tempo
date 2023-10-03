@@ -20,20 +20,15 @@ import (
 
 type doDeferredContextSetupType struct{}
 
-var (
-	doDeferredContextSetupTypeKey   = doDeferredContextSetupType{}
-	doDeferredContextSetupTypeValue = doDeferredContextSetupType{}
-)
-
 // WithDeferredSetup returns a context that can tell the OpenTelemetry
 // tracer to skip the context setup in the Start() function.
 func WithDeferredSetup(ctx context.Context) context.Context {
-	return context.WithValue(ctx, doDeferredContextSetupTypeKey, doDeferredContextSetupTypeValue)
+	return context.WithValue(ctx, doDeferredContextSetupType{}, doDeferredContextSetupType{})
 }
 
 // SkipContextSetup can tell the OpenTelemetry tracer to skip the
 // context setup during the span creation in the Start() function.
 func SkipContextSetup(ctx context.Context) bool {
-	_, ok := ctx.Value(doDeferredContextSetupTypeKey).(doDeferredContextSetupType)
+	_, ok := ctx.Value(doDeferredContextSetupType{}).(doDeferredContextSetupType)
 	return ok
 }

@@ -5,18 +5,15 @@ package proctelemetry // import "go.opentelemetry.io/collector/service/internal/
 
 import (
 	"context"
-	"errors"
 	"os"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/common"
 	"github.com/shirou/gopsutil/v3/process"
 	"go.opencensus.io/metric"
 	"go.opencensus.io/stats"
 	otelmetric "go.opentelemetry.io/otel/metric"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/multierr"
 )
 
@@ -30,7 +27,6 @@ type processMetrics struct {
 	startTimeUnixNano int64
 	ballastSizeBytes  uint64
 	proc              *process.Process
-	context           context.Context
 
 	processUptime *metric.Float64DerivedCumulative
 	allocMem      *metric.Int64DerivedGauge
@@ -53,34 +49,9 @@ type processMetrics struct {
 	ms         *runtime.MemStats
 }
 
-type RegisterOption interface {
-	apply(*registerOption)
-}
-
-type registerOption struct {
-	hostProc string
-}
-
-type registerOptionFunc func(*registerOption)
-
-func (fn registerOptionFunc) apply(set *registerOption) {
-	fn(set)
-}
-
-// WithHostProc overrides the /proc folder on Linux used by process telemetry.
-func WithHostProc(hostProc string) RegisterOption {
-	return registerOptionFunc(func(uo *registerOption) {
-		uo.hostProc = hostProc
-	})
-}
-
 // RegisterProcessMetrics creates a new set of processMetrics (mem, cpu) that can be used to measure
 // basic information about this process.
-func RegisterProcessMetrics(ocRegistry *metric.Registry, mp otelmetric.MeterProvider, useOtel bool, ballastSizeBytes uint64, opts ...RegisterOption) error {
-	set := registerOption{}
-	for _, opt := range opts {
-		opt.apply(&set)
-	}
+func RegisterProcessMetrics(ocRegistry *metric.Registry, mp otelmetric.MeterProvider, useOtel bool, ballastSizeBytes uint64) error {
 	var err error
 	pm := &processMetrics{
 		startTimeUnixNano: time.Now().UnixNano(),
@@ -88,22 +59,13 @@ func RegisterProcessMetrics(ocRegistry *metric.Registry, mp otelmetric.MeterProv
 		ms:                &runtime.MemStats{},
 	}
 
-	ctx := context.Background()
-	if set.hostProc != "" {
-		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcEnvKey: set.hostProc})
-	}
-	pm.context = ctx
-	pm.proc, err = process.NewProcessWithContext(pm.context, int32(os.Getpid()))
+	pm.proc, err = process.NewProcess(int32(os.Getpid()))
 	if err != nil {
 		return err
 	}
 
 	if useOtel {
-		// ignore instrument name error as per workaround in https://github.com/open-telemetry/opentelemetry-collector/issues/8346
-		if err = pm.recordWithOtel(mp.Meter(scopeName)); err != nil && !errors.Is(err, sdkmetric.ErrInstrumentName) {
-			return err
-		}
-		return nil
+		return pm.recordWithOtel(mp.Meter(scopeName))
 	}
 	return pm.recordWithOC(ocRegistry)
 }
@@ -269,7 +231,7 @@ func (pm *processMetrics) updateSysMem() int64 {
 }
 
 func (pm *processMetrics) updateCPUSeconds() float64 {
-	times, err := pm.proc.TimesWithContext(pm.context)
+	times, err := pm.proc.Times()
 	if err != nil {
 		return 0
 	}
@@ -279,7 +241,7 @@ func (pm *processMetrics) updateCPUSeconds() float64 {
 }
 
 func (pm *processMetrics) updateRSSMemory() int64 {
-	mem, err := pm.proc.MemoryInfoWithContext(pm.context)
+	mem, err := pm.proc.MemoryInfo()
 	if err != nil {
 		return 0
 	}

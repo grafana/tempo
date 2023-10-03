@@ -18,11 +18,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"time"
-
-	"github.com/go-logr/logr"
 
 	genAgent "go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/agent"
 	gen "go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger"
@@ -59,7 +58,7 @@ type agentClientUDPParams struct {
 	Host                     string
 	Port                     string
 	MaxPacketSize            int
-	Logger                   logr.Logger
+	Logger                   *log.Logger
 	AttemptReconnecting      bool
 	AttemptReconnectInterval time.Duration
 }

@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 
-	"go.uber.org/zap"
-
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
@@ -44,10 +42,6 @@ func newLogsRequestUnmarshalerFunc(pusher consumer.ConsumeLogsFunc) internal.Req
 	}
 }
 
-func logsRequestMarshaler(req internal.Request) ([]byte, error) {
-	return logsMarshaler.MarshalLogs(req.(*logsRequest).ld)
-}
-
 func (req *logsRequest) OnError(err error) internal.Request {
 	var logError consumererror.Logs
 	if errors.As(err, &logError) {
@@ -58,6 +52,10 @@ func (req *logsRequest) OnError(err error) internal.Request {
 
 func (req *logsRequest) Export(ctx context.Context) error {
 	return req.pusher(ctx, req.ld)
+}
+
+func (req *logsRequest) Marshal() ([]byte, error) {
+	return logsMarshaler.MarshalLogs(req.ld)
 }
 
 func (req *logsRequest) Count() int {
@@ -89,72 +87,26 @@ func NewLogsExporter(
 		return nil, errNilPushLogsData
 	}
 
-	be, err := newBaseExporter(set, component.DataTypeLogs, false, logsRequestMarshaler,
-		newLogsRequestUnmarshalerFunc(pusher), newLogsExporterWithObservability, options...)
+	bs := fromOptions(options...)
+	be, err := newBaseExporter(set, bs, component.DataTypeLogs, newLogsRequestUnmarshalerFunc(pusher))
 	if err != nil {
 		return nil, err
 	}
+	be.wrapConsumerSender(func(nextSender requestSender) requestSender {
+		return &logsExporterWithObservability{
+			obsrep:     be.obsrep,
+			nextSender: nextSender,
+		}
+	})
 
 	lc, err := consumer.NewLogs(func(ctx context.Context, ld plog.Logs) error {
 		req := newLogsRequest(ctx, ld, pusher)
-		serr := be.send(req)
+		serr := be.sender.send(req)
 		if errors.Is(serr, errSendingQueueIsFull) {
 			be.obsrep.recordLogsEnqueueFailure(req.Context(), int64(req.Count()))
 		}
 		return serr
-	}, be.consumerOptions...)
-
-	return &logsExporter{
-		baseExporter: be,
-		Logs:         lc,
-	}, err
-}
-
-// LogsConverter provides an interface for converting plog.Logs into a request.
-// This API is at the early stage of development and may change without backward compatibility
-// until https://github.com/open-telemetry/opentelemetry-collector/issues/8122 is resolved.
-type LogsConverter interface {
-	// RequestFromLogs converts plog.Logs data into a request.
-	RequestFromLogs(context.Context, plog.Logs) (Request, error)
-}
-
-// NewLogsRequestExporter creates new logs exporter based on custom LogsConverter and RequestSender.
-// This API is at the early stage of development and may change without backward compatibility
-// until https://github.com/open-telemetry/opentelemetry-collector/issues/8122 is resolved.
-func NewLogsRequestExporter(
-	_ context.Context,
-	set exporter.CreateSettings,
-	converter LogsConverter,
-	options ...Option,
-) (exporter.Logs, error) {
-	if set.Logger == nil {
-		return nil, errNilLogger
-	}
-
-	if converter == nil {
-		return nil, errNilLogsConverter
-	}
-
-	be, err := newBaseExporter(set, component.DataTypeLogs, true, nil, nil, newLogsExporterWithObservability, options...)
-	if err != nil {
-		return nil, err
-	}
-
-	lc, err := consumer.NewLogs(func(ctx context.Context, ld plog.Logs) error {
-		req, cErr := converter.RequestFromLogs(ctx, ld)
-		if cErr != nil {
-			set.Logger.Error("Failed to convert logs. Dropping data.",
-				zap.Int("dropped_log_records", ld.LogRecordCount()),
-				zap.Error(err))
-			return consumererror.NewPermanent(cErr)
-		}
-		r := newRequest(ctx, req)
-		sErr := be.send(r)
-		if errors.Is(sErr, errSendingQueueIsFull) {
-			be.obsrep.recordLogsEnqueueFailure(r.Context(), int64(r.Count()))
-		}
-		return sErr
-	}, be.consumerOptions...)
+	}, bs.consumerOptions...)
 
 	return &logsExporter{
 		baseExporter: be,
@@ -163,12 +115,8 @@ func NewLogsRequestExporter(
 }
 
 type logsExporterWithObservability struct {
-	baseRequestSender
-	obsrep *obsExporter
-}
-
-func newLogsExporterWithObservability(obsrep *obsExporter) requestSender {
-	return &logsExporterWithObservability{obsrep: obsrep}
+	obsrep     *obsExporter
+	nextSender requestSender
 }
 
 func (lewo *logsExporterWithObservability) send(req internal.Request) error {

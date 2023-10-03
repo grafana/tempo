@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel/sdk/metric/aggregation"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
@@ -29,20 +30,10 @@ var ErrExporterShutdown = fmt.Errorf("exporter is shutdown")
 // the final component in the metric push pipeline.
 type Exporter interface {
 	// Temporality returns the Temporality to use for an instrument kind.
-	//
-	// This method needs to be concurrent safe with itself and all the other
-	// Exporter methods.
 	Temporality(InstrumentKind) metricdata.Temporality
-	// DO NOT CHANGE: any modification will not be backwards compatible and
-	// must never be done outside of a new major release.
 
 	// Aggregation returns the Aggregation to use for an instrument kind.
-	//
-	// This method needs to be concurrent safe with itself and all the other
-	// Exporter methods.
-	Aggregation(InstrumentKind) Aggregation
-	// DO NOT CHANGE: any modification will not be backwards compatible and
-	// must never be done outside of a new major release.
+	Aggregation(InstrumentKind) aggregation.Aggregation
 
 	// Export serializes and transmits metric data to a receiver.
 	//
@@ -59,18 +50,12 @@ type Exporter interface {
 	// exporter needs to hold this data after it returns, it needs to make a
 	// copy.
 	Export(context.Context, *metricdata.ResourceMetrics) error
-	// DO NOT CHANGE: any modification will not be backwards compatible and
-	// must never be done outside of a new major release.
 
 	// ForceFlush flushes any metric data held by an exporter.
 	//
 	// The deadline or cancellation of the passed context must be honored. An
 	// appropriate error should be returned in these situations.
-	//
-	// This method needs to be concurrent safe.
 	ForceFlush(context.Context) error
-	// DO NOT CHANGE: any modification will not be backwards compatible and
-	// must never be done outside of a new major release.
 
 	// Shutdown flushes all metric data held by an exporter and releases any
 	// held computational resources.
@@ -80,9 +65,5 @@ type Exporter interface {
 	//
 	// After Shutdown is called, calls to Export will perform no operation and
 	// instead will return an error indicating the shutdown state.
-	//
-	// This method needs to be concurrent safe.
 	Shutdown(context.Context) error
-	// DO NOT CHANGE: any modification will not be backwards compatible and
-	// must never be done outside of a new major release.
 }

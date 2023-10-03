@@ -30,10 +30,10 @@ import (
 
 // See https://github.com/grpc/grpc-go/blob/v1.35.0/grpclog/loggerv2.go#L77-L86
 const (
-	grpcLvlInfo int = iota
-	grpcLvlWarn
-	grpcLvlError
-	grpcLvlFatal
+	grpcLvlInfo  = 0
+	grpcLvlWarn  = 1
+	grpcLvlError = 2
+	grpcLvlFatal = 3
 )
 
 var (

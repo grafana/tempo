@@ -160,13 +160,15 @@ func (t *TMultiplexedProcessor) ProcessorMap() map[string]TProcessorFunction {
 // the given ProcessorName or if all that is given is the FunctionName and there
 // is no DefaultProcessor set.
 func (t *TMultiplexedProcessor) AddToProcessorMap(name string, processorFunc TProcessorFunction) {
-	processorName, funcName, found := strings.Cut(name, MULTIPLEXED_SEPARATOR)
-	if !found {
-		if t.DefaultProcessor != nil {
-			t.DefaultProcessor.AddToProcessorMap(processorName, processorFunc)
+	components := strings.SplitN(name, MULTIPLEXED_SEPARATOR, 2)
+	if len(components) != 2 {
+		if t.DefaultProcessor != nil && len(components) == 1 {
+			t.DefaultProcessor.AddToProcessorMap(components[0], processorFunc)
 		}
 		return
 	}
+	processorName := components[0]
+	funcName := components[1]
 	if processor, ok := t.serviceProcessorMap[processorName]; ok {
 		processor.AddToProcessorMap(funcName, processorFunc)
 	}
@@ -195,9 +197,9 @@ func (t *TMultiplexedProcessor) Process(ctx context.Context, in, out TProtocol) 
 	if typeId != CALL && typeId != ONEWAY {
 		return false, NewTProtocolException(fmt.Errorf("Unexpected message type %v", typeId))
 	}
-	// extract the service name
-	processorName, funcName, found := strings.Cut(name, MULTIPLEXED_SEPARATOR)
-	if !found {
+	//extract the service name
+	v := strings.SplitN(name, MULTIPLEXED_SEPARATOR, 2)
+	if len(v) != 2 {
 		if t.DefaultProcessor != nil {
 			smb := NewStoredMessageProtocol(in, name, typeId, seqid)
 			return t.DefaultProcessor.Process(ctx, smb, out)
@@ -207,18 +209,18 @@ func (t *TMultiplexedProcessor) Process(ctx context.Context, in, out TProtocol) 
 			name,
 		))
 	}
-	actualProcessor, ok := t.serviceProcessorMap[processorName]
+	actualProcessor, ok := t.serviceProcessorMap[v[0]]
 	if !ok {
 		return false, NewTProtocolException(fmt.Errorf(
 			"Service name not found: %s.  Did you forget to call registerProcessor()?",
-			processorName,
+			v[0],
 		))
 	}
-	smb := NewStoredMessageProtocol(in, funcName, typeId, seqid)
+	smb := NewStoredMessageProtocol(in, v[1], typeId, seqid)
 	return actualProcessor.Process(ctx, smb, out)
 }
 
-// Protocol that use stored message for ReadMessageBegin
+//Protocol that use stored message for ReadMessageBegin
 type storedMessageProtocol struct {
 	TProtocol
 	name   string

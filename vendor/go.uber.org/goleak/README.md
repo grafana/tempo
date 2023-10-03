@@ -8,9 +8,7 @@ You can use `go get` to get the latest version:
 
 `go get -u go.uber.org/goleak`
 
-`goleak` also supports semver releases.
-
-Note that go-leak only [supports][release] the two most recent minor versions of Go.
+`goleak` also supports semver releases. It is compatible with Go 1.5+.
 
 ## Quick Start
 
@@ -71,4 +69,3 @@ No breaking changes will be made to exported APIs before 2.0.
 [ci]: https://github.com/uber-go/goleak/actions/workflows/go.yml
 [cov-img]: https://codecov.io/gh/uber-go/goleak/branch/master/graph/badge.svg
 [cov]: https://codecov.io/gh/uber-go/goleak
-[release]: https://go.dev/doc/devel/release#policy

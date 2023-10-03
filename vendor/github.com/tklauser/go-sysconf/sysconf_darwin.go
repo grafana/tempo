@@ -5,10 +5,6 @@
 package sysconf
 
 import (
-	"strconv"
-	"strings"
-	"sync"
-
 	"golang.org/x/sys/unix"
 )
 
@@ -18,14 +14,8 @@ const (
 	_SYMLOOP_MAX    = _MAXSYMLINKS
 )
 
-var uname struct {
-	sync.Once
-	macOSMajor int
-}
-
-// sysconf implements sysconf(4) as in the Darwin libc (derived from the FreeBSD
-// libc), version 1534.81.1.
-// See https://github.com/apple-oss-distributions/Libc/tree/Libc-1534.81.1.
+// sysconf implements sysconf(3) as in the Darwin libc, version 1244.30.3
+// (derived from the FreeBSD libc).
 func sysconf(name int) (int64, error) {
 	switch name {
 	case SC_AIO_LISTIO_MAX:
@@ -64,16 +54,12 @@ func sysconf(name int) (int64, error) {
 		return sysctl32("kern.ngroups"), nil
 	case SC_OPEN_MAX, SC_STREAM_MAX:
 		var rlim unix.Rlimit
-		if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err != nil {
-			return -1, nil
+		if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err == nil {
+			if rlim.Cur != unix.RLIM_INFINITY {
+				return int64(rlim.Cur), nil
+			}
 		}
-		if rlim.Cur > unix.RLIM_INFINITY {
-			return -1, nil
-		}
-		if rlim.Cur > _LONG_MAX {
-			return -1, unix.EOVERFLOW
-		}
-		return int64(rlim.Cur), nil
+		return -1, nil
 	case SC_RTSIG_MAX:
 		return -1, nil
 	case SC_SEM_NSEMS_MAX:
@@ -140,22 +126,7 @@ func sysconf(name int) (int64, error) {
 		}
 		return _POSIX_SEMAPHORES, nil
 	case SC_SPAWN:
-		uname.Once.Do(func() {
-			var u unix.Utsname
-			err := unix.Uname(&u)
-			if err != nil {
-				return
-			}
-			rel := unix.ByteSliceToString(u.Release[:])
-			ver := strings.Split(rel, ".")
-			maj, _ := strconv.Atoi(ver[0])
-			uname.macOSMajor = maj
-		})
-		if uname.macOSMajor < 22 {
-			return -1, nil
-		}
-		// macOS 13 (Ventura) and later
-		return 200112, nil
+		return _POSIX_SPAWN, nil
 	case SC_SPIN_LOCKS:
 		return _POSIX_SPIN_LOCKS, nil
 	case SC_SPORADIC_SERVER:

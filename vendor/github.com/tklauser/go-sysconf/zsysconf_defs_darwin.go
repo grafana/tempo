@@ -181,6 +181,7 @@ const (
 	_POSIX_SHARED_MEMORY_OBJECTS        = -0x1
 	_POSIX_SHELL                        = 0x30db0
 	_POSIX_SIGQUEUE_MAX                 = 0x20
+	_POSIX_SPAWN                        = -0x1
 	_POSIX_SPIN_LOCKS                   = -0x1
 	_POSIX_SPORADIC_SERVER              = -0x1
 	_POSIX_SS_REPL_MAX                  = 0x4
@@ -247,8 +248,7 @@ const (
 const (
 	_CHAR_BIT = 0x8
 
-	_INT_MAX  = 0x7fffffff
-	_LONG_MAX = 0x7fffffffffffffff
+	_INT_MAX = 0x7fffffff
 
 	sizeofOffT = 0x8
 )

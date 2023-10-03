@@ -91,7 +91,7 @@ func (impl Implementation) Dlassq(n int, x []float64, incx int, scale float64, s
 				asml += (v * v) * sumsq
 			}
 		default:
-			amed += scale * scale * sumsq
+			amed += ax * ax
 		}
 	}
 	// Combine abig and amed or amed and asml if more than one accumulator was

@@ -37,9 +37,7 @@ func (c config) readerSignals() (forceFlush, shutdown func(context.Context) erro
 	var fFuncs, sFuncs []func(context.Context) error
 	for _, r := range c.readers {
 		sFuncs = append(sFuncs, r.Shutdown)
-		if f, ok := r.(interface{ ForceFlush(context.Context) error }); ok {
-			fFuncs = append(fFuncs, f.ForceFlush)
-		}
+		fFuncs = append(fFuncs, r.ForceFlush)
 	}
 
 	return unify(fFuncs), unifyShutdown(sFuncs)

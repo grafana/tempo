@@ -82,6 +82,8 @@ func (p *Process) NameWithContext(ctx context.Context) (string, error) {
 			extendedName := filepath.Base(cmdName)
 			if strings.HasPrefix(extendedName, p.name) {
 				name = extendedName
+			} else {
+				name = cmdName
 			}
 		}
 	}

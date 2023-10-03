@@ -109,11 +109,7 @@ func (r *Registry) Register(id string, stage Stage, opts ...RegisterOption) (*Ga
 func (r *Registry) Set(id string, enabled bool) error {
 	v, ok := r.gates.Load(id)
 	if !ok {
-		validGates := []string{}
-		r.VisitAll(func(g *Gate) {
-			validGates = append(validGates, g.ID())
-		})
-		return fmt.Errorf("no such feature gate %q. valid gates: %v", id, validGates)
+		return fmt.Errorf("no such feature gate %q", id)
 	}
 	g := v.(*Gate)
 

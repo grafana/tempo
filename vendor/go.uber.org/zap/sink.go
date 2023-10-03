@@ -66,8 +66,7 @@ func newSinkRegistry() *sinkRegistry {
 		factories: make(map[string]func(*url.URL) (Sink, error)),
 		openFile:  os.OpenFile,
 	}
-	// Infallible operation: the registry is empty, so we can't have a conflict.
-	_ = sr.RegisterSink(schemeFile, sr.newFileSinkFromURL)
+	sr.RegisterSink(schemeFile, sr.newFileSinkFromURL)
 	return sr
 }
 
@@ -155,7 +154,7 @@ func (sr *sinkRegistry) newFileSinkFromPath(path string) (Sink, error) {
 	case "stderr":
 		return nopCloserSink{os.Stderr}, nil
 	}
-	return sr.openFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o666)
+	return sr.openFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 }
 
 func normalizeScheme(s string) (string, error) {

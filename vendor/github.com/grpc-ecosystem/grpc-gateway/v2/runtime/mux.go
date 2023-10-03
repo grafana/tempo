@@ -389,12 +389,8 @@ func (s *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// if no handler has found for the request, lookup for other methods
-	// to handle POST -> GET fallback if the request is subject to path
-	// length fallback.
-	// Note we are not eagerly checking the request here as we want to return the
-	// right HTTP status code, and we need to process the fallback candidates in
-	// order to do that.
+	// lookup other methods to handle fallback from GET to POST and
+	// to determine if it is NotImplemented or NotFound.
 	for m, handlers := range s.handlers {
 		if m == r.Method {
 			continue
@@ -427,11 +423,8 @@ func (s *ServeMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-
 			// X-HTTP-Method-Override is optional. Always allow fallback to POST.
-			// Also, only consider POST -> GET fallbacks, and avoid falling back to
-			// potentially dangerous operations like DELETE.
-			if s.isPathLengthFallback(r) && m == http.MethodGet {
+			if s.isPathLengthFallback(r) {
 				if err := r.ParseForm(); err != nil {
 					_, outboundMarshaler := MarshalerForRequest(s, r)
 					sterr := status.Error(codes.InvalidArgument, err.Error())
