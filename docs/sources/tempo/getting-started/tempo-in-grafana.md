@@ -22,17 +22,17 @@ For details about how queries are constructed, read the [TraceQL documentation](
 
 <p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
 
-## View trace by ID
+The most basic functionality is to visualize a trace using its ID.  Select the TraceQL tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
 
-The most basic functionality is to visualize a trace using its ID.  Select the Trace ID tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
-
-## Log search
+## Finding traces using Loki logs
 
 Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](/docs/grafana/latest/datasources/loki/#derived-fields).
 
 ## Find traces using Tempo tags search
 
 Search for traces using common dimensions such as time range, duration, span tags, service names, and more. Use the trace view to quickly diagnose errors and high-latency events in your system.
+
+<p align="center"><img src="../../traceql/assets/screenshot-explore-traceql-search.png" alt="Showing how to build queries with common dimensions using query builder" /></p>
 
 ### Non-deterministic search
 
@@ -78,7 +78,12 @@ The metrics generator automatically generates exemplars as well which allows eas
 <p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
 
 ## View JSON file
-A local JSON file containing a trace can be uploaded and viewed in the Grafana UI. This is useful in cases where access to the original Tempo data source is limited, or for preserving traces outside of Tempo. The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
+
+A local JSON file containing a trace can be imported and viewed in the Grafana UI. This is useful in cases where access to the original Tempo data source is limited, or for preserving traces outside of Tempo.
+
+The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
+
+>**Note:** To perform this action on Grafana 10.1 or later, navigate to an Explore view tab and select `Import trace`.
 
 ## Linking traces and metrics
 
