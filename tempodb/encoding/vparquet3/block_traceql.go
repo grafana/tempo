@@ -992,6 +992,10 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		genericConditions = append(genericConditions, cond)
 	}
 
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+	}
+
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
@@ -999,10 +1003,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
-	}
-
-	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
 	var required []parquetquery.Iterator
