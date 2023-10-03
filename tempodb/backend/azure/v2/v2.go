@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -20,7 +21,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -56,12 +56,12 @@ func New(cfg *config.Config, confirm bool) (*V2, error) {
 
 	c, err := getContainerClient(ctx, cfg, false)
 	if err != nil {
-		return nil, errors.Wrap(err, "getting storage container")
+		return nil, fmt.Errorf("getting storage container: %w", err)
 	}
 
 	hedgedContainer, err := getContainerClient(ctx, cfg, true)
 	if err != nil {
-		return nil, errors.Wrap(err, "getting hedged storage container")
+		return nil, fmt.Errorf("getting hedged storage container: %w", err)
 	}
 
 	if confirm {
@@ -122,7 +122,7 @@ func (rw *V2) CloseAppend(context.Context, backend.AppendTracker) error {
 func (rw *V2) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
 	blobClient, err := getBlobClient(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
-		return errors.Wrapf(err, "cannot get Azure blob client, name: %s", backend.ObjectFileName(keypath, name))
+		return fmt.Errorf("cannot get Azure blob client, name: %s: %w", backend.ObjectFileName(keypath, name), err)
 	}
 
 	snapshotType := blob.DeleteSnapshotsOptionTypeInclude
@@ -151,12 +151,12 @@ func (rw *V2) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return objects, errors.Wrap(err, "iterating tenants")
+			return objects, fmt.Errorf("iterating tenants: %w", err)
 		}
 
 		for _, b := range page.Segment.BlobPrefixes {
 			if b.Name == nil {
-				return objects, errors.Errorf("unexpected empty blob name when listing %s", prefix)
+				return objects, fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
 			}
 			objects = append(objects, strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix))
 		}
@@ -314,7 +314,7 @@ func (rw *V2) writer(ctx context.Context, src io.Reader, name string) error {
 		BlockSize:   int64(rw.cfg.BufferSize),
 		Concurrency: rw.cfg.MaxBuffers,
 	}); err != nil {
-		return errors.Wrapf(err, "cannot upload blob, name: %s", name)
+		return fmt.Errorf("cannot upload blob, name: %s: %w", name, err)
 	}
 	return nil
 }
@@ -331,7 +331,7 @@ func (rw *V2) readRange(ctx context.Context, name string, offset int64, destBuff
 	var size int64
 
 	if props.ContentLength == nil {
-		return errors.Errorf("expected content length but got none for blob %s", name)
+		return fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
 	}
 
 	if length > 0 && length <= *props.ContentLength-offset {
@@ -371,7 +371,7 @@ func (rw *V2) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, er
 	}
 
 	if props.ContentLength == nil {
-		return nil, "", errors.Errorf("expected content length but got none for blob %s", name)
+		return nil, "", fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
 	}
 
 	destBuffer := make([]byte, *props.ContentLength)
@@ -403,5 +403,5 @@ func readError(err error) error {
 		return backend.ErrDoesNotExist
 	}
 
-	return errors.Wrap(err, "reading Azure blob container")
+	return fmt.Errorf("reading Azure blob container: %w", err)
 }

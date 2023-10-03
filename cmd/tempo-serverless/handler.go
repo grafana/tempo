@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/user"
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 
@@ -192,11 +191,11 @@ func loadConfig() (*tempodb.Config, error) {
 	v := viper.NewWithOptions()
 	b, err := yaml.Marshal(defaultConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal default config")
+		return nil, fmt.Errorf("failed to marshal default config: %w", err)
 	}
 	v.SetConfigType("yaml")
 	if err = v.MergeConfig(bytes.NewReader(b)); err != nil {
-		return nil, errors.Wrap(err, "failed to merge config")
+		return nil, fmt.Errorf("failed to merge config: %w", err)
 	}
 
 	v.AutomaticEnv()
@@ -206,7 +205,7 @@ func loadConfig() (*tempodb.Config, error) {
 	cfg := &tempodb.Config{}
 	err = v.Unmarshal(cfg, setTagName, setDecodeHooks)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal config")
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	return cfg, nil

@@ -2,10 +2,10 @@ package ingester
 
 import (
 	"context"
+	"errors"
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/pkg/errors"
 )
 
 func (i *Ingester) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {

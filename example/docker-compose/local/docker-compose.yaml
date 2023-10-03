@@ -35,7 +35,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:9.4.3
+    image: grafana/grafana:10.1.1
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

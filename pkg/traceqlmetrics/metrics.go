@@ -2,6 +2,7 @@ package traceqlmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/pkg/errors"
 )
 
 const maxBuckets = 64
@@ -180,7 +180,7 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 
 		attr, err := traceql.ParseIdentifier(id)
 		if err != nil {
-			return nil, errors.Wrap(err, "parsing groupby attribute")
+			return nil, fmt.Errorf("parsing groupby attribute: %w", err)
 		}
 
 		var lookups []traceql.Attribute
@@ -205,7 +205,7 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 
 	eval, req, err := traceql.NewEngine().Compile(query)
 	if err != nil {
-		return nil, errors.Wrap(err, "compiling query")
+		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
 	var (

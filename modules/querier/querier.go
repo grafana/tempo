@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -17,7 +18,6 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/multierr"
@@ -192,7 +192,7 @@ func (q *Querier) starting(ctx context.Context) error {
 	if q.subservices != nil {
 		err := services.StartManagerAndAwaitHealthy(ctx, q.subservices)
 		if err != nil {
-			return fmt.Errorf("failed to start subservices %w", err)
+			return fmt.Errorf("failed to start subservices: %w", err)
 		}
 	}
 
@@ -205,7 +205,7 @@ func (q *Querier) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-q.subservicesWatcher.Chan():
-			return fmt.Errorf("subservices failed %w", err)
+			return fmt.Errorf("subservices failed: %w", err)
 		}
 	} else {
 		<-ctx.Done()
@@ -228,7 +228,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.FindTraceByID")
+		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
@@ -255,7 +255,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return client.FindTraceByID(funcCtx, req)
 		})
 		if err != nil {
-			return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
+			return nil, fmt.Errorf("error querying ingesters in Querier.FindTraceByID: %w", err)
 		}
 
 		found := false
@@ -286,7 +286,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
-			retErr := errors.Wrap(err, "error querying store in Querier.FindTraceByID")
+			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
 			ot_log.Error(retErr)
 			return nil, retErr
 		}
@@ -392,12 +392,12 @@ func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet,
 
 		client, err := pool.GetClientFor(ingester.Addr)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", ingester.Addr))
+			return nil, fmt.Errorf("failed to get client for %s: %w", ingester.Addr, err)
 		}
 
 		resp, err := f(funcCtx, client.(tempopb.QuerierClient))
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to execute f() for %s", ingester.Addr))
+			return nil, fmt.Errorf("failed to execute f() for %s: %w", ingester.Addr, err)
 		}
 
 		return responseFromIngesters{ingester.Addr, resp}, nil
@@ -428,12 +428,12 @@ func (q *Querier) forGivenGenerators(
 
 		client, err := q.generatorPool.GetClientFor(generator.Addr)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to get client for %s", generator.Addr))
+			return nil, fmt.Errorf("failed to get client for %s: %w", generator.Addr, err)
 		}
 
 		resp, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to execute f() for %s", generator.Addr))
+			return nil, fmt.Errorf("failed to execute f() for %s: %w", generator.Addr, err)
 		}
 
 		return responseFromGenerators{generator.Addr, resp}, nil
@@ -441,7 +441,7 @@ func (q *Querier) forGivenGenerators(
 
 	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get response from generators")
+		return nil, fmt.Errorf("failed to get response from generators: %w", err)
 	}
 
 	responses := make([]responseFromGenerators, 0, len(results))
@@ -455,14 +455,14 @@ func (q *Querier) forGivenGenerators(
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	_, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.Search")
+		return nil, fmt.Errorf("error extracting org id in Querier.Search: %w", err)
 	}
 
 	responses, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchRecent(ctx, req)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
+		return nil, fmt.Errorf("error querying ingesters in Querier.Search: %w", err)
 	}
 
 	return q.postProcessIngesterSearchResults(req, responses), nil
@@ -471,7 +471,7 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTags")
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
@@ -481,7 +481,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		return client.SearchTags(ctx, req)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
+		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagsResponse).TagNames {
@@ -503,7 +503,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTags")
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
 
 	// Get results from all ingesters
@@ -511,7 +511,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		return client.SearchTagsV2(ctx, req)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
+		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
@@ -551,7 +551,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
@@ -566,7 +566,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return client.SearchTagValues(ctx, req)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
+		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
@@ -588,7 +588,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
@@ -611,7 +611,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		return client.SearchTagValuesV2(ctx, req)
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
+		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagValuesV2Response).TagValues {
@@ -648,7 +648,7 @@ func (q *Querier) SpanMetricsSummary(
 	// Get results from all generators
 	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
-		return nil, errors.Wrap(err, "error finding generators in Querier.SpanMetricsSummary")
+		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
 	}
 	lookupResults, err := q.forGivenGenerators(
 		ctx,
@@ -658,7 +658,7 @@ func (q *Querier) SpanMetricsSummary(
 		},
 	)
 	if err != nil {
-		return nil, errors.Wrap(err, "error querying generators in Querier.SpanMetricsSummary")
+		return nil, fmt.Errorf("error querying generators in Querier.SpanMetricsSummary: %w", err)
 	}
 
 	// Assemble the results from the generators in the pool
@@ -742,7 +742,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	// proxy externally!
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id for externalEndpoint")
+		return nil, fmt.Errorf("error extracting org id for externalEndpoint: %w", err)
 	}
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
@@ -752,7 +752,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
+		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
 	blockID, err := uuid.Parse(req.BlockID)

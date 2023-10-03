@@ -111,7 +111,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
+			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
 		}
 		manager = runtimeCfgMgr
 		subservices = append(subservices, runtimeCfgMgr)
@@ -126,7 +126,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 		var err error
 		o.subservices, err = services.NewManager(subservices...)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create subservices %w", err)
+			return nil, fmt.Errorf("failed to create subservices: %w", err)
 		}
 		o.subservicesWatcher = services.NewFailureWatcher()
 		o.subservicesWatcher.WatchManager(o.subservices)
@@ -141,7 +141,7 @@ func (o *runtimeConfigOverridesManager) starting(ctx context.Context) error {
 	if o.subservices != nil {
 		err := services.StartManagerAndAwaitHealthy(ctx, o.subservices)
 		if err != nil {
-			return fmt.Errorf("failed to start subservices %w", err)
+			return fmt.Errorf("failed to start subservices: %w", err)
 		}
 	}
 
@@ -154,7 +154,7 @@ func (o *runtimeConfigOverridesManager) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-o.subservicesWatcher.Chan():
-			return fmt.Errorf("overrides subservices failed %w", err)
+			return fmt.Errorf("overrides subservices failed: %w", err)
 		}
 	}
 	<-ctx.Done()

@@ -16,7 +16,6 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/uber/jaeger-client-go"
@@ -276,7 +275,7 @@ func (i *Ingester) handleComplete(op *flushOp) (retry bool, err error) {
 
 	err = instance.ClearCompletingBlock(op.blockID)
 	if err != nil {
-		return false, errors.Wrap(err, "error clearing completing block")
+		return false, fmt.Errorf("error clearing completing block: %w", err)
 	}
 
 	// add a flushOp for the block we just completed

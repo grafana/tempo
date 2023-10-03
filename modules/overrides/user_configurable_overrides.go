@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,7 +15,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tracing"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/slices"
@@ -99,7 +99,7 @@ func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides S
 
 func (o *userConfigurableOverridesManager) starting(ctx context.Context) error {
 	if err := services.StartManagerAndAwaitHealthy(ctx, o.subservices); err != nil {
-		return errors.Wrap(err, "unable to start overrides subservices")
+		return fmt.Errorf("unable to start overrides subservices: %w", err)
 	}
 
 	return o.reloadAllTenantLimits(ctx)
@@ -123,7 +123,7 @@ func (o *userConfigurableOverridesManager) running(ctx context.Context) error {
 			continue
 
 		case err := <-o.subservicesWatcher.Chan():
-			return errors.Wrap(err, "overrides subservice failed")
+			return fmt.Errorf("overrides subservice failed: %w", err)
 		}
 	}
 }
@@ -160,7 +160,7 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 			continue
 		}
 		if err != nil {
-			return errors.Wrapf(err, "failed to load tenant limits for tenant %v", tenant)
+			return fmt.Errorf("failed to load tenant limits for tenant %v: %w", tenant, err)
 		}
 		o.setTenantLimit(tenant, limits)
 	}
