@@ -676,7 +676,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
-		return errors.Wrap(err, "conditions invalid")
+		return fmt.Errorf("conditions invalid: %w", err)
 	}
 
 	blockFlushes := b.readFlushes()
@@ -690,7 +690,7 @@ func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteReque
 
 		iter, err := autocompleteIter(ctx, req, cb, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
-			return errors.Wrap(err, "creating fetch iter")
+			return fmt.Errorf("creating fetch iter: %w", err)
 		}
 
 		// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
@@ -700,7 +700,7 @@ func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteReque
 			res, err := iter.Next()
 			fmt.Println(res, err)
 			if err != nil {
-				return errors.Wrap(err, "iterating spans")
+				return fmt.Errorf("iterating spans in walBlock: %w", err)
 			}
 			if res == nil {
 				break

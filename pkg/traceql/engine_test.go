@@ -351,7 +351,7 @@ func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteReq
 
 	for {
 		spanset, err := m.iterator.Next(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && errors.Is(err, io.EOF) {
 			return err
 		}
 		if spanset == nil {
