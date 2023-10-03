@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -54,7 +55,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 		buffer := make([]parquet.Value, 10000)
 		for {
 			pg, err := pages.ReadPage()
-			if pg == nil || err == io.EOF {
+			if pg == nil || errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -66,7 +67,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 				}
 
 				// check for EOF after processing any returned data
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				// todo: better error handling

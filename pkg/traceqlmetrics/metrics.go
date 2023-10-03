@@ -2,6 +2,7 @@ package traceqlmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/pkg/errors"
 )
 
 const maxBuckets = 64
@@ -156,7 +156,7 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 }
 
 // GetMetrics
-func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
+func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start, end uint64, fetcher traceql.SpansetFetcher) (*MetricsResults, error) {
 	identifiers := strings.Split(groupBy, ",")
 
 	if len(identifiers) > maxGroupBys {
@@ -180,7 +180,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 		attr, err := traceql.ParseIdentifier(id)
 		if err != nil {
-			return nil, errors.Wrap(err, "parsing groupby attribute")
+			return nil, fmt.Errorf("parsing groupby attribute: %w", err)
 		}
 
 		var lookups []traceql.Attribute
@@ -205,7 +205,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 	eval, req, err := traceql.NewEngine().Compile(query)
 	if err != nil {
-		return nil, errors.Wrap(err, "compiling query")
+		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
 	var (
@@ -253,7 +253,7 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 	// callback.  No actual results will be returned from this fetch call,
 	// But we still need to call Next() at least once.
 	res, err := fetcher.Fetch(ctx, *req)
-	if err == util.ErrUnsupported {
+	if errors.Is(err, util.ErrUnsupported) {
 		return nil, nil
 	}
 	if err != nil {

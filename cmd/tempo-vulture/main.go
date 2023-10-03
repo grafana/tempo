@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -467,7 +468,7 @@ func queryTrace(client *httpclient.Client, info *util.TraceInfo) (traceMetrics, 
 
 	trace, err := client.QueryTrace(hexID)
 	if err != nil {
-		if err == util.ErrTraceNotFound {
+		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++
 		} else {
 			tm.requestFailed++

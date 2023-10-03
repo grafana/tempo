@@ -3,6 +3,7 @@ package localblocks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -22,7 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/pkg/errors"
 )
 
 const timeBuffer = 5 * time.Minute
@@ -67,7 +67,7 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 
 	err := p.reloadBlocks()
 	if err != nil {
-		return nil, errors.Wrap(err, "replaying blocks")
+		return nil, fmt.Errorf("replaying blocks: %w", err)
 	}
 
 	p.wg.Add(4)
@@ -91,8 +91,8 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 
 	for _, batch := range req.Batches {
 		if batch = filterBatch(batch); batch != nil {
-			switch err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces); err {
-			case errMaxExceeded:
+			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
+			if errors.Is(err, errMaxExceeded) {
 				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			}
 		}
@@ -562,7 +562,7 @@ func (p *Processor) reloadBlocks() error {
 	for _, id := range ids {
 		meta, err := r.BlockMeta(ctx, id, t)
 
-		if err == backend.ErrDoesNotExist {
+		if errors.Is(err, backend.ErrDoesNotExist) {
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {

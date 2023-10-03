@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/signals"
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"google.golang.org/grpc"
@@ -114,7 +114,7 @@ func New(cfg Config) (*App, error) {
 	app.setupAuthMiddleware()
 
 	if err := app.setupModuleManager(); err != nil {
-		return nil, fmt.Errorf("failed to setup module manager %w", err)
+		return nil, fmt.Errorf("failed to setup module manager: %w", err)
 	}
 
 	return app, nil
@@ -171,7 +171,7 @@ func (t *App) Run() error {
 
 	serviceMap, err := t.ModuleManager.InitModuleServices(t.cfg.Target)
 	if err != nil {
-		return fmt.Errorf("failed to init module services %w", err)
+		return fmt.Errorf("failed to init module services: %w", err)
 	}
 	t.serviceMap = serviceMap
 
@@ -182,7 +182,7 @@ func (t *App) Run() error {
 
 	sm, err := services.NewManager(servs...)
 	if err != nil {
-		return fmt.Errorf("failed to start service manager %w", err)
+		return fmt.Errorf("failed to start service manager: %w", err)
 	}
 
 	// before starting servers, register /ready handler and gRPC health check service.
@@ -207,14 +207,14 @@ func (t *App) Run() error {
 		// let's find out which module failed
 		for m, s := range serviceMap {
 			if s == service {
-				switch service.FailureCase() {
-				case modules.ErrStopProcess:
-					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", service.FailureCase())
-				case context.Canceled:
-				default:
-					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", service.FailureCase())
+				err = service.FailureCase()
+				if errors.Is(err, modules.ErrStopProcess) {
+					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
+				} else if errors.Is(err, context.Canceled) {
+					return
+				} else if err != nil {
+					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
 				}
-
 				return
 			}
 		}
@@ -234,7 +234,7 @@ func (t *App) Run() error {
 	// in other state than New, which should not be the case.
 	err = sm.StartAsync(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to start service manager %w", err)
+		return fmt.Errorf("failed to start service manager: %w", err)
 	}
 
 	return sm.AwaitStopped(context.Background())
@@ -276,7 +276,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 	case "":
 		output = t.cfg
 	default:
-		return errors.Errorf("unknown value for mode query parameter: %v", mode)
+		return fmt.Errorf("unknown value for mode query parameter: %v", mode)
 	}
 
 	out, err := yaml.Marshal(output)
@@ -410,7 +410,7 @@ func (t *App) statusHandler() http.HandlerFunc {
 					if err == nil {
 						err = e
 					} else {
-						err = errors.Wrap(err, e.Error())
+						err = fmt.Errorf("%s: %w", e.Error(), err)
 					}
 				}
 			}
@@ -488,7 +488,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 		return nil
 	})
 	if err != nil {
-		return errors.Wrap(err, "error walking routes")
+		return fmt.Errorf("error walking routes: %w", err)
 	}
 
 	sort.Slice(endpoints[:], func(i, j int) bool {
@@ -510,7 +510,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	_, err = w.Write([]byte(fmt.Sprintf("\nAPI documentation: %s\n\n", apiDocs)))
 	if err != nil {
-		return errors.Wrap(err, "error writing status endpoints")
+		return fmt.Errorf("error writing status endpoints: %w", err)
 	}
 
 	return nil

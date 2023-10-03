@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -105,14 +107,14 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.U
 	}
 
 	meta, err := r.BlockMeta(context.Background(), id, tenantID)
-	if err == backend.ErrDoesNotExist && !includeCompacted {
+	if errors.Is(err, backend.ErrDoesNotExist) && !includeCompacted {
 		return nil, nil
-	} else if err != nil && err != backend.ErrDoesNotExist {
+	} else if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 
 	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 

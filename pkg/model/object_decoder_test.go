@@ -1,16 +1,18 @@
 package model
 
 import (
+	"errors"
 	"math/rand"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestObjectDecoderMarshalUnmarshal(t *testing.T) {
@@ -158,7 +160,7 @@ func TestCombines(t *testing.T) {
 					assert.Equal(t, tt.expected, actual)
 
 					start, end, err := d.FastRange(actualBytes)
-					if err == decoder.ErrUnsupported {
+					if errors.Is(err, decoder.ErrUnsupported) {
 						return
 					}
 					require.NoError(t, err)

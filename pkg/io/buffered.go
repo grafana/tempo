@@ -1,10 +1,10 @@
 package io
 
 import (
+	"fmt"
 	"io"
 	"sync"
 
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 )
 
@@ -236,7 +236,7 @@ func (b *BufferedWriterWithQueue) Len() int {
 
 func (b *BufferedWriterWithQueue) Flush() error {
 	if err := b.err.Load(); err != nil {
-		return errors.Wrap(err, "error in async write using buffered writer")
+		return fmt.Errorf("error in async write using buffered writer: %w", err)
 	}
 
 	bufCopy := make([]byte, 0, len(b.buf))

@@ -43,7 +43,7 @@ type walBlock struct {
 	once     sync.Once
 }
 
-func createWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
+func createWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
@@ -81,7 +81,7 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 // openWALBlock returns an AppendBlock that can not be appended to, but can
 // be completed. It can return a warning or a fatal error
-func openWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
+func openWALBlock(filename, path string, ingestionSlack, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
 	var warning error
 	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
 	if err != nil {
@@ -110,7 +110,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 
 	records, warning, err := ReplayWALAndGetRecords(f, e, func(bytes []byte) error {
 		start, end, err := dec.FastRange(bytes)
-		if err == decoder.ErrUnsupported {
+		if errors.Is(err, decoder.ErrUnsupported) {
 			now := uint32(time.Now().Unix())
 			start = now
 			end = now
@@ -353,7 +353,7 @@ func (a *walBlock) file() (*os.File, error) {
 	return a.readFile, err
 }
 
-func (a *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+func (a *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
 	now := time.Now()
 	startOfRange := uint32(now.Add(-a.ingestionSlack).Add(-additionalStartSlack).Unix())
 	endOfRange := uint32(now.Add(a.ingestionSlack).Unix())

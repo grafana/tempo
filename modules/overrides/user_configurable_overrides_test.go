@@ -2,12 +2,12 @@ package overrides
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -77,9 +77,12 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Empty(t, false, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, false, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenant1))
+	assert.Empty(t, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
 
 	// Inject user-configurable overrides
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
@@ -93,6 +96,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 					Dimensions:               &[]string{"sg-dimension"},
 					EnableClientServerPrefix: boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
+					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
 				},
 				SpanMetrics: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:       &[]string{"sm-dimension"},
@@ -119,6 +123,8 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 							},
 						},
 					},
+					HistogramBuckets:             &[]float64{10, 20, 30, 40, 50},
+					TargetInfoExcludedDimensions: &[]string{"some-label"},
 				},
 			},
 		},
@@ -132,8 +138,11 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
+	assert.Equal(t, []float64{1, 2, 3, 4, 5}, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(tenant1))
+	assert.Equal(t, []float64{10, 20, 30, 40, 50}, mgr.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(tenant1))
+	assert.Equal(t, []string{"some-label"}, mgr.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(tenant1))
 
 	filterPolicies := mgr.MetricsGeneratorProcessorSpanMetricsFilterPolicies(tenant1)
 	assert.NotEmpty(t, filterPolicies)

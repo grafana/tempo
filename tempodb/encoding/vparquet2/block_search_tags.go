@@ -2,6 +2,7 @@ package vparquet2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 var translateTagToAttribute = map[string]traceql.Attribute{
@@ -109,7 +109,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 				defer pgs.Close()
 				for {
 					pg, err := pgs.ReadPage()
-					if err == io.EOF || pg == nil {
+					if errors.Is(err, io.EOF) || pg == nil {
 						break
 					}
 					if err != nil {
@@ -149,7 +149,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 				// there is only one dictionary per column chunk, so just read it from the first page
 				// and be done.
 				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
+				if errors.Is(err, io.EOF) || pg == nil {
 					return nil
 				}
 				if err != nil {
@@ -231,7 +231,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 	if columnPath := nonTraceQLAttributes[tag.Name]; columnPath != "" {
 		err := searchSpecialTagValues(ctx, columnPath, pf, cb)
 		if err != nil {
-			return fmt.Errorf("unexpected error searching special tags: %s %w", columnPath, err)
+			return fmt.Errorf("unexpected error searching special tags: %s: %w", columnPath, err)
 		}
 		return nil
 	}
@@ -271,7 +271,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldResourceAttrValBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return errors.Wrap(err, "search resource key values")
+			return fmt.Errorf("search resource key values: %w", err)
 		}
 	}
 
@@ -284,7 +284,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldSpanAttrValBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return errors.Wrap(err, "search span key values")
+			return fmt.Errorf("search span key values: %w", err)
 		}
 	}
 
@@ -336,7 +336,7 @@ func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return errors.Wrap(err, "iter.Next failed")
+			return fmt.Errorf("iter.Next failed: %w", err)
 		}
 		if match == nil {
 			break

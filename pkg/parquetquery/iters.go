@@ -3,6 +3,7 @@ package parquetquery
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -12,7 +13,6 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 // RowNumber is the sequence of row numbers uniquely identifying a value
@@ -679,7 +679,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 			if pg == nil || err != nil {
 				// No more pages in this column chunk,
 				// cleanup and exit.
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					err = nil
 				}
 				pq.Release(pg)
@@ -734,7 +734,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 
 		if c.currPage == nil {
 			pg, err := c.currChunk.NextPage()
-			if pg == nil || err == io.EOF {
+			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
 				continue
@@ -758,7 +758,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
 			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
 			}
 			c.currBuf = c.currBuf[:n]
@@ -982,7 +982,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			}()
 			for {
 				pg, err := col.NextPage()
-				if pg == nil || err == io.EOF {
+				if pg == nil || errors.Is(err, io.EOF) {
 					break
 				}
 				if err != nil {
@@ -1053,7 +1053,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 						// Error checks MUST occur after processing any returned data
 						// following io.Reader behavior.
-						if err == io.EOF {
+						if errors.Is(err, io.EOF) {
 							break
 						}
 						if err != nil {
@@ -1223,7 +1223,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 		for iterNum := range j.iters {
 			res, err := j.peek(iterNum)
 			if err != nil {
-				return nil, errors.Wrap(err, "join iterator peek failed")
+				return nil, fmt.Errorf("join iterator peek failed: %w", err)
 			}
 
 			if res == nil {
@@ -1255,7 +1255,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 			// Get the data
 			result, err := j.collect(lowestRowNumber)
 			if err != nil {
-				return nil, errors.Wrap(err, "join iterator collect failed")
+				return nil, fmt.Errorf("join iterator collect failed: %w", err)
 			}
 
 			// Keep group?
@@ -1272,7 +1272,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 		// to find matches before that.
 		err := j.seekAll(highestRowNumber, j.definitionLevel)
 		if err != nil {
-			return nil, errors.Wrap(err, "join iterator seekAll failed")
+			return nil, fmt.Errorf("join iterator seekAll failed: %w", err)
 		}
 	}
 }
@@ -1280,7 +1280,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	err := j.seekAll(t, d)
 	if err != nil {
-		return nil, errors.Wrap(err, "join iterator seekAll failed")
+		return nil, fmt.Errorf("join iterator seekAll failed: %w", err)
 	}
 	return j.Next()
 }
@@ -1567,7 +1567,6 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	return &j
 }
 
-// jpe
 func (u *UnionIterator) String() string {
 	var iters string
 	for _, iter := range u.iters {
@@ -1588,7 +1587,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 		for iterNum := range u.iters {
 			rn, err := u.peek(iterNum)
 			if err != nil {
-				return nil, errors.Wrap(err, "union iterator peek failed")
+				return nil, fmt.Errorf("union iterator peek failed: %w", err)
 			}
 
 			// If this iterator is exhausted go to the next one
@@ -1613,7 +1612,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 		// Consume lowest iterators
 		result, err := u.collect(u.lowestIters, lowestRowNumber)
 		if err != nil {
-			return nil, errors.Wrap(err, "union iterator collect failed")
+			return nil, fmt.Errorf("union iterator collect failed: %w", err)
 		}
 
 		// After each pass it is guaranteed to have found something
@@ -1639,7 +1638,7 @@ func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
 			u.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
-				return nil, errors.Wrap(err, "union iterator seek to failed")
+				return nil, fmt.Errorf("union iterator seek to failed: %w", err)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -105,7 +106,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	combiner := NewMetadataCombiner()
 	for {
 		spanset, err := iterator.Next(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			span.LogKV("msg", "iterator.Next", "err", err)
 			return nil, err
 		}

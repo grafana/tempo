@@ -67,6 +67,15 @@ func DefaultSearchOptions() SearchOptions {
 	}
 }
 
+func DefaultSearchOptionsWithMaxBytes(maxBytes int) SearchOptions {
+	return SearchOptions{
+		ReadBufferCount: 32,
+		ReadBufferSize:  1024 * 1024,
+		ChunkSizeBytes:  4 * 1024 * 1024,
+		MaxBytes:        maxBytes,
+	}
+}
+
 type Compactor interface {
 	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
 }

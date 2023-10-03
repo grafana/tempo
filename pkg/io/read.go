@@ -1,6 +1,7 @@
 package io
 
 import (
+	"errors"
 	"io"
 )
 
@@ -20,7 +21,7 @@ func ReadAllWithEstimate(r io.Reader, estimatedBytes int64) ([]byte, error) {
 		n, err := r.Read(b[len(b):cap(b)])
 		b = b[:len(b)+n]
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			return b, err
@@ -50,7 +51,7 @@ func ReadAllWithBuffer(r io.Reader, estimatedBytes int, b []byte) ([]byte, error
 		n, err := r.Read(b[len(b):cap(b)])
 		b = b[:len(b)+n]
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			return b, err

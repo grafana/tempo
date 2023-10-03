@@ -5,6 +5,7 @@ package usagestats
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math"
 	"time"
@@ -103,10 +104,10 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 		remoteSeed, err := rep.fetchSeed(ctx,
 			func(err error) bool {
 				// we only want to retry if the error is not an object not found error or a bad see file error
-				return err != backend.ErrDoesNotExist && err != backend.ErrBadSeedFile
+				return !errors.Is(err, backend.ErrDoesNotExist) && !errors.Is(err, backend.ErrBadSeedFile)
 			})
 		if err != nil {
-			if err == backend.ErrDoesNotExist || err == backend.ErrBadSeedFile {
+			if errors.Is(err, backend.ErrDoesNotExist) || errors.Is(err, backend.ErrBadSeedFile) {
 				// we are the leader and we need to save the file.
 				if err := rep.writeSeedFile(ctx, seed); err != nil {
 					level.Warn(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
@@ -177,12 +178,12 @@ func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) b
 	for backoff.Ongoing() {
 		seed, err := rep.readSeedFile(ctx)
 		if err != nil {
-			if err != backend.ErrDoesNotExist {
+			if !errors.Is(err, backend.ErrDoesNotExist) {
 				readingErr++
 			}
 			level.Debug(rep.logger).Log("msg", "failed to read cluster seed file", "err", err)
 			if readingErr > attemptNumber {
-				if err == backend.ErrBadSeedFile {
+				if errors.Is(err, backend.ErrBadSeedFile) {
 					level.Debug(rep.logger).Log("msg", "seed file corrupted")
 				}
 			}
@@ -261,12 +262,10 @@ func (rep *Reporter) running(ctx context.Context) error {
 			rep.lastReport = next
 			next = next.Add(reportInterval)
 		case <-ctx.Done():
-			switch ctx.Err() {
-			case context.Canceled:
+			if errors.Is(ctx.Err(), context.Canceled) {
 				return nil
-			default:
-				return ctx.Err()
 			}
+			return ctx.Err()
 		}
 	}
 }

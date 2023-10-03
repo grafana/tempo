@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	crand "crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -205,7 +206,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 		i := 0
 		for {
 			id, obj, err := iterator.Next(ctx)
-			if err == io.EOF || id == nil {
+			if errors.Is(err, io.EOF) || id == nil {
 				break
 			}
 			require.NoError(t, err)
@@ -252,7 +253,7 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 				},
 				Limit: 10,
 			}, common.DefaultSearchOptions())
-			if err == common.ErrUnsupported {
+			if errors.Is(err, common.ErrUnsupported) {
 				return
 			}
 			require.NoError(t, err)
@@ -286,7 +287,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			query := fmt.Sprintf("{ .%s = \"%s\" }", k, v)
 			resp, err := block.Fetch(ctx, traceql.MustExtractFetchSpansRequestWithMetadata(query), common.DefaultSearchOptions())
 			// not all blocks support fetch
-			if err == common.ErrUnsupported {
+			if errors.Is(err, common.ErrUnsupported) {
 				return
 			}
 			require.NoError(t, err)
@@ -514,7 +515,7 @@ func BenchmarkSearch(b *testing.B) {
 						},
 						Limit: 10,
 					}, common.DefaultSearchOptions())
-					if err == common.ErrUnsupported {
+					if errors.Is(err, common.ErrUnsupported) {
 						return
 					}
 					require.NoError(b, err)

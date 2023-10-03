@@ -2,11 +2,13 @@ package vparquet
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type intIterator []*uint8 // making this a pointer makes the below code a little gross but allows multiblockiterator to treat all types as nillable
@@ -81,7 +83,7 @@ func TestMultiBlockIterator(t *testing.T) {
 		ctx := context.Background()
 		for {
 			id, val, err := mbi.Next(ctx)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			require.NoError(t, err)

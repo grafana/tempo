@@ -2,6 +2,7 @@ package v2
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,7 +26,7 @@ func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func(
 	currentOffset := uint64(0)
 	for {
 		buffer, pageLen, err = dataReader.NextPage(buffer)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -41,7 +42,7 @@ func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func(
 		}
 		// wal should only ever have one object per page, test that here
 		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			warning = fmt.Errorf("expected EOF while replaying wal: %w", err)
 			break
 		}

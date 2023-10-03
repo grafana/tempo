@@ -3,10 +3,11 @@ package vparquet
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -42,7 +43,7 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 	// find lowest ID of the new object
 	for _, b := range m.bookmarks {
 		id, err := b.peekID(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, nil, err
 		}
 		if id == nil {
@@ -66,7 +67,7 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 	lowestObjects := make([]T, 0, len(lowestBookmarks))
 	for _, b := range lowestBookmarks {
 		_, obj, err := b.current(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, nil, err
 		}
 		if obj == nil {
@@ -78,7 +79,7 @@ func (m *MultiBlockIterator[T]) Next(ctx context.Context) (common.ID, T, error) 
 
 	lowestObject, err := m.combine(lowestObjects)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "combining")
+		return nil, nil, fmt.Errorf("combining: %w", err)
 	}
 
 	for _, b := range lowestBookmarks {
@@ -125,7 +126,7 @@ func newBookmark[T iteratable](iter bookmarkIterator[T]) *bookmark[T] {
 
 func (b *bookmark[T]) peekID(ctx context.Context) (common.ID, error) {
 	nextID, err := b.iter.peekNextID(ctx)
-	if err != common.ErrUnsupported {
+	if !errors.Is(err, common.ErrUnsupported) {
 		return nextID, err
 	}
 
@@ -148,7 +149,7 @@ func (b *bookmark[T]) current(ctx context.Context) (common.ID, T, error) {
 
 func (b *bookmark[T]) done(ctx context.Context) bool {
 	nextID, err := b.iter.peekNextID(ctx)
-	if err != common.ErrUnsupported {
+	if !errors.Is(err, common.ErrUnsupported) {
 		return nextID == nil || err != nil
 	}
 

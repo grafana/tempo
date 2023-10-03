@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -40,7 +41,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]v2.Re
 	currentOffset := uint64(0)
 	for {
 		buffer, pageLen, err := dataReader.NextPage(buffer)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -60,7 +61,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]v2.Re
 			lastID = id
 		}
 
-		if iterErr != io.EOF {
+		if !errors.Is(iterErr, io.EOF) {
 			replayError = iterErr
 			break
 		}

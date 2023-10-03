@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -134,7 +135,7 @@ func (c *RedisClient) MGet(ctx context.Context, keys []string) ([][]byte, error)
 		for i, key := range keys {
 			cmd := c.rdb.Get(ctx, key)
 			err := cmd.Err()
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				// if key not found, response nil
 				continue
 			} else if err != nil {

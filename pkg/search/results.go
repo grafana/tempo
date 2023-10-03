@@ -2,11 +2,13 @@ package search
 
 import (
 	"context"
+	"errors"
 	"sync"
+
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"go.uber.org/atomic"
 )
 
 // Results eases performing a highly parallel search by funneling all results into a single
@@ -57,7 +59,7 @@ func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata
 // NOTE: this will ignore common.Unsupported errors,
 // we don't Propagate those error upstream.
 func (sr *Results) SetError(err error) {
-	if err != common.ErrUnsupported { // ignore common.Unsupported
+	if !errors.Is(err, common.ErrUnsupported) { // ignore common.Unsupported
 		sr.error.Store(err)
 	}
 }

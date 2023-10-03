@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -166,7 +165,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to initialize distributor ring")
+			return nil, fmt.Errorf("unable to initialize distributor ring: %w", err)
 		}
 		distributorRing = ring
 		subservices = append(subservices, distributorRing)
@@ -234,7 +233,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	d.subservices, err = services.NewManager(subservices...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create subservices %w", err)
+		return nil, fmt.Errorf("failed to create subservices: %w", err)
 	}
 	d.subservicesWatcher = services.NewFailureWatcher()
 	d.subservicesWatcher.WatchManager(d.subservices)
@@ -247,7 +246,7 @@ func (d *Distributor) starting(ctx context.Context) error {
 	// Only report success if all sub-services start properly
 	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
 	if err != nil {
-		return fmt.Errorf("failed to start subservices %w", err)
+		return fmt.Errorf("failed to start subservices: %w", err)
 	}
 
 	return nil
@@ -258,7 +257,7 @@ func (d *Distributor) running(ctx context.Context) error {
 	case <-ctx.Done():
 		return nil
 	case err := <-d.subservicesWatcher.Chan():
-		return fmt.Errorf("distributor subservices failed %w", err)
+		return fmt.Errorf("distributor subservices failed: %w", err)
 	}
 }
 
@@ -366,7 +365,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	for i, t := range traces {
 		b, err := d.traceEncoder.PrepareForWrite(t.trace, t.start, t.end)
 		if err != nil {
-			return errors.Wrap(err, "failed to marshal PushRequest")
+			return fmt.Errorf("failed to marshal PushRequest: %w", err)
 		}
 		marshalledTraces[i] = b
 	}
@@ -428,7 +427,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 
 		c, err := d.generatorsPool.GetClientFor(generator.Addr)
 		if err != nil {
-			return errors.Wrap(err, "failed to get client for generator")
+			return fmt.Errorf("failed to get client for generator: %w", err)
 		}
 
 		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
@@ -436,7 +435,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
 		}
-		return errors.Wrap(err, "failed to push spans to generator")
+		return fmt.Errorf("failed to push spans to generator: %w", err)
 	}, func() {})
 
 	return err

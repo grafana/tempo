@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -117,7 +118,7 @@ func (i *parquetIterator) Next(_ context.Context) (common.ID, *tempopb.Trace, er
 	}
 
 	_, err := i.r.Read(traces)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil, nil, io.EOF
 	}
 	if err != nil {

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
@@ -100,7 +100,7 @@ func (t *App) initServer() (services.Service, error) {
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create server %w", err)
+		return nil, fmt.Errorf("failed to create server: %w", err)
 	}
 
 	servicesToWaitFor := func() []services.Service {
@@ -183,7 +183,7 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 func (t *App) initOverrides() (services.Service, error) {
 	o, err := overrides.NewOverrides(t.cfg.Overrides)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create overrides %w", err)
+		return nil, fmt.Errorf("failed to create overrides: %w", err)
 	}
 	t.Overrides = o
 
@@ -203,9 +203,9 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.Client, NewOverridesValidator(&t.cfg))
+	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.Client, t.Overrides, NewOverridesValidator(&t.cfg))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create user-configurable overrides API")
+		return nil, fmt.Errorf("failed to create user-configurable overrides API: %w", err)
 	}
 
 	overridesPath := addHTTPAPIPrefix(&t.cfg, api.PathOverrides)
@@ -232,7 +232,7 @@ func (t *App) initDistributor() (services.Service, error) {
 		t.TracesConsumerMiddleware,
 		log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create distributor %w", err)
+		return nil, fmt.Errorf("failed to create distributor: %w", err)
 	}
 	t.distributor = distributor
 
@@ -263,12 +263,12 @@ func (t *App) initIngester() (services.Service, error) {
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
-	if err == generator.ErrUnconfigured && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metrics-generator %w", err)
+		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
 	}
 	t.generator = genSvc
 
@@ -313,7 +313,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		t.Overrides,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create querier %w", err)
+		return nil, fmt.Errorf("failed to create querier: %w", err)
 	}
 	t.querier = querier
 
@@ -411,7 +411,7 @@ func (t *App) initCompactor() (services.Service, error) {
 
 	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compactor %w", err)
+		return nil, fmt.Errorf("failed to create compactor: %w", err)
 	}
 	t.compactor = compactor
 
@@ -425,7 +425,7 @@ func (t *App) initCompactor() (services.Service, error) {
 func (t *App) initStore() (services.Service, error) {
 	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, log.Logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create store %w", err)
+		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
 	t.store = store
 
@@ -537,7 +537,7 @@ func (t *App) setupModuleManager() error {
 		// InternalServer: nil,
 		Server:                {InternalServer},
 		Overrides:             {Server},
-		OverridesAPI:          {Server},
+		OverridesAPI:          {Server, Overrides},
 		MemberlistKV:          {Server},
 		UsageReport:           {MemberlistKV},
 		IngesterRing:          {Server, MemberlistKV},

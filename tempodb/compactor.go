@@ -2,20 +2,22 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -143,7 +145,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 			// Compact selected blocks into a larger one
 			err := rw.compact(ctx, toBeCompacted, tenantID)
 
-			if err == backend.ErrDoesNotExist {
+			if errors.Is(err, backend.ErrDoesNotExist) {
 				level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
 			} else if err != nil {
 				level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
@@ -223,7 +225,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
-		SpansDiscarded: func(traceId, rootSpanName string, rootServiceName string, spans int) {
+		SpansDiscarded: func(traceId, rootSpanName, rootServiceName string, spans int) {
 			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
 		},
 		DisconnectedTrace: func() {
@@ -260,7 +262,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 	return nil
 }
 
-func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) error {
+func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
 	// Check if we have any errors, but continue marking the blocks as compacted
 	var errCount int
 	for _, meta := range oldBlocks {

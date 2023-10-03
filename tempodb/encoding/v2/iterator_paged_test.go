@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // TestIteratorPaged tests the iterator paging functionality
@@ -112,7 +114,7 @@ func TestIteratorPartialPaged(t *testing.T) {
 func assertIterator(t *testing.T, iter BytesIterator, ids []common.ID, objs [][]byte) {
 	for {
 		id, obj, err := iter.NextBytes(context.Background())
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)

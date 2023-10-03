@@ -4,16 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/uber-go/atomic"
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-
-	"github.com/uber-go/atomic"
 )
 
 type multiblockIterator struct {
@@ -107,7 +107,7 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 		// find lowest ID of the new object
 		for _, b := range i.bookmarks {
 			currentID, currentObject, err := b.current(ctx)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				continue
 			} else if err != nil {
 				i.err.Store(err)

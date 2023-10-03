@@ -83,9 +83,10 @@ func (l *LimitsMetricsGeneratorProcessor) GetSpanMetrics() *LimitsMetricsGenerat
 }
 
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {
-	Dimensions               *[]string `json:"dimensions,omitempty"`
-	EnableClientServerPrefix *bool     `json:"enable_client_server_prefix,omitempty"`
-	PeerAttributes           *[]string `json:"peer_attributes,omitempty"`
+	Dimensions               *[]string  `json:"dimensions,omitempty"`
+	EnableClientServerPrefix *bool      `json:"enable_client_server_prefix,omitempty"`
+	PeerAttributes           *[]string  `json:"peer_attributes,omitempty"`
+	HistogramBuckets         *[]float64 `json:"histogram_buckets,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -109,10 +110,19 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetPeerAttributes() ([]st
 	return nil, false
 }
 
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetHistogramBuckets() ([]float64, bool) {
+	if l != nil && l.HistogramBuckets != nil {
+		return *l.HistogramBuckets, true
+	}
+	return nil, false
+}
+
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions       *[]string                    `json:"dimensions,omitempty"`
-	EnableTargetInfo *bool                        `json:"enable_target_info,omitempty"`
-	FilterPolicies   *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
+	Dimensions                   *[]string                    `json:"dimensions,omitempty"`
+	EnableTargetInfo             *bool                        `json:"enable_target_info,omitempty"`
+	FilterPolicies               *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
+	HistogramBuckets             *[]float64                   `json:"histogram_buckets,omitempty"`
+	TargetInfoExcludedDimensions *[]string                    `json:"target_info_excluded_dimensions,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
@@ -132,6 +142,20 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetEnableTargetInfo() (bool
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetFilterPolicies() ([]filterconfig.FilterPolicy, bool) {
 	if l != nil && l.FilterPolicies != nil {
 		return *l.FilterPolicies, true
+	}
+	return nil, true
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetHistogramBuckets() ([]float64, bool) {
+	if l != nil && l.HistogramBuckets != nil {
+		return *l.HistogramBuckets, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimensions() ([]string, bool) {
+	if l != nil && l.TargetInfoExcludedDimensions != nil {
+		return *l.TargetInfoExcludedDimensions, true
 	}
 	return nil, true
 }

@@ -3,6 +3,7 @@ package v2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -41,7 +42,7 @@ func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, data
 	}
 
 	i.currentID, i.currentObject, err = i.iter.NextBytes(context.Background())
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
@@ -87,14 +88,17 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace,
 		return dedupedID, tr, nil
 	}
 
-	combiner := trace.NewCombiner()
+	combiner := trace.NewCombiner(0)
 	for j, obj := range currentObjects {
 		tr, err := i.decoder.PrepareForRead(obj)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		combiner.ConsumeWithFinal(tr, j == len(currentObjects)-1)
+		_, err = combiner.ConsumeWithFinal(tr, j == len(currentObjects)-1)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	tr, _ := combiner.Result()
@@ -112,7 +116,7 @@ func (i *dedupingIterator) next(ctx context.Context) (common.ID, [][]byte, error
 
 	for {
 		id, obj, err := i.iter.NextBytes(ctx)
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, nil, err
 		}
 

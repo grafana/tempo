@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -52,12 +54,12 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
-	if err != nil && err != tempodb_backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, tempodb_backend.ErrDoesNotExist) {
 		return err
 	}
 
 	compactedMeta, err := c.CompactedBlockMeta(id, tenantID)
-	if err != nil && err != tempodb_backend.ErrDoesNotExist {
+	if err != nil && !errors.Is(err, tempodb_backend.ErrDoesNotExist) {
 		return err
 	}
 
@@ -132,7 +134,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		prevID := make([]byte, 16)
 		for {
 			objID, obj, err := iter.NextBytes(ctx)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			} else if err != nil {
 				return err
@@ -242,7 +244,7 @@ func addKey(kvp kvPairs, key string, count int) {
 	kvp[key] = v
 }
 
-func addVal(kvp kvPairs, key string, val string, count int) {
+func addVal(kvp kvPairs, key, val string, count int) {
 	v := kvp[key]
 	stats, ok := v.all[val]
 	if !ok {

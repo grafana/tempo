@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,14 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -187,7 +188,7 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
 	for i, id := range ids {
 		idsToObjs[util.TokenForTraceID(id)] = reqs[i]
 	}
-	sort.Slice(ids, func(i int, j int) bool { return bytes.Compare(ids[i], ids[j]) == -1 })
+	sort.Slice(ids, func(i, j int) bool { return bytes.Compare(ids[i], ids[j]) == -1 })
 
 	iterator, err := backendBlock.Iterator(50 * 1024)
 	require.NoError(t, err, "error getting iterator")
@@ -261,7 +262,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	ctx := context.Background()
 	for {
 		id, data, err := iter.NextBytes(ctx)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			require.NoError(t, err)
 		}
 
@@ -394,10 +395,10 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	ctx := context.Background()
 	for {
 		id, data, err := iter.NextBytes(ctx)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			require.NoError(b, err)
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -429,7 +430,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	o := NewObjectReaderWriter()
 	for {
 		tempBuffer, _, err = pr.NextPage(tempBuffer)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(b, err)
@@ -438,7 +439,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 
 		for {
 			_, _, err = o.UnmarshalObjectFromReader(bufferReader)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 		}

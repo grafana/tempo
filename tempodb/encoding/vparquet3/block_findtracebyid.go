@@ -3,13 +3,13 @@ package vparquet3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -71,7 +71,7 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 	defer span.Finish()
 
 	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, true)
-	if err == backend.ErrDoesNotExist {
+	if errors.Is(err, backend.ErrDoesNotExist) {
 		return true, -1, nil
 	}
 	if err != nil {
@@ -125,10 +125,10 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		span.SetTag("inspectedBytes", rr.BytesRead())
 	}()
 
-	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
+	return findTraceByID(derivedCtx, traceID, opts.MaxBytes, b.meta, pf, rowGroup)
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
+func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
@@ -168,7 +168,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 			}
 
 			c, err := page.Values().ReadValues(buf)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return nil, err
 			}
 			if c < 1 {
@@ -208,7 +208,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 			return 0, nil
 		})
 		if err != nil {
-			return nil, errors.Wrap(err, "error binary searching row groups")
+			return nil, fmt.Errorf("error binary searching row groups: %w", err)
 		}
 	}
 
@@ -242,13 +242,20 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	r := parquet.NewReader(pf)
 	err = r.SeekToRow(rowMatch)
 	if err != nil {
-		return nil, errors.Wrap(err, "seek to row")
+		return nil, fmt.Errorf("seek to row: %w", err)
 	}
 
 	tr := new(Trace)
 	err = r.Read(tr)
 	if err != nil {
-		return nil, errors.Wrap(err, "error reading row from backend")
+		return nil, fmt.Errorf("error reading row from backend: %w", err)
+	}
+
+	if maxTraceSizeBytes > 0 {
+		estimatedSize := estimateMarshalledSizeFromTrace(tr)
+		if estimatedSize > maxTraceSizeBytes {
+			return nil, fmt.Errorf("trace exceeds max size in the block. (max bytes: %d)", maxTraceSizeBytes)
+		}
 	}
 
 	// convert to proto trace and return

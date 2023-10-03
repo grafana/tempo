@@ -2,11 +2,8 @@ package model
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/pkg/errors"
 )
 
 type objectCombiner struct{}
@@ -47,26 +44,4 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 	}
 
 	return combinedBytes, true, nil
-}
-
-// CombineForRead is a convenience method used for combining while reading a trace. Due its
-// use of PrepareForRead() it is a costly method and should not be called during any write
-// or compaction operations.
-func CombineForRead(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb.Trace, error) {
-	decoder, err := NewObjectDecoder(dataEncoding)
-	if err != nil {
-		return nil, fmt.Errorf("error getting decoder: %w", err)
-	}
-
-	objTrace, err := decoder.PrepareForRead(obj)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
-	}
-
-	c := trace.NewCombiner()
-	c.Consume(objTrace)
-	c.ConsumeWithFinal(t, true)
-	combined, _ := c.Result()
-
-	return combined, nil
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -92,7 +93,8 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 	// If meta and compactedMeta are empty, call delete the tenant index.
 	if len(meta) == 0 && len(compactedMeta) == 0 {
 		// Skip returning an error when the object is already deleted.
-		if err := w.w.Delete(ctx, TenantIndexName, KeyPath([]string{tenantID}), false); err != nil && err != ErrDoesNotExist {
+		err := w.w.Delete(ctx, TenantIndexName, []string{tenantID}, false)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
 		return nil
@@ -246,16 +248,16 @@ func KeyPathWithPrefix(keypath KeyPath, prefix string) KeyPath {
 }
 
 // MetaFileName returns the object name for the block meta given a block id and tenantid
-func MetaFileName(blockID uuid.UUID, tenantID string, prefix string) string {
+func MetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), MetaName)
 }
 
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
-func CompactedMetaFileName(blockID uuid.UUID, tenantID string, prefix string) string {
+func CompactedMetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid
-func RootPath(blockID uuid.UUID, tenantID string, prefix string) string {
+func RootPath(blockID uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String())
 }

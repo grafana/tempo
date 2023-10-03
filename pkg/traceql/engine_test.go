@@ -503,7 +503,8 @@ func TestExamplesInEngine(t *testing.T) {
 				Query: q,
 			})
 			require.Error(t, err)
-			require.False(t, errors.As(err, &unsupportedError{}))
+			var unErr *unsupportedError
+			require.False(t, errors.As(err, &unErr))
 		})
 	}
 
@@ -513,7 +514,8 @@ func TestExamplesInEngine(t *testing.T) {
 				Query: q,
 			})
 			require.Error(t, err)
-			require.True(t, errors.As(err, &unsupportedError{}))
+			var unErr *unsupportedError
+			require.True(t, errors.As(err, &unErr))
 		})
 	}
 }

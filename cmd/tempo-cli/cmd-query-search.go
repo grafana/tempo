@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
-	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type querySearchCmd struct {
@@ -62,7 +64,7 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 				return err
 			}
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {

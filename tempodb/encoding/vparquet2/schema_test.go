@@ -1,6 +1,7 @@
 package vparquet2
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -408,7 +409,7 @@ func estimateRowSize(t *testing.T, name string) {
 	for {
 		_, err := r.Read(row)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			require.NoError(t, err)

@@ -2,6 +2,8 @@ package worker
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -9,7 +11,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +58,7 @@ func TestHandleSendError(t *testing.T) {
 	err = fp.handleSendError(context.Canceled)
 	require.NoError(t, err)
 
-	err = fp.handleSendError(errors.Wrap(context.Canceled, ""))
+	err = fp.handleSendError(fmt.Errorf("%w", context.Canceled))
 	require.NoError(t, err)
 
 	err = fp.handleSendError(io.EOF)

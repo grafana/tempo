@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/dskit/grpcutil"
 	"github.com/grafana/dskit/services"
-	"github.com/pkg/errors"
 
 	util_log "github.com/grafana/tempo/pkg/util/log"
 )
@@ -64,7 +63,7 @@ func (w *dnsWatcher) watchDNSLoop(servCtx context.Context) error {
 			if servCtx.Err() != nil {
 				return nil
 			}
-			return errors.Wrapf(err, "error from DNS watcher")
+			return fmt.Errorf("error from DNS watcher: %w", err)
 		}
 
 		for _, update := range updates {

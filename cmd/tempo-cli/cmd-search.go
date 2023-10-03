@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
@@ -69,7 +71,7 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 
 			// search here
 			meta, err := r.BlockMeta(ctx, id2, cmd.TenantID)
-			if err == backend.ErrDoesNotExist {
+			if errors.Is(err, backend.ErrDoesNotExist) {
 				return
 			}
 			if err != nil {
