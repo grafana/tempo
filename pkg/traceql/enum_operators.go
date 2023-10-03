@@ -30,6 +30,11 @@ const (
 	OpSpansetAnd
 	OpSpansetUnion
 	OpSpansetSibling
+	OpSpansetNotChild
+	OpSpansetNotParent
+	OpSpansetNotDescendant
+	OpSpansetNotAncestor
+	OpSpansetNotSibling
 )
 
 func (op Operator) isBoolean() bool {
@@ -163,6 +168,16 @@ func (op Operator) String() string {
 		return "~"
 	case OpSpansetUnion:
 		return "||"
+	case OpSpansetNotChild:
+		return "!>"
+	case OpSpansetNotParent:
+		return "!<"
+	case OpSpansetNotDescendant:
+		return "!>>"
+	case OpSpansetNotAncestor:
+		return "!<<"
+	case OpSpansetNotSibling:
+		return "!~"
 	}
 
 	return fmt.Sprintf("operator(%d)", op)

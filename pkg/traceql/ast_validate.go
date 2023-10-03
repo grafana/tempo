@@ -180,7 +180,7 @@ func (o BinaryOperation) validate() error {
 	}
 
 	switch o.Op {
-	case OpSpansetChild,
+	case OpSpansetChild, // jpe - should this exist? should we add the not operators?
 		OpSpansetParent,
 		OpSpansetDescendant,
 		OpSpansetAncestor,

@@ -101,6 +101,8 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			}
 
 		case OpSpansetDescendant:
+			fallthrough
+		case OpSpansetNotDescendant:
 			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
 				return r.DescendantOf(l)
 			})
@@ -114,9 +116,13 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
+			} else if o.Op == OpSpansetNotDescendant {
+				output = lhs // jpe - clone?
 			}
 
 		case OpSpansetAncestor:
+			fallthrough
+		case OpSpansetNotAncestor:
 			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
 				// In case of ancestor the lhs becomes descendant of rhs
 				return l.DescendantOf(r)
@@ -131,9 +137,13 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
+			} else if o.Op == OpSpansetNotAncestor {
+				output = lhs
 			}
 
 		case OpSpansetChild:
+			fallthrough
+		case OpSpansetNotChild:
 			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
 				return r.ChildOf(l)
 			})
@@ -147,9 +157,13 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
+			} else if o.Op == OpSpansetNotChild {
+				output = lhs
 			}
 
 		case OpSpansetParent:
+			fallthrough
+		case OpSpansetNotParent:
 			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
 				// In case of parent the lhs becomes child of rhs
 				return l.ChildOf(r)
@@ -164,9 +178,13 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
+			} else if o.Op == OpSpansetNotParent { // jpe - consolidate
+				output = lhs
 			}
 
 		case OpSpansetSibling:
+			fallthrough
+		case OpSpansetNotSibling:
 			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
 				return r.SiblingOf(l)
 			})
@@ -180,6 +198,8 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = append([]Span(nil), spans...)
 				output = append(output, matchingSpanset)
+			} else if o.Op == OpSpansetNotSibling {
+				output = lhs
 			}
 
 		default:
