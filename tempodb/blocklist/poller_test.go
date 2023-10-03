@@ -1,11 +1,13 @@
 package blocklist
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"math/rand"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -775,8 +777,37 @@ func TestPollComparePreviousResults(t *testing.T) {
 			metas, compactedMetas, err := poller.Do(previous)
 			require.Equal(t, tc.err, err)
 
-			require.Equal(t, tc.expectedPerTenant, metas)
-			require.Equal(t, tc.expectedCompactedPerTenant, compactedMetas)
+			require.Equal(t, len(tc.expectedPerTenant), len(metas))
+			for tenantID, expectedMetas := range tc.expectedPerTenant {
+				l := metas[tenantID]
+				sort.Slice(l, func(i, j int) bool {
+					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					return x > 0
+				})
+
+				sort.Slice(expectedMetas, func(i, j int) bool {
+					x := bytes.Compare(expectedMetas[i].BlockID[:], expectedMetas[j].BlockID[:])
+					return x > 0
+				})
+
+				require.Equal(t, expectedMetas, l)
+			}
+
+			require.Equal(t, len(tc.expectedCompactedPerTenant), len(compactedMetas))
+			for tenantID, expectedCompactedMetas := range tc.expectedCompactedPerTenant {
+				l := compactedMetas[tenantID]
+				sort.Slice(l, func(i, j int) bool {
+					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					return x > 0
+				})
+
+				sort.Slice(expectedCompactedMetas, func(i, j int) bool {
+					x := bytes.Compare(expectedCompactedMetas[i].BlockID[:], expectedCompactedMetas[j].BlockID[:])
+					return x > 0
+				})
+				require.Equal(t, expectedCompactedMetas, l)
+			}
+
 			require.Equal(t, tc.expectedBlockMetaCalls, r.(*backend.MockReader).BlockMetaCalls)
 		})
 	}
