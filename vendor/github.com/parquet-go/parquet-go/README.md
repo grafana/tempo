@@ -1,4 +1,4 @@
-# parquet-go/parquet-go [![build status](https://github.com/segmentio/parquet-go/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/segmentio/parquet-go/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/segmentio/parquet-go)](https://goreportcard.com/report/github.com/segmentio/parquet-go) [![Go Reference](https://pkg.go.dev/badge/github.com/segmentio/parquet-go.svg)](https://pkg.go.dev/github.com/segmentio/parquet-go)
+# parquet-go/parquet-go [![build status](https://github.com/parquet-go/parquet-go/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/parquet-go/parquet-go/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/parquet-go/parquet-go)](https://goreportcard.com/report/github.com/parquet-go/parquet-go) [![Go Reference](https://pkg.go.dev/badge/github.com/parquet-go/parquet-go.svg)](https://pkg.go.dev/github.com/parquet-go/parquet-go)
 
 High-performance Go library to manipulate parquet files, initially developed at
 [Twilio Segment](https://segment.com/engineering).
@@ -555,7 +555,7 @@ for the full interface documentation.
 
 ## Maintenance
 
-The project is hosted and maintained by Twilio; we welcome external contributors
+While initial design and development occurred at Twilio Segment, the project is now maintained by the open source community. We welcome external contributors.
 to participate in the form of discussions or code changes. Please review to the
 [Contribution](./CONTRIBUTING.md) guidelines as well as the [Code of Condution](./CODE_OF_CONDUCT.md)
 before submitting contributions.
