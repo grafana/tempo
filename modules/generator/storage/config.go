@@ -18,7 +18,7 @@ type Config struct {
 	RemoteWriteFlushDeadline time.Duration `yaml:"remote_write_flush_deadline"`
 
 	// Add X-Scope-OrgID header in remote write requests
-	RemoteWriteRemoveOrgIDHeader bool `yaml:"remote_write_remove_org_id_header,omitempty"`
+	RemoteWriteAddOrgIDHeader *bool `yaml:"remote_write_add_org_id_header,omitempty"`
 
 	// Prometheus remote write config
 	// https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write

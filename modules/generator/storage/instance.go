@@ -59,7 +59,7 @@ func New(cfg *Config, tenant string, reg prometheus.Registerer, logger log.Logge
 	remoteStorage := remote.NewStorage(log.With(logger, "component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{})
 
 	remoteStorageConfig := &prometheus_config.Config{
-		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, cfg.RemoteWriteRemoveOrgIDHeader, logger),
+		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, cfg.RemoteWriteAddOrgIDHeader, logger),
 	}
 
 	err = remoteStorage.ApplyConfig(remoteStorageConfig)
