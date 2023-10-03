@@ -1705,24 +1705,22 @@ func (c *batchCollector) String() string {
 // the span-level iterators.  It updates the spans in-place in the OtherEntries slice.
 // Creation of the spanset is delayed until the traceCollector.
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	// Throw out batches without any candidate spans
-	hasSpans := false
-	for _, kv := range res.OtherEntries {
-		if kv.Key == otherEntrySpanKey {
-			hasSpans = true
-			break
-		}
-	}
-	if !hasSpans {
-		return false
-	}
-
-	// Gather Attributes from AttributeCollector
+	// First pass over spans and attributes from the AttributeCollector
+	spans := res.OtherEntries[:0]
 	clear(c.resAttrs)
 	for _, kv := range res.OtherEntries {
-		if v, ok := kv.Value.(traceql.Static); ok {
+		switch v := kv.Value.(type) {
+		case *span:
+			spans = append(spans, kv)
+		case traceql.Static:
 			c.resAttrs[newResAttr(kv.Key)] = v
 		}
+	}
+	res.OtherEntries = spans
+
+	// Throw out batches without any candidate spans
+	if len(res.OtherEntries) == 0 {
+		return false
 	}
 
 	// Gather Attributes from dedicated resource-level columns
@@ -1741,42 +1739,39 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	// Gather, update, and filter the spans
-	// Currently the OtherEntries slice contains both spans and attributes.
-	// After this pass it just contains updated and acceptable spans.
-	justSpans := res.OtherEntries[:0]
+	// Second pass. Update and further filter the spans
+	spans = res.OtherEntries[:0]
 	for _, e := range res.OtherEntries {
-		if e.Key == otherEntrySpanKey {
-			span := e.Value.(*span)
+		span := e.Value.(*span)
 
-			// Copy resource-level attributes to the span
-			// If the span already has an entry for this attribute it
-			// takes precedence (can be nil to indicate no match)
-			for k, v := range c.resAttrs {
-				if _, alreadyExists := span.attributes[k]; !alreadyExists {
-					span.attributes[k] = v
-				}
+		// Copy resource-level attributes to the span
+		// If the span already has an entry for this attribute it
+		// takes precedence (can be nil to indicate no match)
+		for k, v := range c.resAttrs {
+			if _, alreadyExists := span.attributes[k]; !alreadyExists {
+				span.attributes[k] = v
 			}
-
-			// Remove unmatched attributes
-			for k, v := range span.attributes {
-				if v.Type == traceql.TypeNil {
-					delete(span.attributes, k)
-				}
-			}
-
-			if c.requireAtLeastOneMatchOverall {
-				// Skip over span if it didn't meet minimum criteria
-				if span.attributesMatched() == 0 {
-					putSpan(span)
-					continue
-				}
-			}
-
-			justSpans = append(justSpans, e)
 		}
+
+		// Remove unmatched attributes
+		for k, v := range span.attributes {
+			if v.Type == traceql.TypeNil {
+				delete(span.attributes, k)
+			}
+		}
+
+		if c.requireAtLeastOneMatchOverall {
+			// Skip over span if it didn't meet minimum criteria
+			if span.attributesMatched() == 0 {
+				putSpan(span)
+				continue
+			}
+		}
+
+		spans = append(spans, e)
+
 	}
-	res.OtherEntries = justSpans
+	res.OtherEntries = spans
 
 	// Throw out batches without any remaining spans
 	if len(res.OtherEntries) == 0 {
