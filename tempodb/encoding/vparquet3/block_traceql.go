@@ -1572,8 +1572,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var sp *span
 	// look for existing span first. this occurs on the second pass
 	for _, e := range res.OtherEntries {
-		if e.Key == otherEntrySpanKey {
-			sp = e.Value.(*span)
+		if v, ok := e.Value.(*span); ok {
+			sp = v
 			break
 		}
 	}
@@ -1585,10 +1585,9 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	for _, e := range res.OtherEntries {
-		if e.Key == otherEntrySpanKey {
-			continue
+		if v, ok := e.Value.(traceql.Static); ok {
+			sp.attributes[newSpanAttr(e.Key)] = v
 		}
-		sp.attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
 	}
 
 	var durationNanos uint64
