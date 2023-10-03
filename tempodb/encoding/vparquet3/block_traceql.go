@@ -1801,6 +1801,9 @@ func (c *traceCollector) String() string {
 	return "traceCollector()"
 }
 
+// KeepGroup is called once per trace and creates its final spanset
+// containing all the matching spans.  These spans already contain all span-level and
+// resource-level data.
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	finalSpanset := getSpanset()
 	clear(c.traceAttrs)
