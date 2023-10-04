@@ -159,6 +159,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	compactedBlocklist := PerTenantCompacted{}
 
 	consecutiveErrors := 0
+
 	for _, tenantID := range tenants {
 		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
 		if err != nil {
@@ -168,6 +169,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
 				return nil, nil, err
 			}
+			continue
 		}
 
 		consecutiveErrors = 0
