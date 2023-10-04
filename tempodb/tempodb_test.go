@@ -75,7 +75,7 @@ func TestDB(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	blockID := uuid.New()
 
@@ -126,7 +126,7 @@ func TestBlockSharding(t *testing.T) {
 	// search with different shards and check if its respecting the params
 	r, w, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	// create block with known ID
 	blockID := uuid.New()
@@ -190,7 +190,7 @@ func TestBlockCleanup(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	blockID := uuid.New()
 
@@ -520,7 +520,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	wal := w.WAL()
 

@@ -51,7 +51,7 @@ func TestRetention(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := uuid.New()
 
@@ -105,7 +105,8 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	ctx := context.Background()
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -123,7 +124,6 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
 	complete, err := w.CompleteBlock(ctx, head)
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
@@ -185,7 +185,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 	}, &mockSharder{}, overrides)
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 

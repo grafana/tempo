@@ -78,7 +78,7 @@ type Reader interface {
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
-	EnablePolling(sharder blocklist.JobSharder)
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 
 	Shutdown()
 }
@@ -407,7 +407,7 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
+func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
