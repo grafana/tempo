@@ -204,13 +204,10 @@ func (p *Poller) pollTenantAndCreateIndex(
 	defer span.Finish()
 
 	// are we a tenant index builder?
-	if !p.tenantIndexBuilder(tenantID) {
+	builder := p.tenantIndexBuilder(tenantID)
+	span.SetTag("tenant_index_builder", builder)
+	if !builder {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
-
-		span.LogFields(
-			spanlog.Bool("tenant_index_builder", false),
-			spanlog.Bool("poll_fallback", p.cfg.PollFallback),
-		)
 
 		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
 		err = p.tenantIndexPollError(i, err)
@@ -218,10 +215,9 @@ func (p *Poller) pollTenantAndCreateIndex(
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
-			span.LogFields(
-				spanlog.Int32("metas", int32(len(i.Meta))),
-				spanlog.Int32("compactedMetas", int32(len(i.CompactedMeta))),
-			)
+
+			span.SetTag("metas", len(i.Meta))
+			span.SetTag("compactedMetas", len(i.CompactedMeta))
 			return i.Meta, i.CompactedMeta, nil
 		}
 
