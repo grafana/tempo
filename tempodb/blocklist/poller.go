@@ -331,8 +331,9 @@ func (p *Poller) pollTenantBlocks(
 	}
 	assembleSpan.Finish()
 
-	chMeta := make(chan *backend.BlockMeta, len(currentBlockIDs))
-	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(currentCompactedBlockIDs))
+	mtx := sync.Mutex{}
+	newBlockList := make([]*backend.BlockMeta, 0, len(currentBlockIDs))
+	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
 	anyError := atomic.Error{}
 
 	learnSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "learnFromPrevious")
@@ -340,7 +341,7 @@ func (p *Poller) pollTenantBlocks(
 	for _, blockID := range currentBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
 		if v, ok := mm[blockID]; ok {
-			chMeta <- v
+			newBlockList = append(newBlockList, v)
 			continue
 		}
 		newBlockIDs = append(newBlockIDs, blockID)
@@ -349,7 +350,7 @@ func (p *Poller) pollTenantBlocks(
 	for _, blockID := range currentCompactedBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
 		if v, ok := cm[blockID]; ok {
-			chCompactedMeta <- v
+			newCompactedBlocklist = append(newCompactedBlocklist, v)
 			continue
 		}
 
@@ -380,12 +381,16 @@ func (p *Poller) pollTenantBlocks(
 
 			m, cm, pollBlockErr := p.pollBlock(pollSpanCtx, tenantID, id)
 			if m != nil {
-				chMeta <- m
+				mtx.Lock()
+				newBlockList = append(newBlockList, m)
+				mtx.Unlock()
 				return
 			}
 
 			if cm != nil {
-				chCompactedMeta <- cm
+				mtx.Lock()
+				newCompactedBlocklist = append(newCompactedBlocklist, cm)
+				mtx.Unlock()
 				return
 			}
 
@@ -396,8 +401,6 @@ func (p *Poller) pollTenantBlocks(
 	}
 
 	bg.Wait()
-	close(chMeta)
-	close(chCompactedMeta)
 	pollSpan.Finish()
 
 	if err = anyError.Load(); err != nil {
@@ -405,19 +408,10 @@ func (p *Poller) pollTenantBlocks(
 		return nil, nil, err
 	}
 
-	// return p.flushMetaChannels(chMeta, chCompactedMeta)
-	newBlockList := make([]*backend.BlockMeta, 0, len(chMeta))
-	for m := range chMeta {
-		newBlockList = append(newBlockList, m)
-	}
 	sort.Slice(newBlockList, func(i, j int) bool {
 		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
 	})
 
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(chCompactedMeta))
-	for cm := range chCompactedMeta {
-		newCompactedBlocklist = append(newCompactedBlocklist, cm)
-	}
 	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
 		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
 	})
