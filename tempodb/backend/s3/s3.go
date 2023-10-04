@@ -277,16 +277,12 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 }
 
 // Find implements backend.Reader
-func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, start string) (keys []string, err error) {
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 
 	if len(prefix) > 0 {
 		prefix = prefix + "/"
-	}
-
-	if len(start) > 0 {
-		start = prefix + start
 	}
 
 	nextToken := ""
@@ -298,9 +294,9 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		case <-ctx.Done():
 			return
 		default:
-			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, start, nextToken, "", 0)
+			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "", 0)
 			if err != nil {
-				return nil, errors.Wrapf(err, "error finding objects in s3 bucket, bucket: %s", rw.cfg.Bucket)
+				return nil, fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 			}
 
 			isTruncated = res.IsTruncated
@@ -314,7 +310,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 					}
 
 					matched, e := f(opts)
-					if e == backend.ErrDone {
+					if errors.Is(e, backend.ErrDone) {
 						return
 					}
 					if !matched {

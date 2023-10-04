@@ -187,7 +187,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // Find implements backend.Reader
-func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, start string) (keys []string, err error) {
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
@@ -195,10 +195,9 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	}
 
 	iter := rw.bucket.Objects(ctx, &storage.Query{
-		Delimiter:   "",
-		Prefix:      prefix,
-		StartOffset: start,
-		Versions:    false,
+		Delimiter: "",
+		Prefix:    prefix,
+		Versions:  false,
 	})
 
 	for {
@@ -207,7 +206,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			break
 		}
 		if iterErr != nil {
-			return nil, errors.Wrap(err, "iterating objects")
+			return nil, fmt.Errorf("iterating objects: %w", err)
 		}
 
 		obj := strings.TrimPrefix(attrs.Prefix, prefix)

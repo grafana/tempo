@@ -160,7 +160,7 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 }
 
 // Find implements backend.Reader
-func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, _ string) (keys []string, err error) {
+func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	marker := blob.Marker{}
@@ -178,7 +178,7 @@ func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindF
 			Details: blob.BlobListingDetails{},
 		})
 		if listErr != nil {
-			return objects, errors.Wrap(listErr, "iterating objects")
+			return objects, fmt.Errorf("iterating objects: %w", err)
 		}
 		marker = list.NextMarker
 
@@ -189,7 +189,7 @@ func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindF
 				Modified: blob.Properties.LastModified,
 			}
 			matched, e := f(opts)
-			if e == backend.ErrDone {
+			if errors.Is(e, backend.ErrDone) {
 				return
 			}
 			if !matched {

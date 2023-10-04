@@ -37,7 +37,7 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	return m.L, nil
 }
 
-func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc, _ string) ([]string, error) {
+func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {
 	return m.FindResult, nil
 }
 
@@ -126,6 +126,11 @@ type MockReader struct {
 	R             []byte // read
 	Range         []byte // ReadRange
 	ReadFn        func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
+	FindResult    []string
+}
+
+func (m *MockReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {
+	return m.FindResult, nil
 }
 
 func (m *MockReader) Tenants(context.Context) ([]string, error) {

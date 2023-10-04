@@ -35,8 +35,8 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 }
 
 // Find implements backend.Reader
-func (r *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, start string) (keys []string, err error) {
-	return r.nextReader.Find(ctx, keypath, f, start)
+func (r *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	return r.nextReader.Find(ctx, keypath, f)
 }
 
 // Read implements backend.RawReader
