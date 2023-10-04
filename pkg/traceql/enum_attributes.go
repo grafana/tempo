@@ -78,6 +78,18 @@ const (
 	IntrinsicSpanStartTime
 )
 
+var (
+	IntrinsicDurationAttribute         = NewIntrinsic(IntrinsicDuration)
+	IntrinsicNameAttribute             = NewIntrinsic(IntrinsicName)
+	IntrinsicStatusAttribute           = NewIntrinsic(IntrinsicStatus)
+	IntrinsicStatusMessageAttribute    = NewIntrinsic(IntrinsicStatusMessage)
+	IntrinsicKindAttribute             = NewIntrinsic(IntrinsicKind)
+	IntrinsicChildCountAttribute       = NewIntrinsic(IntrinsicChildCount)
+	IntrinsicTraceRootServiceAttribute = NewIntrinsic(IntrinsicTraceRootService)
+	IntrinsicTraceRootSpanAttribute    = NewIntrinsic(IntrinsicTraceRootSpan)
+	IntrinsicTraceDurationAttribute    = NewIntrinsic(IntrinsicTraceDuration)
+)
+
 func (i Intrinsic) String() string {
 	switch i {
 	case IntrinsicNone:

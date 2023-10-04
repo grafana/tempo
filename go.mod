@@ -7,7 +7,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/alecthomas/kong v0.8.0
 	github.com/alicebob/miniredis/v2 v2.21.0
-	github.com/aws/aws-sdk-go v1.44.220
+	github.com/aws/aws-sdk-go v1.44.321
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cristalhq/hedgedhttp v0.7.0
@@ -26,7 +26,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20230808152345-e772133474bd
+	github.com/grafana/dskit v0.0.0-20230926170531-d986a37b92ce
 	github.com/grafana/e2e v0.1.1-0.20221018202458-cffd2bb71c7b
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.4.0
@@ -56,7 +56,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20221021121301-51a44e6657c3
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.4
@@ -104,7 +104,8 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/googleapis/gax-go/v2 v2.10.0
-	github.com/grafana/gomemcache v0.0.0-20230316202710-a081dae0aba9
+	github.com/gorilla/websocket v1.5.0
+	github.com/grafana/gomemcache v0.0.0-20230914135007-70d78eaabfe1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.74.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.74.0
@@ -179,7 +180,6 @@ require (
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grafana/regexp v0.0.0-20221123153739-15dc172cd2db // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.2 // indirect
 	github.com/hashicorp/consul/api v1.15.3 // indirect
@@ -257,7 +257,7 @@ require (
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/segmentio/encoding v0.3.6 // indirect
-	github.com/sercand/kuberesolver/v4 v4.0.0 // indirect
+	github.com/sercand/kuberesolver/v5 v5.1.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.6 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
@@ -272,7 +272,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
-	github.com/weaveworks/promrus v1.2.0 // indirect
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
