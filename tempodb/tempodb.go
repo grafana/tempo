@@ -441,20 +441,26 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	// that when this method returns the block list is updated
 	rw.pollBlocklist()
 
-	go rw.pollingLoop()
+	go rw.pollingLoop(ctx)
 }
 
-func (rw *readerWriter) pollingLoop() {
+func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
-	for range ticker.C {
-		rw.pollBlocklist()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			rw.pollBlocklist()
+		}
 	}
 }
 
 func (rw *readerWriter) pollBlocklist() {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(rw.blocklist)
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
+		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 		return
 	}
 
