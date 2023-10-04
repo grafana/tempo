@@ -731,11 +731,9 @@ storage:
             # Example: "endpoint: s3.dualstack.us-east-2.amazonaws.com"
             [endpoint: <string>]
 
-            # The number of list calls to make in parallel to the backend.
-            # Adjustments here will impact the polling time, as well as the
-            # number of Go routines.  Keep in mind that the number of Go routines
-            # created here will also be multipled by the number of tenants being
-            # polled concurrently.  Default is 3
+            # The number of list calls to make in parallel to the backend per instance.
+            # Adjustments here will impact the polling time, as well as the number of Go routines.
+            # Default is 3
             [list_blocks_concurrency: <int>]
 
             # optional.
@@ -909,13 +907,6 @@ storage:
         # (matches the original polling behavior).
         # Default 1
         [blocklist_poll_tolerate_consecutive_errors: <int>]
-
-        # The number of tenants to poll concurrently, per instance.  This will
-        # multiply the number of Go routines created by any backend calls, and
-        # so users should be mindful of raising this too high for both the
-        # instance and globally for what the backend can support.
-        # Default 5
-        [tenant_poll_concurrency: <int>]
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"

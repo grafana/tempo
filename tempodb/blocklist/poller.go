@@ -155,75 +155,39 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		return nil, nil, err
 	}
 
-	m := &sync.Mutex{}
 	blocklist := PerTenant{}
 	compactedBlocklist := PerTenantCompacted{}
-	errs := []error{}
 
-	bg := boundedwaitgroup.New(p.cfg.PollTenantConcurrency)
+	consecutiveErrors := 0
 	for _, tenantID := range tenants {
-		select {
-		case <-ctx.Done():
-			continue
-		default:
-			m.Lock()
-			if len(errs) > p.cfg.TolerateConsecutiveErrors {
-				m.Unlock()
-				cancel()
-				break
+		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+		if err != nil {
+			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+			consecutiveErrors++
+			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+				return nil, nil, err
 			}
-			m.Unlock()
-
-			bg.Add(1)
-			go func(tenantID string) {
-				defer bg.Done()
-
-				level.Info(p.logger).Log("msg", "polling tenant", "tenant", tenantID)
-
-				newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
-				if err != nil {
-					level.Error(p.logger).Log("msg", "failed to poll tenant and create index", "err", err)
-					m.Lock()
-					errs = append(errs, err)
-					m.Unlock()
-				}
-
-				m.Lock()
-				if len(errs) > p.cfg.TolerateConsecutiveErrors {
-					level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", len(errs))
-					m.Unlock()
-					cancel()
-					return
-				}
-				m.Unlock()
-
-				if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
-					m.Lock()
-					blocklist[tenantID] = newBlockList
-					compactedBlocklist[tenantID] = newCompactedBlockList
-					m.Unlock()
-
-					metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
-
-					backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-					metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-					metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-					metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-					metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-					return
-				}
-				metricBlocklistLength.DeleteLabelValues(tenantID)
-				metricBackendObjects.DeleteLabelValues(tenantID)
-				metricBackendObjects.DeleteLabelValues(tenantID)
-				metricBackendBytes.DeleteLabelValues(tenantID)
-			}(tenantID)
 		}
-	}
 
-	bg.Wait()
+		consecutiveErrors = 0
+		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+			blocklist[tenantID] = newBlockList
+			compactedBlocklist[tenantID] = newCompactedBlockList
 
-	if len(errs) > p.cfg.TolerateConsecutiveErrors {
-		return nil, nil, errors.Join(errs...)
+			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+
+			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+			metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+			metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+			metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+			metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+			continue
+		}
+		metricBlocklistLength.DeleteLabelValues(tenantID)
+		metricBackendObjects.DeleteLabelValues(tenantID)
+		metricBackendObjects.DeleteLabelValues(tenantID)
+		metricBackendBytes.DeleteLabelValues(tenantID)
 	}
 
 	return blocklist, compactedBlocklist, nil
