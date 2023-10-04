@@ -198,12 +198,8 @@ func (p *Poller) pollTenantAndCreateIndex(
 	tenantID string,
 	previous *List,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantAndCreateIndex")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantAndCreateIndex", opentracing.Tag{Key: "tenant", Value: tenantID})
 	defer span.Finish()
-
-	span.LogFields(
-		spanlog.String("tenant", tenantID),
-	)
 
 	// are we a tenant index builder?
 	if !p.tenantIndexBuilder(tenantID) {
@@ -391,10 +387,8 @@ func (p *Poller) pollBlock(
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollBlock")
 	defer span.Finish()
 
-	span.LogFields(
-		spanlog.String("tenant", tenantID),
-		spanlog.String("block", blockID.String()),
-	)
+	span.SetTag("tenant", tenantID)
+	span.SetTag("block", blockID.String())
 
 	var compactedBlockMeta *backend.CompactedBlockMeta
 	blockMeta, err := p.reader.BlockMeta(derivedCtx, blockID, tenantID)
