@@ -22,7 +22,7 @@ For details about how queries are constructed, read the [TraceQL documentation](
 
 <p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
 
-The most basic functionality is to visualize a trace using its ID.  Select the TraceQL tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
+The most basic functionality is to visualize a trace using its ID. Select the TraceQL tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
 
 ## Finding traces using Loki logs
 
