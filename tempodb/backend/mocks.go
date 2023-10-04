@@ -28,10 +28,10 @@ type MockRawReader struct {
 	R            []byte // read
 	Range        []byte // ReadRange
 	ReadFn       func(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
+	FindResult   []string
 
 	BlockIDs          []uuid.UUID
 	CompactedBlockIDs []uuid.UUID
-	FindResult        []string
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -48,6 +48,10 @@ func (m *MockRawReader) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	}
 
 	return m.BlockIDs, m.CompactedBlockIDs, nil
+}
+
+func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {
+	return m.FindResult, nil
 }
 
 func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error) {
@@ -153,6 +157,11 @@ type MockReader struct {
 	BlockMetaCalls    map[string]map[uuid.UUID]int
 	BlockIDs          []uuid.UUID // blocks
 	CompactedBlockIDs []uuid.UUID // blocks
+	FindResult        []string
+}
+
+func (m *MockReader) Find(_ context.Context, _ KeyPath, _ FindFunc) ([]string, error) {
+	return m.FindResult, nil
 }
 
 func (m *MockReader) Tenants(context.Context) ([]string, error) {

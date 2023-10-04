@@ -72,6 +72,11 @@ func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs 
 	return r.nextReader.ListBlocks(ctx, tenant)
 }
 
+// Find implements backend.Reader
+func (r *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	return r.nextReader.Find(ctx, keypath, f)
+}
+
 // Read implements backend.RawReader
 func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	var k string

@@ -241,6 +241,12 @@ func (p *Poller) pollTenantAndCreateIndex(
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
+
+	// TODO: if the tenant has no blocks remove all tenant objects
+	// v, err := p.reader.Find(ctx, []string{tenantID}, func(opts backend.FindOpts) (bool, error) {
+	// 	return false, nil
+	// })
+
 	metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(0)
 
 	return blocklist, compactedBlocklist, nil

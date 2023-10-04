@@ -226,6 +226,54 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 	return blockIDs, compactedBlockIDs, nil
 }
 
+// Find implements backend.Reader
+func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	marker := blob.Marker{}
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
+
+	objects := make([]string, 0)
+	var o string
+	for {
+		list, listErr := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
+			Prefix:  prefix,
+			Details: blob.BlobListingDetails{},
+		})
+		if listErr != nil {
+			return objects, fmt.Errorf("iterating objects: %w", err)
+		}
+		marker = list.NextMarker
+
+		for _, blob := range list.Segment.BlobItems {
+			o = strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix)
+			opts := backend.FindOpts{
+				Key:      o,
+				Modified: blob.Properties.LastModified,
+			}
+			matched, e := f(opts)
+			if errors.Is(e, backend.ErrDone) {
+				return
+			}
+			if !matched {
+				continue
+			}
+			keys = append(keys, o)
+		}
+
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)

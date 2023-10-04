@@ -65,6 +65,8 @@ type Reader interface {
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
 	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
+	// Find returns the names of all objects for which the provided FindFunc is true.
+	Find(ctx context.Context, keypath KeyPath, f FindFunc) ([]string, error)
 	// Shutdown shuts...down?
 	Shutdown()
 }

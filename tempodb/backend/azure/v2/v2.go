@@ -227,6 +227,53 @@ func (rw *V2) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 	return blockIDs, compactedBlockIDs, nil
 }
 
+// Find implements backend.Reader
+func (rw *V2) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (keys []string, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
+
+	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
+		Prefix: &prefix,
+	})
+
+	objects := make([]string, 0)
+
+	var o string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return objects, fmt.Errorf("iterating objects: %w", err)
+		}
+
+		for _, b := range page.Segment.BlobItems {
+			if b == nil || b.Name == nil {
+				continue
+			}
+			o = strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
+			opts := backend.FindOpts{
+				Key:      o,
+				Modified: *b.Properties.LastModified,
+			}
+			matched, e := f(opts)
+			if errors.Is(e, backend.ErrDone) {
+				return objects, nil
+			}
+			if !matched {
+				continue
+			}
+			keys = append(keys, o)
+		}
+
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *V2) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
