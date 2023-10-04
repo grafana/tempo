@@ -33,7 +33,7 @@ exemplars can be automatically added, providing additional value to these metric
 
 [Exemplars](/docs/grafana-cloud/data-configuration/traces/exemplars/) are GA in Grafana Cloud so you can also push your own.
 
-<p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
+<p align="center"><img src="../getting-started/assets/trace_exemplars.png" alt="Trace exemplars"></p>
 
 ## How to run
 

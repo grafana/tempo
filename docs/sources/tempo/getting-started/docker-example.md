@@ -66,7 +66,7 @@ To follow this guide, you need:
     <p align="center"><img src="../../setup/assets/setup-linux-node-graph.png" alt="Service graph sample"></p>
 
 1. To see a holistic view of your system, navigate to the **Dashboards** page and select the **MLT** dashboard.
-    <p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
+    <p align="center"><img src="assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
 
 1. To stop the services:
     ```
