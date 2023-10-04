@@ -159,6 +159,54 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 	return objects, nil
 }
 
+// Find implements backend.Reader
+func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, _ string) (keys []string, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	marker := blob.Marker{}
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
+
+	objects := make([]string, 0)
+	var o string
+	for {
+		list, listErr := rw.containerURL.ListBlobsHierarchySegment(ctx, marker, dir, blob.ListBlobsSegmentOptions{
+			Prefix:  prefix,
+			Details: blob.BlobListingDetails{},
+		})
+		if listErr != nil {
+			return objects, errors.Wrap(listErr, "iterating objects")
+		}
+		marker = list.NextMarker
+
+		for _, blob := range list.Segment.BlobItems {
+			o = strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix)
+			opts := backend.FindOpts{
+				Key:      o,
+				Modified: blob.Properties.LastModified,
+			}
+			matched, e := f(opts)
+			if e == backend.ErrDone {
+				return
+			}
+			if !matched {
+				continue
+			}
+			keys = append(keys, o)
+		}
+
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)

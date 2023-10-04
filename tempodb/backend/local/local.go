@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -126,6 +127,40 @@ func (rw *Backend) List(_ context.Context, keypath backend.KeyPath) ([]string, e
 	}
 
 	return objects, nil
+}
+
+// Find implements backend.Reader
+func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.FindFunc, _ string) (keys []string, err error) {
+	path := rw.rootPath(keypath)
+	fff := os.DirFS(path)
+	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		tenantFilePath := filepath.Join(filepath.Join(keypath...), path)
+		opts := backend.FindOpts{
+			Key:      tenantFilePath,
+			Modified: info.ModTime(),
+		}
+
+		matched, e := f(opts)
+		if e == backend.ErrDone {
+			return e
+		}
+		if matched {
+			keys = append(keys, tenantFilePath)
+		}
+
+		return nil
+	})
+
+	return
 }
 
 // Read implements backend.Reader

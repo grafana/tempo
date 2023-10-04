@@ -186,6 +186,50 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	return objects, nil
 }
 
+// Find implements backend.Reader
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc, start string) (keys []string, err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Delimiter:   "",
+		Prefix:      prefix,
+		StartOffset: start,
+		Versions:    false,
+	})
+
+	for {
+		attrs, iterErr := iter.Next()
+		if iterErr == iterator.Done {
+			break
+		}
+		if iterErr != nil {
+			return nil, errors.Wrap(err, "iterating objects")
+		}
+
+		obj := strings.TrimPrefix(attrs.Prefix, prefix)
+
+		opts := backend.FindOpts{
+			Key:      obj,
+			Modified: attrs.Updated,
+		}
+		matched, e := f(opts)
+		if e == backend.ErrDone {
+			return
+		}
+		if !matched {
+			continue
+		}
+
+		keys = append(keys, obj)
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)

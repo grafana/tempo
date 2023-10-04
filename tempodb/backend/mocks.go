@@ -21,11 +21,12 @@ var (
 
 // MockRawReader
 type MockRawReader struct {
-	L      []string
-	ListFn func(ctx context.Context, keypath KeyPath) ([]string, error)
-	R      []byte // read
-	Range  []byte // ReadRange
-	ReadFn func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	L          []string
+	ListFn     func(ctx context.Context, keypath KeyPath) ([]string, error)
+	R          []byte // read
+	Range      []byte // ReadRange
+	ReadFn     func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	FindResult []string
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -34,6 +35,10 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	}
 
 	return m.L, nil
+}
+
+func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc, _ string) ([]string, error) {
+	return m.FindResult, nil
 }
 
 func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
