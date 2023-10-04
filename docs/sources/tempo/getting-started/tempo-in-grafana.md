@@ -53,30 +53,6 @@ For more information, refer to the [service graph view]({{< relref "../metrics-g
 
 <p align="center"><img src="../assets/apm-overview.png" alt="Service graph view overview"></p>
 
-## Metrics from spans
-
-RED metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. RED metrics represent:
-
-- Rate, the number of requests per second
-- Errors, the number of those requests that are failing
-- Duration, the amount of time those requests take
-
-For more information about RED method, refer to [The RED Method: How to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
-
->**Note:** Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
-
-After the metrics generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration" >}}) for information about metrics-generator options.
-
-<p align="center"><img src="../assets/trace_service_graph.png" alt="Trace service graph"></p>
-
-These metrics exist in your Hosted Metrics instance and can also be easily used to generate powerful custom dashboards.
-
-<p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
-
-The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars](/docs/grafana-cloud/data-configuration/traces/exemplars/) are GA in Grafana Cloud so you can also push your own.
-
-<p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
-
 ## View JSON file
 
 A local JSON file containing a trace can be imported and viewed in the Grafana UI. This is useful in cases where access to the original Tempo data source is limited, or for preserving traces outside of Tempo.

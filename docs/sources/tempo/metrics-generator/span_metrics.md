@@ -20,6 +20,8 @@ Span metrics are of particular interest if your system is not monitored with met
 but it has distributed tracing implemented.
 You get out-of-the-box metrics from your tracing pipeline.
 
+>**Note:** Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
+
 Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
 The generated metrics will show application level insight into your monitoring,
 as far as tracing gets propagated through your applications.
@@ -28,6 +30,10 @@ Last but not least, span metrics lower the entry barrier for using [exemplars](/
 An exemplar is a specific trace representative of measurement taken in a given time interval.
 Since traces and metrics co-exist in the metrics-generator,
 exemplars can be automatically added, providing additional value to these metrics.
+
+[Exemplars](/docs/grafana-cloud/data-configuration/traces/exemplars/) are GA in Grafana Cloud so you can also push your own.
+
+<p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
 
 ## How to run
 
