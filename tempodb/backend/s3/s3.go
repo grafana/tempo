@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 
@@ -421,7 +422,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	}
 }
 
-func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
 		if cfg.SignatureV2 {
 			return &overrideSignatureVersion{useV2: cfg.SignatureV2, upstream: p}
@@ -430,13 +431,13 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	chain := []credentials.Provider{
-		wrapCredentialsProvider(&credentials.EnvAWS{}),
 		wrapCredentialsProvider(&credentials.Static{
 			Value: credentials.Value{
 				AccessKeyID:     cfg.AccessKey,
 				SecretAccessKey: cfg.SecretKey.String(),
 			},
 		}),
+		wrapCredentialsProvider(&credentials.EnvAWS{}),
 		wrapCredentialsProvider(&credentials.EnvMinio{}),
 		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
 		wrapCredentialsProvider(&credentials.FileMinioClient{}),
@@ -444,13 +445,24 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 			Client: &http.Client{
 				Transport: http.DefaultTransport,
 			},
+			Endpoint: os.Getenv("TEST_IAM_ENDPOINT"),
 		}),
 	}
 
 	creds := credentials.NewChainCredentials(chain)
 
+	// error early if we cannot obtain credentials
 	if _, err := creds.Get(); err != nil {
 		return nil, errors.Wrap(err, "creds.Get")
+	}
+
+	return creds, nil
+}
+
+func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+	creds, err := fetchCreds(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetchCreds")
 	}
 
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
