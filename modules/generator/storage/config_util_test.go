@@ -101,7 +101,7 @@ func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
 	assert.Empty(t, original[0].Headers, "X-Scope-OrgID header is not added")
 
 	assert.Equal(t, original[1].URL, result[1].URL)
-	assert.Equal(t, map[string]string{"foo": "bar"}, result[1].Headers, "Original headers have been modified")
+	assert.Equal(t, map[string]string{"foo": "bar", "x-scope-orgid": "fake-tenant"}, result[1].Headers, "Original headers not modified")
 }
 
 func Test_copyMap(t *testing.T) {

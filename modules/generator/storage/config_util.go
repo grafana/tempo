@@ -21,7 +21,7 @@ func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWri
 		*cloneCfg = originalCfg
 
 		// Inject/overwrite X-Scope-OrgID header in multi-tenant setups
-		if tenant != util.FakeTenantID {
+		if tenant != util.FakeTenantID && addOrgIDHeader {
 			// Copy headers so we can modify them
 			cloneCfg.Headers = copyMap(cloneCfg.Headers)
 
@@ -33,9 +33,7 @@ func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWri
 				}
 			}
 
-			if addOrgIDHeader {
-				cloneCfg.Headers[user.OrgIDHeaderName] = tenant
-			}
+			cloneCfg.Headers[user.OrgIDHeaderName] = tenant
 		}
 
 		cloneCfgs = append(cloneCfgs, cloneCfg)
