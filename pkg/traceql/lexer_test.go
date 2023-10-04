@@ -66,6 +66,14 @@ func TestLexerAttributes(t *testing.T) {
 	}))
 }
 
+func TestLexerOperators(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		// duration
+		//	{"!>", []int{NOT_CHILD}},
+		{"!>>", []int{NOT_DESC}},
+	}))
+}
+
 func TestLexerDuration(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		// duration
@@ -131,6 +139,7 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 				}
 				actual = append(actual, tok)
 			}
+
 			require.Equal(t, tc.expected, actual)
 		})
 	}
