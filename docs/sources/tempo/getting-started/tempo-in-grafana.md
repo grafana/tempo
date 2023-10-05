@@ -22,6 +22,17 @@ For details about how queries are constructed, read the [TraceQL documentation](
 
 <p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
 
+
+### Stream search results while a query is executing
+
+Tempo's GPRC streaming endpoint provides faster TraceQL results.
+Added to Tempo's query frontend, this endpoint allows a client to stream search results from Tempo.
+
+By streaming results to the client, you can start to look at traces matching your query before the entire query completes.
+This is particularly helpful for long-running queries; while the total time to complete the query is the same, you can start looking at your first matches before the full set of matched traces is returned.
+
+Grafana 10.1 and later support this streaming endpoint by [enabling the `traceQLStreaming` feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana#feature_toggles).
+
 ## View trace by ID
 
 The most basic functionality is to visualize a trace using its ID.  Select the Trace ID tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
