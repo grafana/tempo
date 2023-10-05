@@ -193,7 +193,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	// index := genIndex(b, block)
 	// writeBlockMeta(ctx, ww, meta, &common.ShardedBloomFilter{}, index)
 
-	for _, tc := range []string{EnvVarIndexDisabledValue, "1"} {
+	for _, tc := range []string{"0", EnvVarIndexEnabledValue} {
 		b.Run(EnvVarIndexName+"="+tc, func(b *testing.B) {
 			os.Setenv(EnvVarIndexName, tc)
 			b.ResetTimer()
