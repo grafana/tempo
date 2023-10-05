@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/tracing"
 	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
@@ -19,6 +18,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 

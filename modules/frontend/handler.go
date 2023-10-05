@@ -12,9 +12,10 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/httpgrpc/server"
-	"github.com/grafana/dskit/tracing"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
+
+	"github.com/grafana/tempo/pkg/util/tracing"
 )
 
 const (
