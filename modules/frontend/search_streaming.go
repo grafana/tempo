@@ -220,7 +220,6 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 		if err != nil {
 			level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
 		}
-
 	}
 
 	return http.HandlerFunc(fnHandler)
