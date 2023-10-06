@@ -84,7 +84,7 @@ import (
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
 %left <binOp> AND OR
-%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_DESC NOT_CHILD NOT_ANCE NOT_PARENT
+%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT
 %left <binOp> ADD SUB
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
@@ -114,8 +114,6 @@ spansetPipelineExpression: // shares the same operators as spansetExpression. sp
   | spansetPipelineExpression SIBL spansetPipelineExpression     { $$ = newSpansetOperation(OpSpansetSibling, $1, $3) }
   | spansetPipelineExpression NOT_CHILD  spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotChild, $1, $3) }
   | spansetPipelineExpression NOT_PARENT spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotParent, $1, $3) }
-  | spansetPipelineExpression NOT_DESC   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotDescendant, $1, $3) }
-  | spansetPipelineExpression NOT_ANCE   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotAncestor, $1, $3) }
   | spansetPipelineExpression NRE        spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotSibling, $1, $3) }
   | wrappedSpansetPipeline                                       { $$ = $1 }
   ;
@@ -164,8 +162,6 @@ spansetExpression: // shares the same operators as scalarPipelineExpression. spl
 
   | spansetExpression NOT_CHILD  spansetExpression  { $$ = newSpansetOperation(OpSpansetNotChild, $1, $3) }
   | spansetExpression NOT_PARENT spansetExpression  { $$ = newSpansetOperation(OpSpansetNotParent, $1, $3) }
-  | spansetExpression NOT_DESC   spansetExpression  { $$ = newSpansetOperation(OpSpansetNotDescendant, $1, $3) }
-  | spansetExpression NOT_ANCE   spansetExpression  { $$ = newSpansetOperation(OpSpansetNotAncestor, $1, $3) }
   | spansetExpression NRE        spansetExpression  { $$ = newSpansetOperation(OpSpansetNotSibling, $1, $3) }
 
   | spansetFilter                                { $$ = $1 } 

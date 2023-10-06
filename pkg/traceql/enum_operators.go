@@ -32,8 +32,6 @@ const (
 	OpSpansetSibling
 	OpSpansetNotChild
 	OpSpansetNotParent
-	OpSpansetNotDescendant
-	OpSpansetNotAncestor
 	OpSpansetNotSibling
 )
 
@@ -172,10 +170,6 @@ func (op Operator) String() string {
 		return "!>"
 	case OpSpansetNotParent:
 		return "!<"
-	case OpSpansetNotDescendant:
-		return "!>>"
-	case OpSpansetNotAncestor:
-		return "!<<"
 	case OpSpansetNotSibling:
 		return "!~"
 	}

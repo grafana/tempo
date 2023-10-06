@@ -234,7 +234,7 @@ type SpansetOperation struct {
 
 func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	switch o.Op {
-	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor:
+	case OpSpansetDescendant, OpSpansetAncestor:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
 		})

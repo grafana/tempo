@@ -101,9 +101,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			}
 
 		case OpSpansetDescendant:
-			fallthrough
-		case OpSpansetNotDescendant:
-			spans, err := o.joinSpansets(lhs, rhs, o.Op == OpSpansetDescendant, func(l, r Span) bool {
+			spans, err := o.joinSpansets(lhs, rhs, true, func(l, r Span) bool {
 				return r.DescendantOf(l)
 			})
 			if err != nil {
@@ -119,9 +117,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			}
 
 		case OpSpansetAncestor:
-			fallthrough
-		case OpSpansetNotAncestor:
-			spans, err := o.joinSpansets(lhs, rhs, o.Op == OpSpansetAncestor, func(l, r Span) bool {
+			spans, err := o.joinSpansets(lhs, rhs, true, func(l, r Span) bool {
 				// In case of ancestor the lhs becomes descendant of rhs
 				return l.DescendantOf(r)
 			})

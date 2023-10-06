@@ -66,14 +66,6 @@ func TestLexerAttributes(t *testing.T) {
 	}))
 }
 
-func TestLexerOperators(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
-		// duration
-		//	{"!>", []int{NOT_CHILD}},
-		{"!>>", []int{NOT_DESC}},
-	}))
-}
-
 func TestLexerDuration(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		// duration
