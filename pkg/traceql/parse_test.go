@@ -134,6 +134,19 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			),
 		},
 		{
+			in: "({ .a } | { .b }) ~ ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetSibling,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
 			in: "({ .a } | { .b }) && ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetAnd,
 				newPipeline(
@@ -162,6 +175,45 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		{
 			in: "({ .a } | { .b }) << ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetAncestor,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotChild,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotParent,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !~ ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotSibling,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
