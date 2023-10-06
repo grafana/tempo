@@ -9,11 +9,20 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
+
+type mockOverrides struct{}
+
+var _ ProcessorOverrides = (*mockOverrides)(nil)
+
+func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
+	return nil
+}
 
 func TestProcessorDoesNotRace(t *testing.T) {
 	wal, err := wal.New(&wal.Config{
@@ -22,25 +31,29 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	tenant := "fake"
-	cfg := Config{
-		FlushCheckPeriod:     10 * time.Millisecond,
-		TraceIdlePeriod:      time.Second,
-		CompleteBlockTimeout: time.Minute,
-		Block: &common.BlockConfig{
-			BloomShardSizeBytes: 100_000,
-			BloomFP:             0.05,
-			Version:             encoding.DefaultEncoding().Version(),
-		},
-	}
+	var (
+		ctx    = context.Background()
+		tenant = "fake"
+		cfg    = Config{
+			FlushCheckPeriod:     10 * time.Millisecond,
+			TraceIdlePeriod:      time.Second,
+			CompleteBlockTimeout: time.Minute,
+			Block: &common.BlockConfig{
+				BloomShardSizeBytes: 100_000,
+				BloomFP:             0.05,
+				Version:             encoding.DefaultEncoding().Version(),
+			},
+		}
+		overrides = &mockOverrides{}
+	)
 
-	p, err := New(cfg, tenant, wal)
+	p, err := New(cfg, tenant, wal, overrides)
 	require.NoError(t, err)
 
-	end := make(chan struct{})
-
-	wg := sync.WaitGroup{}
+	var (
+		end = make(chan struct{})
+		wg  = sync.WaitGroup{}
+	)
 
 	concurrent := func(f func()) {
 		wg.Add(1)

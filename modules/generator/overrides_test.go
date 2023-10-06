@@ -5,6 +5,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type mockOverrides struct {
@@ -26,6 +27,7 @@ type mockOverrides struct {
 	localBlocksFlushCheckPeriod             time.Duration
 	localBlocksTraceIdlePeriod              time.Duration
 	localBlocksCompleteBlockTimeout         time.Duration
+	dedicatedColumns                        backend.DedicatedColumns
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -118,4 +120,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServer
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(string) []string {
 	return m.spanMetricsTargetInfoExcludedDimensions
+}
+
+func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
+	return m.dedicatedColumns
 }
