@@ -17,6 +17,9 @@ type Config struct {
 	// How long to wait when flushing sample on shutdown
 	RemoteWriteFlushDeadline time.Duration `yaml:"remote_write_flush_deadline"`
 
+	// Add X-Scope-OrgID header in remote write requests
+	RemoteWriteAddOrgIDHeader bool `yaml:"remote_write_add_org_id_header,omitempty"`
+
 	// Prometheus remote write config
 	// https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
 	RemoteWrite []prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`
@@ -26,6 +29,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Wal = agentDefaultOptions()
 
 	cfg.RemoteWriteFlushDeadline = time.Minute
+
+	cfg.RemoteWriteAddOrgIDHeader = true
 }
 
 // agentOptions is a copy of agent.Options but with yaml struct tags. Refer to agent.Options for
