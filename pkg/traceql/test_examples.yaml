@@ -77,6 +77,8 @@ valid:
   - '{ true } !> { true }'
   - '{ true } !< { true }'
   - '{ true } !~ { true }'
+  - '{ true } !>> { true }'
+  - '{ true } !<< { true }'
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'

@@ -52,6 +52,8 @@ var tokens = map[string]int{
 	"~":               SIBL,
 	"!>":              NOT_CHILD,
 	"!<":              NOT_PARENT,
+	"!>>":             NOT_DESC,
+	"!<<":             NOT_ANCE,
 	"duration":        IDURATION,
 	"childCount":      CHILDCOUNT,
 	"name":            NAME,
@@ -169,18 +171,34 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return FLOAT
 	}
 
-	tokStrNext := l.TokenText() + string(l.Peek())
-	if tok, ok := tokens[tokStrNext]; ok {
-		l.Next()
-		l.parsingAttribute = startsAttribute(tok)
-		return tok
+	// look for combination tokens starting with 2 and working up til there is no match
+	multiTok := -1
+	tokStrNext := l.TokenText()
+	for {
+		tokStrNext = tokStrNext + string(l.Peek())
+		tok, ok := tokens[tokStrNext]
+		if ok {
+			multiTok = tok
+			l.Next()
+			continue
+		}
+
+		break
 	}
 
+	// did we find a combination token?
+	if multiTok != -1 {
+		l.parsingAttribute = startsAttribute(multiTok)
+		return multiTok
+	}
+
+	// no combination tokens, see if the current text is a known token
 	if tok, ok := tokens[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
 		return tok
 	}
 
+	// default to an identifier
 	lval.staticStr = l.TokenText()
 	return IDENTIFIER
 }

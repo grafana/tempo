@@ -38,6 +38,8 @@ func TestOperatorIsBoolean(t *testing.T) {
 		{OpSpansetNotChild, false},
 		{OpSpansetNotParent, false},
 		{OpSpansetNotSibling, false},
+		{OpSpansetNotAncestor, false},
+		{OpSpansetNotDescendant, false},
 	}
 
 	for _, tc := range tt {

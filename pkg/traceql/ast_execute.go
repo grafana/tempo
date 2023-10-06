@@ -106,16 +106,20 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		// relationship operators all set relFn which is used by below code
 		// to perform the operation
 		case OpSpansetDescendant:
+			fallthrough
+		case OpSpansetNotDescendant:
 			relFn = func(l, r Span) bool {
 				return r.DescendantOf(l)
 			}
-			falseForAll = false
+			falseForAll = o.Op == OpSpansetNotDescendant
 
 		case OpSpansetAncestor:
+			fallthrough
+		case OpSpansetNotAncestor:
 			relFn = func(l, r Span) bool {
 				return l.DescendantOf(r)
 			}
-			falseForAll = false
+			falseForAll = o.Op == OpSpansetNotAncestor
 
 		case OpSpansetChild:
 			fallthrough

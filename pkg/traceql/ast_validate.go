@@ -190,6 +190,8 @@ func (o BinaryOperation) validate() error {
 		OpSpansetNotChild,
 		OpSpansetNotParent,
 		OpSpansetNotSibling,
+		OpSpansetNotAncestor,
+		OpSpansetNotDescendant,
 		OpSpansetSibling:
 		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
 	}
