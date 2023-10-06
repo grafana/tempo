@@ -157,8 +157,13 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 			return
 		}
 
+		// flag to track if we closed the connection. we use this to ignore errors from read
+		// if we have closed the connection purposefully then read errors are ignorable
+		connClosedByUs := &atomic.Bool{}
+
 		// defer closing of the websocket
 		defer func() {
+			connClosedByUs.Store(true)
 			if err := conn.Close(); err != nil {
 				level.Error(logger).Log("msg", "error closing websocket", "err", err)
 			}
@@ -174,6 +179,9 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 				// Both graceful closures and unexpected closures are signaled through the error return of the conn.ReadMessage() method.
 				// In both cases we cancel the context to signal to the downstream request to stop.
 				_, _, err := conn.ReadMessage()
+				if connClosedByUs.Load() {
+					return // we closed the connection, ignore errors
+				}
 				if err != nil {
 					var closeErr *websocket.CloseError
 					if errors.As(err, &closeErr) {
@@ -212,6 +220,7 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 		if err != nil {
 			level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
 		}
+
 	}
 
 	return http.HandlerFunc(fnHandler)
