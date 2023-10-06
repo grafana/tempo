@@ -57,9 +57,11 @@ The backend can be configured in a few ways:
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
 ## Query API command
-Call the tempo API and retrieve a trace by ID.
+
+### Trace ID
+Call the Tempo API and retrieve a trace by ID.
 ```bash
-tempo-cli query api <api-endpoint> <trace-id>
+tempo-cli query api trace-id <api-endpoint> <trace-id>
 ```
 
 Arguments:
@@ -71,8 +73,28 @@ Options:
 
 **Example:**
 ```bash
-tempo-cli query api http://tempo:3200 f1cfe82a8eef933b
+tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b
 ```
+
+### Search
+Call the Tempo API and search using TraceQL.
+
+```bash
+tempo-cli query api search <host-port> <trace-ql> <start> <end>
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `trace-ql` TraceQL query.
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use deprecated GRPC streaming
+- `--use-ws`              Use HTTP/Websocket streaming
+- `--spss <value>`        Number of spans to return for each spanset 
+- `--limit <value>`       Number of results to return
+- `--path-prefix <value>` String to prefix search paths with
 
 ## Query blocks command
 Iterate over all backend blocks and dump all data found for a given trace id.
