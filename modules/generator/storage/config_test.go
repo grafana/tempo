@@ -41,9 +41,10 @@ remote_write:
 	}
 
 	expectedCfg := Config{
-		Path:                     "/var/wal/tempo",
-		Wal:                      walCfg,
-		RemoteWriteFlushDeadline: 5 * time.Minute,
+		Path:                      "/var/wal/tempo",
+		Wal:                       walCfg,
+		RemoteWriteFlushDeadline:  5 * time.Minute,
+		RemoteWriteAddOrgIDHeader: true,
 		RemoteWrite: []prometheus_config.RemoteWriteConfig{
 			remoteWriteConfig,
 		},

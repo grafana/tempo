@@ -14,6 +14,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
+	"github.com/gorilla/websocket"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/dskit/user"
@@ -93,13 +95,19 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 	return p.progress.result()
 }
 
-// newSearchStreamingHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+// newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
+func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
+	searcher := streamingSearcher{
+		logger:      logger,
+		downstream:  downstream,
+		reader:      reader,
+		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
+		o:           o,
+		cfg:         &cfg,
+	}
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		// build search request and propagate context
 		httpReq, err := api.BuildSearchRequest(&http.Request{
 			URL: &url.URL{
 				Path: downstreamPath,
@@ -112,97 +120,208 @@ func newSearchStreamingHandler(cfg Config, o overrides.Interface, downstream htt
 			level.Error(logger).Log("msg", "search streaming: build search request failed", "err", err)
 			return fmt.Errorf("build search request failed: %w", err)
 		}
-		ctx := srv.Context()
 
-		// SLOS - start timer and prep context
-		start := time.Now()
-		tenant, _ := user.ExtractOrgID(ctx)
-		ctx = searchSLOPreHook(ctx)
+		httpReq = httpReq.WithContext(srv.Context())
 
-		httpReq = httpReq.WithContext(ctx)
+		return searcher.handle(httpReq, func(resp *tempopb.SearchResponse) error {
+			return srv.Send(resp)
+		})
+	}
+}
 
-		// streaming search only accepts requests with backend components
-		if !api.IsBackendSearch(httpReq) {
-			level.Error(logger).Log("msg", "search streaming: start/end date not provided")
-			return errors.New("request must contain a start/end date for streaming search")
+func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) http.Handler {
+	searcher := streamingSearcher{
+		logger:      logger,
+		downstream:  downstream,
+		reader:      reader,
+		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
+		o:           o,
+		cfg:         &cfg,
+	}
+
+	// since this is a backend DB we allow websockets to originate from anywhere
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+	fnHandler := func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		r = r.WithContext(ctx)
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			level.Error(logger).Log("msg", "error in upgrading websocket", "err", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
-		progress := atomic.NewPointer[*diffSearchProgress](nil)
-		fn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
-			p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
-			progress.Store(&p)
-			return p
-		}
-		// build roundtripper
-		rt := NewRoundTripper(downstream, newSearchSharder(reader, o, cfg.Search.Sharder, fn, logger))
+		// flag to track if we closed the connection. we use this to ignore errors from read
+		// if we have closed the connection purposefully then read errors are ignorable
+		connClosedByUs := &atomic.Bool{}
 
-		type roundTripResult struct {
-			resp *http.Response
-			err  error
-		}
-		resultChan := make(chan roundTripResult)
-
-		// initiate http pipeline
-		go func() {
-			resp, err := rt.RoundTrip(httpReq)
-			resultChan <- roundTripResult{resp, err}
-			close(resultChan)
-
-			// SLOs record results
-			postSLOHook(ctx, resp, tenant, time.Since(start), err)
+		// defer closing of the websocket
+		defer func() {
+			connClosedByUs.Store(true)
+			if err := conn.Close(); err != nil {
+				level.Error(logger).Log("msg", "error closing websocket", "err", err)
+			}
 		}()
 
-		// collect and return results
-		for {
-			select {
-			// handles context canceled or other errors
-			case <-ctx.Done():
-				return ctx.Err()
-			// stream results as they come in
-			case <-time.After(500 * time.Millisecond):
-				p := progress.Load()
-				if p == nil {
-					continue
+		// watch for graceful closure from client
+		go func() {
+			// cancel the context when we exit to cancel downstream requests
+			defer cancel()
+			for {
+				// generally websockets allow bi-directional communication. however, in tempo, we have decided to only accept and service
+				// a single query per websocket. this code drops all messages from the client except for graceful closures.
+				// Both graceful closures and unexpected closures are signaled through the error return of the conn.ReadMessage() method.
+				// In both cases we cancel the context to signal to the downstream request to stop.
+				_, _, err := conn.ReadMessage()
+				if connClosedByUs.Load() {
+					return // we closed the connection, ignore errors
 				}
-
-				result := (*p).result()
-				if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
-					continue
-				}
-
-				err = srv.Send(result.response)
 				if err != nil {
-					level.Error(logger).Log("msg", "search streaming: send failed", "err", err)
-					return fmt.Errorf("search streaming send failed: %w", err)
-				}
-			// final result is available
-			case roundTripRes := <-resultChan:
-				// check for errors in the http response
-				if roundTripRes.err != nil {
-					return roundTripRes.err
-				}
-				if roundTripRes.resp != nil && roundTripRes.resp.StatusCode != http.StatusOK {
-					b, _ := io.ReadAll(roundTripRes.resp.Body)
+					var closeErr *websocket.CloseError
+					if errors.As(err, &closeErr) {
+						if closeErr.Code == websocket.CloseNormalClosure {
+							return // graceful closure. exit silently
+						}
+					}
 
-					level.Error(logger).Log("msg", "search streaming: status != 200", "status", roundTripRes.resp.StatusCode, "body", string(b))
-					return fmt.Errorf("http error: %d msg: %s", roundTripRes.resp.StatusCode, string(b))
+					// on an unexpected closure, the error "use of closed network connection" will be logged
+					level.Error(logger).Log("msg", "unexpected error from client", "err", err)
+					return
 				}
-
-				// overall pipeline returned successfully, now grab the final results and send them
-				p := *progress.Load()
-				result := p.finalResult()
-				if result.err != nil || result.statusCode != http.StatusOK {
-					level.Error(logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
-					return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
-				}
-				err = srv.Send(result.response)
-				if err != nil {
-					level.Error(logger).Log("msg", "search streaming: send failed", "err", err)
-					return fmt.Errorf("search streaming send failed: %w", err)
-				}
-
-				return nil
 			}
+		}()
+
+		// set the path correctly, RequestUri is used by the httpgrpc bridge
+		r.URL.Path = downstreamPath
+		r.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
+
+		jsonMarshaler := &jsonpb.Marshaler{}
+		err = searcher.handle(r, func(resp *tempopb.SearchResponse) error {
+			msg, err := jsonMarshaler.MarshalToString(resp)
+			if err != nil {
+				return err
+			}
+
+			return conn.WriteMessage(websocket.TextMessage, []byte(msg))
+		})
+
+		// send a close msg to the client now that we are done
+		if err != nil {
+			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()))
+		} else {
+			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "query complete"))
+		}
+		if err != nil {
+			level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
+		}
+	}
+
+	return http.HandlerFunc(fnHandler)
+}
+
+type streamingSearcher struct {
+	logger      log.Logger
+	downstream  http.RoundTripper
+	reader      tempodb.Reader
+	postSLOHook handlerPostHook
+	o           overrides.Interface
+	cfg         *Config
+}
+
+func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error {
+	ctx := r.Context()
+
+	// SLOS - start timer and prep context
+	start := time.Now()
+	tenant, _ := user.ExtractOrgID(ctx)
+	ctx = searchSLOPreHook(ctx)
+
+	// streaming search only accepts requests with backend components
+	if !api.IsBackendSearch(r) {
+		return errors.New("request must contain a start/end date for streaming search")
+	}
+
+	progress := atomic.NewPointer[*diffSearchProgress](nil)
+	fn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
+		p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
+		progress.Store(&p)
+		return p
+	}
+	// build roundtripper
+	rt := NewRoundTripper(s.downstream, newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, fn, s.logger))
+
+	type roundTripResult struct {
+		resp *http.Response
+		err  error
+	}
+	resultChan := make(chan roundTripResult)
+
+	// initiate http pipeline
+	go func() {
+		resp, err := rt.RoundTrip(r)
+		resultChan <- roundTripResult{resp, err}
+		close(resultChan)
+
+		// SLOs record results
+		s.postSLOHook(ctx, resp, tenant, time.Since(start), err)
+	}()
+
+	// collect and return results
+	for {
+		select {
+		// handles context canceled or other errors
+		case <-ctx.Done():
+			return ctx.Err()
+		// stream results as they come in
+		case <-time.After(500 * time.Millisecond):
+			p := progress.Load()
+			if p == nil {
+				continue
+			}
+
+			result := (*p).result()
+			if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
+				continue
+			}
+
+			err := forwardResults(result.response)
+			if err != nil {
+				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
+				return fmt.Errorf("search streaming send failed: %w", err)
+			}
+		// final result is available
+		case roundTripRes := <-resultChan:
+			// check for errors in the http response
+			if roundTripRes.err != nil {
+				return roundTripRes.err
+			}
+			if roundTripRes.resp != nil && roundTripRes.resp.StatusCode != http.StatusOK {
+				b, _ := io.ReadAll(roundTripRes.resp.Body)
+
+				level.Error(s.logger).Log("msg", "search streaming: status != 200", "status", roundTripRes.resp.StatusCode, "body", string(b))
+				return fmt.Errorf("http error: %d msg: %s", roundTripRes.resp.StatusCode, string(b))
+			}
+
+			// overall pipeline returned successfully, now grab the final results and send them
+			p := *progress.Load()
+			result := p.finalResult()
+			if result.err != nil || result.statusCode != http.StatusOK {
+				level.Error(s.logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
+				return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
+			}
+			err := forwardResults(result.response)
+			if err != nil {
+				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
+				return fmt.Errorf("search streaming send failed: %w", err)
+			}
+
+			return nil
 		}
 	}
 }

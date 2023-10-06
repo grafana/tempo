@@ -42,7 +42,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// jpe - ditch unretyrable error
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
