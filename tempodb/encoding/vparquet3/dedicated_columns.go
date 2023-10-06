@@ -6,7 +6,7 @@ import (
 )
 
 // Column paths for spare dedicated attribute columns
-var dedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
+var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.DedicatedColumnType][]string{
 	backend.DedicatedColumnScopeResource: {
 		backend.DedicatedColumnTypeString: {
 			"rs.list.element.Resource.DedicatedAttributes.String01",
@@ -157,7 +157,7 @@ func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, 
 	mapping := newDedicatedColumnMapping(len(dedicatedColumns))
 
 	for _, scope := range scopes {
-		spareColumnsByType, ok := dedicatedResourceColumnPaths[scope]
+		spareColumnsByType, ok := DedicatedResourceColumnPaths[scope]
 		if !ok {
 			continue
 		}
