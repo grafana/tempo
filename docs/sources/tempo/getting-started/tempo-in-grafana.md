@@ -57,9 +57,11 @@ For more information, refer to the [service graph view]({{< relref "../metrics-g
 
 A local JSON file containing a trace can be imported and viewed in the Grafana UI. This is useful in cases where access to the original Tempo data source is limited, or for preserving traces outside of Tempo.
 
-The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
+The JSON data can be downloaded via the Tempo API or the [Inspector panel](/docs/grafana/latest/explore/explore-inspector/) while viewing the trace in Grafana.
 
->**Note:** To perform this action on Grafana 10.1 or later, navigate to an Explore view tab and select `Import trace`.
+{{% admonition type="note" %}}
+To perform this action on Grafana 10.1 or later, select a Tempo data source, select **Explore** from the main menu, and then select **Import trace**.
+{{% /admonition %}}
 
 ## Linking traces and metrics
 
