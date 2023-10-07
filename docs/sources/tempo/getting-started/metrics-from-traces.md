@@ -1,7 +1,7 @@
 ---
-title: Tempo in Grafana
-description: Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
-weight: 400
+title: Metrics from traces
+description: Learn about how we can correlate traces and metrics.
+weight: 700
 ---
 
 # Metrics from traces
