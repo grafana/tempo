@@ -33,10 +33,6 @@ An exemplar is a specific trace representative of measurement taken in a given t
 Since traces and metrics co-exist in the metrics-generator,
 exemplars can be automatically added, providing additional value to these metrics.
 
-[Exemplars](/docs/grafana-cloud/monitor-infrastructure/traces/exemplars/) are available in Grafana Cloud so you can also push your own.
-
-<p align="center"><img src="../getting-started/assets/trace_exemplars.png" alt="Trace exemplars"></p>
-
 ## How to run
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. See [here for configuration details]({{< relref "../configuration#metrics-generator" >}}).
