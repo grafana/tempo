@@ -1,0 +1,43 @@
+---
+title: Tempo in Grafana
+description: Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
+weight: 400
+---
+
+# Metrics from traces
+
+RED metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. RED metrics represent:
+
+- Rate, the number of requests per second
+- Errors, the number of those requests that are failing
+- Duration, the amount of time those requests take
+
+For more information about RED method, refer to [The RED Method: How to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
+
+## Use-cases for span metrics
+{{% admonition type="note" %}}
+Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
+{{% /admonition %}}
+
+After the metrics generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration" >}}) for information about metrics-generator options.
+
+<p align="center"><img src="../assets/trace_service_graph.png" alt="Trace service graph"></p>
+
+These metrics exist in your Hosted Metrics instance and can also be easily used to generate powerful custom dashboards.
+
+<p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
+
+The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars](/docs/grafana-cloud/monitor-infrastructure/traces/exemplars/) are available in Grafana Cloud so you can also push your own.
+
+<p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
+
+## Linking traces and metrics
+
+Grafana can correlate different signals by adding the functionality to link between traces and metrics. The [trace to metrics feature](/blog/2022/08/18/new-in-grafana-9.1-trace-to-metrics-allows-users-to-navigate-from-a-trace-span-to-a-selected-data-source/), a beta feature in Grafana 9.1, lets you quickly see trends or aggregated data related to each span.
+
+You can try it out by enabling the `traceToMetrics` feature toggle in your Grafana configuration file.
+[Refer to the instructions for enabling Grafana feature toggles](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).
+
+For example, you can use span attributes to metric labels by using the `$__tags` keyword to convert span attributes to metrics labels.
+
+For more information, refer to the [trace to metric configuration](/docs/grafana/latest/datasources/tempo/#trace-to-metrics) documentation.

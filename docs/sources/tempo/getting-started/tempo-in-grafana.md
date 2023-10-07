@@ -62,14 +62,3 @@ The JSON data can be downloaded via the Tempo API or the [Inspector panel](/docs
 {{% admonition type="note" %}}
 To perform this action on Grafana 10.1 or later, select a Tempo data source, select **Explore** from the main menu, and then select **Import trace**.
 {{% /admonition %}}
-
-## Linking traces and metrics
-
-Grafana can correlate different signals by adding the functionality to link between traces and metrics. The [trace to metrics feature](/blog/2022/08/18/new-in-grafana-9.1-trace-to-metrics-allows-users-to-navigate-from-a-trace-span-to-a-selected-data-source/), a beta feature in Grafana 9.1, lets you quickly see trends or aggregated data related to each span.
-
-You can try it out by enabling the `traceToMetrics` feature toggle in your Grafana configuration file.
-[Refer to the instructions for enabling Grafana feature toggles](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).
-
-For example, you can use span attributes to metric labels by using the `$__tags` keyword to convert span attributes to metrics labels.
-
-For more information, refer to the [trace to metric configuration](/docs/grafana/latest/datasources/tempo/#trace-to-metrics) documentation.
