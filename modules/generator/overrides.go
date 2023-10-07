@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type metricsGeneratorOverrides interface {
@@ -31,6 +32,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
+	DedicatedColumns(userID string) backend.DedicatedColumns
 }
 
 var _ metricsGeneratorOverrides = (overrides.Interface)(nil)
