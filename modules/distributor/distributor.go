@@ -434,8 +434,9 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
+			return fmt.Errorf("failed to push spans to generator: %w", err)
 		}
-		return fmt.Errorf("failed to push spans to generator: %w", err)
+		return nil
 	}, func() {})
 
 	return err
