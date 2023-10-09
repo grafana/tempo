@@ -30,6 +30,7 @@ import (
 const (
 	foo = "foo"
 	bar = "bar"
+	qux = "qux"
 )
 
 func TestInstanceSearch(t *testing.T) {
@@ -37,7 +38,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	tagKey := foo
 	tagValue := bar
-	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
+	ids, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false)
 
 	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
@@ -172,7 +173,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 	tagKey := foo
 	tagValue := bar
-	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
+	ids, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false)
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
 		req.Start = start
@@ -249,7 +250,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	tagKey := "foo"
 	tagValue := bar
 
-	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
+	_, expectedTagValues := writeTracesForSearch(t, i, "", tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
@@ -302,13 +303,16 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// add dummy search data
 	var (
+		spanName              = "span-name"
 		tagKey                = foo
 		tagValue              = bar
-		queryThatMatches      = `{ .service.name = "test-service" }`
+		otherTagValue         = qux
+		queryThatMatches      = fmt.Sprintf(`{ name = "%s" }`, spanName)
 		queryThatDoesNotMatch = `{ resource.service.name = "aaaaa" }`
 	)
 
-	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
+	_, expectedTagValues := writeTracesForSearch(t, i, spanName, tagKey, tagValue, true)
+	_, _ = writeTracesForSearch(t, i, "other-"+spanName, tagKey, otherTagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
@@ -326,6 +330,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
 	require.NoError(t, err)
+	require.NoError(t, i.ClearCompletingBlock(blockID)) // Clear the completing block
 
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
 }
@@ -400,7 +405,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	tagKey := foo
 	tagValue := bar
 
-	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
+	_, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 	resp, err := i.SearchTagValues(userCtx, tagKey)
@@ -431,7 +436,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	tagKey := foo
 	tagValue := bar
 
-	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
+	_, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true)
 
 	// Cut the headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -439,7 +444,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.NotEqual(t, blockID, uuid.Nil)
 
 	// Write more traces
-	_, _ = writeTracesForSearch(t, i, tagKey, "another-"+bar, true)
+	_, _ = writeTracesForSearch(t, i, "", tagKey, "another-"+bar, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
@@ -470,14 +475,14 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
 // nolint:revive,unparam
-func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
+func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	numTraces := 100
-	ids := [][]byte{}
-	expectedTagValues := []string{}
+	ids := make([][]byte, 0, numTraces)
+	expectedTagValues := make([]string, 0, numTraces)
 
 	now := time.Now()
 	for j := 0; j < numTraces; j++ {
@@ -496,18 +501,20 @@ func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue str
 		testTrace := test.MakeTrace(10, id)
 		// add the time
 		for _, batch := range testTrace.Batches {
-			for _, ils := range batch.InstrumentationLibrarySpans {
+			for _, ils := range batch.ScopeSpans {
 				for _, span := range ils.Spans {
+					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())
 					span.EndTimeUnixNano = uint64(now.UnixNano())
+					span.Attributes = append(span.Attributes, kv)
 				}
 			}
 		}
-		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(
-			testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes,
-			kv,
-		)
 		trace.SortTrace(testTrace)
+
+		//// Print trace as json string
+		//buf := &bytes.Buffer{}
+		//require.NoError(t, (&jsonpb.Marshaler{}).Marshal(buf, testTrace))
 
 		traceBytes, err := dec.PrepareForWrite(testTrace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)
@@ -915,6 +922,11 @@ func TestExtractMatchers(t *testing.T) {
 			name:     "query with slash in value",
 			query:    `{ span.http.target = "/api/v1/users" }`,
 			expected: `{span.http.target = "/api/v1/users"}`,
+		},
+		{
+			name:     "intrinsics",
+			query:    `{  name = "foo" }`,
+			expected: `{name = "foo"}`,
 		},
 	}
 	for _, tc := range testCases {

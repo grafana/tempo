@@ -497,6 +497,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
+// TODO: Support spaces
+
 // Regex to extract matchers from a query string
 // This regular expression matches a string that contains three groups separated by operators.
 // The first group is a string of alphabetical characters, dots, and underscores.

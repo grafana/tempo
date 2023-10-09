@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -34,7 +33,6 @@ func (b *backendBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteR
 	// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
 	for {
 		// Exhaust the iterator
-		fmt.Println("exhausting iter in backendBlock")
 		res, err := iter.Next()
 		if err != nil {
 			return err
@@ -42,8 +40,14 @@ func (b *backendBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteR
 		if res == nil {
 			break
 		}
+		for k, values := range res.ToMap() {
+			for _, v := range values {
+				if k == req.TagName {
+					cb(pqValueToTagValue(v))
+				}
+			}
+		}
 	}
-	fmt.Println("done exhausting iter in backendBlock")
 
 	return nil
 }
@@ -151,6 +155,8 @@ func createDistinctIterator(
 		err                               error
 	)
 
+	fmt.Println("spanConditions", len(spanConditions), "resourceConditions", len(resourceConditions), "traceConditions", len(traceConditions))
+
 	if len(spanConditions) > 0 {
 		spanIter, err = createDistinctSpanIterator(makeIter, primaryIter, spanConditions, cb, key, spanRequireAtLeastOneMatch, allConditions, dc)
 		if err != nil {
@@ -186,7 +192,7 @@ func createDistinctIterator(
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, cb traceql.AutocompleteCallback, key string, requireAtLeastOneMatch, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, cb traceql.AutocompleteCallback, key string, _, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -328,6 +334,10 @@ func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.It
 		genericConditions = append(genericConditions, cond)
 	}
 
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+	}
+
 	attrIter, err := createDistinctAttributeIterator(makeIter, genericConditions, cb, key, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
@@ -335,10 +345,6 @@ func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.It
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
-	}
-
-	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
 	var required []parquetquery.Iterator
@@ -350,16 +356,6 @@ func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.It
 	// We simply move all iterators into the required list.
 	if allConditions {
 		required = append(required, iters...)
-		iters = nil
-	}
-
-	// This is an optimization for cases when allConditions is false, and
-	// only span conditions are present, and we require at least one of them to match.
-	// Wrap up the individual conditions with a union and move it into the required list.
-	// This skips over static columns like ID that are omnipresent. This is also only
-	// possible when there isn't a duration filter because it's computed from start/end.
-	if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, nil))
 		iters = nil
 	}
 
@@ -416,28 +412,28 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
 		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
 		case traceql.TypeFloat:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrFltPreds = append(attrFltPreds, pred)
 
 		case traceql.TypeBoolean:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute predicate")
+				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			boolPreds = append(boolPreds, pred)
 		}
@@ -676,7 +672,8 @@ func (d *distinctAttrCollector) String() string {
 }
 
 func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	tv := tempopb.TagValue{}
+	var key string
+	var val parquet.Value
 
 	for _, e := range result.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
@@ -684,19 +681,27 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		if e.Value.Kind() < 0 {
 			continue
 		}
+
 		switch e.Key {
 		case "key":
-			if d.key != e.Value.String() {
-				return false
-			}
-		case "string", "int", "float", "bool":
-			tv = pqValueToTagValue(e.Value)
+			key = e.Value.String()
+		case "string":
+			val = e.Value
+		case "int":
+			val = e.Value
+		case "float":
+			val = e.Value
+		case "bool":
+			val = e.Value
 		}
 	}
 
-	d.cb(tv) // TODO: What should we return here?
+	result.Entries = result.Entries[:0]
+	if key == d.key {
+		result.AppendValue(d.key, val)
+	}
 
-	return false
+	return true
 }
 
 var _ parquetquery.GroupPredicate = (*distinctSpanCollector)(nil)
@@ -711,13 +716,12 @@ func (d distinctSpanCollector) String() string {
 }
 
 func (d distinctSpanCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	// Merge all individual columns into the span
 	for _, e := range result.Entries {
-		if key, tv := extractTagValue(e); key == d.key {
-			d.cb(tv) // TODO: What should we return here?
+		if key, v := extractTagValue(e); key == d.key {
+			result.AppendValue(d.key, v)
 		}
 	}
-	return false // TODO: What should we return here?
+	return true // TODO: What should we return here?
 }
 
 type entry struct {
@@ -725,59 +729,31 @@ type entry struct {
 	Value parquet.Value
 }
 
-func extractTagValue(e entry) (string, tempopb.TagValue) {
+func extractTagValue(e entry) (string, parquet.Value) {
 	switch e.Key {
 	case columnPathSpanID,
 		columnPathSpanParentID,
 		columnPathSpanNestedSetLeft,
 		columnPathSpanNestedSetRight:
-		return "", tempopb.TagValue{}
+		return "", parquet.Value{}
 	case columnPathSpanStartTime:
-		return traceql.IntrinsicSpanStartTime.String(), pqValueToTagValue(e.Value)
+		return traceql.IntrinsicSpanStartTime.String(), e.Value
 	case columnPathSpanDuration:
-		return traceql.IntrinsicDuration.String(), pqValueToTagValue(e.Value)
+		return traceql.IntrinsicDuration.String(), e.Value
 	case columnPathSpanName:
-		return traceql.IntrinsicName.String(), pqValueToTagValue(e.Value)
+		return traceql.IntrinsicName.String(), e.Value
 	case columnPathSpanStatusCode:
-		// Map OTLP status code back to TraceQL enum.
-		// For other values, use the raw integer.
-		var status traceql.Status
-		switch e.Value.Uint64() {
-		case uint64(v1.Status_STATUS_CODE_UNSET):
-			status = traceql.StatusUnset
-		case uint64(v1.Status_STATUS_CODE_OK):
-			status = traceql.StatusOk
-		case uint64(v1.Status_STATUS_CODE_ERROR):
-			status = traceql.StatusError
-		default:
-			status = traceql.Status(e.Value.Uint64())
-		}
-		return traceql.IntrinsicStatus.String(), tempopb.TagValue{Type: "duration", Value: status.String()}
+		// TODO: Translate to TraceQL status code (string)
+		return traceql.IntrinsicStatus.String(), e.Value
 	case columnPathSpanStatusMessage:
-		return traceql.IntrinsicStatusMessage.String(), tempopb.TagValue{Type: "keyword", Value: e.Value.String()}
+		return traceql.IntrinsicStatusMessage.String(), e.Value
 	case columnPathSpanKind:
-		var kind traceql.Kind
-		switch e.Value.Uint64() {
-		case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
-			kind = traceql.KindUnspecified
-		case uint64(v1.Span_SPAN_KIND_INTERNAL):
-			kind = traceql.KindInternal
-		case uint64(v1.Span_SPAN_KIND_SERVER):
-			kind = traceql.KindServer
-		case uint64(v1.Span_SPAN_KIND_CLIENT):
-			kind = traceql.KindClient
-		case uint64(v1.Span_SPAN_KIND_PRODUCER):
-			kind = traceql.KindProducer
-		case uint64(v1.Span_SPAN_KIND_CONSUMER):
-			kind = traceql.KindConsumer
-		default:
-			kind = traceql.Kind(e.Value.Uint64())
-		}
-		return traceql.IntrinsicKind.String(), tempopb.TagValue{Type: "int", Value: kind.String()}
+		// TODO: Translate to TraceQL kind (string)
+		return traceql.IntrinsicKind.String(), e.Value
 	default:
 		// TODO - This exists for span-level dedicated columns like http.status_code
 		// Are nils possible here?
-		return e.Key, pqValueToTagValue(e.Value)
+		return e.Key, e.Value
 	}
 }
 
@@ -800,10 +776,10 @@ func (d *distinctBatchCollector) KeepGroup(result *parquetquery.IteratorResult) 
 		}
 		switch e.Value.Kind() {
 		case parquet.Int64, parquet.ByteArray:
-			d.cb(pqValueToTagValue(e.Value))
+			result.AppendValue(d.key, e.Value)
 		}
 	}
-	return false
+	return true
 }
 
 var _ parquetquery.GroupPredicate = (*distinctTraceCollector)(nil)
@@ -817,29 +793,29 @@ func (d *distinctTraceCollector) String() string {
 	return "distinctTraceCollector"
 }
 
-func (d *distinctTraceCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	for _, e := range result.Entries {
-		switch e.Key {
-		case columnPathTraceID:
-		case columnPathStartTimeUnixNano:
-			if traceql.IntrinsicTraceStartTime.String() == d.key {
-				d.cb(pqValueToTagValue(e.Value))
-			}
-		case columnPathDurationNanos:
-			if traceql.IntrinsicTraceDuration.String() == d.key {
-				d.cb(pqValueToTagValue(e.Value))
-			}
-		case columnPathRootSpanName:
-			if traceql.IntrinsicTraceRootSpan.String() == d.key {
-				d.cb(pqValueToTagValue(e.Value))
-			}
-		case columnPathRootServiceName:
-			if traceql.IntrinsicTraceRootService.String() == d.key {
-				d.cb(pqValueToTagValue(e.Value))
-			}
-		}
-	}
-	return false
+func (d *distinctTraceCollector) KeepGroup(_ *parquetquery.IteratorResult) bool {
+	//for _, e := range result.Entries {
+	//	switch e.Key {
+	//	case columnPathTraceID:
+	//	case columnPathStartTimeUnixNano:
+	//		if traceql.IntrinsicTraceStartTime.String() == d.key {
+	//			d.cb(pqValueToTagValue(e.Value))
+	//		}
+	//	case columnPathDurationNanos:
+	//		if traceql.IntrinsicTraceDuration.String() == d.key {
+	//			d.cb(pqValueToTagValue(e.Value))
+	//		}
+	//	case columnPathRootSpanName:
+	//		if traceql.IntrinsicTraceRootSpan.String() == d.key {
+	//			d.cb(pqValueToTagValue(e.Value))
+	//		}
+	//	case columnPathRootServiceName:
+	//		if traceql.IntrinsicTraceRootService.String() == d.key {
+	//			d.cb(pqValueToTagValue(e.Value))
+	//		}
+	//	}
+	//}
+	return true
 }
 
 func pqValueToTagValue(v parquet.Value) tempopb.TagValue {

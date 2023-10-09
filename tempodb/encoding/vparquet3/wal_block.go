@@ -696,17 +696,22 @@ func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteReque
 		// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
 		for {
 			// Exhaust the iterator
-			fmt.Println("exhausting iter in walBlock")
 			res, err := iter.Next()
-			fmt.Println(res, err)
 			if err != nil {
 				return fmt.Errorf("iterating spans in walBlock: %w", err)
 			}
 			if res == nil {
 				break
 			}
+
+			for k, values := range res.ToMap() {
+				for _, v := range values {
+					if k == req.TagName {
+						cb(pqValueToTagValue(v))
+					}
+				}
+			}
 		}
-		fmt.Println("done exhausting iter in walBlock")
 	}
 
 	// combine iters?
