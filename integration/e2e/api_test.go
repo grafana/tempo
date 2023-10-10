@@ -29,28 +29,83 @@ func TestSearchTagValuesV2(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
-	batch := makeThriftBatchWithSpanCountAttributeAndName(2, "foo", "bar")
+	type batchTmpl struct {
+		spanCount                  int
+		name                       string
+		resourceAttVal, spanAttVal string
+	}
+
+	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar"}
+	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux"}
+
+	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	batch = makeThriftBatchWithSpanCountAttributeAndName(2, "baz", "qux")
+	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 
-	// Search for tag values without filters
-	expected := searchTagValuesResponse{
-		TagValues: []TagValue{{Type: "string", Value: "bar"}, {Type: "string", Value: "qux"}},
+	testCases := []struct {
+		name     string
+		query    string
+		expected searchTagValuesResponse
+	}{
+		{
+			name:  "no filtering",
+			query: "",
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
+		{
+			name:  "first batch - name",
+			query: fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
+			},
+		},
+		{
+			name:  "second batch with incomplete query - name",
+			query: fmt.Sprintf(`{ name="%s" && span.x = }`, secondBatch.name),
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
+		{
+			name:  "first batch only - resource attribute",
+			query: fmt.Sprintf(`{ resource.xx="%s" }`, firstBatch.resourceAttVal),
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
+			},
+		},
+		{
+			name:  "second batch only - resource attribute",
+			query: fmt.Sprintf(`{ resource.xx="%s" }`, secondBatch.resourceAttVal),
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
+		{
+			name:     "too restrictive query",
+			query:    fmt.Sprintf(`{ resource.x="%s" && span.x="%s" }`, firstBatch.resourceAttVal, secondBatch.spanAttVal),
+			expected: searchTagValuesResponse{},
+		},
+		{
+			name:  "unscoped attribute", // TODO: Not supported, should return only the first batch
+			query: fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
 	}
-	callSearchTagValuesAndAssert(t, tempo, "span.x", "", expected)
 
-	// Search for tag values for the first batch only
-	expected = searchTagValuesResponse{TagValues: []TagValue{{Type: "string", Value: "bar"}}}
-	callSearchTagValuesAndAssert(t, tempo, "span.x", `{ name="foo" }`, expected)
-
-	// Search for tag values for the second batch only with incomplete query
-	expected = searchTagValuesResponse{TagValues: []TagValue{{Type: "string", Value: "qux"}}}
-	callSearchTagValuesAndAssert(t, tempo, "span.x", `{ name="baz" && span.x = }`, expected)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			callSearchTagValuesAndAssert(t, tempo, "span.x", tc.query, tc.expected)
+		})
+	}
 }
 
 func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName, query string, expected searchTagValuesResponse) {
