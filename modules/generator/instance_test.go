@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/exemplar"
+	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
 	prometheus_storage "github.com/prometheus/prometheus/storage"
@@ -303,6 +304,10 @@ func (n noopAppender) Append(prometheus_storage.SeriesRef, labels.Labels, int64,
 }
 
 func (n noopAppender) AppendExemplar(prometheus_storage.SeriesRef, labels.Labels, exemplar.Exemplar) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendHistogram(prometheus_storage.SeriesRef, labels.Labels, int64, *histogram.Histogram, *histogram.FloatHistogram) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
 
