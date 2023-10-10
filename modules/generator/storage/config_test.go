@@ -16,7 +16,7 @@ func TestConfig(t *testing.T) {
 	cfgStr := `
 path: /var/wal/tempo
 wal:
-  wal_compression: true
+  wal_compression: "snappy"
 remote_write_flush_deadline: 5m
 remote_write:
   - url: http://prometheus/api/prom/push
