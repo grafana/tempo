@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	spanX     = "span.x"
+	resourceX = "resource.xx"
+)
+
 func TestSearchTagValuesV2(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
@@ -50,39 +55,45 @@ func TestSearchTagValuesV2(t *testing.T) {
 	testCases := []struct {
 		name     string
 		query    string
+		tagName  string
 		expected searchTagValuesResponse
 	}{
 		{
-			name:  "no filtering",
-			query: "",
+			name:    "no filtering",
+			query:   "",
+			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
 			},
 		},
 		{
-			name:  "first batch - name",
-			query: fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
+			name:    "first batch - name",
+			query:   fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
+			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
 			},
 		},
 		{
-			name:  "second batch with incomplete query - name",
-			query: fmt.Sprintf(`{ name="%s" && span.x = }`, secondBatch.name),
+			name:    "second batch with incomplete query - name",
+			query:   fmt.Sprintf(`{ name="%s" && span.x = }`, secondBatch.name),
+			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
 			},
 		},
 		{
-			name:  "first batch only - resource attribute",
-			query: fmt.Sprintf(`{ resource.xx="%s" }`, firstBatch.resourceAttVal),
+			name:    "first batch only - resource attribute",
+			query:   fmt.Sprintf(`{ resource.xx="%s" }`, firstBatch.resourceAttVal),
+			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
 			},
 		},
 		{
-			name:  "second batch only - resource attribute",
-			query: fmt.Sprintf(`{ resource.xx="%s" }`, secondBatch.resourceAttVal),
+			name:    "second batch only - resource attribute",
+			query:   fmt.Sprintf(`{ resource.xx="%s" }`, secondBatch.resourceAttVal),
+			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
 			},
@@ -90,20 +101,38 @@ func TestSearchTagValuesV2(t *testing.T) {
 		{
 			name:     "too restrictive query",
 			query:    fmt.Sprintf(`{ resource.x="%s" && span.x="%s" }`, firstBatch.resourceAttVal, secondBatch.spanAttVal),
+			tagName:  spanX,
 			expected: searchTagValuesResponse{},
 		},
 		{
-			name:  "unscoped attribute", // TODO: Not supported, should return only the first batch
-			query: fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
+			name:    "unscoped attribute", // TODO: Not supported, should return only the first batch
+			query:   fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
+			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
+		{
+			name:    "first batch - name and resource attribute",
+			query:   fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
+			tagName: "resource.service.name",
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: "my-service"}},
+			},
+		},
+		{
+			name:    "both batches - name and resource attribute",
+			query:   `{ resource.service.name="my-service"}`,
+			tagName: "name",
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.name}, {Type: "string", Value: secondBatch.name}},
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesAndAssert(t, tempo, "span.x", tc.query, tc.expected)
+			callSearchTagValuesAndAssert(t, tempo, tc.tagName, tc.query, tc.expected)
 		})
 	}
 }
