@@ -125,7 +125,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 			query:   `{ resource.service.name="my-service"}`,
 			tagName: "name",
 			expected: searchTagValuesResponse{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.name}, {Type: "string", Value: secondBatch.name}},
+				TagValues: []TagValue{{Type: "string", Value: secondBatch.name}, {Type: "string", Value: firstBatch.name}},
 			},
 		},
 	}
