@@ -243,7 +243,7 @@ For example, to find a trace with a leaf span in the service "foo":
 To find a span that is the last error in a series of cascading errors:
 
 ```
-{ status != error } !< { status = error }
+{ status = error } !< { status = error }
 ```
 
 ## Aggregators
