@@ -79,6 +79,14 @@ func resourcePathsForVersion(v string) (string, []string) {
 	return "", nil
 }
 
+func dedicatedColPathForVersion(i int, scope backend.DedicatedColumnScope, v string) string {
+	switch v {
+	case vparquet3.VersionString:
+		return vparquet3.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
+	}
+	return ""
+}
+
 type analyseBlockCmd struct {
 	backendOptions
 
@@ -151,12 +159,34 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 		return nil, err
 	}
 
+	// add up dedicated span attribute columns
+	spanDedicatedSummary, err := aggregateDedicatedColumns(pf, backend.DedicatedColumnScopeSpan, meta)
+	if err != nil {
+		return nil, err
+	}
+	// merge dedicated with span attributes
+	for k, v := range spanDedicatedSummary.attributes {
+		spanAttrsSummary.attributes[k] = v
+	}
+	spanAttrsSummary.totalBytes += spanDedicatedSummary.totalBytes
+
 	// Aggregate resource attributes
 	resourceKey, resourceVals := resourcePathsForVersion(meta.Version)
 	resourceAttrsSummary, err := aggregateAttributes(pf, resourceKey, resourceVals)
 	if err != nil {
 		return nil, err
 	}
+
+	// add up dedicated resource attribute columns
+	resourceDedicatedSummary, err := aggregateDedicatedColumns(pf, backend.DedicatedColumnScopeResource, meta)
+	if err != nil {
+		return nil, err
+	}
+	// merge dedicated with span attributes
+	for k, v := range resourceDedicatedSummary.attributes {
+		resourceAttrsSummary.attributes[k] = v
+	}
+	resourceAttrsSummary.totalBytes += spanDedicatedSummary.totalBytes
 
 	return &blockSummary{
 		spanSummary:     spanAttrsSummary,
@@ -226,6 +256,61 @@ func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) 
 		totalBytes: totalBytes,
 		attributes: attrMap,
 	}, nil
+}
+
+func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnScope, meta *backend.BlockMeta) (genericAttrSummary, error) {
+	attrMap := make(map[string]uint64)
+	totalBytes := uint64(0)
+
+	i := 0
+	for _, dedColumn := range meta.DedicatedColumns {
+		if dedColumn.Scope != scope {
+			continue
+		}
+
+		path := dedicatedColPathForVersion(i, scope, meta.Version)
+		sz, err := aggregateColumn(pf, path)
+		if err != nil {
+			return genericAttrSummary{}, err
+		}
+		i++
+
+		attrMap["dedicated: "+dedColumn.Name] = sz
+		totalBytes += sz
+	}
+
+	return genericAttrSummary{
+		totalBytes: totalBytes,
+		attributes: attrMap,
+	}, nil
+}
+
+func aggregateColumn(pf *parquet.File, colName string) (uint64, error) {
+	idx, _ := pq.GetColumnIndexByPath(pf, colName)
+	calc, err := inspect.NewRowStatCalculator(pf, inspect.RowStatOptions{
+		Columns: []int{idx},
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	totalBytes := uint64(0)
+	for {
+		row, err := calc.NextRow()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return 0, err
+		}
+
+		cells := row.Cells()
+
+		bytes := uint64(cells[1].(int))
+		totalBytes += bytes
+	}
+
+	return totalBytes, nil
 }
 
 func printSummary(scope string, max int, summary genericAttrSummary) error {
