@@ -6,6 +6,7 @@ import (
 
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/tsdb/agent"
+	"github.com/prometheus/prometheus/tsdb/wlog"
 )
 
 type Config struct {
@@ -36,13 +37,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 // agentOptions is a copy of agent.Options but with yaml struct tags. Refer to agent.Options for
 // documentation.
 type agentOptions struct {
-	WALSegmentSize    int           `yaml:"wal_segment_size"`
-	WALCompression    bool          `yaml:"wal_compression"`
-	StripeSize        int           `yaml:"stripe_size"`
-	TruncateFrequency time.Duration `yaml:"truncate_frequency"`
-	MinWALTime        int64         `yaml:"min_wal_time"`
-	MaxWALTime        int64         `yaml:"max_wal_time"`
-	NoLockfile        bool          `yaml:"no_lockfile"`
+	WALSegmentSize    int                  `yaml:"wal_segment_size"`
+	WALCompression    wlog.CompressionType `yaml:"wal_compression"`
+	StripeSize        int                  `yaml:"stripe_size"`
+	TruncateFrequency time.Duration        `yaml:"truncate_frequency"`
+	MinWALTime        int64                `yaml:"min_wal_time"`
+	MaxWALTime        int64                `yaml:"max_wal_time"`
+	NoLockfile        bool                 `yaml:"no_lockfile"`
 }
 
 func agentDefaultOptions() agentOptions {
