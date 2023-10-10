@@ -215,7 +215,7 @@ matches from the right hand side of the operator.
 - `{condA} << {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`
 - `{condA} > {condB}` - The child operator (`>`) looks for spans matching `{condB}` that are direct child spans of a parent matching `{condA}`
 - `{condA} < {condB}` - The parent operator (`<`) looks for spans matching `{condB}` that are direct parent spans of a child matching `{condA}`
-- `{condA} ~ {condB}` - The sibling operator (`~`) looks that spans matching `{condB}` that have at least one sibling matching `{condA}`.
+- `{condA} ~ {condB}` - The sibling operator (`~`) looks at spans matching `{condB}` that have at least one sibling matching `{condA}`.
 
 For example, to find a trace where a specific HTTP API interacted with a specific database:
 
@@ -225,14 +225,14 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 
 ### Experimental Structural
 
-These spanset operators look at the structure of a trace and the relationship between the spans. They are marked experimental b/c they
-are known to sometimes return false positives. However, they can be very useful and we encourage users to try them and give feedback.
+These spanset operators look at the structure of a trace and the relationship between the spans. They are marked experimental because they
+are known to sometimes return false positives. However, they can be very useful (see examples below). We encourage users to try them and give feedback.
 
-- `{condA} !>> {condB}` - The not descendant operator (`!>>`) looks for spans matching `{condB}` that are not descendant spans of a parent matching `{condA}`
-- `{condA} !<< {condB}` - The not ancestor operator (`!<<`) looks for spans matching `{condB}` that are not ancestor spans of a child matching `{condA}`
-- `{condA} !> {condB}` - The not child operator (`!>`) looks for spans matching `{condB}` that are not direct child spans of a parent matching `{condA}`
-- `{condA} !< {condB}` - The not parent operator (`!<`) looks for spans matching `{condB}` that are not direct parent spans of a child matching `{condA}`
-- `{condA} !~ {condB}` - The not sibling operator (`!~`) looks that spans matching `{condB}` that do not have at least one sibling matching `{condA}`.
+- `{condA} !>> {condB}` - The not-descendant operator (`!>>`) looks for spans matching `{condB}` that are not descendant spans of a parent matching `{condA}`
+- `{condA} !<< {condB}` - The not-ancestor operator (`!<<`) looks for spans matching `{condB}` that are not ancestor spans of a child matching `{condA}`
+- `{condA} !> {condB}` - The not-child operator (`!>`) looks for spans matching `{condB}` that are not direct child spans of a parent matching `{condA}`
+- `{condA} !< {condB}` - The not-parent operator (`!<`) looks for spans matching `{condB}` that are not direct parent spans of a child matching `{condA}`
+- `{condA} !~ {condB}` - The not-sibling operator (`!~`) looks that spans matching `{condB}` that do not have at least one sibling matching `{condA}`.
 
 For example, to find a trace with a leaf span in the service "foo":
 
