@@ -310,7 +310,7 @@ func aggregateColumn(pf *parquet.File, colName string) (uint64, error) {
 		totalBytes += bytes
 	}
 
-	return uint64(totalBytes), nil
+	return totalBytes, nil
 }
 
 func printSummary(scope string, max int, summary genericAttrSummary) error {
