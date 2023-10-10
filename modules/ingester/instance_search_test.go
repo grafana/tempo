@@ -506,10 +506,10 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())
 					span.EndTimeUnixNano = uint64(now.UnixNano())
-					span.Attributes = append(span.Attributes, kv)
 				}
 			}
 		}
+		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes, kv)
 		trace.SortTrace(testTrace)
 
 		//// Print trace as json string
