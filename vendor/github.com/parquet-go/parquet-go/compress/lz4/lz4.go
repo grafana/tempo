@@ -9,16 +9,17 @@ import (
 type Level = lz4.CompressionLevel
 
 const (
-	Fast   = lz4.Fast
-	Level1 = lz4.Level1
-	Level2 = lz4.Level2
-	Level3 = lz4.Level3
-	Level4 = lz4.Level4
-	Level5 = lz4.Level5
-	Level6 = lz4.Level6
-	Level7 = lz4.Level7
-	Level8 = lz4.Level8
-	Level9 = lz4.Level9
+	Fastest = lz4.CompressionLevel(99)
+	Fast    = lz4.Fast
+	Level1  = lz4.Level1
+	Level2  = lz4.Level2
+	Level3  = lz4.Level3
+	Level4  = lz4.Level4
+	Level5  = lz4.Level5
+	Level6  = lz4.Level6
+	Level7  = lz4.Level7
+	Level8  = lz4.Level8
+	Level9  = lz4.Level9
 )
 
 const (
@@ -38,19 +39,20 @@ func (c *Codec) CompressionCodec() format.CompressionCodec {
 }
 
 func (c *Codec) Encode(dst, src []byte) ([]byte, error) {
-	dst = reserveAtLeast(dst, len(src)/4)
+	dst = reserveAtLeast(dst, lz4.CompressBlockBound(len(src)))
 
-	compressor := lz4.CompressorHC{Level: c.Level}
-	for {
-		n, err := compressor.CompressBlock(src, dst)
-		if err != nil { // see Decode for details about error handling
-			dst = make([]byte, 2*len(dst))
-		} else if n == 0 {
-			dst = reserveAtLeast(dst, lz4.CompressBlockBound(len(src)))
-		} else {
-			return dst[:n], nil
-		}
+	var (
+		n   int
+		err error
+	)
+	if c.Level == Fastest {
+		compressor := lz4.Compressor{}
+		n, err = compressor.CompressBlock(src, dst)
+	} else {
+		compressor := lz4.CompressorHC{Level: c.Level}
+		n, err = compressor.CompressBlock(src, dst)
 	}
+	return dst[:n], err
 }
 
 func (c *Codec) Decode(dst, src []byte) ([]byte, error) {

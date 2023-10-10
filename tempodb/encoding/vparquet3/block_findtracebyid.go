@@ -27,8 +27,8 @@ const (
 
 	TraceIDColumnName = "TraceID"
 
-	EnvVarIndexName          = "VPARQUET_INDEX"
-	EnvVarIndexDisabledValue = "0"
+	EnvVarIndexName         = "VPARQUET_INDEX"
+	EnvVarIndexEnabledValue = "1"
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
@@ -58,7 +58,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 }
 
 func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
-	if os.Getenv(EnvVarIndexName) == EnvVarIndexDisabledValue {
+	if os.Getenv(EnvVarIndexName) != EnvVarIndexEnabledValue {
 		// Index lookup disabled
 		return true, -1, nil
 	}
