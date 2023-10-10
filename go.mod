@@ -35,7 +35,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.2.4
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.16.7
+	github.com/klauspost/compress v1.17.0
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/olekukonko/tablewriter v0.0.5
@@ -109,7 +109,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.74.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.74.0
-	github.com/parquet-go/parquet-go v0.17.0
+	github.com/parquet-go/parquet-go v0.18.1-0.20231002172823-4b0ea5ed3565
 	github.com/stoewer/parquet-cli v0.0.5
 	go.opentelemetry.io/collector/config/configgrpc v0.82.0
 	go.opentelemetry.io/collector/config/confighttp v0.82.0
