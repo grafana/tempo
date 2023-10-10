@@ -392,5 +392,9 @@ func readError(err error) error {
 	if storageError.ServiceCode() == blob.ServiceCodeBlobNotFound {
 		return backend.ErrDoesNotExist
 	}
-	return fmt.Errorf("reading Azure blob container: %w", storageError)
+
+	if err != nil {
+		return fmt.Errorf("reading Azure blob container: %w", storageError)
+	}
+	return nil
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/tracing"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -23,6 +22,7 @@ import (
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 

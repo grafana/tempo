@@ -23,7 +23,6 @@ import (
 
 	"go.opentelemetry.io/otel/internal/global"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/aggregation"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
@@ -58,7 +57,7 @@ func (e *exporter) Temporality(k metric.InstrumentKind) metricdata.Temporality {
 	return e.temporalitySelector(k)
 }
 
-func (e *exporter) Aggregation(k metric.InstrumentKind) aggregation.Aggregation {
+func (e *exporter) Aggregation(k metric.InstrumentKind) metric.Aggregation {
 	return e.aggregationSelector(k)
 }
 
@@ -73,6 +72,9 @@ func (e *exporter) Export(ctx context.Context, data *metricdata.ResourceMetrics)
 	if e.redactTimestamps {
 		redactTimestamps(data)
 	}
+
+	global.Debug("STDOUT exporter export", "Data", data)
+
 	return e.encVal.Load().(encoderHolder).Encode(data)
 }
 
@@ -88,6 +90,10 @@ func (e *exporter) Shutdown(ctx context.Context) error {
 		})
 	})
 	return ctx.Err()
+}
+
+func (e *exporter) MarshalLog() interface{} {
+	return struct{ Type string }{Type: "STDOUT"}
 }
 
 func redactTimestamps(orig *metricdata.ResourceMetrics) {

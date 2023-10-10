@@ -355,6 +355,23 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 	require.True(t, found)
 }
 
+func SearchWSStreamAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
+
+	resp, err := client.SearchWithWebsocket(&tempopb.SearchRequest{
+		Query: query,
+		Start: uint32(start),
+		End:   uint32(end),
+	}, func(sr *tempopb.SearchResponse) {})
+
+	require.NoError(t, err)
+	require.True(t, traceIDInResults(t, info.HexID(), resp))
+}
+
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
 func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {

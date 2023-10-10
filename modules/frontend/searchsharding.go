@@ -224,6 +224,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("query", query)
 	level.Info(s.logger).Log(
 		"msg", "sharded search query request stats and SearchMetrics",
+		"tenant", tenantID,
 		"query", query,
 		"duration_seconds", reqTime,
 		"request_throughput", throughput,

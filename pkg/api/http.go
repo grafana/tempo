@@ -65,6 +65,7 @@ const (
 
 	PathTraces             = "/api/traces/{traceID}"
 	PathSearch             = "/api/search"
+	PathWSSearch           = "/api/search-ws"
 	PathSearchTags         = "/api/search/tags"
 	PathSearchTagValues    = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho               = "/api/echo"
@@ -448,6 +449,9 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	}
 	if searchReq.MinDurationMs != 0 {
 		q.Set(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
+	}
+	if searchReq.SpansPerSpanSet != 0 {
+		q.Set(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 	}
 
 	if len(searchReq.Query) > 0 {
