@@ -12,7 +12,6 @@ import (
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/extension"
@@ -194,18 +193,14 @@ func (c consumerToForwarderAdapter) Capabilities() consumer.Capabilities {
 func newLogger(level dslog.Level) *zap.Logger {
 	zapLevel := zapcore.InfoLevel
 
-	switch level.Logrus {
-	case logrus.PanicLevel:
-		zapLevel = zapcore.PanicLevel
-	case logrus.FatalLevel:
-		zapLevel = zapcore.FatalLevel
-	case logrus.ErrorLevel:
+	switch level.String() {
+	case "error":
 		zapLevel = zapcore.ErrorLevel
-	case logrus.WarnLevel:
+	case "warn":
 		zapLevel = zapcore.WarnLevel
-	case logrus.InfoLevel:
+	case "info":
 		zapLevel = zapcore.InfoLevel
-	case logrus.TraceLevel, logrus.DebugLevel:
+	case "debug":
 		zapLevel = zapcore.DebugLevel
 	}
 
