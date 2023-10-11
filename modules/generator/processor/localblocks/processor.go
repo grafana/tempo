@@ -629,7 +629,7 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 
 		var keepSpans []*v1.Span
 		for _, s := range ss.Spans {
-			if s.Kind == v1.Span_SPAN_KIND_SERVER {
+			if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
 				keepSpans = append(keepSpans, s)
 			}
 		}
