@@ -1,4 +1,5 @@
 ## main / unreleased
+* [BUGFIX] Fix check for zero length attributes correctly in user configurable overrides [#3012](https://github.com/grafana/tempo/pull/3012) (@electron0zero)
 * [ENHANCEMENT] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
 * [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
