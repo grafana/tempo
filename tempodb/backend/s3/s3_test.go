@@ -61,7 +61,6 @@ func TestCredentials(t *testing.T) {
 		envs     map[string]string
 		profile  string
 		expected credentials.Value
-		github   bool
 		irsa     bool
 		imds     bool
 		mocked   bool
@@ -157,19 +156,6 @@ func TestCredentials(t *testing.T) {
 			mocked: true,
 		},
 		{
-			name: "aws-iam-irsa-real",
-			envs: map[string]string{
-				"AWS_ROLE_ARN":          "arn:aws:iam::123456123456:role/tempo-tests",
-				"AWS_ROLE_SESSION_NAME": "tempo",
-			},
-			expected: credentials.Value{
-				SignerType: credentials.SignatureV4,
-			},
-			github: true,
-			irsa:   true,
-			mocked: true,
-		},
-		{
 			name: "aws-iam-imds-mocked",
 			envs: map[string]string{
 				"AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/role-name",
@@ -182,13 +168,6 @@ func TestCredentials(t *testing.T) {
 			imds:   true,
 			mocked: true,
 		},
-		//Note: I think GitHub has a mix of AWS and Azure, so we can't explicitly
-		//      test this for real on GitHub Actions without a custom runner.
-		//{
-		//	name:   "iam - IMDS (real)",
-		//	github: true,
-		//	imds:   true,
-		//},
 	}
 
 	for _, tc := range tests {
@@ -202,29 +181,6 @@ func TestCredentials(t *testing.T) {
 				}
 
 				tc.envs["TEST_IAM_ENDPOINT"] = metadataSrv.URL
-			}
-
-			if tc.github == true && os.Getenv("GITHUB_RUN_ID") == "" {
-				t.Skip("skipping test, not running inside of github actions")
-			}
-
-			if tc.github == true && tc.irsa == true && os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL") != "" {
-				// get token from GitHub actions
-				token, err := fetchGitHubActionsToken()
-				require.NoError(t, err)
-
-				tempFile, err := os.CreateTemp(os.TempDir(), "tempo-s3")
-				require.NoError(t, err)
-				defer func(path string) {
-					err := os.RemoveAll(path)
-					require.NoError(t, err)
-				}(tempFile.Name())
-				_, err3 := tempFile.Write([]byte(token))
-				require.NoError(t, err3)
-				err4 := tempFile.Close()
-				require.NoError(t, err4)
-
-				tc.envs["AWS_WEB_IDENTITY_TOKEN_FILE"] = tempFile.Name()
 			}
 
 			closer := envSetter(tc.envs)
