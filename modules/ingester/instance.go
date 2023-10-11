@@ -51,7 +51,7 @@ func newMaxLiveTracesError(instanceID string, limit string) error {
 }
 
 const (
-	traceDataType = "trace"
+	traceDataType         = "trace"
 )
 
 var (
