@@ -6,6 +6,7 @@
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
 * [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
 * [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
+* [FEATURE] Added not structural operators to TraceQL: !>, !<, and !~ [#2993](https://github.com/grafana/tempo/pull/2993) (@joe-elliott)
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)

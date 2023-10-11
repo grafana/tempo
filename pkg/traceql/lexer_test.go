@@ -66,6 +66,17 @@ func TestLexerAttributes(t *testing.T) {
 	}))
 }
 
+func TestLexerMultitokens(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		// attributes
+		{`&&`, []int{AND}},
+		{`>>`, []int{DESC}},
+		{`!<<`, []int{NOT_ANCE}},
+		{`!`, []int{NOT}},
+		{`!~`, []int{NRE}},
+	}))
+}
+
 func TestLexerDuration(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		// duration
@@ -131,6 +142,7 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 				}
 				actual = append(actual, tok)
 			}
+
 			require.Equal(t, tc.expected, actual)
 		})
 	}

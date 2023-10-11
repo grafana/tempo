@@ -154,7 +154,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
 		if s.isNew() {
-			_, err = appender.Append(0, lb.Labels(nil), timeMs, 0)
+			_, err = appender.Append(0, lb.Labels(), timeMs, 0)
 			if err != nil {
 				return
 			}
@@ -163,7 +163,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			s.registerSeenSeries()
 		}
 
-		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, lb.Labels(), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}

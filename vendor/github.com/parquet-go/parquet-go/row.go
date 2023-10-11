@@ -444,6 +444,10 @@ func deconstructFuncOfOptional(columnIndex int16, node Node) (int16, deconstruct
 func deconstructFuncOfRepeated(columnIndex int16, node Node) (int16, deconstructFunc) {
 	columnIndex, deconstruct := deconstructFuncOf(columnIndex, Required(node))
 	return columnIndex, func(columns [][]Value, levels levels, value reflect.Value) {
+		if value.Kind() == reflect.Interface {
+			value = value.Elem()
+		}
+
 		if !value.IsValid() || value.Len() == 0 {
 			deconstruct(columns, levels, reflect.Value{})
 			return
