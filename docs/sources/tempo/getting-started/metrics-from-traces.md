@@ -20,7 +20,7 @@ For more information about RED method, refer to [The RED Method: How to instrume
 
 ## Use-cases for span metrics
 
-Metrics-generator is an optional Tempo component that derives metrics from ingested traces. The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
+The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
 
 Span metrics are of particular interest if your system is not monitored with metrics but it has distributed tracing implemented. You get out-of-the-box metrics from your tracing pipeline.
 
