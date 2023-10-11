@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -289,6 +290,8 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides, PerTenantOverr
 	baseOverrides, err := NewOverrides(baseCfg)
 	assert.NoError(t, err)
 
+	// have to overwrite the registry or test panics with multiple metric reg
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	configurableOverrides, err := newUserConfigOverrides(cfg, baseOverrides)
 	assert.NoError(t, err)
 
