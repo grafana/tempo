@@ -77,6 +77,11 @@ var (
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
 	}, []string{"tenant"})
+	metricDebugSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_debug_spans_received_total",
+		Help:      "Debug counters for spans received per tenant",
+	}, []string{"tenant", "name", "service"})
 	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_bytes_received_total",
@@ -326,12 +331,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	batches := trace.Batches
 
-	if d.cfg.LogReceivedSpans.Enabled || d.cfg.LogReceivedTraces {
-		if d.cfg.LogReceivedSpans.IncludeAllAttributes {
-			logSpansWithAllAttributes(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
-		} else {
-			logSpans(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
-		}
+	if d.cfg.LogReceivedSpans.Enabled {
+		logSpans(batches, &d.cfg.LogReceivedSpans, d.logger)
+	}
+	if d.cfg.MetricReceivedSpans.Enabled {
+		metricSpans(batches, userID, &d.cfg.MetricReceivedSpans)
 	}
 
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
@@ -542,59 +546,71 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 	}
 }
 
-func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
+func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceivedSpansConfig) {
 	for _, b := range batches {
+		serviceName := ""
+		if b.Resource != nil {
+			for _, a := range b.Resource.GetAttributes() {
+				if a.GetKey() == "service.name" {
+					serviceName = a.Value.GetStringValue()
+					break
+				}
+			}
+		}
+
 		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {
-				if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+				if cfg.RootOnly && len(s.ParentSpanId) != 0 {
 					continue
 				}
-				level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+
+				metricDebugSpansIngested.WithLabelValues(tenantID, s.Name, serviceName).Inc()
 			}
 		}
 	}
 }
 
-func logSpansWithAllAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
-	for _, b := range batch {
-		logSpansInResourceWithAllAttributes(b, filterByStatusError, logger)
-	}
-}
+func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger log.Logger) {
+	for _, b := range batches {
+		if cfg.IncludeAllAttributes {
+			for _, a := range b.Resource.GetAttributes() {
+				logger = log.With(
+					logger,
+					"span_"+strutil.SanitizeLabelName(a.GetKey()),
+					tempo_util.StringifyAnyValue(a.GetValue()))
 
-func logSpansInResourceWithAllAttributes(rs *v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
-	for _, a := range rs.Resource.GetAttributes() {
-		logger = log.With(
-			logger,
-			"span_"+strutil.SanitizeLabelName(a.GetKey()),
-			tempo_util.StringifyAnyValue(a.GetValue()))
-	}
-
-	for _, ils := range rs.ScopeSpans {
-		for _, s := range ils.Spans {
-			if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
-				continue
 			}
+		}
 
-			logSpanWithAllAttributes(s, logger)
+		for _, ils := range b.ScopeSpans {
+			for _, s := range ils.Spans {
+				if cfg.FilterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+					continue
+				}
+
+				logSpan(s, cfg.IncludeAllAttributes, logger)
+			}
 		}
 	}
 }
 
-func logSpanWithAllAttributes(s *v1.Span, logger log.Logger) {
-	for _, a := range s.GetAttributes() {
+func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) { //jpe name
+	if allAttributes {
+		for _, a := range s.GetAttributes() {
+			logger = log.With(
+				logger,
+				"span_"+strutil.SanitizeLabelName(a.GetKey()),
+				tempo_util.StringifyAnyValue(a.GetValue()))
+		}
+
+		latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 		logger = log.With(
 			logger,
-			"span_"+strutil.SanitizeLabelName(a.GetKey()),
-			tempo_util.StringifyAnyValue(a.GetValue()))
+			"span_name", s.Name,
+			"span_duration_seconds", latencySeconds,
+			"span_kind", s.GetKind().String(),
+			"span_status", s.GetStatus().GetCode().String())
 	}
-
-	latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
-	logger = log.With(
-		logger,
-		"span_name", s.Name,
-		"span_duration_seconds", latencySeconds,
-		"span_kind", s.GetKind().String(),
-		"span_status", s.GetStatus().GetCode().String())
 
 	level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 }
