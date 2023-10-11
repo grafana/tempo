@@ -3,6 +3,7 @@ package images
 var (
 	// These are variables so that they can be modified.
 	Memcached        = "memcached:1.6.12"
+	Redis            = "redis:7.0.7"
 	Minio            = "minio/minio:RELEASE.2021-10-13T00-23-17Z"
 	KES              = "minio/kes:v0.17.1"
 	Consul           = "consul:1.8.15"
