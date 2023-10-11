@@ -55,5 +55,8 @@ func readError(err error) error {
 		return backend.ErrDoesNotExist
 	}
 
-	return fmt.Errorf("reading Azure blob container: %w", err)
+	if err != nil {
+		return fmt.Errorf("reading Azure blob container: %w", err)
+	}
+	return nil
 }

@@ -5,12 +5,17 @@
 package httpgrpc
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/go-kit/log/level"
+	"google.golang.org/grpc/metadata"
 
 	spb "github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
-	log "github.com/sirupsen/logrus"
+
+	"github.com/grafana/dskit/log"
 )
 
 // Errorf returns a HTTP gRPC error than is correctly forwarded over
@@ -51,9 +56,21 @@ func HTTPResponseFromError(err error) (*HTTPResponse, bool) {
 
 	var resp HTTPResponse
 	if err := types.UnmarshalAny(status.Details[0], &resp); err != nil {
-		log.Errorf("Got error containing non-response: %v", err)
+		level.Error(log.Global()).Log("msg", "got error containing non-response", "err", err)
 		return nil, false
 	}
 
 	return &resp, true
+}
+
+const (
+	MetadataMethod = "httpgrpc-method"
+	MetadataURL    = "httpgrpc-url"
+)
+
+// AppendRequestMetadataToContext appends metadata of HTTPRequest into gRPC metadata.
+func AppendRequestMetadataToContext(ctx context.Context, req *HTTPRequest) context.Context {
+	return metadata.AppendToOutgoingContext(ctx,
+		MetadataMethod, req.Method,
+		MetadataURL, req.Url)
 }

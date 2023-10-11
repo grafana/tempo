@@ -26,7 +26,7 @@ const (
 
 var defaultAuthFunctions = authFunctions{
 	NewOAuthConfigFunc: adal.NewOAuthConfig,
-	NewServicePrincipalTokenFromFederatedTokenFunc: adal.NewServicePrincipalTokenFromFederatedToken,
+	NewServicePrincipalTokenFromFederatedTokenFunc: adal.NewServicePrincipalTokenFromFederatedToken, //nolint:all //deprecated
 }
 
 type authFunctions struct {

@@ -294,7 +294,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	case localblocks.Name:
-		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL)
+		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.overrides)
 		if err != nil {
 			return err
 		}

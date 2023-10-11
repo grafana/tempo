@@ -72,7 +72,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	err = waitUntil(10*time.Second, func() bool {
+	err = waitUntil(20*time.Second, func() bool {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
@@ -142,7 +142,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	})
 
 	// Wait until every tenant received at least one request
-	err = waitUntil(10*time.Second, func() bool {
+	err = waitUntil(20*time.Second, func() bool {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 

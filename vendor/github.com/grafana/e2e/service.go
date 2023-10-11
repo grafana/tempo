@@ -40,6 +40,7 @@ type ConcreteService struct {
 	command      *Command
 	cmd          *exec.Cmd
 	readiness    ReadinessProbe
+	privileged   bool
 
 	// Maps container ports to dynamically binded local ports.
 	networkPortsContainerToLocal map[int]int
@@ -69,7 +70,7 @@ func NewConcreteService(
 		retryBackoff: backoff.New(context.Background(), backoff.Config{
 			MinBackoff: 300 * time.Millisecond,
 			MaxBackoff: 600 * time.Millisecond,
-			MaxRetries: 50, // Sometimes the CI is slow ¯\_(ツ)_/¯
+			MaxRetries: 100, // Sometimes the CI is slow ¯\_(ツ)_/¯
 		}),
 	}
 }
@@ -92,6 +93,10 @@ func (s *ConcreteService) SetEnvVars(env map[string]string) {
 
 func (s *ConcreteService) SetUser(user string) {
 	s.user = user
+}
+
+func (s *ConcreteService) SetPrivileged(privileged bool) {
+	s.privileged = privileged
 }
 
 func (s *ConcreteService) Start(networkName, sharedDir string) (err error) {
@@ -297,6 +302,11 @@ func (s *ConcreteService) WaitReady() (err error) {
 
 func (s *ConcreteService) buildDockerRunArgs(networkName, sharedDir string) []string {
 	args := []string{"run", "--rm", "--net=" + networkName, "--name=" + networkName + "-" + s.name, "--hostname=" + s.name}
+
+	// If running a dind container, this needs to be privileged.
+	if s.privileged {
+		args = append(args, "--privileged")
+	}
 
 	// For Drone CI users, expire the container after 6 hours using drone-gc
 	args = append(args, "--label", fmt.Sprintf("io.drone.expires=%d", time.Now().Add(6*time.Hour).Unix()))
@@ -540,7 +550,8 @@ func (w *LinePrefixLogger) Write(p []byte) (n int, err error) {
 type HTTPService struct {
 	*ConcreteService
 
-	httpPort int
+	metricsTimeout time.Duration
+	httpPort       int
 }
 
 func NewHTTPService(
@@ -553,8 +564,13 @@ func NewHTTPService(
 ) *HTTPService {
 	return &HTTPService{
 		ConcreteService: NewConcreteService(name, image, command, readiness, append(otherPorts, httpPort)...),
+		metricsTimeout:  time.Second,
 		httpPort:        httpPort,
 	}
+}
+
+func (s *HTTPService) SetMetricsTimeout(timeout time.Duration) {
+	s.metricsTimeout = timeout
 }
 
 func (s *HTTPService) Metrics() (_ string, err error) {
@@ -564,7 +580,7 @@ func (s *HTTPService) Metrics() (_ string, err error) {
 	// Fetch metrics.
 	// Use an IPv4 address instead of "localhost" hostname because our port mapping assumes IPv4
 	// (a port published by a Docker container could be different between IPv4 and IPv6).
-	res, err := DoGet(fmt.Sprintf("http://127.0.0.1:%d/metrics", localPort))
+	res, err := DoGetWithTimeout(fmt.Sprintf("http://127.0.0.1:%d/metrics", localPort), s.metricsTimeout)
 	if err != nil {
 		return "", err
 	}

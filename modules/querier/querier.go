@@ -42,7 +42,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// jpe - ditch unretyrable error
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -100,11 +99,11 @@ func New(
 	store storage.Store,
 	limits overrides.Interface,
 ) (*Querier, error) {
-	ingesterClientFactory := func(addr string) (ring_client.PoolClient, error) {
+	var ingesterClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return ingester_client.New(addr, ingesterClientConfig)
 	}
 
-	generatorClientFactory := func(addr string) (ring_client.PoolClient, error) {
+	var generatorClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return generator_client.New(addr, generatorClientConfig)
 	}
 

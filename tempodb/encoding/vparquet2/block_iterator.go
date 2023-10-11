@@ -72,7 +72,10 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 		return nil, nil, nil
 	}
 
-	return nil, nil, fmt.Errorf("error iterating through block %s: %w", i.blockID, err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error iterating through block %s: %w", i.blockID, err)
+	}
+	return nil, nil, nil
 }
 
 func (i *rawIterator) peekNextID(context.Context) (common.ID, error) { // nolint:unused // this is required to satisfy the bookmarkIterator interface

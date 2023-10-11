@@ -368,6 +368,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
 	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
+	searchWSHandler := middleware.Wrap(queryFrontend.SearchWSHandler)
 	spanMetricsSummaryHandler := middleware.Wrap(queryFrontend.SpanMetricsSummaryHandler)
 	searchTagsHandler := middleware.Wrap(queryFrontend.SearchTagsHandler)
 
@@ -383,6 +384,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// http search endpoints
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), searchHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), searchWSHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchTagsHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchTagsHandler)
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchTagsHandler)

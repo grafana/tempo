@@ -22,7 +22,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/prometheus/prometheus/config"
@@ -66,7 +66,7 @@ const (
 // ErrNotReady is returned if the underlying storage is not ready yet.
 var ErrNotReady = errors.New("TSDB not ready")
 
-// DefaultOptions used for the DB. They are sane for setups using
+// DefaultOptions used for the DB. They are reasonable for setups using
 // millisecond precision timestamps.
 func DefaultOptions() *Options {
 	return &Options{
@@ -77,10 +77,12 @@ func DefaultOptions() *Options {
 		MaxBlockDuration:           DefaultBlockDuration,
 		NoLockfile:                 false,
 		AllowOverlappingCompaction: true,
-		WALCompression:             false,
+		SamplesPerChunk:            DefaultSamplesPerChunk,
+		WALCompression:             wlog.CompressionNone,
 		StripeSize:                 DefaultStripeSize,
 		HeadChunksWriteBufferSize:  chunks.DefaultWriteBufferSize,
 		IsolationDisabled:          defaultIsolationDisabled,
+		HeadChunksWriteQueueSize:   chunks.DefaultWriteQueueSize,
 		OutOfOrderCapMax:           DefaultOutOfOrderCapMax,
 	}
 }
@@ -121,8 +123,12 @@ type Options struct {
 	// For Prometheus, this will always be true.
 	AllowOverlappingCompaction bool
 
-	// WALCompression will turn on Snappy compression for records on the WAL.
-	WALCompression bool
+	// WALCompression configures the compression type to use on records in the WAL.
+	WALCompression wlog.CompressionType
+
+	// Maximum number of CPUs that can simultaneously processes WAL replay.
+	// If it is <=0, then GOMAXPROCS is used.
+	WALReplayConcurrency int
 
 	// StripeSize is the size in entries of the series hash map. Reducing the size will save memory but impact performance.
 	StripeSize int
@@ -143,6 +149,9 @@ type Options struct {
 
 	// HeadChunksWriteQueueSize configures the size of the chunk write queue used in the head chunks mapper.
 	HeadChunksWriteQueueSize int
+
+	// SamplesPerChunk configures the target number of samples per chunk.
+	SamplesPerChunk int
 
 	// SeriesLifecycleCallback specifies a list of callbacks that will be called during a lifecycle of a series.
 	// It is always a no-op in Prometheus and mainly meant for external users who import TSDB.
@@ -165,6 +174,9 @@ type Options struct {
 
 	// Disables isolation between reads and in-flight appends.
 	IsolationDisabled bool
+
+	// EnableNativeHistograms enables the ingestion of native histograms.
+	EnableNativeHistograms bool
 
 	// OutOfOrderTimeWindow specifies how much out of order is allowed, if any.
 	// This can change during run-time, so this value from here should only be used
@@ -217,6 +229,8 @@ type DB struct {
 	// out-of-order compaction and vertical queries.
 	oooWasEnabled atomic.Bool
 
+	writeNotified wlog.WriteNotified
+
 	registerer prometheus.Registerer
 }
 
@@ -252,7 +266,7 @@ func newDBMetrics(db *DB, r prometheus.Registerer) *dbMetrics {
 		Help: "Size of symbol table in memory for loaded blocks",
 	}, func() float64 {
 		db.mtx.RLock()
-		blocks := db.blocks[:]
+		blocks := db.blocks
 		db.mtx.RUnlock()
 		symTblSize := uint64(0)
 		for _, b := range blocks {
@@ -565,8 +579,8 @@ func (db *DBReadOnly) Blocks() ([]BlockReader, error) {
 		return nil, nil
 	}
 
-	sort.Slice(loadable, func(i, j int) bool {
-		return loadable[i].Meta().MinTime < loadable[j].Meta().MinTime
+	slices.SortFunc(loadable, func(a, b *Block) bool {
+		return a.Meta().MinTime < b.Meta().MinTime
 	})
 
 	blockMetas := make([]BlockMeta, 0, len(loadable))
@@ -591,6 +605,60 @@ func (db *DBReadOnly) Blocks() ([]BlockReader, error) {
 	db.closers = blockClosers
 
 	return blockReaders, nil
+}
+
+// LastBlockID returns the BlockID of latest block.
+func (db *DBReadOnly) LastBlockID() (string, error) {
+	entries, err := os.ReadDir(db.dir)
+	if err != nil {
+		return "", err
+	}
+
+	max := uint64(0)
+
+	lastBlockID := ""
+
+	for _, e := range entries {
+		// Check if dir is a block dir or not.
+		dirName := e.Name()
+		ulidObj, err := ulid.ParseStrict(dirName)
+		if err != nil {
+			continue // Not a block dir.
+		}
+		timestamp := ulidObj.Time()
+		if timestamp > max {
+			max = timestamp
+			lastBlockID = dirName
+		}
+	}
+
+	if lastBlockID == "" {
+		return "", errors.New("no blocks found")
+	}
+
+	return lastBlockID, nil
+}
+
+// Block returns a block reader by given block id.
+func (db *DBReadOnly) Block(blockID string) (BlockReader, error) {
+	select {
+	case <-db.closed:
+		return nil, ErrClosed
+	default:
+	}
+
+	_, err := os.Stat(filepath.Join(db.dir, blockID))
+	if os.IsNotExist(err) {
+		return nil, errors.Errorf("invalid block ID %s", blockID)
+	}
+
+	block, err := OpenBlock(db.logger, filepath.Join(db.dir, blockID), nil)
+	if err != nil {
+		return nil, err
+	}
+	db.closers = append(db.closers, block)
+
+	return block, nil
 }
 
 // Close all block readers.
@@ -625,6 +693,9 @@ func validateOpts(opts *Options, rngs []int64) (*Options, []int64) {
 	}
 	if opts.HeadChunksWriteQueueSize < 0 {
 		opts.HeadChunksWriteQueueSize = chunks.DefaultWriteQueueSize
+	}
+	if opts.SamplesPerChunk <= 0 {
+		opts.SamplesPerChunk = DefaultSamplesPerChunk
 	}
 	if opts.MaxBlockChunkSegmentSize <= 0 {
 		opts.MaxBlockChunkSegmentSize = chunks.DefaultChunkSegmentSize
@@ -770,13 +841,18 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 	headOpts.ChunkPool = db.chunkPool
 	headOpts.ChunkWriteBufferSize = opts.HeadChunksWriteBufferSize
 	headOpts.ChunkWriteQueueSize = opts.HeadChunksWriteQueueSize
+	headOpts.SamplesPerChunk = opts.SamplesPerChunk
 	headOpts.StripeSize = opts.StripeSize
 	headOpts.SeriesCallback = opts.SeriesLifecycleCallback
 	headOpts.EnableExemplarStorage = opts.EnableExemplarStorage
 	headOpts.MaxExemplars.Store(opts.MaxExemplars)
 	headOpts.EnableMemorySnapshotOnShutdown = opts.EnableMemorySnapshotOnShutdown
+	headOpts.EnableNativeHistograms.Store(opts.EnableNativeHistograms)
 	headOpts.OutOfOrderTimeWindow.Store(opts.OutOfOrderTimeWindow)
 	headOpts.OutOfOrderCapMax.Store(opts.OutOfOrderCapMax)
+	if opts.WALReplayConcurrency > 0 {
+		headOpts.WALReplayConcurrency = opts.WALReplayConcurrency
+	}
 	if opts.IsolationDisabled {
 		// We only override this flag if isolation is disabled at DB level. We use the default otherwise.
 		headOpts.IsolationDisabled = opts.IsolationDisabled
@@ -785,6 +861,7 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 	if err != nil {
 		return nil, err
 	}
+	db.head.writeNotified = db.writeNotified
 
 	// Register metrics after assigning the head block.
 	db.metrics = newDBMetrics(db, r)
@@ -816,11 +893,13 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 			if err := wbl.Repair(initErr); err != nil {
 				return nil, errors.Wrap(err, "repair corrupted OOO WAL")
 			}
+			level.Info(db.logger).Log("msg", "Successfully repaired OOO WAL")
 		} else {
 			level.Warn(db.logger).Log("msg", "Encountered WAL read error, attempting repair", "err", initErr)
 			if err := wal.Repair(initErr); err != nil {
 				return nil, errors.Wrap(err, "repair corrupted WAL")
 			}
+			level.Info(db.logger).Log("msg", "Successfully repaired WAL")
 		}
 	}
 
@@ -894,6 +973,8 @@ func (db *DB) run() {
 			case db.compactc <- struct{}{}:
 			default:
 			}
+			// We attempt mmapping of head chunks regularly.
+			db.head.mmapHeadChunks()
 		case <-db.compactc:
 			db.metrics.compactionsTriggered.Inc()
 
@@ -949,10 +1030,11 @@ func (db *DB) ApplyConfig(conf *config.Config) error {
 	// Create WBL if it was not present and if OOO is enabled with WAL enabled.
 	var wblog *wlog.WL
 	var err error
-	if db.head.wbl != nil {
+	switch {
+	case db.head.wbl != nil:
 		// The existing WBL from the disk might have been replayed while OOO was disabled.
 		wblog = db.head.wbl
-	} else if !db.oooWasEnabled.Load() && oooTimeWindow > 0 && db.opts.WALSegmentSize >= 0 {
+	case !db.oooWasEnabled.Load() && oooTimeWindow > 0 && db.opts.WALSegmentSize >= 0:
 		segmentSize := wlog.DefaultSegmentSize
 		// Wal is set to a custom size.
 		if db.opts.WALSegmentSize > 0 {
@@ -974,6 +1056,16 @@ func (db *DB) ApplyConfig(conf *config.Config) error {
 	return nil
 }
 
+// EnableNativeHistograms enables the native histogram feature.
+func (db *DB) EnableNativeHistograms() {
+	db.head.EnableNativeHistograms()
+}
+
+// DisableNativeHistograms disables the native histogram feature.
+func (db *DB) DisableNativeHistograms() {
+	db.head.DisableNativeHistograms()
+}
+
 // dbAppender wraps the DB's head appender and triggers compactions on commit
 // if necessary.
 type dbAppender struct {
@@ -983,11 +1075,11 @@ type dbAppender struct {
 
 var _ storage.GetRef = dbAppender{}
 
-func (a dbAppender) GetRef(lset labels.Labels) (storage.SeriesRef, labels.Labels) {
+func (a dbAppender) GetRef(lset labels.Labels, hash uint64) (storage.SeriesRef, labels.Labels) {
 	if g, ok := a.Appender.(storage.GetRef); ok {
-		return g.GetRef(lset)
+		return g.GetRef(lset, hash)
 	}
-	return 0, nil
+	return 0, labels.EmptyLabels()
 }
 
 func (a dbAppender) Commit() error {
@@ -1162,7 +1254,7 @@ func (db *DB) compactOOO(dest string, oooHead *OOOCompactionHead) (_ []ulid.ULID
 		}
 	}()
 
-	for t := blockSize * (oooHeadMint / blockSize); t <= oooHeadMaxt; t = t + blockSize {
+	for t := blockSize * (oooHeadMint / blockSize); t <= oooHeadMaxt; t += blockSize {
 		mint, maxt := t, t+blockSize
 		// Block intervals are half-open: [b.MinTime, b.MaxTime). Block intervals are always +1 than the total samples it includes.
 		uid, err := db.compactor.Write(dest, oooHead.CloneForTimeRange(mint, maxt-1), mint, maxt, nil)
@@ -1355,8 +1447,8 @@ func (db *DB) reloadBlocks() (err error) {
 	}
 	db.metrics.blocksBytes.Set(float64(blocksSize))
 
-	sort.Slice(toLoad, func(i, j int) bool {
-		return toLoad[i].Meta().MinTime < toLoad[j].Meta().MinTime
+	slices.SortFunc(toLoad, func(a, b *Block) bool {
+		return a.Meta().MinTime < b.Meta().MinTime
 	})
 
 	// Swap new blocks first for subsequently created readers to be seen.
@@ -1425,8 +1517,8 @@ func deletableBlocks(db *DB, blocks []*Block) map[ulid.ULID]struct{} {
 
 	// Sort the blocks by time - newest to oldest (largest to smallest timestamp).
 	// This ensures that the retentions will remove the oldest  blocks.
-	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].Meta().MaxTime > blocks[j].Meta().MaxTime
+	slices.SortFunc(blocks, func(a, b *Block) bool {
+		return a.Meta().MaxTime > b.Meta().MaxTime
 	})
 
 	for _, block := range blocks {
@@ -1484,7 +1576,7 @@ func BeyondSizeRetention(db *DB, blocks []*Block) (deletable map[ulid.ULID]struc
 	blocksSize := db.Head().Size()
 	for i, block := range blocks {
 		blocksSize += block.Size()
-		if blocksSize > int64(db.opts.MaxBytes) {
+		if blocksSize > db.opts.MaxBytes {
 			// Add this and all following blocks for deletion.
 			for _, b := range blocks[i:] {
 				deletable[b.meta.ULID] = struct{}{}
@@ -1508,10 +1600,11 @@ func (db *DB) deleteBlocks(blocks map[ulid.ULID]*Block) error {
 		}
 
 		toDelete := filepath.Join(db.dir, ulid.String())
-		if _, err := os.Stat(toDelete); os.IsNotExist(err) {
+		switch _, err := os.Stat(toDelete); {
+		case os.IsNotExist(err):
 			// Noop.
 			continue
-		} else if err != nil {
+		case err != nil:
 			return errors.Wrapf(err, "stat dir %v", toDelete)
 		}
 
@@ -1815,7 +1908,7 @@ func (db *DB) Querier(_ context.Context, mint, maxt int64) (storage.Querier, err
 	return storage.NewMergeQuerier(blockQueriers, nil, storage.ChainedSeriesMerge), nil
 }
 
-// blockQueriersForRange returns individual block chunk queriers from the persistent blocks, in-order head block, and the
+// blockChunkQuerierForRange returns individual block chunk queriers from the persistent blocks, in-order head block, and the
 // out-of-order head block, overlapping with the given time range.
 func (db *DB) blockChunkQuerierForRange(mint, maxt int64) ([]storage.ChunkQuerier, error) {
 	var blocks []BlockReader
@@ -1939,7 +2032,9 @@ func (db *DB) CleanTombstones() (err error) {
 	defer db.cmtx.Unlock()
 
 	start := time.Now()
-	defer db.metrics.tombCleanTimer.Observe(time.Since(start).Seconds())
+	defer func() {
+		db.metrics.tombCleanTimer.Observe(time.Since(start).Seconds())
+	}()
 
 	cleanUpCompleted := false
 	// Repeat cleanup until there is no tombstones left.
@@ -1983,6 +2078,12 @@ func (db *DB) CleanTombstones() (err error) {
 	return nil
 }
 
+func (db *DB) SetWriteNotified(wn wlog.WriteNotified) {
+	db.writeNotified = wn
+	// It's possible we already created the head struct, so we should also set the WN for that.
+	db.head.writeNotified = wn
+}
+
 func isBlockDir(fi fs.DirEntry) bool {
 	if !fi.IsDir() {
 		return false
@@ -1991,7 +2092,8 @@ func isBlockDir(fi fs.DirEntry) bool {
 	return err == nil
 }
 
-// isTmpDir returns true if the given file-info contains a block ULID or checkpoint prefix and a tmp extension.
+// isTmpDir returns true if the given file-info contains a block ULID, a checkpoint prefix,
+// or a chunk snapshot prefix and a tmp extension.
 func isTmpDir(fi fs.DirEntry) bool {
 	if !fi.IsDir() {
 		return false
@@ -2001,6 +2103,9 @@ func isTmpDir(fi fs.DirEntry) bool {
 	ext := filepath.Ext(fn)
 	if ext == tmpForDeletionBlockDirSuffix || ext == tmpForCreationBlockDirSuffix || ext == tmpLegacy {
 		if strings.HasPrefix(fn, "checkpoint.") {
+			return true
+		}
+		if strings.HasPrefix(fn, chunkSnapshotPrefix) {
 			return true
 		}
 		if _, err := ulid.ParseStrict(fn[:len(fn)-len(ext)]); err == nil {

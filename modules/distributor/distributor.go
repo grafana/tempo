@@ -196,13 +196,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		logger:               logger,
 	}
 
+	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
+		return generator_client.New(addr, generatorClientCfg)
+	}
 	d.generatorsPool = ring_client.NewPool(
 		"distributor_metrics_generator_pool",
 		generatorClientCfg.PoolConfig,
 		ring_client.NewRingServiceDiscovery(generatorsRing),
-		func(addr string) (ring_client.PoolClient, error) {
-			return generator_client.New(addr, generatorClientCfg)
-		},
+		generatorsPoolFactory,
 		metricGeneratorClients,
 		logger,
 	)
@@ -434,8 +435,9 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
+			return fmt.Errorf("failed to push spans to generator: %w", err)
 		}
-		return fmt.Errorf("failed to push spans to generator: %w", err)
+		return nil
 	}, func() {})
 
 	return err

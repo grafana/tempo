@@ -20,11 +20,11 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel/internal/global"
-	"go.opentelemetry.io/otel/sdk/metric/aggregation"
 )
 
 var (
 	errMultiInst = errors.New("name replacement for multiple instruments")
+	errEmptyView = errors.New("no criteria provided for view")
 
 	emptyView = func(Instrument) (Stream, bool) { return Stream{}, false }
 )
@@ -55,6 +55,10 @@ type View func(Instrument) (Stream, bool)
 // View, create a View directly.
 func NewView(criteria Instrument, mask Stream) View {
 	if criteria.empty() {
+		global.Error(
+			errEmptyView, "dropping view",
+			"mask", mask,
+		)
 		return emptyView
 	}
 
@@ -87,10 +91,10 @@ func NewView(criteria Instrument, mask Stream) View {
 		matchFunc = criteria.matches
 	}
 
-	var agg aggregation.Aggregation
+	var agg Aggregation
 	if mask.Aggregation != nil {
-		agg = mask.Aggregation.Copy()
-		if err := agg.Err(); err != nil {
+		agg = mask.Aggregation.copy()
+		if err := agg.err(); err != nil {
 			global.Error(
 				err, "not using aggregation with view",
 				"criteria", criteria,
