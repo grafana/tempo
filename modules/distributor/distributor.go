@@ -33,9 +33,9 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	pklog "github.com/grafana/tempo/pkg/util/log"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+	pklog "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -426,7 +426,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			reqBatchIndex := indexes[ringIndex]
 			if reqBatchIndex < numOfTraces {
 				batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
-			}else {
+			} else {
 				level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
 			}
 		}
@@ -579,6 +579,9 @@ func countDiscaredSpans(batchResults [][]tempopb.PushErrorReason, traces []*reba
 	for reqBatchIndex, errorsByTrace := range batchResults {
 		numSuccess := 0
 		var lastError tempopb.PushErrorReason
+		if errorsByTrace == nil { // for when we rollout this new proto change
+			continue
+		}
 		for _, err := range errorsByTrace {
 			if err == tempopb.PushErrorReason_NO_ERROR {
 				numSuccess++

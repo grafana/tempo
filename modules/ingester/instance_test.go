@@ -989,8 +989,8 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 	}
 
 	return &tempopb.PushBytesRequest{
-		Ids:        byteIDs,
-		Traces:     byteTraces,
+		Ids:    byteIDs,
+		Traces: byteTraces,
 	}
 }
 

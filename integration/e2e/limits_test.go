@@ -2,8 +2,8 @@ package e2e
 
 import (
 	"context"
-	"encoding/binary"
 	crand "crypto/rand"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -26,7 +26,7 @@ import (
 
 const (
 	configLimits             = "config-limits.yaml"
-	configLimitsQuery = "config-limits-query.yaml"
+	configLimitsQuery        = "config-limits-query.yaml"
 	configLimitsPartialError = "config-limits-partial-success.yaml"
 )
 

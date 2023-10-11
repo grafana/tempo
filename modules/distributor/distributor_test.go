@@ -1029,10 +1029,10 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 	noError := tempopb.PushErrorReason_NO_ERROR
 	maxLiveTraceError := tempopb.PushErrorReason_MAX_LIVE_TRACES
 	traceTooLargeError := tempopb.PushErrorReason_TRACE_TOO_LARGE
-	
+
 	tt := []struct {
 		name                                string
-		PushErrorByTrace                        [][]tempopb.PushErrorReason
+		PushErrorByTrace                    [][]tempopb.PushErrorReason
 		replicationFactor                   int
 		expectedLiveTracesDiscardedCount    int
 		expectedTraceTooLargeDiscardedCount int
@@ -1044,98 +1044,98 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 		// trace[2] = 15 spans
 		{
 			name:                                "no errors, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "no error, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "one mlt error, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    5,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "one mlt error, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "one ttl error, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "one ttl error, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "two mlt errors, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {maxLiveTraceError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {maxLiveTraceError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    5,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "two ttl errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "three ttl errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "three mix errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, maxLiveTraceError, noError}, {noError, traceTooLargeError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, maxLiveTraceError, noError}, {noError, traceTooLargeError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "three mix trace errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, traceTooLargeError}, {noError, maxLiveTraceError, traceTooLargeError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, traceTooLargeError}, {noError, maxLiveTraceError, traceTooLargeError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    10,
 			expectedTraceTooLargeDiscardedCount: 15,
 		},
 		{
 			name:                                "one ttl error rep factor 5 min (3) response",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   5,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "one error rep factor 5 with 4 responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   5,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "replication factor 1",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}},
 			replicationFactor:                   1,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
@@ -1178,10 +1178,10 @@ func TestDiscardCountReplicationFactorTwo(t *testing.T) {
 	noError := tempopb.PushErrorReason_NO_ERROR
 	maxLiveTraceError := tempopb.PushErrorReason_MAX_LIVE_TRACES
 	traceTooLargeError := tempopb.PushErrorReason_TRACE_TOO_LARGE
-	
+
 	tt := []struct {
 		name                                string
-		PushErrorByTrace                        [][]tempopb.PushErrorReason
+		PushErrorByTrace                    [][]tempopb.PushErrorReason
 		replicationFactor                   int
 		expectedLiveTracesDiscardedCount    int
 		expectedTraceTooLargeDiscardedCount int
@@ -1193,98 +1193,98 @@ func TestDiscardCountReplicationFactorTwo(t *testing.T) {
 		// trace[2] = 15 spans
 		{
 			name:                                "no errors, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "no error, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "one mlt error, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    5,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "one mlt error, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "one ttl error, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "one ttl error, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "two mlt errors, minimum responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {maxLiveTraceError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {maxLiveTraceError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    5,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "two ttl errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, noError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "three ttl errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "three mix errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, maxLiveTraceError, noError}, {noError, traceTooLargeError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, maxLiveTraceError, noError}, {noError, traceTooLargeError, noError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "three mix trace errors, max responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, traceTooLargeError}, {noError, maxLiveTraceError, traceTooLargeError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, traceTooLargeError}, {noError, maxLiveTraceError, traceTooLargeError}},
 			replicationFactor:                   3,
 			expectedLiveTracesDiscardedCount:    10,
 			expectedTraceTooLargeDiscardedCount: 15,
 		},
 		{
 			name:                                "one ttl error rep factor 5 min (3) response",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   5,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
 		},
 		{
 			name:                                "one error rep factor 5 with 4 responses",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
 			replicationFactor:                   5,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 0,
 		},
 		{
 			name:                                "replication factor 1",
-			PushErrorByTrace: [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}},
+			PushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}},
 			replicationFactor:                   1,
 			expectedLiveTracesDiscardedCount:    0,
 			expectedTraceTooLargeDiscardedCount: 10,
@@ -1320,7 +1320,7 @@ func TestDiscardCountReplicationFactorTwo(t *testing.T) {
 					currentNumSuccess := numSuccessByTraceIndex[traceIndex]
 					if err == tempopb.PushErrorReason_NO_ERROR {
 						numSuccessByTraceIndex[traceIndex] = currentNumSuccess + 1
-					}else{
+					} else {
 						lastErrorReasonByTraceIndex[traceIndex] = err
 					}
 				}
