@@ -187,11 +187,18 @@ distributor:
 
     # Optional.
     # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    # This is not recommended for production environments
     log_received_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
-        [metric_root_names_and_services: <boolean> | default = false]
+
+    # Optional.
+    # Enable to metric every received span to help debug ingestion
+    # This is not recommended for production environments
+    metric_received_spans:
+        [enabled: <boolean> | default = false]
+        [root_only: <boolean> | default = false]
 
     # Optional.
     # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
