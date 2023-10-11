@@ -571,7 +571,6 @@ func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceiv
 }
 
 func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger log.Logger) {
-
 	for _, b := range batches {
 		loggerWithAtts := logger
 
