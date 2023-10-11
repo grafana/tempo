@@ -202,7 +202,14 @@ func (s *blockSummary) print(maxAttr int) error {
 	if err := printSummary("span", maxAttr, s.spanSummary); err != nil {
 		return err
 	}
-	return printSummary("resource", maxAttr, s.resourceSummary)
+
+	err := printSummary("resource", maxAttr, s.resourceSummary)
+
+	if generateJsonnet {
+		printDedicatedColumnOverridesJsonnet(s.spanSummary, s.resourceSummary)
+	}
+
+	return err
 }
 
 type genericAttrSummary struct {
@@ -332,6 +339,34 @@ func printSummary(scope string, max int, summary genericAttrSummary) error {
 	}
 
 	return w.Flush()
+}
+
+func printDedicatedColumnOverridesJsonnet(spanSummary genericAttrSummary, resourceSummary genericAttrSummary) {
+	fmt.Println("")
+	fmt.Printf("parquet_dedicated_columns: [\n")
+	numColumnsSpan := 10
+	if numColumnsSpan > len(spanSummary.attributes) {
+		numColumnsSpan = len(spanSummary.attributes)
+	}
+
+	// span attributes first
+	spanAttrList := topN(numColumnsSpan, spanSummary.attributes)
+	for _, a := range spanAttrList {
+		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' },\n", a.name)
+	}
+
+	numColumnResource := 10
+	if numColumnResource > len(resourceSummary.attributes) {
+		numColumnResource = len(resourceSummary.attributes)
+	}
+
+	// span attributes first
+	resourceAttrList := topN(numColumnResource, resourceSummary.attributes)
+	for _, a := range resourceAttrList {
+		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' },\n", a.name)
+	}
+	fmt.Printf("], \n")
+	fmt.Println("")
 }
 
 func topN(n int, attrs map[string]uint64) []attribute {
