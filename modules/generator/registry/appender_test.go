@@ -101,7 +101,7 @@ func (c *capturingAppender) AppendExemplar(ref storage.SeriesRef, l labels.Label
 	return ref, nil
 }
 
-func (c *capturingAppender) AppendHistogram(ref storage.SeriesRef, l labels.Labels, e int64, h *prom_histogram.Histogram, fg *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
+func (c *capturingAppender) AppendHistogram(ref storage.SeriesRef, _ labels.Labels, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return ref, nil
 }
 
