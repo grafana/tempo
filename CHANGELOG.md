@@ -32,6 +32,8 @@
 * [ENHANCEMENT] Add histogram buckets to metrics-generator config in user-configurable overrides [#2928](https://github.com/grafana/tempo/pull/2928) (@mar4uk)
 * [ENHANCEMENT] Adds websocket support for search streaming. [#2971](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
    **Breaking Change** Deprecated GRPC streaming
+* [ENHANCEMENT] Add new config block to distributors to produce debug metrics. [#3008](https://github.com/grafana/tempo/pull/3008) (@joe-elliott)
+   **Breaking Change** Removed deprecated config option: distributor.log_received_spans
 * [ENHANCEMENT] added a metrics generator config option to enable/disable X-Scope-OrgID headers on remote write. [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix rare deadlock when uploading blocks to Azure Blob Storage [#2129](https://github.com/grafana/tempo/issues/2129) (@LasseHels)
