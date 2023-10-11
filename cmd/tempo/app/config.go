@@ -154,9 +154,9 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
 
-	if c.Distributor.LogReceivedTraces {
-		warnings = append(warnings, warnLogReceivedTraces)
-	}
+	// if c.Distributor.LogReceivedTraces { // replace
+	// 	warnings = append(warnings, warnLogReceivedTraces)
+	// }
 
 	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
 		warnings = append(warnings, warnStorageTraceBackendLocal)

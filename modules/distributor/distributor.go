@@ -578,7 +578,6 @@ func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger l
 					logger,
 					"span_"+strutil.SanitizeLabelName(a.GetKey()),
 					tempo_util.StringifyAnyValue(a.GetValue()))
-
 			}
 		}
 

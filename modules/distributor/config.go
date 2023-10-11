@@ -55,7 +55,7 @@ type LogReceivedSpansConfig struct {
 
 type MetricReceivedSpansConfig struct {
 	Enabled  bool `yaml:"enabled"`
-	RootOnly bool `yaml:"enabled"`
+	RootOnly bool `yaml:"root_only"`
 }
 
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
