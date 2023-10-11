@@ -195,7 +195,8 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
-	if forwarders, ok := o.getTenantLimits(userID).GetForwarders(); ok {
+	forwarders, ok := o.getTenantLimits(userID).GetForwarders()
+	if ok && len(forwarders) > 0 {
 		return forwarders
 	}
 	return o.Interface.Forwarders(userID)
@@ -223,7 +224,8 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(us
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
-	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
+	dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions()
+	if ok && len(dimensions) > 0 {
 		return dimensions
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsDimensions(userID)
@@ -237,21 +239,24 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
-	if peerAttribtues, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
-		return peerAttribtues
+	peerAttributes, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes()
+	if ok && len(peerAttributes) > 0 {
+		return peerAttributes
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
-	if histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetHistogramBuckets(); ok {
+	histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetHistogramBuckets()
+	if ok && len(histogramBuckets) > 0 {
 		return histogramBuckets
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
-	if dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions(); ok {
+	dimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensions()
+	if ok && len(dimensions) > 0 {
 		return dimensions
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensions(userID)
@@ -265,21 +270,26 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsE
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
-	if filterPolicies, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetFilterPolicies(); ok {
+	filterPolicies, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetFilterPolicies()
+	if ok && len(filterPolicies) > 0 {
+		// only return when filterPolicies are NOT empty
 		return filterPolicies
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
-	if histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets(); ok {
+	histogramBuckets, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetHistogramBuckets()
+	if ok && len(histogramBuckets) > 0 {
 		return histogramBuckets
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string {
-	if targetInfoExcludedDimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetTargetInfoExcludedDimensions(); ok {
+	targetInfoExcludedDimensions, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetTargetInfoExcludedDimensions()
+	if ok && len(targetInfoExcludedDimensions) > 0 {
+		// only return when filterPolicies are NOT empty
 		return targetInfoExcludedDimensions
 	}
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)
