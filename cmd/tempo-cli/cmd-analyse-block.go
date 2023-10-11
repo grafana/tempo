@@ -203,13 +203,15 @@ func (s *blockSummary) print(maxAttr int) error {
 		return err
 	}
 
-	err := printSummary("resource", maxAttr, s.resourceSummary)
+	if err := printSummary("resource", maxAttr, s.resourceSummary); err != nil {
+		return err
+	}
 
 	if generateJsonnet {
 		printDedicatedColumnOverridesJsonnet(s.spanSummary, s.resourceSummary)
 	}
 
-	return err
+	return nil
 }
 
 type genericAttrSummary struct {
