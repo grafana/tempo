@@ -63,7 +63,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.11.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/grafana/dskit v0.0.0-20230926170531-d986a37b92ce // indirect
+	github.com/grafana/dskit v0.0.0-20231006094724-ad2fd7e7931e // indirect
 	github.com/grafana/gomemcache v0.0.0-20230914135007-70d78eaabfe1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
