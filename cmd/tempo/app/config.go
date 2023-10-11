@@ -154,9 +154,9 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
 
-	// if c.Distributor.LogReceivedTraces { // replace
-	// 	warnings = append(warnings, warnLogReceivedTraces)
-	// }
+	if c.Distributor.LogReceivedSpans.Enabled {
+		warnings = append(warnings, warnLogReceivedTraces)
+	}
 
 	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
@@ -250,7 +250,7 @@ var (
 		Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
 	}
 	warnLogReceivedTraces = ConfigWarning{
-		Message: "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled",
+		Message: "Span logging is enabled. This is for debuging only and not recommended for production deployments.",
 	}
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",

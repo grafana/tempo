@@ -571,11 +571,14 @@ func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceiv
 }
 
 func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger log.Logger) {
+
 	for _, b := range batches {
+		loggerWithAtts := logger
+
 		if cfg.IncludeAllAttributes {
 			for _, a := range b.Resource.GetAttributes() {
-				logger = log.With(
-					logger,
+				loggerWithAtts = log.With(
+					loggerWithAtts,
 					"span_"+strutil.SanitizeLabelName(a.GetKey()),
 					tempo_util.StringifyAnyValue(a.GetValue()))
 			}
@@ -587,13 +590,13 @@ func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger l
 					continue
 				}
 
-				logSpan(s, cfg.IncludeAllAttributes, logger)
+				logSpan(s, cfg.IncludeAllAttributes, loggerWithAtts)
 			}
 		}
 	}
 }
 
-func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) { //jpe name
+func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 	if allAttributes {
 		for _, a := range s.GetAttributes() {
 			logger = log.With(
