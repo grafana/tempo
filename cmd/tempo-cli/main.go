@@ -51,7 +51,7 @@ var cli struct {
 	} `cmd:""`
 
 	Analyse struct {
-		Block  analyseBlockCmd  `cmd:"" help:"Analyse block in a bucket use"`
+		Block  analyseBlockCmd  `cmd:"" help:"Analyse block in a bucket"`
 		Blocks analyseBlocksCmd `cmd:"" help:"Analyse blocks in a bucket"`
 	} `cmd:""`
 
