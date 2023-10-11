@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -8,7 +9,10 @@ import (
 	"unicode"
 
 	"github.com/prometheus/common/model"
+	"golang.org/x/text/runes"
 )
+
+var escapeRunes = runes.Predicate(func(r rune) bool { return r == '"' || r == '\\' })
 
 var tokens = map[string]int{
 	",":               COMMA,
@@ -95,30 +99,48 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return END_ATTRIBUTE
 	}
 
-	r := l.Scan()
-
 	// if we are currently parsing an attribute then just grab everything until we find a character that ends the attribute.
 	// we will handle parsing this out in ast.go
 	if l.parsingAttribute {
-		str := l.TokenText()
-		// parse out any scopes here
-		tok := tokens[str+string(l.Peek())]
+		// parse out any scopes here, but copy it so we dont move main scanner if it's not a scope
+		s := l.Scanner
+		s.Scan()
+		str := s.TokenText()
+		tok := tokens[str+string(s.Peek())]
 		if tok == RESOURCE_DOT || tok == SPAN_DOT {
+			for i := 0; i < len(str); i++ {
+				l.Next()
+			}
 			l.Next()
 			return tok
 		}
 
-		// go forward until we find the end of the attribute
+		var sb strings.Builder
 		r := l.Peek()
-		for isAttributeRune(r) {
-			str += string(l.Next())
+		for {
+			if r == '"' {
+				// consume quoted attribute parts
+				str, err := quotedAtrribute(&l.Scanner)
+				if err != nil {
+					l.Error(err.Error())
+					return 0
+				}
+				sb.WriteString(str)
+			} else if isAttributeRune(r) {
+				// if outside quote consume as long it's attribute rune
+				sb.WriteRune(l.Next())
+			} else {
+				break
+			}
+
 			r = l.Peek()
 		}
 
-		lval.staticStr = str
+		lval.staticStr = sb.String()
 		return IDENTIFIER
 	}
 
+	r := l.Scan()
 	// now that we know we're not parsing an attribute, let's look for everything else
 	switch r {
 	case scanner.EOF:
@@ -203,6 +225,35 @@ func (l *lexer) Lex(lval *yySymType) int {
 	// default to an identifier
 	lval.staticStr = l.TokenText()
 	return IDENTIFIER
+}
+
+func quotedAtrribute(s *scanner.Scanner) (string, error) {
+	var sb strings.Builder
+	s.Next()
+	r := s.Peek()
+	for ; r != scanner.EOF; r = s.Peek() {
+		if r == '"' {
+			s.Next()
+			break
+		} else if r == '\\' {
+			s.Next()
+			if escapeRunes.Contains(s.Peek()) {
+				sb.WriteRune(s.Peek())
+				s.Next()
+			} else {
+				return "", errors.New("invalid escape sequence")
+			}
+		} else {
+			sb.WriteRune(r)
+			s.Next()
+		}
+	}
+
+	if r == scanner.EOF {
+		return "", errors.New("expecting end of quote, got EOF")
+	}
+
+	return sb.String(), nil
 }
 
 func (l *lexer) Error(msg string) {

@@ -18,6 +18,10 @@ func TestLexerAttributes(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		// attributes
 		{`.foo`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`."foo".baz."bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo."bar \" baz"."bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo."baz \\".bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`."foo.bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.count`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo3`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo+bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
