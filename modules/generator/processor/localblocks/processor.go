@@ -104,14 +104,16 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
+	var count int
 	before := p.liveTraces.Len()
 
 	for _, batch := range req.Batches {
-		if batch = filterBatch(batch); batch != nil {
+		if batch, count = filterBatch(batch); batch != nil {
 			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
 			if errors.Is(err, errMaxExceeded) {
 				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			}
+			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(count))
 		}
 	}
 
@@ -620,10 +622,11 @@ func (p *Processor) recordBlockBytes() {
 	metricBlockSize.WithLabelValues(p.tenant).Set(float64(sum))
 }
 
-// filterBatch to only spans with kind==server. Does not modify the input
+// filterBatch to only root spans or kind==server. Does not modify the input
 // but returns a new struct referencing the same input pointers. Returns nil
 // if there were no matching spans.
-func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
+func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
+	var keep int
 	var keepSS []*v1.ScopeSpans
 	for _, ss := range batch.ScopeSpans {
 
@@ -639,6 +642,7 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 				Scope: ss.Scope,
 				Spans: keepSpans,
 			})
+			keep += len(keepSpans)
 		}
 	}
 
@@ -646,10 +650,10 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 		return &v1.ResourceSpans{
 			Resource:   batch.Resource,
 			ScopeSpans: keepSS,
-		}
+		}, keep
 	}
 
-	return nil
+	return nil, 0
 }
 
 func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue {
