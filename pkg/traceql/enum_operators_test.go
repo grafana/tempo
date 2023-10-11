@@ -35,6 +35,11 @@ func TestOperatorIsBoolean(t *testing.T) {
 		{OpSpansetAnd, false},
 		{OpSpansetUnion, false},
 		{OpSpansetSibling, false},
+		{OpSpansetNotChild, false},
+		{OpSpansetNotParent, false},
+		{OpSpansetNotSibling, false},
+		{OpSpansetNotAncestor, false},
+		{OpSpansetNotDescendant, false},
 	}
 
 	for _, tc := range tt {
@@ -148,6 +153,9 @@ func TestOperatorUnaryTypesValid(t *testing.T) {
 		{OpSpansetAnd, TypeInt, false},
 		{OpSpansetUnion, TypeInt, false},
 		{OpSpansetSibling, TypeInt, false},
+		{OpSpansetNotChild, TypeInt, false},
+		{OpSpansetNotParent, TypeInt, false},
+		{OpSpansetNotSibling, TypeInt, false},
 		// not
 		{OpNot, TypeBoolean, true},
 		{OpNot, TypeInt, false},

@@ -44,7 +44,7 @@ type Config struct {
 	ExtendWrites bool `yaml:"extend_writes"`
 
 	// For testing.
-	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
+	factory ring_client.PoolAddrFunc `yaml:"-"`
 }
 
 type LogReceivedSpansConfig struct {

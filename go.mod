@@ -26,7 +26,8 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.1
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20230926170531-d986a37b92ce
+	github.com/grafana/dskit v0.0.0-20231006094724-ad2fd7e7931e
+	github.com/grafana/e2e v0.1.1
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-plugin v1.4.8
@@ -104,7 +105,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/grafana/e2e v0.1.1
 	github.com/grafana/gomemcache v0.0.0-20230914135007-70d78eaabfe1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.74.0
