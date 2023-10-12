@@ -3,22 +3,11 @@ receivers:
     protocols:
       grpc:
 exporters:
-  otlphttp:
-    endpoint: http://tempo:4318
-    tls:
-      insecure: true
-    retry_on_failure:
-      enabled: true
   otlp:
-    endpoint: http://tempo:4317
+    endpoint: tempo:4317
     tls:
       insecure: true
-    retry_on_failure:
-      enabled: true
 service:
-  telemetry:
-    logs:
-      level: "debug"
   pipelines:
     traces:
       receivers: [otlp]

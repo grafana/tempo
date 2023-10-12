@@ -50,6 +50,6 @@ storage:
       path: /tmp/tempo/blocks
 
 overrides:
-  ingestion_rate_limit_bytes: 1
-  ingestion_burst_size_bytes: 1
-  metrics_generator_processors: [service-graphs, span-metrics] # enables metrics generator
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics] # enables metrics generator
