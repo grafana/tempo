@@ -43,6 +43,10 @@ type Config struct {
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
 	ExtendWrites bool `yaml:"extend_writes"`
 
+	// configures the distributor to indicate to the client that it should retry resource exhausted errors after the
+	// provided duration
+	RetryAfterOnResourceExhausted time.Duration `yaml:"retry_after_on_resource_exhausted"`
+
 	// For testing.
 	factory ring_client.PoolAddrFunc `yaml:"-"`
 }
@@ -64,6 +68,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.DistributorRing.KVStore.Store = "memberlist"
 	cfg.DistributorRing.HeartbeatTimeout = 5 * time.Minute
 
+	cfg.RetryAfterOnResourceExhausted = time.Second
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
 

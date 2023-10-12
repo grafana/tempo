@@ -22,4 +22,4 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [otlphttp]
+      exporters: [otlp]
