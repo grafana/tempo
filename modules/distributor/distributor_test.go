@@ -784,12 +784,11 @@ func TestDistributor(t *testing.T) {
 
 func TestLogSpans(t *testing.T) {
 	for i, tc := range []struct {
-		LogReceivedTraces       bool // Backwards compatibility with old config
 		LogReceivedSpansEnabled bool
 		filterByStatusError     bool
 		includeAllAttributes    bool
 		batches                 []*v1.ResourceSpans
-		expectedLogsSpan        []logSpan
+		expectedLogsSpan        []testLogSpan
 	}{
 		{
 			LogReceivedSpansEnabled: false,
@@ -799,24 +798,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
 				}),
 			},
-			expectedLogsSpan: []logSpan{},
-		},
-		{
-			LogReceivedTraces: true,
-			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test", []*v1.ScopeSpans{
-					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
-				}),
-			},
-			expectedLogsSpan: []logSpan{
-				{
-					Msg:     "received",
-					Level:   "info",
-					TraceID: "0a0102030405060708090a0b0c0d0e0f",
-					SpanID:  "dad44adc9a83b370",
-				},
-			},
+			expectedLogsSpan: []testLogSpan{},
 		},
 		{
 			LogReceivedSpansEnabled: true,
@@ -834,7 +816,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", nil)),
 				}),
 			},
-			expectedLogsSpan: []logSpan{
+			expectedLogsSpan: []testLogSpan{
 				{
 					Msg:     "received",
 					Level:   "info",
@@ -877,7 +859,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}),
 			},
-			expectedLogsSpan: []logSpan{
+			expectedLogsSpan: []testLogSpan{
 				{
 					Msg:     "received",
 					Level:   "info",
@@ -912,7 +894,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}, makeAttribute("resource_attribute2", "value2")),
 			},
-			expectedLogsSpan: []logSpan{
+			expectedLogsSpan: []testLogSpan{
 				{
 					Name:               "Test Span2",
 					Msg:                "received",
@@ -949,7 +931,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil, makeAttribute("tag1", "value1"))),
 				}),
 			},
-			expectedLogsSpan: []logSpan{
+			expectedLogsSpan: []testLogSpan{
 				{
 					Name:            "Test Span",
 					Msg:             "received",
@@ -964,7 +946,7 @@ func TestLogSpans(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
+		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
 			limits := overrides.Config{}
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
@@ -972,7 +954,6 @@ func TestLogSpans(t *testing.T) {
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
 
 			d := prepare(t, limits, nil, logger)
-			d.cfg.LogReceivedTraces = tc.LogReceivedTraces
 			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
 				Enabled:              tc.LogReceivedSpansEnabled,
 				FilterByStatusError:  tc.filterByStatusError,
@@ -986,7 +967,7 @@ func TestLogSpans(t *testing.T) {
 			}
 
 			bufJSON := "[" + strings.TrimRight(strings.ReplaceAll(buf.String(), "\n", ","), ",") + "]"
-			var actualLogsSpan []logSpan
+			var actualLogsSpan []testLogSpan
 			err = json.Unmarshal([]byte(bufJSON), &actualLogsSpan)
 			if err != nil {
 				t.Fatal(err)
@@ -1044,7 +1025,7 @@ func TestRateLimitRespected(t *testing.T) {
 	assert.True(t, status.Code() == codes.ResourceExhausted, "Wrong status code")
 }
 
-type logSpan struct {
+type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
 	TraceID            string `json:"traceid"`

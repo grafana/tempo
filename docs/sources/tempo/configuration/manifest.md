@@ -169,7 +169,6 @@ distributor:
         instance_addr: ""
     receivers: {}
     override_ring_key: distributor
-    log_received_traces: false
     forwarders: []
     extend_writes: true
 ingester_client:
@@ -550,6 +549,7 @@ metrics_generator:
             max_wal_time: 14400000
             no_lockfile: false
         remote_write_flush_deadline: 1m0s
+        remote_write_add_org_id_header: true
     traces_storage:
         path: ""
         completedfilepath: ""
@@ -639,6 +639,7 @@ storage:
             tags: {}
             storage_class: ""
             metadata: {}
+            native_aws_auth_enabled: false
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -652,6 +653,7 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            use_v2_sdk: false
         cache: ""
         cache_min_compaction_level: 0
         cache_max_block_age: 0s
@@ -716,6 +718,7 @@ overrides:
                 tags: {}
                 storage_class: ""
                 metadata: {}
+                native_aws_auth_enabled: false
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
@@ -729,6 +732,7 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                use_v2_sdk: false
 memberlist:
     node_name: ""
     randomize_node_name: true

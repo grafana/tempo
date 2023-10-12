@@ -19,6 +19,12 @@ var (
 		Name:      "traces_total",
 		Help:      "Total number of traces created",
 	}, []string{"tenant"})
+	metricTotalSpans = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "spans_total",
+		Help:      "Total number of spans after filtering",
+	}, []string{"tenant"})
 	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
