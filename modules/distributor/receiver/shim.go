@@ -33,6 +33,10 @@ import (
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
@@ -57,6 +61,32 @@ var (
 	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
+
+type RetryableError struct {
+	err error
+}
+
+func (r *RetryableError) GRPCStatus() *status.Status {
+	s, ok := status.FromError(r.err)
+	if !ok {
+		return nil
+	}
+
+	if s.Code() == codes.ResourceExhausted {
+		s, _ = s.WithDetails(&errdetails.RetryInfo{
+			RetryDelay: &durationpb.Duration{
+				Seconds: 1,
+				Nanos:   0,
+			},
+		})
+	}
+
+	return s
+}
+
+func (r *RetryableError) Error() string {
+	return r.err.Error()
+}
 
 type TracesPusher interface {
 	PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error)
@@ -287,6 +317,8 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+
+		err = &RetryableError{err: err}
 	}
 
 	return err
