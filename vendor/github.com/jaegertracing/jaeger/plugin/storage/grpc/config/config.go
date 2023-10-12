@@ -21,16 +21,17 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
@@ -44,6 +45,7 @@ type Configuration struct {
 	RemoteServerAddr        string `yaml:"server" mapstructure:"server"`
 	RemoteTLS               tlscfg.Options
 	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
+	TenancyOpts             tenancy.Options
 
 	pluginHealthCheck     *time.Ticker
 	pluginHealthCheckDone chan bool
@@ -58,16 +60,16 @@ type ClientPluginServices struct {
 
 // PluginBuilder is used to create storage plugins. Implemented by Configuration.
 type PluginBuilder interface {
-	Build(logger *zap.Logger) (*ClientPluginServices, error)
+	Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error)
 	Close() error
 }
 
 // Build instantiates a PluginServices
-func (c *Configuration) Build(logger *zap.Logger) (*ClientPluginServices, error) {
+func (c *Configuration) Build(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	if c.PluginBinary != "" {
-		return c.buildPlugin(logger)
+		return c.buildPlugin(logger, tracerProvider)
 	} else {
-		return c.buildRemote(logger)
+		return c.buildRemote(logger, tracerProvider)
 	}
 }
 
@@ -80,10 +82,12 @@ func (c *Configuration) Close() error {
 	return c.RemoteTLS.Close()
 }
 
-func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, error) {
+func (c *Configuration) buildRemote(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
 	opts := []grpc.DialOption{
-		grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
-		grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
+		grpc.WithUnaryInterceptor(
+			otelgrpc.UnaryClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.WithStreamInterceptor(
+			otelgrpc.StreamClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
 		grpc.WithBlock(),
 	}
 	if c.RemoteTLS.Enabled {
@@ -99,6 +103,12 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.RemoteConnectTimeout)
 	defer cancel()
+
+	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
+	if tenancyMgr.Enabled {
+		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
+		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+	}
 	conn, err := grpc.DialContext(ctx, c.RemoteServerAddr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to remote storage: %w", err)
@@ -115,10 +125,22 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 	}, nil
 }
 
-func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, error) {
+func (c *Configuration) buildPlugin(logger *zap.Logger, tracerProvider trace.TracerProvider) (*ClientPluginServices, error) {
+	opts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(
+			otelgrpc.UnaryClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+		grpc.WithStreamInterceptor(
+			otelgrpc.StreamClientInterceptor(otelgrpc.WithTracerProvider(tracerProvider))),
+	}
+
+	tenancyMgr := tenancy.NewManager(&c.TenancyOpts)
+	if tenancyMgr.Enabled {
+		opts = append(opts, grpc.WithUnaryInterceptor(tenancy.NewClientUnaryInterceptor(tenancyMgr)))
+		opts = append(opts, grpc.WithStreamInterceptor(tenancy.NewClientStreamInterceptor(tenancyMgr)))
+	}
+
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
-
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
@@ -129,10 +151,7 @@ func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, 
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Level: hclog.LevelFromString(c.PluginLogLevel),
 		}),
-		GRPCDialOptions: []grpc.DialOption{
-			grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer())),
-			grpc.WithStreamInterceptor(otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer())),
-		},
+		GRPCDialOptions: opts,
 	})
 
 	runtime.SetFinalizer(client, func(c *plugin.Client) {
