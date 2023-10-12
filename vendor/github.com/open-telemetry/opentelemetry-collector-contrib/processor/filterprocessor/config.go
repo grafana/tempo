@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package filterprocessor // import "github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 
@@ -25,12 +14,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filtermetric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/regexp"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor/internal/common"
 )
 
 // Config defines configuration for Resource processor.
@@ -56,14 +43,14 @@ type MetricFilters struct {
 	// Include match properties describe metrics that should be included in the Collector Service pipeline,
 	// all other metrics should be dropped from further processing.
 	// If both Include and Exclude are specified, Include filtering occurs first.
-	Include *filtermetric.MatchProperties `mapstructure:"include"`
+	Include *filterconfig.MetricMatchProperties `mapstructure:"include"`
 
 	// Exclude match properties describe metrics that should be excluded from the Collector Service pipeline,
 	// all other metrics should be included.
 	// If both Include and Exclude are specified, Include filtering occurs first.
-	Exclude *filtermetric.MatchProperties `mapstructure:"exclude"`
+	Exclude *filterconfig.MetricMatchProperties `mapstructure:"exclude"`
 
-	// RegexpConfig specifies options for the Regexp match type
+	// RegexpConfig specifies options for the regexp match type
 	RegexpConfig *regexp.Config `mapstructure:"regexp"`
 
 	// MetricConditions is a list of OTTL conditions for an ottlmetric context.
@@ -113,8 +100,8 @@ type LogMatchType string
 // These are the MatchTypes that users can specify for filtering
 // `plog.Log`s.
 const (
-	Strict = LogMatchType(filterset.Strict)
-	Regexp = LogMatchType(filterset.Regexp)
+	strictType = LogMatchType(filterset.Strict)
+	regexpType = LogMatchType(filterset.Regexp)
 )
 
 var severityToNumber = map[string]plog.SeverityNumber{
@@ -302,7 +289,7 @@ func (cfg *Config) Validate() error {
 	}
 
 	if cfg.Metrics.MetricConditions != nil {
-		_, err := filterottl.NewBoolExprForMetric(cfg.Metrics.MetricConditions, common.MetricFunctions(), ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
+		_, err := filterottl.NewBoolExprForMetric(cfg.Metrics.MetricConditions, filterottl.StandardMetricFuncs(), ottl.PropagateError, component.TelemetrySettings{Logger: zap.NewNop()})
 		errors = multierr.Append(errors, err)
 	}
 

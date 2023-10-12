@@ -1,22 +1,12 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package ottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 func (p *Parser[K]) evaluateMathExpression(expr *mathExpression) (Getter[K], error) {
@@ -109,12 +99,66 @@ func attemptMathOperation[K any](lhs Getter[K], op mathOp, rhs Getter[K]) Getter
 					default:
 						return nil, fmt.Errorf("%v must be int64 or float64", y)
 					}
+				case time.Time:
+					return performOpTime(newX, y, op)
+				case time.Duration:
+					return performOpDuration(newX, y, op)
 				default:
-					return nil, fmt.Errorf("%v must be int64 or float64", x)
+					return nil, fmt.Errorf("%v must be int64, float64, time.Time or time.Duration", x)
 				}
 			},
 		},
 	}
+}
+
+func performOpTime(x time.Time, y any, op mathOp) (any, error) {
+	switch op {
+	case ADD:
+		switch newY := y.(type) {
+		case time.Duration:
+			result := x.Add(newY)
+			return result, nil
+		default:
+			return nil, fmt.Errorf("time.Time must be added to time.Duration; found %v instead", y)
+		}
+	case SUB:
+		switch newY := y.(type) {
+		case time.Time:
+			result := x.Sub(newY)
+			return result, nil
+		case time.Duration:
+			result := x.Add(-1 * newY)
+			return result, nil
+		default:
+			return nil, fmt.Errorf("time.Time or time.Duration must be subtracted from time.Time; found %v instead", y)
+		}
+	}
+	return nil, fmt.Errorf("only addition and subtraction supported for time.Time and time.Duration")
+}
+
+func performOpDuration(x time.Duration, y any, op mathOp) (any, error) {
+	switch op {
+	case ADD:
+		switch newY := y.(type) {
+		case time.Duration:
+			result := x + newY
+			return result, nil
+		case time.Time:
+			result := newY.Add(x)
+			return result, nil
+		default:
+			return nil, fmt.Errorf("time.Duration must be added to time.Duration or time.Time; found %v instead", y)
+		}
+	case SUB:
+		switch newY := y.(type) {
+		case time.Duration:
+			result := x - newY
+			return result, nil
+		default:
+			return nil, fmt.Errorf("time.Duration must be subtracted from time.Duration; found %v instead", y)
+		}
+	}
+	return nil, fmt.Errorf("only addition and subtraction supported for time.Time and time.Duration")
 }
 
 func performOp[N int64 | float64](x N, y N, op mathOp) (N, error) {

@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package ottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 
@@ -21,6 +10,7 @@ import (
 
 	"github.com/alecthomas/participle/v2"
 	"go.opentelemetry.io/collector/component"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -43,7 +33,7 @@ func (e *ErrorMode) UnmarshalText(text []byte) error {
 }
 
 type Parser[K any] struct {
-	functions         map[string]interface{}
+	functions         map[string]Factory[K]
 	pathParser        PathExpressionParser[K]
 	enumParser        EnumParser
 	telemetrySettings component.TelemetrySettings
@@ -77,7 +67,7 @@ func (s *Statement[K]) Execute(ctx context.Context, tCtx K) (any, bool, error) {
 }
 
 func NewParser[K any](
-	functions map[string]interface{},
+	functions map[string]Factory[K],
 	pathParser PathExpressionParser[K],
 	settings component.TelemetrySettings,
 	options ...Option[K],
@@ -107,15 +97,27 @@ func WithEnumParser[K any](parser EnumParser) Option[K] {
 	}
 }
 
+// ParseStatements parses string statements into ottl.Statement objects ready for execution.
+// Returns a slice of statements and a nil error on successful parsing.
+// If parsing fails, returns an empty slice  with a multierr error containing
+// an error per failed statement.
 func (p *Parser[K]) ParseStatements(statements []string) ([]*Statement[K], error) {
-	var parsedStatements []*Statement[K]
+	parsedStatements := make([]*Statement[K], 0, len(statements))
+	var parseErr error
+
 	for _, statement := range statements {
 		ps, err := p.ParseStatement(statement)
 		if err != nil {
-			return nil, err
+			parseErr = multierr.Append(parseErr, fmt.Errorf("unable to parse OTTL statement %q: %w", statement, err))
+			continue
 		}
 		parsedStatements = append(parsedStatements, ps)
 	}
+
+	if parseErr != nil {
+		return nil, parseErr
+	}
+
 	return parsedStatements, nil
 }
 
@@ -124,7 +126,7 @@ func (p *Parser[K]) ParseStatement(statement string) (*Statement[K], error) {
 	if err != nil {
 		return nil, err
 	}
-	function, err := p.newFunctionCall(parsed.Invocation)
+	function, err := p.newFunctionCall(parsed.Editor)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +147,7 @@ func parseStatement(raw string) (*parsedStatement, error) {
 	parsed, err := parser.ParseString("", raw)
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse OTTL statement: %w", err)
+		return nil, fmt.Errorf("statement has invalid syntax: %w", err)
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {

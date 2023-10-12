@@ -42,15 +42,18 @@ func FormatError(err Error) string {
 // This is useful for composing parsers in order to detect when a sub-parser has terminated.
 type UnexpectedTokenError struct {
 	Unexpected lexer.Token
-	at         node
+	Expect     string
+	expectNode node // Usable instead of Expect, delays creating the string representation until necessary
 }
 
 func (u *UnexpectedTokenError) Error() string { return FormatError(u) }
 
 func (u *UnexpectedTokenError) Message() string { // nolint: golint
 	var expected string
-	if u.at != nil {
-		expected = fmt.Sprintf(" (expected %s)", u.at)
+	if u.expectNode != nil {
+		expected = fmt.Sprintf(" (expected %s)", u.expectNode)
+	} else if u.Expect != "" {
+		expected = fmt.Sprintf(" (expected %s)", u.Expect)
 	}
 	return fmt.Sprintf("unexpected token %q%s", u.Unexpected, expected)
 }

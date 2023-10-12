@@ -413,11 +413,32 @@ var basicLexer = stateful.MustSimple([]stateful.SimpleRule{
 ### Experimental - code generation
 
 Participle v2 now has experimental support for generating code to perform
-lexing. Use `participle/experimental/codegen.GenerateLexer()` to compile a
-`stateful` lexer to Go code.
+lexing.
 
 This will generally provide around a 10x improvement in lexing performance
 while producing O(1) garbage.
+
+To use:
+1. Serialize the `stateful` lexer definition to a JSON file (pass to `json.Marshal`).
+2. Run the `participle` command (see `scripts/participle`) to generate go code from the lexer JSON definition. For example:
+```
+participle gen lexer <package name> [--name SomeCustomName] < mylexer.json | gofmt > mypackage/mylexer.go
+```
+(see `genLexer` in `conformance_test.go` for a more detailed example)
+
+3. When constructing your parser, use the generated lexer for your lexer definition, such as:
+```
+var ParserDef = participle.MustBuild[someGrammer](participle.Lexer(mylexer.SomeCustomnameLexer))
+```
+
+Consider contributing to the tests in `conformance_test.go` if they do not
+appear to cover the types of expressions you are using the generated
+lexer.
+
+**Known limitations of the code generated lexer:**
+
+* The lexer is always greedy. e.g., the regex `"[A-Z][A-Z][A-Z]?T"` will not match `"EST"` in the generated lexer because the quest operator is a greedy match and does not "give back" to try other possibilities; you can overcome by using `|` if you have a non-greedy match, e.g., `"[A-Z][A-Z]|(?:[A-Z]T|T)"` will produce correct results in both lexers (see [#276](https://github.com/alecthomas/participle/issues/276) for more detail); this limitation allows the generated lexer to be very fast and memory efficient
+* Backreferences in regular expressions are not currently supported
 
 ## Options
 
@@ -575,12 +596,14 @@ There are a few areas where Participle can provide useful feedback to users of y
 	1. Of type [Error](https://pkg.go.dev/github.com/alecthomas/participle/v2#Error). This will contain positional information where available.
 	2. May either be [ParseError](https://pkg.go.dev/github.com/alecthomas/participle/v2#ParseError) or [lexer.Error](https://pkg.go.dev/github.com/alecthomas/participle/v2/lexer#Error)
 2. Participle will make a best effort to return as much of the AST up to the error location as possible.
-3. Any node in the AST containing a field `Pos lexer.Position` will be automatically
+3. Any node in the AST containing a field `Pos lexer.Position` [^1] will be automatically
    populated from the nearest matching token.
-4. Any node in the AST containing a field `EndPos lexer.Position` will be
+4. Any node in the AST containing a field `EndPos lexer.Position` [^1] will be
    automatically populated from the token at the end of the node.
-5. Any node in the AST containing a field `Tokens []lexer.Token` will be automatically
+5. Any node in the AST containing a field `Tokens []lexer.Token` [^1] will be automatically
    populated with _all_ tokens captured by the node, _including_ elided tokens.
+
+[^1]: Either the concrete type or a type convertible to it, allowing user defined types to be used.
 
 These related pieces of information can be combined to provide fairly comprehensive error reporting.
 

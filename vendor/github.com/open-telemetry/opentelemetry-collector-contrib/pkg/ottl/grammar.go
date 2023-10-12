@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package ottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 
@@ -23,7 +12,7 @@ import (
 
 // parsedStatement represents a parsed statement. It is the entry point into the statement DSL.
 type parsedStatement struct {
-	Invocation invocation `parser:"(@@"`
+	Editor editor `parser:"(@@"`
 	// If converter is matched then return error
 	Converter   *converter         `parser:"|@@)"`
 	WhereClause *booleanExpression `parser:"( 'where' @@ )?"`
@@ -31,9 +20,9 @@ type parsedStatement struct {
 
 func (p *parsedStatement) checkForCustomError() error {
 	if p.Converter != nil {
-		return fmt.Errorf("invocation names must start with a lowercase letter but got '%v'", p.Converter.Function)
+		return fmt.Errorf("editor names must start with a lowercase letter but got '%v'", p.Converter.Function)
 	}
-	err := p.Invocation.checkForCustomError()
+	err := p.Editor.checkForCustomError()
 	if err != nil {
 		return err
 	}
@@ -43,13 +32,18 @@ func (p *parsedStatement) checkForCustomError() error {
 	return nil
 }
 
+type constExpr struct {
+	Boolean   *boolean   `parser:"( @Boolean"`
+	Converter *converter `parser:"| @@ )"`
+}
+
 // booleanValue represents something that evaluates to a boolean --
 // either an equality or inequality, explicit true or false, or
 // a parenthesized subexpression.
 type booleanValue struct {
 	Negation   *string            `parser:"@OpNot?"`
 	Comparison *comparison        `parser:"( @@"`
-	ConstExpr  *boolean           `parser:"| @Boolean"`
+	ConstExpr  *constExpr         `parser:"| @@"`
 	SubExpr    *booleanExpression `parser:"| '(' @@ ')' )"`
 }
 
@@ -193,19 +187,24 @@ func (c *comparison) checkForCustomError() error {
 	return err
 }
 
-// invocation represents the function call of a statement.
-type invocation struct {
+// editor represents the function call of a statement.
+type editor struct {
 	Function  string  `parser:"@(Lowercase(Uppercase | Lowercase)*)"`
 	Arguments []value `parser:"'(' ( @@ ( ',' @@ )* )? ')'"`
+	// If keys are matched return an error
+	Keys []Key `parser:"( @@ )*"`
 }
 
-func (i *invocation) checkForCustomError() error {
+func (i *editor) checkForCustomError() error {
 	var err error
 	for _, arg := range i.Arguments {
 		err = arg.checkForCustomError()
 		if err != nil {
 			return err
 		}
+	}
+	if i.Keys != nil {
+		return fmt.Errorf("only paths and converters may be indexed, not editors, but got %v %v", i.Function, i.Keys)
 	}
 	return nil
 }
@@ -214,6 +213,7 @@ func (i *invocation) checkForCustomError() error {
 type converter struct {
 	Function  string  `parser:"@(Uppercase(Uppercase | Lowercase)*)"`
 	Arguments []value `parser:"'(' ( @@ ( ',' @@ )* )? ')'"`
+	Keys      []Key   `parser:"( @@ )*"`
 }
 
 // value represents a part of a parsed statement which is resolved to a value of some sort. This can be a telemetry path
@@ -225,7 +225,8 @@ type value struct {
 	Bytes          *byteSlice       `parser:"| @Bytes"`
 	String         *string          `parser:"| @String"`
 	Bool           *boolean         `parser:"| @Boolean"`
-	Enum           *EnumSymbol      `parser:"| @Uppercase"`
+	Enum           *EnumSymbol      `parser:"| @Uppercase (?! Lowercase)"`
+	FunctionName   *string          `parser:"| @(Uppercase(Uppercase | Lowercase)*)"`
 	List           *list            `parser:"| @@)"`
 }
 
@@ -246,8 +247,13 @@ type Path struct {
 
 // Field is an item within a Path.
 type Field struct {
-	Name   string  `parser:"@Lowercase"`
-	MapKey *string `parser:"( '[' @String ']' )?"`
+	Name string `parser:"@Lowercase"`
+	Keys []Key  `parser:"( @@ )*"`
+}
+
+type Key struct {
+	String *string `parser:"'[' (@String "`
+	Int    *int64  `parser:"| @Int) ']'"`
 }
 
 type list struct {
@@ -284,17 +290,17 @@ func (n *isNil) Capture(_ []string) error {
 }
 
 type mathExprLiteral struct {
-	// If invocation is matched then error
-	Invocation *invocation `parser:"( @@"`
-	Converter  *converter  `parser:"| @@"`
-	Float      *float64    `parser:"| @Float"`
-	Int        *int64      `parser:"| @Int"`
-	Path       *Path       `parser:"| @@ )"`
+	// If editor is matched then error
+	Editor    *editor    `parser:"( @@"`
+	Converter *converter `parser:"| @@"`
+	Float     *float64   `parser:"| @Float"`
+	Int       *int64     `parser:"| @Int"`
+	Path      *Path      `parser:"| @@ )"`
 }
 
 func (m *mathExprLiteral) checkForCustomError() error {
-	if m.Invocation != nil {
-		return fmt.Errorf("converter names must start with an uppercase letter but got '%v'", m.Invocation.Function)
+	if m.Editor != nil {
+		return fmt.Errorf("converter names must start with an uppercase letter but got '%v'", m.Editor.Function)
 	}
 	return nil
 }

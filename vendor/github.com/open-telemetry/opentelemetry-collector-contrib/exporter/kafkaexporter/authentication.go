@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package kafkaexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 
@@ -19,7 +8,7 @@ import (
 	"crypto/sha512"
 	"fmt"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"go.opentelemetry.io/collector/config/configtls"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter/internal/awsmsk"
@@ -47,6 +36,8 @@ type SASLConfig struct {
 	Password string `mapstructure:"password"`
 	// SASL Mechanism to be used, possible values are: (PLAIN, AWS_MSK_IAM, SCRAM-SHA-256 or SCRAM-SHA-512).
 	Mechanism string `mapstructure:"mechanism"`
+	// SASL Protocol Version to be used, possible values are: (0, 1). Defaults to 0.
+	Version int `mapstructure:"version"`
 
 	AWSMSK AWSMSKConfig `mapstructure:"aws_msk"`
 }
@@ -129,6 +120,15 @@ func configureSASL(config SASLConfig, saramaConfig *sarama.Config) error {
 		saramaConfig.Net.SASL.Mechanism = awsmsk.Mechanism
 	default:
 		return fmt.Errorf(`invalid SASL Mechanism %q: can be either "PLAIN", "AWS_MSK_IAM", "SCRAM-SHA-256" or "SCRAM-SHA-512"`, config.Mechanism)
+	}
+
+	switch config.Version {
+	case 0:
+		saramaConfig.Net.SASL.Version = sarama.SASLHandshakeV0
+	case 1:
+		saramaConfig.Net.SASL.Version = sarama.SASLHandshakeV1
+	default:
+		return fmt.Errorf(`invalid SASL Protocol Version %d: can be either 0 or 1`, config.Version)
 	}
 
 	return nil

@@ -70,7 +70,7 @@ func NameOfReader(r interface{}) string {
 //
 // eg.
 //
-// 		lex = lexer.Must(lexer.Build(`Symbol = "symbol" .`))
+//	lex = lexer.Must(lexer.Build(`Symbol = "symbol" .`))
 func Must(def Definition, err error) Definition {
 	if err != nil {
 		panic(err)

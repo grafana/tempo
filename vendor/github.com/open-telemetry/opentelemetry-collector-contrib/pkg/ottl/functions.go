@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package ottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 
@@ -18,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -27,70 +17,94 @@ type EnumParser func(*EnumSymbol) (*Enum, error)
 
 type Enum int64
 
-func (p *Parser[K]) newFunctionCall(inv invocation) (Expr[K], error) {
-	f, ok := p.functions[inv.Function]
+func (p *Parser[K]) newFunctionCall(ed editor) (Expr[K], error) {
+	f, ok := p.functions[ed.Function]
 	if !ok {
-		return Expr[K]{}, fmt.Errorf("undefined function %v", inv.Function)
+		return Expr[K]{}, fmt.Errorf("undefined function %q", ed.Function)
 	}
-	args, err := p.buildArgs(inv, reflect.TypeOf(f))
+	args := f.CreateDefaultArguments()
+
+	// A nil value indicates the function takes no arguments.
+	if args != nil {
+		// Pointer values are necessary to fulfill the Go reflection
+		// settability requirements. Non-pointer values are not
+		// modifiable through reflection.
+		if reflect.TypeOf(args).Kind() != reflect.Pointer {
+			return Expr[K]{}, fmt.Errorf("factory for %q must return a pointer to an Arguments value in its CreateDefaultArguments method", ed.Function)
+		}
+
+		err := p.buildArgs(ed, reflect.ValueOf(args).Elem())
+		if err != nil {
+			return Expr[K]{}, fmt.Errorf("error while parsing arguments for call to %q: %w", ed.Function, err)
+		}
+	}
+
+	fn, err := f.CreateFunction(FunctionContext{Set: p.telemetrySettings}, args)
 	if err != nil {
-		return Expr[K]{}, fmt.Errorf("error while parsing arguments for call to '%v': %w", inv.Function, err)
+		return Expr[K]{}, fmt.Errorf("couldn't create function: %w", err)
 	}
 
-	returnVals := reflect.ValueOf(f).Call(args)
-
-	if returnVals[1].IsNil() {
-		err = nil
-	} else {
-		err = returnVals[1].Interface().(error)
-	}
-
-	return Expr[K]{exprFunc: returnVals[0].Interface().(ExprFunc[K])}, err
+	return Expr[K]{exprFunc: fn}, err
 }
 
-func (p *Parser[K]) buildArgs(inv invocation, fType reflect.Type) ([]reflect.Value, error) {
-	var args []reflect.Value
-	// Some function arguments may be intended to take values from the calling processor
-	// instead of being passed by the caller of the OTTL function, so we have to keep
-	// track of the index of the argument passed within the DSL.
-	// e.g. TelemetrySettings, which is provided by the processor to the OTTL Parser struct.
-	DSLArgumentIndex := 0
-	for i := 0; i < fType.NumIn(); i++ {
-		argType := fType.In(i)
+func getArgumentIndex(index int, args reflect.Value) (int, error) {
+	argsType := args.Type()
+	fieldTag, ok := argsType.Field(index).Tag.Lookup("ottlarg")
+	if !ok {
+		return 0, fmt.Errorf("no `ottlarg` struct tag on Arguments field %q", argsType.Field(index).Name)
+	}
+	argNum, err := strconv.Atoi(fieldTag)
+	if err != nil {
+		return 0, fmt.Errorf("ottlarg struct tag on field %q is not a valid integer: %w", argsType.Field(index).Name, err)
+	}
+	if argNum < 0 || argNum >= args.NumField() {
+		return 0, fmt.Errorf("ottlarg struct tag on field %q has value %d, but must be between 0 and %d", argsType.Field(index).Name, argNum, args.NumField())
+	}
+	return argNum, nil
+}
 
-		arg, isInternalArg := p.buildInternalArg(argType)
-		if isInternalArg {
-			args = append(args, reflect.ValueOf(arg))
-			continue
-		}
+func (p *Parser[K]) buildArgs(ed editor, argsVal reflect.Value) error {
+	if len(ed.Arguments) != argsVal.NumField() {
+		return fmt.Errorf("incorrect number of arguments. Expected: %d Received: %d", argsVal.NumField(), len(ed.Arguments))
+	}
 
-		if DSLArgumentIndex >= len(inv.Arguments) {
-			return nil, fmt.Errorf("not enough arguments")
-		}
-
-		argVal := inv.Arguments[DSLArgumentIndex]
-
-		var val any
-		var err error
-		if argType.Kind() == reflect.Slice {
-			val, err = p.buildSliceArg(argVal, argType)
-		} else {
-			val, err = p.buildArg(argVal, argType)
-		}
-
+	for i := 0; i < argsVal.NumField(); i++ {
+		field := argsVal.Field(i)
+		fieldType := field.Type()
+		argNum, err := getArgumentIndex(i, argsVal)
 		if err != nil {
-			return nil, fmt.Errorf("invalid argument at position %v: %w", DSLArgumentIndex, err)
+			return err
 		}
-		args = append(args, reflect.ValueOf(val))
-
-		DSLArgumentIndex++
+		argVal := ed.Arguments[argNum]
+		var val any
+		switch {
+		case strings.HasPrefix(fieldType.Name(), "FunctionGetter"):
+			var name string
+			switch {
+			case argVal.Enum != nil:
+				name = string(*argVal.Enum)
+			case argVal.FunctionName != nil:
+				name = *argVal.FunctionName
+			default:
+				return fmt.Errorf("invalid function name given")
+			}
+			f, ok := p.functions[name]
+			if !ok {
+				return fmt.Errorf("undefined function %s", name)
+			}
+			val = StandardFunctionGetter[K]{fCtx: FunctionContext{Set: p.telemetrySettings}, fact: f}
+		case fieldType.Kind() == reflect.Slice:
+			val, err = p.buildSliceArg(argVal, fieldType)
+		default:
+			val, err = p.buildArg(argVal, fieldType)
+		}
+		if err != nil {
+			return fmt.Errorf("invalid argument at position %v: %w", i, err)
+		}
+		field.Set(reflect.ValueOf(val))
 	}
 
-	if len(inv.Arguments) > DSLArgumentIndex {
-		return nil, fmt.Errorf("too many arguments")
-	}
-
-	return args, nil
+	return nil
 }
 
 func (p *Parser[K]) buildSliceArg(argVal value, argType reflect.Type) (any, error) {
@@ -125,12 +139,66 @@ func (p *Parser[K]) buildSliceArg(argVal value, argType reflect.Type) (any, erro
 			return nil, err
 		}
 		return arg, nil
+	case strings.HasPrefix(name, "PMapGetter"):
+		arg, err := buildSlice[PMapGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "StringGetter"):
+		arg, err := buildSlice[StringGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "StringLikeGetter"):
+		arg, err := buildSlice[StringLikeGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "FloatGetter"):
+		arg, err := buildSlice[FloatGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "FloatLikeGetter"):
+		arg, err := buildSlice[FloatLikeGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "IntGetter"):
+		arg, err := buildSlice[IntGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "IntLikeGetter"):
+		arg, err := buildSlice[IntLikeGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "DurationGetter"):
+		arg, err := buildSlice[DurationGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
+	case strings.HasPrefix(name, "TimeGetter"):
+		arg, err := buildSlice[TimeGetter[K]](argVal, argType, p.buildArg, name)
+		if err != nil {
+			return nil, err
+		}
+		return arg, nil
 	default:
-		return nil, fmt.Errorf("unsupported slice type '%s' for function", argType.Elem().Name())
+		return nil, fmt.Errorf("unsupported slice type %q for function", argType.Elem().Name())
 	}
 }
 
-// Handle interfaces that can be passed as arguments to OTTL function invocations.
+// Handle interfaces that can be passed as arguments to OTTL functions.
 func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 	name := argType.Name()
 	switch {
@@ -156,13 +224,55 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return StandardTypeGetter[K, string]{Getter: arg.Get}, nil
+		return StandardStringGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "StringLikeGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardStringLikeGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "FloatGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardFloatGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "FloatLikeGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardFloatLikeGetter[K]{Getter: arg.Get}, nil
 	case strings.HasPrefix(name, "IntGetter"):
 		arg, err := p.newGetter(argVal)
 		if err != nil {
 			return nil, err
 		}
-		return StandardTypeGetter[K, int64]{Getter: arg.Get}, nil
+		return StandardIntGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "IntLikeGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardIntLikeGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "PMapGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardPMapGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "DurationGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardDurationGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "TimeGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardTimeGetter[K]{Getter: arg.Get}, nil
 	case name == "Enum":
 		arg, err := p.enumParser(argVal.Enum)
 		if err != nil {
@@ -192,15 +302,6 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 	default:
 		return nil, errors.New("unsupported argument type")
 	}
-}
-
-// Handle interfaces that can be declared as parameters to a OTTL function, but will
-// never be called in an invocation. Returns whether the arg is an internal arg.
-func (p *Parser[K]) buildInternalArg(argType reflect.Type) (any, bool) {
-	if argType.Name() == "TelemetrySettings" {
-		return p.telemetrySettings, true
-	}
-	return nil, false
 }
 
 type buildArgFunc func(value, reflect.Type) (any, error)
