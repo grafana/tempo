@@ -64,28 +64,42 @@ var (
 
 type RetryableError struct {
 	err error
+	st  *status.Status
 }
 
 func (r *RetryableError) GRPCStatus() *status.Status {
-	s, ok := status.FromError(r.err)
-	if !ok {
-		return nil
-	}
-
-	if s.Code() == codes.ResourceExhausted {
-		s, _ = s.WithDetails(&errdetails.RetryInfo{
-			RetryDelay: &durationpb.Duration{
-				Seconds: 1,
-				Nanos:   0,
-			},
-		})
-	}
-
-	return s
+	return r.st
 }
 
 func (r *RetryableError) Error() string {
 	return r.err.Error()
+}
+
+// wrapErrorIfRetryable wraps the passed in error to meet expectations of the otel collector exporter code:
+// https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
+// The otel collector considers some errors retryable and other not. "ResourceExhausted" is special in that it requires a
+// RetryInfo detail along with the error code
+func wrapErrorIfRetryable(err error) error {
+	s, ok := status.FromError(err)
+	if !ok {
+		return err
+	}
+
+	if s.Code() != codes.ResourceExhausted {
+		return err
+	}
+
+	s, _ = s.WithDetails(&errdetails.RetryInfo{
+		RetryDelay: &durationpb.Duration{
+			Seconds: 1, // jpe configurable
+			Nanos:   0,
+		},
+	})
+
+	return &RetryableError{
+		err: err,
+		st:  s,
+	}
 }
 
 type TracesPusher interface {
@@ -317,8 +331,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
-
-		err = &RetryableError{err: err}
+		err = wrapErrorIfRetryable(err)
 	}
 
 	return err
