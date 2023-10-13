@@ -102,17 +102,10 @@ func (l *lexer) Lex(lval *yySymType) int {
 	// if we are currently parsing an attribute then just grab everything until we find a character that ends the attribute.
 	// we will handle parsing this out in ast.go
 	if l.parsingAttribute {
-		// parse out any scopes here, but copy it so we dont move main scanner if it's not a scope
-		s := l.Scanner
-		s.Scan()
-		str := s.TokenText()
-		tok := tokens[str+string(s.Peek())]
-		if tok == RESOURCE_DOT || tok == SPAN_DOT {
-			for i := 0; i < len(str); i++ {
-				l.Next()
-			}
-			l.Next()
-			return tok
+		// parse out any scopes here
+		scopeToken, ok := tryScopeAtribute(&l.Scanner)
+		if ok {
+			return scopeToken
 		}
 
 		var sb strings.Builder
@@ -227,6 +220,10 @@ func (l *lexer) Lex(lval *yySymType) int {
 	return IDENTIFIER
 }
 
+func (l *lexer) Error(msg string) {
+	l.errs = append(l.errs, newParseError(msg, l.Line, l.Column))
+}
+
 func quotedAtrribute(s *scanner.Scanner) (string, error) {
 	var sb strings.Builder
 	s.Next()
@@ -256,8 +253,22 @@ func quotedAtrribute(s *scanner.Scanner) (string, error) {
 	return sb.String(), nil
 }
 
-func (l *lexer) Error(msg string) {
-	l.errs = append(l.errs, newParseError(msg, l.Line, l.Column))
+func tryScopeAtribute(l *scanner.Scanner) (int, bool) {
+	// copy the scanner to avoid advancing if it's not a scope.
+	s := *l
+	s.Scan()
+	str := s.TokenText() + string(s.Peek())
+	tok := tokens[str]
+	if tok == RESOURCE_DOT || tok == SPAN_DOT {
+		// we have found scope attribute so consume the original scanner
+		for i := 0; i < len(str); i++ {
+			l.Next()
+		}
+
+		return tok, true
+	}
+
+	return 0, false
 }
 
 func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {
