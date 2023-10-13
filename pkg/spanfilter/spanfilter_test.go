@@ -2,9 +2,10 @@ package spanfilter
 
 import (
 	"fmt"
-	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 	"os"
 	"testing"
+
+	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -494,11 +495,9 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 				},
 			},
 			split: &splitPolicy{
-				IntrinsicMatch: &policymatch.PolicyMatch{
-					Attributes: []policymatch.MatchPolicyAttribute{
-						policymatch.NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_CLIENT),
-					},
-				},
+				IntrinsicMatch: policymatch.NewPolicyMatch(
+					policymatch.NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_CLIENT),
+				),
 			},
 		},
 		{
@@ -513,11 +512,9 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 				},
 			},
 			split: &splitPolicy{
-				IntrinsicMatch: &policymatch.PolicyMatch{
-					Attributes: []policymatch.MatchPolicyAttribute{
-						policymatch.NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
-					},
-				},
+				IntrinsicMatch: policymatch.NewPolicyMatch(
+					policymatch.NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
+				),
 			},
 		},
 	}

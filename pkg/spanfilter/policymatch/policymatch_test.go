@@ -1,11 +1,12 @@
 package policymatch
 
 import (
+	"regexp"
+	"testing"
+
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
-	"regexp"
-	"testing"
 )
 
 func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
@@ -19,19 +20,10 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "match on name, kind and status",
 			expect: true,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "kind",
-						value: trace_v1.Span_SPAN_KIND_SERVER,
-					},
-					matchStrictPolicyAttribute{
-						key:   "status",
-						value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					matchStrictPolicyAttribute{
-						key:   "name",
-						value: "test",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_SERVER),
+					NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
+					NewMatchStrictPolicyAttribute("name", "test"),
 				},
 			},
 			span: &trace_v1.Span{
@@ -46,19 +38,10 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "unmatched name",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "kind",
-						value: trace_v1.Span_SPAN_KIND_SERVER,
-					},
-					matchStrictPolicyAttribute{
-						key:   "status",
-						value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					matchStrictPolicyAttribute{
-						key:   "name",
-						value: "test",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_SERVER),
+					NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
+					NewMatchStrictPolicyAttribute("name", "test"),
 				},
 			},
 			span: &trace_v1.Span{
@@ -73,19 +56,10 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "unmatched status",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "kind",
-						value: trace_v1.Span_SPAN_KIND_CLIENT,
-					},
-					matchStrictPolicyAttribute{
-						key:   "status",
-						value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					matchStrictPolicyAttribute{
-						key:   "name",
-						value: "test",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_CLIENT),
+					NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
+					NewMatchStrictPolicyAttribute("name", "test"),
 				},
 			},
 			span: &trace_v1.Span{
@@ -100,19 +74,10 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "unmatched kind",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "kind",
-						value: trace_v1.Span_SPAN_KIND_SERVER,
-					},
-					matchStrictPolicyAttribute{
-						key:   "status",
-						value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					matchStrictPolicyAttribute{
-						key:   "name",
-						value: "test",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_SERVER),
+					NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
+					NewMatchStrictPolicyAttribute("name", "test"),
 				},
 			},
 			span: &trace_v1.Span{
@@ -127,15 +92,9 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "matched regex kind and status",
 			expect: true,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchRegexPolicyAttribute{
-						key:   "kind",
-						value: regexp.MustCompile(".*_KIND_.*"),
-					},
-					matchRegexPolicyAttribute{
-						key:   "status",
-						value: regexp.MustCompile(".*_CODE_.*"),
-					},
+				attributes: []MatchPolicyAttribute{
+					must(NewMatchRegexPolicyAttribute("kind", ".*_KIND_.*")),
+					must(NewMatchRegexPolicyAttribute("status", ".*_CODE_.*")),
 				},
 			},
 			span: &trace_v1.Span{
@@ -150,7 +109,7 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "unmatched regex kind",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
+				attributes: []MatchPolicyAttribute{
 					matchRegexPolicyAttribute{
 						key:   "kind",
 						value: regexp.MustCompile(".*_CLIENT"),
@@ -173,7 +132,7 @@ func TestPolicyMatch_MatchIntrinsicAttrs(t *testing.T) {
 			name:   "unmatched regex status",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
+				attributes: []MatchPolicyAttribute{
 					matchRegexPolicyAttribute{
 						key:   "kind",
 						value: regexp.MustCompile(".*_SERVER"),
@@ -213,11 +172,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "single string match",
 			expect: true,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "foo",
-						value: "bar",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("foo", "bar"),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -235,15 +191,9 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "multiple string match",
 			expect: true,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "foo",
-						value: "bar",
-					},
-					matchStrictPolicyAttribute{
-						key:   "otherfoo",
-						value: "notbar",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("foo", "bar"),
+					NewMatchStrictPolicyAttribute("otherfoo", "notbar"),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -269,15 +219,9 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "multiple string non match",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "foo",
-						value: "bar",
-					},
-					matchStrictPolicyAttribute{
-						key:   "otherfoo",
-						value: "nope",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("foo", "bar"),
+					NewMatchStrictPolicyAttribute("otherfoo", "nope"),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -303,23 +247,11 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "combination match",
 			expect: true,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "one",
-						value: "1",
-					},
-					matchStrictPolicyAttribute{
-						key:   "oneone",
-						value: 11,
-					},
-					matchStrictPolicyAttribute{
-						key:   "oneonepointone",
-						value: 11.1,
-					},
-					matchStrictPolicyAttribute{
-						key:   "matching",
-						value: true,
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("one", "1"),
+					NewMatchStrictPolicyAttribute("oneone", 11),
+					NewMatchStrictPolicyAttribute("oneonepointone", 11.1),
+					NewMatchStrictPolicyAttribute("matching", true),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -361,7 +293,7 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "regex basic match",
 			expect: true,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
+				attributes: []MatchPolicyAttribute{
 					matchRegexPolicyAttribute{
 						key:   "dd",
 						value: regexp.MustCompile(`\d\d\w{5}`),
@@ -383,11 +315,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value type mismatch string",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "dd",
-						value: true,
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("dd", true),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -405,11 +334,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value type mismatch string/int",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "dd",
-						value: "value",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("dd", "value"),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -427,11 +353,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value type mismatch string/float",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "11",
-						value: "eleven",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("11", "eleven"),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -449,11 +372,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value type mismatch string/bool",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "11",
-						value: "eleven",
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("11", "eleven"),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -471,11 +391,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value type mismatch int/string",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "11",
-						value: 11,
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("11", 11),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -493,11 +410,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value mismatch int",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "11",
-						value: 11,
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("11", 11),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -515,11 +429,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value mismatch bool",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "11",
-						value: true,
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("11", true),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -537,11 +448,8 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 			name:   "value mismatch float",
 			expect: false,
 			policy: &PolicyMatch{
-				Attributes: []MatchPolicyAttribute{
-					matchStrictPolicyAttribute{
-						key:   "11",
-						value: 11.0,
-					},
+				attributes: []MatchPolicyAttribute{
+					NewMatchStrictPolicyAttribute("11", 11.0),
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -565,10 +473,6 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 	}
 }
 
-func TestSpanFilter_stringMatch(t *testing.T) {
-
-}
-
 func Test_matchStrictPolicyAttribute_Match(t *testing.T) {
 	cases := []struct {
 		s       string
@@ -588,8 +492,15 @@ func Test_matchStrictPolicyAttribute_Match(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		a := matchStrictPolicyAttribute{key: "server", value: tc.pattern}
-		r := a.Match(tc.s)
+		a := NewMatchStrictPolicyAttribute("server", tc.pattern)
+		r := a.MatchString(tc.s)
 		require.Equal(t, tc.expect, r)
 	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
