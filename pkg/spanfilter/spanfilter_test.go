@@ -2,6 +2,7 @@ package spanfilter
 
 import (
 	"fmt"
+	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 	"os"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestSpanFilter_NewSpanFilter(t *testing.T) {
 	}
 }
 
-func TestSpanFilter_policyMatch(t *testing.T) {
+func Test_splitPolicy_Match(t *testing.T) {
 	cases := []struct {
 		policy   *config.PolicyMatch
 		resource *v1.Resource
@@ -241,583 +242,12 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.testName, func(t *testing.T) {
-			r := policyMatch(getSplitPolicy(tc.policy), tc.resource, tc.span)
+			policy, err := getSplitPolicy(tc.policy)
+			require.NoError(t, err)
+			require.NotNil(t, policy)
+			r := policy.Match(tc.resource, tc.span)
 			require.Equal(t, tc.expect, r)
 		})
-	}
-}
-
-func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
-	cases := []struct {
-		policy *config.PolicyMatch
-		span   *trace_v1.Span
-		expect bool
-		name   string
-	}{
-		{
-			name:   "match on name, kind and status",
-			expect: true,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: trace_v1.Span_SPAN_KIND_SERVER,
-					},
-					{
-						Key:   "status",
-						Value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					{
-						Key:   "name",
-						Value: "test",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
-				},
-				Name: "test",
-			},
-		},
-		{
-			name:   "unmatched name",
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: trace_v1.Span_SPAN_KIND_SERVER,
-					},
-					{
-						Key:   "status",
-						Value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					{
-						Key:   "name",
-						Value: "test",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
-				},
-				Name: "test2",
-			},
-		},
-		{
-			name:   "unmatched status",
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: trace_v1.Span_SPAN_KIND_CLIENT,
-					},
-					{
-						Key:   "status",
-						Value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					{
-						Key:   "name",
-						Value: "test",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_ERROR,
-				},
-				Name: "test",
-			},
-		},
-		{
-			name:   "unmatched kind",
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: trace_v1.Span_SPAN_KIND_SERVER,
-					},
-					{
-						Key:   "status",
-						Value: trace_v1.Status_STATUS_CODE_OK,
-					},
-					{
-						Key:   "name",
-						Value: "test",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
-				},
-				Name: "test",
-			},
-		},
-		{
-			name:   "matched regex kind and status",
-			expect: true,
-			policy: &config.PolicyMatch{
-				MatchType: config.Regex,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: ".*_KIND_.*",
-					},
-					{
-						Key:   "status",
-						Value: ".*_CODE_.*",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
-				},
-				Name: "test",
-			},
-		},
-		{
-			name:   "unmatched regex kind",
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Regex,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: ".*_CLIENT",
-					},
-					{
-						Key:   "status",
-						Value: ".*_OK",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
-				},
-				Name: "test",
-			},
-		},
-		{
-			name:   "unmatched regex status",
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Regex,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: ".*_SERVER",
-					},
-					{
-						Key:   "status",
-						Value: ".*_ERROR",
-					},
-				},
-			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
-				},
-				Name: "test",
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r := policyMatchIntrinsicAttrs(tc.policy, tc.span)
-			require.Equal(t, tc.expect, r)
-		})
-	}
-}
-
-func TestSpanFilter_policyMatchAttrs(t *testing.T) {
-	cases := []struct {
-		policy *config.PolicyMatch
-		attrs  []*common_v1.KeyValue
-		expect bool
-	}{
-		// Single string match
-		{
-			expect: true,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "foo",
-						Value: "bar",
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "foo",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "bar",
-						},
-					},
-				},
-			},
-		},
-		// Multiple string match
-		{
-			expect: true,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "foo",
-						Value: "bar",
-					},
-					{
-						Key:   "otherfoo",
-						Value: "notbar",
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "foo",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "bar",
-						},
-					},
-				},
-				{
-					Key: "otherfoo",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "notbar",
-						},
-					},
-				},
-			},
-		},
-		// Multiple string non match
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "foo",
-						Value: "bar",
-					},
-					{
-						Key:   "otherfoo",
-						Value: "nope",
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "foo",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "bar",
-						},
-					},
-				},
-				{
-					Key: "otherfoo",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "notbar",
-						},
-					},
-				},
-			},
-		},
-		// Combination match
-		{
-			expect: true,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "one",
-						Value: "1",
-					},
-					{
-						Key:   "oneone",
-						Value: 11,
-					},
-					{
-						Key:   "oneonepointone",
-						Value: 11.1,
-					},
-					{
-						Key:   "matching",
-						Value: true,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "one",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "1",
-						},
-					},
-				},
-				{
-					Key: "oneone",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_IntValue{
-							IntValue: 11,
-						},
-					},
-				},
-				{
-					Key: "oneonepointone",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_DoubleValue{
-							DoubleValue: 11.1,
-						},
-					},
-				},
-				{
-					Key: "matching",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_BoolValue{
-							BoolValue: true,
-						},
-					},
-				},
-			},
-		},
-		// Regex basic match
-		{
-			expect: true,
-			policy: &config.PolicyMatch{
-				MatchType: config.Regex,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "dd",
-						Value: `\d\d\w{5}`,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "dd",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "11xxxxx",
-						},
-					},
-				},
-			},
-		},
-		// Value type mismatch string
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "dd",
-						Value: true,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "dd",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "11xxxxx",
-						},
-					},
-				},
-			},
-		},
-		// Value type mismatch string/int
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "dd",
-						Value: "value",
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "dd",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_IntValue{
-							IntValue: 11,
-						},
-					},
-				},
-			},
-		},
-		// Value type mismatch string/float
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "11",
-						Value: "eleven",
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "11",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_DoubleValue{
-							DoubleValue: 11.1,
-						},
-					},
-				},
-			},
-		},
-		// Value type mismatch string/bool
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "11",
-						Value: "eleven",
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "11",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_BoolValue{
-							BoolValue: false,
-						},
-					},
-				},
-			},
-		},
-		// Value type mismatch int/string
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "11",
-						Value: 11,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "11",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_StringValue{
-							StringValue: "11",
-						},
-					},
-				},
-			},
-		},
-		// Value mismatch int
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "11",
-						Value: 11,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "11",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_IntValue{
-							IntValue: 12,
-						},
-					},
-				},
-			},
-		},
-		// Value mismatch bool
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "11",
-						Value: true,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "11",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_BoolValue{
-							BoolValue: false,
-						},
-					},
-				},
-			},
-		},
-		// Value mismatch bool
-		{
-			expect: false,
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "11",
-						Value: 11.0,
-					},
-				},
-			},
-			attrs: []*common_v1.KeyValue{
-				{
-					Key: "11",
-					Value: &common_v1.AnyValue{
-						Value: &common_v1.AnyValue_DoubleValue{
-							DoubleValue: 11.1,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		r := policyMatchAttrs(tc.policy, tc.attrs)
-		require.Equal(t, tc.expect, r)
 	}
 }
 
@@ -1046,33 +476,6 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	}
 }
 
-func TestSpanFilter_stringMatch(t *testing.T) {
-	cases := []struct {
-		matchType config.MatchType
-		s         string
-		pattern   string
-		expect    bool
-	}{
-		{
-			matchType: config.Strict,
-			s:         "foo",
-			pattern:   "foo",
-			expect:    true,
-		},
-		{
-			matchType: config.Strict,
-			s:         "foo",
-			pattern:   "bar",
-			expect:    false,
-		},
-	}
-
-	for _, tc := range cases {
-		r := stringMatch(tc.matchType, tc.s, tc.pattern)
-		require.Equal(t, tc.expect, r)
-	}
-}
-
 func TestSpanFilter_getSplitPolicy(t *testing.T) {
 	cases := []struct {
 		policy *config.PolicyMatch
@@ -1091,13 +494,9 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 				},
 			},
 			split: &splitPolicy{
-				IntrinsicMatch: &config.PolicyMatch{
-					MatchType: config.Strict,
-					Attributes: []config.MatchPolicyAttribute{
-						{
-							Key:   "kind",
-							Value: trace_v1.Span_SPAN_KIND_CLIENT,
-						},
+				IntrinsicMatch: &policymatch.PolicyMatch{
+					Attributes: []policymatch.MatchPolicyAttribute{
+						policymatch.NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_CLIENT),
 					},
 				},
 			},
@@ -1114,13 +513,9 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 				},
 			},
 			split: &splitPolicy{
-				IntrinsicMatch: &config.PolicyMatch{
-					MatchType: config.Strict,
-					Attributes: []config.MatchPolicyAttribute{
-						{
-							Key:   "status",
-							Value: trace_v1.Status_STATUS_CODE_OK,
-						},
+				IntrinsicMatch: &policymatch.PolicyMatch{
+					Attributes: []policymatch.MatchPolicyAttribute{
+						policymatch.NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
 					},
 				},
 			},
@@ -1129,8 +524,8 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s := getSplitPolicy(tc.policy)
-
+			s, err := getSplitPolicy(tc.policy)
+			require.NoError(t, err)
 			require.NotNil(t, s)
 			require.NotNil(t, s.IntrinsicMatch)
 			require.NotNil(t, s.SpanMatch)
@@ -1151,11 +546,11 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 
 func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {
 	// Generate a batch of 100k spans
-	// r, done := test.NewRandomBatcher()
-	// defer done()
-	// batch := r.GenerateBatch(1e6)
-	// data, _ := batch.Marshal()
-	// _ = ioutil.WriteFile("testbatch100k", data, 0600)
+	//r, done := test.NewRandomBatcher()
+	//defer done()
+	//batch := r.GenerateBatch(1e6)
+	//data, _ := batch.Marshal()
+	//_ = os.WriteFile("testbatch100k", data, 0600)
 
 	// Read the file generated above
 	data, err := os.ReadFile("testbatch100k")
