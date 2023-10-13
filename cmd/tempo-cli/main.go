@@ -22,11 +22,8 @@ const (
 	bloomFilePrefix = "bloom-"
 )
 
-var generateJsonnet = false
-
 type globalOptions struct {
-	ConfigFile      string `type:"path" short:"c" help:"Path to tempo config file"`
-	GenerateJsonnet bool   `help:"Generate overrides Jsonnet for dedicated columns"`
+	ConfigFile string `type:"path" short:"c" help:"Path to tempo config file"`
 }
 
 type backendOptions struct {
@@ -119,10 +116,6 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to parse configFile %s: %w", g.ConfigFile, err)
 		}
-	}
-
-	if g.GenerateJsonnet {
-		generateJsonnet = true
 	}
 
 	// cli overrides
