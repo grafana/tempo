@@ -40,7 +40,7 @@ func boolPtr(b bool) *bool {
 }
 
 func timePtr(t time.Duration) *client.Duration {
-	return &client.Duration{t}
+	return &client.Duration{Duration: t}
 }
 
 func strArrPtr(s []string) *[]string {

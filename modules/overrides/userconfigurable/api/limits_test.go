@@ -55,10 +55,10 @@ func Test_limitsFromOverrides(t *testing.T) {
 	assert.NoError(t, err)
 
 	limits := limitsFromOverrides(overridesInt, userID)
-	limitsJson, err := json.MarshalIndent(limits, "", "  ")
+	limitsJSON, err := json.MarshalIndent(limits, "", "  ")
 	assert.NoError(t, err)
 
-	expectedJson := `{
+	expectedJSON := `{
   "forwarders": [
     "my-forwarder"
   ],
@@ -115,5 +115,5 @@ func Test_limitsFromOverrides(t *testing.T) {
     }
   }
 }`
-	assert.Equal(t, expectedJson, string(limitsJson))
+	assert.Equal(t, expectedJSON, string(limitsJSON))
 }
