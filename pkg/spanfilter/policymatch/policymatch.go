@@ -167,9 +167,11 @@ func NewMatchStrictPolicyAttribute(key string, value interface{}) MatchPolicyAtt
 	case v1_trace.Span_SpanKind:
 		attr.typ = SpanKindType
 		attr.spanKindValue = v
+		attr.stringValue = v.String()
 	case v1_trace.Status_StatusCode:
 		attr.typ = StatusCodeType
 		attr.statusCodeValue = v
+		attr.stringValue = v.String()
 	case float64:
 		attr.typ = Float64Type
 		attr.float64Value = v
@@ -182,9 +184,8 @@ func NewMatchStrictPolicyAttribute(key string, value interface{}) MatchPolicyAtt
 }
 
 func (a matchStrictPolicyAttribute) MatchString(value string) bool {
-	return a.typ == StringType && a.stringValue == value ||
-		a.typ == SpanKindType && a.spanKindValue.String() == value ||
-		a.typ == StatusCodeType && a.statusCodeValue.String() == value
+	return (a.typ == StringType || a.typ == SpanKindType || a.typ == StatusCodeType) &&
+		a.stringValue == value
 }
 
 func (a matchStrictPolicyAttribute) MatchInt64(value int64) bool {
@@ -249,16 +250,17 @@ func (a matchRegexPolicyAttribute) MatchString(value string) bool {
 	return a.value.MatchString(value)
 }
 
-func (a matchRegexPolicyAttribute) MatchInt64(_ int64) bool {
-	return false
-}
-
 func (a matchRegexPolicyAttribute) MatchSpanKind(value v1_trace.Span_SpanKind) bool {
 	return a.MatchString(value.String())
 }
 
 func (a matchRegexPolicyAttribute) MatchStatusCode(value v1_trace.Status_StatusCode) bool {
 	return a.MatchString(value.String())
+}
+
+func (a matchRegexPolicyAttribute) MatchInt64(_ int64) bool {
+	// Does not support regex matching for float values.
+	return false
 }
 
 func (a matchRegexPolicyAttribute) MatchFloat64(_ float64) bool {

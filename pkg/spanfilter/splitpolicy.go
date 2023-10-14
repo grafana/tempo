@@ -27,7 +27,10 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 	intrinsicPolicy := policymatch.NewPolicyMatch()
 
 	for _, pa := range policy.Attributes {
-		attr := traceql.MustParseIdentifier(pa.Key)
+		attr, err := traceql.ParseIdentifier(pa.Key)
+		if err != nil {
+			return nil, err
+		}
 
 		if attr.Intrinsic > 0 {
 			var attribute policymatch.MatchPolicyAttribute
