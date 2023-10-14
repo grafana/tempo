@@ -1,6 +1,8 @@
 package util
 
 import (
+	"slices"
+
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -66,20 +68,11 @@ func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue, exclude []s
 		// ignoring job and instance
 		key := attrs.Key
 		value := tempo_util.StringifyAnyValue(attrs.Value)
-		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !Contains(key, exclude) {
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
 			keys = append(keys, key)
 			values = append(values, value)
 		}
 	}
 
 	return keys, values
-}
-
-func Contains(key string, list []string) bool {
-	for _, exclude := range list {
-		if key == exclude {
-			return true
-		}
-	}
-	return false
 }

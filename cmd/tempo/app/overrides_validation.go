@@ -2,9 +2,8 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"time"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"

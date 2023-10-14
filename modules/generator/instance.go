@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"

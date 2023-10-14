@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -24,6 +25,8 @@ const (
 	metricSizeTotal       = "traces_spanmetrics_size_total"
 	targetInfo            = "traces_target_info"
 )
+
+var intrinsicDimensionLabels = []string{dimJob, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage, dimInstance}
 
 type Processor struct {
 	Cfg Config
@@ -250,5 +253,5 @@ func sanitizeLabelNameWithCollisions(name string) string {
 }
 
 func isIntrinsicDimension(name string) bool {
-	return processor_util.Contains(name, []string{dimJob, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage, dimInstance})
+	return slices.Contains(intrinsicDimensionLabels, name)
 }

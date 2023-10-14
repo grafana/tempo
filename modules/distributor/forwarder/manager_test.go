@@ -2,13 +2,13 @@ package forwarder
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/go-kit/log"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"golang.org/x/exp/slices"
 )
 
 type mockWorkingOverrides struct {
