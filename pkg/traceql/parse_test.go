@@ -882,6 +882,7 @@ func TestAttributeNameErrors(t *testing.T) {
 		{in: "{ .foo .bar }", err: newParseError("syntax error: unexpected .", 1, 8)},
 		{in: "{ parent. }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER or resource. or span.", 0, 3)},
 		{in: ".3foo", err: newParseError("syntax error: unexpected IDENTIFIER", 1, 3)},
+		{in: `{ ."foo }`, err: newParseError(`unexpected EOF, expecting "`, 0, 3)},
 	}
 
 	for _, tc := range tests {
