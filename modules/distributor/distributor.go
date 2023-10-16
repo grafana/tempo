@@ -381,10 +381,13 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}
 
 	numOfTraces := len(keys)
-	batchResults := make([][]tempopb.PushErrorReason, numOfTraces)
+	//batchResults := make([][]tempopb.PushErrorReason, numOfTraces)
 	// batch results will be represent the entire batch of traces and each index will have the pushResponses for each trace
 	// 0 = no error, 1 = max_live_traces, 2 = trace_too_large
 	// batchResults{[[0,0,0], [1,0,1]]} represents two traces where trace 1 was successfully pushed 3 times and trace 2 received max_live_traces error twice
+
+	numSuccessByTraceIndex := make([]int, numOfTraces)
+	lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, numOfTraces)
 	var mu sync.Mutex
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
@@ -425,7 +428,13 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			// like [0,1] [1] [2] [0,2]
 			reqBatchIndex := indexes[ringIndex]
 			if reqBatchIndex < numOfTraces {
-				batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
+				//batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
+				if pushError == tempopb.PushErrorReason_NO_ERROR {
+					currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
+					numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
+				} else {
+					lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
+				}
 			} else {
 				level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
 			}
@@ -443,8 +452,9 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	mu.Lock()
 	defer mu.Unlock()
 
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(batchResults, traces, d.ingestersRing.ReplicationFactor())
+	// maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(batchResults, traces, d.ingestersRing.ReplicationFactor())
 
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpansTwo(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces,  d.ingestersRing.ReplicationFactor())
 	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
 	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
 
