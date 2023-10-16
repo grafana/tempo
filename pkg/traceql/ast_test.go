@@ -387,24 +387,27 @@ func (m *mockSpan) DurationNanos() uint64 {
 	return m.durationNanos
 }
 
-func (m *mockSpan) DescendantOf(s Span) bool {
-	if ss, ok := s.(*mockSpan); ok {
-		return m.left > ss.left && m.left < ss.right
-	}
+func (m *mockSpan) DescendantOf(l []Span, r []Span, invert bool) []Span { // jpe - fix
+	// if ss, ok := s.(*mockSpan); ok {
+	// 	return m.left > ss.left && m.left < ss.right
+	// }
 
-	return false
+	// return false
+	return nil
 }
 
-func (m *mockSpan) SiblingOf(s Span) bool {
-	if ss, ok := s.(*mockSpan); ok {
-		return m.parentID == ss.parentID
-	}
-	return false
+func (m *mockSpan) SiblingOf(l []Span, r []Span, invert bool) []Span {
+	// if ss, ok := s.(*mockSpan); ok {
+	// 	return m.parentID == ss.parentID
+	// }
+	// return false
+	return nil
 }
 
-func (m *mockSpan) ChildOf(s Span) bool {
-	if ss, ok := s.(*mockSpan); ok {
-		return m.parentID == ss.left
-	}
-	return false
+func (m *mockSpan) ChildOf(l []Span, r []Span, invert bool) []Span {
+	// if ss, ok := s.(*mockSpan); ok {
+	// 	return m.parentID == ss.left
+	// }
+	// return false
+	return nil
 }

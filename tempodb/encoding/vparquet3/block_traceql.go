@@ -54,46 +54,46 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(x traceql.Span) bool {
-	if ss, ok := x.(*span); ok {
-		if s.nestedSetLeft == 0 ||
-			s.nestedSetRight == 0 ||
-			ss.nestedSetLeft == 0 ||
-			ss.nestedSetRight == 0 {
-			// Spans with missing data, never a match.
-			return false
-		}
-		return s.nestedSetLeft > ss.nestedSetLeft && s.nestedSetRight < ss.nestedSetRight
-	}
+func (s *span) DescendantOf(l []traceql.Span, r []traceql.Span, invert bool) []traceql.Span { // jpe - fix
+	// if ss, ok := x.(*span); ok {
+	// 	if s.nestedSetLeft == 0 ||
+	// 		s.nestedSetRight == 0 ||
+	// 		ss.nestedSetLeft == 0 ||
+	// 		ss.nestedSetRight == 0 {
+	// 		// Spans with missing data, never a match.
+	// 		return false
+	// 	}
+	// 	return s.nestedSetLeft > ss.nestedSetLeft && s.nestedSetRight < ss.nestedSetRight
+	// }
 
-	return false
+	return nil
 }
 
-func (s *span) SiblingOf(x traceql.Span) bool {
-	if ss, ok := x.(*span); ok {
-		if s.nestedSetParent == 0 ||
-			ss.nestedSetParent == 0 {
-			return false
-		}
-		// Same parent but not ourself
-		// Checking pointers here means we don't have to load
-		// an additional column of nestedSetLeft but assumes the span
-		// object. This is true because all TraceQL executions are
-		// currently single-pass.
-		return ss.nestedSetParent == s.nestedSetParent && s != ss
-	}
-	return false
+func (s *span) SiblingOf(l []traceql.Span, r []traceql.Span, invert bool) []traceql.Span {
+	// if ss, ok := x.(*span); ok {
+	// 	if s.nestedSetParent == 0 ||
+	// 		ss.nestedSetParent == 0 {
+	// 		return false
+	// 	}
+	// 	// Same parent but not ourself
+	// 	// Checking pointers here means we don't have to load
+	// 	// an additional column of nestedSetLeft but assumes the span
+	// 	// object. This is true because all TraceQL executions are
+	// 	// currently single-pass.
+	// 	return ss.nestedSetParent == s.nestedSetParent && s != ss
+	// }
+	return nil
 }
 
-func (s *span) ChildOf(x traceql.Span) bool {
-	if ss, ok := x.(*span); ok {
-		if s.nestedSetParent == 0 ||
-			ss.nestedSetLeft == 0 {
-			return false
-		}
-		return ss.nestedSetLeft == s.nestedSetParent
-	}
-	return false
+func (s *span) ChildOf(l []traceql.Span, r []traceql.Span, invert bool) []traceql.Span {
+	// if ss, ok := x.(*span); ok {
+	// 	if s.nestedSetParent == 0 ||
+	// 		ss.nestedSetLeft == 0 {
+	// 		return false
+	// 	}
+	// 	return ss.nestedSetLeft == s.nestedSetParent
+	// }
+	return nil
 }
 
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id

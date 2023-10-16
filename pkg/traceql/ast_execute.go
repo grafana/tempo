@@ -85,7 +85,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			return nil, err
 		}
 
-		var relFn func(l, r Span) bool
+		var relFn func(l, r []Span) []Span
 		var falseForAll bool
 
 		switch o.Op {
@@ -109,41 +109,42 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			falseForAll = true
 			fallthrough
 		case OpSpansetDescendant:
-			relFn = func(l, r Span) bool {
-				return r.DescendantOf(l)
+			relFn = func(l, r []Span) []Span {
+				return l[0].DescendantOf(l, r, falseForAll) // jpe - l[0] is bad
 			}
 
 		case OpSpansetNotAncestor:
 			falseForAll = true
 			fallthrough
 		case OpSpansetAncestor:
-			relFn = func(l, r Span) bool {
-				return l.DescendantOf(r)
+			relFn = func(l, r []Span) []Span {
+				return l[0].DescendantOf(r, l, falseForAll)
 			}
 
 		case OpSpansetNotChild:
 			falseForAll = true
 			fallthrough
 		case OpSpansetChild:
-			relFn = func(l, r Span) bool {
-				return r.ChildOf(l)
+			relFn = func(l, r []Span) []Span {
+				return l[0].ChildOf(l, r, falseForAll)
 			}
 
 		case OpSpansetNotParent:
 			falseForAll = true
 			fallthrough
 		case OpSpansetParent:
-			relFn = func(l, r Span) bool {
-				return l.ChildOf(r)
+			relFn = func(l, r []Span) []Span {
+				return l[0].ChildOf(r, l, falseForAll)
 			}
 
 		case OpSpansetNotSibling:
 			falseForAll = true
 			fallthrough
 		case OpSpansetSibling:
-			relFn = func(l, r Span) bool {
-				return r.SiblingOf(l)
+			relFn = func(l, r []Span) []Span {
+				return l[0].SiblingOf(r, l, falseForAll)
 			}
+
 		default:
 			return nil, fmt.Errorf("spanset operation (%v) not supported", o.Op)
 		}
@@ -171,7 +172,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 // joinSpansets compares all pairwise combinations of the inputs and returns the right-hand side
 // where the eval callback returns true.  For now the behavior is only defined when there is exactly one
 // spanset on both sides and will return an error if multiple spansets are present.
-func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, falseForAll bool, eval func(l, r Span) bool) ([]Span, error) {
+func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, falseForAll bool, eval func(l, r []Span) []Span) ([]Span, error) {
 	if len(lhs) < 1 || len(rhs) < 1 {
 		return nil, nil
 	}
@@ -180,37 +181,7 @@ func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, falseForAll bool, e
 		return nil, errSpansetOperationMultiple
 	}
 
-	return o.joinSpansAndReturnRHS(lhs[0].Spans, rhs[0].Spans, falseForAll, eval), nil
-}
-
-// joinSpansAndReturnRHS compares all pairwise combinations of the inputs and returns the right-hand side
-// spans where the eval callback returns true.  Uses and internal buffer and output is only valid until
-// the next call.  Destructively edits the RHS slice for performance.
-// falseForAll indicates that the spans on the RHS should only be returned if relFn returns
-// false for all on the LHS. otherwise spans on the RHS are returned if there are any matches on the lhs
-func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, falseForAll bool, eval func(l, r Span) bool) []Span {
-	if len(lhs) == 0 || len(rhs) == 0 {
-		return nil
-	}
-
-	o.matchingSpansBuffer = o.matchingSpansBuffer[:0]
-
-	for _, r := range rhs {
-		matches := false
-		for _, l := range lhs {
-			if eval(l, r) {
-				// Returns RHS
-				matches = true
-				break
-			}
-		}
-		if matches && !falseForAll || // return RHS if there are any matches on the LHS
-			!matches && falseForAll { // return RHS if there are no matches on the LHS
-			o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
-		}
-	}
-
-	return o.matchingSpansBuffer
+	return eval(lhs[0].Spans, rhs[0].Spans), nil
 }
 
 // SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes
