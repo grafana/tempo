@@ -237,8 +237,8 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
-	if peerAttribtues, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
-		return peerAttribtues
+	if peerAttributes, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
+		return peerAttributes
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)
 }

@@ -143,7 +143,7 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetFilterPolicies() ([]filt
 	if l != nil && l.FilterPolicies != nil {
 		return *l.FilterPolicies, true
 	}
-	return nil, true
+	return nil, false
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetHistogramBuckets() ([]float64, bool) {
@@ -157,5 +157,5 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimens
 	if l != nil && l.TargetInfoExcludedDimensions != nil {
 		return *l.TargetInfoExcludedDimensions, true
 	}
-	return nil, true
+	return nil, false
 }
