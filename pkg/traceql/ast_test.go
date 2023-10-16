@@ -387,27 +387,51 @@ func (m *mockSpan) DurationNanos() uint64 {
 	return m.durationNanos
 }
 
-func (m *mockSpan) DescendantOf(l []Span, r []Span, falseForAll bool, invert bool, buffer []Span) []Span { // jpe - fix
-	// if ss, ok := s.(*mockSpan); ok {
-	// 	return m.left > ss.left && m.left < ss.right
-	// }
-
-	// return false
-	return nil
+func (m *mockSpan) DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span { // jpe - fix
+	return loop(lhs, rhs, falseForAll, invert, descendantOf)
 }
 
-func (m *mockSpan) SiblingOf(l []Span, r []Span, falseForAll bool, invert bool, buffer []Span) []Span {
-	// if ss, ok := s.(*mockSpan); ok {
-	// 	return m.parentID == ss.parentID
-	// }
-	// return false
-	return nil
+func descendantOf(s1 Span, s2 Span) bool {
+	return s2.(*mockSpan).left > s1.(*mockSpan).left && s2.(*mockSpan).left < s1.(*mockSpan).right
 }
 
-func (m *mockSpan) ChildOf(l []Span, r []Span, falseForAll bool, invert bool, buffer []Span) []Span {
-	// if ss, ok := s.(*mockSpan); ok {
-	// 	return m.parentID == ss.left
-	// }
-	// return false
-	return nil
+func (m *mockSpan) SiblingOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span {
+	return loop(lhs, rhs, falseForAll, invert, siblingOf)
+}
+
+func siblingOf(s1 Span, s2 Span) bool {
+	return s1.(*mockSpan).parentID == s2.(*mockSpan).parentID
+}
+
+func (m *mockSpan) ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span {
+	return loop(lhs, rhs, falseForAll, invert, childOf)
+}
+
+func childOf(s1 Span, s2 Span) bool {
+	return s1.(*mockSpan).parentID == s2.(*mockSpan).left
+}
+
+func loop(lhs []Span, rhs []Span, falseForAll bool, invert bool, eval func(s1 Span, s2 Span) bool) []Span {
+	out := []Span{}
+
+	for _, l := range lhs {
+		match := false
+		for _, r := range rhs {
+			if invert {
+				r, l = l, r
+			}
+
+			if eval(l, r) {
+				match = true
+				break
+			}
+		}
+
+		if (match && !falseForAll) ||
+			(!match && falseForAll) {
+			out = append(out, l)
+		}
+	}
+
+	return out
 }
