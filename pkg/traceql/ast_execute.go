@@ -110,7 +110,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetDescendant:
 			relFn = func(l, r []Span) []Span {
-				return l[0].DescendantOf(l, r, falseForAll) // jpe - l[0] is bad
+				return l[0].DescendantOf(r, l, falseForAll) // jpe - l[0] is bad
 			}
 
 		case OpSpansetNotAncestor:
@@ -118,7 +118,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetAncestor:
 			relFn = func(l, r []Span) []Span {
-				return l[0].DescendantOf(r, l, falseForAll)
+				return l[0].DescendantOf(l, r, falseForAll)
 			}
 
 		case OpSpansetNotChild:
@@ -126,7 +126,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetChild:
 			relFn = func(l, r []Span) []Span {
-				return l[0].ChildOf(l, r, falseForAll)
+				return l[0].ChildOf(r, l, falseForAll)
 			}
 
 		case OpSpansetNotParent:
@@ -134,7 +134,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetParent:
 			relFn = func(l, r []Span) []Span {
-				return l[0].ChildOf(r, l, falseForAll)
+				return l[0].ChildOf(l, r, falseForAll)
 			}
 
 		case OpSpansetNotSibling:
@@ -142,7 +142,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetSibling:
 			relFn = func(l, r []Span) []Span {
-				return l[0].SiblingOf(r, l, falseForAll)
+				return l[0].SiblingOf(l, r, falseForAll)
 			}
 
 		default:

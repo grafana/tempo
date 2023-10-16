@@ -36,6 +36,9 @@ type span struct {
 	rowNum         parquetquery.RowNumber
 	cbSpansetFinal bool
 	cbSpanset      *traceql.Spanset
+
+	// temp buffer for structural queries
+	structuralBuffer []traceql.Span
 }
 
 func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
@@ -54,46 +57,93 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(l []traceql.Span, r []traceql.Span, invert bool) []traceql.Span { // jpe - fix
-	// if ss, ok := x.(*span); ok {
-	// 	if s.nestedSetLeft == 0 ||
-	// 		s.nestedSetRight == 0 ||
-	// 		ss.nestedSetLeft == 0 ||
-	// 		ss.nestedSetRight == 0 {
-	// 		// Spans with missing data, never a match.
-	// 		return false
-	// 	}
-	// 	return s.nestedSetLeft > ss.nestedSetLeft && s.nestedSetRight < ss.nestedSetRight
-	// }
+func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []traceql.Span { // jpe - fix
+	if len(lhs) == 0 || len(rhs) == 0 {
+		return nil
+	}
 
-	return nil
+	s.structuralBuffer = s.structuralBuffer[:0]
+
+	descendantOf := func(a *span, b *span) bool {
+		if a.nestedSetLeft == 0 ||
+			a.nestedSetRight == 0 ||
+			b.nestedSetLeft == 0 ||
+			b.nestedSetRight == 0 {
+			// Spans with missing data, never a match.
+			return false
+		}
+		return a.nestedSetLeft > b.nestedSetLeft && a.nestedSetRight < b.nestedSetRight
+	}
+
+	for _, r := range rhs {
+		matches := false
+		for _, l := range lhs {
+			if descendantOf(l.(*span), r.(*span)) {
+				// Returns RHS
+				matches = true
+				break
+			}
+		}
+		if matches && !invert || // return RHS if there are any matches on the LHS
+			!matches && invert { // return RHS if there are no matches on the LHS
+			s.structuralBuffer = append(s.structuralBuffer, r)
+		}
+	}
+
+	return s.structuralBuffer
 }
 
-func (s *span) SiblingOf(l []traceql.Span, r []traceql.Span, invert bool) []traceql.Span {
-	// if ss, ok := x.(*span); ok {
-	// 	if s.nestedSetParent == 0 ||
-	// 		ss.nestedSetParent == 0 {
-	// 		return false
-	// 	}
-	// 	// Same parent but not ourself
-	// 	// Checking pointers here means we don't have to load
-	// 	// an additional column of nestedSetLeft but assumes the span
-	// 	// object. This is true because all TraceQL executions are
-	// 	// currently single-pass.
-	// 	return ss.nestedSetParent == s.nestedSetParent && s != ss
-	// }
-	return nil
+func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []traceql.Span {
+	sort.Slice(lhs, func(i, j int) bool {
+		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
+	})
+
+	for _, r := range rhs {
+		// search for nested set parent
+		found := sort.Search(len(lhs), func(i int) bool {
+			return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetParent
+		})
+
+		matches := false
+		if found >= 0 && found < len(lhs) {
+			matches = r.(*span).nestedSetParent == lhs[found].(*span).nestedSetParent
+			if matches && r.(*span) == lhs[found].(*span) {
+				matches = false
+				// check to see if the next span works otherwise bail
+				if found+1 < len(lhs) {
+					matches = lhs[found+1].(*span).nestedSetParent == r.(*span).nestedSetParent
+				}
+			}
+		}
+
+		if matches && !invert || // return RHS if there are any matches on the LHS
+			!matches && invert { // return RHS if there are no matches on the LHS
+			s.structuralBuffer = append(s.structuralBuffer, r)
+		}
+	}
+	return s.structuralBuffer
 }
 
-func (s *span) ChildOf(l []traceql.Span, r []traceql.Span, invert bool) []traceql.Span {
-	// if ss, ok := x.(*span); ok {
-	// 	if s.nestedSetParent == 0 ||
-	// 		ss.nestedSetLeft == 0 {
-	// 		return false
-	// 	}
-	// 	return ss.nestedSetLeft == s.nestedSetParent
-	// }
-	return nil
+func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []traceql.Span {
+	sort.Slice(lhs, func(i, j int) bool {
+		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
+	})
+
+	s.structuralBuffer = s.structuralBuffer[:0]
+
+	for _, r := range rhs {
+		// search for nested set parent
+		found := sort.Search(len(lhs), func(i int) bool {
+			return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetLeft
+		})
+
+		matches := found != -1
+		if matches && !invert || // return RHS if there are any matches on the LHS
+			!matches && invert { // return RHS if there are no matches on the LHS
+			s.structuralBuffer = append(s.structuralBuffer, r)
+		}
+	}
+	return s.structuralBuffer
 }
 
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
