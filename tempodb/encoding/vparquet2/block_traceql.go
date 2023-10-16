@@ -35,9 +35,6 @@ type span struct {
 	rowNum         parquetquery.RowNumber
 	cbSpansetFinal bool
 	cbSpanset      *traceql.Spanset
-
-	// temp buffer for structural queries
-	structuralBuffer []traceql.Span
 }
 
 func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
@@ -56,12 +53,10 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []traceql.Span { // jpe - fix
+func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span { // jpe - fix
 	if len(lhs) == 0 || len(rhs) == 0 {
 		return nil
 	}
-
-	s.structuralBuffer = s.structuralBuffer[:0]
 
 	descendantOf := func(a *span, b *span) bool {
 		if a.nestedSetLeft == 0 ||
@@ -83,16 +78,16 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, invert bool)
 				break
 			}
 		}
-		if matches && !invert || // return RHS if there are any matches on the LHS
-			!matches && invert { // return RHS if there are no matches on the LHS
-			s.structuralBuffer = append(s.structuralBuffer, r)
+		if matches && !falseForAll || // return RHS if there are any matches on the LHS
+			!matches && falseForAll { // return RHS if there are no matches on the LHS
+			buffer = append(buffer, r)
 		}
 	}
 
-	return s.structuralBuffer
+	return buffer
 }
 
-func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []traceql.Span {
+func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
 	sort.Slice(lhs, func(i, j int) bool {
 		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
 	})
@@ -115,15 +110,15 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []
 			}
 		}
 
-		if matches && !invert || // return RHS if there are any matches on the LHS
-			!matches && invert { // return RHS if there are no matches on the LHS
-			s.structuralBuffer = append(s.structuralBuffer, r)
+		if matches && !falseForAll || // return RHS if there are any matches on the LHS
+			!matches && falseForAll { // return RHS if there are no matches on the LHS
+			buffer = append(buffer, r)
 		}
 	}
-	return s.structuralBuffer
+	return buffer
 }
 
-func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []traceql.Span {
+func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
 	sort.Slice(lhs, func(i, j int) bool {
 		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
 	})
@@ -135,12 +130,12 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, invert bool) []tr
 		})
 
 		matches := found != -1
-		if matches && !invert || // return RHS if there are any matches on the LHS
-			!matches && invert { // return RHS if there are no matches on the LHS
-			s.structuralBuffer = append(s.structuralBuffer, r)
+		if matches && !falseForAll || // return RHS if there are any matches on the LHS
+			!matches && falseForAll { // return RHS if there are no matches on the LHS
+			buffer = append(buffer, r)
 		}
 	}
-	return s.structuralBuffer
+	return buffer
 }
 
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id

@@ -110,7 +110,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetDescendant:
 			relFn = func(l, r []Span) []Span {
-				return l[0].DescendantOf(r, l, falseForAll) // jpe - l[0] is bad
+				return l[0].DescendantOf(r, l, falseForAll, true, o.matchingSpansBuffer) // jpe - l[0] is bad
 			}
 
 		case OpSpansetNotAncestor:
@@ -118,7 +118,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetAncestor:
 			relFn = func(l, r []Span) []Span {
-				return l[0].DescendantOf(l, r, falseForAll)
+				return l[0].DescendantOf(l, r, falseForAll, false, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotChild:
@@ -126,7 +126,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetChild:
 			relFn = func(l, r []Span) []Span {
-				return l[0].ChildOf(r, l, falseForAll)
+				return l[0].ChildOf(r, l, falseForAll, true, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotParent:
@@ -134,7 +134,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetParent:
 			relFn = func(l, r []Span) []Span {
-				return l[0].ChildOf(l, r, falseForAll)
+				return l[0].ChildOf(l, r, falseForAll, false, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotSibling:
@@ -142,7 +142,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetSibling:
 			relFn = func(l, r []Span) []Span {
-				return l[0].SiblingOf(l, r, falseForAll)
+				return l[0].SiblingOf(l, r, falseForAll, true, o.matchingSpansBuffer)
 			}
 
 		default:
@@ -151,16 +151,16 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 
 		// if relFn was set up above we are doing a relationship operation.
 		if relFn != nil {
-			spans, err := o.joinSpansets(lhs, rhs, falseForAll, relFn)
+			o.matchingSpansBuffer, err = o.joinSpansets(lhs, rhs, falseForAll, relFn)
 			if err != nil {
 				return nil, err
 			}
 
-			if len(spans) > 0 {
+			if len(o.matchingSpansBuffer) > 0 {
 				// Clone here to capture previously computed aggregates, grouped attrs, etc.
 				// Copy spans to new slice because of internal buffering.
 				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), spans...)
+				matchingSpanset.Spans = append([]Span(nil), o.matchingSpansBuffer...)
 				output = append(output, matchingSpanset)
 			}
 		}

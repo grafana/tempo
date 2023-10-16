@@ -51,9 +51,15 @@ func (s *span) DurationNanos() uint64 {
 	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
 
-func (*span) DescendantOf([]traceql.Span, []traceql.Span, bool) []traceql.Span { return nil }
-func (*span) SiblingOf([]traceql.Span, []traceql.Span, bool) []traceql.Span    { return nil }
-func (*span) ChildOf([]traceql.Span, []traceql.Span, bool) []traceql.Span      { return nil }
+func (*span) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+	return nil
+}
+func (*span) SiblingOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+	return nil
+}
+func (*span) ChildOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+	return nil
+}
 
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {

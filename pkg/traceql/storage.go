@@ -85,9 +85,9 @@ type Span interface {
 	StartTimeUnixNanos() uint64
 	DurationNanos() uint64
 
-	SiblingOf([]Span, []Span, bool) []Span
-	DescendantOf([]Span, []Span, bool) []Span
-	ChildOf([]Span, []Span, bool) []Span
+	SiblingOf([]Span, []Span, bool, bool, []Span) []Span
+	DescendantOf([]Span, []Span, bool, bool, []Span) []Span
+	ChildOf([]Span, []Span, bool, bool, []Span) []Span
 }
 
 // should we just make matched a field on the spanset instead of a special attribute?
