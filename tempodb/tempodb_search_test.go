@@ -472,51 +472,97 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 	}
 
 	searchesThatMatch := []*test{ // jpe - uncomment all
-		// {
-		// 	req: &tempopb.SearchRequest{Query: "{ .parent } >> { .child }"},
-		// 	expected: []*tempopb.TraceSearchMetadata{
-		// 		{
-		// 			SpanSets: []*tempopb.SpanSet{
-		// 				{
-		// 					Spans: []*tempopb.Span{
-		// 						{
-		// 							SpanID:            "0000000000010203",
-		// 							StartTimeUnixNano: 1000000000000,
-		// 							DurationNanos:     1000000000,
-		// 							Name:              "",
-		// 							Attributes: []*v1_common.KeyValue{
-		// 								{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
-		// 							},
-		// 						},
-		// 					},
-		// 					Matched: 1,
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	req: &tempopb.SearchRequest{Query: "{ .parent } > { .child }"},
-		// 	expected: []*tempopb.TraceSearchMetadata{
-		// 		{
-		// 			SpanSets: []*tempopb.SpanSet{
-		// 				{
-		// 					Spans: []*tempopb.Span{
-		// 						{
-		// 							SpanID:            "0000000000010203",
-		// 							StartTimeUnixNano: 1000000000000,
-		// 							DurationNanos:     1000000000,
-		// 							Attributes: []*v1_common.KeyValue{
-		// 								{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
-		// 							},
-		// 						},
-		// 					},
-		// 					Matched: 1,
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } >> { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } << { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } > { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } < { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 		// {
 		// 	req: &tempopb.SearchRequest{Query: "{ .child } !> { .parent }"},
 		// 	expected: []*tempopb.TraceSearchMetadata{
@@ -539,28 +585,28 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		// 		},
 		// 	},
 		// },
-		// {
-		// 	req: &tempopb.SearchRequest{Query: "{ .child } !>> { .parent }"},
-		// 	expected: []*tempopb.TraceSearchMetadata{
-		// 		{
-		// 			SpanSets: []*tempopb.SpanSet{
-		// 				{
-		// 					Spans: []*tempopb.Span{
-		// 						{
-		// 							SpanID:            "0000000000040506",
-		// 							StartTimeUnixNano: 1000000000000,
-		// 							DurationNanos:     2000000000,
-		// 							Attributes: []*v1_common.KeyValue{
-		// 								{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
-		// 							},
-		// 						},
-		// 					},
-		// 					Matched: 1,
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } !>> { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 		{
 			req: &tempopb.SearchRequest{Query: "{ .child } !~ { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
@@ -605,28 +651,28 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		// 		},
 		// 	},
 		// },
-		// {
-		// 	req: &tempopb.SearchRequest{Query: "{ .parent } !<< { .child }"},
-		// 	expected: []*tempopb.TraceSearchMetadata{
-		// 		{
-		// 			SpanSets: []*tempopb.SpanSet{
-		// 				{
-		// 					Spans: []*tempopb.Span{
-		// 						{
-		// 							SpanID:            "0000000000010203",
-		// 							StartTimeUnixNano: 1000000000000,
-		// 							DurationNanos:     1000000000,
-		// 							Attributes: []*v1_common.KeyValue{
-		// 								{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
-		// 							},
-		// 						},
-		// 					},
-		// 					Matched: 1,
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } !<< { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
 		{
 			req: &tempopb.SearchRequest{Query: "{ .child } ~ { .child2 }"},
 			expected: []*tempopb.TraceSearchMetadata{
@@ -649,41 +695,41 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 				},
 			},
 		},
-		// {
-		// 	req: &tempopb.SearchRequest{Query: "{ .parent } >> {}"},
-		// 	expected: []*tempopb.TraceSearchMetadata{
-		// 		{
-		// 			SpanSets: []*tempopb.SpanSet{
-		// 				{
-		// 					Spans: []*tempopb.Span{
-		// 						{
-		// 							SpanID:            "0000000000010203",
-		// 							StartTimeUnixNano: 1000000000000,
-		// 							DurationNanos:     1000000000,
-		// 						},
-		// 						{
-		// 							SpanID:            "0000000000070809",
-		// 							StartTimeUnixNano: 1000000000000,
-		// 							DurationNanos:     1000000000,
-		// 						},
-		// 					},
-		// 					Matched: 2,
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } >> {}"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+								},
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
-		// {Query: "{ .child } >> { .parent }"},
+		{Query: "{ .child } >> { .parent }"},
 		// {Query: "{ .child } > { .parent }"},
 		{Query: "{ .child } ~ { .parent }"},
 		{Query: "{ .child } ~ { .child }"},
-		// {Query: "{ .broken} >> {}"},
+		{Query: "{ .broken} >> {}"},
 		// {Query: "{ .broken} > {}"},
 		{Query: "{ .broken} ~ {}"},
-		// {Query: "{} >> {.broken}"},
+		{Query: "{} >> {.broken}"},
 		// {Query: "{} > {.broken}"},
 		{Query: "{} ~ {.broken}"},
 		// {Query: "{ .child } !< { .parent }"},
