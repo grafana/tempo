@@ -121,22 +121,27 @@ For example, to find traces with an attribute of `sla` set to `critical`:
 
 ### Quoted attribute names
 
-Attribute names can contain terminal characters, such as a period (`.`). To search span attributes with terminal characters, you can use quoted attribute syntax. A quoted attribute should be enclosed inside double quotes, for example, `"example one"`. All characters between the quotes are considered part of the attribute name.
+Attribute names can contain terminal characters, such as a period (`.`).
+To search span attributes with terminal characters, you can use quoted attribute syntax.
+A quoted attribute should be enclosed inside double quotes, for example, `"example one"`.
+All characters between the quotes are considered part of the attribute name.
 
-For example, to find span with attribute name `attribute name with space`, you can use the following query:
+#### Examples
+
+To find a span with the attribute name `attribute name with space`, use the following query:
+
 ```
 { ."attribute name with space" = "value" }
 ```
 
-You can use quoted attributes syntax with non-quoted attribute syntax.
+You can use quoted attributes syntax with non-quoted attribute syntax, the following is a valid TraceQL query:
 
-For example, the syntax below is a valid TraceQL query.
 ```
 { span.attribute."attribute name with space" = "value" }
 ```
 
 {{% admonition type="note" %}}
-Currently, only `\"` and `\\` escape sequence are supported.
+Currently, only the `\"` and `\\` escape sequences are supported.
 {{% /admonition %}}
 
 ### Comparison operators
