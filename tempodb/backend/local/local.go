@@ -150,6 +150,10 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 
 // Read implements backend.Reader
 func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, -1, err
+	}
+
 	filename := rw.objectFileName(keypath, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0o644)
