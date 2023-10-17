@@ -489,19 +489,41 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name  string
 		query string
 	}{
-		{"sibling", "{ resource.service.name = `loki-querier` } ~ { resource.service.name = `loki-querier` }"},
+		// span
+		{"spanAttNameNoMatch", "{ span.foo = `bar` }"},
+		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
+		{"spanAttValMatch", "{ span.bloom > 0 }"},
+		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
+		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
+		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
+		{"spanAttIntrinsicRegexMatch", "{ name =~ `gcs.ReadRange` }"},
+
+		// resource
+		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
+		{"resourceAttValNoMatch", "{ resource.module.path = `bar` }"},
+		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
+		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
+		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
+
+		// mixed
+		{"mixedNameNoMatch", "{ .foo = `bar` }"},
+		{"mixedValNoMatch", "{ .bloom = `bar` }"},
+		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
+		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
+		{"mixedValBothMatch", "{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }"},
+
+		{"count", "{} | count() > 1"},
 		{"desc", "{ resource.service.name = `loki-querier` } >> { resource.service.name = `loki-querier` }"},
-		{"child", "{ resource.service.name = `loki-querier` } > { resource.service.name = `loki-querier` }"},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
-	//blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
+	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/home/joe/testblock/"),
-		//Path: path.Join("/Users/marty/src/tmp"),
+		// Path: path.Join("/home/joe/testblock/"),
+		Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
@@ -511,7 +533,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
-	opts.TotalPages = 1
+	opts.TotalPages = 10
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
