@@ -100,7 +100,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 
 	if l.parsingAttribute {
 		// parse out any scopes here
-		scopeToken, ok := tryScopeAtribute(&l.Scanner)
+		scopeToken, ok := tryScopeAttribute(&l.Scanner)
 		if ok {
 			return scopeToken
 		}
@@ -258,7 +258,7 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 	return sb.String(), nil
 }
 
-func tryScopeAtribute(l *scanner.Scanner) (int, bool) {
+func tryScopeAttribute(l *scanner.Scanner) (int, bool) {
 	// copy the scanner to avoid advancing if it's not a scope.
 	s := *l
 	str := ""
