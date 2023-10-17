@@ -206,9 +206,10 @@ distributor:
     [extend_writes: <bool>]
 
     # Optional.
-    # Configures the time sent back in a gRPC RetryInfo struct when Tempo returns a GRPC ResourceExhausted. If this
-    # parameter is set to 0 the client may not retry ResourceExhausted errors.
-    [retry_after_on_resource_exhausted: <duration> | default = '1s' ]
+    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
+    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to 
+    # instruct the client how to retry.
+    [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 ```
 
 ## Ingester
