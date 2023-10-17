@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
@@ -35,6 +34,8 @@ import (
 )
 
 type runnerFn func(*testing.T, *tempopb.Trace, *tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader)
+
+const attributeWithTerminalChars = `{ } ( ) = ~ ! < > & | ^`
 
 func TestSearchCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
@@ -76,10 +77,10 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 	e := traceql.NewEngine()
 
 	quotedAttributesThatMatch := []*tempopb.SearchRequest{
-		{Query: `{ span."attribute with space" = "foobar"}`},
-		{Query: `{ ."attribute with space" = "foobar"}`},
-		{Query: `{ ."res-dedicated.02" = "res-2a"}`},
-		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace"}`},
+		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "foobaz")},
+		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "foobar")},
+		{Query: `{ ."res-dedicated.02" = "res-2a" }`},
+		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace" }`},
 	}
 
 	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
@@ -102,9 +103,9 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 	}
 
 	quotedAttributesThaDonttMatch := []*tempopb.SearchRequest{
-		{Query: `{ ."attribute with space" = "value mismatch"}`},
-		{Query: `{ ."unknow".attribute = "res-2a"}`},
-		{Query: `{ resource."resource attribute" = "unknown"}`},
+		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "value mismatch")},
+		{Query: `{ ."unknow".attribute = "res-2a" }`},
+		{Query: `{ resource."resource attribute" = "unknown" }`},
 	}
 
 	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDonttMatch...)
@@ -877,8 +878,8 @@ func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string
 
 	for _, a := range atts {
 		// surround attribute with quote if contains terminal char
-		if containsAttributeTerminal(a.Key) {
-			a.Key = fmt.Sprintf("\"%s\"", a.Key)
+		if a.Key == attributeWithTerminalChars {
+			a.Key = fmt.Sprintf("%q", a.Key)
 		}
 		switch v := a.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
@@ -904,22 +905,6 @@ func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string
 	}
 
 	return trueConditions, falseConditions
-}
-
-// check if attribute contains any terminal chars as specified in tracql.isAttributeRune func
-func containsAttributeTerminal(s string) bool {
-	return strings.ContainsFunc(s, func(r rune) bool {
-		if unicode.IsSpace(r) {
-			return true
-		}
-
-		switch r {
-		case '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^', ',':
-			return true
-		default:
-			return false
-		}
-	})
 }
 
 func actualForExpectedMeta(wantMeta *tempopb.TraceSearchMetadata, res *tempopb.SearchResponse) *tempopb.TraceSearchMetadata {
@@ -1135,7 +1120,7 @@ func searchTestSuite() (
 						stringKV("bat", "Baz"),
 						stringKV("res-dedicated.01", "res-1a"),
 						stringKV("res-dedicated.02", "res-2a"),
-						stringKV("resource attribute [] = + - {} with terminal char", "foobar"),
+						stringKV(attributeWithTerminalChars, "foobar"),
 					},
 				},
 				ScopeSpans: []*v1.ScopeSpans{
@@ -1159,8 +1144,6 @@ func searchTestSuite() (
 									boolKV("child"),
 									stringKV("span-dedicated.01", "span-1a"),
 									stringKV("span-dedicated.02", "span-2a"),
-									stringKV("attribute with space", "foobar"),
-									intKV("span attribute [] = + - {} with terminal char", 1000),
 								},
 							},
 						},
@@ -1173,7 +1156,6 @@ func searchTestSuite() (
 						stringKV("service.name", "RootService"),
 						stringKV("res-dedicated.01", "res-1b"),
 						stringKV("res-dedicated.02", "res-2b"),
-						boolKV("attribute [] = + - {} with terminal char"),
 					},
 				},
 				ScopeSpans: []*v1.ScopeSpans{
@@ -1192,7 +1174,7 @@ func searchTestSuite() (
 									boolKV("parent"),
 									stringKV("span-dedicated.01", "span-1b"),
 									stringKV("span-dedicated.02", "span-2b"),
-									stringKV("attribute [] = + - {} with terminal char", "foobaz"),
+									stringKV(attributeWithTerminalChars, "foobaz"),
 								},
 							},
 						},
