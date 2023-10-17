@@ -85,6 +85,9 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			return nil, err
 		}
 
+		var relFn func(l, r Span) bool
+		var falseForAll bool
+
 		switch o.Op {
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
@@ -100,90 +103,65 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				output = append(output, matchingSpanset)
 			}
 
+		// relationship operators all set relFn which is used by below code
+		// to perform the operation
+		case OpSpansetNotDescendant:
+			falseForAll = true
+			fallthrough
 		case OpSpansetDescendant:
-			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+			relFn = func(l, r Span) bool {
 				return r.DescendantOf(l)
-			})
-			if err != nil {
-				return nil, err
 			}
 
-			if len(spans) > 0 {
-				// Clone here to capture previously computed aggregates, grouped attrs, etc.
-				// Copy spans to new slice because of internal buffering.
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), spans...)
-				output = append(output, matchingSpanset)
-			}
-
+		case OpSpansetNotAncestor:
+			falseForAll = true
+			fallthrough
 		case OpSpansetAncestor:
-			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
-				// In case of ancestor the lhs becomes descendant of rhs
+			relFn = func(l, r Span) bool {
 				return l.DescendantOf(r)
-			})
-			if err != nil {
-				return nil, err
 			}
 
-			if len(spans) > 0 {
-				// Clone here to capture previously computed aggregates, grouped attrs, etc.
-				// Copy spans to new slice because of internal buffering.
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), spans...)
-				output = append(output, matchingSpanset)
-			}
-
+		case OpSpansetNotChild:
+			falseForAll = true
+			fallthrough
 		case OpSpansetChild:
-			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+			relFn = func(l, r Span) bool {
 				return r.ChildOf(l)
-			})
-			if err != nil {
-				return nil, err
 			}
 
-			if len(spans) > 0 {
-				// Clone here to capture previously computed aggregates, grouped attrs, etc.
-				// Copy spans to new slice because of internal buffering.
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), spans...)
-				output = append(output, matchingSpanset)
-			}
-
+		case OpSpansetNotParent:
+			falseForAll = true
+			fallthrough
 		case OpSpansetParent:
-			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
-				// In case of parent the lhs becomes child of rhs
+			relFn = func(l, r Span) bool {
 				return l.ChildOf(r)
-			})
-			if err != nil {
-				return nil, err
 			}
 
-			if len(spans) > 0 {
-				// Clone here to capture previously computed aggregates, grouped attrs, etc.
-				// Copy spans to new slice because of internal buffering.
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), spans...)
-				output = append(output, matchingSpanset)
-			}
-
+		case OpSpansetNotSibling:
+			falseForAll = true
+			fallthrough
 		case OpSpansetSibling:
-			spans, err := o.joinSpansets(lhs, rhs, func(l, r Span) bool {
+			relFn = func(l, r Span) bool {
 				return r.SiblingOf(l)
-			})
-			if err != nil {
-				return nil, err
 			}
-
-			if len(spans) > 0 {
-				// Clone here to capture previously computed aggregates, grouped attrs, etc.
-				// Copy spans to new slice because of internal buffering.
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), spans...)
-				output = append(output, matchingSpanset)
-			}
-
 		default:
 			return nil, fmt.Errorf("spanset operation (%v) not supported", o.Op)
+		}
+
+		// if relFn was set up above we are doing a relationship operation.
+		if relFn != nil {
+			spans, err := o.joinSpansets(lhs, rhs, falseForAll, relFn)
+			if err != nil {
+				return nil, err
+			}
+
+			if len(spans) > 0 {
+				// Clone here to capture previously computed aggregates, grouped attrs, etc.
+				// Copy spans to new slice because of internal buffering.
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = append([]Span(nil), spans...)
+				output = append(output, matchingSpanset)
+			}
 		}
 	}
 
@@ -193,7 +171,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 // joinSpansets compares all pairwise combinations of the inputs and returns the right-hand side
 // where the eval callback returns true.  For now the behavior is only defined when there is exactly one
 // spanset on both sides and will return an error if multiple spansets are present.
-func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(l, r Span) bool) ([]Span, error) {
+func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, falseForAll bool, eval func(l, r Span) bool) ([]Span, error) {
 	if len(lhs) < 1 || len(rhs) < 1 {
 		return nil, nil
 	}
@@ -202,13 +180,15 @@ func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(l, r Span
 		return nil, errSpansetOperationMultiple
 	}
 
-	return o.joinSpansAndReturnRHS(lhs[0].Spans, rhs[0].Spans, eval), nil
+	return o.joinSpansAndReturnRHS(lhs[0].Spans, rhs[0].Spans, falseForAll, eval), nil
 }
 
 // joinSpansAndReturnRHS compares all pairwise combinations of the inputs and returns the right-hand side
 // spans where the eval callback returns true.  Uses and internal buffer and output is only valid until
 // the next call.  Destructively edits the RHS slice for performance.
-func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, eval func(l, r Span) bool) []Span {
+// falseForAll indicates that the spans on the RHS should only be returned if relFn returns
+// false for all on the LHS. otherwise spans on the RHS are returned if there are any matches on the lhs
+func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, falseForAll bool, eval func(l, r Span) bool) []Span {
 	if len(lhs) == 0 || len(rhs) == 0 {
 		return nil
 	}
@@ -216,12 +196,17 @@ func (o *SpansetOperation) joinSpansAndReturnRHS(lhs, rhs []Span, eval func(l, r
 	o.matchingSpansBuffer = o.matchingSpansBuffer[:0]
 
 	for _, r := range rhs {
+		matches := false
 		for _, l := range lhs {
 			if eval(l, r) {
 				// Returns RHS
-				o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
+				matches = true
 				break
 			}
+		}
+		if matches && !falseForAll || // return RHS if there are any matches on the LHS
+			!matches && falseForAll { // return RHS if there are no matches on the LHS
+			o.matchingSpansBuffer = append(o.matchingSpansBuffer, r)
 		}
 	}
 

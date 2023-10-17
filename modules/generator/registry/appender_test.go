@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/prometheus/prometheus/model/exemplar"
+	prom_histogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
@@ -25,6 +26,10 @@ func (n noopAppender) Append(storage.SeriesRef, labels.Labels, int64, float64) (
 }
 
 func (n noopAppender) AppendExemplar(storage.SeriesRef, labels.Labels, exemplar.Exemplar) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendHistogram(storage.SeriesRef, labels.Labels, int64, *prom_histogram.Histogram, *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
@@ -93,6 +98,10 @@ func (c *capturingAppender) Append(ref storage.SeriesRef, l labels.Labels, t int
 
 func (c *capturingAppender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
 	c.exemplars = append(c.exemplars, exemplarSample{l, e})
+	return ref, nil
+}
+
+func (c *capturingAppender) AppendHistogram(ref storage.SeriesRef, _ labels.Labels, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return ref, nil
 }
 

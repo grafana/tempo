@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 )

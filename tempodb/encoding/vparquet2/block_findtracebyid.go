@@ -3,13 +3,13 @@ package vparquet2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 	"github.com/willf/bloom"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -27,8 +27,8 @@ const (
 
 	TraceIDColumnName = "TraceID"
 
-	EnvVarIndexName          = "VPARQUET_INDEX"
-	EnvVarIndexDisabledValue = "0"
+	EnvVarIndexName         = "VPARQUET_INDEX"
+	EnvVarIndexEnabledValue = "1"
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
@@ -58,7 +58,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 }
 
 func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
-	if os.Getenv(EnvVarIndexName) == EnvVarIndexDisabledValue {
+	if os.Getenv(EnvVarIndexName) != EnvVarIndexEnabledValue {
 		// Index lookup disabled
 		return true, -1, nil
 	}
@@ -208,7 +208,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 			return 0, nil
 		})
 		if err != nil {
-			return nil, errors.Wrap(err, "error binary searching row groups")
+			return nil, fmt.Errorf("error binary searching row groups: %w", err)
 		}
 	}
 
@@ -242,13 +242,13 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	r := parquet.NewReader(pf)
 	err = r.SeekToRow(rowMatch)
 	if err != nil {
-		return nil, errors.Wrap(err, "seek to row")
+		return nil, fmt.Errorf("seek to row: %w", err)
 	}
 
 	tr := new(Trace)
 	err = r.Read(tr)
 	if err != nil {
-		return nil, errors.Wrap(err, "error reading row from backend")
+		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}
 
 	// convert to proto trace and return

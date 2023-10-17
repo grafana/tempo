@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -9,12 +10,11 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -170,7 +170,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 	span, ctx := opentracing.StartSpanFromContext(ctx, "rw.compact")
 	defer span.Finish()
 
-	traceID, _ := util.ExtractTraceID(ctx)
+	traceID, _ := tracing.ExtractTraceID(ctx)
 	if traceID != "" {
 		level.Info(rw.logger).Log("msg", "beginning compaction", "traceID", traceID)
 	}

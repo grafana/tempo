@@ -158,7 +158,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 			lb.Set(name, s.labels.values[i])
 		}
 
-		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, lb.Labels(), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}

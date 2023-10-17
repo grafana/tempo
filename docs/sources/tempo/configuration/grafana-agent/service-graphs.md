@@ -4,7 +4,7 @@ menuTitle: Enable service graphs
 description: Service graphs help to understand the structure of a distributed system, and the connections and dependencies between its components.
 weight:
 aliases:
-- ../grafana-agent/service-graphs
+  - ../../grafana-agent/service-graphs/ # /docs/tempo/<TEMPO_VERSION>/grafana-agent/service-graphs/
 ---
 
 # Enable service graphs

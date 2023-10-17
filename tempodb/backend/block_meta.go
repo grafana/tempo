@@ -3,11 +3,12 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -38,7 +39,7 @@ func DedicatedColumnTypeFromTempopb(t tempopb.DedicatedColumn_Type) (DedicatedCo
 	case tempopb.DedicatedColumn_STRING:
 		return DedicatedColumnTypeString, nil
 	default:
-		return "", errors.Errorf("invalid value for tempopb.DedicatedColumn_Type '%v'", t)
+		return "", fmt.Errorf("invalid value for tempopb.DedicatedColumn_Type '%v'", t)
 	}
 }
 
@@ -47,7 +48,7 @@ func (t DedicatedColumnType) ToTempopb() (tempopb.DedicatedColumn_Type, error) {
 	case DedicatedColumnTypeString:
 		return tempopb.DedicatedColumn_STRING, nil
 	default:
-		return 0, errors.Errorf("invalid value for dedicated column type '%v'", t)
+		return 0, fmt.Errorf("invalid value for dedicated column type '%v'", t)
 	}
 }
 
@@ -56,7 +57,7 @@ func (t DedicatedColumnType) ToStaticType() (traceql.StaticType, error) {
 	case DedicatedColumnTypeString:
 		return traceql.TypeString, nil
 	default:
-		return traceql.TypeNil, errors.Errorf("unsupported dedicated column type '%s'", t)
+		return traceql.TypeNil, fmt.Errorf("unsupported dedicated column type '%s'", t)
 	}
 }
 
@@ -67,7 +68,7 @@ func DedicatedColumnScopeFromTempopb(s tempopb.DedicatedColumn_Scope) (Dedicated
 	case tempopb.DedicatedColumn_RESOURCE:
 		return DedicatedColumnScopeResource, nil
 	default:
-		return "", errors.Errorf("invalid value for tempopb.DedicatedColumn_Scope '%v'", s)
+		return "", fmt.Errorf("invalid value for tempopb.DedicatedColumn_Scope '%v'", s)
 	}
 }
 
@@ -78,7 +79,7 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 	case DedicatedColumnScopeResource:
 		return tempopb.DedicatedColumn_RESOURCE, nil
 	default:
-		return 0, errors.Errorf("invalid value for dedicated column scope '%v'", s)
+		return 0, fmt.Errorf("invalid value for dedicated column scope '%v'", s)
 	}
 }
 
@@ -226,12 +227,12 @@ func DedicatedColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (Dedica
 	for _, c := range tempopbCols {
 		scope, err := DedicatedColumnScopeFromTempopb(c.Scope)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
 		}
 
 		typ, err := DedicatedColumnTypeFromTempopb(c.Type)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
 		}
 
 		cols = append(cols, DedicatedColumn{
@@ -250,12 +251,12 @@ func (dcs DedicatedColumns) ToTempopb() ([]*tempopb.DedicatedColumn, error) {
 	for _, c := range dcs {
 		scope, err := c.Scope.ToTempopb()
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
 		}
 
 		typ, err := c.Type.ToTempopb()
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to convert dedicated column '%s'", c.Name)
+			return nil, fmt.Errorf("unable to convert dedicated column '%s': %w", c.Name, err)
 		}
 
 		tempopbCols = append(tempopbCols, &tempopb.DedicatedColumn{
@@ -283,10 +284,10 @@ func (dcs DedicatedColumns) Validate() error {
 		}
 	}
 	if countSpan > maxSupportedSpanColumns {
-		return errors.Errorf("number of dedicated columns with scope 'span' must be <= %d but was %d", maxSupportedSpanColumns, countSpan)
+		return fmt.Errorf("number of dedicated columns with scope 'span' must be <= %d but was %d", maxSupportedSpanColumns, countSpan)
 	}
 	if countRes > maxSupportedResourceColumns {
-		return errors.Errorf("number of dedicated columns with scope 'resource' must be <= %d but was %d", maxSupportedResourceColumns, countRes)
+		return fmt.Errorf("number of dedicated columns with scope 'resource' must be <= %d but was %d", maxSupportedResourceColumns, countRes)
 	}
 	return nil
 }
@@ -297,11 +298,11 @@ func (dc *DedicatedColumn) Validate() error {
 	}
 	_, err := dc.Type.ToTempopb()
 	if err != nil {
-		return errors.Wrapf(err, "dedicated column '%s' invalid", dc.Name)
+		return fmt.Errorf("dedicated column '%s' invalid: %w", dc.Name, err)
 	}
 	_, err = dc.Scope.ToTempopb()
 	if err != nil {
-		return errors.Wrapf(err, "dedicated column '%s' invalid", dc.Name)
+		return fmt.Errorf("dedicated column '%s' invalid: %w", dc.Name, err)
 	}
 	return nil
 }

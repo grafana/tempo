@@ -3,6 +3,7 @@ package localblocks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -22,19 +23,25 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/pkg/errors"
 )
 
 const timeBuffer = 5 * time.Minute
 
+// ProcessorOverrides is just the set of overrides needed here.
+type ProcessorOverrides interface {
+	DedicatedColumns(string) backend.DedicatedColumns
+}
+
 type Processor struct {
-	tenant   string
-	Cfg      Config
-	wal      *wal.WAL
-	closeCh  chan struct{}
-	wg       sync.WaitGroup
-	cacheMtx sync.RWMutex
-	cache    *lru.Cache
+	tenant    string
+	Cfg       Config
+	wal       *wal.WAL
+	closeCh   chan struct{}
+	wg        sync.WaitGroup
+	cacheMtx  sync.RWMutex
+	cache     *lru.Cache
+	overrides ProcessorOverrides
+	enc       encoding.VersionedEncoding
 
 	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
@@ -48,15 +55,25 @@ type Processor struct {
 
 var _ gen.Processor = (*Processor)(nil)
 
-func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
+func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) (p *Processor, err error) {
 	if wal == nil {
 		return nil, errors.New("local blocks processor requires traces wal")
 	}
 
-	p := &Processor{
+	enc := encoding.DefaultEncoding()
+	if cfg.Block.Version != "" {
+		enc, err = encoding.FromVersion(cfg.Block.Version)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	p = &Processor{
 		Cfg:            cfg,
 		tenant:         tenant,
 		wal:            wal,
+		overrides:      overrides,
+		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
 		liveTraces:     newLiveTraces(),
@@ -65,9 +82,9 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 		cache:          lru.New(100),
 	}
 
-	err := p.reloadBlocks()
+	err = p.reloadBlocks()
 	if err != nil {
-		return nil, errors.Wrap(err, "replaying blocks")
+		return nil, fmt.Errorf("replaying blocks: %w", err)
 	}
 
 	p.wg.Add(4)
@@ -87,14 +104,16 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
+	var count int
 	before := p.liveTraces.Len()
 
 	for _, batch := range req.Batches {
-		if batch = filterBatch(batch); batch != nil {
+		if batch, count = filterBatch(batch); batch != nil {
 			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
 			if errors.Is(err, errMaxExceeded) {
 				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			}
+			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(count))
 		}
 	}
 
@@ -218,10 +237,8 @@ func (p *Processor) completeBlock() error {
 	}
 
 	// Now create a new block
-
 	var (
 		ctx    = context.Background()
-		enc    = encoding.DefaultEncoding()
 		reader = backend.NewReader(p.wal.LocalBackend())
 		writer = backend.NewWriter(p.wal.LocalBackend())
 		cfg    = p.Cfg.Block
@@ -234,12 +251,12 @@ func (p *Processor) completeBlock() error {
 	}
 	defer iter.Close()
 
-	newMeta, err := enc.CreateBlock(ctx, cfg, b.BlockMeta(), iter, reader, writer)
+	newMeta, err := p.enc.CreateBlock(ctx, cfg, b.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		return err
 	}
 
-	newBlock, err := enc.OpenBlock(newMeta, reader)
+	newBlock, err := p.enc.OpenBlock(newMeta, reader)
 	if err != nil {
 		return err
 	}
@@ -481,7 +498,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 }
 
 func (p *Processor) resetHeadBlock() error {
-	block, err := p.wal.NewBlock(uuid.New(), p.tenant, model.CurrentEncoding)
+	block, err := p.wal.NewBlockWithDedicatedColumns(uuid.New(), p.tenant, model.CurrentEncoding, p.overrides.DedicatedColumns(p.tenant))
 	if err != nil {
 		return err
 	}
@@ -605,16 +622,17 @@ func (p *Processor) recordBlockBytes() {
 	metricBlockSize.WithLabelValues(p.tenant).Set(float64(sum))
 }
 
-// filterBatch to only spans with kind==server. Does not modify the input
+// filterBatch to only root spans or kind==server. Does not modify the input
 // but returns a new struct referencing the same input pointers. Returns nil
 // if there were no matching spans.
-func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
+func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
+	var keep int
 	var keepSS []*v1.ScopeSpans
 	for _, ss := range batch.ScopeSpans {
 
 		var keepSpans []*v1.Span
 		for _, s := range ss.Spans {
-			if s.Kind == v1.Span_SPAN_KIND_SERVER {
+			if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
 				keepSpans = append(keepSpans, s)
 			}
 		}
@@ -624,6 +642,7 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 				Scope: ss.Scope,
 				Spans: keepSpans,
 			})
+			keep += len(keepSpans)
 		}
 	}
 
@@ -631,10 +650,10 @@ func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
 		return &v1.ResourceSpans{
 			Resource:   batch.Resource,
 			ScopeSpans: keepSS,
-		}
+		}, keep
 	}
 
-	return nil
+	return nil, 0
 }
 
 func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue {

@@ -17,7 +17,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/sirupsen/logrus"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -242,7 +241,7 @@ func (r *receiversShim) starting(ctx context.Context) error {
 	for _, receiver := range r.receivers {
 		err := receiver.Start(ctx, r)
 		if err != nil {
-			return fmt.Errorf("error starting receiver %w", err)
+			return fmt.Errorf("error starting receiver: %w", err)
 		}
 	}
 
@@ -315,19 +314,14 @@ func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]c
 func newLogger(level dslog.Level) *zap.Logger {
 	zapLevel := zapcore.InfoLevel
 
-	switch level.Logrus {
-	case logrus.PanicLevel:
-		zapLevel = zapcore.PanicLevel
-	case logrus.FatalLevel:
-		zapLevel = zapcore.FatalLevel
-	case logrus.ErrorLevel:
+	switch level.String() {
+	case "error":
 		zapLevel = zapcore.ErrorLevel
-	case logrus.WarnLevel:
+	case "warn":
 		zapLevel = zapcore.WarnLevel
-	case logrus.InfoLevel:
+	case "info":
 		zapLevel = zapcore.InfoLevel
-	case logrus.DebugLevel:
-	case logrus.TraceLevel:
+	case "debug":
 		zapLevel = zapcore.DebugLevel
 	}
 

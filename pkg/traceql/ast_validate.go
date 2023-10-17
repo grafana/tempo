@@ -179,11 +179,19 @@ func (o BinaryOperation) validate() error {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
+	// this condition may not be possible to hit since it's not parseable.
+	// however, if we did somehow end up this situation, it would be good to return
+	// a reasonable error
 	switch o.Op {
 	case OpSpansetChild,
 		OpSpansetParent,
 		OpSpansetDescendant,
 		OpSpansetAncestor,
+		OpSpansetNotChild,
+		OpSpansetNotParent,
+		OpSpansetNotSibling,
+		OpSpansetNotAncestor,
+		OpSpansetNotDescendant,
 		OpSpansetSibling:
 		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
 	}

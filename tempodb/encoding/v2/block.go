@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -20,7 +18,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	// index
 	err = w.Write(ctx, common.NameIndex, meta.BlockID, meta.TenantID, indexBytes, false)
 	if err != nil {
-		return fmt.Errorf("unexpected error writing index %w", err)
+		return fmt.Errorf("unexpected error writing index: %w", err)
 	}
 
 	// bloom
@@ -28,14 +26,14 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 		nameBloom := common.BloomName(i)
 		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, true)
 		if err != nil {
-			return fmt.Errorf("unexpected error writing bloom-%d %w", i, err)
+			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
 	}
 
 	// meta
 	err = w.WriteBlockMeta(ctx, meta)
 	if err != nil {
-		return fmt.Errorf("unexpected error writing meta %w", err)
+		return fmt.Errorf("unexpected error writing meta: %w", err)
 	}
 
 	return nil
@@ -52,7 +50,7 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 	copyStream := func(name string) error {
 		reader, size, err := src.StreamReader(ctx, name, srcMeta.BlockID, srcMeta.TenantID)
 		if err != nil {
-			return errors.Wrapf(err, "error reading %s", name)
+			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 		defer reader.Close()
 
@@ -63,7 +61,7 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 	cpy := func(name string) error {
 		b, err := src.Read(ctx, name, srcMeta.BlockID, srcMeta.TenantID, true)
 		if err != nil {
-			return errors.Wrapf(err, "error reading %s", name)
+			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
 		return dest.Write(ctx, name, destMeta.BlockID, destMeta.TenantID, b, true)

@@ -60,7 +60,7 @@ services:
       - ./prometheus.yaml:/etc/prometheus.yaml
 
   grafana:
-    image: grafana/grafana:9.4.3
+    image: grafana/grafana:10.1.1
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

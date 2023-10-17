@@ -1026,7 +1026,7 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb := labels.NewBuilder(lbls)
 	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
-	return lb.Labels(nil)
+	return lb.Labels()
 }
 
 func BenchmarkSpanMetrics_applyFilterPolicyNone(b *testing.B) {

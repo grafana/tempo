@@ -113,11 +113,11 @@ func stripStartEnd(buff []byte) ([]byte, uint32, uint32, error) {
 	buffer := proto.NewBuffer(buff)
 	start, err := buffer.DecodeFixed32()
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to read start from buffer %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to read start from buffer: %w", err)
 	}
 	end, err := buffer.DecodeFixed32()
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to read end from buffer %w", err)
+		return nil, 0, 0, fmt.Errorf("failed to read end from buffer: %w", err)
 	}
 
 	return buff[8:], uint32(start), uint32(end), nil

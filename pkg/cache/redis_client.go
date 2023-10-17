@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/pkg/errors"
 
 	"github.com/grafana/dskit/flagext"
 )

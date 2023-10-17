@@ -40,7 +40,9 @@ func TestConfig_CheckConfig(t *testing.T) {
 					},
 				},
 				Distributor: distributor.Config{
-					LogReceivedTraces: true,
+					LogReceivedSpans: distributor.LogReceivedSpansConfig{
+						Enabled: true,
+					},
 				},
 			},
 			expect: []ConfigWarning{

@@ -525,10 +525,20 @@ func (f *filePages) ReadPage() (Page, error) {
 		return nil, io.EOF
 	}
 
-	header := getPageHeader()
-	defer putPageHeader(header)
-
 	for {
+		// Instantiate a new format.PageHeader for each page.
+		//
+		// A previous implementation reused page headers to save allocations.
+		// https://github.com/segmentio/parquet-go/pull/484
+		// The optimization turned out to be less effective than expected,
+		// because all the values referenced by pointers in the page header
+		// are lost when the header is reset and put back in the pool.
+		// https://github.com/parquet-go/parquet-go/pull/11
+		//
+		// Even after being reset, reusing page headers still produced instability
+		// issues.
+		// https://github.com/parquet-go/parquet-go/issues/70
+		header := new(format.PageHeader)
 		if err := f.decoder.Decode(header); err != nil {
 			return nil, err
 		}
@@ -591,8 +601,7 @@ func (f *filePages) readDictionary() error {
 
 	decoder := thrift.NewDecoder(f.protocol.NewReader(rbuf))
 
-	header := getPageHeader()
-	defer putPageHeader(header)
+	header := new(format.PageHeader)
 
 	if err := decoder.Decode(header); err != nil {
 		return err
@@ -763,21 +772,6 @@ func getBufioReaderPool(size int) *sync.Pool {
 	pool := &sync.Pool{}
 	bufioReaderPool[size] = pool
 	return pool
-}
-
-var pageHeaderPool = &sync.Pool{
-	New: func() interface{} {
-		return new(format.PageHeader)
-	},
-}
-
-func getPageHeader() *format.PageHeader {
-	return pageHeaderPool.Get().(*format.PageHeader)
-}
-
-func putPageHeader(h *format.PageHeader) {
-	*h = format.PageHeader{}
-	pageHeaderPool.Put(h)
 }
 
 func (f *File) readAt(p []byte, off int64) (int, error) {

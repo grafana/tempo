@@ -2,11 +2,10 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
-
-	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )

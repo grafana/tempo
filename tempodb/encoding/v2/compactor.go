@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"runtime"
@@ -13,7 +14,6 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
 )
 
 type Compactor struct {
@@ -85,14 +85,14 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		if err != nil {
-			return nil, errors.Wrap(err, "error iterating input blocks")
+			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
 		// make a new block if necessary
 		if currentBlock == nil {
 			currentBlock, err = NewStreamingBlock(&c.opts.BlockConfig, uuid.New(), tenantID, inputs, recordsPerBlock)
 			if err != nil {
-				return nil, errors.Wrap(err, "error making new compacted block")
+				return nil, fmt.Errorf("error making new compacted block: %w", err)
 			}
 			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.BlockMeta())
@@ -108,7 +108,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			tracker, err = c.appendBlock(ctx, writerCallback, tracker, currentBlock)
 			if err != nil {
-				return nil, errors.Wrap(err, "error writing partial block")
+				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
 		}
 
@@ -116,7 +116,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock.Length() >= recordsPerBlock {
 			err = c.finishBlock(ctx, writerCallback, tracker, currentBlock, l)
 			if err != nil {
-				return nil, errors.Wrap(err, "error shipping block to backend")
+				return nil, fmt.Errorf("error shipping block to backend: %w", err)
 			}
 			currentBlock = nil
 			tracker = nil
@@ -127,7 +127,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	if currentBlock != nil {
 		err = c.finishBlock(ctx, writerCallback, tracker, currentBlock, l)
 		if err != nil {
-			return nil, errors.Wrap(err, "error shipping block to backend")
+			return nil, fmt.Errorf("error shipping block to backend: %w", err)
 		}
 	}
 

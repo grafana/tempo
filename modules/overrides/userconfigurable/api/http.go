@@ -2,23 +2,21 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/tracing"
 	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -194,38 +192,4 @@ func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string,
 
 		span.Finish()
 	}
-}
-
-func limitsFromOverrides(overrides overrides.Interface, userID string) *client.Limits {
-	return &client.Limits{
-		Forwarders: strArrPtr(overrides.Forwarders(userID)),
-		MetricsGenerator: &client.LimitsMetricsGenerator{
-			Processors:        overrides.MetricsGeneratorProcessors(userID),
-			DisableCollection: boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
-			Processor: &client.LimitsMetricsGeneratorProcessor{
-				ServiceGraphs: &client.LimitsMetricsGeneratorProcessorServiceGraphs{
-					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
-					EnableClientServerPrefix: boolPtr(overrides.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)),
-					PeerAttributes:           strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)),
-				},
-				SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{
-					Dimensions:       strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
-					EnableTargetInfo: boolPtr(overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)),
-					FilterPolicies:   filterPoliciesPtr(overrides.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)),
-				},
-			},
-		},
-	}
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
-func strArrPtr(s []string) *[]string {
-	return &s
-}
-
-func filterPoliciesPtr(p []config.FilterPolicy) *[]config.FilterPolicy {
-	return &p
 }

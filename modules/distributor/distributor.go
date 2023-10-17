@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -78,6 +77,11 @@ var (
 		Name:      "distributor_spans_received_total",
 		Help:      "The total number of spans received per tenant",
 	}, []string{"tenant"})
+	metricDebugSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_debug_spans_received_total",
+		Help:      "Debug counters for spans received per tenant",
+	}, []string{"tenant", "name", "service"})
 	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_bytes_received_total",
@@ -166,7 +170,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to initialize distributor ring")
+			return nil, fmt.Errorf("unable to initialize distributor ring: %w", err)
 		}
 		distributorRing = ring
 		subservices = append(subservices, distributorRing)
@@ -197,13 +201,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		logger:               logger,
 	}
 
+	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
+		return generator_client.New(addr, generatorClientCfg)
+	}
 	d.generatorsPool = ring_client.NewPool(
 		"distributor_metrics_generator_pool",
 		generatorClientCfg.PoolConfig,
 		ring_client.NewRingServiceDiscovery(generatorsRing),
-		func(addr string) (ring_client.PoolClient, error) {
-			return generator_client.New(addr, generatorClientCfg)
-		},
+		generatorsPoolFactory,
 		metricGeneratorClients,
 		logger,
 	)
@@ -234,7 +239,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	d.subservices, err = services.NewManager(subservices...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create subservices %w", err)
+		return nil, fmt.Errorf("failed to create subservices: %w", err)
 	}
 	d.subservicesWatcher = services.NewFailureWatcher()
 	d.subservicesWatcher.WatchManager(d.subservices)
@@ -247,7 +252,7 @@ func (d *Distributor) starting(ctx context.Context) error {
 	// Only report success if all sub-services start properly
 	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
 	if err != nil {
-		return fmt.Errorf("failed to start subservices %w", err)
+		return fmt.Errorf("failed to start subservices: %w", err)
 	}
 
 	return nil
@@ -258,7 +263,7 @@ func (d *Distributor) running(ctx context.Context) error {
 	case <-ctx.Done():
 		return nil
 	case err := <-d.subservicesWatcher.Chan():
-		return fmt.Errorf("distributor subservices failed %w", err)
+		return fmt.Errorf("distributor subservices failed: %w", err)
 	}
 }
 
@@ -326,12 +331,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	batches := trace.Batches
 
-	if d.cfg.LogReceivedSpans.Enabled || d.cfg.LogReceivedTraces {
-		if d.cfg.LogReceivedSpans.IncludeAllAttributes {
-			logSpansWithAllAttributes(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
-		} else {
-			logSpans(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
-		}
+	if d.cfg.LogReceivedSpans.Enabled {
+		logSpans(batches, &d.cfg.LogReceivedSpans, d.logger)
+	}
+	if d.cfg.MetricReceivedSpans.Enabled {
+		metricSpans(batches, userID, &d.cfg.MetricReceivedSpans)
 	}
 
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
@@ -366,7 +370,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	for i, t := range traces {
 		b, err := d.traceEncoder.PrepareForWrite(t.trace, t.start, t.end)
 		if err != nil {
-			return errors.Wrap(err, "failed to marshal PushRequest")
+			return fmt.Errorf("failed to marshal PushRequest: %w", err)
 		}
 		marshalledTraces[i] = b
 	}
@@ -428,15 +432,16 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 
 		c, err := d.generatorsPool.GetClientFor(generator.Addr)
 		if err != nil {
-			return errors.Wrap(err, "failed to get client for generator")
+			return fmt.Errorf("failed to get client for generator: %w", err)
 		}
 
 		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
 		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
+			return fmt.Errorf("failed to push spans to generator: %w", err)
 		}
-		return errors.Wrap(err, "failed to push spans to generator")
+		return nil
 	}, func() {})
 
 	return err
@@ -541,59 +546,72 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 	}
 }
 
-func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
+func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceivedSpansConfig) {
 	for _, b := range batches {
+		serviceName := ""
+		if b.Resource != nil {
+			for _, a := range b.Resource.GetAttributes() {
+				if a.GetKey() == "service.name" {
+					serviceName = a.Value.GetStringValue()
+					break
+				}
+			}
+		}
+
 		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {
-				if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+				if cfg.RootOnly && len(s.ParentSpanId) != 0 {
 					continue
 				}
-				level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+
+				metricDebugSpansIngested.WithLabelValues(tenantID, s.Name, serviceName).Inc()
 			}
 		}
 	}
 }
 
-func logSpansWithAllAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
-	for _, b := range batch {
-		logSpansInResourceWithAllAttributes(b, filterByStatusError, logger)
-	}
-}
+func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger log.Logger) {
+	for _, b := range batches {
+		loggerWithAtts := logger
 
-func logSpansInResourceWithAllAttributes(rs *v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
-	for _, a := range rs.Resource.GetAttributes() {
-		logger = log.With(
-			logger,
-			"span_"+strutil.SanitizeLabelName(a.GetKey()),
-			tempo_util.StringifyAnyValue(a.GetValue()))
-	}
-
-	for _, ils := range rs.ScopeSpans {
-		for _, s := range ils.Spans {
-			if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
-				continue
+		if cfg.IncludeAllAttributes {
+			for _, a := range b.Resource.GetAttributes() {
+				loggerWithAtts = log.With(
+					loggerWithAtts,
+					"span_"+strutil.SanitizeLabelName(a.GetKey()),
+					tempo_util.StringifyAnyValue(a.GetValue()))
 			}
+		}
 
-			logSpanWithAllAttributes(s, logger)
+		for _, ils := range b.ScopeSpans {
+			for _, s := range ils.Spans {
+				if cfg.FilterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+					continue
+				}
+
+				logSpan(s, cfg.IncludeAllAttributes, loggerWithAtts)
+			}
 		}
 	}
 }
 
-func logSpanWithAllAttributes(s *v1.Span, logger log.Logger) {
-	for _, a := range s.GetAttributes() {
+func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
+	if allAttributes {
+		for _, a := range s.GetAttributes() {
+			logger = log.With(
+				logger,
+				"span_"+strutil.SanitizeLabelName(a.GetKey()),
+				tempo_util.StringifyAnyValue(a.GetValue()))
+		}
+
+		latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 		logger = log.With(
 			logger,
-			"span_"+strutil.SanitizeLabelName(a.GetKey()),
-			tempo_util.StringifyAnyValue(a.GetValue()))
+			"span_name", s.Name,
+			"span_duration_seconds", latencySeconds,
+			"span_kind", s.GetKind().String(),
+			"span_status", s.GetStatus().GetCode().String())
 	}
-
-	latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
-	logger = log.With(
-		logger,
-		"span_name", s.Name,
-		"span_duration_seconds", latencySeconds,
-		"span_kind", s.GetKind().String(),
-		"span_status", s.GetStatus().GetCode().String())
 
 	level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 }

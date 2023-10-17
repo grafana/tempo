@@ -15,7 +15,6 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -27,9 +26,9 @@ import (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler http.Handler
-	streamingSearch                                                               streamingSearchHandler
-	logger                                                                        log.Logger
+	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler, SearchWSHandler http.Handler
+	streamingSearch                                                                                streamingSearchHandler
+	logger                                                                                         log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -71,7 +70,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
 		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
 		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
-		streamingSearch:           newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
+		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
+		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, retryWare.Wrap(next), reader, apiPrefix, logger),
 		logger:                    logger,
 	}, nil
 }
@@ -131,7 +131,7 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if err != nil {
-					return nil, errors.Wrap(err, "error reading response body at query frontend")
+					return nil, fmt.Errorf("error reading response body at query frontend: %w", err)
 				}
 				responseObject := &tempopb.TraceByIDResponse{}
 				err = proto.Unmarshal(body, responseObject)

@@ -10,7 +10,6 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -83,12 +82,12 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 
 		c.ringLifecycler, err = ring.NewBasicLifecycler(bcfg, compactorRingKey, cfg.OverrideRingKey, lifecyclerStore, delegate, log.Logger, reg)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
+			return nil, fmt.Errorf("unable to initialize compactor ring lifecycler: %w", err)
 		}
 
 		c.Ring, err = ring.New(c.cfg.ShardingRing.ToLifecyclerConfig().RingConfig, compactorRingKey, cfg.OverrideRingKey, log.Logger, reg)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to initialize compactor ring")
+			return nil, fmt.Errorf("unable to initialize compactor ring: %w", err)
 		}
 	}
 
@@ -114,7 +113,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 	if c.isSharded() {
 		c.subservices, err = services.NewManager(c.ringLifecycler, c.Ring)
 		if err != nil {
-			return fmt.Errorf("failed to create subservices %w", err)
+			return fmt.Errorf("failed to create subservices: %w", err)
 		}
 		c.subservicesWatcher = services.NewFailureWatcher()
 		c.subservicesWatcher.WatchManager(c.subservices)

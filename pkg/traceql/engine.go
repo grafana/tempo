@@ -2,12 +2,11 @@ package traceql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/opentracing/opentracing-go"
 

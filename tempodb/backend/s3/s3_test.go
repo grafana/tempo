@@ -615,27 +615,3 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 		}
 	})
 }
-
-func fetchGitHubActionsToken() (string, error) {
-	req, err := http.NewRequest(http.MethodGet, os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL"), nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN")))
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var token struct {
-		Count string `json:"count"`
-		Value string `json:"value"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return "", err
-	}
-
-	return token.Value, nil
-}

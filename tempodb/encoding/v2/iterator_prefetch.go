@@ -2,9 +2,9 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/uber-go/atomic"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"

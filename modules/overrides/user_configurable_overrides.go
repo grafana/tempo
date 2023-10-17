@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -12,9 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/tracing"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/slices"
@@ -23,6 +22,7 @@ import (
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -99,7 +99,7 @@ func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides S
 
 func (o *userConfigurableOverridesManager) starting(ctx context.Context) error {
 	if err := services.StartManagerAndAwaitHealthy(ctx, o.subservices); err != nil {
-		return errors.Wrap(err, "unable to start overrides subservices")
+		return fmt.Errorf("unable to start overrides subservices: %w", err)
 	}
 
 	return o.reloadAllTenantLimits(ctx)
@@ -123,7 +123,7 @@ func (o *userConfigurableOverridesManager) running(ctx context.Context) error {
 			continue
 
 		case err := <-o.subservicesWatcher.Chan():
-			return errors.Wrap(err, "overrides subservice failed")
+			return fmt.Errorf("overrides subservice failed: %w", err)
 		}
 	}
 }
@@ -160,7 +160,7 @@ func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Con
 			continue
 		}
 		if err != nil {
-			return errors.Wrapf(err, "failed to load tenant limits for tenant %v", tenant)
+			return fmt.Errorf("failed to load tenant limits for tenant %v: %w", tenant, err)
 		}
 		o.setTenantLimit(tenant, limits)
 	}
@@ -237,8 +237,8 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
-	if peerAttribtues, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
-		return peerAttribtues
+	if peerAttributes, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
+		return peerAttributes
 	}
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)
 }

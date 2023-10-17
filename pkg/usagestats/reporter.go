@@ -5,6 +5,7 @@ package usagestats
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/dskit/services"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
