@@ -1,6 +1,6 @@
 module github.com/grafana/tempo/tools
 
-go 1.20
+go 1.21
 
 require (
 	github.com/psampaz/go-mod-outdated v0.9.0
