@@ -61,6 +61,7 @@ func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata
 func (sr *Results) SetError(err error) {
 	if !errors.Is(err, common.ErrUnsupported) { // ignore common.Unsupported
 		sr.error.Store(err)
+		sr.Close()
 	}
 }
 

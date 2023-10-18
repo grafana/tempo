@@ -112,7 +112,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		path := filepath.Join(dir, f.Name())
 		page := newWalBlockFlush(path, common.NewIDMap[int64]())
 
-		file, err := page.file()
+		file, err := page.file(context.Background())
 		if err != nil {
 			warning = fmt.Errorf("error opening file info: %s: %w", page.path, err)
 			continue
@@ -208,8 +208,13 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 }
 
 // file() opens the parquet file and returns it. previously this method cached the file on first open
-// but the memory cost of this was quite high. so instead we open it fresh every time
-func (w *walBlockFlush) file() (*pageFile, error) {
+// but the memory cost of this was quite high. so instead we open it fresh every time.  This
+// also allows it to take the context for the caller.
+func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	file, err := os.OpenFile(w.path, os.O_RDONLY, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -220,7 +225,7 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 	}
 	size := info.Size()
 
-	wr := newWalReaderAt(file)
+	wr := newWalReaderAt(ctx, file)
 	pf, err := parquet.OpenFile(wr, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
@@ -232,7 +237,7 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 }
 
 func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
-	file, err := w.file()
+	file, err := w.file(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -492,12 +497,12 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(_ context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
 		if rowNumber, ok := page.ids.Get(id); ok {
-			file, err := page.file()
+			file, err := page.file(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
 			}
@@ -543,7 +548,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ com
 	}
 
 	for i, blockFlush := range b.readFlushes() {
-		file, err := blockFlush.file()
+		file, err := blockFlush.file(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
@@ -569,7 +574,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ com
 
 func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
-		file, err := blockFlush.file()
+		file, err := blockFlush.file(ctx)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
@@ -603,7 +608,7 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 
 func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
-		file, err := blockFlush.file()
+		file, err := blockFlush.file(ctx)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
@@ -632,7 +637,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	readers := make([]*walReaderAt, 0, len(blockFlushes))
 	iters := make([]traceql.SpansetIterator, 0, len(blockFlushes))
 	for _, page := range blockFlushes {
-		file, err := page.file()
+		file, err := page.file(ctx)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
