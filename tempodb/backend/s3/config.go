@@ -31,6 +31,9 @@ type Config struct {
 	Tags             map[string]string `yaml:"tags"`
 	StorageClass     string            `yaml:"storage_class"`
 	Metadata         map[string]string `yaml:"metadata"`
+	// Deprecated
+	// See https://github.com/grafana/tempo/pull/3006 for more details
+	NativeAWSAuthEnabled bool `yaml:"native_aws_auth_enabled"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
