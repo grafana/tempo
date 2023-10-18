@@ -136,7 +136,6 @@ spec:
 The following RBAC gives authenticated users access to read trace data for `dev` and `prod` tenants.
 
 ```yaml
-# Allow the Jaeger UI to retrieve the data from the dev and prod tenants
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -171,15 +170,12 @@ subjects:
 The following RBAC gives service account `otel-collector` write access for trace data for `dev` tenant.
 
 ```yaml
-# Create the Service Account
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: otel-collector
   namespace: otel
 ---
-# ClusterRole needed to grant permissions to the service account to write traces
-# for the given tenant
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -187,7 +183,6 @@ metadata:
 rules:
   - apiGroups:
       - 'tempo.grafana.com'
-    # Tenant name set in X-Scope-OrgID
     resources:
       - dev
     resourceNames:
