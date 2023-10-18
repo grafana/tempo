@@ -28,11 +28,14 @@ func TestResultsDoesNotRace(t *testing.T) {
 			sr := NewResults()
 			defer sr.Close()
 
-			for i := 0; i < 100; i++ {
+			workers := 10
+			results := 10_000
+
+			for i := 0; i < workers; i++ {
 				sr.StartWorker()
 				go func() {
 					defer sr.FinishWorker()
-					for j := 0; j < 10_000; j++ {
+					for j := 0; j < results; j++ {
 						if sr.AddResult(ctx, &tempopb.TraceSearchMetadata{}) {
 							break
 						}
@@ -46,28 +49,29 @@ func TestResultsDoesNotRace(t *testing.T) {
 
 			sr.AllWorkersStarted()
 
-			var resultsCount int
-			var err error
+			resultsCount := 0
 			for range sr.Results() {
-				if sr.Error() != nil {
-					err = sr.Error() // capture err to assert below
-					break            // exit early
-				}
 				resultsCount++
 			}
+
+			// Check error after results channel is closed which
+			// means all workers have exited.
+			err := sr.Error()
 
 			if tc.error {
 				require.Error(t, err)
 				if tc.consumeResults {
 					// in case of error, we will bail out early
-					require.NotEqual(t, 10_000_00, resultsCount)
-					// will read at-least something by the time we have first error
-					require.NotEqual(t, 0, resultsCount)
+					// and not all results are read
+					require.Less(t, resultsCount, workers*results)
+					// But we always get at least 1 result before
+					// the error
+					require.Greater(t, resultsCount, 0)
 				}
 			} else {
 				require.NoError(t, err)
 				if tc.consumeResults {
-					require.Equal(t, 10_000_00, resultsCount)
+					require.Equal(t, workers*results, resultsCount)
 				}
 			}
 		})
