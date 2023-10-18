@@ -811,10 +811,6 @@ storage:
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
 
-            # If enabled, it will use the default authentication methods of
-            # the AWS SDK for go based on known environment variables and known AWS config files.
-            [native_aws_auth_enabled: <boolean> | default = false]
-
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
         azure:
