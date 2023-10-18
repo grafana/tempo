@@ -10,11 +10,13 @@ aliases:
 # Enable multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use of a header: `X-Scope-OrgID`.
-See [multi-tenancy docs]({{< relref "../../operations/multitenancy" >}}) for more details. This document outlines how to deploy and use multi-tenant Tempo with the Operator.
+Refer to [multi-tenancy docs]({{< relref "../../operations/multitenancy" >}}) for more details. 
+This document outlines how to deploy and use multi-tenant Tempo with the Operator.
 
-## Multitenancy without authentication
+## Multi-tenancy without authentication
 
-The following example CR deploys multi-tenant Tempo instance. Note that Jaeger query is not tenant aware and therefore is not supported in this configuration.
+The following Kubernetes Custom Resource (CR) deploys a multi-tenant Tempo instance.
+Note that Jaeger query is not tenant aware and therefore is not supported in this configuration.
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
@@ -37,7 +39,7 @@ spec:
 
 ## OIDC authentication with static RBAC
 
-On Kubernetes the multi-tenant Tempo instance uses OIDC authentication and static RABC authorization defined in the CR.
+On Kubernetes, a multi-tenant Tempo instance uses OIDC authentication and static RBAC authorization defined in the CR.
 The instance should be accessed through service `tempo-simplest-gateway` which handles authentication and authorization.
 The service exposes Jaeger query API and OpenTelemetry gRPC (OTLP) for trace ingestion.
 The Jaeger UI can be accessed at `http://<exposed gateway service>:8080/api/traces/v1/<tenant-name>/search`
@@ -94,9 +96,8 @@ spec:
 
 ## OpenShift
 
-On OpenShift the authentication and authorization does not require any 3rd party service dependencies.
-The authentication uses OpenShift OAuth (the user is redirected to the OpenShift login page) and 
-authorization is handled through `SubjectAccessReview` (SAR).
+On OpenShift, the authentication and authorization does not require any third party service dependencies.
+The authentication uses OpenShift OAuth (the user is redirected to the OpenShift login page) and authorization is handled through `SubjectAccessReview` (SAR).
 
 The instance should be accessed through service `tempo-simplest-gateway` which handles authentication and authorization.
 The service exposes Jaeger query API and OpenTelemetry gRPC (OTLP) for trace ingestion.
@@ -128,7 +129,7 @@ spec:
         enabled: true
 ```
 
-User is responsible for creating `ClusterRole` and `ClusterRoleBinding` for reading and writing the data.
+`ClusterRole` and `ClusterRoleBinding` objects have to be created to enable reading and writing the data.
 
 ### RBAC for reading the data
 
