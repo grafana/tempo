@@ -274,8 +274,6 @@ func (p *Poller) pollTenantBlocks(
 	compactedMetas := previous.CompactedMetas(tenantID)
 	readPreviousSpan.Finish()
 
-	// mm, cm := metaMap(previous.Metas(tenantID), previous.CompactedMetas(tenantID))
-
 	assembleSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "assemblePreviousResults")
 	mm := make(map[uuid.UUID]*backend.BlockMeta, len(metas))
 	cm := make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
