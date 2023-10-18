@@ -25,8 +25,6 @@ const (
 // from the backend
 type KeyPath []string
 
-var ErrDone = errors.New("done")
-
 type Feature int
 
 const (
