@@ -2,7 +2,7 @@
 title: Setup multi-tenancy
 description: Set up multi-tenancy
 menuTitle: Multi-tenancy
-weight: 300
+weight: 250
 aliases:
 - /docs/tempo/operator/multitenancy
 ---
