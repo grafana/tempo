@@ -237,7 +237,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 	// if we're here then we have been configured to be a tenant index builder OR
 	// there was a failure to pull the tenant index and we are configured to fall
-	// back to polling.  If quick polling fails, fall back to long poll.
+	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
