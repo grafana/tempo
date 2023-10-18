@@ -40,11 +40,9 @@ func (b *backendBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteR
 		if res == nil {
 			break
 		}
-		for k, values := range res.ToMap() {
-			for _, v := range values {
-				if k == req.TagName {
-					cb(pqValueToTagValue(v))
-				}
+		for _, e := range res.Entries {
+			if e.Key == req.TagName {
+				cb(pqValueToTagValue(e.Value))
 			}
 		}
 	}
@@ -392,6 +390,7 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 		attrIntPreds    = []parquetquery.Predicate{}
 		attrFltPreds    = []parquetquery.Predicate{}
 		boolPreds       = []parquetquery.Predicate{}
+		allIters        = []parquetquery.Iterator{}
 	)
 	for _, cond := range conditions {
 
@@ -414,7 +413,12 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			attrStringPreds = append(attrStringPreds, pred)
+			//attrStringPreds = append(attrStringPreds, pred)
+			// TODO: Support more types
+			keyIter := makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key")
+			valIter := makeIter(strPath, pred, "string")
+			allIters = append(allIters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, &distinctAttrCollector{cb: cb, key: key}))
+			attrKeys = attrKeys[:len(attrKeys)-1]
 
 		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
@@ -451,6 +455,14 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 	}
 	if len(boolPreds) > 0 {
 		valueIters = append(valueIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
+	}
+
+	// TODO: Super hacky, clean up!!
+	if len(allIters) > 0 {
+		if len(attrKeys) > 0 {
+			allIters = append(allIters, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"))
+		}
+		return parquetquery.NewLeftJoinIterator(definitionLevel, allIters, valueIters, &distinctAttrCollector{cb: cb, key: key}), nil
 	}
 
 	if len(valueIters) > 0 {

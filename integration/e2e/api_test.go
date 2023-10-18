@@ -84,7 +84,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 		},
 		{
 			name:    "first batch only - resource attribute",
-			query:   fmt.Sprintf(`{ resource.xx="%s" }`, firstBatch.resourceAttVal),
+			query:   fmt.Sprintf(`{ %s="%s" }`, resourceX, firstBatch.resourceAttVal),
 			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
@@ -92,7 +92,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 		},
 		{
 			name:    "second batch only - resource attribute",
-			query:   fmt.Sprintf(`{ resource.xx="%s" }`, secondBatch.resourceAttVal),
+			query:   fmt.Sprintf(`{ %s="%s" }`, resourceX, secondBatch.resourceAttVal),
 			tagName: spanX,
 			expected: searchTagValuesResponse{
 				TagValues: []TagValue{{Type: "string", Value: secondBatch.spanAttVal}},
@@ -100,7 +100,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 		},
 		{
 			name:     "too restrictive query",
-			query:    fmt.Sprintf(`{ resource.x="%s" && span.x="%s" }`, firstBatch.resourceAttVal, secondBatch.spanAttVal),
+			query:    fmt.Sprintf(`{ %s="%s" && resource.y="%s" }`, resourceX, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
 			tagName:  spanX,
 			expected: searchTagValuesResponse{},
 		},
@@ -109,7 +109,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 			query:   fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
 			tagName: spanX,
 			expected: searchTagValuesResponse{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
 			},
 		},
 		{
