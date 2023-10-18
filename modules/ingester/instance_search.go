@@ -136,10 +136,6 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 			resp, err = e.Search(ctx, req, opts)
 		}
 
-		if err != nil {
-			fmt.Println("!!!!!! searchBlock bailing", blockID, err)
-		}
-
 		if errors.Is(err, common.ErrUnsupported) {
 			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockID)
 			return
