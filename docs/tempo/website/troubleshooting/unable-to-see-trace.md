@@ -1,33 +1,40 @@
 ---
+aliases:
+  - /docs/tempo/v1.2.1/troubleshooting/unable-to-see-trace/
+  - /docs/tempo/v1.2.x/troubleshooting/missing-trace/
 title: Unable to Find Traces
 weight: 473
-aliases:
-- /docs/tempo/latest/troubleshooting/missing-trace
 ---
 
 # I am unable to find my traces in Tempo
 
 **Potential causes**
+
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
 - There could be issues querying for traces that have been received by Tempo.
 
 ## Section 1: Diagnosing and fixing ingestion issues
+
 The first step is to check whether the application spans are actually reaching Tempo.
 
 Add the following flag to the distributor container - [`distributor.log-received-traces`](https://github.com/grafana/tempo/blob/57da4f3fd5d2966e13a39d27dbed4342af6a857a/modules/distributor/config.go#L55).
 This enables debug logging of all the traces received by the distributor, and is useful to check if Tempo is receiving any traces at all.
 
 Or, check the following metrics -
+
 - `tempo_distributor_spans_received_total`
 - `tempo_ingester_traces_created_total`
 
 The value of both metrics should be greater than `0` within a few minutes of the application spinning up.
 You can check both metrics using -
+
 - The metrics page exposed from Tempo at `http://<tempo-address>:<tempo-http-port>/metrics`, or
 - In Prometheus, if it is being used to scrape metrics
 
 ### Case 1 - tempo_distributor_spans_received_total is 0
+
 If the value of `tempo_distributor_spans_received_total` is 0, possible reasons are:
+
 - Use of incorrect protocol/port combination while initializing the tracer in the application.
 - Tracing records not getting picked up to send to Tempo by the internal sampler.
 - Application is running inside docker and sending traces to an incorrect endpoint.
@@ -37,25 +44,31 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 #### Solutions
 
 ##### Fixing protocol/port problems
+
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
-- Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend
+- Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/v1.2.x/getting-started/#step-1-spin-up-tempo-backend
 
 ##### Fixing sampling issues
+
 - These issues can be tricky to determine because most SDKs use a probabilistic sampler by default. This may lead to just one in a 1000 records being picked up.
 - Check the sampling configuration of the tracer being initialized in the application and make sure it has a high sampling rate.
 - Some clients also provide metrics on the number of spans reported from the application, for example `jaeger_tracer_reporter_spans_total`. Check the value of that metric if available and make sure it is greater than zero.
 - Another way to diagnose this problem would be to generate lots and lots of traces to see if some records make their way to Tempo.
 
 ##### Fixing incorrect endpoint issue
+
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
 ## Case 2 - tempo_ingester_traces_created_total is 0
+
 If the value of `tempo_ingester_traces_created_total` is 0, the possible reason is -
+
 - Network issues between distributors and ingesters.
 
 This can also be confirmed by checking the metric `tempo_request_duration_seconds_count{route='/tempopb.Pusher/Push'}` exposed from the ingester which indicates that it is receiving ingestion requests from the distributor.
 
 #### Solution
+
 - Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
@@ -70,17 +83,21 @@ This is useful if you are using the Jaeger Agent.
 If you are using the Grafana Agent, continue reading the following section for metrics to monitor.
 
 ### Diagnosing the issue
+
 Check if the pipeline is dropping spans. The following metrics on the _Grafana Agent_ help determine this -
+
 - `tempo_exporter_send_failed_spans`. The value of this metric should be 0.
 - `tempo_receiver_refused_spans`. This value of this metric should be 0.
 - `tempo_processor_dropped_spans`. The value of this metric should be 0.
 
 If the pipeline is not reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this -
+
 - `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be 0.
   Note that the Grafana Agent and Tempo share the same metric. Make sure to check the value of the metric from both services.
   If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
 #### Solution
+
 - If the pipeline (Grafana Agent) is found to be dropping spans, the deployment may need to be scaled up. Look for a message like `too few agents compared to the ingestion rate` in the agent logs.
 - There might also be issues with connectivity to Tempo backend, check the agent for logs like `error sending batch, will retry` and make sure the Tempo endpoint and credentials are correctly configured.
 - If Tempo is found to be dropping spans, then the possible reason is the application spans are being dropped due to rate limiting.
@@ -90,7 +107,8 @@ If the pipeline is not reporting any dropped spans, check whether application sp
 > **Note**: Check the [ingestion limits page](../../configuration#ingestion-limits) for further information on limits.
 
 ## Section 3: Diagnosing and fixing issues with querying traces
-If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data. A quick thing to check is your version of Grafana. The way Tempo is queried differs from 7.4.x to 7.5.x. Please refer to [the querying documentation](https://grafana.com/docs/tempo/latest/configuration/querying/) for help. If this is not a Grafana version issue, proceed!
+
+If you have determined that data has been ingested correctly into Tempo, then it is time to investigate possible issues with querying the data. A quick thing to check is your version of Grafana. The way Tempo is queried differs from 7.4.x to 7.5.x. Please refer to [the querying documentation](https://grafana.com/docs/tempo/v1.2.x/configuration/querying/) for help. If this is not a Grafana version issue, proceed!
 
 Check the logs of the Tempo Query Frontend. The Query Frontend pod runs with two containers (Query Frontend & Tempo Query), so lets use the following command to view Query Frontend logs -
 
@@ -106,6 +124,7 @@ The presence of the following errors in the log may explain issues with querying
 - `tenant-id not found`
 
 Possible reasons for the above errors are:
+
 - Tempo Querier not connected to Tempo Query Frontend. Check the value of the metric `cortex_query_frontend_connected_clients` exposed by the Query Frontend.
   It should be > 0, which indicates that Queriers are connected to the Query Frontend.
 - Grafana Tempo Datasource not configured to pass tenant-id in Authorization header (only applicable to multi-tenant deployments).
@@ -113,6 +132,7 @@ Possible reasons for the above errors are:
 - Insufficient permissions
 
 #### Solutions
+
 - Fixing connection issues
   - If the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
     ```
@@ -121,7 +141,7 @@ Possible reasons for the above errors are:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
     ```
   - Verify the `backend.yaml` configuration file present on the Tempo Query container and make sure it is attempting to connect to the right port of the query frontend.
-    **Note** this is only relevant for [Grafana 7.4.x and before](https://grafana.com/docs/tempo/latest/configuration/querying/#grafana-74x).
+    **Note** this is only relevant for [Grafana 7.4.x and before](https://grafana.com/docs/tempo/v1.2.x/configuration/querying/#grafana-74x).
   - Confirm that the Grafana datasource is configured correctly and debug network issues between Grafana and Tempo.
 - Fixing insufficient permissions issue
   - Verify that the Querier has the LIST and GET permissions on the bucket.

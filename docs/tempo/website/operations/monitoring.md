@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/operations/monitoring/
 title: Monitoring
 weight: 4
 ---

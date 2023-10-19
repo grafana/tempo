@@ -1,7 +1,8 @@
 ---
-title: Tempo Documentation
 aliases:
-  - /docs/tempo/
+- /docs/tempo/
+- /docs/tempo/v1.2.1/
+title: Tempo Documentation
 ---
 
 # Tempo Documentation

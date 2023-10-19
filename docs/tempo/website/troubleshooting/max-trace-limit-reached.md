@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/troubleshooting/max-trace-limit-reached/
 title: Distributor refusing spans
 weight: 471
 ---

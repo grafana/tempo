@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/configuration/gcs/
 title: GCS Permissions
 weight: 1
 ---

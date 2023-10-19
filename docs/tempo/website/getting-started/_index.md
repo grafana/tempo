@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/getting-started/
 title: Getting started
 weight: 150
 ---

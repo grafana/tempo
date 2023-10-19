@@ -1,7 +1,8 @@
 ---
-title: Pushing Spans with HTTP
 aliases:
-- /docs/tempo/latest/guides/pushing-spans-with-http/
+- /docs/tempo/v1.2.1/api_docs/pushing-spans-with-http/
+- /docs/tempo/v1.2.x/guides/pushing-spans-with-http/
+title: Pushing Spans with HTTP
 ---
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation

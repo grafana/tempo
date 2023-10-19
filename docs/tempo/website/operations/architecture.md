@@ -1,8 +1,9 @@
 ---
-title: Architecture
 aliases:
- - /docs/tempo/latest/architecture/architecture
- - /docs/tempo/latest/architecture
+- /docs/tempo/v1.2.1/operations/architecture/
+- /docs/tempo/v1.2.x/architecture/
+- /docs/tempo/v1.2.x/architecture/architecture/
+title: Architecture
 weight: 1
 ---
 

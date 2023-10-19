@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/operations/ingester_pvcs/
 title: Ingester PVCs
 weight: 5
 ---

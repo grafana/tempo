@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/grafana-agent/span-metrics/
 title: Generating metrics from spans
 ---
 

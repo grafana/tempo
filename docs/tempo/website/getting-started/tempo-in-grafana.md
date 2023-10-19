@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/getting-started/tempo-in-grafana/
 title: Tempo in Grafana
 weight: 300
 ---

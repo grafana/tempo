@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/configuration/
 title: Configuration
 weight: 200
 ---

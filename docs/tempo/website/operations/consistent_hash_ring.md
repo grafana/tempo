@@ -1,4 +1,6 @@
 ---
+aliases:
+- /docs/tempo/v1.2.1/operations/consistent_hash_ring/
 title: Consistent Hash Ring
 weight: 2
 ---

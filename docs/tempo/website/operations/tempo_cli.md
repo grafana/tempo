@@ -1,7 +1,13 @@
 ---
-title: "Tempo CLI"
-description: "Guide to using tempo-cli"
-keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
+aliases:
+- /docs/tempo/v1.2.1/operations/tempo_cli/
+description: Guide to using tempo-cli
+keywords:
+- tempo
+- cli
+- tempo-cli
+- command line interface
+title: Tempo CLI
 weight: 7
 ---
 

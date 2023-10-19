@@ -1,5 +1,7 @@
 ---
-title: "Tail-based sampling"
+aliases:
+- /docs/tempo/v1.2.1/grafana-agent/tail-based-sampling/
+title: Tail-based sampling
 ---
 
 # Tail-based sampling
