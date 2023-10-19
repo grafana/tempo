@@ -130,6 +130,10 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 	return nil
 }
 
+func (w *writer) Delete(ctx context.Context, name string, keypath KeyPath) error {
+	return w.w.Delete(ctx, name, keypath, false)
+}
+
 type reader struct {
 	r RawReader
 }

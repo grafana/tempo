@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"path"
 	"sort"
 	"strconv"
 	"time"
@@ -222,10 +223,24 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
 
-	// TODO: if the tenant has no blocks remove all tenant objects
-	// v, err := p.reader.Find(ctx, []string{tenantID}, func(opts backend.FindOpts) (bool, error) {
-	// 	return false, nil
-	// })
+	if len(blocklist) == 0 && len(compactedBlocklist) == 0 {
+		// if the tenant has no blocks remove all tenant objects
+		vvv, err := p.reader.Find(ctx, backend.KeyPath{tenantID}, func(opts backend.FindOpts) (bool, error) {
+			if time.Since(opts.Modified) > time.Hour {
+				return true, nil
+			}
+
+			return false, nil
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, v := range vvv {
+			dir, name := path.Split(v)
+			p.writer.Delete(ctx, name, backend.KeyPath{dir})
+		}
+	}
 
 	metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(0)
 

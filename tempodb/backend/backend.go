@@ -39,6 +39,8 @@ type Writer interface {
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
 	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
+	// Delete deletes an object.
+	Delete(ctx context.Context, name string, keypath KeyPath) error
 }
 
 // Reader is a collection of methods to read data from tempodb backends
