@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
@@ -57,9 +59,8 @@ func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
 
-	fmt.Println("request", req.Conditions)
-	fmt.Println(iter)
-	fmt.Println("------------------")
+	_ = level.Info(log.Logger).Log("msg", "created iterator", "conditions", fmt.Sprintf("%+v", req.Conditions))
+	_ = level.Info(log.Logger).Log("iter", iter.String())
 
 	return iter, nil
 }
@@ -184,7 +185,7 @@ func createDistinctIterator(
 	} else if spanIter != nil {
 		return spanIter, nil
 	} else {
-		return nil, nil
+		return nil, fmt.Errorf("no conditions")
 	}
 }
 
@@ -571,13 +572,14 @@ func createDistinctResourceIterator(makeIter makeIterFn, keep keepFn, spanIterat
 
 	// Put span iterator last so it is only read when
 	// the resource conditions are met.
-	required = append(required, spanIterator)
+	if spanIterator != nil {
+		required = append(required, spanIterator)
+	}
 
 	// Left join here means the span iterator + 1 are required,
 	// and all other resource conditions are optional. Whatever matches
 	// is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
-		required, iters, batchCol), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, batchCol), nil
 }
 
 func createDistinctTraceIterator(makeIter makeIterFn, keep keepFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
@@ -701,7 +703,6 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 var _ parquetquery.GroupPredicate = (*distinctSpanCollector)(nil)
 
 type distinctSpanCollector struct {
-	key  string
 	keep keepFn
 }
 
@@ -712,7 +713,7 @@ func (d distinctSpanCollector) String() string {
 func (d distinctSpanCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	for _, e := range result.Entries {
 		if key, v := extractTagValue(e); d.keep(key) {
-			result.AppendValue(d.key, v)
+			result.AppendValue(key, v)
 		}
 	}
 	return true // TODO: What should we return here?

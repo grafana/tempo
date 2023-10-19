@@ -128,6 +128,14 @@ func TestSearchTagValuesV2(t *testing.T) {
 				TagValues: []TagValue{{Type: "string", Value: secondBatch.name}, {Type: "string", Value: firstBatch.name}},
 			},
 		},
+		{
+			name:    "only resource attributes",
+			query:   fmt.Sprintf(`{ %s="%s" }`, resourceX, firstBatch.resourceAttVal),
+			tagName: "resource.service.name",
+			expected: searchTagValuesResponse{
+				TagValues: []TagValue{{Type: "string", Value: "my-service"}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

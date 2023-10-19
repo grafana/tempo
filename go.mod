@@ -336,3 +336,5 @@ replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-
 replace google.golang.org/grpc => google.golang.org/grpc v1.58.3
 
 replace golang.org/x/net => golang.org/x/net v0.17.0
+
+replace github.com/grafana/e2e => /Users/mapno/workspace/github.com/grafana/e2e
