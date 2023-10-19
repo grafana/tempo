@@ -71,7 +71,6 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 
 	descendantOf := func(a *span, b *span) bool {
 		if a.nestedSetLeft == 0 ||
-			a.nestedSetRight == 0 ||
 			b.nestedSetLeft == 0 ||
 			a.nestedSetRight == 0 ||
 			b.nestedSetRight == 0 {
