@@ -54,7 +54,7 @@ func (s *span) DurationNanos() uint64 {
 func (*span) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
-func (*span) SiblingOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+func (*span) SiblingOf([]traceql.Span, []traceql.Span, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 func (*span) ChildOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {

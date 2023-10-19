@@ -471,7 +471,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		expected []*tempopb.TraceSearchMetadata
 	}
 
-	searchesThatMatch := []*test{ // jpe - uncomment all
+	searchesThatMatch := []*test{
 		{
 			req: &tempopb.SearchRequest{Query: "{ .parent } >> { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{

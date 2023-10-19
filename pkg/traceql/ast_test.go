@@ -387,7 +387,7 @@ func (m *mockSpan) DurationNanos() uint64 {
 	return m.durationNanos
 }
 
-func (m *mockSpan) DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span { // jpe - fix
+func (m *mockSpan) DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span {
 	return loop(lhs, rhs, falseForAll, invert, descendantOf)
 }
 
@@ -395,8 +395,8 @@ func descendantOf(s1 Span, s2 Span) bool {
 	return s2.(*mockSpan).left > s1.(*mockSpan).left && s2.(*mockSpan).left < s1.(*mockSpan).right
 }
 
-func (m *mockSpan) SiblingOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span {
-	return loop(lhs, rhs, falseForAll, invert, siblingOf)
+func (m *mockSpan) SiblingOf(lhs []Span, rhs []Span, falseForAll bool, buffer []Span) []Span {
+	return loop(lhs, rhs, falseForAll, false, siblingOf)
 }
 
 func siblingOf(s1 Span, s2 Span) bool {

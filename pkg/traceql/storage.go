@@ -85,7 +85,7 @@ type Span interface {
 	StartTimeUnixNanos() uint64
 	DurationNanos() uint64
 
-	SiblingOf([]Span, []Span, bool, bool, []Span) []Span
+	SiblingOf([]Span, []Span, bool, []Span) []Span
 	DescendantOf([]Span, []Span, bool, bool, []Span) []Span
 	ChildOf([]Span, []Span, bool, bool, []Span) []Span
 }
