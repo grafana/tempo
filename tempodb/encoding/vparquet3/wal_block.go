@@ -686,7 +686,7 @@ func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteReque
 
 	blockFlushes := b.readFlushes()
 	for _, page := range blockFlushes {
-		file, err := page.file()
+		file, err := page.file(ctx)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
