@@ -4,6 +4,7 @@ server:
   http_listen_port: 3200
 
 distributor:
+  retry_after_on_resource_exhausted: 1s
   receivers:
     jaeger:
       protocols:

@@ -204,6 +204,12 @@ distributor:
     # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
+
+    # Optional.
+    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
+    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to 
+    # instruct the client how to retry.
+    [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 ```
 
 ## Ingester
