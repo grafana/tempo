@@ -20,6 +20,10 @@ Span metrics are of particular interest if your system is not monitored with met
 but it has distributed tracing implemented.
 You get out-of-the-box metrics from your tracing pipeline.
 
+{{% admonition type="note" %}}
+Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
+{{% /admonition %}}
+
 Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
 The generated metrics will show application level insight into your monitoring,
 as far as tracing gets propagated through your applications.
