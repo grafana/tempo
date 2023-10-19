@@ -139,7 +139,7 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			if found >= 0 && found < len(lhs) {
 				matches = siblingOf(r.(*span), lhs[found].(*span))
 
-				//if we found a match BUT this is the same span as the match we need to check the very next span (if it exists).
+				// if we found a match BUT this is the same span as the match we need to check the very next span (if it exists).
 				// this works b/c Search method returns the first match for nestedSetParent
 				if matches && r.(*span) == lhs[found].(*span) {
 					matches = false
