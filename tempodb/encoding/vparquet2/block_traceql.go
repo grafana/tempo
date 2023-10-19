@@ -60,9 +60,9 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 
 	// sort by nested set left. it might be even better to clone the lhs slice. sort one by left and one by right
 	// and search the one that requires less seeking after the search
-	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft } // sort desc
+	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft > lhs[j].(*span).nestedSetLeft } // sort asc
 	if invert {
-		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetLeft > lhs[j].(*span).nestedSetLeft } // sort asc
+		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft } // sort desc
 	}
 	sort.Slice(lhs, sortFn)
 
@@ -79,9 +79,9 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 
 	for _, r := range rhs {
 		matches := false
-		findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetLeft }
+		findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft <= r.(*span).nestedSetLeft }
 		if invert {
-			findFn = func(i int) bool { return lhs[i].(*span).nestedSetLeft <= r.(*span).nestedSetLeft }
+			findFn = func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetLeft }
 		}
 
 		// let's find the first index we need to bother with. lhs is sorted by nested set left
@@ -97,7 +97,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 				a, b = b, a
 			}
 
-			if descendantOf(a, b) {
+			if descendantOf(b, a) {
 				// Returns RHS
 				matches = true
 				break
@@ -148,29 +148,30 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 }
 
 func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
-	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
+	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
 	if invert {
-		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
+		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
 	}
 
 	sort.Slice(lhs, sortFn)
 	for _, r := range rhs {
-		findFn := func(i int) bool { return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetLeft }
+		findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetParent }
 		if invert {
-			findFn = func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetParent }
+			findFn = func(i int) bool { return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetLeft }
 		}
 
 		// search for nested set parent
 		found := sort.Search(len(lhs), findFn)
 		matches := found >= 0 && found < len(lhs)
 		if matches {
-			matches = (lhs[found].(*span).nestedSetParent == r.(*span).nestedSetLeft) &&
-				lhs[found].(*span).nestedSetParent != 0 &&
-				r.(*span).nestedSetLeft != 0
+			matches = lhs[found].(*span).nestedSetLeft == r.(*span).nestedSetParent &&
+				lhs[found].(*span).nestedSetLeft != 0 &&
+				r.(*span).nestedSetParent != 0
 			if invert {
-				matches = lhs[found].(*span).nestedSetLeft == r.(*span).nestedSetParent &&
-					lhs[found].(*span).nestedSetLeft != 0 &&
-					r.(*span).nestedSetParent != 0
+				matches = (lhs[found].(*span).nestedSetParent == r.(*span).nestedSetLeft) &&
+					lhs[found].(*span).nestedSetParent != 0 &&
+					r.(*span).nestedSetLeft != 0
+
 			}
 		}
 

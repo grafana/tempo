@@ -408,28 +408,29 @@ func (m *mockSpan) ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool
 }
 
 func childOf(s1 Span, s2 Span) bool {
-	return s1.(*mockSpan).parentID == s2.(*mockSpan).left
+	return s1.(*mockSpan).left == s2.(*mockSpan).parentID
 }
 
 func loop(lhs []Span, rhs []Span, falseForAll bool, invert bool, eval func(s1 Span, s2 Span) bool) []Span {
 	out := []Span{}
 
-	for _, l := range lhs {
+	for _, r := range rhs {
 		match := false
-		for _, r := range rhs {
+		for _, l := range lhs {
 			if invert {
-				r, l = l, r
+				match = eval(r, l)
+			} else {
+				match = eval(l, r)
 			}
 
-			if eval(l, r) {
-				match = true
+			if match {
 				break
 			}
 		}
 
 		if (match && !falseForAll) ||
 			(!match && falseForAll) {
-			out = append(out, l)
+			out = append(out, r)
 		}
 	}
 
