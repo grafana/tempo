@@ -311,7 +311,24 @@ func estimateProtoSizeFromParquetRow(row parquet.Row) (size int) {
 // estimateMarshalledSizeFromParquetRow estimates the byte size as marshalled into parquet.
 // this is a very rough estimate and is generally 66%-100% of actual size.
 func estimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
-	return len(row)
+	for _, v := range row {
+		sz := 1
+
+		switch v.Kind() {
+		case parquet.ByteArray:
+			sz = len(v.ByteArray())
+
+		case parquet.FixedLenByteArray:
+			sz = len(v.ByteArray())
+		}
+
+		if sz > 1 {
+			sz = max(sz/25, 1) // 25 is a magic number that seems to work well
+		}
+
+		size += sz
+	}
+	return
 }
 
 // countSpans counts the number of spans in the given trace in deconstructed
