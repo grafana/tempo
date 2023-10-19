@@ -52,9 +52,11 @@ func (m *mockSpan) DurationNanos() uint64                            { return m.
 func (m *mockSpan) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
+
 func (m *mockSpan) SiblingOf([]traceql.Span, []traceql.Span, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
+
 func (m *mockSpan) ChildOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
