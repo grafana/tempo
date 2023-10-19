@@ -154,7 +154,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
 
-	if c.Distributor.LogReceivedTraces {
+	if c.Distributor.LogReceivedSpans.Enabled {
 		warnings = append(warnings, warnLogReceivedTraces)
 	}
 
@@ -199,6 +199,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 
 	if c.Overrides.ConfigType == overrides.ConfigTypeLegacy {
 		warnings = append(warnings, warnLegacyOverridesConfig)
+	}
+
+	if c.StorageConfig.Trace.Backend == backend.S3 && c.StorageConfig.Trace.S3.NativeAWSAuthEnabled {
+		warnings = append(warnings, warnNativeAWSAuthEnabled)
 	}
 
 	return warnings
@@ -250,7 +254,7 @@ var (
 		Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
 	}
 	warnLogReceivedTraces = ConfigWarning{
-		Message: "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled",
+		Message: "Span logging is enabled. This is for debuging only and not recommended for production deployments.",
 	}
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
@@ -261,6 +265,11 @@ var (
 
 	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{
 		Message: "Trace storage conflicts with user-configurable overrides storage",
+	}
+
+	warnNativeAWSAuthEnabled = ConfigWarning{
+		Message: "c.StorageConfig.Trace.S3.NativeAWSAuthEnabled is deprecated and will be removed in a future release.",
+		Explain: "This setting is no longer necessary and will be ignored.",
 	}
 )
 

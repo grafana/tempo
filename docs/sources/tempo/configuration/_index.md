@@ -186,16 +186,19 @@ distributor:
 
 
     # Optional.
-    # Enable to log every received trace id to help debug ingestion
-    # WARNING: Deprecated. Use log_received_spans instead.
-    [log_received_traces: <boolean> | default = false]
-
-    # Optional.
     # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    # This is not recommended for production environments
     log_received_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
+
+    # Optional.
+    # Enable to metric every received span to help debug ingestion
+    # This is not recommended for production environments
+    metric_received_spans:
+        [enabled: <boolean> | default = false]
+        [root_only: <boolean> | default = false]
 
     # Optional.
     # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
@@ -807,10 +810,6 @@ storage:
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
-
-            # If enabled, it will use the default authentication methods of
-            # the AWS SDK for go based on known environment variables and known AWS config files.
-            [native_aws_auth_enabled: <boolean> | default = false]
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL

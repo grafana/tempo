@@ -134,6 +134,19 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			),
 		},
 		{
+			in: "({ .a } | { .b }) ~ ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetSibling,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
 			in: "({ .a } | { .b }) && ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetAnd,
 				newPipeline(
@@ -162,6 +175,71 @@ func TestPipelineSpansetOperators(t *testing.T) {
 		{
 			in: "({ .a } | { .b }) << ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetAncestor,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotChild,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotParent,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !~ ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotSibling,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !>> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotDescendant,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) !<< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetNotAncestor,
 				newPipeline(
 					newSpansetFilter(NewAttribute("a")),
 					newSpansetFilter(NewAttribute("b")),
@@ -464,6 +542,11 @@ func TestSpansetExpressionOperators(t *testing.T) {
 		{in: "{ true } ~ { false }", expected: newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 		// this test was added to highlight the one shift/reduce conflict in the grammar. this could also be parsed as two spanset pipelines &&ed together.
 		{in: "({ true }) && ({ false })", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } !> { false }", expected: newSpansetOperation(OpSpansetNotChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } !< { false }", expected: newSpansetOperation(OpSpansetNotParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } !>> { false }", expected: newSpansetOperation(OpSpansetNotDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } !<< { false }", expected: newSpansetOperation(OpSpansetNotAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } !~ { false }", expected: newSpansetOperation(OpSpansetNotSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 	}
 
 	for _, tc := range tests {
@@ -795,9 +878,11 @@ func TestAttributeNameErrors(t *testing.T) {
 		err error
 	}{
 		{in: "{ . foo }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER", 1, 3)},
+		{in: `{ . "foo" }`, err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER", 1, 3)},
 		{in: "{ .foo .bar }", err: newParseError("syntax error: unexpected .", 1, 8)},
 		{in: "{ parent. }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER or resource. or span.", 0, 3)},
 		{in: ".3foo", err: newParseError("syntax error: unexpected IDENTIFIER", 1, 3)},
+		{in: `{ ."foo }`, err: newParseError(`unexpected EOF, expecting "`, 0, 3)},
 	}
 
 	for _, tc := range tests {
@@ -837,6 +922,16 @@ func TestAttributes(t *testing.T) {
 		{in: "parent.span.foo", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo")},
 		{in: "parent.resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz")},
 		{in: "parent.span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo.bar")},
+		{in: `."bar z".foo`, expected: NewAttribute("bar z.foo")},
+		{in: `span."bar z".foo`, expected: NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo")},
+		{in: `."bar z".foo."bar"`, expected: NewAttribute("bar z.foo.bar")},
+		{in: `.foo."bar baz"`, expected: NewAttribute("foo.bar baz")},
+		{in: `.foo."bar baz".bar`, expected: NewAttribute("foo.bar baz.bar")},
+		{in: `.foo."bar \" baz"`, expected: NewAttribute(`foo.bar " baz`)},
+		{in: `.foo."bar \\ baz"`, expected: NewAttribute(`foo.bar \ baz`)},
+		{in: `.foo."bar \\"." baz"`, expected: NewAttribute(`foo.bar \. baz`)},
+		{in: `."foo.bar"`, expected: NewAttribute(`foo.bar`)},
+		{in: `."🤘"`, expected: NewAttribute(`🤘`)},
 	}
 
 	for _, tc := range tests {

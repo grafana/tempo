@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"text/scanner"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/prometheus/common/model"
 )
+
+const escapeRunes = `\"`
 
 var tokens = map[string]int{
 	",":               COMMA,
@@ -20,7 +23,7 @@ var tokens = map[string]int{
 	"=":               EQ,
 	"!=":              NEQ,
 	"=~":              RE,
-	"!~":              NRE,
+	"!~":              NRE, // also "not sibling"
 	">":               GT,
 	">=":              GTE,
 	"<":               LT,
@@ -49,7 +52,11 @@ var tokens = map[string]int{
 	"|":               PIPE,
 	">>":              DESC,
 	"<<":              ANCE,
-	"~":               TILDE,
+	"~":               SIBL,
+	"!>":              NOT_CHILD,
+	"!<":              NOT_PARENT,
+	"!>>":             NOT_DESC,
+	"!<<":             NOT_ANCE,
 	"duration":        IDURATION,
 	"childCount":      CHILDCOUNT,
 	"name":            NAME,
@@ -91,30 +98,23 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return END_ATTRIBUTE
 	}
 
-	r := l.Scan()
-
-	// if we are currently parsing an attribute then just grab everything until we find a character that ends the attribute.
-	// we will handle parsing this out in ast.go
 	if l.parsingAttribute {
-		str := l.TokenText()
 		// parse out any scopes here
-		tok := tokens[str+string(l.Peek())]
-		if tok == RESOURCE_DOT || tok == SPAN_DOT {
-			l.Next()
-			return tok
+		scopeToken, ok := tryScopeAttribute(&l.Scanner)
+		if ok {
+			return scopeToken
 		}
 
-		// go forward until we find the end of the attribute
-		r := l.Peek()
-		for isAttributeRune(r) {
-			str += string(l.Next())
-			r = l.Peek()
+		var err error
+		lval.staticStr, err = parseAttribute(&l.Scanner)
+		if err != nil {
+			l.Error(err.Error())
+			return 0
 		}
-
-		lval.staticStr = str
 		return IDENTIFIER
 	}
 
+	r := l.Scan()
 	// now that we know we're not parsing an attribute, let's look for everything else
 	switch r {
 	case scanner.EOF:
@@ -167,24 +167,119 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return FLOAT
 	}
 
-	tokStrNext := l.TokenText() + string(l.Peek())
-	if tok, ok := tokens[tokStrNext]; ok {
-		l.Next()
-		l.parsingAttribute = startsAttribute(tok)
-		return tok
+	// look for combination tokens starting with 2 and working up til there is no match
+	// this is only to disamgiguate tokens with common prefixes. it will not find 3+ token combinations
+	// with no valid prefixes
+	multiTok := -1
+	tokStrNext := l.TokenText()
+	for {
+		tokStrNext = tokStrNext + string(l.Peek())
+		tok, ok := tokens[tokStrNext]
+		if ok {
+			multiTok = tok
+			l.Next()
+			continue
+		}
+
+		break
 	}
 
+	// did we find a combination token?
+	if multiTok != -1 {
+		l.parsingAttribute = startsAttribute(multiTok)
+		return multiTok
+	}
+
+	// no combination tokens, see if the current text is a known token
 	if tok, ok := tokens[l.TokenText()]; ok {
 		l.parsingAttribute = startsAttribute(tok)
 		return tok
 	}
 
+	// default to an identifier
 	lval.staticStr = l.TokenText()
 	return IDENTIFIER
 }
 
 func (l *lexer) Error(msg string) {
 	l.errs = append(l.errs, newParseError(msg, l.Line, l.Column))
+}
+
+func parseAttribute(s *scanner.Scanner) (string, error) {
+	var sb strings.Builder
+	r := s.Peek()
+	for {
+		if r == '"' {
+			// consume quoted attribute parts
+			str, err := parseQuotedAtrribute(s)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(str)
+		} else if isAttributeRune(r) {
+			// if outside quote consume everything until we find a character that ends the attribute.
+			sb.WriteRune(s.Next())
+		} else {
+			break
+		}
+
+		r = s.Peek()
+	}
+
+	return sb.String(), nil
+}
+
+func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
+	var sb strings.Builder
+	s.Next() // consume first quote
+	r := s.Peek()
+	for ; r != scanner.EOF; r = s.Peek() {
+		if r == '"' {
+			s.Next()
+			break
+		} else if r == '\\' {
+			s.Next()
+			if strings.ContainsRune(escapeRunes, s.Peek()) {
+				sb.WriteRune(s.Peek())
+				s.Next()
+			} else {
+				return "", errors.New("invalid escape sequence")
+			}
+		} else {
+			sb.WriteRune(r)
+			s.Next()
+		}
+	}
+
+	if r == scanner.EOF {
+		return "", errors.New(`unexpected EOF, expecting "`)
+	}
+
+	return sb.String(), nil
+}
+
+func tryScopeAttribute(l *scanner.Scanner) (int, bool) {
+	// copy the scanner to avoid advancing if it's not a scope.
+	s := *l
+	str := ""
+	for s.Peek() != scanner.EOF {
+		if s.Peek() == '.' {
+			str += string(s.Next())
+			break
+		}
+		str += string(s.Next())
+	}
+	tok := tokens[str]
+	if tok == RESOURCE_DOT || tok == SPAN_DOT {
+		// we have found scope attribute so consume the original scanner
+		for i := 0; i < len(str); i++ {
+			l.Next()
+		}
+
+		return tok, true
+	}
+
+	return 0, false
 }
 
 func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {

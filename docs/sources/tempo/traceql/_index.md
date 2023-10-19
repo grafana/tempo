@@ -119,6 +119,31 @@ For example, to find traces with an attribute of `sla` set to `critical`:
 { .sla = "critical" }
 ```
 
+### Quoted attribute names
+
+Attribute names can contain terminal characters, such as a period (`.`).
+To search span attributes with terminal characters, you can use quoted attribute syntax.
+A quoted attribute should be enclosed inside double quotes, for example, `"example one"`.
+All characters between the quotes are considered part of the attribute name.
+
+#### Examples
+
+To find a span with the attribute name `attribute name with space`, use the following query:
+
+```
+{ ."attribute name with space" = "value" }
+```
+
+You can use quoted attributes syntax with non-quoted attribute syntax, the following is a valid TraceQL query:
+
+```
+{ span.attribute."attribute name with space" = "value" }
+```
+
+{{% admonition type="note" %}}
+Currently, only the `\"` and `\\` escape sequences are supported.
+{{% /admonition %}}
+
 ### Comparison operators
 
 Comparison operators are used to test values within an expression.
@@ -208,18 +233,42 @@ The second expression returns no traces because it's impossible for a single spa
 
 ### Structural
 
-These spanset operators look at the structure of a trace and the relationship between the spans.
+These spanset operators look at the structure of a trace and the relationship between the spans. Structural operators ALWAYS return
+matches from the right hand side of the operator.
 
 - `{condA} >> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`
 - `{condA} << {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`
 - `{condA} > {condB}` - The child operator (`>`) looks for spans matching `{condB}` that are direct child spans of a parent matching `{condA}`
 - `{condA} < {condB}` - The parent operator (`<`) looks for spans matching `{condB}` that are direct parent spans of a child matching `{condA}`
-- `{condA} ~ {condB}` - The sibling operator (`~`) checks that spans matching `{condA}` and `{condB}` are siblings of the same parent span.
+- `{condA} ~ {condB}` - The sibling operator (`~`) looks at spans matching `{condB}` that have at least one sibling matching `{condA}`.
 
 For example, to find a trace where a specific HTTP API interacted with a specific database:
 
 ```
 { span.http.url = "/path/of/api" } >> { span.db.name = "db-shard-001" }
+```
+
+### Experimental Structural
+
+These spanset operators look at the structure of a trace and the relationship between the spans. They are marked experimental because they
+are known to sometimes return false positives. However, they can be very useful (see examples below). We encourage users to try them and give feedback.
+
+- `{condA} !>> {condB}` - The not-descendant operator (`!>>`) looks for spans matching `{condB}` that are not descendant spans of a parent matching `{condA}`
+- `{condA} !<< {condB}` - The not-ancestor operator (`!<<`) looks for spans matching `{condB}` that are not ancestor spans of a child matching `{condA}`
+- `{condA} !> {condB}` - The not-child operator (`!>`) looks for spans matching `{condB}` that are not direct child spans of a parent matching `{condA}`
+- `{condA} !< {condB}` - The not-parent operator (`!<`) looks for spans matching `{condB}` that are not direct parent spans of a child matching `{condA}`
+- `{condA} !~ {condB}` - The not-sibling operator (`!~`) looks that spans matching `{condB}` that do not have at least one sibling matching `{condA}`.
+
+For example, to find a trace with a leaf span in the service "foo":
+
+```
+{ } !< { resource.service.name = "foo" }
+```
+
+To find a span that is the last error in a series of cascading errors:
+
+```
+{ status = error } !< { status = error }
 ```
 
 ## Aggregators

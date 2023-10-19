@@ -18,6 +18,10 @@ func TestLexerAttributes(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		// attributes
 		{`.foo`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`."foo".baz."bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo."bar \" baz"."bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo."baz \\".bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`."foo.bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.count`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo3`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo+bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -63,6 +67,17 @@ func TestLexerAttributes(t *testing.T) {
 		// not attributes
 		{`.3`, []int{FLOAT}},
 		{`.24h`, []int{DURATION}},
+	}))
+}
+
+func TestLexerMultitokens(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		// attributes
+		{`&&`, []int{AND}},
+		{`>>`, []int{DESC}},
+		{`!<<`, []int{NOT_ANCE}},
+		{`!`, []int{NOT}},
+		{`!~`, []int{NRE}},
 	}))
 }
 
@@ -131,6 +146,7 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 				}
 				actual = append(actual, tok)
 			}
+
 			require.Equal(t, tc.expected, actual)
 		})
 	}

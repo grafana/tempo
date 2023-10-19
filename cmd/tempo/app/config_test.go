@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/distributor"
@@ -37,10 +38,15 @@ func TestConfig_CheckConfig(t *testing.T) {
 						Block: &common.BlockConfig{
 							Version: "v2",
 						},
+						S3: &s3.Config{
+							NativeAWSAuthEnabled: true,
+						},
 					},
 				},
 				Distributor: distributor.Config{
-					LogReceivedTraces: true,
+					LogReceivedSpans: distributor.LogReceivedSpansConfig{
+						Enabled: true,
+					},
 				},
 			},
 			expect: []ConfigWarning{
@@ -50,6 +56,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnStorageTraceBackendS3,
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
+				warnNativeAWSAuthEnabled,
 			},
 		},
 		{

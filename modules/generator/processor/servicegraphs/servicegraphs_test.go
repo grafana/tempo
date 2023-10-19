@@ -242,5 +242,5 @@ func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
 func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb := labels.NewBuilder(lbls)
 	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
-	return lb.Labels(nil)
+	return lb.Labels()
 }

@@ -1558,11 +1558,13 @@ func (c *writerColumn) recordPageStats(headerSize int32, header *format.PageHead
 			}
 
 			if existingMaxValue.isNull() || c.columnType.Compare(maxValue, existingMaxValue) > 0 {
-				c.columnChunk.MetaData.Statistics.MaxValue = maxValue.Bytes()
+				buf := c.columnChunk.MetaData.Statistics.MaxValue[:0]
+				c.columnChunk.MetaData.Statistics.MaxValue = maxValue.AppendBytes(buf)
 			}
 
 			if existingMinValue.isNull() || c.columnType.Compare(minValue, existingMinValue) < 0 {
-				c.columnChunk.MetaData.Statistics.MinValue = minValue.Bytes()
+				buf := c.columnChunk.MetaData.Statistics.MinValue[:0]
+				c.columnChunk.MetaData.Statistics.MinValue = minValue.AppendBytes(buf)
 			}
 		}
 

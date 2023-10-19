@@ -3,10 +3,17 @@ package s3
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,6 +22,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +32,176 @@ const (
 	putMethod          = "PUT"
 	tagHeader          = "X-Amz-Tagging"
 	storageClassHeader = "X-Amz-Storage-Class"
+
+	defaultAccessKey = "AKIAIOSFODNN7EXAMPLE"
+	defaultSecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	user1AccessKey   = "AKIAI44QH8DHBEXAMPLE"
+	user1SecretKey   = "je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY"
 )
+
+type ec2RoleCredRespBody struct {
+	Expiration      time.Time `json:"Expiration"`
+	AccessKeyID     string    `json:"AccessKeyId"`
+	SecretAccessKey string    `json:"SecretAccessKey"`
+	Token           string    `json:"Token"`
+	Code            string    `json:"Code"`
+	Message         string    `json:"Message"`
+	LastUpdated     time.Time `json:"LastUpdated"`
+	Type            string    `json:"Type"`
+}
+
+func TestCredentials(t *testing.T) {
+	cwd, err := os.Getwd()
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		access   string
+		secret   string
+		envs     map[string]string
+		profile  string
+		expected credentials.Value
+		irsa     bool
+		imds     bool
+		mocked   bool
+	}{
+		{
+			name: "no-creds",
+			expected: credentials.Value{
+				SignerType: credentials.SignatureAnonymous,
+			},
+		},
+		{
+			name: "aws-env",
+			envs: map[string]string{
+				"AWS_ACCESS_KEY_ID":     defaultAccessKey,
+				"AWS_SECRET_ACCESS_KEY": defaultSecretKey,
+			},
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+		},
+		{
+			name:   "aws-static",
+			access: defaultAccessKey,
+			secret: defaultSecretKey,
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureDefault,
+			},
+		},
+		{
+			name: "minio-env",
+			envs: map[string]string{
+				"MINIO_ACCESS_KEY": defaultAccessKey,
+				"MINIO_SECRET_KEY": defaultSecretKey,
+			},
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+		},
+		{
+			name: "aws-config-no-profile",
+			envs: map[string]string{
+				"AWS_SHARED_CREDENTIALS_FILE": filepath.Join(cwd, "testdata/aws-credentials"),
+			},
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+		},
+		{
+			name: "aws-config-with-profile",
+			envs: map[string]string{
+				"AWS_SHARED_CREDENTIALS_FILE": filepath.Join(cwd, "testdata/aws-credentials"),
+				"AWS_PROFILE":                 "user1",
+			},
+			expected: credentials.Value{
+				AccessKeyID:     user1AccessKey,
+				SecretAccessKey: user1SecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+		},
+		{
+			name: "minio-config",
+			envs: map[string]string{
+				"MINIO_SHARED_CREDENTIALS_FILE": filepath.Join(cwd, "testdata/minio-config.json"),
+				"MINIO_ALIAS":                   "s3",
+			},
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+		},
+		{
+			name: "aws-iam-irsa-mocked",
+			envs: map[string]string{
+				"AWS_WEB_IDENTITY_TOKEN_FILE": filepath.Join(cwd, "testdata/iam-token"),
+				"AWS_ROLE_ARN":                "arn:aws:iam::123456789012:role/role-name",
+				"AWS_ROLE_SESSION_NAME":       "tempo",
+			},
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+			irsa:   true,
+			mocked: true,
+		},
+		{
+			name: "aws-iam-imds-mocked",
+			envs: map[string]string{
+				"AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/role-name",
+			},
+			expected: credentials.Value{
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				SignerType:      credentials.SignatureV4,
+			},
+			imds:   true,
+			mocked: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.mocked == true {
+				metadataSrv := httptest.NewServer(metadataMockedHandler(t))
+				defer metadataSrv.Close()
+
+				if tc.envs == nil {
+					tc.envs = map[string]string{}
+				}
+
+				tc.envs["TEST_IAM_ENDPOINT"] = metadataSrv.URL
+			}
+
+			closer := envSetter(tc.envs)
+			defer t.Cleanup(closer)
+
+			c := &Config{}
+			if tc.access != "" {
+				c.AccessKey = tc.access
+				c.SecretKey = flagext.SecretWithValue(tc.secret)
+			}
+
+			creds, err := fetchCreds(c)
+			assert.NoError(t, err)
+
+			realCreds, err := creds.Get()
+			assert.NoError(t, err)
+
+			assert.Equal(t, tc.expected, realCreds)
+		})
+	}
+}
 
 func TestHedge(t *testing.T) {
 	tests := []struct {
@@ -312,4 +489,129 @@ func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
 	server := httptest.NewServer(httpHandler)
 	t.Cleanup(server.Close)
 	return server
+}
+
+func envSetter(envs map[string]string) (closer func()) {
+	originalEnvs := map[string]string{}
+
+	for name, value := range envs {
+		if originalValue, ok := os.LookupEnv(name); ok {
+			originalEnvs[name] = originalValue
+		}
+		_ = os.Setenv(name, value)
+	}
+
+	return func() {
+		for name := range envs {
+			origValue, has := originalEnvs[name]
+			if has {
+				_ = os.Setenv(name, origValue)
+			} else {
+				_ = os.Unsetenv(name)
+			}
+		}
+	}
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+var src = rand.NewSource(time.Now().UnixNano())
+
+func RandStringBytesMaskImprSrc(n int) string {
+	b := make([]byte, n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return string(b)
+}
+
+func metadataMockedHandler(t *testing.T) http.HandlerFunc {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.String() == "/" {
+			err := r.ParseForm()
+			require.NoError(t, err)
+
+			if r.Form.Get("Action") != "AssumeRoleWithWebIdentity" {
+				w.WriteHeader(400)
+			}
+
+			token, err := os.ReadFile(filepath.Join(cwd, "testdata/iam-token"))
+			require.NoError(t, err)
+			if r.Form.Get("WebIdentityToken") != string(token) {
+				w.WriteHeader(400)
+			}
+
+			type xmlCreds struct {
+				AccessKey    string    `xml:"AccessKeyId" json:"accessKey,omitempty"`
+				SecretKey    string    `xml:"SecretAccessKey" json:"secretKey,omitempty"`
+				Expiration   time.Time `xml:"Expiration" json:"expiration,omitempty"`
+				SessionToken string    `xml:"SessionToken" json:"sessionToken,omitempty"`
+			}
+
+			assumeResponse := credentials.AssumeRoleWithWebIdentityResponse{
+				Result: credentials.WebIdentityResult{
+					Credentials: xmlCreds{
+						AccessKey: defaultAccessKey,
+						SecretKey: defaultSecretKey,
+					},
+				},
+			}
+
+			err1 := xml.NewEncoder(w).Encode(assumeResponse)
+			require.NoError(t, err1)
+		} else if r.URL.String() == "/latest/api/token" {
+			// Check for X-aws-ec2-metadata-token-ttl-seconds request header
+			if r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds") == "" {
+				w.WriteHeader(400)
+			}
+
+			// Check X-aws-ec2-metadata-token-ttl-seconds is an integer
+			secondsInt, err := strconv.Atoi(r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+			if err != nil {
+				w.WriteHeader(400)
+			}
+
+			// Generate a token, 40 character string, base64 encoded
+			token := base64.StdEncoding.EncodeToString([]byte(RandStringBytesMaskImprSrc(40)))
+
+			w.Header().Set("X-Aws-Ec2-Metadata-Token-Ttl-Seconds", strconv.Itoa(secondsInt))
+			if _, err := w.Write([]byte(token)); err != nil {
+				require.NoError(t, err)
+			}
+		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/" {
+			if _, err := w.Write([]byte("role-name\n")); err != nil {
+				require.NoError(t, err)
+			}
+		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/role-name" {
+			creds := ec2RoleCredRespBody{
+				LastUpdated:     time.Now(),
+				Expiration:      time.Now().Add(1 * time.Hour),
+				AccessKeyID:     defaultAccessKey,
+				SecretAccessKey: defaultSecretKey,
+				Type:            "AWS-HMAC",
+				Code:            "Success",
+			}
+
+			err := json.NewEncoder(w).Encode(creds)
+			require.NoError(t, err)
+		}
+	})
 }

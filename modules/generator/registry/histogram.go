@@ -175,14 +175,14 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 		// sum
 		lb.Set(labels.MetricName, h.nameSum)
-		_, err = appender.Append(0, lb.Labels(nil), timeMs, s.sum.Load())
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.sum.Load())
 		if err != nil {
 			return
 		}
 
 		// count
 		lb.Set(labels.MetricName, h.nameCount)
-		_, err = appender.Append(0, lb.Labels(nil), timeMs, s.count.Load())
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.count.Load())
 		if err != nil {
 			return
 		}
@@ -192,14 +192,14 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 		for i, bucketLabel := range h.bucketLabels {
 			lb.Set(labels.BucketLabel, bucketLabel)
-			ref, err := appender.Append(0, lb.Labels(nil), timeMs, s.buckets[i].Load())
+			ref, err := appender.Append(0, lb.Labels(), timeMs, s.buckets[i].Load())
 			if err != nil {
 				return activeSeries, err
 			}
 
 			ex := s.exemplars[i].Load()
 			if ex != "" {
-				_, err = appender.AppendExemplar(ref, lb.Labels(nil), exemplar.Exemplar{
+				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
 					Labels: []labels.Label{{
 						Name:  "traceID",
 						Value: ex,

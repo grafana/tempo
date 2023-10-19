@@ -7,6 +7,7 @@ import (
 
 	prometheus_common_config "github.com/prometheus/common/config"
 	prometheus_config "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/tsdb/wlog"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -15,7 +16,7 @@ func TestConfig(t *testing.T) {
 	cfgStr := `
 path: /var/wal/tempo
 wal:
-  wal_compression: true
+  wal_compression: "snappy"
 remote_write_flush_deadline: 5m
 remote_write:
   - url: http://prometheus/api/prom/push
@@ -30,7 +31,7 @@ remote_write:
 	assert.NoError(t, err)
 
 	walCfg := agentDefaultOptions()
-	walCfg.WALCompression = true
+	walCfg.WALCompression = wlog.CompressionSnappy
 
 	remoteWriteConfig := prometheus_config.DefaultRemoteWriteConfig
 	prometheusURL, err := url.Parse("http://prometheus/api/prom/push")

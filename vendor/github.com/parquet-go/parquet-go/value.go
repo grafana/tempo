@@ -253,6 +253,15 @@ func ByteArrayValue(value []byte) Value { return makeValueBytes(ByteArray, value
 func FixedLenByteArrayValue(value []byte) Value { return makeValueBytes(FixedLenByteArray, value) }
 
 func makeValue(k Kind, lt *format.LogicalType, v reflect.Value) Value {
+	if v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return Value{}
+		}
+		if v = v.Elem(); v.Kind() == reflect.Pointer && v.IsNil() {
+			return Value{}
+		}
+	}
+
 	switch v.Type() {
 	case reflect.TypeOf(time.Time{}):
 		unit := Nanosecond.TimeUnit()
