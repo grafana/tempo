@@ -693,7 +693,7 @@ func (b *walBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteReque
 
 		pf := file.parquetFile
 
-		iter, err := autocompleteIter(ctx, req, cb, pf, opts, b.meta.DedicatedColumns)
+		iter, err := autocompleteIter(ctx, req, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}

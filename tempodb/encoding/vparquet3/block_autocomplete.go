@@ -25,7 +25,7 @@ func (b *backendBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteR
 		return err
 	}
 
-	iter, err := autocompleteIter(ctx, req, cb, pf, opts, b.meta.DedicatedColumns)
+	iter, err := autocompleteIter(ctx, req, pf, opts, b.meta.DedicatedColumns)
 	if err != nil {
 		return errors.Wrap(err, "creating fetch iter")
 	}
@@ -51,8 +51,8 @@ func (b *backendBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteR
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
-func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	iter, err := createDistinctIterator(ctx, nil, req.Conditions, true, 0, math.MaxInt64, cb, req.TagName, pf, opts, dc)
+func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+	iter, err := createDistinctIterator(ctx, nil, req.Conditions, true, 0, math.MaxInt64, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -70,7 +70,6 @@ func createDistinctIterator(
 	conds []traceql.Condition,
 	allConditions bool,
 	start, end uint64,
-	cb traceql.AutocompleteCallback,
 	key string,
 	pf *parquet.File,
 	opts common.SearchOptions,
@@ -119,6 +118,7 @@ func createDistinctIterator(
 
 	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
+	keep := func(s string) bool { return key == s }
 
 	// Global state
 	// Span-filtering behavior changes depending on the resource-filtering in effect,
@@ -156,21 +156,21 @@ func createDistinctIterator(
 	fmt.Println("spanConditions", len(spanConditions), "resourceConditions", len(resourceConditions), "traceConditions", len(traceConditions))
 
 	if len(spanConditions) > 0 {
-		spanIter, err = createDistinctSpanIterator(makeIter, primaryIter, spanConditions, cb, key, spanRequireAtLeastOneMatch, allConditions, dc)
+		spanIter, err = createDistinctSpanIterator(makeIter, keep, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
 	if len(resourceConditions) > 0 {
-		resourceIter, err = createDistinctResourceIterator(makeIter, spanIter, resourceConditions, cb, key, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions, dc)
+		resourceIter, err = createDistinctResourceIterator(makeIter, keep, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
 		}
 	}
 
 	if len(traceConditions) > 0 {
-		traceIter, err = createDistinctTraceIterator(makeIter, resourceIter, traceConditions, cb, key, start, end, allConditions)
+		traceIter, err = createDistinctTraceIterator(makeIter, keep, resourceIter, traceConditions, start, end, allConditions)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating trace iterator")
 		}
@@ -190,7 +190,7 @@ func createDistinctIterator(
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, cb traceql.AutocompleteCallback, key string, _, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createDistinctSpanIterator(makeIter makeIterFn, keep keepFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, _, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -336,7 +336,7 @@ func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.It
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createDistinctAttributeIterator(makeIter, genericConditions, cb, key, DefinitionLevelResourceSpansILSSpanAttrs,
+	attrIter, err := createDistinctAttributeIterator(makeIter, keep, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -357,48 +357,33 @@ func createDistinctSpanIterator(makeIter makeIterFn, primaryIter parquetquery.It
 		iters = nil
 	}
 
-	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
-	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
-	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
-	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
-	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
-	//  this spaniterator code could be tightened up
-	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
-	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
+		return attrIter, nil
 	}
 
-	spanCol := &distinctSpanCollector{
-		cb:  cb,
-		key: key,
-	}
+	spanCol := &distinctSpanCollector{keep: keep}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
 }
 
-func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition, cb traceql.AutocompleteCallback, key string,
+func createDistinctAttributeIterator(makeIter makeIterFn, keep keepFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
 	allConditions bool,
 ) (parquetquery.Iterator, error) {
 	var (
-		attrKeys        = []string{}
-		attrStringPreds = []parquetquery.Predicate{}
-		attrIntPreds    = []parquetquery.Predicate{}
-		attrFltPreds    = []parquetquery.Predicate{}
-		boolPreds       = []parquetquery.Predicate{}
-		allIters        = []parquetquery.Iterator{}
+		attrKeys                                               []string
+		attrStringPreds, attrIntPreds, attrFltPreds, boolPreds []parquetquery.Predicate
+		allIters                                               []parquetquery.Iterator
 	)
 	for _, cond := range conditions {
-
-		attrKeys = append(attrKeys, cond.Attribute.Name)
 
 		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type
 			// to expect
+			attrKeys = append(attrKeys, cond.Attribute.Name)
 			attrStringPreds = append(attrStringPreds, nil)
 			attrIntPreds = append(attrIntPreds, nil)
 			attrFltPreds = append(attrFltPreds, nil)
@@ -406,41 +391,43 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 			continue
 		}
 
-		switch cond.Operands[0].Type {
+		var keyIter, valIter parquetquery.Iterator
 
+		switch cond.Operands[0].Type {
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			//attrStringPreds = append(attrStringPreds, pred)
-			// TODO: Support more types
-			keyIter := makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key")
-			valIter := makeIter(strPath, pred, "string")
-			allIters = append(allIters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, &distinctAttrCollector{cb: cb, key: key}))
-			attrKeys = attrKeys[:len(attrKeys)-1]
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key")
+			valIter = makeIter(strPath, pred, "string")
 
 		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			attrIntPreds = append(attrIntPreds, pred)
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key")
+			valIter = makeIter(intPath, pred, "int")
 
 		case traceql.TypeFloat:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			attrFltPreds = append(attrFltPreds, pred)
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key")
+			valIter = makeIter(floatPath, pred, "float")
 
 		case traceql.TypeBoolean:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
-			boolPreds = append(boolPreds, pred)
+			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key")
+			valIter = makeIter(boolPath, pred, "bool")
 		}
+
+		allIters = append(allIters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, &distinctAttrCollector{keep: keep}))
 	}
 
 	var valueIters []parquetquery.Iterator
@@ -462,7 +449,7 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 		if len(attrKeys) > 0 {
 			allIters = append(allIters, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"))
 		}
-		return parquetquery.NewLeftJoinIterator(definitionLevel, allIters, valueIters, &distinctAttrCollector{cb: cb, key: key}), nil
+		return parquetquery.NewLeftJoinIterator(definitionLevel, allIters, valueIters, &distinctAttrCollector{keep: keep}), nil
 	}
 
 	if len(valueIters) > 0 {
@@ -473,27 +460,25 @@ func createDistinctAttributeIterator(makeIter makeIterFn, conditions []traceql.C
 		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
 		if allConditions && len(valueIters) == 1 {
 			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
-			return parquetquery.NewJoinIterator(definitionLevel,
+			return parquetquery.NewJoinIterator(
+				definitionLevel,
 				iters,
-				&distinctAttrCollector{
-					cb:  cb,
-					key: key,
-				}), nil
+				&distinctAttrCollector{keep: keep},
+			), nil
 		}
 
-		return parquetquery.NewLeftJoinIterator(definitionLevel,
+		return parquetquery.NewLeftJoinIterator(
+			definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
-			&distinctAttrCollector{
-				cb:  cb,
-				key: key,
-			}), nil
+			&distinctAttrCollector{keep: keep},
+		), nil
 	}
 
 	return nil, nil
 }
 
-func createDistinctResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, cb traceql.AutocompleteCallback, key string, requireAtLeastOneMatch, _, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createDistinctResourceIterator(makeIter makeIterFn, keep keepFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, _, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -555,7 +540,7 @@ func createDistinctResourceIterator(makeIter makeIterFn, spanIterator parquetque
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createDistinctAttributeIterator(makeIter, genericConditions, cb, key, DefinitionLevelResourceAttrs,
+	attrIter, err := createDistinctAttributeIterator(makeIter, keep, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -564,10 +549,7 @@ func createDistinctResourceIterator(makeIter makeIterFn, spanIterator parquetque
 		iters = append(iters, attrIter)
 	}
 
-	batchCol := &distinctBatchCollector{
-		cb:  cb,
-		key: key,
-	}
+	batchCol := &distinctBatchCollector{keep: keep}
 
 	var required []parquetquery.Iterator
 
@@ -598,7 +580,7 @@ func createDistinctResourceIterator(makeIter makeIterFn, spanIterator parquetque
 		required, iters, batchCol), nil
 }
 
-func createDistinctTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, cb traceql.AutocompleteCallback, key string, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
+func createDistinctTraceIterator(makeIter makeIterFn, keep keepFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
 
 	var err error
@@ -666,17 +648,17 @@ func createDistinctTraceIterator(makeIter makeIterFn, resourceIter parquetquery.
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
 	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &distinctTraceCollector{
-		cb:  cb,
-		key: key,
+		keep: keep,
 	}), nil
 }
+
+type keepFn func(string) bool
 
 var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
 
 type distinctAttrCollector struct {
 	// TODO: key is passed to every collector, can it be cleaned up?
-	key string
-	cb  traceql.AutocompleteCallback
+	keep keepFn
 }
 
 func (d *distinctAttrCollector) String() string {
@@ -709,8 +691,8 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 	}
 
 	result.Entries = result.Entries[:0]
-	if key == d.key {
-		result.AppendValue(d.key, val)
+	if d.keep(key) {
+		result.AppendValue(key, val)
 	}
 
 	return true
@@ -719,8 +701,8 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 var _ parquetquery.GroupPredicate = (*distinctSpanCollector)(nil)
 
 type distinctSpanCollector struct {
-	key string
-	cb  traceql.AutocompleteCallback
+	key  string
+	keep keepFn
 }
 
 func (d distinctSpanCollector) String() string {
@@ -729,7 +711,7 @@ func (d distinctSpanCollector) String() string {
 
 func (d distinctSpanCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	for _, e := range result.Entries {
-		if key, v := extractTagValue(e); key == d.key {
+		if key, v := extractTagValue(e); d.keep(key) {
 			result.AppendValue(d.key, v)
 		}
 	}
@@ -772,8 +754,7 @@ func extractTagValue(e entry) (string, parquet.Value) {
 var _ parquetquery.GroupPredicate = (*distinctBatchCollector)(nil)
 
 type distinctBatchCollector struct {
-	key string
-	cb  traceql.AutocompleteCallback
+	keep keepFn
 }
 
 func (d *distinctBatchCollector) String() string {
@@ -783,22 +764,22 @@ func (d *distinctBatchCollector) String() string {
 func (d *distinctBatchCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	// Gather Attributes from dedicated resource-level columns
 	for _, e := range result.Entries {
-		if e.Key != d.key {
+		if !d.keep(e.Key) {
 			continue
 		}
 		switch e.Value.Kind() {
 		case parquet.Int64, parquet.ByteArray:
-			result.AppendValue(d.key, e.Value)
+			result.AppendValue(e.Key, e.Value)
 		}
 	}
+	// TODO: Clean up result.Entries?
 	return true
 }
 
 var _ parquetquery.GroupPredicate = (*distinctTraceCollector)(nil)
 
 type distinctTraceCollector struct {
-	key string
-	cb  traceql.AutocompleteCallback
+	keep keepFn
 }
 
 func (d *distinctTraceCollector) String() string {
