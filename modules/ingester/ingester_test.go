@@ -483,6 +483,7 @@ func defaultIngesterTestConfig() Config {
 		nil,
 	)
 
+	cfg.FlushOpTimeout = 99999 * time.Hour
 	cfg.FlushCheckPeriod = 99999 * time.Hour
 	cfg.MaxTraceIdle = 99999 * time.Hour
 	cfg.ConcurrentFlushes = 1

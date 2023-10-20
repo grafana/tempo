@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 
@@ -421,7 +422,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	}
 }
 
-func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
 		if cfg.SignatureV2 {
 			return &overrideSignatureVersion{useV2: cfg.SignatureV2, upstream: p}
@@ -429,34 +430,39 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return p
 	}
 
-	var chain []credentials.Provider
+	chain := []credentials.Provider{
+		wrapCredentialsProvider(&credentials.Static{
+			Value: credentials.Value{
+				AccessKeyID:     cfg.AccessKey,
+				SecretAccessKey: cfg.SecretKey.String(),
+			},
+		}),
+		wrapCredentialsProvider(&credentials.EnvAWS{}),
+		wrapCredentialsProvider(&credentials.EnvMinio{}),
+		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
+		wrapCredentialsProvider(&credentials.FileMinioClient{}),
+		wrapCredentialsProvider(&credentials.IAM{
+			Client: &http.Client{
+				Transport: http.DefaultTransport,
+			},
+			Endpoint: os.Getenv("TEST_IAM_ENDPOINT"),
+		}),
+	}
 
-	if cfg.NativeAWSAuthEnabled {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(NewAWSSDKAuth(cfg.Region)),
-		}
-	} else if cfg.AccessKey != "" {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(&credentials.Static{
-				Value: credentials.Value{
-					AccessKeyID:     cfg.AccessKey,
-					SecretAccessKey: cfg.SecretKey.String(),
-					SessionToken:    cfg.SessionToken.String(),
-				},
-			}),
-		}
-	} else {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(&credentials.EnvAWS{}),
-			wrapCredentialsProvider(&credentials.EnvMinio{}),
-			wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
-			wrapCredentialsProvider(&credentials.FileMinioClient{}),
-			wrapCredentialsProvider(&credentials.IAM{
-				Client: &http.Client{
-					Transport: http.DefaultTransport,
-				},
-			}),
-		}
+	creds := credentials.NewChainCredentials(chain)
+
+	// error early if we cannot obtain credentials
+	if _, err := creds.Get(); err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
+	}
+
+	return creds, nil
+}
+
+func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+	creds, err := fetchCreds(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch credentials: %w", err)
 	}
 
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
@@ -488,7 +494,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	opts := &minio.Options{
 		Region:    cfg.Region,
 		Secure:    !cfg.Insecure,
-		Creds:     credentials.NewChainCredentials(chain),
+		Creds:     creds,
 		Transport: transport,
 	}
 

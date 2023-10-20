@@ -204,6 +204,12 @@ distributor:
     # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
+
+    # Optional.
+    # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
+    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to 
+    # instruct the client how to retry.
+    [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 ```
 
 ## Ingester
@@ -810,10 +816,6 @@ storage:
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
-
-            # If enabled, it will use the default authentication methods of
-            # the AWS SDK for go based on known environment variables and known AWS config files.
-            [native_aws_auth_enabled: <boolean> | default = false]
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL

@@ -878,9 +878,11 @@ func TestAttributeNameErrors(t *testing.T) {
 		err error
 	}{
 		{in: "{ . foo }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER", 1, 3)},
+		{in: `{ . "foo" }`, err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER", 1, 3)},
 		{in: "{ .foo .bar }", err: newParseError("syntax error: unexpected .", 1, 8)},
 		{in: "{ parent. }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER or resource. or span.", 0, 3)},
 		{in: ".3foo", err: newParseError("syntax error: unexpected IDENTIFIER", 1, 3)},
+		{in: `{ ."foo }`, err: newParseError(`unexpected EOF, expecting "`, 0, 3)},
 	}
 
 	for _, tc := range tests {
@@ -920,6 +922,16 @@ func TestAttributes(t *testing.T) {
 		{in: "parent.span.foo", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo")},
 		{in: "parent.resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz")},
 		{in: "parent.span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo.bar")},
+		{in: `."bar z".foo`, expected: NewAttribute("bar z.foo")},
+		{in: `span."bar z".foo`, expected: NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo")},
+		{in: `."bar z".foo."bar"`, expected: NewAttribute("bar z.foo.bar")},
+		{in: `.foo."bar baz"`, expected: NewAttribute("foo.bar baz")},
+		{in: `.foo."bar baz".bar`, expected: NewAttribute("foo.bar baz.bar")},
+		{in: `.foo."bar \" baz"`, expected: NewAttribute(`foo.bar " baz`)},
+		{in: `.foo."bar \\ baz"`, expected: NewAttribute(`foo.bar \ baz`)},
+		{in: `.foo."bar \\"." baz"`, expected: NewAttribute(`foo.bar \. baz`)},
+		{in: `."foo.bar"`, expected: NewAttribute(`foo.bar`)},
+		{in: `."🤘"`, expected: NewAttribute(`🤘`)},
 	}
 
 	for _, tc := range tests {

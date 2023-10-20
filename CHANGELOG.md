@@ -1,4 +1,7 @@
 ## main / unreleased
+* [BUGFIX] Load defaults for the internal server [#3041](https://github.com/grafana/tempo/pull/3041) (@rubenvp8510)
+* [ENHANCEMENT] Support quoted attribute name in TraceQL [#3004](https://github.com/grafana/tempo/pull/3004) (@kousikmitra)
+* [BUGFIX] Fix pass-through to runtime overrides for FilterPolicies and TargetInfoExcludedDimensions [#3012](https://github.com/grafana/tempo/pull/3012) (@electron0zero)
 * [ENHANCEMENT] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
 * [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
@@ -15,6 +18,8 @@
 * [CHANGE] Restructure Azure backends into versioned backends.  Introduce `use_v2_sdk` config option for switching. [#2952](https://github.com/grafana/tempo/issues/2952) (@zalegrala)
     v1: [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) original (now deprecated) SDK
     v2: [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go)
+* [CHANGE] Adjust trace size estimation to better honor row group size settings. [#3038](https://github.com/grafana/tempo/pull/3038) (@joe-elliott)
+* [CHANGE] Update alpine image version to 3.18. [#3046](https://github.com/grafana/tempo/pull/) (@joe-elliott)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
@@ -31,10 +36,11 @@
 * [ENHANCEMENT] User-configurable overrides: add scope query parameter to return merged overrides for tenant [#2915](https://github.com/grafana/tempo/pull/2915) [#3018](https://github.com/grafana/tempo/pull/3018) (@kvrhdn)
 * [ENHANCEMENT] Add histogram buckets to metrics-generator config in user-configurable overrides [#2928](https://github.com/grafana/tempo/pull/2928) (@mar4uk)
 * [ENHANCEMENT] Adds websocket support for search streaming. [#2971](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
-   **Breaking Change** Deprecated GRPC streaming
 * [ENHANCEMENT] Add new config block to distributors to produce debug metrics. [#3008](https://github.com/grafana/tempo/pull/3008) (@joe-elliott)
    **Breaking Change** Removed deprecated config option: distributor.log_received_spans
 * [ENHANCEMENT] added a metrics generator config option to enable/disable X-Scope-OrgID headers on remote write. [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
+* [ENHANCEMENT] Correctly return RetryInfo to Otel Collector/Grafana Agent on ResourceExhausted. This allows the agents to honor their own retry 
+  settings. [#3019](https://github.com/grafana/tempo/pull/3019) (@joe-elliott)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix rare deadlock when uploading blocks to Azure Blob Storage [#2129](https://github.com/grafana/tempo/issues/2129) (@LasseHels)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
@@ -76,7 +82,9 @@ defaults:
 ```  
 * [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
 * [BUGFIX] Correctly propagate ingester errors on the query path [#2935](https://github.com/grafana/tempo/issues/2935) (@joe-elliott)
+* [BUGFIX] Fix issue where ingester doesn't stop query after timeout [#3031](https://github.com/grafana/tempo/pull/3031) (@mdisibio) 
 * [BUGFIX] Fix cases where empty filter {} wouldn't return expected results [#2498](https://github.com/grafana/tempo/issues/2498) (@mdisibio)
+* [BUGFIX] Reorder S3 credential chain and upgrade minio-go. `native_aws_auth_enabled` is deprecated [#3006](https://github.com/grafana/tempo/pull/3006) (@ekristen, @mapno)
 
 # v2.2.3 / 2023-09-13
 

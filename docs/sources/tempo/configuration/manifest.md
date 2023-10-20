@@ -171,6 +171,7 @@ distributor:
     override_ring_key: distributor
     forwarders: []
     extend_writes: true
+    retry_after_on_resource_exhausted: '0'
 ingester_client:
     pool_config:
         checkinterval: 15s

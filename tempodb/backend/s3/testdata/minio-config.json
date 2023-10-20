@@ -1,0 +1,12 @@
+{
+	"version": "10",
+	"aliases": {
+		"s3": {
+			"url": "https://s3.amazonaws.com",
+			"accessKey": "AKIAIOSFODNN7EXAMPLE",
+			"secretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			"api": "S3v4",
+            "path": "auto"
+		}
+	}
+}

@@ -35,6 +35,8 @@ import (
 
 type runnerFn func(*testing.T, *tempopb.Trace, *tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader)
 
+const attributeWithTerminalChars = `{ } ( ) = ~ ! < > & | ^`
+
 func TestSearchCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
@@ -74,6 +76,14 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 	ctx := context.Background()
 	e := traceql.NewEngine()
 
+	quotedAttributesThatMatch := []*tempopb.SearchRequest{
+		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "foobaz")},
+		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "foobar")},
+		{Query: `{ ."res-dedicated.02" = "res-2a" }`},
+		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace" }`},
+	}
+
+	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
 	for _, req := range searchesThatMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
@@ -92,6 +102,13 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
+	quotedAttributesThaDonttMatch := []*tempopb.SearchRequest{
+		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "value mismatch")},
+		{Query: `{ ."unknow".attribute = "res-2a" }`},
+		{Query: `{ resource."resource attribute" = "unknown" }`},
+	}
+
+	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDonttMatch...)
 	for _, req := range searchesThatDontMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
@@ -906,6 +923,10 @@ func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string
 	falseConditions := []string{}
 
 	for _, a := range atts {
+		// surround attribute with quote if contains terminal char
+		if a.Key == attributeWithTerminalChars {
+			a.Key = fmt.Sprintf("%q", a.Key)
+		}
 		switch v := a.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, v.StringValue))
@@ -1145,6 +1166,7 @@ func searchTestSuite() (
 						stringKV("bat", "Baz"),
 						stringKV("res-dedicated.01", "res-1a"),
 						stringKV("res-dedicated.02", "res-2a"),
+						stringKV(attributeWithTerminalChars, "foobar"),
 					},
 				},
 				ScopeSpans: []*v1.ScopeSpans{
@@ -1198,6 +1220,7 @@ func searchTestSuite() (
 									boolKV("parent"),
 									stringKV("span-dedicated.01", "span-1b"),
 									stringKV("span-dedicated.02", "span-2b"),
+									stringKV(attributeWithTerminalChars, "foobaz"),
 								},
 							},
 						},

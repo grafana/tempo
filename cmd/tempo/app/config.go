@@ -80,7 +80,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Server.LogLevel.RegisterFlags(f)
 
 	// Internal server settings
-	flagext.DefaultValues(&c.InternalServer)
+	flagext.DefaultValues(&c.InternalServer.Config)
 
 	// Increase max message size to 16MB
 	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024
@@ -201,6 +201,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnLegacyOverridesConfig)
 	}
 
+	if c.StorageConfig.Trace.Backend == backend.S3 && c.StorageConfig.Trace.S3.NativeAWSAuthEnabled {
+		warnings = append(warnings, warnNativeAWSAuthEnabled)
+	}
+
 	return warnings
 }
 
@@ -261,6 +265,11 @@ var (
 
 	warnTracesAndUserConfigurableOverridesStorageConflict = ConfigWarning{
 		Message: "Trace storage conflicts with user-configurable overrides storage",
+	}
+
+	warnNativeAWSAuthEnabled = ConfigWarning{
+		Message: "c.StorageConfig.Trace.S3.NativeAWSAuthEnabled is deprecated and will be removed in a future release.",
+		Explain: "This setting is no longer necessary and will be ignored.",
 	}
 )
 
