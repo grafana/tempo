@@ -271,7 +271,9 @@ func (p *Poller) pollTenantBlocks(
 
 	readPreviousSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "readPreviousResults")
 	metas := previous.Metas(tenantID)
+	readPreviousSpan.SetTag("metas", len(metas))
 	compactedMetas := previous.CompactedMetas(tenantID)
+	readPreviousSpan.SetTag("compactedMetas", len(compactedMetas))
 	readPreviousSpan.Finish()
 
 	assembleSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "assemblePreviousResults")
@@ -325,6 +327,7 @@ func (p *Poller) pollTenantBlocks(
 	learnSpan.Finish()
 
 	pollSpan, pollSpanCtx := opentracing.StartSpanFromContext(derivedCtx, "pollUnknown")
+	pollSpan.SetTag("newBlockIDs", len(newBlockIDs))
 	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
 	for _, blockID := range newBlockIDs {
 		bg.Add(1)
