@@ -323,9 +323,9 @@ func estimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
 		}
 
 		if sz > 1 {
-			// for larger values, estimate 1 byte per 25 bytes. this is a very rough estimate
-			// but works well enough for our purposes.
-			sz = max(sz/25, 1) // nolint: typecheck
+			// for larger values, estimate 1 byte per 20 bytes. this is a very rough estimate
+			// but works well enough for our purposes. TODO: improve this calculation
+			sz = max(sz/20, 1) // nolint: typecheck
 		}
 
 		size += sz
