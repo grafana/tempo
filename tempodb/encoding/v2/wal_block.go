@@ -306,8 +306,8 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-// SuperFetch implements traceql.SuperSearcher
-func (a *walBlock) SuperFetch(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+// FetchTagValues implements traceql.Searcher
+func (a *walBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

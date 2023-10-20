@@ -398,25 +398,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	query := extractMatchers(req.Query)
 
-	var searchBlock func(common.SuperSearcher) error
-	if i.autocompleteFilteringEnabled && len(query) > 0 {
-		searchBlock = func(s common.SuperSearcher) error {
-			if anyErr.Load() != nil {
-				return nil // Early exit if any error has occurred
-			}
-
-			if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
-				return nil
-			}
-
-			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
-				return s.SuperFetch(ctx, req, cb, common.DefaultSearchOptions())
-			})
-
-			return engine.ExecuteTagValues(ctx, tag, query, distinctValues.Collect, fetcher)
-		}
-	} else {
-		searchBlock = func(s common.SuperSearcher) error {
+	var searchBlock func(common.Searcher) error
+	if !i.autocompleteFilteringEnabled && isEmptyQuery(query) {
+		// If filtering is disabled or query is empty,
+		// we can use the more efficient SearchTagValuesV2 method.
+		searchBlock = func(s common.Searcher) error {
 			if anyErr.Load() != nil {
 				return nil // Early exit if any error has occurred
 			}
@@ -426,6 +412,22 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			}
 
 			return s.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+		}
+	} else {
+		searchBlock = func(s common.Searcher) error {
+			if anyErr.Load() != nil {
+				return nil // Early exit if any error has occurred
+			}
+
+			if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+				return nil
+			}
+
+			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+				return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+			})
+
+			return engine.ExecuteTagValues(ctx, tag, query, distinctValues.Collect, fetcher)
 		}
 	}
 
@@ -492,6 +494,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
+func isEmptyQuery(query string) bool {
+	return query == emptyQuery || len(query) == 0
+}
+
 // TODO: Support spaces
 
 // Regex to extract matchers from a query string
@@ -519,17 +525,21 @@ var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*
 // { .bar = "foo" } || { .foo = "bar" }      |   No
 var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()/&=<>~!0-9"]*}$`)
 
+const emptyQuery = "{}"
+
+// TODO: Move to traceql package
+
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {
 	query = strings.TrimSpace(query)
 
 	if len(query) == 0 {
-		return "{}"
+		return emptyQuery
 	}
 
 	selector := singleFilterRegexp.FindString(query)
 	if len(selector) == 0 {
-		return "{}"
+		return emptyQuery
 	}
 
 	matchers := matchersRegexp.FindAllString(query, -1)

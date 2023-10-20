@@ -151,6 +151,8 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
+// AutocompleteCallback is called to collect unique tag values.
+// Returns true if it has exceeded the maximum number of results.
 type AutocompleteCallback func(tempopb.TagValue) bool
 
 type AutocompleteRequest struct {

@@ -27,14 +27,7 @@ type Searcher interface {
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-}
-
-// SuperSearcher extends Searcher with the ability to do autocomplete searches.
-// TODO: Clean up this interface.
-type SuperSearcher interface {
-	Searcher
-	// Most effective pokemon attack to use against autocomplete requests
-	SuperFetch(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, SearchOptions) error
+	FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, SearchOptions) error
 }
 
 type CacheControl struct {
@@ -104,7 +97,6 @@ type Iterator interface {
 type BackendBlock interface {
 	Finder
 	Searcher
-	SuperSearcher
 
 	BlockMeta() *backend.BlockMeta
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (b *backendBlock) SuperFetch(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -153,8 +153,6 @@ func createDistinctIterator(
 		spanIter, resourceIter, traceIter parquetquery.Iterator
 		err                               error
 	)
-
-	fmt.Println("spanConditions", len(spanConditions), "resourceConditions", len(resourceConditions), "traceConditions", len(traceConditions))
 
 	if len(spanConditions) > 0 {
 		spanIter, err = createDistinctSpanIterator(makeIter, keep, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dc)

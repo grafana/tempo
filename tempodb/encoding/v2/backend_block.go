@@ -22,9 +22,8 @@ type BackendBlock struct {
 }
 
 var (
-	_ common.Finder        = (*BackendBlock)(nil)
-	_ common.Searcher      = (*BackendBlock)(nil)
-	_ common.SuperSearcher = (*BackendBlock)(nil)
+	_ common.Finder   = (*BackendBlock)(nil)
+	_ common.Searcher = (*BackendBlock)(nil)
 )
 
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
@@ -162,6 +161,6 @@ func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-func (b *BackendBlock) SuperFetch(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (b *BackendBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }

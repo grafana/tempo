@@ -34,7 +34,7 @@ func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b *backendBlock) SuperFetch(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (b *backendBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
 	// TODO: Add support?
 	return common.ErrUnsupported
 }

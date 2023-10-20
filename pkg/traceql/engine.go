@@ -154,31 +154,10 @@ func (e *Engine) ExecuteTagValues(
 		return err
 	}
 
-	searchReq := &tempopb.SearchRequest{
-		Start: 0, // TODO: Should add Start and End
-		End:   math.MaxUint32,
-	}
-
-	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
-	// TODO: remove other conditions for the wantAttr we're searching for
-	// for _, cond := range fetchSpansRequest.Conditions {
-	// 	if cond.Attribute == wantAttr {
-	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
-	// 	}
-	// }
-	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
-		Attribute: tag,
-		Op:        OpNone,
-	})
-
-	// TODO: Build AutocompleteRequest directly instead of going through FetchSpansRequest
-	autocompleteReq := AutocompleteRequest{
-		Conditions: fetchSpansRequest.Conditions,
-		TagName:    tag.Name,
-	}
+	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
 
 	span.SetTag("pipeline", rootExpr.Pipeline)
-	span.SetTag("fetchSpansRequest", fetchSpansRequest)
+	span.SetTag("autocompleteReq", autocompleteReq)
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
@@ -205,6 +184,35 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 
 	pipeline.extractConditions(&req)
 	return req
+}
+
+func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) AutocompleteRequest {
+	req := FetchSpansRequest{
+		StartTimeUnixNanos: unixSecToNano(0), // TODO: Should add Start and End
+		EndTimeUnixNanos:   unixSecToNano(math.MaxUint32),
+		Conditions:         nil,
+		AllConditions:      true,
+	}
+
+	pipeline.extractConditions(&req)
+
+	// TODO: remove other conditions for the wantAttr we're searching for
+	// for _, cond := range fetchSpansRequest.Conditions {
+	// 	if cond.Attribute == wantAttr {
+	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
+	// 	}
+	// }
+	req.Conditions = append(req.Conditions, Condition{
+		Attribute: tag,
+		Op:        OpNone,
+	})
+
+	autocompleteReq := AutocompleteRequest{
+		Conditions: req.Conditions,
+		TagName:    tag.Name,
+	}
+
+	return autocompleteReq
 }
 
 func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {

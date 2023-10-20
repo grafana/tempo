@@ -665,7 +665,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}, nil
 }
 
-func (b *walBlock) SuperFetch(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (b *walBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
 	// TODO: Add support?
 	return common.ErrUnsupported
 }
