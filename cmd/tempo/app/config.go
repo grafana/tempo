@@ -80,7 +80,11 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Server.LogLevel.RegisterFlags(f)
 
 	// Internal server settings
-	flagext.DefaultValues(&c.InternalServer.Config)
+	flagext.DefaultValues(&c.InternalServer)
+
+	// Set log level for internal server as the same as server
+	c.InternalServer.LogLevel = c.Server.LogLevel
+	c.InternalServer.LogFormat = c.Server.LogFormat
 
 	// Increase max message size to 16MB
 	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024
