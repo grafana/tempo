@@ -85,22 +85,18 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			return nil, err
 		}
 
-		var relFn func(l, r []Span) []Span
+		var relFn func(s Span, l, r []Span) []Span
 		var falseForAll bool
 
 		switch o.Op {
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = uniqueSpans(lhs, rhs)
-				output = append(output, matchingSpanset)
+				output = addSpanset(input[i], uniqueSpans(lhs, rhs), output)
 			}
 
 		case OpSpansetUnion:
 			if len(lhs) > 0 || len(rhs) > 0 {
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = uniqueSpans(lhs, rhs)
-				output = append(output, matchingSpanset)
+				output = addSpanset(input[i], uniqueSpans(lhs, rhs), output)
 			}
 
 		// relationship operators all set relFn which is used by below code
@@ -109,40 +105,40 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			falseForAll = true
 			fallthrough
 		case OpSpansetDescendant:
-			relFn = func(l, r []Span) []Span {
-				return l[0].DescendantOf(l, r, falseForAll, false, o.matchingSpansBuffer)
+			relFn = func(s Span, l, r []Span) []Span {
+				return s.DescendantOf(l, r, falseForAll, false, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotAncestor:
 			falseForAll = true
 			fallthrough
 		case OpSpansetAncestor:
-			relFn = func(l, r []Span) []Span {
-				return l[0].DescendantOf(l, r, falseForAll, true, o.matchingSpansBuffer)
+			relFn = func(s Span, l, r []Span) []Span {
+				return s.DescendantOf(l, r, falseForAll, true, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotChild:
 			falseForAll = true
 			fallthrough
 		case OpSpansetChild:
-			relFn = func(l, r []Span) []Span {
-				return l[0].ChildOf(l, r, falseForAll, false, o.matchingSpansBuffer)
+			relFn = func(s Span, l, r []Span) []Span {
+				return s.ChildOf(l, r, falseForAll, false, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotParent:
 			falseForAll = true
 			fallthrough
 		case OpSpansetParent:
-			relFn = func(l, r []Span) []Span {
-				return l[0].ChildOf(l, r, falseForAll, true, o.matchingSpansBuffer)
+			relFn = func(s Span, l, r []Span) []Span {
+				return s.ChildOf(l, r, falseForAll, true, o.matchingSpansBuffer)
 			}
 
 		case OpSpansetNotSibling:
 			falseForAll = true
 			fallthrough
 		case OpSpansetSibling:
-			relFn = func(l, r []Span) []Span {
-				return l[0].SiblingOf(l, r, falseForAll, o.matchingSpansBuffer)
+			relFn = func(s Span, l, r []Span) []Span {
+				return s.SiblingOf(l, r, falseForAll, o.matchingSpansBuffer)
 			}
 
 		default:
@@ -151,18 +147,11 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 
 		// if relFn was set up above we are doing a relationship operation.
 		if relFn != nil {
-			o.matchingSpansBuffer, err = o.joinSpansets(lhs, rhs, relFn)
+			o.matchingSpansBuffer, err = o.joinSpansets(lhs, rhs, relFn) // o.matchingSpansBuffer is passed into the functions above and is stored here
 			if err != nil {
 				return nil, err
 			}
-
-			if len(o.matchingSpansBuffer) > 0 {
-				// Clone here to capture previously computed aggregates, grouped attrs, etc.
-				// Copy spans to new slice because of internal buffering.
-				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = append([]Span(nil), o.matchingSpansBuffer...)
-				output = append(output, matchingSpanset)
-			}
+			output = addSpanset(input[i], o.matchingSpansBuffer, output)
 		}
 	}
 
@@ -172,7 +161,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 // joinSpansets compares all pairwise combinations of the inputs and returns the right-hand side
 // where the eval callback returns true.  For now the behavior is only defined when there is exactly one
 // spanset on both sides and will return an error if multiple spansets are present.
-func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(l, r []Span) []Span) ([]Span, error) {
+func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(s Span, l, r []Span) []Span) ([]Span, error) {
 	if len(lhs) < 1 || len(rhs) < 1 {
 		return nil, nil
 	}
@@ -181,7 +170,25 @@ func (o *SpansetOperation) joinSpansets(lhs, rhs []*Spanset, eval func(l, r []Sp
 		return nil, errSpansetOperationMultiple
 	}
 
-	return eval(lhs[0].Spans, rhs[0].Spans), nil
+	// if rhs side is empty then no spans match and we can bail out here
+	if len(rhs[0].Spans) == 0 {
+		return nil, nil
+	}
+
+	return eval(rhs[0].Spans[0], lhs[0].Spans, rhs[0].Spans), nil
+}
+
+// addSpanset is a helper function that adds a new spanset to the output. it clones
+// the input to prevent modifying the original spanset.
+func addSpanset(input *Spanset, matching []Span, output []*Spanset) []*Spanset {
+	if len(matching) == 0 {
+		return output
+	}
+
+	matchingSpanset := input.clone()
+	matchingSpanset.Spans = matching
+
+	return append(output, matchingSpanset)
 }
 
 // SelectOperation evaluate is a no-op b/c the fetch layer has already decorated the spans with the requested attributes
