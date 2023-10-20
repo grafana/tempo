@@ -16,7 +16,10 @@ This document outlines how to deploy and use multi-tenant Tempo with the Operato
 ## Multi-tenancy without authentication
 
 The following Kubernetes Custom Resource (CR) deploys a multi-tenant Tempo instance.
-Note that Jaeger query is not tenant aware and therefore is not supported in this configuration.
+
+{{% admonition type="note" %}}
+Jaeger query is not tenant aware and therefore is not supported in this configuration.
+{{% /admonition %}}
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
@@ -40,9 +43,9 @@ spec:
 ## OIDC authentication with static RBAC
 
 On Kubernetes, a multi-tenant Tempo instance uses OIDC authentication and static RBAC authorization defined in the CR.
-The instance should be accessed through service `tempo-simplest-gateway` which handles authentication and authorization.
+The instance should be accessed through service `tempo-simplest-gateway`, which handles authentication and authorization.
 The service exposes Jaeger query API and OpenTelemetry gRPC (OTLP) for trace ingestion.
-The Jaeger UI can be accessed at `http://<exposed gateway service>:8080/api/traces/v1/<tenant-name>/search`
+The Jaeger UI can be accessed at `http://<exposed gateway service>:8080/api/traces/v1/<tenant-name>/search`.
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
@@ -92,16 +95,16 @@ spec:
 ```
 
 * The secret `oidc-test` defines fields `clientID`, `clientSecret` and `issuerCAPath`.
-* The RABC gives tenant `test-oidc` read and write access for traces. 
+* The RBAC gives tenant `test-oidc` read and write access for traces. 
 
 ## OpenShift
 
-On OpenShift, the authentication and authorization does not require any third party service dependencies.
+On OpenShift, the authentication and authorization does not require any third-party service dependencies.
 The authentication uses OpenShift OAuth (the user is redirected to the OpenShift login page) and authorization is handled through `SubjectAccessReview` (SAR).
 
-The instance should be accessed through service `tempo-simplest-gateway` which handles authentication and authorization.
+The instance should be accessed through service `tempo-simplest-gateway`, which handles authentication and authorization.
 The service exposes Jaeger query API and OpenTelemetry gRPC (OTLP) for trace ingestion.
-The Jaeger UI can be accessed at `http://<exposed gateway service>:8080/api/traces/v1/<tenant-name>/search`
+The Jaeger UI can be accessed at `http://<exposed gateway service>:8080/api/traces/v1/<tenant-name>/search`.
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
