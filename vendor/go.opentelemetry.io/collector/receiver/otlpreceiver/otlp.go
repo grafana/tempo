@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package otlpreceiver // import "go.opentelemetry.io/collector/receiver/otlpreceiver"
 
@@ -162,7 +151,7 @@ func (r *otlpReceiver) startProtocolServers(host component.Host) error {
 			return err
 		}
 
-		err = r.startHTTPServer(r.cfg.HTTP, host)
+		err = r.startHTTPServer(r.cfg.HTTP.HTTPServerSettings, host)
 		if err != nil {
 			return err
 		}
@@ -200,12 +189,12 @@ func (r *otlpReceiver) registerTraceConsumer(tc consumer.Traces) error {
 	r.tracesReceiver = trace.New(tc, r.obsrepGRPC)
 	httpTracesReceiver := trace.New(tc, r.obsrepHTTP)
 	if r.httpMux != nil {
-		r.httpMux.HandleFunc("/v1/traces", func(resp http.ResponseWriter, req *http.Request) {
+		r.httpMux.HandleFunc(r.cfg.HTTP.TracesURLPath, func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
 				handleUnmatchedMethod(resp)
 				return
 			}
-			switch req.Header.Get("Content-Type") {
+			switch getMimeTypeFromContentType(req.Header.Get("Content-Type")) {
 			case pbContentType:
 				handleTraces(resp, req, httpTracesReceiver, pbEncoder)
 			case jsonContentType:
@@ -225,12 +214,12 @@ func (r *otlpReceiver) registerMetricsConsumer(mc consumer.Metrics) error {
 	r.metricsReceiver = metrics.New(mc, r.obsrepGRPC)
 	httpMetricsReceiver := metrics.New(mc, r.obsrepHTTP)
 	if r.httpMux != nil {
-		r.httpMux.HandleFunc("/v1/metrics", func(resp http.ResponseWriter, req *http.Request) {
+		r.httpMux.HandleFunc(r.cfg.HTTP.MetricsURLPath, func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
 				handleUnmatchedMethod(resp)
 				return
 			}
-			switch req.Header.Get("Content-Type") {
+			switch getMimeTypeFromContentType(req.Header.Get("Content-Type")) {
 			case pbContentType:
 				handleMetrics(resp, req, httpMetricsReceiver, pbEncoder)
 			case jsonContentType:
@@ -250,12 +239,12 @@ func (r *otlpReceiver) registerLogsConsumer(lc consumer.Logs) error {
 	r.logsReceiver = logs.New(lc, r.obsrepGRPC)
 	httpLogsReceiver := logs.New(lc, r.obsrepHTTP)
 	if r.httpMux != nil {
-		r.httpMux.HandleFunc("/v1/logs", func(resp http.ResponseWriter, req *http.Request) {
+		r.httpMux.HandleFunc(r.cfg.HTTP.LogsURLPath, func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
 				handleUnmatchedMethod(resp)
 				return
 			}
-			switch req.Header.Get("Content-Type") {
+			switch getMimeTypeFromContentType(req.Header.Get("Content-Type")) {
 			case pbContentType:
 				handleLogs(resp, req, httpLogsReceiver, pbEncoder)
 			case jsonContentType:

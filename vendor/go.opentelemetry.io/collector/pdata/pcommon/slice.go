@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package pcommon // import "go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -30,19 +19,24 @@ import (
 // Important: zero-initialized instance is not valid for use.
 type Slice internal.Slice
 
-func newSlice(orig *[]otlpcommon.AnyValue) Slice {
-	return Slice(internal.NewSlice(orig))
+func newSlice(orig *[]otlpcommon.AnyValue, state *internal.State) Slice {
+	return Slice(internal.NewSlice(orig, state))
 }
 
 func (es Slice) getOrig() *[]otlpcommon.AnyValue {
 	return internal.GetOrigSlice(internal.Slice(es))
 }
 
+func (es Slice) getState() *internal.State {
+	return internal.GetSliceState(internal.Slice(es))
+}
+
 // NewSlice creates a Slice with 0 elements.
 // Can use "EnsureCapacity" to initialize with a given capacity.
 func NewSlice() Slice {
 	orig := []otlpcommon.AnyValue(nil)
-	return Slice(internal.NewSlice(&orig))
+	state := internal.StateMutable
+	return Slice(internal.NewSlice(&orig, &state))
 }
 
 // Len returns the number of elements in the slice.
@@ -61,11 +55,12 @@ func (es Slice) Len() int {
 //	    ... // Do something with the element
 //	}
 func (es Slice) At(ix int) Value {
-	return newValue(&(*es.getOrig())[ix])
+	return newValue(&(*es.getOrig())[ix], es.getState())
 }
 
 // CopyTo copies all elements from the current slice overriding the destination.
 func (es Slice) CopyTo(dest Slice) {
+	dest.getState().AssertMutable()
 	srcLen := es.Len()
 	destCap := cap(*dest.getOrig())
 	if srcLen <= destCap {
@@ -75,7 +70,7 @@ func (es Slice) CopyTo(dest Slice) {
 	}
 
 	for i := range *es.getOrig() {
-		newValue(&(*es.getOrig())[i]).CopyTo(newValue(&(*dest.getOrig())[i]))
+		newValue(&(*es.getOrig())[i], es.getState()).CopyTo(newValue(&(*dest.getOrig())[i], dest.getState()))
 	}
 }
 
@@ -92,6 +87,7 @@ func (es Slice) CopyTo(dest Slice) {
 //	    // Here should set all the values for e.
 //	}
 func (es Slice) EnsureCapacity(newCap int) {
+	es.getState().AssertMutable()
 	oldCap := cap(*es.getOrig())
 	if newCap <= oldCap {
 		return
@@ -105,6 +101,7 @@ func (es Slice) EnsureCapacity(newCap int) {
 // AppendEmpty will append to the end of the slice an empty Value.
 // It returns the newly added Value.
 func (es Slice) AppendEmpty() Value {
+	es.getState().AssertMutable()
 	*es.getOrig() = append(*es.getOrig(), otlpcommon.AnyValue{})
 	return es.At(es.Len() - 1)
 }
@@ -112,6 +109,8 @@ func (es Slice) AppendEmpty() Value {
 // MoveAndAppendTo moves all elements from the current slice and appends them to the dest.
 // The current slice will be cleared.
 func (es Slice) MoveAndAppendTo(dest Slice) {
+	es.getState().AssertMutable()
+	dest.getState().AssertMutable()
 	if *dest.getOrig() == nil {
 		// We can simply move the entire vector and avoid any allocations.
 		*dest.getOrig() = *es.getOrig()
@@ -124,6 +123,7 @@ func (es Slice) MoveAndAppendTo(dest Slice) {
 // RemoveIf calls f sequentially for each element present in the slice.
 // If f returns true, the element is removed from the slice.
 func (es Slice) RemoveIf(f func(Value) bool) {
+	es.getState().AssertMutable()
 	newLen := 0
 	for i := 0; i < len(*es.getOrig()); i++ {
 		if f(es.At(i)) {
@@ -152,6 +152,7 @@ func (es Slice) AsRaw() []any {
 
 // FromRaw copies []any into the Slice.
 func (es Slice) FromRaw(rawSlice []any) error {
+	es.getState().AssertMutable()
 	if len(rawSlice) == 0 {
 		*es.getOrig() = nil
 		return nil
@@ -159,7 +160,7 @@ func (es Slice) FromRaw(rawSlice []any) error {
 	var errs error
 	origs := make([]otlpcommon.AnyValue, len(rawSlice))
 	for ix, iv := range rawSlice {
-		errs = multierr.Append(errs, newValue(&origs[ix]).FromRaw(iv))
+		errs = multierr.Append(errs, newValue(&origs[ix], es.getState()).FromRaw(iv))
 	}
 	*es.getOrig() = origs
 	return errs

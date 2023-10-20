@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package internal // import "go.opentelemetry.io/collector/pdata/internal"
 
@@ -20,15 +9,24 @@ import (
 )
 
 type Metrics struct {
-	orig *otlpcollectormetrics.ExportMetricsServiceRequest
+	orig  *otlpcollectormetrics.ExportMetricsServiceRequest
+	state *State
 }
 
 func GetOrigMetrics(ms Metrics) *otlpcollectormetrics.ExportMetricsServiceRequest {
 	return ms.orig
 }
 
-func NewMetrics(orig *otlpcollectormetrics.ExportMetricsServiceRequest) Metrics {
-	return Metrics{orig: orig}
+func GetMetricsState(ms Metrics) *State {
+	return ms.state
+}
+
+func SetMetricsState(ms Metrics, state State) {
+	*ms.state = state
+}
+
+func NewMetrics(orig *otlpcollectormetrics.ExportMetricsServiceRequest, state *State) Metrics {
+	return Metrics{orig: orig, state: state}
 }
 
 // MetricsToProto internal helper to convert Metrics to protobuf representation.
@@ -39,8 +37,10 @@ func MetricsToProto(l Metrics) otlpmetrics.MetricsData {
 }
 
 // MetricsFromProto internal helper to convert protobuf representation to Metrics.
+// This function set exclusive state assuming that it's called only once per Metrics.
 func MetricsFromProto(orig otlpmetrics.MetricsData) Metrics {
-	return Metrics{orig: &otlpcollectormetrics.ExportMetricsServiceRequest{
+	state := StateMutable
+	return NewMetrics(&otlpcollectormetrics.ExportMetricsServiceRequest{
 		ResourceMetrics: orig.ResourceMetrics,
-	}}
+	}, &state)
 }

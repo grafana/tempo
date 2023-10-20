@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package component // import "go.opentelemetry.io/collector/component"
 
@@ -23,6 +12,8 @@ type Host interface {
 	//
 	// ReportFatalError should be called by the component anytime after Component.Start() ends and
 	// before Component.Shutdown() begins.
+	// Deprecated: [0.87.0] Use TelemetrySettings.ReportComponentStatus instead (with an event
+	// component.StatusFatalError)
 	ReportFatalError(err error)
 
 	// GetFactory of the specified kind. Returns the factory for a component type.
@@ -58,5 +49,12 @@ type Host interface {
 	//
 	// GetExporters can be called by the component anytime after Component.Start() begins and
 	// until Component.Shutdown() ends.
+	//
+	// Deprecated: [0.79.0] This function will be removed in the future.
+	// Several components in the contrib repository use this function so it cannot be removed
+	// before those cases are removed. In most cases, use of this function can be replaced by a
+	// connector. See https://github.com/open-telemetry/opentelemetry-collector/issues/7370 and
+	// https://github.com/open-telemetry/opentelemetry-collector/pull/7390#issuecomment-1483710184
+	// for additional information.
 	GetExporters() map[DataType]map[ID]Component
 }

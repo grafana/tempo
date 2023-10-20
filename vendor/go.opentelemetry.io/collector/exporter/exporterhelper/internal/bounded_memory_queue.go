@@ -1,53 +1,47 @@
 // Copyright The OpenTelemetry Authors
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package internal // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal"
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
+
+	"go.opentelemetry.io/collector/component"
 )
 
 // boundedMemoryQueue implements a producer-consumer exchange similar to a ring buffer queue,
 // where the queue is bounded and if it fills up due to slow consumers, the new items written by
 // the producer are dropped.
 type boundedMemoryQueue struct {
-	stopWG   sync.WaitGroup
-	size     *atomic.Uint32
-	stopped  *atomic.Bool
-	items    chan Request
-	capacity uint32
+	stopWG       sync.WaitGroup
+	size         *atomic.Uint32
+	stopped      *atomic.Bool
+	items        chan Request
+	capacity     uint32
+	numConsumers int
 }
 
 // NewBoundedMemoryQueue constructs the new queue of specified capacity, and with an optional
 // callback for dropped items (e.g. useful to emit metrics).
-func NewBoundedMemoryQueue(capacity int) ProducerConsumerQueue {
+func NewBoundedMemoryQueue(capacity int, numConsumers int) ProducerConsumerQueue {
 	return &boundedMemoryQueue{
-		items:    make(chan Request, capacity),
-		stopped:  &atomic.Bool{},
-		size:     &atomic.Uint32{},
-		capacity: uint32(capacity),
+		items:        make(chan Request, capacity),
+		stopped:      &atomic.Bool{},
+		size:         &atomic.Uint32{},
+		capacity:     uint32(capacity),
+		numConsumers: numConsumers,
 	}
 }
 
 // StartConsumers starts a given number of goroutines consuming items from the queue
 // and passing them into the consumer callback.
-func (q *boundedMemoryQueue) StartConsumers(numWorkers int, callback func(item Request)) {
+func (q *boundedMemoryQueue) Start(_ context.Context, _ component.Host, set QueueSettings) error {
 	var startWG sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
+	for i := 0; i < q.numConsumers; i++ {
 		q.stopWG.Add(1)
 		startWG.Add(1)
 		go func() {
@@ -55,11 +49,12 @@ func (q *boundedMemoryQueue) StartConsumers(numWorkers int, callback func(item R
 			defer q.stopWG.Done()
 			for item := range q.items {
 				q.size.Add(^uint32(0))
-				callback(item)
+				set.Callback(item)
 			}
 		}()
 	}
 	startWG.Wait()
+	return nil
 }
 
 // Produce is used by the producer to submit new item to the queue. Returns false in case of queue overflow.
@@ -97,4 +92,12 @@ func (q *boundedMemoryQueue) Stop() {
 // Size returns the current size of the queue
 func (q *boundedMemoryQueue) Size() int {
 	return int(q.size.Load())
+}
+
+func (q *boundedMemoryQueue) Capacity() int {
+	return int(q.capacity)
+}
+
+func (q *boundedMemoryQueue) IsPersistent() bool {
+	return false
 }

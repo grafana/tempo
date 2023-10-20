@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package extensions // import "go.opentelemetry.io/collector/service/extensions"
 
@@ -23,8 +12,10 @@ import (
 	"go.uber.org/multierr"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/service/internal/components"
+	"go.opentelemetry.io/collector/service/internal/servicetelemetry"
 	"go.opentelemetry.io/collector/service/internal/zpages"
 )
 
@@ -32,8 +23,9 @@ const zExtensionName = "zextensionname"
 
 // Extensions is a map of extensions created from extension configs.
 type Extensions struct {
-	telemetry component.TelemetrySettings
-	extMap    map[component.ID]extension.Extension
+	telemetry   servicetelemetry.TelemetrySettings
+	extMap      map[component.ID]extension.Extension
+	instanceIDs map[component.ID]*component.InstanceID
 }
 
 // Start starts all extensions.
@@ -42,7 +34,10 @@ func (bes *Extensions) Start(ctx context.Context, host component.Host) error {
 	for extID, ext := range bes.extMap {
 		extLogger := components.ExtensionLogger(bes.telemetry.Logger, extID)
 		extLogger.Info("Extension is starting...")
+		instanceID := bes.instanceIDs[extID]
+		_ = bes.telemetry.ReportComponentStatus(instanceID, component.NewStatusEvent(component.StatusStarting))
 		if err := ext.Start(ctx, components.NewHostWrapper(host, extLogger)); err != nil {
+			_ = bes.telemetry.ReportComponentStatus(instanceID, component.NewPermanentErrorEvent(err))
 			return err
 		}
 		extLogger.Info("Extension started.")
@@ -54,8 +49,15 @@ func (bes *Extensions) Start(ctx context.Context, host component.Host) error {
 func (bes *Extensions) Shutdown(ctx context.Context) error {
 	bes.telemetry.Logger.Info("Stopping extensions...")
 	var errs error
-	for _, ext := range bes.extMap {
-		errs = multierr.Append(errs, ext.Shutdown(ctx))
+	for extID, ext := range bes.extMap {
+		instanceID := bes.instanceIDs[extID]
+		_ = bes.telemetry.ReportComponentStatus(instanceID, component.NewStatusEvent(component.StatusStopping))
+		if err := ext.Shutdown(ctx); err != nil {
+			_ = bes.telemetry.ReportComponentStatus(instanceID, component.NewPermanentErrorEvent(err))
+			errs = multierr.Append(errs, err)
+			continue
+		}
+		_ = bes.telemetry.ReportComponentStatus(instanceID, component.NewStatusEvent(component.StatusStopped))
 	}
 
 	return errs
@@ -81,6 +83,25 @@ func (bes *Extensions) NotifyPipelineNotReady() error {
 		}
 	}
 	return errs
+}
+
+func (bes *Extensions) NotifyConfig(ctx context.Context, conf *confmap.Conf) error {
+	var errs error
+	for _, ext := range bes.extMap {
+		if cw, ok := ext.(extension.ConfigWatcher); ok {
+			clonedConf := confmap.NewFromStringMap(conf.ToStringMap())
+			errs = multierr.Append(errs, cw.NotifyConfig(ctx, clonedConf))
+		}
+	}
+	return errs
+}
+
+func (bes *Extensions) NotifyComponentStatusChange(source *component.InstanceID, event *component.StatusEvent) {
+	for _, ext := range bes.extMap {
+		if sw, ok := ext.(extension.StatusWatcher); ok {
+			sw.ComponentStatusChanged(source, event)
+		}
+	}
 }
 
 func (bes *Extensions) GetExtensions() map[component.ID]component.Component {
@@ -119,14 +140,8 @@ func (bes *Extensions) HandleZPages(w http.ResponseWriter, r *http.Request) {
 
 // Settings holds configuration for building Extensions.
 type Settings struct {
-	Telemetry component.TelemetrySettings
+	Telemetry servicetelemetry.TelemetrySettings
 	BuildInfo component.BuildInfo
-
-	// Drepecated: [v0.68.0] use Extensions.
-	Configs map[component.ID]component.Config
-
-	// Drepecated: [v0.68.0] use Extensions.
-	Factories map[component.Type]extension.Factory
 
 	// Extensions builder for extensions.
 	Extensions *extension.Builder
@@ -134,17 +149,19 @@ type Settings struct {
 
 // New creates a new Extensions from Config.
 func New(ctx context.Context, set Settings, cfg Config) (*Extensions, error) {
-	if set.Extensions == nil {
-		set.Extensions = extension.NewBuilder(set.Configs, set.Factories)
-	}
 	exts := &Extensions{
-		telemetry: set.Telemetry,
-		extMap:    make(map[component.ID]extension.Extension),
+		telemetry:   set.Telemetry,
+		extMap:      make(map[component.ID]extension.Extension),
+		instanceIDs: make(map[component.ID]*component.InstanceID),
 	}
 	for _, extID := range cfg {
+		instanceID := &component.InstanceID{
+			ID:   extID,
+			Kind: component.KindExtension,
+		}
 		extSet := extension.CreateSettings{
 			ID:                extID,
-			TelemetrySettings: set.Telemetry,
+			TelemetrySettings: set.Telemetry.ToComponentTelemetrySettings(instanceID),
 			BuildInfo:         set.BuildInfo,
 		}
 		extSet.TelemetrySettings.Logger = components.ExtensionLogger(set.Telemetry.Logger, extID)
@@ -160,6 +177,7 @@ func New(ctx context.Context, set Settings, cfg Config) (*Extensions, error) {
 		}
 
 		exts.extMap[extID] = ext
+		exts.instanceIDs[extID] = instanceID
 	}
 
 	return exts, nil

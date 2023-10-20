@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package exporterhelper // import "go.opentelemetry.io/collector/exporter/exporterhelper"
 
@@ -22,7 +11,6 @@ import (
 	"go.opencensus.io/metric/metricproducer"
 
 	"go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics"
-	"go.opentelemetry.io/collector/obsreport"
 )
 
 // TODO: Incorporate this functionality along with tests from obsreport_test.go
@@ -83,28 +71,28 @@ func newInstruments(registry *metric.Registry) *instruments {
 	return insts
 }
 
-// obsExporter is a helper to add observability to a component.Exporter.
+// obsExporter is a helper to add observability to an exporter.
 type obsExporter struct {
-	*obsreport.Exporter
+	*ObsReport
 	failedToEnqueueTraceSpansEntry   *metric.Int64CumulativeEntry
 	failedToEnqueueMetricPointsEntry *metric.Int64CumulativeEntry
 	failedToEnqueueLogRecordsEntry   *metric.Int64CumulativeEntry
 }
 
 // newObsExporter creates a new observability exporter.
-func newObsExporter(cfg obsreport.ExporterSettings, insts *instruments) (*obsExporter, error) {
+func newObsExporter(cfg ObsReportSettings, insts *instruments) (*obsExporter, error) {
 	labelValue := metricdata.NewLabelValue(cfg.ExporterID.String())
 	failedToEnqueueTraceSpansEntry, _ := insts.failedToEnqueueTraceSpans.GetEntry(labelValue)
 	failedToEnqueueMetricPointsEntry, _ := insts.failedToEnqueueMetricPoints.GetEntry(labelValue)
 	failedToEnqueueLogRecordsEntry, _ := insts.failedToEnqueueLogRecords.GetEntry(labelValue)
 
-	exp, err := obsreport.NewExporter(cfg)
+	exp, err := NewObsReport(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &obsExporter{
-		Exporter:                         exp,
+		ObsReport:                        exp,
 		failedToEnqueueTraceSpansEntry:   failedToEnqueueTraceSpansEntry,
 		failedToEnqueueMetricPointsEntry: failedToEnqueueMetricPointsEntry,
 		failedToEnqueueLogRecordsEntry:   failedToEnqueueLogRecordsEntry,

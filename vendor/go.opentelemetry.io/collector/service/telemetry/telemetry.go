@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package telemetry // import "go.opentelemetry.io/collector/service/telemetry"
 
@@ -70,7 +59,6 @@ func newLogger(cfg LogsConfig, options []zap.Option) (*zap.Logger, error) {
 	zapCfg := &zap.Config{
 		Level:             zap.NewAtomicLevelAt(cfg.Level),
 		Development:       cfg.Development,
-		Sampling:          toSamplingConfig(cfg.Sampling),
 		Encoding:          cfg.Encoding,
 		EncoderConfig:     zap.NewProductionEncoderConfig(),
 		OutputPaths:       cfg.OutputPaths,
@@ -89,16 +77,23 @@ func newLogger(cfg LogsConfig, options []zap.Option) (*zap.Logger, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Sampling != nil && cfg.Sampling.Enabled {
+		logger = newSampledLogger(logger, cfg.Sampling)
+	}
 
 	return logger, nil
 }
 
-func toSamplingConfig(sc *LogsSamplingConfig) *zap.SamplingConfig {
-	if sc == nil {
-		return nil
-	}
-	return &zap.SamplingConfig{
-		Initial:    sc.Initial,
-		Thereafter: sc.Thereafter,
-	}
+func newSampledLogger(logger *zap.Logger, sc *LogsSamplingConfig) *zap.Logger {
+	// Create a logger that samples every Nth message after the first M messages every S seconds
+	// where N = sc.Thereafter, M = sc.Initial, S = sc.Tick.
+	opts := zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewSamplerWithOptions(
+			core,
+			sc.Tick,
+			sc.Initial,
+			sc.Thereafter,
+		)
+	})
+	return logger.WithOptions(opts)
 }

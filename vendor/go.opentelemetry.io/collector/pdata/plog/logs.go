@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package plog // import "go.opentelemetry.io/collector/pdata/plog"
 
@@ -24,7 +13,8 @@ import (
 type Logs internal.Logs
 
 func newLogs(orig *otlpcollectorlog.ExportLogsServiceRequest) Logs {
-	return Logs(internal.NewLogs(orig))
+	state := internal.StateMutable
+	return Logs(internal.NewLogs(orig, &state))
 }
 
 func (ms Logs) getOrig() *otlpcollectorlog.ExportLogsServiceRequest {
@@ -58,5 +48,10 @@ func (ms Logs) LogRecordCount() int {
 
 // ResourceLogs returns the ResourceLogsSlice associated with this Logs.
 func (ms Logs) ResourceLogs() ResourceLogsSlice {
-	return newResourceLogsSlice(&ms.getOrig().ResourceLogs)
+	return newResourceLogsSlice(&ms.getOrig().ResourceLogs, internal.GetLogsState(internal.Logs(ms)))
+}
+
+// MarkReadOnly marks the Logs as shared so that no further modifications can be done on it.
+func (ms Logs) MarkReadOnly() {
+	internal.SetLogsState(internal.Logs(ms), internal.StateReadOnly)
 }

@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package otelcol // import "go.opentelemetry.io/collector/otelcol"
 
@@ -61,9 +50,25 @@ type ConfigProvider interface {
 	Shutdown(ctx context.Context) error
 }
 
+// ConfmapProvider is an optional interface to be implemented by ConfigProviders
+// to provide confmap.Conf objects representing a marshaled version of the
+// Collector's configuration.
+//
+// The purpose of this interface is that otelcol.ConfigProvider structs do not
+// necessarily need to use confmap.Conf as their underlying config structure.
+type ConfmapProvider interface {
+	// GetConfmap resolves the Collector's configuration and provides it as a confmap.Conf object.
+	//
+	// Should never be called concurrently with itself or any ConfigProvider method.
+	GetConfmap(ctx context.Context) (*confmap.Conf, error)
+}
+
 type configProvider struct {
 	mapResolver *confmap.Resolver
 }
+
+var _ ConfigProvider = &configProvider{}
+var _ ConfmapProvider = &configProvider{}
 
 // ConfigProviderSettings are the settings to configure the behavior of the ConfigProvider.
 type ConfigProviderSettings struct {
@@ -115,6 +120,15 @@ func (cm *configProvider) Watch() <-chan error {
 
 func (cm *configProvider) Shutdown(ctx context.Context) error {
 	return cm.mapResolver.Shutdown(ctx)
+}
+
+func (cm *configProvider) GetConfmap(ctx context.Context) (*confmap.Conf, error) {
+	conf, err := cm.mapResolver.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve the configuration: %w", err)
+	}
+
+	return conf, nil
 }
 
 func newDefaultConfigProviderSettings(uris []string) ConfigProviderSettings {

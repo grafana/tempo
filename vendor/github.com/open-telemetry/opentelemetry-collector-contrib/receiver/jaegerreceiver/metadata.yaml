@@ -1,0 +1,17 @@
+type: jaeger
+
+status:
+  class: receiver
+  stability:
+    beta: [traces]
+  distributions:
+  - core
+  - contrib
+  - aws
+  - grafana
+  - observiq
+  - redhat
+  - splunk
+  - sumo
+  codeowners:
+    active: [jpkrohling]

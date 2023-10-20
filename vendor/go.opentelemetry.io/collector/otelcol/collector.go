@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 // Package service handles the command-line, configuration, and runs the
 // OpenTelemetry Collector.
@@ -29,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
@@ -154,6 +144,17 @@ func (col *Collector) Shutdown() {
 func (col *Collector) setupConfigurationComponents(ctx context.Context) error {
 	col.setCollectorState(StateStarting)
 
+	var conf *confmap.Conf
+
+	if cp, ok := col.set.ConfigProvider.(ConfmapProvider); ok {
+		var err error
+		conf, err = cp.GetConfmap(ctx)
+
+		if err != nil {
+			return fmt.Errorf("failed to resolve config: %w", err)
+		}
+	}
+
 	cfg, err := col.set.ConfigProvider.Get(ctx, col.set.Factories)
 	if err != nil {
 		return fmt.Errorf("failed to get config: %w", err)
@@ -165,6 +166,7 @@ func (col *Collector) setupConfigurationComponents(ctx context.Context) error {
 
 	col.service, err = service.New(ctx, service.Settings{
 		BuildInfo:         col.set.BuildInfo,
+		CollectorConf:     conf,
 		Receivers:         receiver.NewBuilder(cfg.Receivers, col.set.Factories.Receivers),
 		Processors:        processor.NewBuilder(cfg.Processors, col.set.Factories.Processors),
 		Exporters:         exporter.NewBuilder(cfg.Exporters, col.set.Factories.Exporters),
@@ -185,6 +187,7 @@ func (col *Collector) setupConfigurationComponents(ctx context.Context) error {
 		return multierr.Combine(err, col.service.Shutdown(ctx))
 	}
 	col.setCollectorState(StateRunning)
+
 	return nil
 }
 
@@ -201,6 +204,15 @@ func (col *Collector) reloadConfiguration(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (col *Collector) DryRun(ctx context.Context) error {
+	cfg, err := col.set.ConfigProvider.Get(ctx, col.set.Factories)
+	if err != nil {
+		return fmt.Errorf("failed to get config: %w", err)
+	}
+
+	return cfg.Validate()
 }
 
 // Run starts the collector according to the given configuration, and waits for it to complete.

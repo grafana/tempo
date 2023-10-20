@@ -16,7 +16,7 @@ The following configuration options can be modified:
 - `sending_queue`
   - `enabled` (default = true)
   - `num_consumers` (default = 10): Number of consumers that dequeue batches; ignored if `enabled` is `false`
-  - `queue_size` (default = 5000): Maximum number of batches kept in memory before dropping; ignored if `enabled` is `false`
+  - `queue_size` (default = 1000): Maximum number of batches kept in memory before dropping; ignored if `enabled` is `false`
   User should calculate this as `num_seconds * requests_per_second / requests_per_batch` where:
     - `num_seconds` is the number of seconds to buffer in case of a backend outage
     - `requests_per_second` is the average number of requests per seconds
@@ -24,6 +24,10 @@ The following configuration options can be modified:
       [the batch processor](https://github.com/open-telemetry/opentelemetry-collector/tree/main/processor/batchprocessor)
       is used, the metric `batch_send_size` can be used for estimation)
 - `timeout` (default = 5s): Time to wait per individual attempt to send data to a backend
+
+The `initial_interval`, `max_interval`, `max_elapsed_time`, and `timeout` options accept 
+[duration strings](https://pkg.go.dev/time#ParseDuration),
+valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 
 ### Persistent Queue
 
@@ -37,7 +41,7 @@ To use the persistent queue, the following setting needs to be set:
   - `storage` (default = none): When set, enables persistence and uses the component specified as a storage extension for the persistent queue
 
 The maximum number of batches stored to disk can be controlled using `sending_queue.queue_size` parameter (which,
-similarly as for in-memory buffering, defaults to 5000 batches).
+similarly as for in-memory buffering, defaults to 1000 batches).
 
 When persistent queue is enabled, the batches are being buffered using the provided storage extension - [filestorage] is a popular and safe choice. If the collector instance is killed while having some items in the persistent queue, on restart the items will be be picked and the exporting is continued.
 

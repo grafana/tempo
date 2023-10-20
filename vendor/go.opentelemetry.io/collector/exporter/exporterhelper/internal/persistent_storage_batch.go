@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package internal // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal"
 
@@ -148,7 +137,7 @@ func (bof *batchStruct) getItemIndexArrayResult(key string) ([]itemIndex, error)
 
 // setRequest adds Set operation over a given request to the batch
 func (bof *batchStruct) setRequest(key string, value Request) *batchStruct {
-	return bof.set(key, value, requestToBytes)
+	return bof.set(key, value, bof.requestToBytes)
 }
 
 // setItemIndex adds Set operation over a given itemIndex to the batch
@@ -217,8 +206,8 @@ func bytesToItemIndexArray(b []byte) (any, error) {
 	return val, err
 }
 
-func requestToBytes(req any) ([]byte, error) {
-	return req.(Request).Marshal()
+func (bof *batchStruct) requestToBytes(req any) ([]byte, error) {
+	return bof.pcs.marshaler(req.(Request))
 }
 
 func (bof *batchStruct) bytesToRequest(b []byte) (any, error) {
