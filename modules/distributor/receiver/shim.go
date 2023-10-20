@@ -33,6 +33,10 @@ import (
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
@@ -58,6 +62,48 @@ var (
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
 
+type RetryableError struct {
+	err error
+	st  *status.Status
+}
+
+func (r *RetryableError) GRPCStatus() *status.Status {
+	return r.st
+}
+
+func (r *RetryableError) Error() string {
+	return r.err.Error()
+}
+
+// wrapErrorIfRetryable wraps the passed in error to meet expectations of the otel collector exporter code:
+// https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
+// The otel collector considers some errors retryable and other not. "ResourceExhausted" is special in that it requires a
+// RetryInfo detail along with the error code
+func wrapErrorIfRetryable(err error, dur *durationpb.Duration) error {
+	if dur == nil {
+		return err
+	}
+
+	s, ok := status.FromError(err)
+	if !ok {
+		return err
+	}
+
+	if s.Code() != codes.ResourceExhausted {
+		return err
+	}
+
+	// ignore error. code only errors if Code() == ok
+	s, _ = s.WithDetails(&errdetails.RetryInfo{
+		RetryDelay: dur,
+	})
+
+	return &RetryableError{
+		err: err,
+		st:  s,
+	}
+}
+
 type TracesPusher interface {
 	PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error)
 }
@@ -67,6 +113,7 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
+	retryDelay  *durationpb.Duration
 	receivers   []receiver.Traces
 	pusher      TracesPusher
 	logger      *log.RateLimitedLogger
@@ -93,11 +140,15 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel dslog.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
 		fatal:  make(chan error),
+	}
+
+	if retryAfterDuration > 0 {
+		shim.retryDelay = durationpb.New(retryAfterDuration)
 	}
 
 	// shim otel observability
@@ -287,6 +338,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+		err = wrapErrorIfRetryable(err, r.retryDelay)
 	}
 
 	return err
