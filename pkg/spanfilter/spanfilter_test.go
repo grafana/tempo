@@ -2,16 +2,16 @@ package spanfilter
 
 import (
 	"fmt"
-	"os"
-	"testing"
-
 	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
+	"os"
+	"runtime"
+	"testing"
 
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +54,7 @@ func Test_splitPolicy_Match(t *testing.T) {
 	cases := []struct {
 		policy   *config.PolicyMatch
 		resource *v1.Resource
-		span     *trace_v1.Span
+		span     *tracev1.Span
 		expect   bool
 		testName string
 	}{
@@ -71,14 +71,14 @@ func Test_splitPolicy_Match(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{},
+				Attributes: []*commonv1.KeyValue{},
 			},
-			span: &trace_v1.Span{
-				Attributes: []*common_v1.KeyValue{
+			span: &tracev1.Span{
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "kind",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "SPAN_KIND_CLIENT",
 							},
 						},
@@ -99,10 +99,10 @@ func Test_splitPolicy_Match(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{},
+				Attributes: []*commonv1.KeyValue{},
 			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_CLIENT,
 			},
 		},
 		{
@@ -134,40 +134,40 @@ func Test_splitPolicy_Match(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "name",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "test",
 							},
 						},
 					},
 					{
 						Key: "location",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "earth",
 							},
 						},
 					},
 					{
 						Key: "othervalue",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "somethinginteresting",
 							},
 						},
 					},
 				},
 			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
-				Attributes: []*common_v1.KeyValue{
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_CLIENT,
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "status.code",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "STATUS_CODE_OK",
 							},
 						},
@@ -191,12 +191,12 @@ func Test_splitPolicy_Match(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{},
+				Attributes: []*commonv1.KeyValue{},
 			},
-			span: &trace_v1.Span{
-				Kind:       trace_v1.Span_SPAN_KIND_CLIENT,
-				Status:     &trace_v1.Status{Message: "OK", Code: trace_v1.Status_STATUS_CODE_OK},
-				Attributes: []*common_v1.KeyValue{},
+			span: &tracev1.Span{
+				Kind:       tracev1.Span_SPAN_KIND_CLIENT,
+				Status:     &tracev1.Status{Message: "OK", Code: tracev1.Status_STATUS_CODE_OK},
+				Attributes: []*commonv1.KeyValue{},
 			},
 		},
 		{
@@ -216,27 +216,27 @@ func Test_splitPolicy_Match(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "location",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "earth",
 							},
 						},
 					},
 					{
 						Key: "othervalue",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "somethinginteresting",
 							},
 						},
 					},
 				},
 			},
-			span: &trace_v1.Span{
-				Attributes: []*common_v1.KeyValue{},
+			span: &tracev1.Span{
+				Attributes: []*commonv1.KeyValue{},
 			},
 		},
 	}
@@ -259,7 +259,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 		filterPolicies []config.FilterPolicy
 		expect         bool
 		resource       *v1.Resource
-		span           *trace_v1.Span
+		span           *tracev1.Span
 	}{
 		{
 			name:           "no policies matches",
@@ -304,37 +304,37 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "name",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "test",
 							},
 						},
 					},
 					{
 						Key: "location",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "earth",
 							},
 						},
 					},
 					{
 						Key: "othervalue",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "somethinginteresting",
 							},
 						},
 					},
 				},
 			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
 				},
 				Name: "test",
 			},
@@ -361,37 +361,37 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "name",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "test",
 							},
 						},
 					},
 					{
 						Key: "location",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "earth",
 							},
 						},
 					},
 					{
 						Key: "othervalue",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "somethinginteresting",
 							},
 						},
 					},
 				},
 			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
 				},
 				Name: "test",
 			},
@@ -427,37 +427,37 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{
+				Attributes: []*commonv1.KeyValue{
 					{
 						Key: "name",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "test",
 							},
 						},
 					},
 					{
 						Key: "location",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "earth",
 							},
 						},
 					},
 					{
 						Key: "othervalue",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
 								StringValue: "somethinginteresting",
 							},
 						},
 					},
 				},
 			},
-			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
-				Status: &trace_v1.Status{
-					Code: trace_v1.Status_STATUS_CODE_OK,
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
 				},
 				Name: "test",
 			},
@@ -495,9 +495,10 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 				},
 			},
 			split: &splitPolicy{
-				IntrinsicMatch: policymatch.NewPolicyMatch(
-					policymatch.NewMatchStrictPolicyAttribute("kind", trace_v1.Span_SPAN_KIND_CLIENT),
-				),
+				IntrinsicMatch: policymatch.NewIntrinsicPolicyMatch(
+					[]policymatch.IntrinsicFilter{
+						policymatch.NewKindIntrinsicFilter(tracev1.Span_SPAN_KIND_CLIENT),
+					}),
 			},
 		},
 		{
@@ -512,9 +513,10 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 				},
 			},
 			split: &splitPolicy{
-				IntrinsicMatch: policymatch.NewPolicyMatch(
-					policymatch.NewMatchStrictPolicyAttribute("status", trace_v1.Status_STATUS_CODE_OK),
-				),
+				IntrinsicMatch: policymatch.NewIntrinsicPolicyMatch(
+					[]policymatch.IntrinsicFilter{
+						policymatch.NewStatusIntrinsicFilter(tracev1.Status_STATUS_CODE_OK),
+					}),
 			},
 		},
 	}
@@ -524,9 +526,6 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 			s, err := getSplitPolicy(tc.policy)
 			require.NoError(t, err)
 			require.NotNil(t, s)
-			require.NotNil(t, s.IntrinsicMatch)
-			require.NotNil(t, s.SpanMatch)
-			require.NotNil(t, s.ResourceMatch)
 
 			if tc.split.IntrinsicMatch != nil {
 				require.Equal(t, tc.split.IntrinsicMatch, s.IntrinsicMatch)
@@ -552,14 +551,14 @@ func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {
 	// Read the file generated above
 	data, err := os.ReadFile("testbatch100k")
 	require.NoError(b, err)
-	batch := &trace_v1.ResourceSpans{}
+	batch := &tracev1.ResourceSpans{}
 	err = batch.Unmarshal(data)
 	require.NoError(b, err)
 
 	// b.Logf("size: %s", humanize.Bytes(uint64(batch.Size())))
 	// b.Logf("span count: %d", len(batch.ScopeSpans))
 
-	policies := []config.FilterPolicy{}
+	var policies []config.FilterPolicy
 
 	benchmarkFilterPolicy(b, policies, batch)
 }
@@ -568,7 +567,7 @@ func BenchmarkSpanFilter_applyFilterPolicySmall(b *testing.B) {
 	// Read the file generated above
 	data, err := os.ReadFile("testbatch100k")
 	require.NoError(b, err)
-	batch := &trace_v1.ResourceSpans{}
+	batch := &tracev1.ResourceSpans{}
 	err = batch.Unmarshal(data)
 	require.NoError(b, err)
 
@@ -593,7 +592,7 @@ func BenchmarkSpanFilter_applyFilterPolicyMedium(b *testing.B) {
 	// Read the file generated above
 	data, err := os.ReadFile("testbatch100k")
 	require.NoError(b, err)
-	batch := &trace_v1.ResourceSpans{}
+	batch := &tracev1.ResourceSpans{}
 	err = batch.Unmarshal(data)
 	require.NoError(b, err)
 
@@ -626,22 +625,87 @@ func BenchmarkSpanFilter_applyFilterPolicyMedium(b *testing.B) {
 	benchmarkFilterPolicy(b, policies, batch)
 }
 
-func benchmarkFilterPolicy(b *testing.B, policies []config.FilterPolicy, batch *trace_v1.ResourceSpans) {
+func BenchmarkSpanFilter_applyFilterPolicyRegex(b *testing.B) {
+	// Read the file generated above
+	data, err := os.ReadFile("testbatch100k")
+	require.NoError(b, err)
+	batch := &tracev1.ResourceSpans{}
+	err = batch.Unmarshal(data)
+	require.NoError(b, err)
+
+	policies := []config.FilterPolicy{
+		{
+			Include: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "span.foo",
+						Value: ".*foo.*",
+					},
+					{
+						Key:   "span.x",
+						Value: ".+value.+",
+					},
+				},
+			},
+		},
+	}
+
+	benchmarkFilterPolicy(b, policies, batch)
+}
+
+func BenchmarkSpanFilter_applyFilterPolicyIntrinsic(b *testing.B) {
+	// Read the file generated above
+	data, err := os.ReadFile("testbatch100k")
+	require.NoError(b, err)
+	batch := &tracev1.ResourceSpans{}
+	err = batch.Unmarshal(data)
+	require.NoError(b, err)
+
+	policies := []config.FilterPolicy{
+		{
+			Include: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "internal",
+					},
+					{
+						Key:   "status",
+						Value: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	benchmarkFilterPolicy(b, policies, batch)
+}
+
+func benchmarkFilterPolicy(b *testing.B, policies []config.FilterPolicy, batch *tracev1.ResourceSpans) {
 	filter, err := NewSpanFilter(policies)
 	require.NoError(b, err)
 
 	b.ResetTimer()
+	c := 0
 	for n := 0; n < b.N; n++ {
-		pushspans(&tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}}, filter)
+		c += pushspans(&tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{batch}}, filter)
 	}
+	runtime.KeepAlive(c)
 }
 
-func pushspans(req *tempopb.PushSpansRequest, filter *SpanFilter) {
+func pushspans(req *tempopb.PushSpansRequest, filter *SpanFilter) int {
+	c := 0
 	for _, rs := range req.Batches {
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
-				filter.ApplyFilterPolicy(rs.Resource, span)
+				v := filter.ApplyFilterPolicy(rs.Resource, span)
+				if v {
+					c++
+				}
 			}
 		}
 	}
+	return c
 }

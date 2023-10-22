@@ -4,27 +4,25 @@ import (
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // splitPolicy is the result of parsing a policy from the config file to be
 // specific about the area the given policy is applied to.
 type splitPolicy struct {
-	ResourceMatch  *policymatch.PolicyMatch
-	SpanMatch      *policymatch.PolicyMatch
-	IntrinsicMatch *policymatch.PolicyMatch
+	// ResourceMatch is a set of resource attributes that must match a span for the span to match the policy.
+	ResourceMatch *policymatch.AttributePolicyMatch
+	// SpanMatch is a set of span attributes that must match a span for the span to match the policy.
+	SpanMatch *policymatch.AttributePolicyMatch
+	// IntrinsicMatch is a set of intrinsic attributes that must match a span for the span to match the policy.
+	IntrinsicMatch *policymatch.IntrinsicPolicyMatch
 }
 
 func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
-	// A policy to match against the resource attributes
-	resourcePolicy := policymatch.NewPolicyMatch()
-
-	// A policy to match against the span attributes
-	spanPolicy := policymatch.NewPolicyMatch()
-
-	// A policy to match against the span intrinsic attributes
-	intrinsicPolicy := policymatch.NewPolicyMatch()
+	var resourceAttributeFilters []policymatch.AttributeFilter
+	var spanAttributeFilters []policymatch.AttributeFilter
+	var intrinsicFilters []policymatch.IntrinsicFilter
 
 	for _, pa := range policy.Attributes {
 		attr, err := traceql.ParseIdentifier(pa.Key)
@@ -33,54 +31,61 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 		}
 
 		if attr.Intrinsic > 0 {
-			var attribute policymatch.MatchPolicyAttribute
+			var attribute policymatch.IntrinsicFilter
 			if policy.MatchType == config.Strict {
-				switch attr.Intrinsic {
-				case traceql.IntrinsicStatus:
-					value := v1_trace.Status_StatusCode(v1_trace.Status_StatusCode_value[pa.Value.(string)])
-					attribute = policymatch.NewMatchStrictPolicyAttribute(attr.Name, value)
-				case traceql.IntrinsicKind:
-					value := v1_trace.Span_SpanKind(v1_trace.Span_SpanKind_value[pa.Value.(string)])
-					attribute = policymatch.NewMatchStrictPolicyAttribute(attr.Name, value)
-				default:
-					attribute = policymatch.NewMatchStrictPolicyAttribute(attr.Name, pa.Value)
+				value := pa.Value.(string)
+				if code, ok := tracev1.Status_StatusCode_value[value]; ok {
+					attribute = policymatch.NewStatusIntrinsicFilter(tracev1.Status_StatusCode(code))
+				} else if kind, ok := tracev1.Span_SpanKind_value[value]; ok {
+					attribute = policymatch.NewKindIntrinsicFilter(tracev1.Span_SpanKind(kind))
+				} else {
+					attribute = policymatch.NewNameIntrinsicFilter(value)
 				}
+
 			} else {
-				var err error
-				attribute, err = policymatch.NewMatchRegexPolicyAttribute(attr.Name, pa.Value)
+				attribute, err = policymatch.NewRegexpIntrinsicFilter(attr.Intrinsic, pa.Value.(string))
 				if err != nil {
 					return nil, err
 				}
 			}
-			intrinsicPolicy.AddAttr(attribute)
+			intrinsicFilters = append(intrinsicFilters, attribute)
 		} else {
 			switch attr.Scope {
 			case traceql.AttributeScopeSpan:
-				attribute, err := policymatch.NewMatchPolicyAttribute(policy.MatchType, attr.Name, pa.Value)
+				attribute, err := policymatch.NewAttributeFilter(policy.MatchType, attr.Name, pa.Value)
 				if err != nil {
 					return nil, err
 				}
-				spanPolicy.AddAttr(attribute)
+				spanAttributeFilters = append(spanAttributeFilters, attribute)
 			case traceql.AttributeScopeResource:
-				attribute, err := policymatch.NewMatchPolicyAttribute(policy.MatchType, attr.Name, pa.Value)
+				attribute, err := policymatch.NewAttributeFilter(policy.MatchType, attr.Name, pa.Value)
 				if err != nil {
 					return nil, err
 				}
-				resourcePolicy.AddAttr(attribute)
+				resourceAttributeFilters = append(resourceAttributeFilters, attribute)
 			}
 		}
 	}
 
-	return &splitPolicy{
-		ResourceMatch:  resourcePolicy,
-		SpanMatch:      spanPolicy,
-		IntrinsicMatch: intrinsicPolicy,
-	}, nil
+	sp := splitPolicy{}
+	if len(resourceAttributeFilters) > 0 {
+		sp.ResourceMatch = policymatch.NewAttributePolicyMatch(resourceAttributeFilters)
+	}
+
+	if len(intrinsicFilters) > 0 {
+		sp.IntrinsicMatch = policymatch.NewIntrinsicPolicyMatch(intrinsicFilters)
+	}
+
+	if len(spanAttributeFilters) > 0 {
+		sp.SpanMatch = policymatch.NewAttributePolicyMatch(spanAttributeFilters)
+	}
+
+	return &sp, nil
 }
 
 // Match returns true when the resource attributes and span attributes match the policy.
-func (p *splitPolicy) Match(rs *v1.Resource, span *v1_trace.Span) bool {
-	return p.IntrinsicMatch.MatchIntrinsicAttrs(span) &&
-		p.ResourceMatch.MatchAttrs(rs.Attributes) &&
-		p.SpanMatch.MatchAttrs(span.Attributes)
+func (p *splitPolicy) Match(rs *v1.Resource, span *tracev1.Span) bool {
+	return (p.ResourceMatch == nil || p.ResourceMatch.Matches(rs.Attributes)) &&
+		(p.SpanMatch == nil || p.SpanMatch.Matches(span.Attributes)) &&
+		(p.IntrinsicMatch == nil || p.IntrinsicMatch.Matches(span))
 }

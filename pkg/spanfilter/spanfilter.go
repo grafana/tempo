@@ -3,11 +3,11 @@ package spanfilter
 import (
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 type SpanFilter struct {
-	filterPolicies []*filterPolicy
+	filterPolicies []filterPolicy
 }
 
 type filterPolicy struct {
@@ -17,7 +17,7 @@ type filterPolicy struct {
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
 func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
-	var policies []*filterPolicy
+	var policies []filterPolicy
 
 	for _, policy := range filterPolicies {
 		err := config.ValidateFilterPolicy(policy)
@@ -29,11 +29,12 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		exclude, err := getSplitPolicy(policy.Exclude)
 		if err != nil {
 			return nil, err
 		}
-		p := &filterPolicy{
+		p := filterPolicy{
 			Include: include,
 			Exclude: exclude,
 		}
@@ -49,23 +50,19 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 }
 
 // ApplyFilterPolicy returns true if the span should be included in the metrics.
-func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *v1_trace.Span) bool {
+func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool {
 	// With no filter policies specified, all spans are included.
 	if len(f.filterPolicies) == 0 {
 		return true
 	}
 
 	for _, policy := range f.filterPolicies {
-		if policy.Include != nil {
-			if !policy.Include.Match(rs, span) {
-				return false
-			}
+		if policy.Include != nil && !policy.Include.Match(rs, span) {
+			return false
 		}
 
-		if policy.Exclude != nil {
-			if policy.Exclude.Match(rs, span) {
-				return false
-			}
+		if policy.Exclude != nil && policy.Exclude.Match(rs, span) {
+			return false
 		}
 	}
 
