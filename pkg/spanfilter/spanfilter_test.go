@@ -688,7 +688,7 @@ func benchmarkFilterPolicy(b *testing.B, policies []config.FilterPolicy, batch *
 	require.NoError(b, err)
 
 	b.ResetTimer()
-	c := 0
+	c := 0 // to prevent compiler optimizations
 	for n := 0; n < b.N; n++ {
 		c += pushspans(&tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{batch}}, filter)
 	}
