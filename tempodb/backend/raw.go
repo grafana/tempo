@@ -27,10 +27,6 @@ type KeyPath []string
 
 type Feature int
 
-const (
-	FeatureListShards Feature = iota
-)
-
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
 	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
