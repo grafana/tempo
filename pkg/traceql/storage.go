@@ -85,9 +85,20 @@ type Span interface {
 	StartTimeUnixNanos() uint64
 	DurationNanos() uint64
 
-	SiblingOf([]Span, []Span, bool, []Span) []Span
-	DescendantOf([]Span, []Span, bool, bool, []Span) []Span
-	ChildOf([]Span, []Span, bool, bool, []Span) []Span
+	// SiblingOf returns all spans on the RHS side that have siblings in the LHS. If falseForAll is true
+	// then the returned spans will be those that do not have siblings in the LHS. buffer is an optional
+	// buffer to use to avoid allocations.
+	SiblingOf(lhs []Span, rhs []Span, falseForAll bool, buffer []Span) []Span
+	// DescendantOf returns all spans on the RHS side that have descendants in the LHS. If falseForAll is true
+	// then the returned spans will be those that do not have descendants in the LHS. invert is used to invert
+	// the relationship. If invert is true then this will behave like "AncestorOf". buffer is an optional
+	// buffer to use to avoid allocations.
+	DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span
+	// ChildOf returns all spans on the RHS side that have children in the LHS. If falseForAll is true
+	// then the returned spans will be those that do not have children in the LHS. invert is used to invert
+	// the relationship. If invert is true then this will behave like "ParentOf". buffer is an optional
+	// buffer to use to avoid allocations.
+	ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span
 }
 
 // should we just make matched a field on the spanset instead of a special attribute?
