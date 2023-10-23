@@ -2,10 +2,11 @@ package spanfilter
 
 import (
 	"fmt"
-	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 	"os"
 	"runtime"
 	"testing"
+
+	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -542,10 +543,10 @@ func TestSpanFilter_getSplitPolicy(t *testing.T) {
 
 func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {
 	// Generate a batch of 100k spans
-	//r, done := test.NewRandomBatcher()
-	//defer done()
-	//batch := r.GenerateBatch(1e6)
-	//data, _ := batch.Marshal()
+	// r, done := test.NewRandomBatcher()
+	// defer done()
+	// batch := r.GenerateBatch(1e6)
+	// data, _ := batch.Marshal()
 	//_ = os.WriteFile("testbatch100k", data, 0600)
 
 	// Read the file generated above

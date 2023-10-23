@@ -1,9 +1,10 @@
 package policymatch
 
 import (
+	"regexp"
+
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
-	"regexp"
 )
 
 // IntrinsicPolicyMatch is a set of filters that must match a span for the span to match the policy.

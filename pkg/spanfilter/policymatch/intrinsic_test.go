@@ -1,10 +1,11 @@
 package policymatch
 
 import (
+	"testing"
+
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIntrinsicPolicyMatch_Matches(t *testing.T) {
