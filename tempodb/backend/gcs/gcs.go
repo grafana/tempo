@@ -257,13 +257,11 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 						continue
 					}
 
-					x := bytes.Compare(id[:], min[:])
-					if x < 0 {
+					if bytes.Compare(id[:], min[:]) < 0 {
 						return
 					}
 
-					y := bytes.Compare(id[:], max[:])
-					if y > 0 {
+					if bytes.Compare(id[:], max[:]) > 0 {
 						return
 					}
 

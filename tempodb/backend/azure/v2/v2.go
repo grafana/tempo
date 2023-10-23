@@ -193,6 +193,10 @@ func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 		}
 
 		for _, b := range page.Segment.BlobItems {
+			if b.Name == nil {
+				continue
+			}
+
 			obj := strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
 			parts = strings.Split(obj, "/")
 
