@@ -6,6 +6,12 @@
 # [Semantic versioning](https://semver.org/) is used to help the reader identify the significance of changes.
 # Changes are relevant to this script and the support docs.mk GNU Make interface.
 #
+# ## 5.1.0 (2023-10-20)
+#
+# ### Added
+#
+# - Support for the plugins monorepo.
+#
 # ## 5.0.0 (2023-10-18)
 #
 # ### Added
@@ -255,6 +261,9 @@ VERSIONS_grafana_cloud_k6='UNVERSIONED'
 VERSIONS_grafana_cloud_data_configuration_integrations='UNVERSIONED'
 VERSIONS_grafana_cloud_frontend_observability_faro_web_sdk='UNVERSIONED'
 VERSIONS_opentelemetry='UNVERSIONED'
+VERSIONS_plugins_grafana_jira_datasource='latest'
+VERSIONS_plugins_grafana_mongodb_datasource='latest'
+VERSIONS_plugins_grafana_splunk_datasource='latest'
 VERSIONS_technical_documentation='UNVERSIONED'
 VERSIONS_website='UNVERSIONED'
 VERSIONS_writers_toolkit='UNVERSIONED'
@@ -263,7 +272,10 @@ PATHS_grafana_cloud='content/docs/grafana-cloud'
 PATHS_helm_charts_mimir_distributed='docs/sources/helm-charts/mimir-distributed'
 PATHS_helm_charts_tempo_distributed='docs/sources/helm-charts/tempo-distributed'
 PATHS_mimir='docs/sources/mimir'
-PATHS_tempo='docs/sources/tempo'
+PATHS_plugins_grafana_jira_datasource='docs/sources'
+PATHS_plugins_grafana_mongodb_datasource='docs/sources'
+PATHS_plugins_grafana_splunk_datasource='docs/sources'
+Paths_tempo='docs/sources/tempo'
 PATHS_website='content'
 
 # identifier STR
@@ -279,6 +291,77 @@ aget() {
   eval echo '$'"$(identifier "$1")_$(identifier "$2")"
 }
 
+# src returns the project source repository name for a project.
+src() {
+  _project="$1"
+
+  case "${_project}" in
+    plugins/*)
+      if [ -z "$(aget SOURCES "${_project}")" ]; then
+        echo plugins-private
+      else
+        aget SOURCES "${_project}"
+      fi
+      ;;
+    *)
+      if [ -z "$(aget SOURCES "${_project}")" ]; then
+        echo "${_project}"
+      else
+        aget SOURCES "${_project}"
+      fi
+      ;;
+  esac
+
+  unset _project
+}
+
+# path returns the relative path within the repository that contain the docs for a project.
+path() {
+  _project="$1"
+
+  case "${_project}" in
+    plugins/*)
+      if [ -z "$(aget PATHS "${_project}")" ]; then
+        echo "${_project}/docs/sources"
+      else
+        aget PATHS "${_project}"
+      fi
+      ;;
+    *)
+      if [ -z "$(aget PATHS "${_project}")" ]; then
+        echo "docs/sources"
+      else
+        aget PATHS "${_project}"
+      fi
+  esac
+
+  unset _project
+}
+
+# version returns the version for a project. Unversioned projects return the special value 'UNVERSIONED'.
+version() {
+  _project="$1"
+
+  case "${_project}" in
+    plugins/*)
+      if [ -z "$(aget VERSIONS "${_project}")" ]; then
+        echo "UNVERSIONED"
+      else
+        aget VERSIONS "${_project}"
+      fi
+      ;;
+    *)
+    if [ -z "$(aget VERSIONS "${_project}")" ]; then
+      echo latest
+    else
+      aget VERSIONS "${_project}"
+    fi
+  esac
+
+  unset _project
+}
+
+
 # new_proj populates a new project structure.
 new_proj() {
   _project="$1"
@@ -289,31 +372,19 @@ new_proj() {
   # If version is not set, use the script mapping of project to default versions if it exists.
   # Fallback to 'latest'.
   if [ -z "${_version}" ]; then
-    if [ -z "$(aget VERSIONS "${_project}")" ]; then
-      _version=latest
-    else
-      _version="$(aget VERSIONS "${_project}")"
-    fi
+    _version="$(version "${_project}")"
   fi
 
   # If repo is not set, use the script mapping of project to repo name if it exists.
   # Fallback to using the project name.
   if [ -z "${_repo}" ]; then
-    if [ -z "$(aget SOURCES "${_project}")" ]; then
-      _repo="${_project}"
-    else
-      _repo="$(aget SOURCES "${_project}")"
-    fi
+    _repo="$(src "${_project}")"
   fi
 
   # If path is not set, use the script mapping of project to docs sources path if it exists.
   # Fallback to using 'docs/sources'.
   if [ -z "${_path}" ]; then
-    if [ -z "$(aget PATHS "${_project}")" ]; then
-      _path="docs/sources"
-    else
-      _path="$(aget PATHS "${_project}")"
-    fi
+    _path="$(path "${_project}")"
   fi
 
   echo "${_project}:${_version}:${_repo}:${_path}"
@@ -568,7 +639,7 @@ POSIX_HERESTRING
     fi
   fi
 
-  debg "DEBG: Mounting '${_src}' at container path '${_dst}'"
+  debg "Mounting '${_src}' at container path '${_dst}'"
 
   if [ -z "${volumes}" ]; then
     volumes="--volume=${_src}:${_dst}"
@@ -627,6 +698,12 @@ case "${image}" in
     tempfile="$(mktemp -t make-docs.XXX)"
     cat <<EOF >"${tempfile}"
 #!/usr/bin/env bash
+
+tc() {
+  set \${*,,}
+  echo \${*^}
+}
+
 for redirect in ${redirects}; do
   IFS='^' read -r path ver <<<"\${redirect}"
   echo -e "---\\nredirectURL: \"\${path/\/hugo\/content/}\"\\ntype: redirect\\nversioned: true\\n---\\n" > "\${path/\${ver}/_index.md}"
@@ -635,8 +712,12 @@ done
 for x in "${url_src_dst_vers}"; do
   IFS='^' read -r _ _ dst _ <<<"\${x}"
 
+  title="\${dst%/*}"
+  title="\$(tc \${title##*/})"
   while [[ -n "\${dst}" ]]; do
-    touch "\${dst}/_index.md"
+    if [[ ! -f "\${dst}/_index.md" ]]; then
+        echo -e "---title: \${title}\\n---\\n\\n# \${title}\\n\\n{{< section >}}" > "\${dst}/_index.md"
+    fi
     dst="\${dst%/*}"
   done
 done
@@ -669,6 +750,7 @@ EOF
     elif [ -n "${DEBUG}" ]; then
       await_build http://localhost:3003 &
 
+      debg "${cmd} /entrypoint"
       ${cmd} /entrypoint
     else
       await_build http://localhost:3003 &
