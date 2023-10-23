@@ -75,7 +75,6 @@ var (
 // Config is used to configure the poller
 type PollerConfig struct {
 	PollConcurrency           uint
-	PollTenantConcurrency     uint
 	PollFallback              bool
 	TenantIndexBuilders       int
 	StaleTenantIndex          time.Duration
