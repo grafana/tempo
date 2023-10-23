@@ -5,6 +5,8 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+const nestedSetRootParent = -1
+
 // spanNode is a wrapper around a span that is used to build and travers spans as a tree.
 type spanNode struct {
 	parent    *spanNode
@@ -97,6 +99,7 @@ func assignNestedSetModelBounds(trace *Trace) bool {
 	for _, root := range rootNodes {
 		node := root
 		node.span.NestedSetLeft = nestedSetBound
+		node.span.ParentID = nestedSetRootParent
 		nestedSetBound++
 
 		for node != nil {

@@ -13,6 +13,8 @@ type spanNode struct {
 	nextChild int
 }
 
+const nestedSetRootParent = -1
+
 // assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
 // and Span.ParentID for all spans in a trace.
 func assignNestedSetModelBounds(trace *Trace) {
@@ -88,6 +90,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 	for _, root := range rootNodes {
 		node := root
 		node.span.NestedSetLeft = nestedSetBound
+		node.span.ParentID = nestedSetRootParent
 		nestedSetBound++
 
 		for node != nil {

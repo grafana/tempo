@@ -647,6 +647,26 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{  } !~ {  }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Attributes:        nil,
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ .parent } !< { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{

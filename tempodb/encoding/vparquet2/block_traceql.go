@@ -216,7 +216,7 @@ func (s *span) attributesMatched() int {
 	if len(s.id) > 0 {
 		count++
 	}
-	if s.nestedSetLeft > 0 || s.nestedSetRight > 0 || s.nestedSetParent > 0 {
+	if s.nestedSetLeft > 0 || s.nestedSetRight > 0 || s.nestedSetParent != 0 { // nestedSetParent can be -1 meaning it is a root span
 		count++
 	}
 
