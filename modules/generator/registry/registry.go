@@ -13,6 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+
+	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
@@ -68,6 +70,7 @@ type ManagedRegistry struct {
 	appendable storage.Appendable
 
 	logger                   log.Logger
+	limitLogger              *tempo_log.RateLimitedLogger
 	metricActiveSeries       prometheus.Gauge
 	metricMaxActiveSeries    prometheus.Gauge
 	metricTotalSeriesAdded   prometheus.Counter
@@ -111,6 +114,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		appendable: appendable,
 
 		logger:                   logger,
+		limitLogger:              tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
 		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
@@ -165,7 +169,7 @@ func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
 		r.metricTotalSeriesLimited.Inc()
-		level.Warn(r.logger).Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
+		r.limitLogger.Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
 		return false
 	}
 
