@@ -546,7 +546,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 		parquetquery.ReleaseResult(res)
 
 		sort.Slice(i.nextSpans, func(j, k int) bool {
-			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
+			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpansILSSpanAttrs, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
 		})
 
 		// found something!
