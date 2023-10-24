@@ -164,9 +164,8 @@ func createDistinctIterator(
 		return resourceIter, nil
 	} else if spanIter != nil {
 		return spanIter, nil
-	} else {
-		return nil, fmt.Errorf("no conditions")
 	}
+	return nil, fmt.Errorf("no conditions")
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing

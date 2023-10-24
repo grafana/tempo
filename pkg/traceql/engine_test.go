@@ -369,11 +369,7 @@ func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteReq
 					if attr.Name != req.TagName.Name {
 						continue
 					}
-					tv := tempopb.TagValue{
-						Type:  "String",
-						Value: static.S,
-					}
-					if cb(tv) {
+					if cb(static) {
 						return nil
 					}
 				}
@@ -618,7 +614,7 @@ func TestExecuteTagValues(t *testing.T) {
 
 			tag, err := ParseIdentifier(tc.attribute)
 			assert.NoError(t, err)
-			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, distinctValues.Collect, mockSpansetFetcher(tc.query)))
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(tc.query)))
 			values := distinctValues.Values()
 			sort.Slice(values, func(i, j int) bool {
 				return values[i].Value < values[j].Value
