@@ -485,6 +485,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 	if cfg.Endpoint != "" {
 		storageClientOptions = append(storageClientOptions, option.WithEndpoint(cfg.Endpoint))
+		storageClientOptions = append(storageClientOptions, storage.WithJSONReads())
 	}
 	client, err := storage.NewClient(ctx, storageClientOptions...)
 	if err != nil {
