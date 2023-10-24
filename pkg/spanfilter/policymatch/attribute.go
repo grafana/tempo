@@ -6,7 +6,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 // AttributePolicyMatch is a set of attribute filters that must match a span for the span to match the policy.
@@ -47,7 +46,7 @@ func matchesAnyFilter(pa AttributeFilter, attrs []*commonv1.KeyValue) bool {
 			continue
 		}
 		switch pa.typ {
-		case StringAttributeFilter, SpanKindAttributeFilter, StatusCodeAttributeFilter:
+		case StringAttributeFilter:
 			return pa.stringValue == attr.Value.GetStringValue()
 		case Int64AttributeFilter:
 			return pa.int64Value == attr.Value.GetIntValue()
@@ -67,8 +66,6 @@ type AttributeFilterType int
 const (
 	StringAttributeFilter AttributeFilterType = iota
 	Int64AttributeFilter
-	SpanKindAttributeFilter
-	StatusCodeAttributeFilter
 	Float64AttributeFilter
 	BoolAttributeFilter
 	RegexAttributeFilter
@@ -76,15 +73,13 @@ const (
 
 // AttributeFilter is a filter that matches spans based on their attributes.
 type AttributeFilter struct {
-	key             string
-	typ             AttributeFilterType
-	stringValue     string
-	int64Value      int64
-	spanKindValue   tracev1.Span_SpanKind
-	statusCodeValue tracev1.Status_StatusCode
-	float64Value    float64
-	boolValue       bool
-	regex           *regexp.Regexp
+	key          string
+	typ          AttributeFilterType
+	stringValue  string
+	int64Value   int64
+	float64Value float64
+	boolValue    bool
+	regex        *regexp.Regexp
 }
 
 // NewAttributeFilter returns a new AttributeFilter based on the match type.
@@ -103,32 +98,14 @@ func NewStrictAttributeFilter(key string, value interface{}) AttributeFilter {
 
 	switch v := value.(type) {
 	case string:
-		attr.stringValue = v
-		if code, exists := tracev1.Status_StatusCode_value[v]; exists {
-			attr.typ = StatusCodeAttributeFilter
-			attr.statusCodeValue = tracev1.Status_StatusCode(code)
-			break
-		}
-		if kind, exists := tracev1.Span_SpanKind_value[v]; exists {
-			attr.typ = SpanKindAttributeFilter
-			attr.spanKindValue = tracev1.Span_SpanKind(kind)
-			break
-		}
 		attr.typ = StringAttributeFilter
+		attr.stringValue = v
 	case int:
 		attr.typ = Int64AttributeFilter
 		attr.int64Value = int64(v)
 	case int64:
 		attr.typ = Int64AttributeFilter
 		attr.int64Value = v
-	case tracev1.Span_SpanKind:
-		attr.typ = SpanKindAttributeFilter
-		attr.spanKindValue = v
-		attr.stringValue = v.String()
-	case tracev1.Status_StatusCode:
-		attr.typ = StatusCodeAttributeFilter
-		attr.statusCodeValue = v
-		attr.stringValue = v.String()
 	case float64:
 		attr.typ = Float64AttributeFilter
 		attr.float64Value = v
