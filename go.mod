@@ -121,6 +121,7 @@ require (
 	go.opentelemetry.io/collector/receiver v0.86.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/oauth2 v0.12.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230717213848-3f92550aa753
 )
 
 require (
@@ -316,7 +317,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230717213848-3f92550aa753 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230717213848-3f92550aa753 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230717213848-3f92550aa753 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
@@ -336,5 +336,3 @@ replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-
 replace google.golang.org/grpc => google.golang.org/grpc v1.58.3
 
 replace golang.org/x/net => golang.org/x/net v0.17.0
-
-replace github.com/grafana/e2e => /Users/mapno/workspace/github.com/grafana/e2e

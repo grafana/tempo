@@ -531,7 +531,7 @@ type LinePrefixLogger struct {
 func (w *LinePrefixLogger) Write(p []byte) (n int, err error) {
 	for _, line := range strings.Split(string(p), "\n") {
 		// Skip empty lines
-		//line = strings.TrimSpace(line)
+		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}

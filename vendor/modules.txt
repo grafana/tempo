@@ -516,7 +516,7 @@ github.com/grafana/dskit/spanlogger
 github.com/grafana/dskit/tenant
 github.com/grafana/dskit/tracing
 github.com/grafana/dskit/user
-# github.com/grafana/e2e v0.1.1 => /Users/mapno/workspace/github.com/grafana/e2e
+# github.com/grafana/e2e v0.1.1
 ## explicit; go 1.18
 github.com/grafana/e2e
 github.com/grafana/e2e/db
@@ -1874,4 +1874,3 @@ gopkg.in/yaml.v3
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
 # google.golang.org/grpc => google.golang.org/grpc v1.58.3
 # golang.org/x/net => golang.org/x/net v0.17.0
-# github.com/grafana/e2e => /Users/mapno/workspace/github.com/grafana/e2e
