@@ -670,11 +670,11 @@ func BenchmarkSpanFilter_applyFilterPolicyIntrinsic(b *testing.B) {
 				Attributes: []config.MatchPolicyAttribute{
 					{
 						Key:   "kind",
-						Value: "internal",
+						Value: "SPAN_KIND_INTERNAL",
 					},
 					{
 						Key:   "status",
-						Value: "ok",
+						Value: "STATUS_CODE_OK",
 					},
 				},
 			},

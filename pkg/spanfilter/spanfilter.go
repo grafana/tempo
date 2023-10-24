@@ -7,7 +7,7 @@ import (
 )
 
 type SpanFilter struct {
-	filterPolicies []filterPolicy
+	filterPolicies []*filterPolicy
 }
 
 type filterPolicy struct {
@@ -17,7 +17,7 @@ type filterPolicy struct {
 
 // NewSpanFilter returns a SpanFilter that will filter spans based on the given filter policies.
 func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
-	var policies []filterPolicy
+	var policies []*filterPolicy
 
 	for _, policy := range filterPolicies {
 		err := config.ValidateFilterPolicy(policy)
@@ -40,7 +40,7 @@ func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 		}
 
 		if p.Include != nil || p.Exclude != nil {
-			policies = append(policies, p)
+			policies = append(policies, &p)
 		}
 	}
 
