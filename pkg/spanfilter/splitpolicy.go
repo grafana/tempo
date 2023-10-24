@@ -1,11 +1,14 @@
 package spanfilter
 
 import (
+	"fmt"
+
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"golang.org/x/exp/maps"
 )
 
 // splitPolicy is the result of parsing a policy from the config file to be
@@ -31,38 +34,59 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 		}
 
 		if attr.Intrinsic > 0 {
-			var attribute policymatch.IntrinsicFilter
+			var filter policymatch.IntrinsicFilter
 			if policy.MatchType == config.Strict {
-				value := pa.Value.(string)
-				if code, ok := tracev1.Status_StatusCode_value[value]; ok {
-					attribute = policymatch.NewStatusIntrinsicFilter(tracev1.Status_StatusCode(code))
-				} else if kind, ok := tracev1.Span_SpanKind_value[value]; ok {
-					attribute = policymatch.NewKindIntrinsicFilter(tracev1.Span_SpanKind(kind))
-				} else {
-					attribute = policymatch.NewNameIntrinsicFilter(value)
+				switch attr.Intrinsic {
+				case traceql.IntrinsicKind:
+					switch v := pa.Value.(type) {
+					case tracev1.Span_SpanKind:
+						filter = policymatch.NewKindIntrinsicFilter(v)
+					case string:
+						if kind, ok := tracev1.Span_SpanKind_value[v]; ok {
+							filter = policymatch.NewKindIntrinsicFilter(tracev1.Span_SpanKind(kind))
+						} else {
+							return nil, fmt.Errorf("currently unsupported kind intrinsic string value: %s; supported values: %v", v, maps.Keys(tracev1.Span_SpanKind_value))
+						}
+					default:
+						return nil, fmt.Errorf("invalid kind intrinsic value: %v", v)
+					}
+				case traceql.IntrinsicStatus:
+					switch v := pa.Value.(type) {
+					case tracev1.Status_StatusCode:
+						filter = policymatch.NewStatusIntrinsicFilter(v)
+					case string:
+						if code, ok := tracev1.Status_StatusCode_value[v]; ok {
+							filter = policymatch.NewStatusIntrinsicFilter(tracev1.Status_StatusCode(code))
+						} else {
+							return nil, fmt.Errorf("currently unsupported status intrinsic string value: %s; supported values: %v", v, maps.Keys(tracev1.Status_StatusCode_value))
+						}
+					default:
+						return nil, fmt.Errorf("currently unsupported intrinsic: %v", v)
+					}
+				case traceql.IntrinsicName:
+					filter = policymatch.NewNameIntrinsicFilter(pa.Value.(string))
 				}
-
 			} else {
-				attribute, err = policymatch.NewRegexpIntrinsicFilter(attr.Intrinsic, pa.Value.(string))
+				filter, err = policymatch.NewRegexpIntrinsicFilter(attr.Intrinsic, pa.Value.(string))
 				if err != nil {
 					return nil, err
 				}
 			}
-			intrinsicFilters = append(intrinsicFilters, attribute)
+			intrinsicFilters = append(intrinsicFilters, filter)
 		} else {
 			switch attr.Scope {
 			case traceql.AttributeScopeSpan:
-				attribute, err := policymatch.NewAttributeFilter(policy.MatchType, attr.Name, pa.Value)
+				filter, err := policymatch.NewAttributeFilter(policy.MatchType, attr.Name, pa.Value)
 				if err != nil {
 					return nil, err
 				}
-				spanAttributeFilters = append(spanAttributeFilters, attribute)
+				spanAttributeFilters = append(spanAttributeFilters, filter)
 			case traceql.AttributeScopeResource:
-				attribute, err := policymatch.NewAttributeFilter(policy.MatchType, attr.Name, pa.Value)
+				filter, err := policymatch.NewAttributeFilter(policy.MatchType, attr.Name, pa.Value)
 				if err != nil {
 					return nil, err
 				}
-				resourceAttributeFilters = append(resourceAttributeFilters, attribute)
+				resourceAttributeFilters = append(resourceAttributeFilters, filter)
 			}
 		}
 	}
