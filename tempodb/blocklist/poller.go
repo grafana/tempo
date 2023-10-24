@@ -321,7 +321,23 @@ func (p *Poller) pollTenantBlocks(
 		// 	}
 		// 	continue
 		// }
+
 		newBlockIDs = append(newBlockIDs, blockID)
+
+		// TODO: for the compacted block IDs that we don't know about, we should
+		// poll directly rather than go through the pollBlock() function.  This
+		// would avoid the 404 on the meta.json and go directly to the
+		// meta.compacted.json.
+		// compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
+		// if err != nil {
+		// 	// log
+		// 	level.Error(p.logger).Log("msg", "failed to poll compacted block", "tenant", tenantID, "blockID", blockID, "err", err)
+		// 	continue
+		// }
+		// if compactedBlockMeta != nil {
+		// 	newCompactedBlocklist = append(newCompactedBlocklist, compactedBlockMeta)
+		// }
+
 	}
 	learnSpan.Finish()
 
