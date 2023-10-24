@@ -226,6 +226,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 				Delimiter:   "",
 				Versions:    false,
 				StartOffset: prefix + min.String(),
+				EndOffset:   prefix + max.String(),
 			})
 
 			var parts []string
