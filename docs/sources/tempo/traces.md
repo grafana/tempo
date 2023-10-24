@@ -107,4 +107,4 @@ Span
 : A unit of work done within a trace.
 
 Trace
-: An observed execution path of a request through a distributed system.
+: A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures. Traces are composed of spans.  
