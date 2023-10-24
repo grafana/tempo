@@ -282,7 +282,6 @@ func TestFetchTagValues(t *testing.T) {
 			require.Equal(t, expectedValues, actualValues)
 		})
 	}
-
 }
 
 func stringTagValue(v string) tempopb.TagValue {
@@ -314,11 +313,11 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	//blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+	// blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
 	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
 
 	r, _, _, err := local.New(&local.Config{
-		//Path: path.Join("/Users/marty/src/tmp/"),
+		// Path: path.Join("/Users/marty/src/tmp/"),
 		Path: path.Join("/Users/mapno/workspace/testblock"),
 	})
 	require.NoError(b, err)
@@ -347,10 +346,9 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				err := block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), opts)
-				//err := block.SearchTagValues(ctx, tc, d.Collect, opts)
+				// err := block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(distinctValues.Collect), opts)
 				require.NoError(b, err)
 			}
 		})
 	}
-
 }

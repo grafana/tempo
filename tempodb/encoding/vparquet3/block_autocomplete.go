@@ -21,7 +21,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 		return errors.Wrap(err, "conditions invalid")
 	}
 
-	if len(req.Conditions) == 0 { // Last check. No conditions, use old path. It's much faster.
+	if len(req.Conditions) <= 1 { // Last check. No conditions, use old path. It's much faster.
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), opts)
 	}
 
