@@ -584,29 +584,29 @@ func TestExecuteTagValues(t *testing.T) {
 			name:           "scoped param, no query",
 			attribute:      "resource.service.name",
 			query:          "{}",
-			expectedValues: []tempopb.TagValue{{Type: "String", Value: "my-service"}},
+			expectedValues: []tempopb.TagValue{{Type: "string", Value: "my-service"}},
 		},
 		{
 			name:      "intrinsic param, no query",
 			attribute: "name",
 			query:     "{}",
 			expectedValues: []tempopb.TagValue{
-				{Type: "String", Value: "HTTP GET /status"},
-				{Type: "String", Value: "HTTP POST /api/v1/users"},
-				{Type: "String", Value: "redis call"},
+				{Type: "string", Value: "HTTP GET /status"},
+				{Type: "string", Value: "HTTP POST /api/v1/users"},
+				{Type: "string", Value: "redis call"},
 			},
 		},
 		{
 			name:           "scoped param, with query",
 			attribute:      "span.http.method",
 			query:          `{ span.http.target = "/api/v1/users" }`,
-			expectedValues: []tempopb.TagValue{{Type: "String", Value: "POST"}},
+			expectedValues: []tempopb.TagValue{{Type: "string", Value: "POST"}},
 		},
 		{
 			name:           "intrinsic param, with query",
 			attribute:      "name",
 			query:          `{ span.http.target = "/api/v1/users" }`,
-			expectedValues: []tempopb.TagValue{{Type: "String", Value: "HTTP POST /api/v1/users"}},
+			expectedValues: []tempopb.TagValue{{Type: "string", Value: "HTTP POST /api/v1/users"}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
