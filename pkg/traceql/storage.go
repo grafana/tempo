@@ -2,8 +2,6 @@ package traceql
 
 import (
 	"context"
-
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type Operands []Static
@@ -153,11 +151,11 @@ type SpansetFetcher interface {
 
 // AutocompleteCallback is called to collect unique tag values.
 // Returns true if it has exceeded the maximum number of results.
-type AutocompleteCallback func(tempopb.TagValue) bool
+type AutocompleteCallback func(static Static) bool
 
 type AutocompleteRequest struct {
 	Conditions []Condition
-	TagName    string
+	TagName    Attribute
 	// TODO: Add start and end time?
 }
 

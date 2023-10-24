@@ -467,14 +467,55 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			},
 			{
 				Resource: Resource{
-					ServiceName: "service2",
+					ServiceName:      "service2",
+					Cluster:          strPtr("cluster2"),
+					Namespace:        strPtr("namespace2"),
+					Pod:              strPtr("pod2"),
+					Container:        strPtr("container2"),
+					K8sClusterName:   strPtr("k8scluster2"),
+					K8sNamespaceName: strPtr("k8snamespace2"),
+					K8sPodName:       strPtr("k8spod2"),
+					K8sContainerName: strPtr("k8scontainer2"),
+					Attrs: []Attribute{
+						{Key: "foo", Value: strPtr("abc2")},
+						{Key: LabelServiceName, ValueInt: intPtr(1234)}, // Different type than dedicated column
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: strPtr("dedicated-resource-attr-value-6"),
+						String02: strPtr("dedicated-resource-attr-value-7"),
+						String03: strPtr("dedicated-resource-attr-value-8"),
+						String04: strPtr("dedicated-resource-attr-value-9"),
+						String05: strPtr("dedicated-resource-attr-value-10"),
+					},
 				},
 				ScopeSpans: []ScopeSpans{
 					{
 						Spans: []Span{
 							{
-								SpanID: []byte("spanid2"),
-								Name:   "world",
+								SpanID:                 []byte("spanid2"),
+								Name:                   "world",
+								StartTimeUnixNano:      uint64(200 * time.Second),
+								DurationNano:           uint64(200 * time.Second),
+								HttpMethod:             strPtr("PUT"),
+								HttpUrl:                strPtr("url/hello/world/2"),
+								HttpStatusCode:         intPtr(501),
+								StatusCode:             int(v1.Status_STATUS_CODE_OK),
+								StatusMessage:          v1.Status_STATUS_CODE_OK.String(),
+								TraceState:             "tracestate2",
+								Kind:                   int(v1.Span_SPAN_KIND_SERVER),
+								DroppedAttributesCount: 45,
+								DroppedEventsCount:     46,
+								Attrs: []Attribute{
+									{Key: "foo", Value: strPtr("ghi")},
+									{Key: "bar", ValueInt: intPtr(1234)},
+									{Key: "float", ValueDouble: fltPtr(456.789)},
+									{Key: "bool", ValueBool: boolPtr(true)},
+
+									// Edge-cases
+									{Key: LabelName, Value: strPtr("Bob2")},                    // Conflicts with intrinsic but still looked up by .name
+									{Key: LabelServiceName, Value: strPtr("spanservicename2")}, // Overrides resource-level dedicated column
+									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch2")},      // Different type than dedicated column
+								},
 							},
 						},
 					},

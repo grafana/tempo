@@ -150,9 +150,6 @@ func (e *Engine) ExecuteTagValues(
 	if err != nil {
 		return err
 	}
-	if err := rootExpr.validate(); err != nil {
-		return err
-	}
 
 	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
 
@@ -209,7 +206,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Aut
 
 	autocompleteReq := AutocompleteRequest{
 		Conditions: req.Conditions,
-		TagName:    tag.Name,
+		TagName:    tag,
 	}
 
 	return autocompleteReq

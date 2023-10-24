@@ -2,12 +2,10 @@ package vparquet3
 
 import (
 	"context"
-	"fmt"
 	"path"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -196,36 +194,17 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 }
 
 func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
-	testCases := []struct {
-		tag   string
-		query string
-	}{
-		{
-			tag:   "span.http.url",
-			query: "{}",
-		},
-		{
-			tag:   "span.http.url",
-			query: `{resource.namespace="tempo-ops"}`,
-		},
-		{
-			tag:   "span.http.url",
-			query: `{resource.namespace="tempo-ops" && span.http.status_code=200}`,
-		},
-		{
-			tag:   "resource.namespace",
-			query: `{span.http.status_code=200}`,
-		},
+	testCases := []string{
+		"foo",
+		"http.url",
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	//blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
 
 	r, _, _, err := local.New(&local.Config{
-		//Path: path.Join("/Users/marty/src/tmp/"),
-		Path: path.Join("/Users/mapno/workspace/testblock"),
+		Path: path.Join("/Users/marty/src/tmp/"),
 	})
 	require.NoError(b, err)
 
@@ -237,20 +216,11 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
-		b.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(b *testing.B) {
-			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-			req, err := traceql.ExtractFetchSpansRequest(tc.query)
-			require.NoError(b, err)
-
-			autocompleteReq := traceql.AutocompleteRequest{
-				Conditions: req.Conditions,
-				TagName:    "http.url",
-			}
+		b.Run(tc, func(b *testing.B) {
+			d := util.NewDistinctStringCollector(1_000_000)
 			b.ResetTimer()
-
 			for i := 0; i < b.N; i++ {
-				err := block.FetchTagValues(ctx, autocompleteReq, distinctValues.Collect, opts)
-				//err := block.SearchTagValues(ctx, tc, d.Collect, opts)
+				err := block.SearchTagValues(ctx, tc, d.Collect, opts)
 				require.NoError(b, err)
 			}
 		})

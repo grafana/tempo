@@ -709,11 +709,10 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 				break
 			}
 
-			for k, values := range res.ToMap() {
-				for _, v := range values {
-					if k == req.TagName {
-						cb(pqValueToTagValue(v))
-					}
+			for _, oe := range res.OtherEntries {
+				if oe.Key == req.TagName.String() {
+					v := oe.Value.(traceql.Static)
+					cb(v)
 				}
 			}
 		}
