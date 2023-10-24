@@ -161,9 +161,12 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 }
 
 // ListBlocks implements backend.Reader
-func (rw *V1) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+func (rw *V1) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "V1.ListBlocks")
 	defer span.Finish()
+
+	var blockIDs []uuid.UUID
+	var compactedBlockIDs []uuid.UUID
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
@@ -178,12 +181,12 @@ func (rw *V1) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 	var id uuid.UUID
 
 	for {
-		list, listErr := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
+		list, err := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
 			Prefix:  prefix,
 			Details: blob.BlobListingDetails{},
 		})
-		if listErr != nil {
-			return nil, nil, fmt.Errorf("iterating objects: %w", listErr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("iterating objects: %w", err)
 		}
 		marker = list.NextMarker
 

@@ -284,9 +284,12 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 func (rw *readerWriter) ListBlocks(
 	ctx context.Context,
 	keypath backend.KeyPath,
-) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+) ([]uuid.UUID, []uuid.UUID, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
 	defer span.Finish()
+
+	var blockIDs []uuid.UUID
+	var compactedBlockIDs []uuid.UUID
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
@@ -315,6 +318,7 @@ func (rw *readerWriter) ListBlocks(
 			startAfter := prefix + min.String()
 			nextToken := ""
 			isTruncated := true
+			var err error
 			var res minio.ListBucketV2Result
 
 			for isTruncated {

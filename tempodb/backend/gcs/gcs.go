@@ -191,9 +191,12 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // ListBlocks implements backend.Reader
-func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
 	defer span.Finish()
+
+	var blockIDs []uuid.UUID
+	var compactedBlockIDs []uuid.UUID
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)

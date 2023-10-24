@@ -166,9 +166,12 @@ func (rw *V2) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 }
 
 // ListBlocks implements backend.Reader
-func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "V2.ListBlocks")
 	defer span.Finish()
+
+	var blockIDs []uuid.UUID
+	var compactedBlockIDs []uuid.UUID
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
@@ -187,9 +190,9 @@ func (rw *V2) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs
 	})
 
 	for pager.More() {
-		page, pagerErr := pager.NextPage(ctx)
-		if pagerErr != nil {
-			return nil, nil, fmt.Errorf("iterating objects: %w", pagerErr)
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("iterating objects: %w", err)
 		}
 
 		for _, b := range page.Segment.BlobItems {
