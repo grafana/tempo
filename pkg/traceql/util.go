@@ -24,7 +24,7 @@ func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static)
 			tv.Value = v.String()
 
 		case TypeDuration:
-			tv.Type = "duration"
+			tv.Type = duration
 			tv.Value = v.String()
 
 		case TypeStatus:
