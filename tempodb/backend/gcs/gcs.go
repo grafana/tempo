@@ -213,6 +213,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 	var min uuid.UUID
 	var max uuid.UUID
 
+	globalMax := uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
 	for i := 0; i < len(bb)-1; i++ {
 		min = uuid.UUID(bb[i])
 		max = uuid.UUID(bb[i+1])
@@ -221,13 +223,18 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath)
 		go func(min, max uuid.UUID) {
 			defer wg.Done()
 
-			iter := rw.bucket.Objects(ctx, &storage.Query{
+			query := &storage.Query{
 				Prefix:      prefix,
 				Delimiter:   "",
 				Versions:    false,
 				StartOffset: prefix + min.String(),
-				EndOffset:   prefix + max.String(),
-			})
+			}
+
+			if max != globalMax {
+				query.EndOffset = prefix + max.String()
+			}
+
+			iter := rw.bucket.Objects(ctx, query)
 
 			var parts []string
 			var id uuid.UUID

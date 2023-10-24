@@ -3,11 +3,14 @@ package poller
 import (
 	"context"
 	"os"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/e2e"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -51,6 +54,7 @@ func TestPollerOwnership(t *testing.T) {
 
 	logger := log.NewLogfmtLogger(os.Stdout)
 	var hhh *e2e.HTTPService
+	t.Parallel()
 	for _, tc := range testCompactorOwnershipBackends {
 		t.Run(tc.name, func(t *testing.T) {
 			s, err := e2e.NewScenario("tempo-integration")
@@ -71,6 +75,9 @@ func TestPollerOwnership(t *testing.T) {
 
 			err = hhh.Ready()
 			require.NoError(t, err)
+
+			// Give some time for startup
+			time.Sleep(1 * time.Second)
 
 			t.Logf("backend: %s", hhh.Endpoint(hhh.HTTPPort()))
 
@@ -115,6 +122,9 @@ func TestPollerOwnership(t *testing.T) {
 			base := bb[1]
 			expected := []uuid.UUID{}
 
+			expected = append(expected, uuid.MustParse("00000000-0000-0000-0000-000000000000"))
+			expected = append(expected, uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+
 			// Grab the one before the boundary
 			decrementUUIDBytes(base)
 			expected = append(expected, uuid.UUID(base))
@@ -145,8 +155,21 @@ func TestPollerOwnership(t *testing.T) {
 
 			metas := l.Metas(tenant)
 
+			actual := []uuid.UUID{}
+			for _, m := range metas {
+				actual = append(actual, m.BlockID)
+			}
+
+			sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
+			sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
+
+			assert.Equal(t, expected, actual)
+			assert.Equal(t, len(expected), len(metas))
+			t.Logf("actual: %v", actual)
+			t.Logf("expected: %v", expected)
+
 			for _, e := range expected {
-				require.True(t, found(e, metas))
+				assert.True(t, found(e, metas))
 			}
 		})
 	}
