@@ -1,12 +1,12 @@
 ---
 aliases:
-- /docs/tempo/getting-started/traces
-- /docs/tempo/traces
+  - /docs/tempo/getting-started/traces
+  - /docs/tempo/traces
 description: "What are traces?"
 keywords:
-- Grafana
-- traces
-- tracing
+  - Grafana
+  - traces
+  - tracing
 title: What are traces?
 weight: 120
 ---
@@ -85,26 +85,28 @@ This extra detail provides the context that informs the data provided by a trace
 
 ## Terminology
 
+{{< glossary.inline >}}{{ (index (where site.Data.glossary "keys" "intersect" (slice (.Get 0))) 0).value | markdownify }}{{< /glossary.inline >}}
+
 Active series
-: A time series that receives new data points or samples.
+: {{< glossary.inline "active series" />}}
 
 Cardinality
-: The total combination of key/value pairs, such as labels and label values for a given metric series or log stream, and how many unique combinations they generate.
+: {{< glossary.inline "cardinality" />}}
 
 Data source
-: A basic storage for data such as a database, a flat file, or even live references or measurements from a device. A file, database, or service that provides data. For example, traces data is imported into Grafana by configuring and enabling a Tempo data source.
+: {{< glossary.inline "data source" />}}
 
 Exemplar
-: Any data that serves as a detailed example of one of the observations aggregated into a metric. An exemplar contains the observed value together with an optional timestamp and arbitrary trace IDs, which are typically used to reference a trace.
+: {{< glossary.inline "exemplar" />}}
 
 Log
-: Chronological events, usually text-based, allowing for the diagnosis of problems. Logs can provide informational context, such as detailed records of all events during user interactions, for example, when events happen, who used the system, status messages, etc.
+: {{< glossary.inline "log" />}}
 
 Metric
-: A number that helps an operator understand the state of a system, such as the number of active users, error count, average response time, and more.
+: {{< glossary.inline "metric" />}}
 
 Span
-: A unit of work done within a trace.
+: {{< glossary.inline "span" />}}
 
 Trace
-: A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures. Traces are composed of spans.  
+: {{< glossary.inline "trace" />}}
