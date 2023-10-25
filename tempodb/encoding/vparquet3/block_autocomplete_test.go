@@ -278,7 +278,7 @@ func TestFetchTagValues(t *testing.T) {
 			expectedValues := tc.expectedValues
 			actualValues := distinctValues.Values()
 			sort.Slice(expectedValues, func(i, j int) bool { return tc.expectedValues[i].Value < tc.expectedValues[j].Value })
-			sort.Slice(actualValues, func(i, j int) bool { return distinctValues.Values()[i].Value < distinctValues.Values()[j].Value })
+			sort.Slice(actualValues, func(i, j int) bool { return actualValues[i].Value < actualValues[j].Value })
 			require.Equal(t, expectedValues, actualValues)
 		})
 	}
