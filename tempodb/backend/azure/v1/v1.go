@@ -165,8 +165,8 @@ func (rw *V1) ListBlocks(ctx context.Context, keypath backend.KeyPath) ([]uuid.U
 	span, ctx := opentracing.StartSpanFromContext(ctx, "V1.ListBlocks")
 	defer span.Finish()
 
-	var blockIDs []uuid.UUID
-	var compactedBlockIDs []uuid.UUID
+	blockIDs := make([]uuid.UUID, 0, 1000)
+	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
