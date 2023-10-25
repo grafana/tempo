@@ -330,6 +330,12 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
+// MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
+// "TraceID" is used if no value is provided.
+func (o *runtimeConfigOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
+	return o.getOverridesForUser(userID).MetricsGenerator.TraceIDLabelName
+}
+
 // MetricsGeneratorForwarderQueueSize is the size of the buffer of requests to send to the metrics-generator
 // from the distributor for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorForwarderQueueSize(userID string) int {

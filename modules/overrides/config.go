@@ -111,6 +111,7 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveSeries    uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
 	CollectionInterval time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection  bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	TraceIDLabelName   string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 

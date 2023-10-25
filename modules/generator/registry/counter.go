@@ -115,7 +115,7 @@ func (c *counter) name() string {
 	return c.metricName
 }
 
-func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string, traceIDLabelName string) (activeSeries int, err error) {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
 

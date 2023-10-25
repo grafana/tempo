@@ -149,7 +149,7 @@ func (h *histogram) name() string {
 	return h.metricName
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string, traceIDLabelName string) (activeSeries int, err error) {
 	h.seriesMtx.RLock()
 	defer h.seriesMtx.RUnlock()
 
@@ -201,7 +201,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 			if ex != "" {
 				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
 					Labels: []labels.Label{{
-						Name:  "traceID",
+						Name:  traceIDLabelName,
 						Value: ex,
 					}},
 					Value: s.exemplarValues[i].Load(),

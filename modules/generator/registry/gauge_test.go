@@ -227,7 +227,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.collectMetrics(&noopAppender{}, 0, nil)
+		_, err := c.collectMetrics(&noopAppender{}, 0, nil, "")
 		assert.NoError(t, err)
 	})
 
