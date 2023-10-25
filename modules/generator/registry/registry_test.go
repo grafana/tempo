@@ -297,7 +297,7 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
-func (m *mockOverrides) MetricsGenerationTraceIDLabelName(userID string) string {
+func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
 	return ""
 }
 
