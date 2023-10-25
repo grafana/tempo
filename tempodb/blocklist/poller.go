@@ -17,7 +17,6 @@ import (
 	spanlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -291,7 +290,6 @@ func (p *Poller) pollTenantBlocks(
 	mtx := sync.Mutex{}
 	newBlockList := make([]*backend.BlockMeta, 0, len(currentBlockIDs))
 	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
-	anyError := atomic.Error{}
 
 	learnSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "learnFromPrevious")
 	newBlockIDs := []uuid.UUID{}
@@ -341,11 +339,21 @@ func (p *Poller) pollTenantBlocks(
 	}
 	learnSpan.Finish()
 
+	var errs []error
+
 	pollSpan, pollSpanCtx := opentracing.StartSpanFromContext(derivedCtx, "pollUnknown")
 	pollSpan.SetTag("newBlockIDs", len(newBlockIDs))
 	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
 	for _, blockID := range newBlockIDs {
 		bg.Add(1)
+
+		mtx.Lock()
+		if len(errs) > 0 {
+			mtx.Unlock()
+			break
+		}
+		mtx.Unlock()
+
 		go func(id uuid.UUID) {
 			defer bg.Done()
 
@@ -354,22 +362,20 @@ func (p *Poller) pollTenantBlocks(
 			}
 
 			m, cm, pollBlockErr := p.pollBlock(pollSpanCtx, tenantID, id)
+			mtx.Lock()
+			defer mtx.Unlock()
 			if m != nil {
-				mtx.Lock()
 				newBlockList = append(newBlockList, m)
-				mtx.Unlock()
 				return
 			}
 
 			if cm != nil {
-				mtx.Lock()
 				newCompactedBlocklist = append(newCompactedBlocklist, cm)
-				mtx.Unlock()
 				return
 			}
 
 			if pollBlockErr != nil {
-				anyError.Store(err)
+				errs = append(errs, pollBlockErr)
 			}
 		}(blockID)
 	}
@@ -377,9 +383,9 @@ func (p *Poller) pollTenantBlocks(
 	bg.Wait()
 	pollSpan.Finish()
 
-	if err = anyError.Load(); err != nil {
+	if len(errs) > 0 {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
-		return nil, nil, err
+		return nil, nil, errors.Join(errs...)
 	}
 
 	sort.Slice(newBlockList, func(i, j int) bool {
