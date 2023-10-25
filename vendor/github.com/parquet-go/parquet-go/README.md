@@ -39,7 +39,7 @@ dependency on and install with the following command:
 go get github.com/parquet-go/parquet-go
 ```
 
-Go 1.18 or later is required to use the package.
+Go 1.20 or later is required to use the package.
 
 ### Compatibility Guarantees
 
