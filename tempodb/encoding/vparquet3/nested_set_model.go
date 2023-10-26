@@ -5,6 +5,9 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+// nestedSetRootParent is used for the root span's ParentID field. this allows the fetch layer (and
+// other code) to distinguish between situations in which a span's parent is unknown due to a broken trace
+// or simply known to not exist.
 const nestedSetRootParent = -1
 
 // spanNode is a wrapper around a span that is used to build and travers spans as a tree.

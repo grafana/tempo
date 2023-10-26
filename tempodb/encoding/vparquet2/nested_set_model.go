@@ -13,6 +13,9 @@ type spanNode struct {
 	nextChild int
 }
 
+// nestedSetRootParent is used for the root span's ParentID field. this allows the fetch layer (and
+// other code) to distinguish between situations in which a span's parent is unknown due to a broken trace
+// or simply known to not exist.
 const nestedSetRootParent = -1
 
 // assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
