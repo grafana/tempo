@@ -17,7 +17,7 @@ overrides:
       rate_limit_bytes: 500
       burst_size_bytes: 500
     global:
-      max_bytes_per_trace: 100
+      max_bytes_per_trace: 130
 
 ingester:
   lifecycler:
