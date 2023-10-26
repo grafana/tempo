@@ -181,7 +181,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				//
 				parse(t, `{`+LabelName+` = "hello"}`),   // Match
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
-			)},
+			),
+		},
 		// Edge cases
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
@@ -316,7 +317,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{
 			name: "Matches some conditions but not all. Mix of resource columns",
 			req: traceql.FetchSpansRequest{
-
 				AllConditions: true,
 				Conditions: []traceql.Condition{
 					parse(t, `{resource.cluster = "notcluster"}`),  // no match
@@ -328,7 +328,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{
 			name: "Matches some conditions but not all. Only resource generic attr lookups",
 			req: traceql.FetchSpansRequest{
-
 				AllConditions: true,
 				Conditions: []traceql.Condition{
 					parse(t, `{resource.foo = "abc"}`), // match
@@ -339,7 +338,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{
 			name: "Mix of duration with other conditions",
 			req: traceql.FetchSpansRequest{
-
 				AllConditions: true,
 				Conditions: []traceql.Condition{
 					parse(t, `{`+LabelName+` = "nothello"}`), // No match
