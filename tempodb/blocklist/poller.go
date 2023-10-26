@@ -258,16 +258,18 @@ func (p *Poller) pollTenantBlocks(
 		return nil, nil, err
 	}
 
-	readPreviousSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "readPreviousResults")
-	metas := previous.Metas(tenantID)
-	readPreviousSpan.SetTag("metas", len(metas))
-	compactedMetas := previous.CompactedMetas(tenantID)
-	readPreviousSpan.SetTag("compactedMetas", len(compactedMetas))
-	readPreviousSpan.Finish()
+	var (
+		metas                 = previous.Metas(tenantID)
+		compactedMetas        = previous.CompactedMetas(tenantID)
+		mm                    = make(map[uuid.UUID]*backend.BlockMeta, len(metas))
+		cm                    = make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
+		newBlockList          = make([]*backend.BlockMeta, 0, len(currentBlockIDs))
+		newCompactedBlocklist = make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
+		unknownBlockIDs       = make(map[uuid.UUID]bool, 1000)
+	)
 
-	assembleSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "assemblePreviousResults")
-	mm := make(map[uuid.UUID]*backend.BlockMeta, len(metas))
-	cm := make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
+	span.SetTag("metas", len(metas))
+	span.SetTag("compactedMetas", len(compactedMetas))
 
 	for _, i := range metas {
 		mm[i.BlockID] = i
@@ -276,21 +278,16 @@ func (p *Poller) pollTenantBlocks(
 	for _, i := range compactedMetas {
 		cm[i.BlockID] = i
 	}
-	assembleSpan.Finish()
 
-	mtx := sync.Mutex{}
-	newBlockList := make([]*backend.BlockMeta, 0, len(currentBlockIDs))
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
-
-	learnSpan, _ := opentracing.StartSpanFromContext(derivedCtx, "learnFromPrevious")
-	newBlockIDs := []uuid.UUID{}
+	// The boolean here to track if we know the block has been compacted
 	for _, blockID := range currentBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
 		if v, ok := mm[blockID]; ok {
 			newBlockList = append(newBlockList, v)
 			continue
 		}
-		newBlockIDs = append(newBlockIDs, blockID)
+		unknownBlockIDs[blockID] = false
+
 	}
 
 	for _, blockID := range currentCompactedBlockIDs {
@@ -304,23 +301,51 @@ func (p *Poller) pollTenantBlocks(
 		// know about.  We need to know the compacted time, but perhaps there is
 		// another way to get that, like the object creation time.
 
-		newBlockIDs = append(newBlockIDs, blockID)
+		unknownBlockIDs[blockID] = true
 
-		// TODO: for the compacted block IDs that we don't know about, we should
-		// poll directly rather than go through the pollBlock() function.  This
-		// would avoid the 404 on the meta.json and go directly to the
-		// meta.compacted.json.
 	}
-	learnSpan.Finish()
 
-	var errs []error
+	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	pollSpan, pollSpanCtx := opentracing.StartSpanFromContext(derivedCtx, "pollUnknown")
-	pollSpan.SetTag("newBlockIDs", len(newBlockIDs))
-	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
-	for _, blockID := range newBlockIDs {
+	newBlockList = append(newBlockList, newM...)
+	newCompactedBlocklist = append(newCompactedBlocklist, newCm...)
+
+	sort.Slice(newBlockList, func(i, j int) bool {
+		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
+	})
+
+	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
+		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
+	})
+
+	return newBlockList, newCompactedBlocklist, nil
+}
+
+func (p *Poller) pollUnknown(
+	ctx context.Context,
+	unknownBlocks map[uuid.UUID]bool,
+	tenantID string,
+) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "pollUnknown", opentracing.Tags{
+		"unknownBlockIDs": len(unknownBlocks),
+	})
+	defer span.Finish()
+
+	var (
+		errs                  []error
+		mtx                   sync.Mutex
+		bg                    = boundedwaitgroup.New(p.cfg.PollConcurrency)
+		newBlockList          = make([]*backend.BlockMeta, 0, len(unknownBlocks))
+		newCompactedBlocklist = make([]*backend.CompactedBlockMeta, 0, len(unknownBlocks))
+	)
+
+	for blockID, compacted := range unknownBlocks {
 		bg.Add(1)
 
+		// Avoid polling if we've already encountered an error
 		mtx.Lock()
 		if len(errs) > 0 {
 			mtx.Unlock()
@@ -328,14 +353,14 @@ func (p *Poller) pollTenantBlocks(
 		}
 		mtx.Unlock()
 
-		go func(id uuid.UUID) {
+		go func(id uuid.UUID, compacted bool) {
 			defer bg.Done()
 
 			if p.cfg.PollJitterMs > 0 {
 				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
 			}
 
-			m, cm, pollBlockErr := p.pollBlock(pollSpanCtx, tenantID, id)
+			m, cm, pollBlockErr := p.pollBlock(derivedCtx, tenantID, id, compacted)
 			mtx.Lock()
 			defer mtx.Unlock()
 			if m != nil {
@@ -351,24 +376,16 @@ func (p *Poller) pollTenantBlocks(
 			if pollBlockErr != nil {
 				errs = append(errs, pollBlockErr)
 			}
-		}(blockID)
+		}(blockID, compacted)
 	}
 
 	bg.Wait()
-	pollSpan.Finish()
 
 	if len(errs) > 0 {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
+		// TODO: add span status on error
 		return nil, nil, errors.Join(errs...)
 	}
-
-	sort.Slice(newBlockList, func(i, j int) bool {
-		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
-	})
-
-	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
-		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
-	})
 
 	return newBlockList, newCompactedBlocklist, nil
 }
@@ -377,17 +394,23 @@ func (p *Poller) pollBlock(
 	ctx context.Context,
 	tenantID string,
 	blockID uuid.UUID,
+	compacted bool,
 ) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollBlock")
 	defer span.Finish()
+	var err error
 
 	span.SetTag("tenant", tenantID)
 	span.SetTag("block", blockID.String())
 
+	var blockMeta *backend.BlockMeta
 	var compactedBlockMeta *backend.CompactedBlockMeta
-	blockMeta, err := p.reader.BlockMeta(derivedCtx, blockID, tenantID)
+
+	if !compacted {
+		blockMeta, err = p.reader.BlockMeta(derivedCtx, blockID, tenantID)
+	}
 	// if the normal meta doesn't exist maybe it's compacted.
-	if errors.Is(err, backend.ErrDoesNotExist) {
+	if errors.Is(err, backend.ErrDoesNotExist) || compacted {
 		blockMeta = nil
 		compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
 	}
