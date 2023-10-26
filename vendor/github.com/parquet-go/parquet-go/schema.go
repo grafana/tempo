@@ -58,6 +58,7 @@ type Schema struct {
 //	date      | for int32 types use the DATE logical type
 //	timestamp | for int64 types use the TIMESTAMP logical type with, by default, millisecond precision
 //	split     | for float32/float64, use the BYTE_STREAM_SPLIT encoding
+//	id(n)     | where n is int denoting a column field id. Example id(2) for a column with field id of 2
 //
 // # The date logical type is an int32 value of the number of days since the unix epoch
 //
@@ -174,6 +175,9 @@ func (s *Schema) ConfigureReader(config *ReaderConfig) { config.Schema = s }
 // instances to be passed to NewWriter to pre-declare the schema of the
 // output parquet file.
 func (s *Schema) ConfigureWriter(config *WriterConfig) { config.Schema = s }
+
+// ID returns field id of the root node.
+func (s *Schema) ID() int { return s.root.ID() }
 
 // String returns a parquet schema representation of s.
 func (s *Schema) String() string { return sprint(s.name, s.root) }
@@ -428,6 +432,8 @@ func (s *structNode) Compression() compress.Codec { return nil }
 
 func (s *structNode) GoType() reflect.Type { return s.gotype }
 
+func (s *structNode) ID() int { return 0 }
+
 func (s *structNode) String() string { return sprint("", s) }
 
 func (s *structNode) Type() Type { return groupType{} }
@@ -600,6 +606,12 @@ func nodeOf(t reflect.Type, tag []string) Node {
 				return
 			case "optional":
 				n = Optional(n)
+			case "id":
+				id, err := parseIDArgs(args)
+				if err != nil {
+					throwInvalidTag(t, "map", option)
+				}
+				n = FieldID(n, id)
 			default:
 				throwUnknownTag(t, "map", option)
 			}
@@ -657,6 +669,15 @@ func parseDecimalArgs(args string) (scale, precision int, err error) {
 	return int(s), int(p), nil
 }
 
+func parseIDArgs(args string) (int, error) {
+	if !strings.HasPrefix(args, "(") || !strings.HasSuffix(args, ")") {
+		return 0, fmt.Errorf("malformed id args: %s", args)
+	}
+	args = strings.TrimPrefix(args, "(")
+	args = strings.TrimSuffix(args, ")")
+	return strconv.Atoi(args)
+}
+
 func parseTimestampArgs(args string) (TimeUnit, error) {
 	if !strings.HasPrefix(args, "(") || !strings.HasSuffix(args, ")") {
 		return nil, fmt.Errorf("malformed timestamp args: %s", args)
@@ -702,6 +723,7 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 		list       bool
 		encoded    encoding.Encoding
 		compressed compress.Codec
+		fieldID    int
 	)
 
 	setNode := func(n Node) {
@@ -880,8 +902,12 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 					throwInvalidTag(t, name, option)
 				}
 			}
-		default:
-			throwUnknownTag(t, name, option)
+		case "id":
+			id, err := parseIDArgs(args)
+			if err != nil {
+				throwInvalidNode(t, "struct field has field id that is not a valid int", name, tag...)
+			}
+			fieldID = id
 		}
 	})
 
@@ -927,7 +953,9 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 	if optional {
 		node = Optional(node)
 	}
-
+	if fieldID != 0 {
+		node = FieldID(node, fieldID)
+	}
 	return node
 }
 

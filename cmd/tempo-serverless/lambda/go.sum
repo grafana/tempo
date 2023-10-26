@@ -767,8 +767,8 @@ github.com/opentracing-contrib/go-stdlib v1.0.0/go.mod h1:qtI1ogk+2JhVPIXVc6q+NH
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
 github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYrxe9dPLANfrWvHYVTgc=
-github.com/parquet-go/parquet-go v0.18.1-0.20231002172823-4b0ea5ed3565 h1:F0rZ3iHuqpF/IVbGvnMulL+H9Yy6OjB/zbvIwOCdtx8=
-github.com/parquet-go/parquet-go v0.18.1-0.20231002172823-4b0ea5ed3565/go.mod h1:6pu/Ca02WRyWyF6jbY1KceESGBZMsRMSijjLbajXaG8=
+github.com/parquet-go/parquet-go v0.18.1-0.20231023162157-1748e4b3ff04 h1:v5xe/XduDhXXcsbidemHvFrfkdDUt5gi5JzsC04lZ2w=
+github.com/parquet-go/parquet-go v0.18.1-0.20231023162157-1748e4b3ff04/go.mod h1:6pu/Ca02WRyWyF6jbY1KceESGBZMsRMSijjLbajXaG8=
 github.com/pelletier/go-toml/v2 v2.0.8 h1:0ctb6s9mE31h0/lhu+J6OPmVeDxJn+kYnJc2jZR9tGQ=
 github.com/pelletier/go-toml/v2 v2.0.8/go.mod h1:vuYfssBdrU2XDZ9bYydBu6t+6a6PYNcZljzZR9VXg+4=
 github.com/pierrec/lz4/v4 v4.1.18 h1:xaKrnTkyoqfh1YItXl56+6KJNVYWlEEPuAQW9xsplYQ=
