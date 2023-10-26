@@ -603,7 +603,8 @@ func TestPollComparePreviousResults(t *testing.T) {
 		expectedPerTenant          PerTenant
 		expectedCompactedPerTenant PerTenantCompacted
 
-		expectedBlockMetaCalls map[string]map[uuid.UUID]int
+		expectedBlockMetaCalls          map[string]map[uuid.UUID]int
+		expectedCompactedBlockMetaCalls map[string]map[uuid.UUID]int
 
 		readerErr bool
 		err       error
@@ -635,6 +636,11 @@ func TestPollComparePreviousResults(t *testing.T) {
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
 					zero: 1,
+				},
+			},
+			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					eff: 1,
 				},
 			},
 		},
@@ -699,6 +705,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
 					eff: 1,
+				},
+			},
+			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					aaa:  1,
+					zero: 1,
 				},
 			},
 		},
@@ -800,6 +812,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 			}
 
 			require.Equal(t, tc.expectedBlockMetaCalls, r.(*backend.MockReader).BlockMetaCalls)
+			require.Equal(t, tc.expectedCompactedBlockMetaCalls, c.(*backend.MockCompactor).CompactedBlockMetaCalls)
 		})
 	}
 }

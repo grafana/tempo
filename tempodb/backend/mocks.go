@@ -110,7 +110,10 @@ func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath, 
 
 // MockCompactor
 type MockCompactor struct {
-	BlockMetaFn func(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+	sync.Mutex
+
+	BlockMetaFn             func(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+	CompactedBlockMetaCalls map[string]map[uuid.UUID]int
 }
 
 func (c *MockCompactor) MarkBlockCompacted(uuid.UUID, string) error {
@@ -122,6 +125,16 @@ func (c *MockCompactor) ClearBlock(uuid.UUID, string) error {
 }
 
 func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error) {
+	c.Lock()
+	defer c.Unlock()
+	if c.CompactedBlockMetaCalls == nil {
+		c.CompactedBlockMetaCalls = make(map[string]map[uuid.UUID]int)
+	}
+	if _, ok := c.CompactedBlockMetaCalls[tenantID]; !ok {
+		c.CompactedBlockMetaCalls[tenantID] = make(map[uuid.UUID]int)
+	}
+	c.CompactedBlockMetaCalls[tenantID][blockID]++
+
 	return c.BlockMetaFn(blockID, tenantID)
 }
 
