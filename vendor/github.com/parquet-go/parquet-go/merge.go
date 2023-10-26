@@ -460,6 +460,10 @@ func (m *mergeBuffer) left() bool {
 func (m *mergeBuffer) read() (n int64) {
 	for n < int64(len(m.copy)) && m.Len() != 0 {
 		r := m.buffer[:m.len][0]
+		if len(r) == 0 {
+			heap.Pop(m)
+			continue
+		}
 		m.copy[n] = append(m.copy[n][:0], r[m.head[0]]...)
 		m.head[0]++
 		n++

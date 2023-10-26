@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"math/bits"
 	"reflect"
 	"sort"
@@ -16,6 +17,12 @@ import (
 	"github.com/parquet-go/parquet-go/encoding/plain"
 	"github.com/parquet-go/parquet-go/format"
 	"github.com/segmentio/encoding/thrift"
+)
+
+const (
+	// The uncompressed page size is stored as int32 and must not be larger than the
+	// maximum int32 value (see format.PageHeader).
+	maxUncompressedPageSize = math.MaxInt32
 )
 
 // GenericWriter is similar to a Writer but uses a type parameter to define the
@@ -516,7 +523,6 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 		if node != config.Schema { // the root has no repetition type
 			repetitionType = fieldRepetitionTypePtrOf(node)
 		}
-
 		// For backward compatibility with older readers, the parquet specification
 		// recommends to set the scale and precision on schema elements when the
 		// column is of logical type decimal.
@@ -541,6 +547,7 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 			ConvertedType:  nodeType.ConvertedType(),
 			Scale:          scale,
 			Precision:      precision,
+			FieldID:        int32(node.ID()),
 			LogicalType:    logicalType,
 		})
 	})
@@ -1363,6 +1370,9 @@ func (c *writerColumn) writeDataPage(page Page) (int64, error) {
 	}
 
 	uncompressedPageSize := buf.size()
+	if uncompressedPageSize > maxUncompressedPageSize {
+		return 0, fmt.Errorf("page size limit exceeded: %d>%d", uncompressedPageSize, maxUncompressedPageSize)
+	}
 	if c.isCompressed {
 		if err := buf.compress(c.compression); err != nil {
 			return 0, fmt.Errorf("compressing parquet data page: %w", err)
@@ -1458,6 +1468,9 @@ func (c *writerColumn) writeDictionaryPage(output io.Writer, dict Dictionary) (e
 	}
 
 	uncompressedPageSize := buf.size()
+	if uncompressedPageSize > maxUncompressedPageSize {
+		return fmt.Errorf("page size limit exceeded: %d>%d", uncompressedPageSize, maxUncompressedPageSize)
+	}
 	if isCompressed(c.compression) {
 		if err := buf.compress(c.compression); err != nil {
 			return fmt.Errorf("copmressing parquet dictionary page: %w", err)
