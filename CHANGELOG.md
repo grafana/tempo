@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Update parquet-go dependency including a bugfix that prevents corrupted blocks from being written [#3068](https://github.com/grafana/tempo/pull/3068) (@stoewer) 
+
 ## v2.3.0-rc.0 / 2023-10-20
 
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
