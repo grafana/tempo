@@ -317,64 +317,60 @@ func (rw *readerWriter) ListBlocks(
 		go func(min, max uuid.UUID) {
 			defer wg.Done()
 
-			startAfter := prefix + min.String()
-			nextToken := ""
-			isTruncated := true
-			var err error
-			var res minio.ListBucketV2Result
+			var (
+				err        error
+				res        minio.ListBucketV2Result
+				startAfter = prefix + min.String()
+			)
 
-			for isTruncated {
-				select {
-				case <-ctx.Done():
+			for res.IsTruncated = true; res.IsTruncated; {
+				if ctx.Err() != nil {
 					return
-				default:
-					res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, nextToken, "", 0)
-					if err != nil {
-						errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
-						return
-					}
+				}
 
-					isTruncated = res.IsTruncated
-					nextToken = res.NextContinuationToken
-					if len(res.Contents) == 0 {
+				res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, res.NextContinuationToken, "", 0)
+				if err != nil {
+					errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+					return
+				}
+
+				for _, c := range res.Contents {
+					// i.e: <tenantID/<blockID>/meta
+					parts := strings.Split(c.Key, "/")
+					if len(parts) != 3 {
 						continue
 					}
 
-					for _, c := range res.Contents {
-						// i.e: <tenantID/<blockID>/meta
-						parts := strings.Split(c.Key, "/")
-						if len(parts) != 3 {
-							continue
-						}
+					switch parts[2] {
+					case backend.MetaName:
+					case backend.CompactedMetaName:
+					default:
+						continue
+					}
 
-						if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
-							continue
-						}
+					id, err := uuid.Parse(parts[1])
+					if err != nil {
+						continue
+					}
 
-						id, err := uuid.Parse(parts[1])
-						if err != nil {
-							continue
-						}
+					if bytes.Compare(id[:], min[:]) < 0 {
+						return
+					}
 
-						if bytes.Compare(id[:], min[:]) < 0 {
+					if max != globalMax {
+						if bytes.Compare(id[:], max[:]) >= 0 {
 							return
 						}
-
-						if max != globalMax {
-							if bytes.Compare(id[:], max[:]) >= 0 {
-								return
-							}
-						}
-
-						mtx.Lock()
-						switch parts[2] {
-						case backend.MetaName:
-							blockIDs = append(blockIDs, id)
-						case backend.CompactedMetaName:
-							compactedBlockIDs = append(compactedBlockIDs, id)
-						}
-						mtx.Unlock()
 					}
+
+					mtx.Lock()
+					switch parts[2] {
+					case backend.MetaName:
+						blockIDs = append(blockIDs, id)
+					case backend.CompactedMetaName:
+						compactedBlockIDs = append(compactedBlockIDs, id)
+					}
+					mtx.Unlock()
 				}
 			}
 		}(min, max)

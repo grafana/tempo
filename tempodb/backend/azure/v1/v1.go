@@ -165,32 +165,31 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 	span, ctx := opentracing.StartSpanFromContext(ctx, "V1.ListBlocks")
 	defer span.Finish()
 
-	blockIDs := make([]uuid.UUID, 0, 1000)
-	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
+	var (
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		marker            = blob.Marker{}
+		parts             []string
+		id                uuid.UUID
+	)
 
-	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
-
-	marker := blob.Marker{}
 	prefix := path.Join(keypath...)
-
 	if len(prefix) > 0 {
 		prefix += dir
 	}
 
-	var parts []string
-	var id uuid.UUID
-
 	for {
-		list, err := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
+		res, err := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
 			Prefix:  prefix,
 			Details: blob.BlobListingDetails{},
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("iterating objects: %w", err)
 		}
-		marker = list.NextMarker
+		marker = res.NextMarker
 
-		for _, blob := range list.Segment.BlobItems {
+		for _, blob := range res.Segment.BlobItems {
 			obj := strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix)
 			parts = strings.Split(obj, "/")
 
@@ -199,7 +198,9 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 				continue
 			}
 
-			if parts[1] != backend.MetaName && parts[1] != backend.CompactedMetaName {
+			switch parts[1] {
+			case backend.MetaName, backend.CompactedMetaName:
+			default:
 				continue
 			}
 

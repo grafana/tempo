@@ -170,19 +170,18 @@ func (rw *V2) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 	span, ctx := opentracing.StartSpanFromContext(ctx, "V2.ListBlocks")
 	defer span.Finish()
 
-	blockIDs := make([]uuid.UUID, 0, 1000)
-	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
-
-	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+	var (
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		parts             []string
+		id                uuid.UUID
+	)
 
 	prefix := path.Join(keypath...)
-
 	if len(prefix) > 0 {
 		prefix += dir
 	}
-
-	var parts []string
-	var id uuid.UUID
 
 	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
 		Include: container.ListBlobsInclude{},

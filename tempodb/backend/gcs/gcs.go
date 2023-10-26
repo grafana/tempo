@@ -195,25 +195,23 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
 	defer span.Finish()
 
-	blockIDs := make([]uuid.UUID, 0, 1000)
-	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
+	var (
+		wg                sync.WaitGroup
+		mtx               sync.Mutex
+		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+		errChan           = make(chan error, len(bb))
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		min               uuid.UUID
+		max               uuid.UUID
+		globalMax         = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+	)
 
-	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
 		prefix += "/"
 	}
-
-	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
-
-	errChan := make(chan error, len(bb))
-	wg := sync.WaitGroup{}
-	mtx := sync.Mutex{}
-
-	var min uuid.UUID
-	var max uuid.UUID
-
-	globalMax := uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 
 	for i := 0; i < len(bb)-1; i++ {
 		min = uuid.UUID(bb[i])
@@ -223,12 +221,16 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 		go func(min, max uuid.UUID) {
 			defer wg.Done()
 
-			query := &storage.Query{
-				Prefix:      prefix,
-				Delimiter:   "",
-				Versions:    false,
-				StartOffset: prefix + min.String(),
-			}
+			var (
+				query = &storage.Query{
+					Prefix:      prefix,
+					Delimiter:   "",
+					Versions:    false,
+					StartOffset: prefix + min.String(),
+				}
+				parts []string
+				id    uuid.UUID
+			)
 
 			if max != globalMax {
 				query.EndOffset = prefix + max.String()
@@ -236,57 +238,56 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 
 			iter := rw.bucket.Objects(ctx, query)
 
-			var parts []string
-			var id uuid.UUID
-
 			for {
-				select {
-				case <-ctx.Done():
+				if ctx.Err() != nil {
 					return
-				default:
-					attrs, err := iter.Next()
-					if errors.Is(err, iterator.Done) {
-						return
-					}
-					if err != nil {
-						errChan <- fmt.Errorf("iterating blocks: %w", err)
-						return
-					}
-
-					parts = strings.Split(attrs.Name, "/")
-					// ie: <tenant>/<blockID>/meta.json
-					if len(parts) != 3 {
-						continue
-					}
-
-					if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
-						continue
-					}
-
-					id, err = uuid.Parse(parts[1])
-					if err != nil {
-						continue
-					}
-
-					if bytes.Compare(id[:], min[:]) < 0 {
-						return
-					}
-
-					if max != globalMax {
-						if bytes.Compare(id[:], max[:]) >= 0 {
-							return
-						}
-					}
-
-					mtx.Lock()
-					switch parts[2] {
-					case backend.MetaName:
-						blockIDs = append(blockIDs, id)
-					case backend.CompactedMetaName:
-						compactedBlockIDs = append(compactedBlockIDs, id)
-					}
-					mtx.Unlock()
 				}
+
+				attrs, err := iter.Next()
+				if errors.Is(err, iterator.Done) {
+					return
+				}
+				if err != nil {
+					errChan <- fmt.Errorf("iterating blocks: %w", err)
+					return
+				}
+
+				parts = strings.Split(attrs.Name, "/")
+				// ie: <tenant>/<blockID>/meta.json
+				if len(parts) != 3 {
+					continue
+				}
+
+				switch parts[2] {
+				case backend.MetaName:
+				case backend.CompactedMetaName:
+				default:
+					continue
+				}
+
+				id, err = uuid.Parse(parts[1])
+				if err != nil {
+					continue
+				}
+
+				if bytes.Compare(id[:], min[:]) < 0 {
+					return
+				}
+
+				if max != globalMax {
+					if bytes.Compare(id[:], max[:]) >= 0 {
+						return
+					}
+				}
+
+				mtx.Lock()
+				switch parts[2] {
+				case backend.MetaName:
+					blockIDs = append(blockIDs, id)
+				case backend.CompactedMetaName:
+					compactedBlockIDs = append(compactedBlockIDs, id)
+				}
+				mtx.Unlock()
 			}
 		}(min, max)
 	}
