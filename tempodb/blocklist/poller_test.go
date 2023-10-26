@@ -635,7 +635,6 @@ func TestPollComparePreviousResults(t *testing.T) {
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
 					zero: 1,
-					eff:  1,
 				},
 			},
 		},
@@ -699,9 +698,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					aaa:  1,
-					eff:  1,
-					zero: 1,
+					eff: 1,
 				},
 			},
 		},
