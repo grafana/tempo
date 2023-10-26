@@ -151,15 +151,15 @@ func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string,
 }
 
 // ListBlocks implements backend.Reader
-func (rw *Backend) ListBlocks(_ context.Context, keypath backend.KeyPath) (metas []uuid.UUID, compactedMetas []uuid.UUID, err error) {
-	rootPath := rw.rootPath(keypath)
+func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UUID, compactedMetas []uuid.UUID, err error) {
+	rootPath := rw.rootPath(backend.KeyPath{tenant})
 	fff := os.DirFS(rootPath)
 	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		tenantFilePath := filepath.Join(filepath.Join(keypath...), path)
+		tenantFilePath := filepath.Join(tenant, path)
 
 		parts := strings.Split(tenantFilePath, "/")
 		// i.e: <tenantID/<blockID>/meta

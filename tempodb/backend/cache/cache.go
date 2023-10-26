@@ -35,8 +35,8 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 	return r.nextReader.List(ctx, keypath)
 }
 
-func (r *readerWriter) ListBlocks(ctx context.Context, keypath backend.KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
-	return r.nextReader.ListBlocks(ctx, keypath)
+func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	return r.nextReader.ListBlocks(ctx, tenant)
 }
 
 // Read implements backend.RawReader

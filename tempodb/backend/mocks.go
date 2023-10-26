@@ -24,7 +24,7 @@ var (
 type MockRawReader struct {
 	L            []string
 	ListFn       func(ctx context.Context, keypath KeyPath) ([]string, error)
-	ListBlocksFn func(ctx context.Context, keypath KeyPath) ([]uuid.UUID, []uuid.UUID, error)
+	ListBlocksFn func(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error)
 	R            []byte // read
 	Range        []byte // ReadRange
 	ReadFn       func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
@@ -42,9 +42,9 @@ func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, er
 	return m.L, nil
 }
 
-func (m *MockRawReader) ListBlocks(ctx context.Context, keypath KeyPath) ([]uuid.UUID, []uuid.UUID, error) {
+func (m *MockRawReader) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
 	if m.ListBlocksFn != nil {
-		return m.ListBlocksFn(ctx, keypath)
+		return m.ListBlocksFn(ctx, tenant)
 	}
 
 	return m.BlockIDs, m.CompactedBlockIDs, nil

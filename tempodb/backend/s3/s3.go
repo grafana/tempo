@@ -283,7 +283,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 
 func (rw *readerWriter) ListBlocks(
 	ctx context.Context,
-	keypath backend.KeyPath,
+	tenant string,
 ) ([]uuid.UUID, []uuid.UUID, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
 	defer span.Finish()
@@ -291,7 +291,7 @@ func (rw *readerWriter) ListBlocks(
 	blockIDs := make([]uuid.UUID, 0, 1000)
 	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
 
-	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
 		prefix += "/"

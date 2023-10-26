@@ -74,7 +74,7 @@ func TestReadWrite(t *testing.T) {
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID.String(), list[0])
 
-	m, cm, err := r.ListBlocks(ctx, backend.KeyPath{tenantIDs[0]})
+	m, cm, err := r.ListBlocks(ctx, tenantIDs[0])
 	assert.NoError(t, err, "unexpected error listing blocks")
 	assert.Len(t, m, 1)
 	assert.Len(t, cm, 1)

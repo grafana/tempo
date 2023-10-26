@@ -44,7 +44,7 @@ type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
-	ListBlocks(ctx context.Context, keypath KeyPath) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
+	ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.
@@ -179,7 +179,7 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 
 // Blocks implements backend.Reader
 func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
-	return r.r.ListBlocks(ctx, KeyPath([]string{tenantID}))
+	return r.r.ListBlocks(ctx, tenantID)
 }
 
 // BlockMeta implements backend.Reader
