@@ -1,7 +1,5 @@
 ## main / unreleased
 
-* [BUGFIX] Update parquet-go dependency including a bugfix that prevents corrupted blocks from being written [#3068](https://github.com/grafana/tempo/pull/3068) (@stoewer) 
-
 ## v2.3.0-rc.0 / 2023-10-20
 
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
@@ -90,6 +88,7 @@ defaults:
 * [BUGFIX] Fix issue where ingester doesn't stop query after timeout [#3031](https://github.com/grafana/tempo/pull/3031) (@mdisibio) 
 * [BUGFIX] Fix cases where empty filter {} wouldn't return expected results [#2498](https://github.com/grafana/tempo/issues/2498) (@mdisibio)
 * [BUGFIX] Reorder S3 credential chain and upgrade minio-go. `native_aws_auth_enabled` is deprecated [#3006](https://github.com/grafana/tempo/pull/3006) (@ekristen, @mapno)
+* [BUGFIX] Update parquet-go dependency including a bugfix that prevents corrupted blocks from being written [#3068](https://github.com/grafana/tempo/pull/3068) (@stoewer)
 
 # v2.2.3 / 2023-09-13
 
