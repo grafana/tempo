@@ -272,8 +272,10 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 						return
 					}
 
-					if bytes.Compare(id[:], max[:]) > 0 {
-						return
+					if max != globalMax {
+						if bytes.Compare(id[:], max[:]) >= 0 {
+							return
+						}
 					}
 
 					mtx.Lock()
