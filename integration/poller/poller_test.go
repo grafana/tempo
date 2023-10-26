@@ -140,10 +140,18 @@ func TestPollerOwnership(t *testing.T) {
 
 			writeTenantBlocks(t, w, tenant, expected)
 
-			mmResults, cmResults, err := rr.ListBlocks(context.Background(), backend.KeyPath([]string{tenant}))
+			sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
+			t.Logf("expected: %v", expected)
+
+			mmResults, cmResults, err := rr.ListBlocks(context.Background(), tenant)
 			require.NoError(t, err)
+			sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
 			t.Logf("mmResults: %s", mmResults)
 			t.Logf("cmResults: %s", cmResults)
+
+			assert.Equal(t, expected, mmResults)
+			assert.Equal(t, len(expected), len(mmResults))
+			assert.Equal(t, 0, len(cmResults))
 
 			l := blocklist.New()
 			mm, cm, err := blocklistPoller.Do(l)
@@ -161,12 +169,10 @@ func TestPollerOwnership(t *testing.T) {
 			}
 
 			sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
-			sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
 
 			assert.Equal(t, expected, actual)
 			assert.Equal(t, len(expected), len(metas))
 			t.Logf("actual: %v", actual)
-			t.Logf("expected: %v", expected)
 
 			for _, e := range expected {
 				assert.True(t, found(e, metas))
