@@ -366,16 +366,14 @@ func (rw *readerWriter) ListBlocks(
 							}
 						}
 
+						mtx.Lock()
 						switch parts[2] {
 						case backend.MetaName:
-							mtx.Lock()
 							blockIDs = append(blockIDs, id)
-							mtx.Unlock()
 						case backend.CompactedMetaName:
-							mtx.Lock()
 							compactedBlockIDs = append(compactedBlockIDs, id)
-							mtx.Unlock()
 						}
+						mtx.Unlock()
 					}
 				}
 			}
