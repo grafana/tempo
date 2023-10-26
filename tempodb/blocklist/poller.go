@@ -300,16 +300,9 @@ func (p *Poller) pollTenantBlocks(
 			continue
 		}
 
-		// TODO: Review this hack to avoid polling for compacted blocks that we
-		// know about.  But we need to poll this to ensure that we have the correct
-		// time. Probably.
-		// if v, ok := mm[blockID]; ok {
-		// 	chCompactedMeta <- &backend.CompactedBlockMeta{
-		// 		BlockMeta: *v,
-		// 		// CompactedTime: time.Now(),
-		// 	}
-		// 	continue
-		// }
+		// TODO: Review the ability  to avoid polling for compacted blocks that we
+		// know about.  We need to know the compacted time, but perhaps there is
+		// another way to get that, like the object creation time.
 
 		newBlockIDs = append(newBlockIDs, blockID)
 
@@ -317,16 +310,6 @@ func (p *Poller) pollTenantBlocks(
 		// poll directly rather than go through the pollBlock() function.  This
 		// would avoid the 404 on the meta.json and go directly to the
 		// meta.compacted.json.
-		// compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
-		// if err != nil {
-		// 	// log
-		// 	level.Error(p.logger).Log("msg", "failed to poll compacted block", "tenant", tenantID, "blockID", blockID, "err", err)
-		// 	continue
-		// }
-		// if compactedBlockMeta != nil {
-		// 	newCompactedBlocklist = append(newCompactedBlocklist, compactedBlockMeta)
-		// }
-
 	}
 	learnSpan.Finish()
 
