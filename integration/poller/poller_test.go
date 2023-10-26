@@ -33,6 +33,15 @@ const (
 	tenant = "test"
 )
 
+// OwnsEverythingSharder owns everything.
+var OwnsEverythingSharder = ownsEverythingSharder{}
+
+type ownsEverythingSharder struct{}
+
+func (ownsEverythingSharder) Owns(_ string) bool {
+	return true
+}
+
 func TestPollerOwnership(t *testing.T) {
 	testCompactorOwnershipBackends := []struct {
 		name       string
@@ -114,7 +123,7 @@ func TestPollerOwnership(t *testing.T) {
 			blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 				PollConcurrency:     3,
 				TenantIndexBuilders: 1,
-			}, blocklist.OwnsEverythingSharder, r, cc, w, logger)
+			}, OwnsEverythingSharder, r, cc, w, logger)
 
 			// Use the block boundaries in the GCS and S3 implementation
 			bb := blockboundary.CreateBlockBoundaries(concurrency)

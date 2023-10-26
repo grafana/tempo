@@ -96,15 +96,6 @@ func (ownsNothingSharder) Owns(_ string) bool {
 	return false
 }
 
-// OwnsEverythingSharder owns everything. You do not want this developer on your team.
-var OwnsEverythingSharder = ownsEverythingSharder{}
-
-type ownsEverythingSharder struct{}
-
-func (ownsEverythingSharder) Owns(_ string) bool {
-	return true
-}
-
 const jobPrefix = "build-tenant-index-"
 
 // Poller retrieves the blocklist
