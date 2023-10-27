@@ -271,6 +271,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				}
 
 				if bytes.Compare(id[:], min[:]) < 0 {
+					errChan <- fmt.Errorf("block UUID below shard minimum")
 					return
 				}
 
