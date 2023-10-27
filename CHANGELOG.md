@@ -11,7 +11,7 @@
     v1: [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) original (now deprecated) SDK
     v2: [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go)
 * [CHANGE] Adjust trace size estimation to better honor row group size settings. [#3038](https://github.com/grafana/tempo/pull/3038) (@joe-elliott)
-* [CHANGE] Update alpine image version to 3.18. [#3046](https://github.com/grafana/tempo/pull/) (@joe-elliott)
+* [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
     Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
     Old config:
@@ -38,6 +38,7 @@ defaults:
   metrics_generator:
     processors: [service-graphs, span-metrics]
 ```  
+* [CHANGE] Bump Jaeger query docker image to 1.50.0 [#2998](https://github.com/grafana/tempo/pull/2998) (@pavolloffay)
 * [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
@@ -88,6 +89,12 @@ defaults:
 * [BUGFIX] Fix issue where ingester doesn't stop query after timeout [#3031](https://github.com/grafana/tempo/pull/3031) (@mdisibio) 
 * [BUGFIX] Fix cases where empty filter {} wouldn't return expected results [#2498](https://github.com/grafana/tempo/issues/2498) (@mdisibio)
 * [BUGFIX] Reorder S3 credential chain and upgrade minio-go. `native_aws_auth_enabled` is deprecated [#3006](https://github.com/grafana/tempo/pull/3006) (@ekristen, @mapno)
+* [BUGFIX] Update parquet-go dependency including a bugfix that prevents corrupted blocks from being written [#3068](https://github.com/grafana/tempo/pull/3068) (@stoewer)
+
+# v2.2.4 / 2023-10-25
+
+* [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
+* [CHANGE] Bump Jaeger query docker image to 1.50.0 [#2998](https://github.com/grafana/tempo/pull/2998) (@pavolloffay)
 
 # v2.2.3 / 2023-09-13
 

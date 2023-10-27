@@ -184,6 +184,7 @@ func TestCombiner(t *testing.T) {
 										StatusCode:     0,
 										NestedSetLeft:  1,
 										NestedSetRight: 4,
+										ParentID:       -1,
 									},
 								},
 							},

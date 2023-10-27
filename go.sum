@@ -1593,8 +1593,8 @@ github.com/openzipkin/zipkin-go v0.4.2 h1:zjqfqHjUpPmB3c1GlCvvgsM1G4LkvqQbBDueDO
 github.com/openzipkin/zipkin-go v0.4.2/go.mod h1:ZeVkFjuuBiSy13y8vpSDCjMi9GoI3hPpCJSBx/EYFhY=
 github.com/ovh/go-ovh v1.4.1 h1:VBGa5wMyQtTP7Zb+w97zRCh9sLtM/2YKRyy+MEJmWaM=
 github.com/ovh/go-ovh v1.4.1/go.mod h1:6bL6pPyUT7tBfI0pqOegJgRjgjuO+mOo+MyXd1EEC0M=
-github.com/parquet-go/parquet-go v0.18.1-0.20231002172823-4b0ea5ed3565 h1:F0rZ3iHuqpF/IVbGvnMulL+H9Yy6OjB/zbvIwOCdtx8=
-github.com/parquet-go/parquet-go v0.18.1-0.20231002172823-4b0ea5ed3565/go.mod h1:6pu/Ca02WRyWyF6jbY1KceESGBZMsRMSijjLbajXaG8=
+github.com/parquet-go/parquet-go v0.18.1-0.20231023162157-1748e4b3ff04 h1:v5xe/XduDhXXcsbidemHvFrfkdDUt5gi5JzsC04lZ2w=
+github.com/parquet-go/parquet-go v0.18.1-0.20231023162157-1748e4b3ff04/go.mod h1:6pu/Ca02WRyWyF6jbY1KceESGBZMsRMSijjLbajXaG8=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0MwY=
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=

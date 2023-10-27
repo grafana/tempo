@@ -585,7 +585,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"mixedValBothMatch", "{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }"},
 
 		{"count", "{} | count() > 1"},
-		{"desc", "{ } >> { }"},
+		{"desc", "{ resource.service.name = `loki-querier` } >> { resource.service.name = `loki-querier` }"},
 	}
 
 	ctx := context.TODO()
