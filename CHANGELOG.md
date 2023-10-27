@@ -1,6 +1,6 @@
 ## main / unreleased
 
-* [ENHANCEMENT] Make the trace ID label name configurable [#3074](https://github.com/grafana/tempo/pull/3074)
+* [ENHANCEMENT] Make the trace ID label name configurable for remote written exemplars [#3074](https://github.com/grafana/tempo/pull/3074)
 
 ## v2.3.0-rc.0 / 2023-10-20
 

@@ -83,7 +83,7 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string, traceIDLabelName string) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -144,7 +144,7 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 }
 
 func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
-	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, r.overrides.MetricsGenerationTraceIDLabelName(r.tenant))
 	r.registerMetric(h)
 	return h
 }
@@ -192,11 +192,6 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 		return
 	}
 
-	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
-	if traceIDLabelName == "" {
-		traceIDLabelName = "traceID"
-	}
-
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
@@ -215,7 +210,7 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels, traceIDLabelName)
+		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
 		if err != nil {
 			return
 		}
