@@ -423,6 +423,10 @@ query_frontend:
     # (default: 5)
     [max_batch_size: <int>]
 
+    # Enable multi-tenant queries
+    # (default: true)
+    [multi_tenant_queries_enabled: <bool>]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
