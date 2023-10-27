@@ -20,6 +20,8 @@ var (
 	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
 	ErrEmptyBlockID  = fmt.Errorf("empty block id")
 	ErrBadSeedFile   = fmt.Errorf("bad seed file")
+
+	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 )
 
 // AppendTracker is an empty interface usable by the backend to track a long running append operation

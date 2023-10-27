@@ -306,8 +306,6 @@ func (rw *readerWriter) ListBlocks(
 	var min uuid.UUID
 	var max uuid.UUID
 
-	globalMax := uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
-
 	for i := 0; i < len(bb)-1; i++ {
 
 		min = uuid.UUID(bb[i])
@@ -358,7 +356,7 @@ func (rw *readerWriter) ListBlocks(
 						return
 					}
 
-					if max != globalMax {
+					if max != backend.GlobalMaxBlockID {
 						if bytes.Compare(id[:], max[:]) >= 0 {
 							return
 						}

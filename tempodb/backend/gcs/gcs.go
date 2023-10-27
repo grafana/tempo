@@ -203,7 +203,6 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 		min               uuid.UUID
 		max               uuid.UUID
-		globalMax         = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 		blockIDs          = make([]uuid.UUID, 0, 1000)
 		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
 	)
@@ -232,7 +231,9 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				id    uuid.UUID
 			)
 
-			if max != globalMax {
+			// If max is global max, then we don't want to set an end offset to
+			// ensure we reach the end.  EndOffset is exclusive.
+			if max != backend.GlobalMaxBlockID {
 				query.EndOffset = prefix + max.String()
 			}
 
@@ -275,7 +276,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					return
 				}
 
-				if max != globalMax {
+				if max != backend.GlobalMaxBlockID {
 					if bytes.Compare(id[:], max[:]) >= 0 {
 						return
 					}
