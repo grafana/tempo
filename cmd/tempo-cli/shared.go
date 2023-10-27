@@ -56,10 +56,12 @@ type blockStats struct {
 }
 
 func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRange time.Duration, includeCompacted bool) ([]blockStats, error) {
-	blockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}
+
+	blockIDs = append(blockIDs, compactedBlockIDs...)
 
 	fmt.Println("total blocks: ", len(blockIDs))
 

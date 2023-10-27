@@ -37,7 +37,7 @@ func (cmd *migrateTenantCmd) Run(opts *globalOptions) error {
 
 	// TODO create dest directory if it doesn't exist yet?
 
-	blocksDest, err := readerDest.Blocks(ctx, cmd.DestTenantID)
+	blocksDest, _, err := readerDest.Blocks(ctx, cmd.DestTenantID)
 	if err != nil {
 		return err
 	}

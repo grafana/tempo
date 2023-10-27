@@ -51,6 +51,11 @@ func TestReadWrite(t *testing.T) {
 		fakeMeta.TenantID = id
 		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
 		assert.NoError(t, err, "unexpected error writing")
+
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
+		assert.NoError(t, err, "unexpected error meta.json")
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
+		assert.NoError(t, err, "unexpected error meta.compacted.json")
 	}
 
 	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), false)
@@ -65,9 +70,14 @@ func TestReadWrite(t *testing.T) {
 	assert.Equal(t, fakeObject[5:10], actualReadRange)
 
 	list, err := r.List(ctx, backend.KeyPath{tenantIDs[0]})
-	assert.NoError(t, err, "unexpected error reading blocklist")
+	assert.NoError(t, err, "unexpected error listing")
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID.String(), list[0])
+
+	m, cm, err := r.ListBlocks(ctx, tenantIDs[0])
+	assert.NoError(t, err, "unexpected error listing blocks")
+	assert.Len(t, m, 1)
+	assert.Len(t, cm, 1)
 }
 
 func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
