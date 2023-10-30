@@ -943,6 +943,11 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ span.foo = "<>:b5[]" && resource.service.name = }`,
 			expected: `{span.foo = "<>:b5[]"}`,
 		},
+		{
+			name:     "kind",
+			query:    `{ kind = server }`,
+			expected: `{kind = server}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

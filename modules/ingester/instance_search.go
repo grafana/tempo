@@ -478,7 +478,7 @@ func isEmptyQuery(query string) bool {
 //  3. The boolean values "true" or "false".
 //
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|[0-9smh]+|true|false)`)
+var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
 
 // TODO: Merge into a single regular expression
 
