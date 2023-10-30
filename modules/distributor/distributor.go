@@ -381,11 +381,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}
 
 	numOfTraces := len(keys)
-	//batchResults := make([][]tempopb.PushErrorReason, numOfTraces)
-	// batch results will be represent the entire batch of traces and each index will have the pushResponses for each trace
-	// 0 = no error, 1 = max_live_traces, 2 = trace_too_large
-	// batchResults{[[0,0,0], [1,0,1]]} represents two traces where trace 1 was successfully pushed 3 times and trace 2 received max_live_traces error twice
-
 	numSuccessByTraceIndex := make([]int, numOfTraces)
 	lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, numOfTraces)
 	var mu sync.Mutex
@@ -454,7 +449,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 
 	// maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(batchResults, traces, d.ingestersRing.ReplicationFactor())
 
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpansTwo(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces,  d.ingestersRing.ReplicationFactor())
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, d.ingestersRing.ReplicationFactor())
 	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
 	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
 
@@ -583,38 +578,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func countDiscaredSpans(batchResults [][]tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
-	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
-
-	for reqBatchIndex, errorsByTrace := range batchResults {
-		numSuccess := 0
-		var lastError tempopb.PushErrorReason
-		if errorsByTrace == nil { // for when we rollout this new proto change
-			continue
-		}
-		for _, err := range errorsByTrace {
-			if err == tempopb.PushErrorReason_NO_ERROR {
-				numSuccess++
-			} else {
-				lastError = err
-			}
-		}
-		// we will count anything that did not receive min success as discarded
-		if numSuccess < quorum {
-			spanCount := traces[reqBatchIndex].spanCount
-			switch lastError {
-			case tempopb.PushErrorReason_MAX_LIVE_TRACES:
-				maxLiveDiscardedCount += spanCount
-			case tempopb.PushErrorReason_TRACE_TOO_LARGE:
-				traceTooLargeDiscardedCount += spanCount
-			}
-		}
-	}
-
-	return maxLiveDiscardedCount, traceTooLargeDiscardedCount
-}
-
-func countDiscaredSpansTwo(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
+func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
 	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
 
 	for traceIndex, numSuccess := range numSuccessByTraceIndex {
