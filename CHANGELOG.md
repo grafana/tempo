@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
+
 ## v2.3.0-rc.0 / 2023-10-20
 
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
