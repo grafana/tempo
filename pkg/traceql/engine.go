@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -185,10 +184,18 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 
 func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) AutocompleteRequest {
 	req := FetchSpansRequest{
-		StartTimeUnixNanos: unixSecToNano(0), // TODO: Should add Start and End
-		EndTimeUnixNanos:   unixSecToNano(math.MaxUint32),
-		Conditions:         nil,
-		AllConditions:      true,
+		Conditions:    nil,
+		AllConditions: true,
+	}
+
+	// TODO: This is a hack. If the pipeline is empty, startTime is added as a condition
+	//  and breaks optimizations in block_autocomplete.go.
+	//  We only want the attribute we're searching for in the conditions.
+	if pipeline.String() == "{ true }" {
+		return AutocompleteRequest{
+			Conditions: []Condition{{Attribute: tag, Op: OpNone}},
+			TagName:    tag,
+		}
 	}
 
 	pipeline.extractConditions(&req)
