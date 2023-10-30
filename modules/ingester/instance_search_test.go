@@ -928,6 +928,21 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{  name = "foo" }`,
 			expected: `{name = "foo"}`,
 		},
+		{
+			name:     "incomplete intrinsics",
+			query:    `{  statusMessage = }`,
+			expected: "{}",
+		},
+		{
+			name:     "query with missing closing bracket",
+			query:    `{resource.service_name = "foo" && span.http.target=`,
+			expected: `{resource.service_name = "foo"}`,
+		},
+		{
+			name:     "uncommon characters",
+			query:    `{ span.foo = "<>:b5[]" && resource.service.name = }`,
+			expected: `{span.foo = "<>:b5[]"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -470,13 +470,15 @@ func isEmptyQuery(query string) bool {
 
 // Regex to extract matchers from a query string
 // This regular expression matches a string that contains three groups separated by operators.
-// The first group is a string of alphabetical characters, dots, and underscores.
+// The first group matches one or more Unicode letters, digits, underscores, or periods. It essentially matches variable names or identifiers
 // The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
-// The third group is one of several possible values: a string enclosed in double quotes,
-// a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
-// a plain number, or the boolean values "true" or "false".
+// The third group is one of several possible values:
+//  1. A double-quoted string consisting of one or more Unicode characters, including letters, digits, punctuation, diacritical marks, and symbols,
+//  2. A sequence of one or more digits, which can represent numeric values, possibly with units like 's', 'm', or 'h'.
+//  3. The boolean values "true" or "false".
+//
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false)`)
+var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|[0-9smh]+|true|false)`)
 
 // TODO: Merge into a single regular expression
 
@@ -484,14 +486,14 @@ var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*
 // This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
 // Examples
 //
-//	Query                        |  Match
+//	Query                                    |  Match
 //
 // { .bar = "foo" }                          |   Yes
 // { .bar = "foo" && .foo = "bar" }          |   Yes
 // { .bar = "foo" || .foo = "bar" }          |   No
 // { .bar = "foo" } && { .foo = "bar" }      |   No
 // { .bar = "foo" } || { .foo = "bar" }      |   No
-var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()/&=<>~!0-9"]*}$`)
+var singleFilterRegexp = regexp.MustCompile(`^\{[^|{}]*[^|{}]}?$`)
 
 const emptyQuery = "{}"
 
