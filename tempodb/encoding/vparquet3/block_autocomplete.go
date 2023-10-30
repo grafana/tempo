@@ -322,7 +322,7 @@ func createDistinctSpanIterator(
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	attrIter, err := createDistinctAttributeIterator(makeIter, keep, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
@@ -543,7 +543,7 @@ func createDistinctResourceIterator(
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	attrIter, err := createDistinctAttributeIterator(makeIter, keep, genericConditions, DefinitionLevelResourceAttrs,
