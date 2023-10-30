@@ -469,7 +469,10 @@ func (a Attribute) execute(span Span) (Static, error) {
 		return static, nil
 	}
 
-	if a.Scope == AttributeScopeNone {
+	// if the requested attribute has a scope none then we will check first for span attributes matching
+	// then any attributes matching. we don't need to both if this is an intrinsic b/c those will always
+	// be caught above if they exist
+	if a.Scope == AttributeScopeNone && a.Intrinsic == IntrinsicNone {
 		for attribute, static := range atts {
 			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
 				return static, nil
