@@ -48,7 +48,9 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 		for _, oe := range res.OtherEntries {
 			if oe.Key == req.TagName.String() {
 				v := oe.Value.(traceql.Static)
-				cb(v)
+				if cb(v) {
+					return nil // We have enough values
+				}
 			}
 		}
 	}
