@@ -27,10 +27,11 @@ import (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler, SearchWSHandler http.Handler
-	cacheProvider                                                                                  cache.Provider
-	streamingSearch                                                                                streamingSearchHandler
-	logger                                                                                         log.Logger
+	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler, SearchWSHandler                http.Handler
+	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
+	cacheProvider                                                                              cache.Provider
+	streamingSearch                                                                            streamingSearchHandler
+	logger                                                                                     log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -74,6 +75,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
 		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
 		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
+		SearchTagsV2Handler:       newHandler(searchTags, nil, nil, logger),
+		SearchTagsValuesHandler:   newHandler(searchTags, nil, nil, logger),
+		SearchTagsValuesV2Handler: newHandler(searchTags, nil, nil, logger),
+
 		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
 		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
 		cacheProvider:             cacheProvider,
