@@ -1036,13 +1036,16 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicStructuralDescendant:
 			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
 			selectColumnIfNotAlready(columnPathSpanNestedSetRight)
+			continue
 
 		case traceql.IntrinsicStructuralChild:
 			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
 			selectColumnIfNotAlready(columnPathSpanParentID)
+			continue
 
 		case traceql.IntrinsicStructuralSibling:
 			selectColumnIfNotAlready(columnPathSpanParentID)
+			continue
 		}
 
 		// Well-known attribute?
