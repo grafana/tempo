@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"strings"
+	"sync"
+
+	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -20,6 +24,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -276,6 +281,116 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	return objects, nil
 }
 
+func (rw *readerWriter) ListBlocks(
+	ctx context.Context,
+	tenant string,
+) ([]uuid.UUID, []uuid.UUID, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
+	defer span.Finish()
+
+	blockIDs := make([]uuid.UUID, 0, 1000)
+	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
+
+	keypath := backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix += "/"
+	}
+
+	bb := blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+
+	errChan := make(chan error, len(bb))
+	wg := sync.WaitGroup{}
+	mtx := sync.Mutex{}
+
+	var min uuid.UUID
+	var max uuid.UUID
+
+	for i := 0; i < len(bb)-1; i++ {
+
+		min = uuid.UUID(bb[i])
+		max = uuid.UUID(bb[i+1])
+
+		wg.Add(1)
+		go func(min, max uuid.UUID) {
+			defer wg.Done()
+
+			var (
+				err        error
+				res        minio.ListBucketV2Result
+				startAfter = prefix + min.String()
+			)
+
+			for res.IsTruncated = true; res.IsTruncated; {
+				if ctx.Err() != nil {
+					return
+				}
+
+				res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, startAfter, res.NextContinuationToken, "", 0)
+				if err != nil {
+					errChan <- fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+					return
+				}
+
+				for _, c := range res.Contents {
+					// i.e: <tenantID/<blockID>/meta
+					parts := strings.Split(c.Key, "/")
+					if len(parts) != 3 {
+						continue
+					}
+
+					switch parts[2] {
+					case backend.MetaName:
+					case backend.CompactedMetaName:
+					default:
+						continue
+					}
+
+					id, err := uuid.Parse(parts[1])
+					if err != nil {
+						continue
+					}
+
+					if bytes.Compare(id[:], min[:]) < 0 {
+						errChan <- fmt.Errorf("block UUID below shard minimum")
+						return
+					}
+
+					if max != backend.GlobalMaxBlockID {
+						if bytes.Compare(id[:], max[:]) >= 0 {
+							return
+						}
+					}
+
+					mtx.Lock()
+					switch parts[2] {
+					case backend.MetaName:
+						blockIDs = append(blockIDs, id)
+					case backend.CompactedMetaName:
+						compactedBlockIDs = append(compactedBlockIDs, id)
+					}
+					mtx.Unlock()
+				}
+			}
+		}(min, max)
+	}
+	wg.Wait()
+	close(errChan)
+
+	errs := make([]error, 0, len(errChan))
+	for e := range errChan {
+		errs = append(errs, e)
+	}
+
+	if len(errs) > 0 {
+		return nil, nil, errors.Join(errs...)
+	}
+
+	level.Debug(rw.logger).Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
+
+	return blockIDs, compactedBlockIDs, nil
+}
+
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")
@@ -421,7 +536,7 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	}
 }
 
-func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 	wrapCredentialsProvider := func(p credentials.Provider) credentials.Provider {
 		if cfg.SignatureV2 {
 			return &overrideSignatureVersion{useV2: cfg.SignatureV2, upstream: p}
@@ -429,34 +544,39 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return p
 	}
 
-	var chain []credentials.Provider
+	chain := []credentials.Provider{
+		wrapCredentialsProvider(&credentials.Static{
+			Value: credentials.Value{
+				AccessKeyID:     cfg.AccessKey,
+				SecretAccessKey: cfg.SecretKey.String(),
+			},
+		}),
+		wrapCredentialsProvider(&credentials.EnvAWS{}),
+		wrapCredentialsProvider(&credentials.EnvMinio{}),
+		wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
+		wrapCredentialsProvider(&credentials.FileMinioClient{}),
+		wrapCredentialsProvider(&credentials.IAM{
+			Client: &http.Client{
+				Transport: http.DefaultTransport,
+			},
+			Endpoint: os.Getenv("TEST_IAM_ENDPOINT"),
+		}),
+	}
 
-	if cfg.NativeAWSAuthEnabled {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(NewAWSSDKAuth(cfg.Region)),
-		}
-	} else if cfg.AccessKey != "" {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(&credentials.Static{
-				Value: credentials.Value{
-					AccessKeyID:     cfg.AccessKey,
-					SecretAccessKey: cfg.SecretKey.String(),
-					SessionToken:    cfg.SessionToken.String(),
-				},
-			}),
-		}
-	} else {
-		chain = []credentials.Provider{
-			wrapCredentialsProvider(&credentials.EnvAWS{}),
-			wrapCredentialsProvider(&credentials.EnvMinio{}),
-			wrapCredentialsProvider(&credentials.FileAWSCredentials{}),
-			wrapCredentialsProvider(&credentials.FileMinioClient{}),
-			wrapCredentialsProvider(&credentials.IAM{
-				Client: &http.Client{
-					Transport: http.DefaultTransport,
-				},
-			}),
-		}
+	creds := credentials.NewChainCredentials(chain)
+
+	// error early if we cannot obtain credentials
+	if _, err := creds.Get(); err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
+	}
+
+	return creds, nil
+}
+
+func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+	creds, err := fetchCreds(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch credentials: %w", err)
 	}
 
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
@@ -488,7 +608,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	opts := &minio.Options{
 		Region:    cfg.Region,
 		Secure:    !cfg.Insecure,
-		Creds:     credentials.NewChainCredentials(chain),
+		Creds:     creds,
 		Transport: transport,
 	}
 

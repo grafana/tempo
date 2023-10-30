@@ -56,8 +56,8 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockReader) EnablePolling(blocklist.JobSharder) {}
-func (m *mockReader) Shutdown()                          {}
+func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder) {}
+func (m *mockReader) Shutdown()                                           {}
 
 func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {

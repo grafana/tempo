@@ -75,19 +75,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// collect results from all the goroutines via sr.Results channel.
 	// range loop will exit when sr.Results channel is closed.
 	for result := range sr.Results() {
-		// exit early and Propagate error upstream
-		if sr.Error() != nil {
-			return nil, sr.Error()
+		if combiner.Count() >= maxResults {
+			sr.Close() // signal pending workers to exit
+			continue
 		}
 
 		combiner.AddMetadata(result)
-		if combiner.Count() >= maxResults {
-			sr.Close() // signal pending workers to exit
-			break
-		}
 	}
 
-	// can happen when we have only error, and no results
 	if sr.Error() != nil {
 		return nil, sr.Error()
 	}

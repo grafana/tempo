@@ -3,8 +3,10 @@ package local
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -41,7 +43,11 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 // Write implements backend.Writer
-func (rw *Backend) Write(_ context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	blockFolder := rw.rootPath(keypath)
 	err := os.MkdirAll(blockFolder, os.ModePerm)
 	if err != nil {
@@ -64,6 +70,10 @@ func (rw *Backend) Write(_ context.Context, name string, keypath backend.KeyPath
 
 // Append implements backend.Writer
 func (rw *Backend) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	span, _ := opentracing.StartSpanFromContext(ctx, "local.Append", opentracing.Tags{
 		"len": len(buffer),
 	})
@@ -95,7 +105,11 @@ func (rw *Backend) Append(ctx context.Context, name string, keypath backend.KeyP
 }
 
 // CloseAppend implements backend.Writer
-func (rw *Backend) CloseAppend(_ context.Context, tracker backend.AppendTracker) error {
+func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if tracker == nil {
 		return nil
 	}
@@ -104,13 +118,21 @@ func (rw *Backend) CloseAppend(_ context.Context, tracker backend.AppendTracker)
 	return dst.Close()
 }
 
-func (rw *Backend) Delete(_ context.Context, name string, keypath backend.KeyPath, _ bool) error {
+func (rw *Backend) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	path := rw.rootPath(append(keypath, name))
 	return os.RemoveAll(path)
 }
 
 // List implements backend.Reader
-func (rw *Backend) List(_ context.Context, keypath backend.KeyPath) ([]string, error) {
+func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	path := rw.rootPath(keypath)
 	folders, err := os.ReadDir(path)
 	if err != nil {
@@ -128,8 +150,51 @@ func (rw *Backend) List(_ context.Context, keypath backend.KeyPath) ([]string, e
 	return objects, nil
 }
 
+// ListBlocks implements backend.Reader
+func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UUID, compactedMetas []uuid.UUID, err error) {
+	rootPath := rw.rootPath(backend.KeyPath{tenant})
+	fff := os.DirFS(rootPath)
+	err = fs.WalkDir(fff, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		tenantFilePath := filepath.Join(tenant, path)
+
+		parts := strings.Split(tenantFilePath, "/")
+		// i.e: <tenantID/<blockID>/meta
+		if len(parts) != 3 {
+			return nil
+		}
+
+		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+			return nil
+		}
+
+		id, err := uuid.Parse(parts[1])
+		if err != nil {
+			return err
+		}
+
+		switch parts[2] {
+		case backend.MetaName:
+			metas = append(metas, id)
+		case backend.CompactedMetaName:
+			compactedMetas = append(compactedMetas, id)
+		}
+
+		return nil
+	})
+
+	return
+}
+
 // Read implements backend.Reader
-func (rw *Backend) Read(_ context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, -1, err
+	}
+
 	filename := rw.objectFileName(keypath, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0o644)
@@ -148,6 +213,10 @@ func (rw *Backend) Read(_ context.Context, name string, keypath backend.KeyPath,
 
 // ReadRange implements backend.Reader
 func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	span, _ := opentracing.StartSpanFromContext(ctx, "local.ReadRange", opentracing.Tags{
 		"len":    len(buffer),
 		"offset": offset,

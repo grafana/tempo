@@ -1,0 +1,54 @@
+target: all
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+query_frontend:
+  search:
+    query_ingesters_until: 0 # setting these both to 0 will force all range searches to hit the backend
+    query_backend_after: 0
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 1s
+  max_block_duration: 5s
+  complete_block_timeout: 5s
+  flush_check_period: 1s
+
+storage:
+  trace:
+    blocklist_poll: 1s
+    backend: gcs
+    gcs:
+      bucket_name: tempo
+      endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 1000
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
+    client:
+      backend: gcs
+      # fsouza/fake-gcs-server does not support versioning
+      confirm_versioning: false
+      gcs:
+        bucket_name: tempo
+        endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+        insecure: true

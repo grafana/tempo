@@ -15,7 +15,7 @@ Therefore it may be necessary to increase the disk space for ingesters as usage 
 
 We recommend using SSDs for local storage.
 
-## Increase VCC size
+## Increase PVC size
 
 When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual steps are required.
 The following configuration has worked successfully on GKE with GCS:

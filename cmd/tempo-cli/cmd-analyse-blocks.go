@@ -21,7 +21,7 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 	}
 
 	// TODO: Parallelize this
-	blocks, err := r.Blocks(context.Background(), cmd.TenantID)
+	blocks, _, err := r.Blocks(context.Background(), cmd.TenantID)
 	if err != nil {
 		return err
 	}

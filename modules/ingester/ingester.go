@@ -401,7 +401,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 	for _, t := range tenants {
 		// check if any local blocks exist for a tenant before creating the instance. this is to protect us from cases
 		// where left-over empty local tenant folders persist empty tenants
-		blocks, err := reader.Blocks(ctx, t)
+		blocks, _, err := reader.Blocks(ctx, t)
 		if err != nil {
 			return err
 		}

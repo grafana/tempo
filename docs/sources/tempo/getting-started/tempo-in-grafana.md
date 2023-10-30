@@ -22,17 +22,17 @@ For details about how queries are constructed, read the [TraceQL documentation](
 
 <p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
 
-## View trace by ID
+The most basic functionality is to visualize a trace using its ID. Select the TraceQL tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
 
-The most basic functionality is to visualize a trace using its ID.  Select the Trace ID tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
-
-## Log search
+## Finding traces using Loki logs
 
 Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](/docs/grafana/latest/datasources/loki/#derived-fields).
 
 ## Find traces using Tempo tags search
 
 Search for traces using common dimensions such as time range, duration, span tags, service names, and more. Use the trace view to quickly diagnose errors and high-latency events in your system.
+
+<p align="center"><img src="../../traceql/assets/screenshot-explore-traceql-search.png" alt="Showing how to build queries with common dimensions using query builder" /></p>
 
 ### Non-deterministic search
 
@@ -53,40 +53,12 @@ For more information, refer to the [service graph view]({{< relref "../metrics-g
 
 <p align="center"><img src="../assets/apm-overview.png" alt="Service graph view overview"></p>
 
-## Metrics from spans
-
-RED metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. RED metrics represent:
-
-- Rate, the number of requests per second
-- Errors, the number of those requests that are failing
-- Duration, the amount of time those requests take
-
-For more information about RED method, refer to [The RED Method: How to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
-
->**Note:** Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
-
-After the metrics generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration" >}}) for information about metrics-generator options.
-
-<p align="center"><img src="../assets/trace_service_graph.png" alt="Trace service graph"></p>
-
-These metrics exist in your Hosted Metrics instance and can also be easily used to generate powerful custom dashboards.
-
-<p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
-
-The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars](/docs/grafana-cloud/data-configuration/traces/exemplars/) are GA in Grafana Cloud so you can also push your own.
-
-<p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
-
 ## View JSON file
-A local JSON file containing a trace can be uploaded and viewed in the Grafana UI. This is useful in cases where access to the original Tempo data source is limited, or for preserving traces outside of Tempo. The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
 
-## Linking traces and metrics
+A local JSON file containing a trace can be imported and viewed in the Grafana UI. This is useful in cases where access to the original Tempo data source is limited, or for preserving traces outside of Tempo.
 
-Grafana can correlate different signals by adding the functionality to link between traces and metrics. The [trace to metrics feature](/blog/2022/08/18/new-in-grafana-9.1-trace-to-metrics-allows-users-to-navigate-from-a-trace-span-to-a-selected-data-source/), a beta feature in Grafana 9.1, lets you quickly see trends or aggregated data related to each span.
+The JSON data can be downloaded via the Tempo API or the [Inspector panel](/docs/grafana/latest/explore/explore-inspector/) while viewing the trace in Grafana.
 
-You can try it out by enabling the `traceToMetrics` feature toggle in your Grafana configuration file.
-[Refer to the instructions for enabling Grafana feature toggles](/docs/grafana/latest/setup-grafana/configure-grafana/feature-toggles/).
-
-For example, you can use span attributes to metric labels by using the `$__tags` keyword to convert span attributes to metrics labels.
-
-For more information, refer to the [trace to metric configuration](/docs/grafana/latest/datasources/tempo/#trace-to-metrics) documentation.
+{{% admonition type="note" %}}
+To perform this action on Grafana 10.1 or later, select a Tempo data source, select **Explore** from the main menu, and then select **Import trace**.
+{{% /admonition %}}

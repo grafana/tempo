@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/cache"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -32,6 +33,10 @@ func NewCache(nextReader backend.RawReader, nextWriter backend.RawWriter, cache 
 // List implements backend.RawReader
 func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	return r.nextReader.List(ctx, keypath)
+}
+
+func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+	return r.nextReader.ListBlocks(ctx, tenant)
 }
 
 // Read implements backend.RawReader

@@ -13,6 +13,11 @@ type spanNode struct {
 	nextChild int
 }
 
+// nestedSetRootParent is used for the root span's ParentID field. this allows the fetch layer (and
+// other code) to distinguish between situations in which a span's parent is unknown due to a broken trace
+// or simply known to not exist.
+const nestedSetRootParent = -1
+
 // assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
 // and Span.ParentID for all spans in a trace.
 func assignNestedSetModelBounds(trace *Trace) {
@@ -88,6 +93,7 @@ func assignNestedSetModelBounds(trace *Trace) {
 	for _, root := range rootNodes {
 		node := root
 		node.span.NestedSetLeft = nestedSetBound
+		node.span.ParentID = nestedSetRootParent
 		nestedSetBound++
 
 		for node != nil {

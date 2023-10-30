@@ -1,13 +1,7 @@
 ## main / unreleased
-* [BUGFIX] Fix pass-through to runtime overrides for FilterPolicies and TargetInfoExcludedDimensions [#3012](https://github.com/grafana/tempo/pull/3012) (@electron0zero)
-* [ENHANCEMENT] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
-* [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
-* [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
-* [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
-* [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
-* [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
-* [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
-* [FEATURE] Added not structural operators to TraceQL: !>, !<, and !~ [#2993](https://github.com/grafana/tempo/pull/2993) (@joe-elliott)
+
+## v2.3.0-rc.0 / 2023-10-20
+
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
 * [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
@@ -16,6 +10,44 @@
 * [CHANGE] Restructure Azure backends into versioned backends.  Introduce `use_v2_sdk` config option for switching. [#2952](https://github.com/grafana/tempo/issues/2952) (@zalegrala)
     v1: [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) original (now deprecated) SDK
     v2: [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go)
+* [CHANGE] Adjust trace size estimation to better honor row group size settings. [#3038](https://github.com/grafana/tempo/pull/3038) (@joe-elliott)
+* [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
+* [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
+    Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
+    Old config:
+```
+overrides:
+  ingestion_rate_strategy: local
+  ingestion_rate_limit_bytes: 12345
+  ingestion_burst_size_bytes: 67890
+  max_search_duration: 17s
+  forwarders: ['foo']
+  metrics_generator_processors: [service-graphs, span-metrics]
+```
+New config:
+```
+overrides:
+defaults:
+  ingestion:
+    rate_strategy: local
+    rate_limit_bytes: 12345
+    burst_size_bytes: 67890
+  read:
+    max_search_duration: 17s
+  forwarders: ['foo']
+  metrics_generator:
+    processors: [service-graphs, span-metrics]
+```  
+* [CHANGE] Bump Jaeger query docker image to 1.50.0 [#2998](https://github.com/grafana/tempo/pull/2998) (@pavolloffay)
+* [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
+* [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
+* [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
+* [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
+* [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
+* [FEATURE] Added not structural operators to TraceQL: !>, !<, and !~ [#2993](https://github.com/grafana/tempo/pull/2993) (@joe-elliott)
+* [ENHANCEMENT] Support quoted attribute name in TraceQL [#3004](https://github.com/grafana/tempo/pull/3004) (@kousikmitra)
+* [ENHANCEMENT] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
+* [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
 * [ENHANCEMENT] Add several metrics-generator fields to user-configurable overrides [#2711](https://github.com/grafana/tempo/pull/2711) (@kvrhdn)
@@ -32,15 +64,17 @@
 * [ENHANCEMENT] User-configurable overrides: add scope query parameter to return merged overrides for tenant [#2915](https://github.com/grafana/tempo/pull/2915) [#3018](https://github.com/grafana/tempo/pull/3018) (@kvrhdn)
 * [ENHANCEMENT] Add histogram buckets to metrics-generator config in user-configurable overrides [#2928](https://github.com/grafana/tempo/pull/2928) (@mar4uk)
 * [ENHANCEMENT] Adds websocket support for search streaming. [#2971](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
-   **Breaking Change** Deprecated GRPC streaming
 * [ENHANCEMENT] Add new config block to distributors to produce debug metrics. [#3008](https://github.com/grafana/tempo/pull/3008) (@joe-elliott)
    **Breaking Change** Removed deprecated config option: distributor.log_received_spans
 * [ENHANCEMENT] added a metrics generator config option to enable/disable X-Scope-OrgID headers on remote write. [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
+* [ENHANCEMENT] Correctly return RetryInfo to Otel Collector/Grafana Agent on ResourceExhausted. This allows the agents to honor their own retry 
+  settings. [#3019](https://github.com/grafana/tempo/pull/3019) (@joe-elliott)
+* [BUGFIX] Load defaults for the internal server [#3041](https://github.com/grafana/tempo/pull/3041) (@rubenvp8510)
+* [BUGFIX] Fix pass-through to runtime overrides for FilterPolicies and TargetInfoExcludedDimensions [#3012](https://github.com/grafana/tempo/pull/3012) (@electron0zero)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
 * [BUGFIX] Fix rare deadlock when uploading blocks to Azure Blob Storage [#2129](https://github.com/grafana/tempo/issues/2129) (@LasseHels)
 * [BUGFIX] Only search ingester blocks that fall within the request time range. [#2783](https://github.com/grafana/tempo/pull/2783) (@joe-elliott)
 * [BUGFIX] Align tempo_query_frontend_queries_total and tempo_query_frontend_queries_within_slo_total. [#2840](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
-* [BUGFIX] To support blob storage in Azure Stack Hub as backend. [#2853](https://github.com/grafana/tempo/pull/2853) (@chlislb)
   This query will now correctly tell you %age of requests that are within SLO:
   ```
   sum(rate(tempo_query_frontend_queries_within_slo_total{}[1m])) by (op) 
@@ -48,36 +82,19 @@
   sum(rate(tempo_query_frontend_queries_total{}[1m])) by (op)
   ```
   **BREAKING CHANGE** Removed: tempo_query_frontend_queries_total{op="searchtags|metrics"}. 
+* [BUGFIX] To support blob storage in Azure Stack Hub as backend. [#2853](https://github.com/grafana/tempo/pull/2853) (@chlislb)
 * [BUGFIX] Respect spss on GRPC streaming. [#2971](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
-* [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
-    Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
-    Old config:
-```
-overrides:
-ingestion_rate_strategy: local
-ingestion_rate_limit_bytes: 12345
-ingestion_burst_size_bytes: 67890
-max_search_duration: 17s
-forwarders: ['foo']
-metrics_generator_processors: [service-graphs, span-metrics]
-```
-New config:
-```
-overrides:
-defaults:
-  ingestion:
-    rate_strategy: local
-    rate_limit_bytes: 12345
-    burst_size_bytes: 67890
-  read:
-    max_search_duration: 17s
-  forwarders: ['foo']
-  metrics_generator:
-    processors: [service-graphs, span-metrics]
-```  
 * [BUGFIX] Moved empty root span substitution from `querier` to `query-frontend`. [#2671](https://github.com/grafana/tempo/issues/2671) (@galalen)
 * [BUGFIX] Correctly propagate ingester errors on the query path [#2935](https://github.com/grafana/tempo/issues/2935) (@joe-elliott)
+* [BUGFIX] Fix issue where ingester doesn't stop query after timeout [#3031](https://github.com/grafana/tempo/pull/3031) (@mdisibio) 
 * [BUGFIX] Fix cases where empty filter {} wouldn't return expected results [#2498](https://github.com/grafana/tempo/issues/2498) (@mdisibio)
+* [BUGFIX] Reorder S3 credential chain and upgrade minio-go. `native_aws_auth_enabled` is deprecated [#3006](https://github.com/grafana/tempo/pull/3006) (@ekristen, @mapno)
+* [BUGFIX] Update parquet-go dependency including a bugfix that prevents corrupted blocks from being written [#3068](https://github.com/grafana/tempo/pull/3068) (@stoewer)
+
+# v2.2.4 / 2023-10-25
+
+* [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
+* [CHANGE] Bump Jaeger query docker image to 1.50.0 [#2998](https://github.com/grafana/tempo/pull/2998) (@pavolloffay)
 
 # v2.2.3 / 2023-09-13
 

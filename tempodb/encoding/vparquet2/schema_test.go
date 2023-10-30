@@ -180,6 +180,7 @@ func TestTraceToParquet(t *testing.T) {
 							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 							NestedSetLeft:  1,
 							NestedSetRight: 2,
+							ParentID:       -1,
 							HttpMethod:     strPtr("POST"),
 							HttpUrl:        strPtr("https://example.com"),
 							HttpStatusCode: intPtr(201),
@@ -248,6 +249,7 @@ func TestTraceToParquet(t *testing.T) {
 								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 								NestedSetLeft:  1,
 								NestedSetRight: 6,
+								ParentID:       -1,
 								Attrs: []Attribute{
 									{Key: "span.attr", Value: strPtr("aaa")},
 								},

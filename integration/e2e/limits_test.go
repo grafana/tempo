@@ -8,6 +8,8 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
@@ -47,7 +49,20 @@ func TestLimits(t *testing.T) {
 
 	// should fail b/c due to ingestion rate limit
 	batch = makeThriftBatchWithSpanCount(10)
-	require.Error(t, c.EmitBatch(context.Background(), batch))
+	err = c.EmitBatch(context.Background(), batch)
+	require.Error(t, err)
+
+	// this error must have a retryinfo as expected in otel collector code: https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	foundRetryInfo := false
+	for _, detail := range st.Details() {
+		if _, ok := detail.(*errdetails.RetryInfo); ok {
+			foundRetryInfo = true
+			break
+		}
+	}
+	require.True(t, foundRetryInfo)
 
 	// test limit metrics
 	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(2),

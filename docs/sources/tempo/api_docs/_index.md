@@ -27,7 +27,6 @@ For externally support GRPC API [see below](#tempo-grpc-api)
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
 | [Querying traces by id](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
 | [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
-| [Searching traces with streaming results](#search-with-websockets) | Query-frontend | HTTP | `GET /api/search-ws?<params>` |
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
 | [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
@@ -249,24 +248,6 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
     "totalBlocks": 3
   }
 }
-```
-
-### Search with websockets
-
-Tempo supports streaming results returned over a websocket at the `/api/search-ws` endpoint. This endpoint supports all of the same
-parameters as [search](#search). For a given query, Tempo will return a series of intermediate results, a final result and will then
-gracefully close the websocket connection. 
-
-You can test this endpoint using curl:
-```bash
-curl -G -s http://localhost:3200/api/search-ws \
-	-H 'Connection: Upgrade' \
-	-H 'Upgrade: websocket' \
-	-H 'Sec-Websocket-Version: 13' \
-	-H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
-	--data-urlencode 'q={ status=error }' \
-	--data-urlencode "start=$(date --date yesterday -u +%s)" \
-	--data-urlencode "end=$(date -u +%s)"
 ```
 
 ### Search tags
@@ -597,5 +578,57 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
 the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
-The GRPC endpoint has been deprecated and will be removed in a future version. If you would like to streaming results for your TraceQL searches please use the
-[websockets endpoint](#search-with-websockets).
+By default this service is only offered over the GRPC port. However, one can offer this streaming service over the HTTP port as well (which Grafana expects).
+To enable the streaming service over the http port for use with Grafana set the following. 
+> **Note**: Enabling this setting is incompatible with TLS.
+```
+stream_over_http_enabled: true
+```
+The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response. The
+final response sent is guaranteed to have the entire resultset.
+```protobuf
+service StreamingQuerier {
+  rpc Search(SearchRequest) returns (stream SearchResponse);
+}
+message SearchRequest {
+  map<string, string> Tags = 1
+  uint32 MinDurationMs = 2;
+  uint32 MaxDurationMs = 3;
+  uint32 Limit = 4;
+  uint32 start = 5;
+  uint32 end = 6;
+  string Query = 8;
+}
+message SearchResponse {
+  repeated TraceSearchMetadata traces = 1;
+  SearchMetrics metrics = 2;
+}
+message TraceSearchMetadata {
+  string traceID = 1;
+  string rootServiceName = 2;
+  string rootTraceName = 3;
+  uint64 startTimeUnixNano = 4;
+  uint32 durationMs = 5;
+  SpanSet spanSet = 6; // deprecated. use SpanSets field below
+  repeated SpanSet spanSets = 7;
+}
+message SpanSet {
+  repeated Span spans = 1;
+  uint32 matched = 2;
+}
+message Span {
+  string spanID = 1;
+  string name = 2;
+  uint64 startTimeUnixNano = 3;
+  uint64 durationNanos = 4;
+  repeated tempopb.common.v1.KeyValue attributes = 5;
+}
+message SearchMetrics {
+  uint32 inspectedTraces = 1;
+  uint64 inspectedBytes = 2;
+  uint32 totalBlocks = 3;
+  uint32 completedJobs = 4;
+  uint32 totalJobs = 5;
+  uint64 totalBlockBytes = 6;
+}
+```
