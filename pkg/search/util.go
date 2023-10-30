@@ -60,6 +60,7 @@ func GetVirtualIntrinsicValues() []string {
 		traceql.IntrinsicKind.String(),
 		traceql.IntrinsicName.String(),
 		traceql.IntrinsicStatus.String(),
+		traceql.IntrinsicStatusMessage.String(),
 		traceql.IntrinsicTraceDuration.String(),
 		traceql.IntrinsicTraceRootService.String(),
 		traceql.IntrinsicTraceRootSpan.String(),
