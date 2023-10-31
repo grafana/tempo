@@ -65,5 +65,5 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 			totalBytes: totalResourceBytes,
 			attributes: topResourceAttrs,
 		},
-	}).print(cmd.NumAttr)
+	}).print(cmd.NumAttr, false)
 }
