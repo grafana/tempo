@@ -44,10 +44,12 @@ Tempo 2.2 can’t read data stored in vParquet3.
 Recommended update process:
 
 1. Upgrade your Tempo installation to version 2.3, remaining on vParquet3.
-2. Verify the upgrade is stable and performs as expected.
+2. Verify the upgrade is stable and performs as expected. If you notice any issues, you can downgrade to version 2.2, and data remains readable.
 3. [Change the block format to vParquet3]({{< relref "../configuration/parquet" >}}).
 
-If you notice any issues, you can immediately downgrade to Tempo 2.2. All your data remains readable.
+If you notice any issues on step 3 using the new block format, you can downgrade to vParquet2.
+All your data remains readable in Tempo 2.3.
+However, if you have vParquet3 blocks and have to downgrade to Tempo 2.2, you will have data loss. 
 
 ### Use Azure SDK v2
 
