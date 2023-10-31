@@ -28,14 +28,14 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 ### Production-ready vParquet3 block format
 
-You can use Tempo 2.3 with vParquet2 or vParquet3.
-While vParquet2 remains the default backend for Tempo 2.3, vParquet3 is available as a stable option.
-
-Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. 
-
 vParquet3 provides improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
 
 This block format is required for using structural operators and dedicated attribute columns.
+
+While vParquet2 remains the default backend for Tempo 2.3, vParquet3 is available as a stable option. 
+Both work with Tempo 2.3.
+
+Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. 
 
 {{% admonition type="note" %}}
 Tempo 2.2 can’t read data stored in vParquet3.
