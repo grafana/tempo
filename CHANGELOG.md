@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
 * [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
 
 ## v2.3.0 / 2023-10-30
