@@ -30,7 +30,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 vParquet3 provides improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
 
-This block format is required for using structural operators and dedicated attribute columns.
+This block format is required for using dedicated attribute columns.
 
 While vParquet2 remains the default backend for Tempo 2.3, vParquet3 is available as a stable option. 
 Both work with Tempo 2.3.
