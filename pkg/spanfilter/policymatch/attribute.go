@@ -87,34 +87,45 @@ func NewAttributeFilter(matchType config.MatchType, key string, value interface{
 	if matchType == config.Regex {
 		return NewRegexpAttributeFilter(key, value)
 	}
-	return NewStrictAttributeFilter(key, value), nil
+	return NewStrictAttributeFilter(key, value)
 }
 
 // NewStrictAttributeFilter returns a new AttributeFilter that matches against the given value.
-func NewStrictAttributeFilter(key string, value interface{}) AttributeFilter {
-	attr := AttributeFilter{
-		key: key,
-	}
-
+func NewStrictAttributeFilter(key string, value interface{}) (AttributeFilter, error) {
 	switch v := value.(type) {
 	case string:
-		attr.typ = StringAttributeFilter
-		attr.stringValue = v
+		return AttributeFilter{
+			key:         key,
+			typ:         StringAttributeFilter,
+			stringValue: v,
+		}, nil
 	case int:
-		attr.typ = Int64AttributeFilter
-		attr.int64Value = int64(v)
+		return AttributeFilter{
+			key:        key,
+			typ:        Int64AttributeFilter,
+			int64Value: int64(v),
+		}, nil
 	case int64:
-		attr.typ = Int64AttributeFilter
-		attr.int64Value = v
+		return AttributeFilter{
+			key:        key,
+			typ:        Int64AttributeFilter,
+			int64Value: v,
+		}, nil
 	case float64:
-		attr.typ = Float64AttributeFilter
-		attr.float64Value = v
+		return AttributeFilter{
+			key:          key,
+			typ:          Float64AttributeFilter,
+			float64Value: v,
+		}, nil
 	case bool:
-		attr.typ = BoolAttributeFilter
-		attr.boolValue = v
+		return AttributeFilter{
+			key:       key,
+			typ:       BoolAttributeFilter,
+			boolValue: v,
+		}, nil
+	default:
+		return AttributeFilter{}, fmt.Errorf("value type not supported: %T", value)
 	}
-
-	return attr
 }
 
 // NewRegexpAttributeFilter returns a new AttributeFilter that matches against the given regex value.

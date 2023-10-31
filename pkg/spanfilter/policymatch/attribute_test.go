@@ -19,7 +19,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: true,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("foo", "bar"),
+					must(NewStrictAttributeFilter("foo", "bar")),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -38,8 +38,8 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: true,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("foo", "bar"),
-					NewStrictAttributeFilter("otherfoo", "notbar"),
+					must(NewStrictAttributeFilter("foo", "bar")),
+					must(NewStrictAttributeFilter("otherfoo", "notbar")),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -66,8 +66,8 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("foo", "bar"),
-					NewStrictAttributeFilter("otherfoo", "nope"),
+					must(NewStrictAttributeFilter("foo", "bar")),
+					must(NewStrictAttributeFilter("otherfoo", "nope")),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -94,10 +94,10 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: true,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("one", "1"),
-					NewStrictAttributeFilter("oneone", 11),
-					NewStrictAttributeFilter("oneonepointone", 11.1),
-					NewStrictAttributeFilter("matching", true),
+					must(NewStrictAttributeFilter("one", "1")),
+					must(NewStrictAttributeFilter("oneone", 11)),
+					must(NewStrictAttributeFilter("oneonepointone", 11.1)),
+					must(NewStrictAttributeFilter("matching", true)),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -159,7 +159,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("dd", true),
+					must(NewStrictAttributeFilter("dd", true)),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -178,7 +178,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("dd", "value"),
+					must(NewStrictAttributeFilter("dd", "value")),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -197,7 +197,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("11", "eleven"),
+					must(NewStrictAttributeFilter("11", "eleven")),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -216,7 +216,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("11", "eleven"),
+					must(NewStrictAttributeFilter("11", "eleven")),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -235,7 +235,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("11", 11),
+					must(NewStrictAttributeFilter("11", 11)),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -254,7 +254,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("11", 11),
+					must(NewStrictAttributeFilter("11", 11)),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -273,7 +273,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("11", true),
+					must(NewStrictAttributeFilter("11", true)),
 				},
 			},
 			attrs: []*commonv1.KeyValue{
@@ -292,7 +292,7 @@ func Test_strictAttributeFilter_Matches(t *testing.T) {
 			expect: false,
 			policy: &AttributePolicyMatch{
 				filters: []AttributeFilter{
-					NewStrictAttributeFilter("11", 11.0),
+					must(NewStrictAttributeFilter("11", 11.0)),
 				},
 			},
 			attrs: []*commonv1.KeyValue{

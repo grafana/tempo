@@ -1,6 +1,7 @@
 package policymatch
 
 import (
+	"fmt"
 	"regexp"
 
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -60,7 +61,12 @@ func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, regex string) (Intrin
 	if err != nil {
 		return IntrinsicFilter{}, err
 	}
-	return IntrinsicFilter{intrinsic: intrinsic, regex: r}, nil
+	switch intrinsic {
+	case traceql.IntrinsicName, traceql.IntrinsicStatus, traceql.IntrinsicKind:
+		return IntrinsicFilter{intrinsic: intrinsic, regex: r}, nil
+	default:
+		return IntrinsicFilter{}, fmt.Errorf("intrinsic not supported %s", intrinsic)
+	}
 }
 
 // Matches returns true if the given span matches the filter.
