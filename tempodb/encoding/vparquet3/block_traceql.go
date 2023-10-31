@@ -1154,7 +1154,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
