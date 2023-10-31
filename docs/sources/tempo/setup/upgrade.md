@@ -15,6 +15,110 @@ This upgrade guide applies to on-premise installations and not for Grafana Cloud
 
 >**TIP**: You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 
+## Upgrade to Tempo 2.3
+
+Tempo 2.3 has several considerations for any upgrade:
+
+* vParquet3 is available as a stable, production-read block format
+* Configuration option to use Azure SDK v2
+* New `defaults` block in Overrides module configuration
+* Several configuration parameters have been renamed or removed.
+
+For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.3 changelog](https://github.com/grafana/tempo/releases).
+
+### Production-ready vParquet3 block format
+
+vParquet3 provides improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
+
+This block format is required for using dedicated attribute columns.
+
+While vParquet2 remains the default backend for Tempo 2.3, vParquet3 is available as a stable option. 
+Both work with Tempo 2.3.
+
+Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. 
+
+{{% admonition type="note" %}}
+Tempo 2.2 can’t read data stored in vParquet3.
+{{% /admonition %}}
+
+Recommended update process:
+
+1. Upgrade your Tempo installation to version 2.3, remaining on vParquet2.
+2. Verify the upgrade is stable and performs as expected. If you notice any issues, you can downgrade to version 2.2, and data remains readable.
+3. [Change the block format to vParquet3]({{< relref "../configuration/parquet" >}}).
+
+If you notice any issues on step 3 using the new block format, you can downgrade to vParquet2.
+All your data remains readable in Tempo 2.3.
+However, if you have vParquet3 blocks and have to downgrade to Tempo 2.2, you will have data loss. 
+
+### Use Azure SDK v2
+
+If you are using Azure storage, we recommend using the v2 SDK, [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go).
+You can use the `use_v2_sdk` configure option for switching.
+
+For more information, refer to the [Storage block configuration example documentation]({{< relref "../configuration#storage-block-configuration-example" >}}).
+
+### New `defaults` block in Overrides module configuration
+
+The Overrides module has a new `defaults` block for configuring global or per-tenant settings.
+The Overrides format now includes changes to indented syntax.
+For more information, read the [Overrides configuration documentation]({{< relref "../configuration#overrides" >}}).
+
+You can also use the Tempo CLI to migrate configurations. Refer to the [tempo-cli documentation]({{< relref "../operations/tempo_cli#migrate-overrides-config-command" >}}).
+
+The old configuration block looked like this:
+
+```yaml
+overrides:
+  ingestion_rate_strategy: local
+  ingestion_rate_limit_bytes: 12345
+  ingestion_burst_size_bytes: 67890
+  max_search_duration: 17s
+  forwarders: ['foo']
+  metrics_generator_processors: [service-graphs, span-metrics]
+```
+
+The new configuration block looks like this:
+
+```yaml
+overrides:
+  defaults:
+    ingestion:
+      rate_strategy: local
+      rate_limit_bytes: 12345
+      burst_size_bytes: 67890
+    read:
+      max_search_duration: 17s
+    forwarders: ['foo']
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+
+```
+
+### Removed or renamed configuration parameters
+
+<table>
+  <tr>
+   <td><strong>Parameter</strong>
+   </td>
+   <td><strong>Comments</strong>
+   </td>
+  </tr>
+  <tr>
+   <td><code>distributor.log_received_traces</code>
+   </td>
+   <td>Use the <code>distributor.log_received_spans</code> configuration block instead. [PR <a href="https://github.com/grafana/tempo/pull/3008">#3008</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>tempo_query_frontend_queries_total{op="searchtags|metrics"}</code>
+   </td>
+   <td>Removed deprecated frontend metrics configuration option
+   </td>
+  </tr>
+</table>
+
+
 ## Upgrade to Tempo 2.2
 
 Tempo 2.2 has several considerations for any upgrade:
@@ -28,7 +132,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 While not a breaking change, upgrading to Tempo 2.2 will by default change Tempo’s block format to vParquet2.
 
-To stay on a previous block format, read the[Parquet configuration documentation]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
+To stay on a previous block format, read the [Parquet configuration documentation]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
 We strongly encourage upgrading to vParquet2 as soon as possible as this is required for using structural operators in your TraceQL queries and provides query performance improvements, in particular on queries using the `duration` intrinsic.
 
 ### Updated JSonnet supports `statefulset` for the metrics-generator
@@ -92,8 +196,7 @@ All Prometheus metrics exposed by Tempo on its `/metrics` endpoint that were pre
 
 Tempo now includes SLO metrics to count where queries are returned within a configurable time range. (PR [2008](https://github.com/grafana/tempo/pull/2008))
 
-The ``query_frontend_result_metrics_inspected_bytes`` metric was removed in favor of ``query_frontend_bytes_processed_per_second`.`
-
+The `query_frontend_result_metrics_inspected_bytes` metric was removed in favor of `query_frontend_bytes_processed_per_second`.
 
 ## Upgrade from Tempo 1.5 to 2.0
 
@@ -109,7 +212,9 @@ Tempo 2.0 marks a major milestone in Tempo’s development. When planning your u
 
 Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
->**Note**: There is a potential issue loading Tempo 1.5's experimental Parquet storage blocks. You may see errors or even panics in the compactors. We have only been able to reproduce this with interim commits between 1.5 and 2.0, but if you experience any issues please [report them](https://github.com/grafana/tempo/issues/new?assignees=&labels=&template=bug_report.md&title=) so we can isolate and fix this issue.
+{{% admonition type="note" %}}
+There is a potential issue loading Tempo 1.5's experimental Parquet storage blocks. You may see errors or even panics in the compactors. We have only been able to reproduce this with interim commits between 1.5 and 2.0, but if you experience any issues please [report them](https://github.com/grafana/tempo/issues/new?assignees=&labels=&template=bug_report.md&title=) so we can isolate and fix this issue.
+{{% /admonition %}}
 
 ### Check Tempo installation resource allocation
 
