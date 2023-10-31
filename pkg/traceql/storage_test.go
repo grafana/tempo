@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -89,5 +90,117 @@ func TestMetaConditionsWithout(t *testing.T) {
 
 	for _, tc := range tcs {
 		require.Equal(t, tc.expect, SearchMetaConditionsWithout(tc.remove))
+	}
+}
+
+func TestFetchSpansRequestSimplify(t *testing.T) {
+	tcs := []struct {
+		f        *FetchSpansRequest
+		expected *FetchSpansRequest
+	}{
+		{
+			f:        &FetchSpansRequest{},
+			expected: &FetchSpansRequest{},
+		},
+		{
+			f: &FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+				},
+			},
+		},
+		{
+			f: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+				},
+			},
+		},
+		{
+			f: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpGreater, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+				},
+			},
+		},
+		{
+			f: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpGreater, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+				},
+			},
+		},
+		{
+			f: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicStatus), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpGreater, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicStatus), OpEqual, []Static{NewStaticString("foo")}},
+				},
+			},
+		},
+		{
+			f: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpGreater, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+				},
+			},
+		},
+	}
+
+	for i, tc := range tcs {
+		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
+			tc.f.simplify()
+			require.Equal(t, tc.expected, tc.f)
+		})
 	}
 }

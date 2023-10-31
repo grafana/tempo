@@ -76,6 +76,26 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
+// simplify reduces the amount of data pulled from the backend when the same column is used in multiple conditions
+func (f *FetchSpansRequest) simplify() {
+
+	// only do this if all conditions is false. if all conditions is true the fetch layer has enough information
+	// to justify double pulling columns
+	if !f.AllConditions {
+		// if we have two of the same conditions and we do not have the all conditions optimization then collapse them into one with an opnone
+		for i := 0; i < len(f.Conditions); i++ {
+			for j := i + 1; j < len(f.Conditions); j++ {
+				if f.Conditions[i].Attribute == f.Conditions[j].Attribute {
+					f.Conditions[i].Op = OpNone
+					f.Conditions[i].Operands = []Static{}
+					f.Conditions = append(f.Conditions[:j], f.Conditions[j+1:]...)
+					j--
+				}
+			}
+		}
+	}
+}
+
 type Span interface {
 	// these are the actual fields used by the engine to evaluate queries
 	// if a Filter parameter is passed the spans returned will only have this field populated
