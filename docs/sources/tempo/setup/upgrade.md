@@ -34,8 +34,6 @@ Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. You can use Te
 Tempo 2.2 can’t read data stored in vParquet3.
 {{% /admonition %}}
 
-To upgrade the block format, refer to [Choose a different block format]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
-
 Recommended update process:
 
 1. Upgrade your Tempo installation to version 2.3, remaining on vParquet3.
@@ -49,26 +47,15 @@ If you notice any issues, you can immediately downgrade to Tempo 2.2. All your d
 If you are using Azure storage, we recommend using the v2 SDK, [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go).
 You can use the `use_v2_sdk` configure option for switching.
 
-For more information, refer to the [Storack block configuration example documentation]({{< relref "../configuration#storage-block-configuration-example" >}}).
-
-### Produce debug metrics with the distributor
-
-You can enable a configuration block for the distributor to produce debug metrics.
-These metrics can be useful when tracking down a process that's creating an exceptional amount of spans.
-
-```yaml
-distributor:
-  metric_received_spans:
-    enabled: false
-    root_only: false
-```
+For more information, refer to the [Storage block configuration example documentation]({{< relref "../configuration#storage-block-configuration-example" >}}).
 
 ### Refactor the Overrides module configuration
 
-We’ve added a new `defaults` block to the overrides module for configuring global or per-tenant settings. The Overrides change to indented syntax.
+The Overrides module has a new `defaults` block for configuring global or per-tenant settings.
+The Overrides format now includes changes to indented syntax.
 For more information, read the [Overrides configuration documentation]({{< relref "../configuration#overrides" >}}).
 
-You can also use the Tempo CLI to migrate configurations. Refer to the [documentation]({{< relref "../operations/tempo_cli#migrate-overrides-config-command" >}}).
+You can also use the Tempo CLI to migrate configurations. Refer to the [tempo-cli documentation]({{< relref "../operations/tempo_cli#migrate-overrides-config-command" >}}).
 
 The old configuration block looked like this:
 
@@ -82,7 +69,7 @@ overrides:
   metrics_generator_processors: [service-graphs, span-metrics]
 ```
 
-Here is an example of the new configuration block:
+The new configuration block looks like this:
 
 ```yaml
 overrides:
