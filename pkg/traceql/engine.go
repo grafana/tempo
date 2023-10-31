@@ -50,6 +50,20 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 
+	if !fetchSpansRequest.AllConditions {
+		// if we have two of the same conditions and we do not have the all conditions optimization then collapse them into one with an opnone
+		for i := 0; i < len(fetchSpansRequest.Conditions); i++ {
+			for j := i + 1; j < len(fetchSpansRequest.Conditions); j++ {
+				if fetchSpansRequest.Conditions[i].Attribute == fetchSpansRequest.Conditions[j].Attribute {
+					fetchSpansRequest.Conditions[i].Op = OpNone
+					fetchSpansRequest.Conditions[i].Operands = []Static{}
+					fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions[:j], fetchSpansRequest.Conditions[j+1:]...)
+					j--
+				}
+			}
+		}
+	}
+
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
