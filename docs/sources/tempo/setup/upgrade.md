@@ -26,9 +26,11 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 ### Change the block format to vParquet3
 
-Although the vParquet3 format isn't yet the default, we believe it's production ready and highly recommend switching to it for improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
-
 Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. You can use Tempo 2.3 with vParquet2 or vParquet3. vParquet2 remains the default backend for Tempo 2.3; vParquet3 is available as a stable option.
+
+vParquet3 provides improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
+
+This block format is required for using structural operators and dedicated attribute columns.
 
 {{% admonition type="note" %}}
 Tempo 2.2 can’t read data stored in vParquet3.
@@ -49,7 +51,7 @@ You can use the `use_v2_sdk` configure option for switching.
 
 For more information, refer to the [Storage block configuration example documentation]({{< relref "../configuration#storage-block-configuration-example" >}}).
 
-### Refactor the Overrides module configuration
+### New `defaults` block in Overrides module configuration
 
 The Overrides module has a new `defaults` block for configuring global or per-tenant settings.
 The Overrides format now includes changes to indented syntax.
@@ -187,8 +189,7 @@ All Prometheus metrics exposed by Tempo on its `/metrics` endpoint that were pre
 
 Tempo now includes SLO metrics to count where queries are returned within a configurable time range. (PR [2008](https://github.com/grafana/tempo/pull/2008))
 
-The ``query_frontend_result_metrics_inspected_bytes`` metric was removed in favor of ``query_frontend_bytes_processed_per_second`.`
-
+The `query_frontend_result_metrics_inspected_bytes` metric was removed in favor of `query_frontend_bytes_processed_per_second`.
 
 ## Upgrade from Tempo 1.5 to 2.0
 
@@ -204,7 +205,9 @@ Tempo 2.0 marks a major milestone in Tempo’s development. When planning your u
 
 Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
->**Note**: There is a potential issue loading Tempo 1.5's experimental Parquet storage blocks. You may see errors or even panics in the compactors. We have only been able to reproduce this with interim commits between 1.5 and 2.0, but if you experience any issues please [report them](https://github.com/grafana/tempo/issues/new?assignees=&labels=&template=bug_report.md&title=) so we can isolate and fix this issue.
+{{% admonition type="note" %}}
+There is a potential issue loading Tempo 1.5's experimental Parquet storage blocks. You may see errors or even panics in the compactors. We have only been able to reproduce this with interim commits between 1.5 and 2.0, but if you experience any issues please [report them](https://github.com/grafana/tempo/issues/new?assignees=&labels=&template=bug_report.md&title=) so we can isolate and fix this issue.
+{{% /admonition %}}
 
 ### Check Tempo installation resource allocation
 
