@@ -182,16 +182,35 @@ func TestFetchSpansRequestSimplify(t *testing.T) {
 		{
 			f: &FetchSpansRequest{
 				Conditions: []Condition{
-					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
 					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
 					{NewIntrinsic(IntrinsicTraceRootService), OpNotEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicKind), OpNotEqual, []Static{NewStaticString("foo")}},
 					{NewIntrinsic(IntrinsicTraceRootService), OpGreater, []Static{NewStaticString("foo")}},
 				},
 			},
 			expected: &FetchSpansRequest{
 				Conditions: []Condition{
-					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
 					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+					{NewIntrinsic(IntrinsicKind), OpNone, []Static{}},
+				},
+			},
+		},
+		{
+			// if conditions are equal keep operands/op
+			f: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
+					{NewIntrinsic(IntrinsicTraceRootService), OpGreater, []Static{NewStaticString("foo")}},
+				},
+			},
+			expected: &FetchSpansRequest{
+				Conditions: []Condition{
+					{NewIntrinsic(IntrinsicTraceRootService), OpNone, []Static{}},
+					{NewIntrinsic(IntrinsicKind), OpEqual, []Static{NewStaticString("foo")}},
 				},
 			},
 		},

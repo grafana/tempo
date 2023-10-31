@@ -82,18 +82,43 @@ func (f *FetchSpansRequest) simplify() {
 	// only do this if all conditions is false. if all conditions is true the fetch layer has enough information
 	// to justify double pulling columns
 	if !f.AllConditions {
+
+		// jpe - if operands and op are the same then keep op and ano operands
+
 		// if we have two of the same conditions and we do not have the all conditions optimization then collapse them into one with an opnone
 		for i := 0; i < len(f.Conditions); i++ {
 			for j := i + 1; j < len(f.Conditions); j++ {
 				if f.Conditions[i].Attribute == f.Conditions[j].Attribute {
-					f.Conditions[i].Op = OpNone
-					f.Conditions[i].Operands = []Static{}
+					// if Op and Operands are not the same then wipe them out so we retrieve all data
+					if !conditionsEqual(f.Conditions[i], f.Conditions[j]) {
+						f.Conditions[i].Op = OpNone
+						f.Conditions[i].Operands = []Static{}
+					}
 					f.Conditions = append(f.Conditions[:j], f.Conditions[j+1:]...)
 					j--
 				}
 			}
 		}
 	}
+}
+
+func conditionsEqual(c1 Condition, c2 Condition) bool {
+	if c1.Op != c2.Op {
+		return false
+	}
+
+	if len(c1.Operands) != len(c2.Operands) {
+		return false
+	}
+
+	// todo: sort first?
+	for i := 0; i < len(c1.Operands); i++ {
+		if c1.Operands[i] != c2.Operands[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 type Span interface {

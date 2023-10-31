@@ -27,7 +27,8 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	req := traceql.MustExtractFetchSpansRequestWithMetadata(`{ kind = kind }`)
+	q := `{ span.foo = "bar" && span.foo = "baz" }`
+	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
 	req.EndTimeUnixNanos = uint64(1001 * time.Second)
@@ -38,6 +39,7 @@ func TestOne(t *testing.T) {
 	spanSet, err := resp.Results.Next(ctx)
 	require.NoError(t, err, "search request:", req)
 
+	fmt.Println(q)
 	fmt.Println("-----------")
 	fmt.Println(resp.Results.(*spansetIterator).iter)
 	fmt.Println("-----------")
@@ -518,12 +520,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	// blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
+	//blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/home/joe/testblock/"),
-		Path: path.Join("/Users/marty/src/tmp"),
+		Path: path.Join("/home/joe/testblock/"),
+		//Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
@@ -533,7 +535,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
-	opts.TotalPages = 10
+	opts.TotalPages = 1
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
