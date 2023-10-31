@@ -20,11 +20,13 @@ This upgrade guide applies to on-premise installations and not for Grafana Cloud
 Tempo 2.3 has several considerations for any upgrade:
 
 * vParquet3 is available as a stable, production-read block format
+* Configuration option to use Azure SDK v2
+* New `defaults` block in Overrides module configuration
 * Several configuration parameters have been renamed or removed.
 
 For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.3 changelog](https://github.com/grafana/tempo/releases).
 
-### Change the block format to vParquet3
+### Production-ready vParquet3 block format
 
 Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. You can use Tempo 2.3 with vParquet2 or vParquet3. vParquet2 remains the default backend for Tempo 2.3; vParquet3 is available as a stable option.
 
