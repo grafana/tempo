@@ -43,7 +43,7 @@ Tempo 2.2 can’t read data stored in vParquet3.
 
 Recommended update process:
 
-1. Upgrade your Tempo installation to version 2.3, remaining on vParquet3.
+1. Upgrade your Tempo installation to version 2.3, remaining on vParquet2.
 2. Verify the upgrade is stable and performs as expected. If you notice any issues, you can downgrade to version 2.2, and data remains readable.
 3. [Change the block format to vParquet3]({{< relref "../configuration/parquet" >}}).
 
