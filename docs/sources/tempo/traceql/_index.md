@@ -18,7 +18,7 @@ Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()`, `avg()`, `min()`, `max()`, and `sum()`
 
-Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
+Read the blog post, [Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/), for an introduction to TraceQL and its capabilities.
 
 {{< vimeo 796408188 >}}
 
@@ -248,10 +248,12 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 { span.http.url = "/path/of/api" } >> { span.db.name = "db-shard-001" }
 ```
 
-### Experimental Structural
+### Experimental structural
 
-These spanset operators look at the structure of a trace and the relationship between the spans. They are marked experimental because they
-are known to sometimes return false positives. However, they can be very useful (see examples below). We encourage users to try them and give feedback.
+These spanset operators look at the structure of a trace and the relationship between the spans.
+They are marked experimental because they are known to sometimes return false positives.
+However, they can be very useful (see examples below).
+We encourage users to try them and give feedback.
 
 - `{condA} !>> {condB}` - The not-descendant operator (`!>>`) looks for spans matching `{condB}` that are not descendant spans of a parent matching `{condA}`
 - `{condA} !<< {condB}` - The not-ancestor operator (`!<<`) looks for spans matching `{condB}` that are not ancestor spans of a child matching `{condA}`
