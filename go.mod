@@ -109,7 +109,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.74.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.74.0
-	github.com/parquet-go/parquet-go v0.18.1-0.20231002172823-4b0ea5ed3565
+	github.com/parquet-go/parquet-go v0.18.1-0.20231023162157-1748e4b3ff04
 	github.com/stoewer/parquet-cli v0.0.5
 	go.opentelemetry.io/collector/config/configgrpc v0.86.0
 	go.opentelemetry.io/collector/config/confighttp v0.86.0
@@ -121,6 +121,7 @@ require (
 	go.opentelemetry.io/collector/receiver v0.86.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/oauth2 v0.12.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230717213848-3f92550aa753
 )
 
 require (
@@ -316,7 +317,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230717213848-3f92550aa753 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230717213848-3f92550aa753 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230717213848-3f92550aa753 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 

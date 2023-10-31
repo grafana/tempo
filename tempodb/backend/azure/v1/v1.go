@@ -14,6 +14,7 @@ import (
 
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/util/log"
@@ -157,6 +158,72 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 		}
 	}
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "V1.ListBlocks")
+	defer span.Finish()
+
+	var (
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		marker            = blob.Marker{}
+		parts             []string
+		id                uuid.UUID
+	)
+
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix += dir
+	}
+
+	for {
+		res, err := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
+			Prefix:  prefix,
+			Details: blob.BlobListingDetails{},
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("iterating objects: %w", err)
+		}
+		marker = res.NextMarker
+
+		for _, blob := range res.Segment.BlobItems {
+			obj := strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix)
+			parts = strings.Split(obj, "/")
+
+			// ie: <blockID>/meta.json
+			if len(parts) != 2 {
+				continue
+			}
+
+			switch parts[1] {
+			case backend.MetaName, backend.CompactedMetaName:
+			default:
+				continue
+			}
+
+			id, err = uuid.Parse(parts[0])
+			if err != nil {
+				return nil, nil, err
+			}
+
+			switch parts[1] {
+			case backend.MetaName:
+				blockIDs = append(blockIDs, id)
+			case backend.CompactedMetaName:
+				compactedBlockIDs = append(compactedBlockIDs, id)
+			}
+
+		}
+
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+	}
+	return blockIDs, compactedBlockIDs, nil
 }
 
 // Read implements backend.Reader

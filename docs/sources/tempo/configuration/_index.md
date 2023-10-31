@@ -737,6 +737,11 @@ storage:
             # Example: "endpoint: s3.dualstack.us-east-2.amazonaws.com"
             [endpoint: <string>]
 
+            # The number of list calls to make in parallel to the backend per instance.
+            # Adjustments here will impact the polling time, as well as the number of Go routines.
+            # Default is 3
+            [list_blocks_concurrency: <int>]
+
             # optional.
             # By default the region is inferred from the endpoint,
             # but is required for some S3-compatible storage engines.

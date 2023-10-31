@@ -149,7 +149,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 	}
 
 	// this will block until one poll cycle is complete
-	c.store.EnablePolling(c)
+	c.store.EnablePolling(ctx, c)
 
 	return nil
 }

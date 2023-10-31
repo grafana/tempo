@@ -17,7 +17,7 @@ You'll need:
 
 * Grafana 9.0.0 or higher
 * Microservice deployments require the Tempo querier URL, for example: `http://query-frontend.tempo.svc.cluster.local:3200`
-* [OpenTelemetry telmemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
+* [OpenTelemetry telemetrygen](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen) for generating tracing data
 
 Refer to [Deploy Grafana on Kubernetes](/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
 Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for more information.

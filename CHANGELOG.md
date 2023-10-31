@@ -1,11 +1,12 @@
 ## main / unreleased
 
+* [CHANGE] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
+* [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
 * [ENHANCEMENT] Make the trace ID label name configurable for remote written exemplars [#3074](https://github.com/grafana/tempo/pull/3074)
 
-## v2.3.0-rc.0 / 2023-10-20
+## v2.3.0 / 2023-10-30
 
 * [CHANGE] Update Go to 1.21 [#2486](https://github.com/grafana/tempo/pull/2829) (@zalegrala)
-* [CHANGE] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [CHANGE] Moved the tempo_ingester_traces_created_total metric to be incremented when a trace is cut to the wal [#2884](https://github.com/grafana/tempo/pull/2884) (@joe-elliott)
 * [CHANGE] Upgrade from deprecated [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) SDK to [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go) [#2835](https://github.com/grafana/tempo/issues/2835) (@LasseHels)
 * [CHANGE] Metrics summary API validate the requested time range [#2902](https://github.com/grafana/tempo/pull/2902) (@mdisibio)
@@ -13,7 +14,7 @@
     v1: [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) original (now deprecated) SDK
     v2: [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go)
 * [CHANGE] Adjust trace size estimation to better honor row group size settings. [#3038](https://github.com/grafana/tempo/pull/3038) (@joe-elliott)
-* [CHANGE] Update alpine image version to 3.18. [#3046](https://github.com/grafana/tempo/pull/) (@joe-elliott)
+* [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
     Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
     Old config:
@@ -40,14 +41,15 @@ defaults:
   metrics_generator:
     processors: [service-graphs, span-metrics]
 ```  
+* [CHANGE] Bump Jaeger query docker image to 1.50.0 [#2998](https://github.com/grafana/tempo/pull/2998) (@pavolloffay)
 * [FEATURE] New TraceQL structural operators ancestor (<<), parent (<) [#2877](https://github.com/grafana/tempo/pull/2877) (@kousikmitra)
 * [FEATURE] Add the `/api/status/buildinfo` endpoint [#2702](https://github.com/grafana/tempo/pull/2702) (@fabrizio-grafana)
 * [FEATURE] New encoding vParquet3 with support for dedicated attribute columns (@mapno, @stoewer) [#2649](https://github.com/grafana/tempo/pull/2649)
 * [FEATURE] Add filtering support to Generic Forwarding [#2742](https://github.com/grafana/tempo/pull/2742) (@Blinkuu)
 * [FEATURE] Add cli command to print out summary of large traces [#2775](https://github.com/grafana/tempo/pull/2775) (@ie-pham)
 * [FEATURE] Added not structural operators to TraceQL: !>, !<, and !~ [#2993](https://github.com/grafana/tempo/pull/2993) (@joe-elliott)
+* [ENHANCEMENT] Make metrics-generator ingestion slack per tenant [#2589](https://github.com/grafana/tempo/pull/2589) (@ie-pham)
 * [ENHANCEMENT] Support quoted attribute name in TraceQL [#3004](https://github.com/grafana/tempo/pull/3004) (@kousikmitra)
-* [ENHANCEMENT] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
 * [ENHANCEMENT] Add support for searching by span status message using  `statusMessage` keyword [#2848](https://github.com/grafana/tempo/pull/2848) (@kousikmitra)
 * [ENHANCEMENT] Add block indexes to vParquet2 and vParquet3 to improve trace by ID lookup [#2697](https://github.com/grafana/tempo/pull/2697) (@mdisibio)
 * [ENHANCEMENT] Assert ingestion rate limits as early as possible [#2640](https://github.com/grafana/tempo/pull/2703) (@mghildiy)
@@ -70,6 +72,7 @@ defaults:
 * [ENHANCEMENT] added a metrics generator config option to enable/disable X-Scope-OrgID headers on remote write. [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
 * [ENHANCEMENT] Correctly return RetryInfo to Otel Collector/Grafana Agent on ResourceExhausted. This allows the agents to honor their own retry 
   settings. [#3019](https://github.com/grafana/tempo/pull/3019) (@joe-elliott)
+* [BUGFIX] Unescape tag names [#2894](https://github.com/grafana/tempo/pull/2894) (@fabrizio-grafana)
 * [BUGFIX] Load defaults for the internal server [#3041](https://github.com/grafana/tempo/pull/3041) (@rubenvp8510)
 * [BUGFIX] Fix pass-through to runtime overrides for FilterPolicies and TargetInfoExcludedDimensions [#3012](https://github.com/grafana/tempo/pull/3012) (@electron0zero)
 * [BUGFIX] Fix panic in metrics summary api [#2738](https://github.com/grafana/tempo/pull/2738) (@mdisibio)
@@ -90,6 +93,12 @@ defaults:
 * [BUGFIX] Fix issue where ingester doesn't stop query after timeout [#3031](https://github.com/grafana/tempo/pull/3031) (@mdisibio) 
 * [BUGFIX] Fix cases where empty filter {} wouldn't return expected results [#2498](https://github.com/grafana/tempo/issues/2498) (@mdisibio)
 * [BUGFIX] Reorder S3 credential chain and upgrade minio-go. `native_aws_auth_enabled` is deprecated [#3006](https://github.com/grafana/tempo/pull/3006) (@ekristen, @mapno)
+* [BUGFIX] Update parquet-go dependency including a bugfix that prevents corrupted blocks from being written [#3068](https://github.com/grafana/tempo/pull/3068) (@stoewer)
+
+# v2.2.4 / 2023-10-25
+
+* [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
+* [CHANGE] Bump Jaeger query docker image to 1.50.0 [#2998](https://github.com/grafana/tempo/pull/2998) (@pavolloffay)
 
 # v2.2.3 / 2023-09-13
 

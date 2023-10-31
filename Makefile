@@ -129,9 +129,13 @@ test-e2e: tools docker-tempo docker-tempo-query
 test-e2e-serverless: tools docker-tempo docker-serverless
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
+.PHONY: test-integration-poller
+test-integration-poller: tools
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
+
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all
-test-all: test-with-cover test-e2e test-e2e-serverless
+test-all: test-with-cover test-e2e test-e2e-serverless test-integration-poller
 
 .PHONY: test-bench
 test-bench: tools docker-tempo

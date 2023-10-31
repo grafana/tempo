@@ -3,10 +3,8 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"io"
-	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -16,83 +14,16 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 )
-
-func TestCreateBlockBoundaries(t *testing.T) {
-	tests := []struct {
-		name        string
-		queryShards int
-		expected    [][]byte
-	}{
-		{
-			name:        "single shard",
-			queryShards: 1,
-			expected: [][]byte{
-				{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
-				{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-			},
-		},
-		{
-			name:        "multiple shards",
-			queryShards: 4,
-			expected: [][]byte{
-				{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
-				{0x40, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
-				{0x80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
-				{0xc0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
-				{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-			},
-		},
-		{
-			name:        "large number of evenly divisible shards",
-			queryShards: 255,
-		},
-		{
-			name:        "large number of not evenly divisible shards",
-			queryShards: 1111,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			bb := createBlockBoundaries(tt.queryShards)
-
-			if len(tt.expected) > 0 {
-				require.Len(t, bb, len(tt.expected))
-				for i := 0; i < len(bb); i++ {
-					require.Equal(t, tt.expected[i], bb[i])
-				}
-			}
-
-			max := uint64(0)
-			min := uint64(math.MaxUint64)
-
-			// test that the boundaries are in order
-			for i := 1; i < len(bb); i++ {
-				require.True(t, bytes.Compare(bb[i-1], bb[i]) < 0)
-
-				prev := binary.BigEndian.Uint64(bb[i-1][:8])
-				cur := binary.BigEndian.Uint64(bb[i][:8])
-				dist := cur - prev
-				if dist > max {
-					max = dist
-				}
-				if dist < min {
-					min = dist
-				}
-			}
-
-			// confirm that max - min <= 1. this means are boundaries are as fair as possible
-			require.LessOrEqual(t, max-min, uint64(1))
-		})
-	}
-}
 
 func TestBuildShardedRequests(t *testing.T) {
 	queryShards := 2
@@ -101,7 +32,7 @@ func TestBuildShardedRequests(t *testing.T) {
 		cfg: &TraceByIDConfig{
 			QueryShards: queryShards,
 		},
-		blockBoundaries: createBlockBoundaries(queryShards - 1),
+		blockBoundaries: blockboundary.CreateBlockBoundaries(queryShards - 1),
 	}
 
 	ctx := user.InjectOrgID(context.Background(), "blerg")

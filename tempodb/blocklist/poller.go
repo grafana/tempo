@@ -7,15 +7,16 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	opentracing "github.com/opentracing/opentracing-go"
+	spanlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -123,7 +124,7 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -131,7 +132,12 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 	}()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "Poller.Do")
+	defer span.Finish()
+
 	tenants, err := p.reader.Tenants(ctx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
@@ -144,7 +150,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	consecutiveErrors := 0
 
 	for _, tenantID := range tenants {
-		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID)
+		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
 		if err != nil {
 			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
 			consecutiveErrors++
@@ -178,12 +184,18 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	return blocklist, compactedBlocklist, nil
 }
 
-func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "poll tenant index")
+func (p *Poller) pollTenantAndCreateIndex(
+	ctx context.Context,
+	tenantID string,
+	previous *List,
+) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantAndCreateIndex", opentracing.Tag{Key: "tenant", Value: tenantID})
 	defer span.Finish()
 
 	// are we a tenant index builder?
-	if !p.buildTenantIndex(tenantID) {
+	builder := p.tenantIndexBuilder(tenantID)
+	span.SetTag("tenant_index_builder", builder)
+	if !builder {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
 
 		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
@@ -192,24 +204,31 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
 			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
+
+			span.SetTag("metas", len(i.Meta))
+			span.SetTag("compactedMetas", len(i.CompactedMeta))
 			return i.Meta, i.CompactedMeta, nil
 		}
 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
+		span.LogFields(
+			spanlog.Error(err),
+		)
 
 		// there was an error, return the error if we're not supposed to fallback to polling
 		if !p.cfg.PollFallback {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("failed to pull tenant index and no fallback configured: %w", err)
 		}
 
 		// polling fallback is true, log the error and continue in this method to completely poll the backend
 		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
 	}
 
-	// if we're here then we have been configured to be a tenant index builder OR there was a failure to pull
-	// the tenant index and we are configured to fall back to polling
+	// if we're here then we have been configured to be a tenant index builder OR
+	// there was a failure to pull the tenant index and we are configured to fall
+	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -226,59 +245,78 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 	return blocklist, compactedBlocklist, nil
 }
 
-func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
-	blockIDs, err := p.reader.Blocks(ctx, tenantID)
+func (p *Poller) pollTenantBlocks(
+	ctx context.Context,
+	tenantID string,
+	previous *List,
+) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantBlocks")
+	defer span.Finish()
+
+	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
-		metricBlocklistErrors.WithLabelValues(tenantID).Inc()
-		return []*backend.BlockMeta{}, []*backend.CompactedBlockMeta{}, err
-	}
-
-	bg := boundedwaitgroup.New(p.cfg.PollConcurrency)
-	chMeta := make(chan *backend.BlockMeta, len(blockIDs))
-	chCompactedMeta := make(chan *backend.CompactedBlockMeta, len(blockIDs))
-	anyError := atomic.Error{}
-
-	for _, blockID := range blockIDs {
-		bg.Add(1)
-		go func(uuid uuid.UUID) {
-			defer bg.Done()
-
-			if p.cfg.PollJitterMs > 0 {
-				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
-			}
-
-			m, cm, err := p.pollBlock(ctx, tenantID, uuid)
-			if m != nil {
-				chMeta <- m
-			} else if cm != nil {
-				chCompactedMeta <- cm
-			} else if err != nil {
-				anyError.Store(err)
-			}
-		}(blockID)
-	}
-
-	bg.Wait()
-	close(chMeta)
-	close(chCompactedMeta)
-
-	if err = anyError.Load(); err != nil {
-		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		return nil, nil, err
 	}
 
-	newBlockList := make([]*backend.BlockMeta, 0, len(blockIDs))
-	for m := range chMeta {
-		newBlockList = append(newBlockList, m)
+	var (
+		metas                 = previous.Metas(tenantID)
+		compactedMetas        = previous.CompactedMetas(tenantID)
+		mm                    = make(map[uuid.UUID]*backend.BlockMeta, len(metas))
+		cm                    = make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
+		newBlockList          = make([]*backend.BlockMeta, 0, len(currentBlockIDs))
+		newCompactedBlocklist = make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
+		unknownBlockIDs       = make(map[uuid.UUID]bool, 1000)
+	)
+
+	span.SetTag("metas", len(metas))
+	span.SetTag("compactedMetas", len(compactedMetas))
+
+	for _, i := range metas {
+		mm[i.BlockID] = i
 	}
+
+	for _, i := range compactedMetas {
+		cm[i.BlockID] = i
+	}
+
+	// The boolean here to track if we know the block has been compacted
+	for _, blockID := range currentBlockIDs {
+		// if we already have this block id in our previous list, use the existing data.
+		if v, ok := mm[blockID]; ok {
+			newBlockList = append(newBlockList, v)
+			continue
+		}
+		unknownBlockIDs[blockID] = false
+
+	}
+
+	for _, blockID := range currentCompactedBlockIDs {
+		// if we already have this block id in our previous list, use the existing data.
+		if v, ok := cm[blockID]; ok {
+			newCompactedBlocklist = append(newCompactedBlocklist, v)
+			continue
+		}
+
+		// TODO: Review the ability  to avoid polling for compacted blocks that we
+		// know about.  We need to know the compacted time, but perhaps there is
+		// another way to get that, like the object creation time.
+
+		unknownBlockIDs[blockID] = true
+
+	}
+
+	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	newBlockList = append(newBlockList, newM...)
+	newCompactedBlocklist = append(newCompactedBlocklist, newCm...)
+
 	sort.Slice(newBlockList, func(i, j int) bool {
 		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
 	})
 
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(blockIDs))
-	for cm := range chCompactedMeta {
-		newCompactedBlocklist = append(newCompactedBlocklist, cm)
-	}
 	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
 		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
 	})
@@ -286,11 +324,93 @@ func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*back
 	return newBlockList, newCompactedBlocklist, nil
 }
 
-func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+func (p *Poller) pollUnknown(
+	ctx context.Context,
+	unknownBlocks map[uuid.UUID]bool,
+	tenantID string,
+) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "pollUnknown", opentracing.Tags{
+		"unknownBlockIDs": len(unknownBlocks),
+	})
+	defer span.Finish()
+
+	var (
+		errs                  []error
+		mtx                   sync.Mutex
+		bg                    = boundedwaitgroup.New(p.cfg.PollConcurrency)
+		newBlockList          = make([]*backend.BlockMeta, 0, len(unknownBlocks))
+		newCompactedBlocklist = make([]*backend.CompactedBlockMeta, 0, len(unknownBlocks))
+	)
+
+	for blockID, compacted := range unknownBlocks {
+		bg.Add(1)
+
+		// Avoid polling if we've already encountered an error
+		mtx.Lock()
+		if len(errs) > 0 {
+			mtx.Unlock()
+			break
+		}
+		mtx.Unlock()
+
+		go func(id uuid.UUID, compacted bool) {
+			defer bg.Done()
+
+			if p.cfg.PollJitterMs > 0 {
+				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
+			}
+
+			m, cm, pollBlockErr := p.pollBlock(derivedCtx, tenantID, id, compacted)
+			mtx.Lock()
+			defer mtx.Unlock()
+			if m != nil {
+				newBlockList = append(newBlockList, m)
+				return
+			}
+
+			if cm != nil {
+				newCompactedBlocklist = append(newCompactedBlocklist, cm)
+				return
+			}
+
+			if pollBlockErr != nil {
+				errs = append(errs, pollBlockErr)
+			}
+		}(blockID, compacted)
+	}
+
+	bg.Wait()
+
+	if len(errs) > 0 {
+		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
+		// TODO: add span status on error
+		return nil, nil, errors.Join(errs...)
+	}
+
+	return newBlockList, newCompactedBlocklist, nil
+}
+
+func (p *Poller) pollBlock(
+	ctx context.Context,
+	tenantID string,
+	blockID uuid.UUID,
+	compacted bool,
+) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollBlock")
+	defer span.Finish()
+	var err error
+
+	span.SetTag("tenant", tenantID)
+	span.SetTag("block", blockID.String())
+
+	var blockMeta *backend.BlockMeta
 	var compactedBlockMeta *backend.CompactedBlockMeta
-	blockMeta, err := p.reader.BlockMeta(ctx, blockID, tenantID)
+
+	if !compacted {
+		blockMeta, err = p.reader.BlockMeta(derivedCtx, blockID, tenantID)
+	}
 	// if the normal meta doesn't exist maybe it's compacted.
-	if errors.Is(err, backend.ErrDoesNotExist) {
+	if errors.Is(err, backend.ErrDoesNotExist) || compacted {
 		blockMeta = nil
 		compactedBlockMeta, err = p.compactor.CompactedBlockMeta(blockID, tenantID)
 	}
@@ -308,7 +428,8 @@ func (p *Poller) pollBlock(ctx context.Context, tenantID string, blockID uuid.UU
 	return blockMeta, compactedBlockMeta, nil
 }
 
-func (p *Poller) buildTenantIndex(tenant string) bool {
+// tenantIndexBuilder returns true if this poller owns this tenant
+func (p *Poller) tenantIndexBuilder(tenant string) bool {
 	for i := 0; i < p.cfg.TenantIndexBuilders; i++ {
 		job := jobPrefix + strconv.Itoa(i) + "-" + tenant
 		if p.sharder.Owns(job) {
@@ -338,7 +459,10 @@ type backendMetaMetrics struct {
 	compactedBlockMetaTotalBytes   uint64
 }
 
-func sumTotalBackendMetaMetrics(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) backendMetaMetrics {
+func sumTotalBackendMetaMetrics(
+	blockMeta []*backend.BlockMeta,
+	compactedBlockMeta []*backend.CompactedBlockMeta,
+) backendMetaMetrics {
 	var sumTotalObjectsBM int
 	var sumTotalObjectsCBM int
 	var sumTotalBytesBM uint64

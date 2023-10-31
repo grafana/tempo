@@ -29,7 +29,7 @@ and the connections and dependencies between its components:
 The metrics-generator processes traces and generates service graphs in the form of Prometheus metrics.
 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
-The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/README.md) to detect a myriad of requests.
+The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/trace.md) to detect a myriad of requests.
 It currently supports the following requests:
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.

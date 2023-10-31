@@ -123,6 +123,9 @@ jobs:
       - name: Test
         run: make test-e2e
 
+      - name: Poller
+        run: make test-integration-poller
+
   integration-tests-serverless:
     name: Test serverless integration e2e suite
     runs-on: ubuntu-latest

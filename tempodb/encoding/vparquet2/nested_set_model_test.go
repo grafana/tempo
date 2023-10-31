@@ -25,7 +25,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 2},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 2, ParentID: -1},
 				},
 			},
 		},
@@ -40,7 +40,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 6},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 6, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 5, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2},
 				},
@@ -60,7 +60,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 12},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 12, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 11, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2},
 					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 5, NestedSetRight: 10, ParentID: 2},
@@ -85,7 +85,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 12},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 12, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 11, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2},
 					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 5, NestedSetRight: 10, ParentID: 2},
@@ -114,14 +114,14 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 12},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 12, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 11, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2},
 					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 5, NestedSetRight: 10, ParentID: 2},
 					{SpanID: []byte("eeeeeeee"), ParentSpanID: []byte("dddddddd"), NestedSetLeft: 6, NestedSetRight: 7, ParentID: 5},
 					{SpanID: []byte("ffffffff"), ParentSpanID: []byte("dddddddd"), NestedSetLeft: 8, NestedSetRight: 9, ParentID: 5},
 
-					{SpanID: []byte("gggggggg"), NestedSetLeft: 13, NestedSetRight: 18},
+					{SpanID: []byte("gggggggg"), NestedSetLeft: 13, NestedSetRight: 18, ParentID: -1},
 					{SpanID: []byte("hhhhhhhh"), ParentSpanID: []byte("gggggggg"), NestedSetLeft: 14, NestedSetRight: 17, ParentID: 13},
 					{SpanID: []byte("iiiiiiii"), ParentSpanID: []byte("hhhhhhhh"), NestedSetLeft: 15, NestedSetRight: 16, ParentID: 14},
 				},
@@ -142,7 +142,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 8},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 8, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 7, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 3, NestedSetRight: 4, ParentID: 2},
 					{SpanID: []byte("dddddddd"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 5, NestedSetRight: 6, ParentID: 2},
@@ -162,7 +162,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 4},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 4, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), NestedSetLeft: 2, NestedSetRight: 3, ParentID: 1},
 				},
 			},
@@ -180,7 +180,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 10},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 10, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_SERVER), NestedSetLeft: 3, NestedSetRight: 8, ParentID: 2},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), Kind: int(v1.Span_SPAN_KIND_CLIENT), NestedSetLeft: 2, NestedSetRight: 9, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), NestedSetLeft: 4, NestedSetRight: 5, ParentID: 3},
@@ -201,7 +201,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 			},
 			expected: [][]Span{
 				{
-					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 10},
+					{SpanID: []byte("aaaaaaaa"), NestedSetLeft: 1, NestedSetRight: 10, ParentID: -1},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("aaaaaaaa"), Kind: int(v1.Span_SPAN_KIND_CLIENT), NestedSetLeft: 2, NestedSetRight: 9, ParentID: 1},
 					{SpanID: []byte("cccccccc"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_CLIENT), NestedSetLeft: 4, NestedSetRight: 7, ParentID: 3},
 					{SpanID: []byte("bbbbbbbb"), ParentSpanID: []byte("bbbbbbbb"), Kind: int(v1.Span_SPAN_KIND_SERVER), NestedSetLeft: 3, NestedSetRight: 8, ParentID: 2},

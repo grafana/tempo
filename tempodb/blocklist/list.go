@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -93,10 +94,10 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 		l.updateInternal(tenantID, l.added[tenantID], l.removed[tenantID], l.compactedAdded[tenantID], l.compactedRemoved[tenantID])
 	}
 
-	l.added = make(PerTenant)
-	l.removed = make(PerTenant)
-	l.compactedAdded = make(PerTenantCompacted)
-	l.compactedRemoved = make(PerTenantCompacted)
+	clear(l.added)
+	clear(l.removed)
+	clear(l.compactedAdded)
+	clear(l.compactedRemoved)
 }
 
 // Update Adds and removes regular or compacted blocks from the in-memory blocklist.
@@ -111,7 +112,11 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 
 	l.updateInternal(tenantID, add, remove, compactedAdd, compactedRemove)
 
-	// save off, they are retained for an additional polling cycle
+	// We have updated the current blocklist, but we may be in the middle of a
+	// polling cycle.  When the Apply is called above, we will have lost the
+	// changes that we have just added. So we keep track of them here and apply
+	// them again after the Apply to save them for the next polling cycle.  On
+	// the next polling cycle, the changes here will rediscovered.
 	l.added[tenantID] = append(l.added[tenantID], add...)
 	l.removed[tenantID] = append(l.removed[tenantID], remove...)
 	l.compactedAdded[tenantID] = append(l.compactedAdded[tenantID], compactedAdd...)
@@ -149,6 +154,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 			newblocklist = append(newblocklist, b)
 		}
 	}
+
 	l.metas[tenantID] = newblocklist
 
 	// ******** Compacted blocks ********
@@ -178,5 +184,6 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}
+
 	l.compactedMetas[tenantID] = newCompactedBlocklist
 }

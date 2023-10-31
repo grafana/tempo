@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/util/log"
@@ -162,6 +163,68 @@ func (rw *V2) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 		}
 	}
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *V2) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "V2.ListBlocks")
+	defer span.Finish()
+
+	var (
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		parts             []string
+		id                uuid.UUID
+	)
+
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix += dir
+	}
+
+	pager := rw.containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
+		Include: container.ListBlobsInclude{},
+		Prefix:  &prefix,
+	})
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("iterating objects: %w", err)
+		}
+
+		for _, b := range page.Segment.BlobItems {
+			if b.Name == nil {
+				continue
+			}
+
+			obj := strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
+			parts = strings.Split(obj, "/")
+
+			// ie: <blockID>/meta.json
+			if len(parts) != 2 {
+				continue
+			}
+
+			if parts[1] != backend.MetaName && parts[1] != backend.CompactedMetaName {
+				continue
+			}
+
+			id, err = uuid.Parse(parts[0])
+			if err != nil {
+				return nil, nil, err
+			}
+
+			switch parts[1] {
+			case backend.MetaName:
+				blockIDs = append(blockIDs, id)
+			case backend.CompactedMetaName:
+				compactedBlockIDs = append(compactedBlockIDs, id)
+			}
+		}
+	}
+	return blockIDs, compactedBlockIDs, nil
 }
 
 // Read implements backend.Reader
