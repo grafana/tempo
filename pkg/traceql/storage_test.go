@@ -218,7 +218,7 @@ func TestFetchSpansRequestSimplify(t *testing.T) {
 
 	for i, tc := range tcs {
 		t.Run(fmt.Sprintf("test-%d", i), func(t *testing.T) {
-			tc.f.simplify()
+			tc.f.coalesceConditions()
 			require.Equal(t, tc.expected, tc.f)
 		})
 	}

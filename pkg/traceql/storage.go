@@ -76,16 +76,16 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
-// simplify reduces the amount of data pulled from the backend when the same column is used in multiple conditions
-func (f *FetchSpansRequest) simplify() {
-
-	// only do this if all conditions is false. if all conditions is true the fetch layer has enough information
-	// to justify double pulling columns
+// coalesceConditions reduces the amount of data pulled from the backend when the same column is used in multiple conditions
+//
+//	todo: There is a lot that can be done with this method. for example we can coalesce conditions if they have equivalent
+//	operands. consider a query like: { span.foo >= 1 } && { span.foo = 1 } the conditions could be coalesced to only
+//	the >= condition. it also is currently ignoring situations where allconditions is true, but some of these
+//	improvements apply to that case as well.
+func (f *FetchSpansRequest) coalesceConditions() {
+	// only do this if all conditions is false for now. it's safer and all conditions queries tend to be quite quick
 	if !f.AllConditions {
-
-		// jpe - if operands and op are the same then keep op and ano operands
-
-		// if we have two of the same conditions and we do not have the all conditions optimization then collapse them into one with an opnone
+		// search for conditions with the same attribute name and consider coalescing them
 		for i := 0; i < len(f.Conditions); i++ {
 			for j := i + 1; j < len(f.Conditions); j++ {
 				if f.Conditions[i].Attribute == f.Conditions[j].Attribute {
