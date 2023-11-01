@@ -158,7 +158,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	// make request
-	traceIDs := make([][]byte, 4)
+	traceIDs := make([][]byte, 6)
 	for index := range traceIDs {
 		traceID := make([]byte, 16)
 		_, err = crand.Read(traceID)
@@ -166,8 +166,9 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		traceIDs[index] = traceID
 	}
 
-	// 3 traces with trace_too_large and 1 with no error
-	req := test.MakeReqWithMultipleTraceWithSpanCount([]int{4, 5, 6, 1}, traceIDs)
+	// 3 traces with trace_too_large and 3 with no error
+	spanCountsByTrace := []int{1, 4, 1, 5, 6, 1}
+	req := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
 
 	b, err := req.Marshal()
 	require.NoError(t, err)
@@ -191,9 +192,13 @@ func TestLimitsPartialSuccess(t *testing.T) {
 
 	// query for the one trace that didn't trigger an error
 	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
-	result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[3]))
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(result.Batches))
+	for i, count := range spanCountsByTrace {
+		if count == 1 {
+			result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
+			require.NoError(t, err)
+			assert.Equal(t, 1, len(result.Batches))
+		}
+	}
 
 	// test metrics
 	// 3 traces with trace_too_large each with 4+5+6 spans

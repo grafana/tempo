@@ -417,21 +417,34 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		mu.Lock()
 		defer mu.Unlock()
 
-		for ringIndex, pushError := range pushResponse.ErrorsByTrace {
-			// translate index of ring batch and req batch
-			// since the request batch gets split up into smaller batches based on the indexes
-			// like [0,1] [1] [2] [0,2]
-			reqBatchIndex := indexes[ringIndex]
-			if reqBatchIndex < numOfTraces {
-				//batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
-				if pushError == tempopb.PushErrorReason_NO_ERROR {
+		// no errors
+		if len(pushResponse.ErrorsByTrace) == 0 {
+			for _, reqBatchIndex := range indexes {
+				if reqBatchIndex < numOfTraces {
 					currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
 					numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
 				} else {
-					lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
+					level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
 				}
-			} else {
-				level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+
+			}
+		} else {
+			for ringIndex, pushError := range pushResponse.ErrorsByTrace {
+				// translate index of ring batch and req batch
+				// since the request batch gets split up into smaller batches based on the indexes
+				// like [0,1] [1] [2] [0,2]
+				reqBatchIndex := indexes[ringIndex]
+				if reqBatchIndex < numOfTraces {
+					//batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
+					if pushError == tempopb.PushErrorReason_NO_ERROR {
+						currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
+						numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
+					} else {
+						lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
+					}
+				} else {
+					level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+				}
 			}
 		}
 
@@ -446,8 +459,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	// count discarded span count
 	mu.Lock()
 	defer mu.Unlock()
-
-	// maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(batchResults, traces, d.ingestersRing.ReplicationFactor())
 
 	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, d.ingestersRing.ReplicationFactor())
 	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)

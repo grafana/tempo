@@ -51,7 +51,7 @@ func newMaxLiveTracesError(instanceID string, limit string) error {
 }
 
 const (
-	traceDataType         = "trace"
+	traceDataType = "trace"
 )
 
 var (
@@ -145,14 +145,23 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
-	pr := &tempopb.PushResponse{
-		ErrorsByTrace: make([]tempopb.PushErrorReason, 0, len(req.Traces)),
-	}
+	atLeastOneError := false
+	pr := &tempopb.PushResponse{}
 
 	for j := range req.Traces {
 
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
+			// only make list if there is at least one error
+			if !atLeastOneError {
+				pr.ErrorsByTrace = make([]tempopb.PushErrorReason, 0, len(req.Traces))
+				// because this is the first error, fill list with NO_ERROR for the traces before this one
+				for k := 0; k < j; k++ {
+					pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_NO_ERROR)
+				}
+
+				atLeastOneError = true
+			}
 			if errors.Is(err, errMaxLiveTraces) {
 				pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_MAX_LIVE_TRACES)
 				continue
@@ -162,7 +171,7 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 				pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_TRACE_TOO_LARGE)
 				continue
 			}
-		} else {
+		} else if err == nil && atLeastOneError {
 			pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_NO_ERROR)
 		}
 	}

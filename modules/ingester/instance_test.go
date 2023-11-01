@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -967,7 +966,6 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 
 	byteIDs := make([]tempopb.PreallocBytes, 0, len(traceIDs))
 	byteTraces := make([]tempopb.PreallocBytes, 0, len(traceIDs))
-	byteSpanCounts := make([]tempopb.PreallocBytes, 0, len(traceIDs))
 
 	for index, id := range traceIDs {
 		buffer, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[index], 0, 0)
@@ -975,16 +973,11 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 			panic(err)
 		}
 
-		spanCount, _ := tempo_util.HexStringToTraceID("1")
-
 		byteIDs = append(byteIDs, tempopb.PreallocBytes{
 			Slice: id,
 		})
 		byteTraces = append(byteTraces, tempopb.PreallocBytes{
 			Slice: buffer,
-		})
-		byteSpanCounts = append(byteSpanCounts, tempopb.PreallocBytes{
-			Slice: spanCount,
 		})
 	}
 
