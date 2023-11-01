@@ -85,53 +85,63 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 func (f *FetchSpansRequest) coalesceConditions() {
 	// only do this if all conditions is false for now. it's safer and all conditions queries tend to be quite quick
 	if !f.AllConditions {
-		// search for conditions with the same attribute name and consider coalescing them
-		for i := 0; i < len(f.Conditions); i++ {
-			for j := i + 1; j < len(f.Conditions); j++ {
-				if f.Conditions[i].Attribute == f.Conditions[j].Attribute {
-					f.Conditions[i] = coalesceConditions(f.Conditions[i], f.Conditions[j])
-					f.Conditions = append(f.Conditions[:j], f.Conditions[j+1:]...)
-					j--
+		prevLen := 0
+		for len(f.Conditions) != prevLen { // check combinations until we can't coalesce any more
+			prevLen = len(f.Conditions)
+
+			// search for conditions with the same attribute name and consider coalescing them
+			for i := 0; i < len(f.Conditions); i++ {
+				for j := i + 1; j < len(f.Conditions); j++ {
+					if c, ok := coalesce(f.Conditions[i], f.Conditions[j]); ok {
+						f.Conditions[i] = c
+						f.Conditions = append(f.Conditions[:j], f.Conditions[j+1:]...)
+						j--
+					}
 				}
 			}
 		}
 	}
 }
 
-// coalesceConditions takes two conditions and turns them into one. this method assumes that the attribute
-// names are the same on both conditions
-func coalesceConditions(c1 Condition, c2 Condition) Condition {
-	c := Condition{
-		Attribute: c1.Attribute,
-		Op:        c1.Op,
-		Operands:  c1.Operands,
+// coalesce takes two conditions and turns them into one. it returns a bool to indicate
+// if the returned condition is valid or if it should just continue using the original 2 conditions
+//
+// it is very difficult to coalesce conditions in a way that will always be more performant at the fetch layer
+// consider: { resource.service.name = "foo" || resource.service.name = "bar" }
+// if foo and bar are rare then it will be faster to double pull the column and intersect the results. if
+// foo and bar are common then it will be faster to single pull the column and allow the engine to do the work.
+// currently the fetch layer does not support the = condition with multiple operands. we should add capability
+// and then extend this method.
+//
+// therefore! we will only coalesce conditions in the following cases:
+//   - they are exactly the same
+//   - they will pull every span anyway. example: { span.foo = "bar" } >> { span.foo != "bar" }
+func coalesce(c1 Condition, c2 Condition) (Condition, bool) {
+	// if the conditions are exactly the same then we can just return one of them
+	if c1.Attribute == c2.Attribute &&
+		c1.Op == c2.Op &&
+		operandsEqual(c1, c2) {
+		return c1, true
 	}
 
-	// if Op and Operands are exactly the same then we can just return c1
-	if conditionsEqual(c1, c2) {
-		return c
+	// if the operations are != and = and the operands are the same this is going to pull every row. let's
+	// collapse to one condition with OpNone and no operands
+	if c1.Attribute == c2.Attribute && // attributes equal
+		(c1.Op == OpEqual && c2.Op == OpNotEqual || c1.Op == OpNotEqual && c2.Op == OpEqual) && // operands are != and =
+		operandsEqual(c1, c2) { // operands equal
+		return Condition{Attribute: c1.Attribute, Op: OpNone, Operands: nil}, true
 	}
 
-	// todo: add this optimization. currently the fetch layer errors if you pass equality and 2 operands
-	// if both conditions are equality then append the operands
-	// if c1.Op == OpEqual && c2.Op == OpEqual {
-	// 	c.Operands = append(c.Operands, c2.Operands...)
-	// 	return c
-	// }
+	// if one of the operations is opnone we're already pulling every row. coalesce
+	if c1.Attribute == c2.Attribute && // attributes equal
+		(c1.Op == OpNone || c2.Op == OpNone) { // one operand is opnone
+		return Condition{Attribute: c1.Attribute, Op: OpNone, Operands: nil}, true
+	}
 
-	// we couldn't find any shortcuts above, so just wipe out the operands and op so
-	// we can retrieve the data and let the engine decide
-	c.Op = OpNone
-	c.Operands = []Static{}
-
-	return c
+	return Condition{}, false
 }
 
-func conditionsEqual(c1 Condition, c2 Condition) bool {
-	if c1.Op != c2.Op {
-		return false
-	}
-
+func operandsEqual(c1 Condition, c2 Condition) bool {
 	if len(c1.Operands) != len(c2.Operands) {
 		return false
 	}
