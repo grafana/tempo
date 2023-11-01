@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/parquet-go/parquet-go"
 
@@ -1710,7 +1711,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.durationNanos = durationNanos
 			sp.attributes[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(durationNanos))
 		case columnPathSpanName:
-			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(kv.Value.String())
+			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(wilkieString(kv.Value.Bytes()))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.
 			// For other values, use the raw integer.
@@ -1727,7 +1728,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 			sp.attributes[traceql.IntrinsicStatusAttribute] = traceql.NewStaticStatus(status)
 		case columnPathSpanStatusMessage:
-			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(kv.Value.String())
+			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(wilkieString(kv.Value.Bytes()))
 		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
@@ -1764,7 +1765,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			case parquet.Float:
 				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
+				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(wilkieString(kv.Value.Bytes()))
 			}
 		}
 	}
@@ -1834,7 +1835,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case parquet.Int64:
 			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.ByteArray:
-			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(e.Value.String())
+			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(wilkieString(e.Value.Bytes()))
 		}
 	}
 
@@ -1991,7 +1992,7 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case "key":
 			key = e.Value.String()
 		case "string":
-			val = traceql.NewStaticString(e.Value.String())
+			val = traceql.NewStaticString(wilkieString(e.Value.Bytes()))
 		case "int":
 			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
@@ -2036,4 +2037,10 @@ func orIfNeeded(preds []parquetquery.Predicate) parquetquery.Predicate {
 	default:
 		return parquetquery.NewOrPredicate(preds...)
 	}
+}
+
+// wilkieString casts a byte slice to a string w/o allocating
+// named after the author of the original yoloString
+func wilkieString(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
 }
