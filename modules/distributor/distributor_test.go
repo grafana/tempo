@@ -1037,7 +1037,6 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 		expectedLiveTracesDiscardedCount    int
 		expectedTraceTooLargeDiscardedCount int
 	}{
-
 		// trace sizes
 		// trace[0] = 5 spans
 		// trace[1] = 10 spans
