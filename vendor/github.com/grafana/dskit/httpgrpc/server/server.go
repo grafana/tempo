@@ -27,6 +27,13 @@ import (
 	"github.com/grafana/dskit/middleware"
 )
 
+var (
+	// DoNotLogErrorHeaderKey is a header key used for marking non-loggable errors. More precisely, if an HTTP response
+	// has a status code 5xx, and contains a header with key DoNotLogErrorHeaderKey and any values, the generated error
+	// will be marked as non-loggable.
+	DoNotLogErrorHeaderKey = http.CanonicalHeaderKey("X-DoNotLogError")
+)
+
 // Server implements HTTPServer.  HTTPServer is a generated interface that gRPC
 // servers must implement.
 type Server struct {
@@ -62,13 +69,18 @@ func (s Server) Handle(ctx context.Context, r *httpgrpc.HTTPRequest) (*httpgrpc.
 
 	recorder := httptest.NewRecorder()
 	s.handler.ServeHTTP(recorder, req)
+	header := recorder.Header()
 	resp := &httpgrpc.HTTPResponse{
 		Code:    int32(recorder.Code),
-		Headers: fromHeader(recorder.Header()),
+		Headers: fromHeader(header),
 		Body:    recorder.Body.Bytes(),
 	}
 	if recorder.Code/100 == 5 {
-		return nil, httpgrpc.ErrorFromHTTPResponse(resp)
+		err := httpgrpc.ErrorFromHTTPResponse(resp)
+		if _, ok := header[DoNotLogErrorHeaderKey]; ok {
+			err = middleware.DoNotLogError{Err: err}
+		}
+		return nil, err
 	}
 	return resp, nil
 }
@@ -80,7 +92,7 @@ type Client struct {
 }
 
 // ParseURL deals with direct:// style URLs, as well as kubernetes:// urls.
-// For backwards compatibility it treats URLs without schems as kubernetes://.
+// For backwards compatibility it treats URLs without schemes as kubernetes://.
 func ParseURL(unparsed string) (string, error) {
 	// if it has :///, this is the kuberesolver v2 URL. Return it as it is.
 	if strings.Contains(unparsed, ":///") {
@@ -115,7 +127,7 @@ func ParseURL(unparsed string) (string, error) {
 		if len(parts) > 2 {
 			domain = domain + "." + parts[2]
 		}
-		address := fmt.Sprintf("kubernetes:///%s%s:%s", service, domain, port)
+		address := fmt.Sprintf("kubernetes:///%s", net.JoinHostPort(service+domain, port))
 		return address, nil
 
 	default:
@@ -227,6 +239,9 @@ func toHeader(hs []*httpgrpc.Header, header http.Header) {
 func fromHeader(hs http.Header) []*httpgrpc.Header {
 	result := make([]*httpgrpc.Header, 0, len(hs))
 	for k, vs := range hs {
+		if k == DoNotLogErrorHeaderKey {
+			continue
+		}
 		result = append(result, &httpgrpc.Header{
 			Key:    k,
 			Values: vs,
