@@ -627,7 +627,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 	for c.currRowGroup == nil {
 
 		rg, min, max := c.popRowGroup()
-		if rg == nil {
+		if rg == nil || min == nil || max == nil {
 			return true
 		}
 
@@ -719,7 +719,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.currRowGroup == nil {
 			rg, min, max := c.popRowGroup()
-			if rg == nil {
+			if rg == nil || min == nil || max == nil {
 				return EmptyRowNumber(), nil, nil
 			}
 
