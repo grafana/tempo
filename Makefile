@@ -156,6 +156,11 @@ jsonnetfmt: tools
 check-jsonnetfmt: jsonnetfmt
 	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
 
+
+.PHONY: fmt-docker
+fmt-docker: tools-image-build
+	@docker run --rm --volume ".:/var/tempo" $(TOOLS_IMAGE_NAME) make -C /var/tempo fmt jsonnetfmt
+
 .PHONY: lint
 lint:
 	$(LINT) run --config .golangci.yml
