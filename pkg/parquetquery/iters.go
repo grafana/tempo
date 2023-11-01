@@ -843,7 +843,7 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v.Clone())
+		r.AppendValue(c.selectAs, *v)
 	}
 	return r
 }
