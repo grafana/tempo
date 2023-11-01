@@ -27,7 +27,7 @@ You should pick one according to your application needs.
 
 ## OpenTelemetry
 
-A collection of tools, APIs, and SDKs, [OpenTelemetry](https://grafana.com/docs/opentelemetry/) helps engineers instrument, generate, collect, and export telemetry data such as metrics, logs, and traces, to analyze software performance and behavior.
+A collection of tools, APIs, and SDKs, [OpenTelemetry](/docs/opentelemetry) helps engineers instrument, generate, collect, and export telemetry data such as metrics, logs, and traces, to analyze software performance and behavior.
 
 ### Auto-instrumentation frameworks
 
