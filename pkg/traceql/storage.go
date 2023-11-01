@@ -89,17 +89,42 @@ func (f *FetchSpansRequest) coalesceConditions() {
 		for i := 0; i < len(f.Conditions); i++ {
 			for j := i + 1; j < len(f.Conditions); j++ {
 				if f.Conditions[i].Attribute == f.Conditions[j].Attribute {
-					// if Op and Operands are not the same then wipe them out so we retrieve all data
-					if !conditionsEqual(f.Conditions[i], f.Conditions[j]) {
-						f.Conditions[i].Op = OpNone
-						f.Conditions[i].Operands = []Static{}
-					}
+					f.Conditions[i] = coalesceConditions(f.Conditions[i], f.Conditions[j])
 					f.Conditions = append(f.Conditions[:j], f.Conditions[j+1:]...)
 					j--
 				}
 			}
 		}
 	}
+}
+
+// coalesceConditions takes two conditions and turns them into one. this method assumes that the attribute
+// names are the same on both conditions
+func coalesceConditions(c1 Condition, c2 Condition) Condition {
+	c := Condition{
+		Attribute: c1.Attribute,
+		Op:        c1.Op,
+		Operands:  c1.Operands,
+	}
+
+	// if Op and Operands are exactly the same then we can just return c1
+	if conditionsEqual(c1, c2) {
+		return c
+	}
+
+	// todo: add this optimization. currently the fetch layer errors if you pass equality and 2 operands
+	// if both conditions are equality then append the operands
+	// if c1.Op == OpEqual && c2.Op == OpEqual {
+	// 	c.Operands = append(c.Operands, c2.Operands...)
+	// 	return c
+	// }
+
+	// we couldn't find any shortcuts above, so just wipe out the operands and op so
+	// we can retrieve the data and let the engine decide
+	c.Op = OpNone
+	c.Operands = []Static{}
+
+	return c
 }
 
 func conditionsEqual(c1 Condition, c2 Condition) bool {
@@ -214,6 +239,7 @@ func MustExtractFetchSpansRequestWithMetadata(query string) FetchSpansRequest {
 	}
 	c.SecondPass = func(s *Spanset) ([]*Spanset, error) { return []*Spanset{s}, nil }
 	c.SecondPassConditions = SearchMetaConditions()
+	c.coalesceConditions()
 	return c
 }
 
