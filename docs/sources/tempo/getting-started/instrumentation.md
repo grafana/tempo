@@ -20,10 +20,11 @@ Most of these guides include complete end-to-end examples with Grafana, Loki, Mi
 Most of the popular client instrumentation frameworks have SDKs in the most commonly used programming languages.
 You should pick one according to your application needs.
 
-* [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
-* [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
-* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
+OpenTelementry has the most active development in the community and may be a better long-term choice.
 
+* [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
+* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
+* [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/) (deprecated)
 
 ## OpenTelemetry
 
@@ -41,9 +42,9 @@ information from a client application with minimal manual instrumentation of the
     - [Java auto-instrumentation with Java and OTel Java Agent](/docs/opentelemetry/instrumentation/java/javaagent/)
     - [Automatic instrumentation of Spring Boot 3.x applications with Grafana OpenTelemetry Starter](/docs/opentelemetry/instrumentation/java/spring-starter/)
 * [OpenTelemetry .NET auto-instrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
+  * [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
 * [OpenTelemetry Python auto-instrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
 * [OpenTelemetry Go auto-instrumentation](https://github.com/open-telemetry/opentelemetry-go-instrumentation) and [documentation](https://opentelemetry.io/docs/instrumentation/go/getting-started/)
-
 
 ### Additional OTel resources
 
@@ -54,18 +55,23 @@ information from a client application with minimal manual instrumentation of the
 
 ## Other instrumentation resources
 
-### Jaeger
-
-- [Jaeger Language Specific Instrumentation](https://www.jaegertracing.io/docs/latest/client-libraries/)
-
 ### Zipkin
 
 - [Zipkin Language Specific Instrumentation](https://zipkin.io/pages/tracers_instrumentation.html)
+
+### Jaeger
+
+{{% admonition type="note" %}}
+Jaegar has been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaegar now recommends using OpenTelemetry SDKs.
+{{% /admonition% }}
+
+- [Jaeger Language Specific Instrumentation](https://www.jaegertracing.io/docs/latest/client-libraries/)
 
 ## Grafana Blog
 
 The Grafana blot periodically features instrumentation posts.
 
+- [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
 - [Java Spring Boot Auto-Instrumentation](/blog/2021/02/03/auto-instrumenting-a-java-spring-boot-application-for-traces-and-logs-using-opentelemetry-and-grafana-tempo/)
 - [Go + OpenMetrics Exemplars](/blog/2020/11/09/trace-discovery-in-grafana-tempo-using-prometheus-exemplars-loki-2.0-queries-and-more/)
 - [.NET](/blog/2021/02/11/instrumenting-a-.net-web-api-using-opentelemetry-tempo-and-grafana-cloud/)
