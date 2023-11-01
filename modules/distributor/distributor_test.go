@@ -1165,7 +1165,7 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 
 			for _, ErrorByTrace := range tc.PushErrorByTrace {
 				for ringIndex, err := range ErrorByTrace {
-					//translate
+					// translate
 					traceIndex := keys[ringIndex]
 
 					currentNumSuccess := numSuccessByTraceIndex[traceIndex]
