@@ -48,7 +48,7 @@ information from a client application with minimal manual instrumentation of the
 ### Additional OTel resources
 
 - [Java HTTP Metrics from OpenTelemetry Traces](/docs/opentelemetry/instrumentation/java/metrics-from-traces/)
-- [OpenTelemetry documentation at Grafana](h/docs/opentelemetry)
+- [OpenTelemetry documentation at Grafana](/docs/opentelemetry)
 - [OpenTelemetry Go instrumentation examples](https://github.com/open-telemetry/opentelemetry-go/tree/main/example)
 - [OpenTelemetry Language Specific Instrumentation](https://opentelemetry.io/docs/instrumentation/)
 
