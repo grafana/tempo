@@ -435,7 +435,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 				// like [0,1] [1] [2] [0,2]
 				reqBatchIndex := indexes[ringIndex]
 				if reqBatchIndex < numOfTraces {
-					//batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
+					// batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
 					if pushError == tempopb.PushErrorReason_NO_ERROR {
 						currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
 						numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
