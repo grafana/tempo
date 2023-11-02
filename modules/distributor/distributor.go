@@ -35,7 +35,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
-	pklog "github.com/grafana/tempo/pkg/util/log"
+	
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -383,6 +383,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	numOfTraces := len(keys)
 	numSuccessByTraceIndex := make([]int, numOfTraces)
 	lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, numOfTraces)
+
 	var mu sync.Mutex
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
@@ -424,7 +425,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 					currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
 					numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
 				} else {
-					level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+					level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
 				}
 
 			}
@@ -443,7 +444,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 						lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
 					}
 				} else {
-					level.Warn(pklog.Logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+					level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
 				}
 			}
 		}
