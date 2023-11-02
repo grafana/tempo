@@ -34,6 +34,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 	if err != nil {
 		return errors.Wrap(err, "creating fetch iter")
 	}
+	defer iter.Close()
 
 	// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
 	for {

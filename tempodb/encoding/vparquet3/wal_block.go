@@ -703,9 +703,11 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 			// Exhaust the iterator
 			res, err := iter.Next()
 			if err != nil {
+				iter.Close()
 				return fmt.Errorf("iterating spans in walBlock: %w", err)
 			}
 			if res == nil {
+				iter.Close()
 				break
 			}
 
@@ -713,11 +715,13 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 				if oe.Key == req.TagName.String() {
 					v := oe.Value.(traceql.Static)
 					if cb(v) {
+						iter.Close()
 						return nil // We have enough values
 					}
 				}
 			}
 		}
+		iter.Close()
 	}
 
 	// combine iters?
