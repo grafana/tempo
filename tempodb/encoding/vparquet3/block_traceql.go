@@ -1393,7 +1393,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return min != s || max != s
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 
@@ -1414,7 +1414,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(max, s) > 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 	case traceql.OpGreaterEqual:
@@ -1426,7 +1426,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(max, s) >= 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 	case traceql.OpLess:
@@ -1438,7 +1438,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(min, s) < 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 	case traceql.OpLessEqual:
@@ -1450,7 +1450,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(min, s) <= 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 
