@@ -49,7 +49,6 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	}
 
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
-	fetchSpansRequest.coalesceConditions()
 
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)

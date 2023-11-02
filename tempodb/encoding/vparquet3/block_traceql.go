@@ -406,6 +406,8 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
 
+	coalesceConditions(&req)
+
 	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
