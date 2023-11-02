@@ -600,9 +600,9 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	}
 }
 
-func (c *SyncIterator) popRowGroup() (pq.RowGroup, *RowNumber, *RowNumber) {
+func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
 	if len(c.rgs) == 0 {
-		return nil, nil, nil
+		return nil, EmptyRowNumber(), EmptyRowNumber()
 	}
 
 	rg := c.rgs[0]
@@ -613,7 +613,7 @@ func (c *SyncIterator) popRowGroup() (pq.RowGroup, *RowNumber, *RowNumber) {
 	c.rgsMin = c.rgsMin[1:]
 	c.rgsMax = c.rgsMax[1:]
 
-	return rg, &min, &max
+	return rg, min, max
 }
 
 // seekRowGroup skips ahead to the row group that could contain the value at the
@@ -627,11 +627,11 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 	for c.currRowGroup == nil {
 
 		rg, min, max := c.popRowGroup()
-		if rg == nil || min == nil || max == nil {
+		if rg == nil {
 			return true
 		}
 
-		if CompareRowNumbers(definitionLevel, seekTo, *max) != -1 {
+		if CompareRowNumbers(definitionLevel, seekTo, max) != -1 {
 			continue
 		}
 
@@ -642,7 +642,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 		}
 
 		// This row group matches both row number and filter.
-		c.setRowGroup(rg, *min, *max, cc)
+		c.setRowGroup(rg, min, max, cc)
 	}
 
 	return c.currRowGroup == nil
@@ -719,7 +719,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.currRowGroup == nil {
 			rg, min, max := c.popRowGroup()
-			if rg == nil || min == nil || max == nil {
+			if rg == nil {
 				return EmptyRowNumber(), nil, nil
 			}
 
@@ -729,7 +729,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				continue
 			}
 
-			c.setRowGroup(rg, *min, *max, cc)
+			c.setRowGroup(rg, min, max, cc)
 		}
 
 		if c.currPage == nil {

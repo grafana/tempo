@@ -1925,10 +1925,10 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.DurationNanos = e.Value.Uint64()
 			c.traceAttrs[traceql.IntrinsicTraceDurationAttribute] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
 		case columnPathRootSpanName:
-			finalSpanset.RootSpanName = e.Value.String()
+			finalSpanset.RootSpanName = unsafeToString(e.Value.Bytes())
 			c.traceAttrs[traceql.IntrinsicTraceRootSpanAttribute] = traceql.NewStaticString(finalSpanset.RootSpanName)
 		case columnPathRootServiceName:
-			finalSpanset.RootServiceName = e.Value.String()
+			finalSpanset.RootServiceName = unsafeToString(e.Value.Bytes())
 			c.traceAttrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString(finalSpanset.RootServiceName)
 		}
 	}
@@ -1990,7 +1990,7 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 		switch e.Key {
 		case "key":
-			key = e.Value.String()
+			key = unsafeToString(e.Value.Bytes())
 		case "string":
 			val = traceql.NewStaticString(unsafeToString(e.Value.Bytes()))
 		case "int":
