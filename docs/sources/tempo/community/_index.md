@@ -17,7 +17,6 @@ Want to learn more about open source communities? Read David Allen's blog post, 
 - [Community Call](https://docs.google.com/document/d/1yGsI6ywU-PxZBjmq3p3vAXr9g5yBXSDk4NU8LGo8qeY/edit#) - Monthly
   on the second Thursday at 1630 UTC.
   Recordings available [online](https://www.youtube.com/playlist?list=PLDGkOdUX1Ujqe8WZ8T1h2pNjpll0t-KLw).
-- [Google Groups](https://groups.google.com/forum/#!forum/tempo-users)
 
 ## Contribute
 

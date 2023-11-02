@@ -20,7 +20,7 @@ Most of these guides include complete end-to-end examples with Grafana, Loki, Mi
 Most of the popular client instrumentation frameworks have SDKs in the most commonly used programming languages.
 You should pick one according to your application needs.
 
-OpenTelementry has the most active development in the community and may be a better long-term choice.
+OpenTelemetry has the most active development in the community and may be a better long-term choice.
 
 * [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
