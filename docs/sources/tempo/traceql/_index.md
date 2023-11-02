@@ -31,7 +31,7 @@ TraceQL requires Tempo’s Parquet columnar format to be enabled. For informatio
 
 ## TraceQL query editor
 
-With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor]({{< relref "./query-editor" >}}).
+You can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor]({{< relref "./query-editor" >}}).
 
 <p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
@@ -233,8 +233,8 @@ The second expression returns no traces because it's impossible for a single spa
 
 ### Structural
 
-These spanset operators look at the structure of a trace and the relationship between the spans. Structural operators ALWAYS return
-matches from the right hand side of the operator.
+These spanset operators look at the structure of a trace and the relationship between the spans.
+Structural operators ALWAYS return matches from the right side of the operator.
 
 - `{condA} >> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`
 - `{condA} << {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`
@@ -251,8 +251,8 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 ### Experimental structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans.
-They are marked experimental because they are known to sometimes return false positives.
-However, they can be very useful (see examples below).
+These operators are marked experimental because sometimes return false positives.
+However, the operators can be very useful (see examples below).
 We encourage users to try them and give feedback.
 
 - `{condA} !>> {condB}` - The not-descendant operator (`!>>`) looks for spans matching `{condB}` that are not descendant spans of a parent matching `{condA}`
@@ -260,6 +260,8 @@ We encourage users to try them and give feedback.
 - `{condA} !> {condB}` - The not-child operator (`!>`) looks for spans matching `{condB}` that are not direct child spans of a parent matching `{condA}`
 - `{condA} !< {condB}` - The not-parent operator (`!<`) looks for spans matching `{condB}` that are not direct parent spans of a child matching `{condA}`
 - `{condA} !~ {condB}` - The not-sibling operator (`!~`) looks that spans matching `{condB}` that do not have at least one sibling matching `{condA}`.
+
+Read the [Tempo 2.3 blog post](/blog/2023/11/01/grafana-tempo-2.3-release-faster-trace-queries-traceql-upgrades/) for more examples and details.
 
 For example, to find a trace with a leaf span in the service "foo":
 
@@ -306,11 +308,14 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 ## Grouping
 
 TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to
-find someting like a single service with more than 1 error:
+find something like a single service with more than 1 error:
 
 ```
 { status = error } | by(resource.service.name) | count() > 1
 ```
+
+{{< youtube id="fraepWra00Y" >}}
+
 
 ## Arithmetic
 

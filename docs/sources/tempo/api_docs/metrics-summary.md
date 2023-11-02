@@ -16,6 +16,8 @@ The Metrics summary API is an [experimental feature](/docs/release-life-cycle) t
 This document explains how to use the metrics summary API in Tempo.
 This API returns RED metrics (span count, erroring span count, and latency information) for `kind=server` spans sent to Tempo in the last hour, grouped by a user-specified attribute.
 
+{{< youtube id="g97CjKOZqT4" >}}
+
 ## Configuration
 
 To enable the experimental metrics summary API, you must turn on the local blocks processor in the metrics generator.
