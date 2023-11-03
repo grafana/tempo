@@ -182,7 +182,7 @@ func Test_newSplitPolicy(t *testing.T) {
 					},
 				},
 			},
-			err: errors.New("unsupported intrinsic value: true"),
+			err: errors.New("unsupported status intrinsic value: true"),
 		},
 		{
 			name: "unsupported kind intrinsic value",
@@ -196,6 +196,19 @@ func Test_newSplitPolicy(t *testing.T) {
 				},
 			},
 			err: errors.New("invalid kind intrinsic value: true"),
+		},
+		{
+			name: "unsupported name intrinsic value",
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "name",
+						Value: true,
+					},
+				},
+			},
+			err: errors.New("unsupported name intrinsic value: true"),
 		},
 		{
 			name: "unsupported intrinsic",

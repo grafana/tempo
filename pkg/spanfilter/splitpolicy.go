@@ -40,7 +40,7 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 					return nil, err
 				}
 			} else {
-				filter, err = policymatch.NewRegexpIntrinsicFilter(attr.Intrinsic, pa.Value.(string))
+				filter, err = policymatch.NewRegexpIntrinsicFilter(attr.Intrinsic, pa.Value)
 				if err != nil {
 					return nil, err
 				}

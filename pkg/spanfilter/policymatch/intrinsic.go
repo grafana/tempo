@@ -67,10 +67,13 @@ func NewStrictIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (I
 				return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic string value: %s", v)
 			}
 		default:
-			return IntrinsicFilter{}, fmt.Errorf("unsupported intrinsic value: %v", v)
+			return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic value: %v", v)
 		}
 	case traceql.IntrinsicName:
-		return NewNameIntrinsicFilter(value.(string)), nil
+		if v, ok := value.(string); ok {
+			return NewNameIntrinsicFilter(v), nil
+		}
+		return IntrinsicFilter{}, fmt.Errorf("unsupported name intrinsic value: %v", value)
 	default:
 		return IntrinsicFilter{}, fmt.Errorf("unsupported intrinsic: %v", intrinsic)
 	}
@@ -92,8 +95,15 @@ func NewNameIntrinsicFilter(value string) IntrinsicFilter {
 }
 
 // NewRegexpIntrinsicFilter returns a new IntrinsicFilter that matches spans based on the given regex and intrinsic.
-func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, regex string) (IntrinsicFilter, error) {
-	r, err := regexp.Compile(regex)
+func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (IntrinsicFilter, error) {
+	var (
+		stringValue string
+		ok          bool
+	)
+	if stringValue, ok = value.(string); !ok {
+		return IntrinsicFilter{}, fmt.Errorf("unsupported regex intrinsic value: %v", value)
+	}
+	r, err := regexp.Compile(stringValue)
 	if err != nil {
 		return IntrinsicFilter{}, err
 	}
