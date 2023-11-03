@@ -105,12 +105,10 @@ func TestSearchTagValuesV2(t *testing.T) {
 			expected: searchTagValuesResponse{},
 		},
 		{
-			name:    "unscoped attribute", // TODO: Not supported, should return only the first batch
-			query:   fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
-			tagName: spanX,
-			expected: searchTagValuesResponse{
-				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}},
-			},
+			name:     "unscoped attribute", // TODO: Not supported, should return only the first batch
+			query:    fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
+			tagName:  spanX,
+			expected: searchTagValuesResponse{TagValues: []TagValue{}},
 		},
 		{
 			name:    "first batch - name and resource attribute",
