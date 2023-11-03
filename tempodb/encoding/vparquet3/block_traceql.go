@@ -23,9 +23,17 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+type stattr struct { // jpe - static attr, get it ?
+	a traceql.Attribute
+	s traceql.Static
+}
+
 // span implements traceql.Span
 type span struct {
-	attributes         map[traceql.Attribute]traceql.Static
+	spanAttrs     []stattr // jpe add intrinsic attrs? this might be even faster with a slice. the hard part is on insertion we need to overwrite
+	resourceAttrs []stattr
+	traceAttrs    []stattr
+
 	id                 []byte
 	startTimeUnixNanos uint64
 	durationNanos      uint64
@@ -39,8 +47,76 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
-func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
-	return s.attributes
+func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
+	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs))
+	for _, st := range s.traceAttrs {
+		atts[st.a] = st.s
+	}
+	for _, st := range s.resourceAttrs {
+		atts[st.a] = st.s
+	}
+	for _, st := range s.spanAttrs {
+		atts[st.a] = st.s
+	}
+	return atts
+}
+
+func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
+	if a.Scope == traceql.AttributeScopeResource {
+		for _, st := range s.resourceAttrs {
+			if st.a == a {
+				return st.s, true
+			}
+		}
+	}
+
+	if a.Scope == traceql.AttributeScopeSpan { // jpe - should we search the slice backwards? to replicate the behavior of the old map?
+		for _, st := range s.spanAttrs {
+			if st.a == a {
+				return st.s, true
+			}
+		}
+	}
+
+	if a.Intrinsic != traceql.IntrinsicNone {
+		// intrinsics are always on the span or trace ... for now
+		for _, st := range s.spanAttrs {
+			if st.a == a {
+				return st.s, true
+			}
+		}
+
+		// find on trace
+		for _, st := range s.traceAttrs {
+			if st.a == a {
+				return st.s, true
+			}
+		}
+	}
+
+	// span attrs brute force
+	for _, st := range s.spanAttrs {
+		if st.a.Name == a.Name {
+			return st.s, true
+		}
+	}
+
+	// resource attrs brute force
+	for _, st := range s.resourceAttrs {
+		if a.Name == st.a.Name {
+			return st.s, true
+		}
+	}
+
+	// trace attrs brute force
+	for _, st := range s.resourceAttrs {
+		if st.a.Name == a.Name {
+			return st.s, true
+		}
+	}
+
+	// shruggy man
+	return traceql.NewStaticNil(), false
 }
 
 func (s *span) ID() []byte {
@@ -200,11 +276,34 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 	return buffer
 }
 
+func (s *span) addSpanAttr(a traceql.Attribute, st traceql.Static) {
+	s.spanAttrs = append(s.spanAttrs, stattr{a: a, s: st}) // jpex
+}
+
+func (s *span) setResourceAttrs(attrs []stattr) {
+	// jpe - i assume this honors cap and such
+	s.resourceAttrs = append(s.resourceAttrs, attrs...)
+}
+
+func (s *span) setTraceAttrs(attrs []stattr) {
+	s.traceAttrs = append(s.resourceAttrs, attrs...)
+}
+
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {
 	count := 0
-	for _, v := range s.attributes {
-		if v.Type != traceql.TypeNil {
+	for _, st := range s.spanAttrs { // jpe just keep this count independently
+		if st.s.Type != traceql.TypeNil {
+			count++
+		}
+	}
+	for _, st := range s.resourceAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+		}
+	}
+	for _, st := range s.traceAttrs {
+		if st.s.Type != traceql.TypeNil {
 			count++
 		}
 	}
@@ -235,7 +334,9 @@ func (s *span) attributesMatched() int {
 var spanPool = sync.Pool{
 	New: func() interface{} {
 		return &span{
-			attributes: make(map[traceql.Attribute]traceql.Static),
+			//spanAttrs: make(map[traceql.Attribute]traceql.Static),
+			//resourceAttrs: make(map[traceql.Attribute]traceql.Static), jpe - don't make trace or resource attrs
+			//traceAttrs:    make(map[traceql.Attribute]traceql.Static),
 		}
 	},
 }
@@ -250,7 +351,11 @@ func putSpan(s *span) {
 	s.nestedSetParent = 0
 	s.nestedSetLeft = 0
 	s.nestedSetRight = 0
-	clear(s.attributes)
+	s.spanAttrs = s.spanAttrs[:0]
+	s.resourceAttrs = s.resourceAttrs[:0]
+	s.traceAttrs = s.traceAttrs[:0]
+	// clear(s.resourceAttrs) jpe - can't clear trace and resource attrs b/c they are shared
+	// clear(s.traceAttrs)
 
 	spanPool.Put(s)
 }
@@ -1695,7 +1800,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	for _, e := range res.OtherEntries {
 		if v, ok := e.Value.(traceql.Static); ok {
-			sp.attributes[newSpanAttr(e.Key)] = v
+			sp.addSpanAttr(newSpanAttr(e.Key), v)
 		}
 	}
 
@@ -1711,9 +1816,9 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos
-			sp.attributes[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(durationNanos))
+			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
 		case columnPathSpanName:
-			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
+			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.
 			// For other values, use the raw integer.
@@ -1728,9 +1833,9 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			default:
 				status = traceql.Status(kv.Value.Uint64())
 			}
-			sp.attributes[traceql.IntrinsicStatusAttribute] = traceql.NewStaticStatus(status)
+			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(status))
 		case columnPathSpanStatusMessage:
-			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
+			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
@@ -1749,7 +1854,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			default:
 				kind = traceql.Kind(kv.Value.Uint64())
 			}
-			sp.attributes[traceql.IntrinsicKindAttribute] = traceql.NewStaticKind(kind)
+			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind))
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
 		case columnPathSpanNestedSetLeft:
@@ -1761,13 +1866,13 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			// Are nils possible here?
 			switch kv.Value.Kind() {
 			case parquet.Boolean:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(kv.Value.Boolean())
+				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean()))
 			case parquet.Int32, parquet.Int64:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(kv.Value.Int64()))
+				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64())))
 			case parquet.Float:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
+				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
 			case parquet.ByteArray:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
+				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 			}
 		}
 	}
@@ -1792,7 +1897,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 type batchCollector struct {
 	requireAtLeastOneMatchOverall bool
 	minAttributes                 int
-	resAttrs                      map[traceql.Attribute]traceql.Static
+	resAttrs                      []stattr
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
@@ -1801,7 +1906,6 @@ func newBatchCollector(requireAtLeastOneMatchOverall bool, minAttributes int) *b
 	return &batchCollector{
 		requireAtLeastOneMatchOverall: requireAtLeastOneMatchOverall,
 		minAttributes:                 minAttributes,
-		resAttrs:                      make(map[traceql.Attribute]traceql.Static),
 	}
 }
 
@@ -1815,13 +1919,14 @@ func (c *batchCollector) String() string {
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// First pass over spans and attributes from the AttributeCollector
 	spans := res.OtherEntries[:0]
-	clear(c.resAttrs)
+	c.resAttrs = c.resAttrs[:0] // jpe - cheaper to keep a buffer on batch collector and copy?
+
 	for _, kv := range res.OtherEntries {
 		switch v := kv.Value.(type) {
 		case *span:
 			spans = append(spans, kv)
 		case traceql.Static:
-			c.resAttrs[newResAttr(kv.Key)] = v
+			c.resAttrs = append(c.resAttrs, stattr{newResAttr(kv.Key), v})
 		}
 	}
 	res.OtherEntries = spans
@@ -1835,9 +1940,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.Entries {
 		switch e.Value.Kind() {
 		case parquet.Int64:
-			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticInt(int(e.Value.Int64()))
+			c.resAttrs = append(c.resAttrs, stattr{newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))}) // jpe what happens with attribute collisions?
 		case parquet.ByteArray:
-			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(unsafeToString(e.Value.Bytes()))
+			c.resAttrs = append(c.resAttrs, stattr{newResAttr(e.Key), traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
 		}
 	}
 
@@ -1855,18 +1960,15 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		// Copy resource-level attributes to the span
 		// If the span already has an entry for this attribute it
 		// takes precedence (can be nil to indicate no match)
-		for k, v := range c.resAttrs {
-			if _, alreadyExists := span.attributes[k]; !alreadyExists {
-				span.attributes[k] = v
-			}
-		}
+		span.setResourceAttrs(c.resAttrs)
 
 		// Remove unmatched attributes
-		for k, v := range span.attributes {
-			if v.Type == traceql.TypeNil {
-				delete(span.attributes, k)
-			}
-		}
+		// jpe - i don't think we need to do this anymore? the spanattrs should keep the nil to flag no match at the span layer
+		// for k, v := range span.attributes {
+		// 	if v.Type == traceql.TypeNil {
+		// 		delete(span.attributes, k)
+		// 	}
+		// }
 
 		if c.requireAtLeastOneMatchOverall {
 			// Skip over span if it didn't meet minimum criteria
@@ -1894,16 +1996,14 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // It adds trace-level attributes into the spansets before
 // they are returned
 type traceCollector struct {
-	// traceAttrs is a map reused by KeepGroup to reduce allocations
-	traceAttrs map[traceql.Attribute]traceql.Static
+	// traceAttrs is a slice reused by KeepGroup to reduce allocations
+	traceAttrs []stattr
 }
 
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
 
 func newTraceCollector() *traceCollector {
-	return &traceCollector{
-		traceAttrs: make(map[traceql.Attribute]traceql.Static),
-	}
+	return &traceCollector{}
 }
 
 func (c *traceCollector) String() string {
@@ -1915,7 +2015,7 @@ func (c *traceCollector) String() string {
 // resource-level data.
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	finalSpanset := getSpanset()
-	clear(c.traceAttrs)
+	c.traceAttrs = c.traceAttrs[:0]
 
 	for _, e := range res.Entries {
 		switch e.Key {
@@ -1925,13 +2025,13 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:
 			finalSpanset.DurationNanos = e.Value.Uint64()
-			c.traceAttrs[traceql.IntrinsicTraceDurationAttribute] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
+			c.traceAttrs = append(c.traceAttrs, stattr{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
 		case columnPathRootSpanName:
 			finalSpanset.RootSpanName = unsafeToString(e.Value.Bytes())
-			c.traceAttrs[traceql.IntrinsicTraceRootSpanAttribute] = traceql.NewStaticString(finalSpanset.RootSpanName)
+			c.traceAttrs = append(c.traceAttrs, stattr{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(finalSpanset.RootSpanName)})
 		case columnPathRootServiceName:
 			finalSpanset.RootServiceName = unsafeToString(e.Value.Bytes())
-			c.traceAttrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString(finalSpanset.RootServiceName)
+			c.traceAttrs = append(c.traceAttrs, stattr{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(finalSpanset.RootServiceName)})
 		}
 	}
 
@@ -1952,13 +2052,9 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// loop over all spans and add the trace-level attributes
-	for k, v := range c.traceAttrs {
-		for _, s := range finalSpanset.Spans {
-			s := s.(*span)
-			if _, alreadyExists := s.attributes[k]; !alreadyExists {
-				s.attributes[k] = v
-			}
-		}
+	for _, s := range finalSpanset.Spans {
+		s := s.(*span)
+		s.setTraceAttrs(c.traceAttrs)
 	}
 
 	res.Entries = res.Entries[:0]

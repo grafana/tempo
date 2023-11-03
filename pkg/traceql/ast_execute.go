@@ -475,27 +475,34 @@ func (s Static) execute(Span) (Static, error) {
 }
 
 func (a Attribute) execute(span Span) (Static, error) {
-	atts := span.Attributes()
-	static, ok := atts[a]
+	static, ok := span.AttributeFor(a)
 	if ok {
 		return static, nil
 	}
 
+	// atts := span.Attributes()
+	// static, ok := atts[a]
+	// if ok {
+	// 	return static, nil
+	// }
+
 	// if the requested attribute has a scope none then we will check first for span attributes matching
 	// then any attributes matching. we don't need to both if this is an intrinsic b/c those will always
 	// be caught above if they exist
-	if a.Scope == AttributeScopeNone && a.Intrinsic == IntrinsicNone {
-		for attribute, static := range atts {
-			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
-				return static, nil
-			}
-		}
-		for attribute, static := range atts {
-			if a.Name == attribute.Name {
-				return static, nil
-			}
-		}
-	}
+
+	// jpe - replicate this in the implementation?
+	// if a.Scope == AttributeScopeNone && a.Intrinsic == IntrinsicNone {
+	// 	for attribute, static := range atts {
+	// 		if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
+	// 			return static, nil
+	// 		}
+	// 	}
+	// 	for attribute, static := range atts {
+	// 		if a.Name == attribute.Name {
+	// 			return static, nil
+	// 		}
+	// 	}
+	// }
 
 	return NewStaticNil(), nil
 }

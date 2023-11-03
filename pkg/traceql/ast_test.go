@@ -371,7 +371,12 @@ func (m *mockSpan) WithAttrBool(key string, value bool) *mockSpan {
 	return m
 }
 
-func (m *mockSpan) Attributes() map[Attribute]Static {
+func (m *mockSpan) AttributeFor(a Attribute) (Static, bool) {
+	s, ok := m.attributes[a] // jpe - need fancy resource/span logic?
+	return s, ok
+}
+
+func (m *mockSpan) AllAttributes() map[Attribute]Static {
 	return m.attributes
 }
 

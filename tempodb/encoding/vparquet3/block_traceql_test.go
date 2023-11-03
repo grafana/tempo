@@ -492,40 +492,32 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		query string
 	}{
 		// span
-		{"spanAttNameNoMatch", "{ span.foo = `bar` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
-		{"spanAttValMatch", "{ span.bloom > 0 }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
-		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
-		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
-		{"spanAttIntrinsicRegexMatch", "{ name =~ `gcs.ReadRange` }"},
 
 		// resource
-		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
 		{"resourceAttValNoMatch", "{ resource.module.path = `bar` }"},
-		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
-		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
 
 		// mixed
-		{"mixedNameNoMatch", "{ .foo = `bar` }"},
 		{"mixedValNoMatch", "{ .bloom = `bar` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
-		{"mixedValBothMatch", "{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }"},
 
-		{"count", "{} | count() > 1"},
-		{"desc", "{ resource.service.name = `loki-querier` } >> { resource.service.name = `loki-querier` }"},
+		{"count", "{ } | count() > 1"},
+		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-querier` && status = error }"},
+		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-ingester` }"},
+		{"mixed", `{resource.namespace!="" && resource.service.name="loki-distributor" && duration>2s && resource.cluster=~"prod.*"}`},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	// blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
+	//blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/home/joe/testblock/"),
-		Path: path.Join("/Users/marty/src/tmp"),
+		Path: path.Join("/home/joe/testblock/"),
+		//Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
@@ -535,7 +527,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
-	opts.TotalPages = 10
+	opts.TotalPages = 1
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
@@ -614,3 +606,88 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		})
 	}
 }
+
+// jpe - slices are faster in a lot of cases
+// func BenchmarkSlice(b *testing.B) {
+// 	s := &span{
+// 		attributeArray: []newthing{
+// 			{
+// 				st:  traceql.NewStaticString("1"),
+// 				att: traceql.NewAttribute("1"),
+// 			},
+// 			{
+// 				st:  traceql.NewStaticString("2"),
+// 				att: traceql.NewAttribute("2"),
+// 			},
+// 			{
+// 				st:  traceql.NewStaticString("3"),
+// 				att: traceql.NewAttribute("3"),
+// 			},
+// 			{
+// 				st:  traceql.NewStaticString("3"),
+// 				att: traceql.NewAttribute("3"),
+// 			},
+// 			{
+// 				st:  traceql.NewStaticString("foo"),
+// 				att: traceql.NewAttribute("resource.service.name"),
+// 			},
+// 			{
+// 				st:  traceql.NewStaticStatus(traceql.StatusError),
+// 				att: traceql.NewAttribute("status"),
+// 			},
+// 		},
+// 	}
+
+// 	att1 := traceql.NewAttribute("resource.service.name")
+// 	att2 := traceql.NewAttribute("status")
+
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		ok, st := s.AttributeFor(att1)
+// 		if ok != true || st.Type == traceql.TypeNil {
+// 			panic("bad")
+// 		}
+// 		ok, st = s.AttributeFor(att2)
+// 		if ok != true || st.Type == traceql.TypeNil {
+// 			panic("bad")
+// 		}
+// 		for _, st := range s.attributeArray {
+// 			if st.st.Type == traceql.TypeNil {
+// 				panic("bad")
+// 			}
+// 		}
+// 	}
+// }
+
+// func BenchmarkMap(b *testing.B) {
+// 	s := &span{
+// 		attributes: map[traceql.Attribute]traceql.Static{
+// 			traceql.NewAttribute("1"):                     traceql.NewStaticString("2"),
+// 			traceql.NewAttribute("2"):                     traceql.NewStaticString("1"),
+// 			traceql.NewAttribute("3"):                     traceql.NewStaticString("3"),
+// 			traceql.NewAttribute("4"):                     traceql.NewStaticString("4"),
+// 			traceql.NewAttribute("resource.service.name"): traceql.NewStaticString("foo"),
+// 			traceql.NewAttribute("status"):                traceql.NewStaticStatus(traceql.StatusError),
+// 		},
+// 	}
+
+// 	att1 := traceql.NewAttribute("resource.service.name")
+// 	att2 := traceql.NewAttribute("status")
+
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		st, ok := s.attributes[att1]
+// 		if ok != true || st.Type == traceql.TypeNil {
+// 			panic("bad")
+// 		}
+// 		st, ok = s.attributes[att2]
+// 		if ok != true || st.Type == traceql.TypeNil {
+// 			panic("bad")
+// 		}
+// 		for _, st := range s.attributes {
+// 			if st.Type == traceql.TypeNil {
+// 				panic("bad")
+// 			}
+// 		}
+// 	}
+// }

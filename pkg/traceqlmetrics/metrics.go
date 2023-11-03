@@ -281,13 +281,13 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 			}
 
 			var (
-				attrs  = s.Attributes()
-				series = MetricSeries{}
-				err    = attrs[status] == statusErr
+				series    = MetricSeries{}
+				status, _ = s.AttributeFor(status)
+				err       = status == statusErr
 			)
 
 			for i, g := range groupBys {
-				series[i] = KeyValue{Key: groupByKeys[i], Value: lookup(g, attrs)}
+				series[i] = KeyValue{Key: groupByKeys[i], Value: lookup(g, s)}
 			}
 
 			results.Record(series, s.DurationNanos(), err)
@@ -307,9 +307,9 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 	return results, nil
 }
 
-func lookup(needles []traceql.Attribute, haystack map[traceql.Attribute]traceql.Static) traceql.Static {
+func lookup(needles []traceql.Attribute, span traceql.Span) traceql.Static {
 	for _, n := range needles {
-		if v, ok := haystack[n]; ok {
+		if v, ok := span.AttributeFor(n); ok { // jpe is this equivalent?
 			return v
 		}
 	}

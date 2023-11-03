@@ -179,7 +179,7 @@ func (e *Engine) ExecuteTagValues(
 	case AttributeScopeResource,
 		AttributeScopeSpan: // If tag is scoped, we can check the map directly
 		collectAttributeValue = func(s Span) bool {
-			if v, ok := s.Attributes()[tag]; ok {
+			if v, ok := s.AttributeFor(tag); ok { // jpe - does this work?
 				return cb(v)
 			}
 			return false
@@ -193,13 +193,13 @@ func (e *Engine) ExecuteTagValues(
 		// If the tag is unscoped, we need to check resource and span scoped manually by building a new Attribute with each scope.
 		collectAttributeValue = func(s Span) bool {
 			if tag.Intrinsic != IntrinsicNone { // it's intrinsic
-				if v, ok := s.Attributes()[tag]; ok {
+				if v, ok := s.AttributeFor(tag); ok { // jpe
 					return cb(v)
 				}
 			} else { // it's unscoped
 				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
 					scopedAttr := Attribute{Scope: scope, Parent: tag.Parent, Name: tag.Name}
-					if v, ok := s.Attributes()[scopedAttr]; ok {
+					if v, ok := s.AttributeFor(scopedAttr); ok { // jpe
 						return cb(v)
 					}
 				}
@@ -296,7 +296,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 			Attributes:        nil,
 		}
 
-		atts := span.Attributes()
+		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
 			tempopbSpan.Name = name.S

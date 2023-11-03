@@ -77,9 +77,10 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 }
 
 type Span interface {
-	// these are the actual fields used by the engine to evaluate queries
-	// if a Filter parameter is passed the spans returned will only have this field populated
-	Attributes() map[Attribute]Static
+	// AttributeFor returns the attribute for the given key. If the attribute is not found then
+	// the second return value will be false.
+	AttributeFor(Attribute) (Static, bool)
+	AllAttributes() map[Attribute]Static // jpe - comment. don't call this. do i need this for metadata?
 
 	ID() []byte
 	StartTimeUnixNanos() uint64
