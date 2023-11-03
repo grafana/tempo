@@ -91,11 +91,11 @@ func NewRegexpIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (I
 		ok          bool
 	)
 	if stringValue, ok = value.(string); !ok {
-		return IntrinsicFilter{}, fmt.Errorf("unsupported regex intrinsic value: %v", value)
+		return IntrinsicFilter{}, fmt.Errorf("unsupported intrinsic filter regex value: %v", value)
 	}
 	r, err := regexp.Compile(stringValue)
 	if err != nil {
-		return IntrinsicFilter{}, err
+		return IntrinsicFilter{}, fmt.Errorf("invalid intrinsic filter regex: %v", err)
 	}
 	switch intrinsic {
 	case traceql.IntrinsicName, traceql.IntrinsicStatus, traceql.IntrinsicKind:

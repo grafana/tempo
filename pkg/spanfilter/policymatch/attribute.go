@@ -137,7 +137,7 @@ func NewRegexpAttributeFilter(key string, regex interface{}) (AttributeFilter, e
 	if stringValue, ok := regex.(string); ok {
 		compiled, err := regexp.Compile(stringValue)
 		if err != nil {
-			return filter, fmt.Errorf("invalid regexp value: %v", regex)
+			return filter, fmt.Errorf("invalid attribute filter regexp: %v", err)
 		}
 		filter.regex = compiled
 	}
@@ -145,7 +145,7 @@ func NewRegexpAttributeFilter(key string, regex interface{}) (AttributeFilter, e
 		filter.regex = regexpValue
 	}
 	if filter.regex == nil {
-		return filter, fmt.Errorf("invalid regex value: %v", regex)
+		return filter, fmt.Errorf("invalid attribute filter regexp value: %v", regex)
 	}
 	return filter, nil
 }

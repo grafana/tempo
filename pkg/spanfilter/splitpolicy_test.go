@@ -209,6 +209,32 @@ func Test_newSplitPolicy(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid regex span attribute matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "span.foo",
+						Value: ".*(",
+					},
+				},
+			},
+			err: errors.New("invalid attribute filter regexp: error parsing regexp: missing closing ): `.*(`"),
+		},
+		{
+			name: "invalid regex kind intrinsic matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: ".*(",
+					},
+				},
+			},
+			err: errors.New("invalid intrinsic filter regex: error parsing regexp: missing closing ): `.*(`"),
+		},
+		{
 			name: "invalid intrinsic",
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
