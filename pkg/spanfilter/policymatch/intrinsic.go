@@ -40,6 +40,42 @@ type IntrinsicFilter struct {
 	regex      *regexp.Regexp
 }
 
+// NewStrictIntrinsicFilter returns a new IntrinsicFilter that matches spans based on the given intrinsic and value.
+func NewStrictIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (IntrinsicFilter, error) {
+	switch intrinsic {
+	case traceql.IntrinsicKind:
+		switch v := value.(type) {
+		case tracev1.Span_SpanKind:
+			return NewKindIntrinsicFilter(v), nil
+		case string:
+			if kind, ok := tracev1.Span_SpanKind_value[v]; ok {
+				return NewKindIntrinsicFilter(tracev1.Span_SpanKind(kind)), nil
+			} else {
+				return IntrinsicFilter{}, fmt.Errorf("unsupported kind intrinsic string value: %s", v)
+			}
+		default:
+			return IntrinsicFilter{}, fmt.Errorf("invalid kind intrinsic value: %v", v)
+		}
+	case traceql.IntrinsicStatus:
+		switch v := value.(type) {
+		case tracev1.Status_StatusCode:
+			return NewStatusIntrinsicFilter(v), nil
+		case string:
+			if code, ok := tracev1.Status_StatusCode_value[v]; ok {
+				return NewStatusIntrinsicFilter(tracev1.Status_StatusCode(code)), nil
+			} else {
+				return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic string value: %s", v)
+			}
+		default:
+			return IntrinsicFilter{}, fmt.Errorf("unsupported intrinsic value: %v", v)
+		}
+	case traceql.IntrinsicName:
+		return NewNameIntrinsicFilter(value.(string)), nil
+	default:
+		return IntrinsicFilter{}, fmt.Errorf("unsupported intrinsic: %v", intrinsic)
+	}
+}
+
 // NewKindIntrinsicFilter returns a new IntrinsicFilter that matches spans with the given kind.
 func NewKindIntrinsicFilter(kind tracev1.Span_SpanKind) IntrinsicFilter {
 	return IntrinsicFilter{intrinsic: traceql.IntrinsicKind, kind: kind}
