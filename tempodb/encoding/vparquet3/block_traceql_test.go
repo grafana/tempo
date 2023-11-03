@@ -27,7 +27,8 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	req := traceql.MustExtractFetchSpansRequestWithMetadata(`{ traceDuration > 1s }`)
+	q := `{ traceDuration > 1s }`
+	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
 	req.EndTimeUnixNanos = uint64(1001 * time.Second)
@@ -38,6 +39,7 @@ func TestOne(t *testing.T) {
 	spanSet, err := resp.Results.Next(ctx)
 	require.NoError(t, err, "search request:", req)
 
+	fmt.Println(q)
 	fmt.Println("-----------")
 	fmt.Println(resp.Results.(*spansetIterator).iter)
 	fmt.Println("-----------")
