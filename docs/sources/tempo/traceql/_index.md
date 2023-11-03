@@ -64,19 +64,19 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 The following table shows the current intrinsic fields:
 
-| **Field**       | **Type**    | **Definition**                                                  | **Example**                     |
-|-----------------|-------------|-----------------------------------------------------------------|---------------------------------|
-| status          | status enum | status: error, ok, or unset                                     | { status = ok }                 |
-| statusMessage   | string      | optional text accompanying the span status                      | { statusMessage = "Forbidden" } |
-| duration        | duration    | end - start time of the span                                    | { duration > 100ms }            |
-| name            | string      | operation or span name                                          | { name = "HTTP POST" }          |
-| kind            | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }               |
-| traceDuration   | duration    | max(end) - min(start) time of the spans in the trace            | { traceDuration > 100ms }       |
-| rootName        | string      | if it exists the name of the root span in the trace             | { rootName = "HTTP GET" }       |
-| rootServiceName | string      | if it exists the service name of the root span in the trace     | { rootServiceName = "gateway" } |
+| **Field**       | **Type**    | **Definition**                                                  | **Example**                       |
+| --------------- | ----------- | --------------------------------------------------------------- | --------------------------------- |
+| `status`        | status enum | status: error, ok, or unset                                     | `{ status = ok }`                 |
+| `statusMessage` | string      | optional text accompanying the span status                      | `{ statusMessage = "Forbidden" }` |
+| `duration`      | duration    | end - start time of the span                                    | `{ duration > 100ms }`            |
+| `name`          | string      | operation or span name                                          | `{ name = "HTTP POST" }`          |
+| `kind`            | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ kind = server }`                 |
+| `traceDuration`   | duration    | max(end) - min(start) time of the spans in the trace            | `{ traceDuration > 100ms }`       |
+| `rootName`      | string      | if it exists the name of the root span in the trace             | `{ rootName = "HTTP GET" }`         |
+| `rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ rootServiceName = "gateway" }`   |
 
 {{% admonition type="note" %}}
-`traceDuration`, `rootName` and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
+`traceDuration`, `rootName`, and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
 these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
 possible to span-level intrinsics.
 {{% /admonition %}}
@@ -123,7 +123,7 @@ For example, to find traces with an attribute of `sla` set to `critical`:
 
 Attribute names can contain terminal characters, such as a period (`.`).
 To search span attributes with terminal characters, you can use quoted attribute syntax.
-A quoted attribute should be enclosed inside double quotes, for example, `"example one"`.
+Enclose a quoted attribute inside double quotes, for example, `"example one"`.
 All characters between the quotes are considered part of the attribute name.
 
 #### Examples
@@ -196,7 +196,7 @@ Find traces with "success" `http.status_code` codes:
 { span.http.status_code >= 200 && span.http.status_code < 300 }
 ```
 
-Find traces where a `DELETE` HTTP method was used and the instrinsic span status was not OK:
+Find traces where a `DELETE` HTTP method was used and the intrinsic span status was not OK:
 
 ```
 { span.http.method = "DELETE" && status != ok }
@@ -347,7 +347,7 @@ In the example below, traces are filtered on the `resource.service.name` value `
 {resource.service.name = "frontend" && name = "POST /api/orders"}
 ```
 
-When using the same Grafana stack for multiple environments (e.g., `production` and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
+When using the same Grafana stack for multiple environments (for example, `production` and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
 
 ```
 {
