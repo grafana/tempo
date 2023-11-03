@@ -133,6 +133,82 @@ func Test_newSplitPolicy(t *testing.T) {
 			},
 		},
 		{
+			name: "strict resource attribute matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "resource.foo",
+						Value: "bar",
+					},
+				},
+			},
+			split: &splitPolicy{
+				ResourceMatch: policymatch.NewAttributePolicyMatch(
+					[]policymatch.AttributeFilter{
+						must(policymatch.NewStrictAttributeFilter("foo", "bar")),
+					},
+				),
+			},
+		},
+		{
+			name: "regex resource attribute matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "resource.foo",
+						Value: ".*",
+					},
+				},
+			},
+			split: &splitPolicy{
+				ResourceMatch: policymatch.NewAttributePolicyMatch(
+					[]policymatch.AttributeFilter{
+						must(policymatch.NewRegexpAttributeFilter("foo", ".*")),
+					},
+				),
+			},
+		},
+		{
+			name: "strict span attribute matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "span.foo",
+						Value: "bar",
+					},
+				},
+			},
+			split: &splitPolicy{
+				SpanMatch: policymatch.NewAttributePolicyMatch(
+					[]policymatch.AttributeFilter{
+						must(policymatch.NewStrictAttributeFilter("foo", "bar")),
+					},
+				),
+			},
+		},
+		{
+			name: "regex span attribute matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "span.foo",
+						Value: ".*",
+					},
+				},
+			},
+			split: &splitPolicy{
+				SpanMatch: policymatch.NewAttributePolicyMatch(
+					[]policymatch.AttributeFilter{
+						must(policymatch.NewRegexpAttributeFilter("foo", ".*")),
+					},
+				),
+			},
+		},
+		{
 			name: "invalid intrinsic",
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
