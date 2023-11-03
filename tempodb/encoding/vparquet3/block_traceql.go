@@ -62,57 +62,87 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 }
 
 func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
-	if a.Scope == traceql.AttributeScopeResource {
-		for _, st := range s.resourceAttrs {
-			if st.a == a {
-				return st.s, true
+	find := func(a traceql.Attribute, attrs []stattr) *traceql.Static {
+		if len(attrs) == 1 {
+			if attrs[0].a == a {
+				return &attrs[0].s
 			}
+		}
+		if len(attrs) == 2 {
+			if attrs[0].a == a {
+				return &attrs[0].s
+			}
+			if attrs[1].a == a {
+				return &attrs[1].s
+			}
+		}
+
+		for _, st := range attrs {
+			if st.a == a {
+				return &st.s
+			}
+		}
+		return nil
+	}
+	findName := func(s string, attrs []stattr) *traceql.Static {
+		if len(attrs) == 1 {
+			if attrs[0].a.Name == s {
+				return &attrs[0].s
+			}
+		}
+		if len(attrs) == 2 {
+			if attrs[0].a.Name == s {
+				return &attrs[0].s
+			}
+			if attrs[1].a.Name == s {
+				return &attrs[1].s
+			}
+		}
+
+		for _, st := range attrs {
+			if st.a.Name == s {
+				return &st.s
+			}
+		}
+		return nil
+	}
+
+	if a.Scope == traceql.AttributeScopeResource {
+		if attr := find(a, s.resourceAttrs); attr != nil {
+			return *attr, true
 		}
 	}
 
 	if a.Scope == traceql.AttributeScopeSpan { // jpe - should we search the slice backwards? to replicate the behavior of the old map?
-		for _, st := range s.spanAttrs {
-			if st.a == a {
-				return st.s, true
-			}
+		if attr := find(a, s.spanAttrs); attr != nil {
+			return *attr, true
 		}
 	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
 		// intrinsics are always on the span or trace ... for now
-		for _, st := range s.spanAttrs {
-			if st.a == a {
-				return st.s, true
-			}
+		if attr := find(a, s.spanAttrs); attr != nil {
+			return *attr, true
 		}
 
-		// find on trace
-		for _, st := range s.traceAttrs {
-			if st.a == a {
-				return st.s, true
-			}
+		if attr := find(a, s.traceAttrs); attr != nil {
+			return *attr, true
 		}
 	}
 
 	// span attrs brute force
-	for _, st := range s.spanAttrs {
-		if st.a.Name == a.Name {
-			return st.s, true
-		}
+	if attr := findName(a.Name, s.spanAttrs); attr != nil {
+		return *attr, true
 	}
 
 	// resource attrs brute force
-	for _, st := range s.resourceAttrs {
-		if a.Name == st.a.Name {
-			return st.s, true
-		}
+	if attr := findName(a.Name, s.resourceAttrs); attr != nil {
+		return *attr, true
 	}
 
 	// trace attrs brute force
-	for _, st := range s.resourceAttrs {
-		if st.a.Name == a.Name {
-			return st.s, true
-		}
+	if attr := findName(a.Name, s.traceAttrs); attr != nil {
+		return *attr, true
 	}
 
 	// shruggy man
