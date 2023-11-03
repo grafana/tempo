@@ -44,31 +44,21 @@ type IntrinsicFilter struct {
 func NewStrictIntrinsicFilter(intrinsic traceql.Intrinsic, value interface{}) (IntrinsicFilter, error) {
 	switch intrinsic {
 	case traceql.IntrinsicKind:
-		switch v := value.(type) {
-		case tracev1.Span_SpanKind:
-			return NewKindIntrinsicFilter(v), nil
-		case string:
+		if v, ok := value.(string); ok {
 			if kind, ok := tracev1.Span_SpanKind_value[v]; ok {
 				return NewKindIntrinsicFilter(tracev1.Span_SpanKind(kind)), nil
-			} else {
-				return IntrinsicFilter{}, fmt.Errorf("unsupported kind intrinsic string value: %s", v)
 			}
-		default:
-			return IntrinsicFilter{}, fmt.Errorf("invalid kind intrinsic value: %v", v)
+			return IntrinsicFilter{}, fmt.Errorf("unsupported kind intrinsic string value: %s", v)
 		}
+		return IntrinsicFilter{}, fmt.Errorf("invalid kind intrinsic value: %v", value)
 	case traceql.IntrinsicStatus:
-		switch v := value.(type) {
-		case tracev1.Status_StatusCode:
-			return NewStatusIntrinsicFilter(v), nil
-		case string:
+		if v, ok := value.(string); ok {
 			if code, ok := tracev1.Status_StatusCode_value[v]; ok {
 				return NewStatusIntrinsicFilter(tracev1.Status_StatusCode(code)), nil
-			} else {
-				return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic string value: %s", v)
 			}
-		default:
-			return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic value: %v", v)
+			return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic string value: %s", v)
 		}
+		return IntrinsicFilter{}, fmt.Errorf("unsupported status intrinsic value: %v", value)
 	case traceql.IntrinsicName:
 		if v, ok := value.(string); ok {
 			return NewNameIntrinsicFilter(v), nil
