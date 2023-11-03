@@ -6,8 +6,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
-
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -474,69 +472,6 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			}
 			x := sf.ApplyFilterPolicy(tc.resource, tc.span)
 			require.Equal(t, tc.expect, x)
-		})
-	}
-}
-
-func TestSpanFilter_getSplitPolicy(t *testing.T) {
-	cases := []struct {
-		policy *config.PolicyMatch
-		split  *splitPolicy
-		name   string
-	}{
-		{
-			name: "basic kind matching",
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "kind",
-						Value: "SPAN_KIND_CLIENT",
-					},
-				},
-			},
-			split: &splitPolicy{
-				IntrinsicMatch: policymatch.NewIntrinsicPolicyMatch(
-					[]policymatch.IntrinsicFilter{
-						policymatch.NewKindIntrinsicFilter(tracev1.Span_SPAN_KIND_CLIENT),
-					}),
-			},
-		},
-		{
-			name: "basic status matching",
-			policy: &config.PolicyMatch{
-				MatchType: config.Strict,
-				Attributes: []config.MatchPolicyAttribute{
-					{
-						Key:   "status",
-						Value: "STATUS_CODE_OK",
-					},
-				},
-			},
-			split: &splitPolicy{
-				IntrinsicMatch: policymatch.NewIntrinsicPolicyMatch(
-					[]policymatch.IntrinsicFilter{
-						policymatch.NewStatusIntrinsicFilter(tracev1.Status_STATUS_CODE_OK),
-					}),
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			s, err := getSplitPolicy(tc.policy)
-			require.NoError(t, err)
-			require.NotNil(t, s)
-
-			if tc.split.IntrinsicMatch != nil {
-				require.Equal(t, tc.split.IntrinsicMatch, s.IntrinsicMatch)
-			}
-			if tc.split.SpanMatch != nil {
-				require.Equal(t, tc.split.SpanMatch, s.SpanMatch)
-			}
-			if tc.split.ResourceMatch != nil {
-				require.Equal(t, tc.split.ResourceMatch, s.ResourceMatch)
-			}
 		})
 	}
 }

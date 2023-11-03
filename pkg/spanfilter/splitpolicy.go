@@ -8,7 +8,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
-	"golang.org/x/exp/maps"
 )
 
 // splitPolicy is the result of parsing a policy from the config file to be
@@ -30,7 +29,7 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 	for _, pa := range policy.Attributes {
 		attr, err := traceql.ParseIdentifier(pa.Key)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid policy match attribute: %v", err)
 		}
 
 		if attr.Intrinsic > 0 {
@@ -45,7 +44,7 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 						if kind, ok := tracev1.Span_SpanKind_value[v]; ok {
 							filter = policymatch.NewKindIntrinsicFilter(tracev1.Span_SpanKind(kind))
 						} else {
-							return nil, fmt.Errorf("currently unsupported kind intrinsic string value: %s; supported values: %v", v, maps.Keys(tracev1.Span_SpanKind_value))
+							return nil, fmt.Errorf("unsupported kind intrinsic string value: %s", v)
 						}
 					default:
 						return nil, fmt.Errorf("invalid kind intrinsic value: %v", v)
@@ -58,13 +57,15 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 						if code, ok := tracev1.Status_StatusCode_value[v]; ok {
 							filter = policymatch.NewStatusIntrinsicFilter(tracev1.Status_StatusCode(code))
 						} else {
-							return nil, fmt.Errorf("currently unsupported status intrinsic string value: %s; supported values: %v", v, maps.Keys(tracev1.Status_StatusCode_value))
+							return nil, fmt.Errorf("unsupported status intrinsic string value: %s", v)
 						}
 					default:
-						return nil, fmt.Errorf("currently unsupported intrinsic: %v", v)
+						return nil, fmt.Errorf("unsupported intrinsic value: %v", v)
 					}
 				case traceql.IntrinsicName:
 					filter = policymatch.NewNameIntrinsicFilter(pa.Value.(string))
+				default:
+					return nil, fmt.Errorf("unsupported intrinsic: %v", attr.Intrinsic)
 				}
 			} else {
 				filter, err = policymatch.NewRegexpIntrinsicFilter(attr.Intrinsic, pa.Value.(string))
@@ -87,6 +88,8 @@ func newSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {
 					return nil, err
 				}
 				resourceAttributeFilters = append(resourceAttributeFilters, filter)
+			default:
+				return nil, fmt.Errorf("invalid or unsupported attribute scope: %v", attr.Scope)
 			}
 		}
 	}
