@@ -184,8 +184,8 @@ func NewAutocompleteFetcherWrapper(f func(context.Context, AutocompleteRequest, 
 	return AutocompleteFetcherWrapper{f}
 }
 
-func (s AutocompleteFetcherWrapper) Fetch(ctx context.Context, req AutocompleteRequest, cb AutocompleteCallback) error {
-	return s.f(ctx, req, cb)
+func (s AutocompleteFetcherWrapper) Fetch(ctx context.Context, request AutocompleteRequest, callback AutocompleteCallback) error {
+	return s.f(ctx, request, callback)
 }
 
 // MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns
