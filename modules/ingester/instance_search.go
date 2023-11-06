@@ -367,7 +367,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	query := extractMatchers(req.Query)
 
 	var searchBlock func(common.Searcher) error
-	if !i.autocompleteFilteringEnabled && isEmptyQuery(query) {
+	if !i.autocompleteFilteringEnabled || isEmptyQuery(query) {
 		// If filtering is disabled or query is empty,
 		// we can use the more efficient SearchTagValuesV2 method.
 		searchBlock = func(s common.Searcher) error {
@@ -392,6 +392,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			}
 
 			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+				if len(req.Conditions) <= 1 { // Last check. No conditions, use old path. It's much faster.
+					return s.SearchTagValuesV2(ctx, req.TagName, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
+				}
+
 				return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
 			})
 

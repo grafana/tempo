@@ -698,7 +698,6 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}
 
-		// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
 		for {
 			// Exhaust the iterator
 			res, err := iter.Next()

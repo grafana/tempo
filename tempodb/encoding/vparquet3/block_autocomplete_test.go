@@ -298,6 +298,10 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			query: "{}",
 		},
 		{
+			tag:   "resource.namespace",
+			query: `{}`,
+		},
+		{
 			tag:   "span.http.url",
 			query: `{resource.namespace="tempo-ops"}`,
 		},

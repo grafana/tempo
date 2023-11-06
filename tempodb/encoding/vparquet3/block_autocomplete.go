@@ -20,10 +20,6 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 		return errors.Wrap(err, "conditions invalid")
 	}
 
-	if len(req.Conditions) <= 1 { // Last check. No conditions, use old path. It's much faster.
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), opts)
-	}
-
 	pf, _, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return err
@@ -35,7 +31,6 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 	}
 	defer iter.Close()
 
-	// TODO: The iter shouldn't be exhausted here, it should be returned to the caller
 	for {
 		// Exhaust the iterator
 		res, err := iter.Next()
@@ -325,8 +320,8 @@ func createDistinctSpanIterator(
 		iters = nil
 	}
 
-	// TODO: Unsure how this works when there are unscoped conditions like .foo=x
-	if len(required) == 0 {
+	// TODO: Document optimization
+	if len(columnPredicates) == 0 {
 		return attrIter, nil
 	}
 
