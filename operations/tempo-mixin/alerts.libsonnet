@@ -143,7 +143,7 @@
             expr: |||
               max by (%s) (tempodb_blocklist_tenant_index_age_seconds{}) > %s
             ||| % [$._config.group_by_tenant, $._config.alerts.max_tenant_index_age_seconds],
-            'for': '5m',
+            'for': '20m',
             labels: {
               severity: 'critical',
             },

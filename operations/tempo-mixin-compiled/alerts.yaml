@@ -93,7 +93,7 @@
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexTooOld"
     "expr": |
       max by (cluster, namespace, tenant) (tempodb_blocklist_tenant_index_age_seconds{}) > 600
-    "for": "5m"
+    "for": "20m"
     "labels":
       "severity": "critical"
   - "alert": "TempoBlockListRisingQuickly"
