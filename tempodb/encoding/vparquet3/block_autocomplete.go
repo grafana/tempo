@@ -3,7 +3,6 @@ package vparquet3
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -61,7 +60,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
 func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	iter, err := createDistinctIterator(ctx, nil, req.Conditions, req.TagName, true, 0, math.MaxInt64, pf, opts, dc)
+	iter, err := createDistinctIterator(ctx, nil, req.Conditions, req.TagName, true, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -75,7 +74,6 @@ func createDistinctIterator(
 	conds []traceql.Condition,
 	tag traceql.Attribute,
 	allConditions bool,
-	start, end uint64,
 	pf *parquet.File,
 	opts common.SearchOptions,
 	dc backend.DedicatedColumns,
@@ -124,51 +122,42 @@ func createDistinctIterator(
 	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
+	// Safeguard. Shouldn't be needed since we only use collect the tag we want.
 	keep := func(attr traceql.Attribute) bool { return tag == attr }
 
 	// Optimization for queries like {resource.x... && span.y ...}
 	// Requires no mingled scopes like .foo=x, which could be satisfied one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
+	// TODO: Return early if there are mingled conditions? They're not supported yet (and possibly never will be).
+
 	var (
-		spanIter, resourceIter, traceIter parquetquery.Iterator
-		err                               error
+		currentIter parquetquery.Iterator
+		err         error
 	)
 
 	if len(spanConditions) > 0 {
-		spanIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, allConditions, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, allConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
 	if len(resourceConditions) > 0 {
-		resourceIter, err = createDistinctResourceIterator(makeIter, keep, tag, spanIter, resourceConditions, allConditions, dc)
+		currentIter, err = createDistinctResourceIterator(makeIter, keep, tag, currentIter, resourceConditions, allConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
 		}
 	}
 
 	if len(traceConditions) > 0 {
-		previousIter := resourceIter
-		if previousIter == nil {
-			previousIter = spanIter
-		}
-		traceIter, err = createDistinctTraceIterator(makeIter, keep, previousIter, traceConditions, start, end, allConditions)
+		currentIter, err = createDistinctTraceIterator(makeIter, keep, currentIter, traceConditions, allConditions)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating trace iterator")
 		}
-		return traceIter, nil
 	}
 
-	if traceIter != nil {
-		return traceIter, nil
-	} else if resourceIter != nil {
-		return resourceIter, nil
-	} else if spanIter != nil {
-		return spanIter, nil
-	}
-	return nil, fmt.Errorf("no conditions")
+	return currentIter, nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -190,6 +179,8 @@ func createDistinctSpanIterator(
 		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
 	)
 
+	// TODO: Potentially problematic when wanted attribute is also part of a condition
+	//     e.g. { span.foo =~ ".*" && span.foo = }
 	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
@@ -202,32 +193,14 @@ func createDistinctSpanIterator(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	selectColumnIfNotAlready := func(path string) {
-		if columnPredicates[path] == nil {
-			addPredicate(path, nil)
-			columnSelectAs[path] = path // TODO: Don't select, just filter
-		}
-	}
-
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicSpanID:
-			pred, err := createStringPredicate(cond.Op, cond.Operands)
-			if err != nil {
-				return nil, err
-			}
-			addPredicate(columnPathSpanID, pred)
-			addSelectAs(cond.Attribute, columnPathSpanID, columnPathSpanID)
-			continue
 
-		case traceql.IntrinsicSpanStartTime:
-			pred, err := createIntPredicate(cond.Op, cond.Operands)
-			if err != nil {
-				return nil, err
-			}
-			addPredicate(columnPathSpanStartTime, pred)
-			addSelectAs(cond.Attribute, columnPathSpanStartTime, columnPathSpanStartTime)
+		case traceql.IntrinsicSpanID,
+			traceql.IntrinsicSpanStartTime:
+			// Metadata conditions not necessary, we don't need to fetch them
+			// TODO: Add support if they're added to TraceQL
 			continue
 
 		case traceql.IntrinsicName:
@@ -265,6 +238,7 @@ func createDistinctSpanIterator(
 			addPredicate(columnPathSpanStatusCode, pred)
 			addSelectAs(cond.Attribute, columnPathSpanStatusCode, columnPathSpanStatusCode)
 			continue
+
 		case traceql.IntrinsicStatusMessage:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
@@ -274,16 +248,11 @@ func createDistinctSpanIterator(
 			addSelectAs(cond.Attribute, columnPathSpanStatusMessage, columnPathSpanStatusMessage)
 			continue
 
-		case traceql.IntrinsicStructuralDescendant:
-			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
-			selectColumnIfNotAlready(columnPathSpanNestedSetRight)
-
-		case traceql.IntrinsicStructuralChild:
-			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
-			selectColumnIfNotAlready(columnPathSpanParentID)
-
-		case traceql.IntrinsicStructuralSibling:
-			selectColumnIfNotAlready(columnPathSpanParentID)
+		// TODO: Support structural operators
+		case traceql.IntrinsicStructuralDescendant,
+			traceql.IntrinsicStructuralChild,
+			traceql.IntrinsicStructuralSibling:
+			continue
 		}
 
 		// Well-known attribute?
@@ -368,7 +337,11 @@ func createDistinctSpanIterator(
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
 }
 
-func createDistinctAttributeIterator(makeIter makeIterFn, keep keepFn, tag traceql.Attribute, conditions []traceql.Condition,
+func createDistinctAttributeIterator(
+	makeIter makeIterFn,
+	keep keepFn,
+	tag traceql.Attribute,
+	conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
 	allConditions bool,
@@ -389,9 +362,9 @@ func createDistinctAttributeIterator(makeIter makeIterFn, keep keepFn, tag trace
 	for _, cond := range conditions {
 
 		if cond.Op == traceql.OpNone {
+			// This means we have to scan all values, we don't know what type to expect
 			if tag == cond.Attribute {
-				// This means we have to scan all values, we don't know what type
-				// to expect
+				// If it's not the tag we're looking for, we can skip it
 				attrKeys = append(attrKeys, cond.Attribute.Name)
 				attrStringPreds = append(attrStringPreds, nil)
 				attrIntPreds = append(attrIntPreds, nil)
@@ -611,18 +584,24 @@ func createDistinctResourceIterator(
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, batchCol), nil
 }
 
-func createDistinctTraceIterator(makeIter makeIterFn, keep keepFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
-	traceIters := make([]parquetquery.Iterator, 0, 3)
-
+func createDistinctTraceIterator(
+	makeIter makeIterFn,
+	keep keepFn,
+	resourceIter parquetquery.Iterator,
+	conds []traceql.Condition,
+	allConditions bool,
+) (parquetquery.Iterator, error) {
 	var err error
+	traceIters := make([]parquetquery.Iterator, 0, 3)
 
 	// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
 	// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
 	// otherwise we just pass the info up to the engine to make a choice
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicTraceID:
-			traceIters = append(traceIters, makeIter(columnPathTraceID, nil, columnPathTraceID))
+		case traceql.IntrinsicTraceID, traceql.IntrinsicTraceStartTime:
+			// metadata conditions not necessary, we don't need to fetch them
+
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
 			if allConditions {
@@ -632,10 +611,7 @@ func createDistinctTraceIterator(makeIter makeIterFn, keep keepFn, resourceIter 
 				}
 			}
 			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
-		case traceql.IntrinsicTraceStartTime:
-			if start == 0 && end == 0 {
-				traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
-			}
+
 		case traceql.IntrinsicTraceRootSpan:
 			var pred parquetquery.Predicate
 			if allConditions {
@@ -645,6 +621,7 @@ func createDistinctTraceIterator(makeIter makeIterFn, keep keepFn, resourceIter 
 				}
 			}
 			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
+
 		case traceql.IntrinsicTraceRootService:
 			var pred parquetquery.Predicate
 			if allConditions {
@@ -749,7 +726,6 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		columnPathSpanNestedSetLeft,
 		columnPathSpanNestedSetRight,
 		columnPathSpanStartTime:
-		return traceql.Attribute{}, traceql.Static{}
 	case columnPathSpanDuration:
 		return traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathSpanName:
@@ -801,10 +777,9 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 			return newSpanAttr(e.Key), traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
 			return newSpanAttr(e.Key), traceql.NewStaticString(e.Value.String())
-		default:
-			return traceql.Attribute{}, traceql.Static{}
 		}
 	}
+	return traceql.Attribute{}, traceql.Static{}
 }
 
 var _ parquetquery.GroupPredicate = (*distinctBatchCollector)(nil)
