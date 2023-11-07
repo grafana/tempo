@@ -532,7 +532,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 
-			trp := parquetTraceToTempopbTrace(b.meta, tr)
+			trp := parquetTraceToTempopbTrace(b.meta, tr, false)
 
 			trs = append(trs, trp)
 		}
@@ -809,7 +809,7 @@ func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 		return nil, nil, err
 	}
 
-	tr := parquetTraceToTempopbTrace(i.meta, t)
+	tr := parquetTraceToTempopbTrace(i.meta, t, true)
 	return id, tr, nil
 }
 
