@@ -372,7 +372,19 @@ func (m *mockSpan) WithAttrBool(key string, value bool) *mockSpan {
 }
 
 func (m *mockSpan) AttributeFor(a Attribute) (Static, bool) {
-	s, ok := m.attributes[a] // jpe - need fancy resource/span logic?
+	s, ok := m.attributes[a]
+	// if not found explicitly, check if it's a span attribute
+	if !ok && a.Scope == AttributeScopeNone {
+		aSpan := a
+		aSpan.Scope = AttributeScopeSpan
+		s, ok = m.attributes[aSpan]
+	}
+	// if not found explicitly, check if it's a resource attribute
+	if !ok && a.Scope == AttributeScopeNone {
+		aRes := a
+		aRes.Scope = AttributeScopeResource
+		s, ok = m.attributes[aRes]
+	}
 	return s, ok
 }
 

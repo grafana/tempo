@@ -80,7 +80,9 @@ type Span interface {
 	// AttributeFor returns the attribute for the given key. If the attribute is not found then
 	// the second return value will be false.
 	AttributeFor(Attribute) (Static, bool)
-	AllAttributes() map[Attribute]Static // jpe - comment. don't call this. do i need this for metadata?
+	// AllAttributes returns a map of all attributes for this span. AllAttributes should be used sparingly
+	// and is expected to be significantly slower than AttributeFor.
+	AllAttributes() map[Attribute]Static
 
 	ID() []byte
 	StartTimeUnixNanos() uint64

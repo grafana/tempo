@@ -513,11 +513,11 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
-	//blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/home/joe/testblock/"),
-		//Path: path.Join("/Users/marty/src/tmp"),
+		// Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
@@ -606,88 +606,3 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		})
 	}
 }
-
-// jpe - slices are faster in a lot of cases
-// func BenchmarkSlice(b *testing.B) {
-// 	s := &span{
-// 		attributeArray: []newthing{
-// 			{
-// 				st:  traceql.NewStaticString("1"),
-// 				att: traceql.NewAttribute("1"),
-// 			},
-// 			{
-// 				st:  traceql.NewStaticString("2"),
-// 				att: traceql.NewAttribute("2"),
-// 			},
-// 			{
-// 				st:  traceql.NewStaticString("3"),
-// 				att: traceql.NewAttribute("3"),
-// 			},
-// 			{
-// 				st:  traceql.NewStaticString("3"),
-// 				att: traceql.NewAttribute("3"),
-// 			},
-// 			{
-// 				st:  traceql.NewStaticString("foo"),
-// 				att: traceql.NewAttribute("resource.service.name"),
-// 			},
-// 			{
-// 				st:  traceql.NewStaticStatus(traceql.StatusError),
-// 				att: traceql.NewAttribute("status"),
-// 			},
-// 		},
-// 	}
-
-// 	att1 := traceql.NewAttribute("resource.service.name")
-// 	att2 := traceql.NewAttribute("status")
-
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		ok, st := s.AttributeFor(att1)
-// 		if ok != true || st.Type == traceql.TypeNil {
-// 			panic("bad")
-// 		}
-// 		ok, st = s.AttributeFor(att2)
-// 		if ok != true || st.Type == traceql.TypeNil {
-// 			panic("bad")
-// 		}
-// 		for _, st := range s.attributeArray {
-// 			if st.st.Type == traceql.TypeNil {
-// 				panic("bad")
-// 			}
-// 		}
-// 	}
-// }
-
-// func BenchmarkMap(b *testing.B) {
-// 	s := &span{
-// 		attributes: map[traceql.Attribute]traceql.Static{
-// 			traceql.NewAttribute("1"):                     traceql.NewStaticString("2"),
-// 			traceql.NewAttribute("2"):                     traceql.NewStaticString("1"),
-// 			traceql.NewAttribute("3"):                     traceql.NewStaticString("3"),
-// 			traceql.NewAttribute("4"):                     traceql.NewStaticString("4"),
-// 			traceql.NewAttribute("resource.service.name"): traceql.NewStaticString("foo"),
-// 			traceql.NewAttribute("status"):                traceql.NewStaticStatus(traceql.StatusError),
-// 		},
-// 	}
-
-// 	att1 := traceql.NewAttribute("resource.service.name")
-// 	att2 := traceql.NewAttribute("status")
-
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		st, ok := s.attributes[att1]
-// 		if ok != true || st.Type == traceql.TypeNil {
-// 			panic("bad")
-// 		}
-// 		st, ok = s.attributes[att2]
-// 		if ok != true || st.Type == traceql.TypeNil {
-// 			panic("bad")
-// 		}
-// 		for _, st := range s.attributes {
-// 			if st.Type == traceql.TypeNil {
-// 				panic("bad")
-// 			}
-// 		}
-// 	}
-// }

@@ -23,16 +23,16 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type stattr struct { // jpe - static attr, get it ?
+type attrVal struct {
 	a traceql.Attribute
 	s traceql.Static
 }
 
 // span implements traceql.Span
 type span struct {
-	spanAttrs     []stattr // jpe add intrinsic attrs? this might be even faster with a slice. the hard part is on insertion we need to overwrite
-	resourceAttrs []stattr
-	traceAttrs    []stattr
+	spanAttrs     []attrVal
+	resourceAttrs []attrVal
+	traceAttrs    []attrVal
 
 	id                 []byte
 	startTimeUnixNanos uint64
@@ -50,19 +50,28 @@ type span struct {
 func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs))
 	for _, st := range s.traceAttrs {
+		if st.s.Type == traceql.TypeNil {
+			continue
+		}
 		atts[st.a] = st.s
 	}
 	for _, st := range s.resourceAttrs {
+		if st.s.Type == traceql.TypeNil {
+			continue
+		}
 		atts[st.a] = st.s
 	}
 	for _, st := range s.spanAttrs {
+		if st.s.Type == traceql.TypeNil {
+			continue
+		}
 		atts[st.a] = st.s
 	}
 	return atts
 }
 
 func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
-	find := func(a traceql.Attribute, attrs []stattr) *traceql.Static {
+	find := func(a traceql.Attribute, attrs []attrVal) *traceql.Static {
 		if len(attrs) == 1 {
 			if attrs[0].a == a {
 				return &attrs[0].s
@@ -84,7 +93,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		}
 		return nil
 	}
-	findName := func(s string, attrs []stattr) *traceql.Static {
+	findName := func(s string, attrs []attrVal) *traceql.Static {
 		if len(attrs) == 1 {
 			if attrs[0].a.Name == s {
 				return &attrs[0].s
@@ -113,7 +122,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		}
 	}
 
-	if a.Scope == traceql.AttributeScopeSpan { // jpe - should we search the slice backwards? to replicate the behavior of the old map?
+	if a.Scope == traceql.AttributeScopeSpan {
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
@@ -145,7 +154,6 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		return *attr, true
 	}
 
-	// shruggy man
 	return traceql.NewStaticNil(), false
 }
 
@@ -307,22 +315,22 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 }
 
 func (s *span) addSpanAttr(a traceql.Attribute, st traceql.Static) {
-	s.spanAttrs = append(s.spanAttrs, stattr{a: a, s: st}) // jpex
+	s.spanAttrs = append(s.spanAttrs, attrVal{a: a, s: st})
 }
 
-func (s *span) setResourceAttrs(attrs []stattr) {
-	// jpe - i assume this honors cap and such
+func (s *span) setResourceAttrs(attrs []attrVal) {
 	s.resourceAttrs = append(s.resourceAttrs, attrs...)
 }
 
-func (s *span) setTraceAttrs(attrs []stattr) {
-	s.traceAttrs = append(s.resourceAttrs, attrs...)
+func (s *span) setTraceAttrs(attrs []attrVal) {
+	s.traceAttrs = append(s.traceAttrs, attrs...)
 }
 
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {
 	count := 0
-	for _, st := range s.spanAttrs { // jpe just keep this count independently
+	// todo: attributesMatced is called a lot. we could cache this count on set
+	for _, st := range s.spanAttrs {
 		if st.s.Type != traceql.TypeNil {
 			count++
 		}
@@ -363,11 +371,7 @@ func (s *span) attributesMatched() int {
 // can return a slice of dropped and kept spansets?
 var spanPool = sync.Pool{
 	New: func() interface{} {
-		return &span{
-			//spanAttrs: make(map[traceql.Attribute]traceql.Static),
-			//resourceAttrs: make(map[traceql.Attribute]traceql.Static), jpe - don't make trace or resource attrs
-			//traceAttrs:    make(map[traceql.Attribute]traceql.Static),
-		}
+		return &span{}
 	},
 }
 
@@ -384,8 +388,6 @@ func putSpan(s *span) {
 	s.spanAttrs = s.spanAttrs[:0]
 	s.resourceAttrs = s.resourceAttrs[:0]
 	s.traceAttrs = s.traceAttrs[:0]
-	// clear(s.resourceAttrs) jpe - can't clear trace and resource attrs b/c they are shared
-	// clear(s.traceAttrs)
 
 	spanPool.Put(s)
 }
@@ -1927,7 +1929,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 type batchCollector struct {
 	requireAtLeastOneMatchOverall bool
 	minAttributes                 int
-	resAttrs                      []stattr
+	resAttrs                      []attrVal
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
@@ -1949,14 +1951,14 @@ func (c *batchCollector) String() string {
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// First pass over spans and attributes from the AttributeCollector
 	spans := res.OtherEntries[:0]
-	c.resAttrs = c.resAttrs[:0] // jpe - cheaper to keep a buffer on batch collector and copy?
+	c.resAttrs = c.resAttrs[:0]
 
 	for _, kv := range res.OtherEntries {
 		switch v := kv.Value.(type) {
 		case *span:
 			spans = append(spans, kv)
 		case traceql.Static:
-			c.resAttrs = append(c.resAttrs, stattr{newResAttr(kv.Key), v})
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(kv.Key), v})
 		}
 	}
 	res.OtherEntries = spans
@@ -1970,9 +1972,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.Entries {
 		switch e.Value.Kind() {
 		case parquet.Int64:
-			c.resAttrs = append(c.resAttrs, stattr{newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))}) // jpe what happens with attribute collisions?
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))})
 		case parquet.ByteArray:
-			c.resAttrs = append(c.resAttrs, stattr{newResAttr(e.Key), traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
 		}
 	}
 
@@ -1991,14 +1993,6 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		// If the span already has an entry for this attribute it
 		// takes precedence (can be nil to indicate no match)
 		span.setResourceAttrs(c.resAttrs)
-
-		// Remove unmatched attributes
-		// jpe - i don't think we need to do this anymore? the spanattrs should keep the nil to flag no match at the span layer
-		// for k, v := range span.attributes {
-		// 	if v.Type == traceql.TypeNil {
-		// 		delete(span.attributes, k)
-		// 	}
-		// }
 
 		if c.requireAtLeastOneMatchOverall {
 			// Skip over span if it didn't meet minimum criteria
@@ -2027,7 +2021,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // they are returned
 type traceCollector struct {
 	// traceAttrs is a slice reused by KeepGroup to reduce allocations
-	traceAttrs []stattr
+	traceAttrs []attrVal
 }
 
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
@@ -2055,13 +2049,13 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:
 			finalSpanset.DurationNanos = e.Value.Uint64()
-			c.traceAttrs = append(c.traceAttrs, stattr{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
 		case columnPathRootSpanName:
 			finalSpanset.RootSpanName = unsafeToString(e.Value.Bytes())
-			c.traceAttrs = append(c.traceAttrs, stattr{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(finalSpanset.RootSpanName)})
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(finalSpanset.RootSpanName)})
 		case columnPathRootServiceName:
 			finalSpanset.RootServiceName = unsafeToString(e.Value.Bytes())
-			c.traceAttrs = append(c.traceAttrs, stattr{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(finalSpanset.RootServiceName)})
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(finalSpanset.RootServiceName)})
 		}
 	}
 

@@ -309,7 +309,7 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 
 func lookup(needles []traceql.Attribute, span traceql.Span) traceql.Static {
 	for _, n := range needles {
-		if v, ok := span.AttributeFor(n); ok { // jpe is this equivalent?
+		if v, ok := span.AttributeFor(n); ok {
 			return v
 		}
 	}

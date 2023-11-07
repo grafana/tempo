@@ -52,7 +52,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	// then any attributes matching. we don't need to both if this is an intrinsic b/c those will always
 	// be caught above if they exist
 	if a.Scope == traceql.AttributeScopeNone && a.Intrinsic == traceql.IntrinsicNone {
-		for attribute, static := range atts { // jpe - map iteration is slow
+		for attribute, static := range atts {
 			if a.Name == attribute.Name && attribute.Scope == traceql.AttributeScopeSpan {
 				return static, true
 			}
