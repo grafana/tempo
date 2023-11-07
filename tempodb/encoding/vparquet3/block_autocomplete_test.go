@@ -149,13 +149,13 @@ func TestFetchTagValues(t *testing.T) {
 		{
 			name:           "span attribute with span attribute - match",
 			tag:            "span.foo",
-			query:          `{span.foo="def"}`,
+			query:          `{span.bar=123}`,
 			expectedValues: []tempopb.TagValue{stringTagValue("def")},
 		},
 		{
 			name:           "span attribute with span attribute and resource attribute - match",
 			tag:            "span.foo",
-			query:          `{span.http.method="get" && resource.namespace="namespace"}`,
+			query:          `{span.bool=false && resource.namespace="namespace"}`,
 			expectedValues: []tempopb.TagValue{stringTagValue("def")},
 		},
 		{

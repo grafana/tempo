@@ -104,9 +104,16 @@ func TestSearchTagValuesV2(t *testing.T) {
 			tagName:  spanX,
 			expected: searchTagValuesResponse{},
 		},
+		// TODO: Somewhat supported, but not really. Unscoped only works if the attribute is at the span level ¯\_(ツ)_/¯
 		{
-			name:     "unscoped attribute", // TODO: Not supported, should return only the first batch
+			name:     "unscoped span attribute",
 			query:    fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
+			tagName:  spanX,
+			expected: searchTagValuesResponse{TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}}},
+		},
+		{
+			name:     "unscoped resource attribute",
+			query:    fmt.Sprintf(`{ .xx="%s" }`, firstBatch.spanAttVal),
 			tagName:  spanX,
 			expected: searchTagValuesResponse{},
 		},

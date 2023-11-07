@@ -300,7 +300,7 @@ func createDistinctSpanIterator(
 	}
 
 	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
-		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
+		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
@@ -320,8 +320,9 @@ func createDistinctSpanIterator(
 		iters = nil
 	}
 
-	// TODO: Document optimization
 	if len(columnPredicates) == 0 {
+		// If no special+intrinsic+dedicated columns are being searched,
+		// we can iterate over the generic attributes directly.
 		return attrIter, nil
 	}
 
@@ -339,12 +340,11 @@ func createDistinctAttributeIterator(
 	conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
-	allConditions bool,
 ) (parquetquery.Iterator, error) {
 	var (
 		attrKeys                                               []string
 		attrStringPreds, attrIntPreds, attrFltPreds, boolPreds []parquetquery.Predicate
-		allIters                                               []parquetquery.Iterator
+		iters                                                  []parquetquery.Iterator
 	)
 
 	selectAs := func(key string, attr traceql.Attribute) string {
@@ -365,8 +365,8 @@ func createDistinctAttributeIterator(
 				attrIntPreds = append(attrIntPreds, nil)
 				attrFltPreds = append(attrFltPreds, nil)
 				boolPreds = append(boolPreds, nil)
-				continue
 			}
+			continue
 		}
 
 		var keyIter, valIter parquetquery.Iterator
@@ -405,10 +405,7 @@ func createDistinctAttributeIterator(
 			valIter = makeIter(boolPath, pred, selectAs("bool", cond.Attribute))
 		}
 
-		allIters = append(allIters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, &distinctAttrCollector{
-			scope: scopeFromDefinitionLevel(definitionLevel),
-			keep:  keep,
-		}))
+		iters = append(iters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, nil))
 	}
 
 	var valueIters []parquetquery.Iterator
@@ -425,44 +422,38 @@ func createDistinctAttributeIterator(
 		valueIters = append(valueIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
 	}
 
-	// TODO: Super hacky, clean up!!
-	if len(allIters) > 0 {
-		if len(attrKeys) > 0 {
-			allIters = append(allIters, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"))
-		}
-		return parquetquery.NewLeftJoinIterator(definitionLevel, allIters, valueIters, &distinctAttrCollector{keep: keep}), nil
-	}
+	if len(valueIters) > 0 || len(iters) > 0 {
 
-	if len(valueIters) > 0 {
-		// LeftJoin means only look at rows where the key is what we want.
-		// Bring in any of the typed values as needed.
-
-		// if all conditions must be true we can use a simple join iterator to test the values one column at a time.
-		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
-		if allConditions && len(valueIters) == 1 {
-			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
-			return parquetquery.NewJoinIterator(
+		if len(valueIters) > 0 {
+			tagIter := parquetquery.NewLeftJoinIterator(
 				definitionLevel,
-				iters,
+				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
+				valueIters,
 				&distinctAttrCollector{
 					scope: scopeFromDefinitionLevel(definitionLevel),
 					keep:  keep,
 				},
-			), nil
+			)
+			iters = append(iters, tagIter)
 		}
-
-		return parquetquery.NewLeftJoinIterator(
-			definitionLevel,
-			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
-			valueIters,
-			&distinctAttrCollector{
-				scope: scopeFromDefinitionLevel(definitionLevel),
-				keep:  keep,
-			},
+		return parquetquery.NewJoinIterator(
+			oneLevelUp(definitionLevel),
+			iters,
+			nil,
 		), nil
 	}
 
 	return nil, nil
+}
+
+func oneLevelUp(definitionLevel int) int {
+	switch definitionLevel {
+	case DefinitionLevelResourceSpansILSSpanAttrs:
+		return DefinitionLevelResourceSpansILSSpan
+	case DefinitionLevelResourceAttrs:
+		return DefinitionLevelResourceSpans
+	}
+	return definitionLevel
 }
 
 func createDistinctResourceIterator(
@@ -547,8 +538,8 @@ func createDistinctResourceIterator(
 		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
+	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceSpans,
+		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
