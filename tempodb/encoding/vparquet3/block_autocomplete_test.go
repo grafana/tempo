@@ -242,6 +242,12 @@ func TestFetchTagValues(t *testing.T) {
 			query:          `{kind=internal}`,
 			expectedValues: []tempopb.TagValue{},
 		},
+		{
+			name:           "unscoped attribute - not supported",
+			tag:            ".service.name",
+			query:          `{ .namespace="namespace"}`,
+			expectedValues: []tempopb.TagValue{},
+		},
 	}
 
 	ctx := context.TODO()

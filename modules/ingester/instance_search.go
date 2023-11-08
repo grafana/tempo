@@ -392,7 +392,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			}
 
 			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
-				if len(req.Conditions) <= 1 { // Last check. No conditions, use old path. It's much faster.
+				if len(req.Conditions) <= 1 || mingledConditions(req.Conditions) { // Last check. No conditions, use old path. It's much faster.
 					return s.SearchTagValuesV2(ctx, req.TagName, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 				}
 
@@ -470,7 +470,17 @@ func isEmptyQuery(query string) bool {
 	return query == emptyQuery || len(query) == 0
 }
 
-// TODO: Support spaces
+func mingledConditions(cs []traceql.Condition) bool {
+	for _, c := range cs {
+		if c.Attribute.Scope == traceql.AttributeScopeNone {
+			return true
+		}
+	}
+	return false
+}
+
+// TODO: Support spaces, quotes
+//  See: https://github.com/grafana/grafana/issues/77394
 
 // Regex to extract matchers from a query string
 // This regular expression matches a string that contains three groups separated by operators.

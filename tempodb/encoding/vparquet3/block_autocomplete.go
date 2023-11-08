@@ -31,6 +31,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 	}
 	defer iter.Close()
 
+	fmt.Println(iter)
 	for {
 		// Exhaust the iterator
 		res, err := iter.Next()
