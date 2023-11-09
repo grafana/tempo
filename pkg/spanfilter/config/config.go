@@ -72,7 +72,7 @@ func ValidatePolicyMatch(match *PolicyMatch) error {
 			switch a.Intrinsic {
 			case traceql.IntrinsicKind, traceql.IntrinsicName, traceql.IntrinsicStatus: // currently supported
 			default:
-				return fmt.Errorf("currently unsupported intrinsic: %s; supported intrinsics: %q", a.Intrinsic, supportedIntrinsics)
+				return fmt.Errorf("unsupported intrinsic: %s; supported intrinsics: %q", a.Intrinsic, supportedIntrinsics)
 			}
 		}
 	}
