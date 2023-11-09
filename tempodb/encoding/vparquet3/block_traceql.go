@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/parquet-go/parquet-go"
 
@@ -404,6 +405,8 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
+
+	coalesceConditions(&req)
 
 	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
@@ -1154,7 +1157,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
 	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanStatusCode, nil, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -1392,7 +1395,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return min != s || max != s
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 
@@ -1413,7 +1416,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(max, s) > 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 	case traceql.OpGreaterEqual:
@@ -1425,7 +1428,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(max, s) >= 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 	case traceql.OpLess:
@@ -1437,7 +1440,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(min, s) < 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 	case traceql.OpLessEqual:
@@ -1449,7 +1452,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 				return strings.Compare(min, s) <= 0
 			},
 			func(v parquet.Value) string {
-				return v.String()
+				return unsafeToString(v.Bytes())
 			},
 		), nil
 
@@ -1710,7 +1713,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.durationNanos = durationNanos
 			sp.attributes[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(durationNanos))
 		case columnPathSpanName:
-			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(kv.Value.String())
+			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.
 			// For other values, use the raw integer.
@@ -1727,7 +1730,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 			sp.attributes[traceql.IntrinsicStatusAttribute] = traceql.NewStaticStatus(status)
 		case columnPathSpanStatusMessage:
-			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(kv.Value.String())
+			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
 		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
@@ -1764,7 +1767,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			case parquet.Float:
 				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
+				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(unsafeToString(kv.Value.Bytes()))
 			}
 		}
 	}
@@ -1834,7 +1837,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case parquet.Int64:
 			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.ByteArray:
-			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(e.Value.String())
+			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(unsafeToString(e.Value.Bytes()))
 		}
 	}
 
@@ -1924,10 +1927,10 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			finalSpanset.DurationNanos = e.Value.Uint64()
 			c.traceAttrs[traceql.IntrinsicTraceDurationAttribute] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
 		case columnPathRootSpanName:
-			finalSpanset.RootSpanName = e.Value.String()
+			finalSpanset.RootSpanName = unsafeToString(e.Value.Bytes())
 			c.traceAttrs[traceql.IntrinsicTraceRootSpanAttribute] = traceql.NewStaticString(finalSpanset.RootSpanName)
 		case columnPathRootServiceName:
-			finalSpanset.RootServiceName = e.Value.String()
+			finalSpanset.RootServiceName = unsafeToString(e.Value.Bytes())
 			c.traceAttrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString(finalSpanset.RootServiceName)
 		}
 	}
@@ -1989,9 +1992,9 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 		switch e.Key {
 		case "key":
-			key = e.Value.String()
+			key = unsafeToString(e.Value.Bytes())
 		case "string":
-			val = traceql.NewStaticString(e.Value.String())
+			val = traceql.NewStaticString(unsafeToString(e.Value.Bytes()))
 		case "int":
 			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
@@ -2036,4 +2039,12 @@ func orIfNeeded(preds []parquetquery.Predicate) parquetquery.Predicate {
 	default:
 		return parquetquery.NewOrPredicate(preds...)
 	}
+}
+
+// unsafeToString casts a byte slice to a string w/o allocating
+func unsafeToString(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }

@@ -109,7 +109,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides(cfg.ConfigType),
 		}
-		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
 		}

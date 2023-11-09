@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.321
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.2.0
-	github.com/cristalhq/hedgedhttp v0.7.0
+	github.com/cristalhq/hedgedhttp v0.9.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.1
@@ -26,7 +26,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.1
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20231006094724-ad2fd7e7931e
+	github.com/grafana/dskit v0.0.0-20231031132813-52f4e8d82d59
 	github.com/grafana/e2e v0.1.1
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.5.0
@@ -86,7 +86,7 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.132.0
-	google.golang.org/grpc v1.58.1
+	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -105,7 +105,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/grafana/gomemcache v0.0.0-20230914135007-70d78eaabfe1
+	github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.74.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.74.0
@@ -121,12 +121,12 @@ require (
 	go.opentelemetry.io/collector/receiver v0.86.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/oauth2 v0.12.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230717213848-3f92550aa753
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d
 )
 
 require (
-	cloud.google.com/go v0.110.4 // indirect
-	cloud.google.com/go/compute v1.22.0 // indirect
+	cloud.google.com/go v0.110.7 // indirect
+	cloud.google.com/go/compute v1.23.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.4-0.20230617002413-005d2dfb6b68 // indirect
 	cloud.google.com/go/iam v1.1.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
@@ -315,8 +315,8 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230717213848-3f92550aa753 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230717213848-3f92550aa753 // indirect
+	google.golang.org/genproto v0.0.0-20230822172742-b8732ec3820d // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
@@ -331,8 +331,5 @@ replace (
 // - https://github.com/hashicorp/memberlist/pull/260
 // - https://github.com/grafana/memberlist/pull/3
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-
-// Make sure Tempo uses a version that has a patch for CVE-2023-44487
-replace google.golang.org/grpc => google.golang.org/grpc v1.58.3
 
 replace golang.org/x/net => golang.org/x/net v0.17.0

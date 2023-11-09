@@ -695,6 +695,11 @@ storage:
             # Set to true to enable authentication and certificate checks on gcs requests
             [insecure: <bool>]
 
+            # The number of list calls to make in parallel to the backend per instance.
+            # Adjustments here will impact the polling time, as well as the number of Go routines.
+            # Default is 3
+            [list_blocks_concurrency: <int>]
+
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to

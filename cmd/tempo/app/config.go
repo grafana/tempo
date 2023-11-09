@@ -87,7 +87,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.InternalServer.LogFormat = c.Server.LogFormat
 
 	// Increase max message size to 16MB
-	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024
+	c.Server.GRPCServerMaxRecvMsgSize = 16 * 1024 * 1024
 	c.Server.GRPCServerMaxSendMsgSize = 16 * 1024 * 1024
 
 	// The following GRPC server settings are added to address this issue - https://github.com/grafana/tempo/issues/493
