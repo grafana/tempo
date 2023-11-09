@@ -1,0 +1,28 @@
+PASS
+ok  	bufio	0.102s
+goos: darwin
+goarch: amd64
+pkg: github.com/grafana/tempo/tempodb/encoding/vparquet3
+cpu: Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2787171987 ns/op	261559136 B/op	 5430001 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2781288015 ns/op	246333840 B/op	 5426518 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2773935213 ns/op	233816840 B/op	 5407126 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2768572686 ns/op	198611824 B/op	 5338429 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2769705388 ns/op	208639232 B/op	 5338516 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2751255279 ns/op	208622832 B/op	 5338479 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2754755978 ns/op	206654512 B/op	 5338490 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2825603953 ns/op	198294384 B/op	 5338424 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2819021551 ns/op	197849808 B/op	 5338461 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2816087026 ns/op	198547232 B/op	 5338414 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2769611548 ns/op	203869528 B/op	 5338493 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2817589658 ns/op	209013240 B/op	 5338559 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2906651369 ns/op	200235952 B/op	 5338428 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2877463239 ns/op	199453968 B/op	 5338480 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	3011302315 ns/op	198516368 B/op	 5338398 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2904220456 ns/op	204633752 B/op	 5338421 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2841635735 ns/op	208572400 B/op	 5338528 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2809111736 ns/op	208105488 B/op	 5338464 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2823584143 ns/op	199267048 B/op	 5338470 allocs/op
+BenchmarkBackendBlockGetMetrics/{}/name-16         	       1	2906383534 ns/op	207834240 B/op	 5338468 allocs/op
+PASS
+ok  	github.com/grafana/tempo/tempodb/encoding/vparquet3	57.051s

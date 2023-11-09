@@ -78,9 +78,11 @@ var cli struct {
 	} `cmd:""`
 
 	Parquet struct {
-		Convert     convertParquet     `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
-		Convert1to2 convertParquet1to2 `cmd:"" help:"convert an existing vParquet file to vParquet2 schema"`
-		Convert2to3 convertParquet2to3 `cmd:"" help:"convert an existing vParquet2 file to vParquet3 block"`
+		Convert       convertParquet       `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
+		Convert1to2   convertParquet1to2   `cmd:"" help:"convert an existing vParquet file to vParquet2 schema"`
+		Convert2to3   convertParquet2to3   `cmd:"" help:"convert an existing vParquet2 file to vParquet3 block"`
+		Convert3to4   convertParquet3to4   `cmd:"" help:"convert an existing vParquet3 file to vParquet4 block"`
+		Convert3to4V2 convertParquet3to4V2 `cmd:"" help:"convert an existing vParquet3 file to vParquet4 block"`
 	} `cmd:""`
 
 	Migrate struct {
