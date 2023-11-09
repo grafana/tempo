@@ -230,8 +230,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
 
-	// f.DurationVar(&c.Defaults.Compaction.CompactionWindow.(*time.Duration), "compactor.max-compaction-window", 1*time.Hour, "Maximum duration of a search query. 0 to disable.")
-
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")
 	f.Var(&c.PerTenantOverridePeriod, "config.per-user-override-period", "Period with this to reload the Overrides.")
