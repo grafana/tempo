@@ -118,8 +118,6 @@ type Attribute struct {
 	ValueInt     *int64   `parquet:",snappy,optional"`
 	ValueDouble  *float64 `parquet:",snappy,optional"`
 	ValueBool    *bool    `parquet:",snappy,optional"`
-	ValueKVList  string   `parquet:",snappy,optional"`
-	ValueArray   string   `parquet:",snappy,optional"`
 	ValueDropped string   `parquet:",snappy,optional"`
 }
 
@@ -248,11 +246,9 @@ type Trace struct {
 func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 	p.Key = a.Key
 	p.Value = nil
-	p.ValueArray = ""
 	p.ValueBool = nil
 	p.ValueDouble = nil
 	p.ValueInt = nil
-	p.ValueKVList = ""
 	p.ValueDropped = ""
 
 	switch v := a.GetValue().Value.(type) {
@@ -264,14 +260,6 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 		p.ValueDouble = &v.DoubleValue
 	case *v1.AnyValue_BoolValue:
 		p.ValueBool = &v.BoolValue
-	case *v1.AnyValue_ArrayValue:
-		jsonBytes := &bytes.Buffer{}
-		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
-		p.ValueArray = jsonBytes.String()
-	case *v1.AnyValue_KvlistValue:
-		jsonBytes := &bytes.Buffer{}
-		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
-		p.ValueKVList = jsonBytes.String()
 	default:
 		jsonBytes := &bytes.Buffer{}
 		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
@@ -535,10 +523,6 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 			protoVal.Value = &v1.AnyValue_BoolValue{
 				BoolValue: *attr.ValueBool,
 			}
-		} else if attr.ValueArray != "" {
-			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueArray), protoVal)
-		} else if attr.ValueKVList != "" {
-			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueKVList), protoVal)
 		} else if attr.ValueDropped != "" && includeDroppedAttr {
 			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueDropped), protoVal)
 			counter.droppedAttrAdd(-1)
