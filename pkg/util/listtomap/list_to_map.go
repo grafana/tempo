@@ -77,10 +77,10 @@ func (l *ListToMap) GetMap() map[string]struct{} {
 
 func Merge(m1, m2 ListToMap) ListToMap {
 	merged := make(ListToMap)
-	for k, _ := range m1 {
+	for k := range m1 {
 		merged[k] = struct{}{}
 	}
-	for k, _ := range m2 {
+	for k := range m2 {
 		merged[k] = struct{}{}
 	}
 	return merged
