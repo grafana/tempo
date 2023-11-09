@@ -107,7 +107,7 @@ var (
 
 // droppedAttrCounter represents an entity that can count dropped attributes
 type droppedAttrCounter interface {
-	droppedAttrAdd(n int32)
+	addDroppedAttr(n int32)
 }
 
 type Attribute struct {
@@ -180,7 +180,7 @@ type Span struct {
 	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
-func (s *Span) droppedAttrAdd(n int32) {
+func (s *Span) addDroppedAttr(n int32) {
 	s.DroppedAttributesCount += n
 }
 
@@ -217,7 +217,7 @@ type Resource struct {
 	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
-func (r *Resource) droppedAttrAdd(n int32) {
+func (r *Resource) addDroppedAttr(n int32) {
 	r.DroppedAttributesCount += n
 }
 
@@ -264,7 +264,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 		jsonBytes := &bytes.Buffer{}
 		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
 		p.ValueDropped = jsonBytes.String()
-		counter.droppedAttrAdd(1)
+		counter.addDroppedAttr(1)
 	}
 }
 
@@ -525,7 +525,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 			}
 		} else if attr.ValueDropped != "" && includeDroppedAttr {
 			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueDropped), protoVal)
-			counter.droppedAttrAdd(-1)
+			counter.addDroppedAttr(-1)
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{
