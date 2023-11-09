@@ -8,9 +8,10 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/common/model"
 )
@@ -129,7 +130,8 @@ type ReadOverrides struct {
 
 type CompactionOverrides struct {
 	// Compactor enforced overrides.
-	BlockRetention model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	BlockRetention   model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	CompactionWindow model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
 }
 
 type GlobalOverrides struct {
@@ -226,6 +228,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// Querier limits
 	f.IntVar(&c.Defaults.Read.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
 	f.IntVar(&c.Defaults.Read.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
+
+	// f.DurationVar(&c.Defaults.Compaction.CompactionWindow.(*time.Duration), "compactor.max-compaction-window", 1*time.Hour, "Maximum duration of a search query. 0 to disable.")
 
 	f.StringVar(&c.PerTenantOverrideConfig, "config.per-user-override-config", "", "File name of per-user Overrides.")
 	_ = c.PerTenantOverridePeriod.Set("10s")

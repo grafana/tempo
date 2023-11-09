@@ -115,7 +115,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
 	blockSelector := newTimeWindowBlockSelector(blocklist,
-		rw.compactorCfg.MaxCompactionRange,
+		rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID),
 		rw.compactorCfg.MaxCompactionObjects,
 		rw.compactorCfg.MaxBlockBytes,
 		defaultMinInputBlocks,
