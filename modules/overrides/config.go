@@ -45,6 +45,7 @@ const (
 	MetricIngestionRateLimitBytes         = "ingestion_rate_limit_bytes"
 	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
 	MetricBlockRetention                  = "block_retention"
+	MetricCompactionWindow                = "compaction_window"
 	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
@@ -251,5 +252,6 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Read.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Compaction.BlockRetention), MetricBlockRetention)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Compaction.CompactionWindow), MetricCompactionWindow)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }
