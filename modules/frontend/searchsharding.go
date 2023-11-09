@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -221,12 +222,13 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	searchThroughput.WithLabelValues(tenantID).Observe(throughput)
 
 	query, _ := url.PathUnescape(r.URL.RawQuery)
-	span.SetTag("query", query)
+	traceID, _ := tracing.ExtractTraceID(ctx)
 	level.Info(s.logger).Log(
 		"msg", "sharded search query request stats and SearchMetrics",
+		"traceID", traceID,
 		"tenant", tenantID,
 		"query", query,
-		"duration_seconds", reqTime,
+		"duration", reqTime,
 		"request_throughput", throughput,
 		"total_requests", totalJobs,
 		"started_requests", startedReqs,
@@ -238,6 +240,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
+	span.SetTag("query", query)
+	span.SetTag("tenant", tenantID)
 	span.SetTag("totalBlocks", overallResponse.response.Metrics.TotalBlocks)
 	span.SetTag("inspectedBytes", overallResponse.response.Metrics.InspectedBytes)
 	span.SetTag("inspectedTraces", overallResponse.response.Metrics.InspectedTraces)
