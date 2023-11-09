@@ -20,6 +20,15 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 		return errors.Wrap(err, "conditions invalid")
 	}
 
+	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	if err != nil {
+		return err
+	}
+
+	if len(req.Conditions) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
+	}
+
 	pf, _, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return err
@@ -31,7 +40,6 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 	}
 	defer iter.Close()
 
-	fmt.Println(iter)
 	for {
 		// Exhaust the iterator
 		res, err := iter.Next()
@@ -74,45 +82,10 @@ func createDistinctIterator(
 	opts common.SearchOptions,
 	dc backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
-	// Categorize conditions into span-level or resource-level
-	var (
-		mingledConditions  bool
-		spanConditions     []traceql.Condition
-		resourceConditions []traceql.Condition
-		traceConditions    []traceql.Condition
-	)
-	for _, cond := range conds {
-		// If no-scoped intrinsic then assign default scope
-		scope := cond.Attribute.Scope
-		if cond.Attribute.Scope == traceql.AttributeScopeNone {
-			if lookup, ok := intrinsicColumnLookups[cond.Attribute.Intrinsic]; ok {
-				scope = lookup.scope
-			}
-		}
-
-		switch scope {
-
-		case traceql.AttributeScopeNone:
-			mingledConditions = true
-			spanConditions = append(spanConditions, cond)
-			resourceConditions = append(resourceConditions, cond)
-			continue
-
-		case traceql.AttributeScopeSpan, intrinsicScopeSpan:
-			spanConditions = append(spanConditions, cond)
-			continue
-
-		case traceql.AttributeScopeResource:
-			resourceConditions = append(resourceConditions, cond)
-			continue
-
-		case intrinsicScopeTrace:
-			traceConditions = append(traceConditions, cond)
-			continue
-
-		default:
-			return nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
-		}
+	// categorizeConditions conditions into span-level or resource-level
+	_, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	if err != nil {
+		return nil, err
 	}
 
 	rgs := rowGroupsFromFile(pf, opts)
@@ -121,16 +94,7 @@ func createDistinctIterator(
 	// Safeguard. Shouldn't be needed since we only use collect the tag we want.
 	keep := func(attr traceql.Attribute) bool { return tag == attr }
 
-	// Optimization for queries like {resource.x... && span.y ...}
-	// Requires no mingled scopes like .foo=x, which could be satisfied one either resource or span.
-	allConditions = allConditions && !mingledConditions
-
-	// TODO: Return early if there are mingled conditions? They're not supported yet (and possibly never will be).
-
-	var (
-		currentIter parquetquery.Iterator
-		err         error
-	)
+	var currentIter parquetquery.Iterator
 
 	if len(spanConditions) > 0 {
 		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, allConditions, dc)

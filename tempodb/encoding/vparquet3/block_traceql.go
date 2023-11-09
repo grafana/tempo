@@ -861,15 +861,9 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	// Categorize conditions into span-level or resource-level
-	var (
-		mingledConditions  bool
-		spanConditions     []traceql.Condition
-		resourceConditions []traceql.Condition
-		traceConditions    []traceql.Condition
-	)
-	for _, cond := range conds {
+// categorizeConditions conditions into span, resource, and trace level.
+func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanConditions, resourceConditions, traceConditions []traceql.Condition, err error) {
+	for _, cond := range conditions {
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
 		if cond.Attribute.Scope == traceql.AttributeScopeNone {
@@ -881,7 +875,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		switch scope {
 
 		case traceql.AttributeScopeNone:
-			mingledConditions = true
+			mingled = true
 			spanConditions = append(spanConditions, cond)
 			resourceConditions = append(resourceConditions, cond)
 			continue
@@ -899,8 +893,17 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 			continue
 
 		default:
-			return nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
+			return false, nil, nil, nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
 		}
+	}
+	return mingled, spanConditions, resourceConditions, traceConditions, nil
+}
+
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+	// categorizeConditions conditions into span-level or resource-level
+	mingledConditions, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	if err != nil {
+		return nil, err
 	}
 
 	rgs := rowGroupsFromFile(pf, opts)

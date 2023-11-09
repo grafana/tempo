@@ -684,6 +684,15 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 		return fmt.Errorf("conditions invalid: %w", err)
 	}
 
+	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	if err != nil {
+		return err
+	}
+
+	if len(req.Conditions) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
+	}
+
 	blockFlushes := b.readFlushes()
 	for _, page := range blockFlushes {
 		file, err := page.file(ctx)

@@ -246,7 +246,7 @@ func TestFetchTagValues(t *testing.T) {
 			name:           "unscoped attribute - not supported",
 			tag:            ".service.name",
 			query:          `{ .namespace="namespace"}`,
-			expectedValues: []tempopb.TagValue{},
+			expectedValues: []tempopb.TagValue{intTagValue(123), intTagValue(1234), stringTagValue("myservice"), stringTagValue("service2"), stringTagValue("spanservicename"), stringTagValue("spanservicename2")},
 		},
 	}
 
@@ -290,8 +290,9 @@ func TestFetchTagValues(t *testing.T) {
 	}
 }
 
-func stringTagValue(v string) tempopb.TagValue {
-	return tempopb.TagValue{Type: "string", Value: v}
+func stringTagValue(v string) tempopb.TagValue { return tempopb.TagValue{Type: "string", Value: v} }
+func intTagValue(v int64) tempopb.TagValue {
+	return tempopb.TagValue{Type: "int", Value: fmt.Sprintf("%d", v)}
 }
 
 func BenchmarkFetchTagValues(b *testing.B) {
