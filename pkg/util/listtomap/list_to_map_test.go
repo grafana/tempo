@@ -93,3 +93,34 @@ func TestListToMapMarshalOperationsJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestMerge(t *testing.T) {
+	testCases := []struct {
+		name           string
+		m1, m2, merged ListToMap
+	}{
+		{
+			"merge keys from both maps",
+			map[string]struct{}{"key1": {}, "key3": {}},
+			map[string]struct{}{"key2": {}, "key3": {}},
+			map[string]struct{}{"key1": {}, "key2": {}, "key3": {}},
+		},
+		{
+			"nil map",
+			nil,
+			map[string]struct{}{"key1": {}},
+			map[string]struct{}{"key1": {}},
+		},
+		{
+			"both nil",
+			nil,
+			nil,
+			map[string]struct{}{},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.merged, Merge(tc.m1, tc.m2))
+		})
+	}
+}
