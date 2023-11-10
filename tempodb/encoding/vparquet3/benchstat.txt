@@ -1,0 +1,119 @@
+goos: darwin
+goarch: amd64
+pkg: github.com/grafana/tempo/tempodb/encoding/vparquet3
+cpu: Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
+                                                    │ BlockTraceQL_VP3.txt │ ../vparquet4/BlockTraceQL_VP4.txt  │
+                                                    │        sec/op        │   sec/op     vs base               │
+BackendBlockTraceQL/spanAttNameNoMatch-16                      4.614m ± 1%   4.707m ± 2%   +2.00% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValNoMatch-16                       4.620m ± 1%   4.700m ± 0%   +1.72% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValMatch-16                         4.612m ± 0%   4.698m ± 0%   +1.88% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicNoMatch-16                 4.592m ± 1%   4.845m ± 1%   +5.53% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicMatch-16                   4.586m ± 1%   4.828m ± 1%   +5.27% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexNoMatch-16            5.254m ± 1%   5.468m ± 1%   +4.07% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexMatch-16              5.183m ± 2%   5.487m ± 2%   +5.86% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttNameNoMatch-16                  4.651m ± 2%   4.714m ± 0%   +1.36% (p=0.017 n=7)
+BackendBlockTraceQL/resourceAttValNoMatch-16                   4.636m ± 1%   4.710m ± 0%   +1.60% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValMatch-16                     4.643m ± 2%   4.713m ± 1%   +1.49% (p=0.011 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicNoMatch-16             3.841m ± 5%   3.878m ± 1%        ~ (p=0.710 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicMatch-16               3.793m ± 2%   3.904m ± 2%   +2.94% (p=0.002 n=7)
+BackendBlockTraceQL/mixedNameNoMatch-16                        586.6m ± 0%   585.7m ± 1%        ~ (p=0.902 n=7)
+BackendBlockTraceQL/mixedValNoMatch-16                         585.7m ± 1%   584.4m ± 1%        ~ (p=0.209 n=7)
+BackendBlockTraceQL/mixedValMixedMatchAnd-16                   4.639m ± 1%   4.729m ± 0%   +1.94% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValMixedMatchOr-16                    481.2m ± 2%   483.2m ± 2%        ~ (p=0.902 n=7)
+BackendBlockTraceQL/mixedValBothMatch-16                       3.818m ± 4%   3.921m ± 1%        ~ (p=0.209 n=7)
+BackendBlockTraceQL/count-16                                    1.454 ± 1%    1.455 ± 1%        ~ (p=0.710 n=7)
+BackendBlockTraceQL/desc-16                                    790.8m ± 1%   576.2m ± 1%  -27.14% (p=0.001 n=7)
+geomean                                                        17.13m        17.20m        +0.37%
+
+                                                    │ BlockTraceQL_VP3.txt │  ../vparquet4/BlockTraceQL_VP4.txt   │
+                                                    │         B/s          │      B/s       vs base               │
+BackendBlockTraceQL/spanAttNameNoMatch-16                     1.557Gi ± 1%    1.527Gi ± 2%   -1.91% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValNoMatch-16                      1.555Gi ± 1%    1.529Gi ± 0%   -1.63% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValMatch-16                        1.558Gi ± 0%    1.530Gi ± 0%   -1.79% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicNoMatch-16               1074.3Mi ± 1%   1018.8Mi ± 1%   -5.16% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicMatch-16                 1075.5Mi ± 1%   1022.5Mi ± 1%   -4.93% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexNoMatch-16           938.9Mi ± 1%    902.8Mi ± 1%   -3.84% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexMatch-16             951.7Mi ± 2%    899.7Mi ± 2%   -5.46% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttNameNoMatch-16                 1.541Gi ± 2%    1.521Gi ± 0%   -1.28% (p=0.016 n=7)
+BackendBlockTraceQL/resourceAttValNoMatch-16                  1.545Gi ± 1%    1.522Gi ± 0%   -1.52% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValMatch-16                    1.543Gi ± 2%    1.521Gi ± 1%   -1.41% (p=0.017 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicNoMatch-16           1003.6Mi ± 5%    994.7Mi ± 1%        ~ (p=0.710 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicMatch-16             1016.3Mi ± 2%    988.1Mi ± 2%   -2.77% (p=0.004 n=7)
+BackendBlockTraceQL/mixedNameNoMatch-16                       36.92Mi ± 0%    36.98Mi ± 1%        ~ (p=0.874 n=7)
+BackendBlockTraceQL/mixedValNoMatch-16                        36.97Mi ± 1%    37.06Mi ± 1%        ~ (p=0.163 n=7)
+BackendBlockTraceQL/mixedValMixedMatchAnd-16                  1.544Gi ± 1%    1.516Gi ± 0%   -1.85% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValMixedMatchOr-16                   30.48Mi ± 2%    30.36Mi ± 2%        ~ (p=0.971 n=7)
+BackendBlockTraceQL/mixedValBothMatch-16                     1009.6Mi ± 4%    983.8Mi ± 1%        ~ (p=0.209 n=7)
+BackendBlockTraceQL/count-16                                  26.87Mi ± 1%    26.87Mi ± 1%        ~ (p=0.734 n=7)
+BackendBlockTraceQL/desc-16                                   9.556Mi ± 1%   10.719Mi ± 1%  +12.18% (p=0.001 n=7)
+geomean                                                       452.5Mi         446.4Mi        -1.37%
+
+                                                    │ BlockTraceQL_VP3.txt │  ../vparquet4/BlockTraceQL_VP4.txt  │
+                                                    │       MB_io/op       │  MB_io/op   vs base                 │
+BackendBlockTraceQL/spanAttNameNoMatch-16                       7.714 ± 0%   7.718 ± 0%   +0.05% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValNoMatch-16                        7.714 ± 0%   7.718 ± 0%   +0.05% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValMatch-16                          7.714 ± 0%   7.718 ± 0%   +0.05% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicNoMatch-16                  5.172 ± 0%   5.176 ± 0%   +0.08% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicMatch-16                    5.172 ± 0%   5.176 ± 0%   +0.08% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexNoMatch-16             5.172 ± 0%   5.176 ± 0%   +0.08% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexMatch-16               5.172 ± 0%   5.176 ± 0%   +0.08% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttNameNoMatch-16                   7.693 ± 0%   7.698 ± 0%   +0.06% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValNoMatch-16                    7.693 ± 0%   7.698 ± 0%   +0.06% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValMatch-16                      7.693 ± 0%   7.698 ± 0%   +0.06% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicNoMatch-16              4.042 ± 0%   4.045 ± 0%   +0.07% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicMatch-16                4.042 ± 0%   4.045 ± 0%   +0.07% (p=0.001 n=7)
+BackendBlockTraceQL/mixedNameNoMatch-16                         22.71 ± 0%   22.71 ± 0%        ~ (p=1.000 n=7) ¹
+BackendBlockTraceQL/mixedValNoMatch-16                          22.71 ± 0%   22.71 ± 0%        ~ (p=1.000 n=7) ¹
+BackendBlockTraceQL/mixedValMixedMatchAnd-16                    7.693 ± 0%   7.698 ± 0%   +0.06% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValMixedMatchOr-16                     15.38 ± 0%   15.38 ± 0%        ~ (p=1.000 n=7) ¹
+BackendBlockTraceQL/mixedValBothMatch-16                        4.042 ± 0%   4.045 ± 0%   +0.07% (p=0.001 n=7)
+BackendBlockTraceQL/count-16                                    40.97 ± 0%   40.97 ± 0%        ~ (p=1.000 n=7) ¹
+BackendBlockTraceQL/desc-16                                     7.927 ± 0%   6.475 ± 0%  -18.32% (p=0.001 n=7)
+geomean                                                         8.130        8.048        -1.01%
+¹ all samples are equal
+
+                                                    │ BlockTraceQL_VP3.txt │  ../vparquet4/BlockTraceQL_VP4.txt   │
+                                                    │         B/op         │     B/op       vs base               │
+BackendBlockTraceQL/spanAttNameNoMatch-16                    2.254Mi ±  1%   2.286Mi ±  2%   +1.44% (p=0.011 n=7)
+BackendBlockTraceQL/spanAttValNoMatch-16                     2.235Mi ±  1%   2.280Mi ±  1%   +2.02% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValMatch-16                       2.231Mi ±  1%   2.284Mi ±  2%   +2.39% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicNoMatch-16               3.036Mi ±  0%   3.116Mi ±  2%   +2.63% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicMatch-16                 3.035Mi ±  1%   3.118Mi ±  1%   +2.74% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexNoMatch-16          3.505Mi ±  1%   3.560Mi ±  1%   +1.58% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexMatch-16            3.502Mi ±  1%   3.561Mi ±  1%   +1.70% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttNameNoMatch-16                2.075Mi ±  2%   2.126Mi ±  1%   +2.45% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValNoMatch-16                 2.086Mi ±  2%   2.137Mi ±  2%   +2.43% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValMatch-16                   2.076Mi ±  2%   2.126Mi ±  2%   +2.38% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicNoMatch-16           2.235Mi ±  1%   2.290Mi ±  1%   +2.46% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicMatch-16             2.226Mi ±  1%   2.292Mi ±  1%   +2.93% (p=0.001 n=7)
+BackendBlockTraceQL/mixedNameNoMatch-16                      24.15Mi ± 10%   23.52Mi ±  6%        ~ (p=0.318 n=7)
+BackendBlockTraceQL/mixedValNoMatch-16                       23.25Mi ±  5%   23.92Mi ±  3%   +2.87% (p=0.026 n=7)
+BackendBlockTraceQL/mixedValMixedMatchAnd-16                 2.094Mi ±  2%   2.139Mi ±  1%   +2.17% (p=0.002 n=7)
+BackendBlockTraceQL/mixedValMixedMatchOr-16                  5.267Mi ± 11%   5.450Mi ±  9%        ~ (p=0.710 n=7)
+BackendBlockTraceQL/mixedValBothMatch-16                     2.238Mi ±  2%   2.285Mi ±  2%   +2.12% (p=0.001 n=7)
+BackendBlockTraceQL/count-16                                 642.7Mi ±  1%   644.1Mi ±  1%        ~ (p=0.805 n=7)
+BackendBlockTraceQL/desc-16                                  7.840Mi ±  8%   2.524Mi ± 13%  -67.80% (p=0.001 n=7)
+geomean                                                      4.603Mi         4.417Mi         -4.04%
+
+                                                    │ BlockTraceQL_VP3.txt │ ../vparquet4/BlockTraceQL_VP4.txt  │
+                                                    │      allocs/op       │  allocs/op   vs base               │
+BackendBlockTraceQL/spanAttNameNoMatch-16                      20.51k ± 0%   21.11k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValNoMatch-16                       20.52k ± 0%   21.11k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttValMatch-16                         20.51k ± 0%   21.11k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicNoMatch-16                 20.50k ± 0%   21.10k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicMatch-16                   20.50k ± 0%   21.10k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexNoMatch-16            25.91k ± 0%   26.51k ± 0%   +2.30% (p=0.001 n=7)
+BackendBlockTraceQL/spanAttIntrinsicRegexMatch-16              25.92k ± 0%   26.51k ± 0%   +2.30% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttNameNoMatch-16                  20.47k ± 0%   21.07k ± 0%   +2.92% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValNoMatch-16                   20.46k ± 0%   21.06k ± 0%   +2.92% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttValMatch-16                     20.45k ± 0%   21.05k ± 0%   +2.92% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicNoMatch-16             20.49k ± 0%   21.09k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/resourceAttIntrinsicMatch-16               20.49k ± 0%   21.09k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/mixedNameNoMatch-16                        23.00k ± 1%   23.59k ± 1%   +2.57% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValNoMatch-16                         23.00k ± 1%   23.59k ± 1%   +2.55% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValMixedMatchAnd-16                   20.52k ± 0%   21.12k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValMixedMatchOr-16                    21.94k ± 0%   22.53k ± 0%   +2.69% (p=0.001 n=7)
+BackendBlockTraceQL/mixedValBothMatch-16                       20.51k ± 0%   21.11k ± 0%   +2.91% (p=0.001 n=7)
+BackendBlockTraceQL/count-16                                   9.060M ± 0%   9.061M ± 0%   +0.01% (p=0.001 n=7)
+BackendBlockTraceQL/desc-16                                   627.92k ± 0%   23.38k ± 0%  -96.28% (p=0.001 n=7)
+geomean                                                        35.21k        30.35k       -13.81%

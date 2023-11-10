@@ -517,13 +517,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
+	tenantID := "337385"
 	// blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("0115db62-40a0-4f94-b7fa-9f8e561bb819")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/home/joe/testblock/"),
-		Path: path.Join("/Users/marty/src/tmp"),
+		Path: path.Join("/Users/jenniepham/grafana/data"),
 	})
 	require.NoError(b, err)
 
@@ -574,11 +574,11 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	tenantID := "337385"
+	blockID := uuid.MustParse("0115db62-40a0-4f94-b7fa-9f8e561bb819")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path.Join("/Users/jenniepham/grafana/data"),
 	})
 	require.NoError(b, err)
 
