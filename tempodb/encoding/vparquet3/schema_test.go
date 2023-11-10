@@ -30,11 +30,11 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	}
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
-	expectedTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceIDA))
+	expectedTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceIDA), true)
 
 	parquetTrace, connected := traceToParquet(&meta, traceIDA, expectedTrace, nil)
 	require.True(t, connected)
-	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace)
+	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace, true)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
@@ -57,7 +57,7 @@ func TestProtoParquetRando(t *testing.T) {
 		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))
 
 		parqTr, _ := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
-		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
+		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr, true)
 		require.Equal(t, expectedTrace, actualTrace)
 	}
 }
@@ -68,7 +68,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	}
 
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	complexTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceID))
+	complexTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceID), false)
 	simpleTrace := &tempopb.Trace{
 		Batches: []*v1_trace.ResourceSpans{
 			{
@@ -76,6 +76,7 @@ func TestFieldsAreCleared(t *testing.T) {
 					Attributes: []*v1.KeyValue{
 						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 					},
+					DroppedAttributesCount: 10,
 				},
 				ScopeSpans: []*v1_trace.ScopeSpans{
 					{
@@ -115,7 +116,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	_, _ = traceToParquet(&meta, traceID, complexTrace, tr)
 
 	parqTr, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
-	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr)
+	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr, false)
 	require.Equal(t, simpleTrace, actualTrace)
 }
 

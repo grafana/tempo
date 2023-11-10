@@ -105,16 +105,20 @@ var (
 	}
 )
 
+// droppedAttrCounter represents an entity that can count dropped attributes
+type droppedAttrCounter interface {
+	addDroppedAttr(n int32)
+}
+
 type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
 	// This is a bad design that leads to millions of null values. How can we fix this?
-	Value       *string  `parquet:",dict,snappy,optional"`
-	ValueInt    *int64   `parquet:",snappy,optional"`
-	ValueDouble *float64 `parquet:",snappy,optional"`
-	ValueBool   *bool    `parquet:",snappy,optional"`
-	ValueKVList string   `parquet:",snappy,optional"`
-	ValueArray  string   `parquet:",snappy,optional"`
+	Value        *string  `parquet:",dict,snappy,optional"`
+	ValueInt     *int64   `parquet:",snappy,optional"`
+	ValueDouble  *float64 `parquet:",snappy,optional"`
+	ValueBool    *bool    `parquet:",snappy,optional"`
+	ValueDropped string   `parquet:",snappy,optional"`
 }
 
 // DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
@@ -176,6 +180,10 @@ type Span struct {
 	DedicatedAttributes DedicatedAttributes `parquet:""`
 }
 
+func (s *Span) addDroppedAttr(n int32) {
+	s.DroppedAttributesCount += n
+}
+
 func (s *Span) IsRoot() bool {
 	return len(s.ParentSpanID) == 0
 }
@@ -191,7 +199,8 @@ type ScopeSpans struct {
 }
 
 type Resource struct {
-	Attrs []Attribute `parquet:",list"`
+	Attrs                  []Attribute `parquet:",list"`
+	DroppedAttributesCount int32       `parquet:",snappy"`
 
 	// Static dedicated attribute columns
 	ServiceName      string  `parquet:",snappy,dict"`
@@ -206,6 +215,10 @@ type Resource struct {
 
 	// Dynamically assignable dedicated attribute columns
 	DedicatedAttributes DedicatedAttributes `parquet:""`
+}
+
+func (r *Resource) addDroppedAttr(n int32) {
+	r.DroppedAttributesCount += n
 }
 
 type ResourceSpans struct {
@@ -230,14 +243,13 @@ type Trace struct {
 	ResourceSpans []ResourceSpans `parquet:"rs,list"`
 }
 
-func attrToParquet(a *v1.KeyValue, p *Attribute) {
+func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 	p.Key = a.Key
 	p.Value = nil
-	p.ValueArray = ""
 	p.ValueBool = nil
 	p.ValueDouble = nil
 	p.ValueInt = nil
-	p.ValueKVList = ""
+	p.ValueDropped = ""
 
 	switch v := a.GetValue().Value.(type) {
 	case *v1.AnyValue_StringValue:
@@ -248,14 +260,11 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 		p.ValueDouble = &v.DoubleValue
 	case *v1.AnyValue_BoolValue:
 		p.ValueBool = &v.BoolValue
-	case *v1.AnyValue_ArrayValue:
+	default:
 		jsonBytes := &bytes.Buffer{}
 		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
-		p.ValueArray = jsonBytes.String()
-	case *v1.AnyValue_KvlistValue:
-		jsonBytes := &bytes.Buffer{}
-		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
-		p.ValueKVList = jsonBytes.String()
+		p.ValueDropped = jsonBytes.String()
+		counter.addDroppedAttr(1)
 	}
 }
 
@@ -283,6 +292,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	for ib, b := range tr.Batches {
 		ob := &ot.ResourceSpans[ib]
 		// Clear out any existing fields in case they were set on the original
+		ob.Resource.DroppedAttributesCount = 0
 		ob.Resource.ServiceName = ""
 		ob.Resource.Cluster = nil
 		ob.Resource.Namespace = nil
@@ -296,6 +306,8 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
+			ob.Resource.DroppedAttributesCount = int32(b.Resource.DroppedAttributesCount)
+
 			attrCount := 0
 			for _, a := range b.Resource.Attributes {
 				strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
@@ -335,7 +347,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 				if !written {
 					// Other attributes put in generic columns
-					attrToParquet(a, &ob.Resource.Attrs[attrCount])
+					attrToParquet(a, &ob.Resource.Attrs[attrCount], &ob.Resource)
 					attrCount++
 				}
 			}
@@ -447,7 +459,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 					if !written {
 						// Other attributes put in generic columns
-						attrToParquet(a, &ss.Attrs[attrCount])
+						attrToParquet(a, &ss.Attrs[attrCount], ss)
 						attrCount++
 					}
 				}
@@ -489,7 +501,7 @@ func eventToParquet(e *v1_trace.Span_Event, ee *Event) {
 	}
 }
 
-func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
+func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, includeDroppedAttr bool) []*v1.KeyValue {
 	var protoAttrs []*v1.KeyValue
 
 	for _, attr := range parquetAttrs {
@@ -511,10 +523,9 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 			protoVal.Value = &v1.AnyValue_BoolValue{
 				BoolValue: *attr.ValueBool,
 			}
-		} else if attr.ValueArray != "" {
-			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueArray), protoVal)
-		} else if attr.ValueKVList != "" {
-			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueKVList), protoVal)
+		} else if attr.ValueDropped != "" && includeDroppedAttr {
+			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueDropped), protoVal)
+			counter.addDroppedAttr(-1)
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{
@@ -568,7 +579,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
+func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, includeDroppedAttr bool) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
@@ -578,8 +589,10 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
+		resAttrs := parquetToProtoAttrs(rs.Resource.Attrs, &rs.Resource, includeDroppedAttr)
 		protoBatch.Resource = &v1_resource.Resource{
-			Attributes: parquetToProtoAttrs(rs.Resource.Attrs),
+			Attributes:             resAttrs,
+			DroppedAttributesCount: uint32(rs.Resource.DroppedAttributesCount),
 		}
 
 		// dynamically assigned dedicated resource attribute columns
@@ -642,6 +655,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 			protoSS.Spans = make([]*v1_trace.Span, 0, len(span.Spans))
 			for _, span := range span.Spans {
 
+				spanAttr := parquetToProtoAttrs(span.Attrs, &span, includeDroppedAttr)
 				protoSpan := &v1_trace.Span{
 					TraceId:           parquetTrace.TraceID,
 					SpanId:            span.SpanID,
@@ -655,11 +669,11 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 						Message: span.StatusMessage,
 						Code:    v1_trace.Status_StatusCode(span.StatusCode),
 					},
+					Attributes:             spanAttr,
 					DroppedAttributesCount: uint32(span.DroppedAttributesCount),
+					Events:                 parquetToProtoEvents(span.Events),
 					DroppedEventsCount:     uint32(span.DroppedEventsCount),
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
-					Attributes:             parquetToProtoAttrs(span.Attrs),
-					Events:                 parquetToProtoEvents(span.Events),
 				}
 
 				// unmarshal links
