@@ -381,11 +381,26 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			},
 		},
 	}
+
 	linkBytes := make([]byte, links.Size())
 	_, err := links.MarshalTo(linkBytes)
 	if err != nil {
 		panic("failed to marshal links")
 	}
+
+	arrayAttr := &v1_common.AnyValue{
+		Value: &v1_common.AnyValue_ArrayValue{
+			ArrayValue: &v1_common.ArrayValue{
+				Values: []*v1_common.AnyValue{
+					{Value: &v1_common.AnyValue_StringValue{StringValue: "value-one"}},
+					{Value: &v1_common.AnyValue_StringValue{StringValue: "value-two"}},
+				},
+			},
+		},
+	}
+	jsonBytes := &bytes.Buffer{}
+	_ = jsonMarshaler.Marshal(jsonBytes, arrayAttr) // deliberately marshalling a.Value because of AnyValue logic
+	arrayAttrValue := jsonBytes.String()
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
@@ -409,7 +424,11 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					Attrs: []Attribute{
 						{Key: "foo", Value: strPtr("abc")},
 						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
+
+						// Unsupported attributes
+						{Key: "unsupported-array", ValueDropped: arrayAttrValue},
 					},
+					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
 						String01: strPtr("dedicated-resource-attr-value-1"),
 						String02: strPtr("dedicated-resource-attr-value-2"),
@@ -446,6 +465,9 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									{Key: LabelName, Value: strPtr("Bob")},                    // Conflicts with intrinsic but still looked up by .name
 									{Key: LabelServiceName, Value: strPtr("spanservicename")}, // Overrides resource-level dedicated column
 									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch")},      // Different type than dedicated column
+
+									// Unsupported attributes
+									{Key: "unsupported-array", ValueDropped: arrayAttrValue},
 								},
 								Events: []Event{
 									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
