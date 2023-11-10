@@ -266,7 +266,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	}
 
 	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(meta, tr), nil
+	return parquetTraceToTempopbTrace(meta, tr, false), nil
 }
 
 // binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
