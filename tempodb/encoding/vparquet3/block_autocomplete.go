@@ -64,7 +64,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
 func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	iter, err := createDistinctIterator(ctx, nil, req.Conditions, req.TagName, true, pf, opts, dc)
+	iter, err := createDistinctIterator(ctx, nil, req.Conditions, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -77,7 +77,6 @@ func createDistinctIterator(
 	primaryIter parquetquery.Iterator,
 	conds []traceql.Condition,
 	tag traceql.Attribute,
-	allConditions bool,
 	pf *parquet.File,
 	opts common.SearchOptions,
 	dc backend.DedicatedColumns,
@@ -97,21 +96,21 @@ func createDistinctIterator(
 	var currentIter parquetquery.Iterator
 
 	if len(spanConditions) > 0 {
-		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, allConditions, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
 	if len(resourceConditions) > 0 {
-		currentIter, err = createDistinctResourceIterator(makeIter, keep, tag, currentIter, resourceConditions, allConditions, dc)
+		currentIter, err = createDistinctResourceIterator(makeIter, keep, tag, currentIter, resourceConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
 		}
 	}
 
 	if len(traceConditions) > 0 {
-		currentIter, err = createDistinctTraceIterator(makeIter, keep, currentIter, traceConditions, allConditions)
+		currentIter, err = createDistinctTraceIterator(makeIter, keep, currentIter, traceConditions)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating trace iterator")
 		}
@@ -128,7 +127,6 @@ func createDistinctSpanIterator(
 	tag traceql.Attribute,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
-	allConditions bool,
 	dedicatedColumns backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
 	var (
@@ -273,16 +271,8 @@ func createDistinctSpanIterator(
 		iters = append(iters, attrIter)
 	}
 
-	var required []parquetquery.Iterator
 	if primaryIter != nil {
-		required = []parquetquery.Iterator{primaryIter}
-	}
-
-	// This is an optimization for when all of the span conditions must be met.
-	// We simply move all iterators into the required list.
-	if allConditions {
-		required = append(required, iters...)
-		iters = nil
+		iters = append([]parquetquery.Iterator{primaryIter}, iters...)
 	}
 
 	if len(columnPredicates) == 0 {
@@ -295,7 +285,7 @@ func createDistinctSpanIterator(
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol), nil
 }
 
 func createDistinctAttributeIterator(
@@ -427,7 +417,6 @@ func createDistinctResourceIterator(
 	tag traceql.Attribute,
 	spanIterator parquetquery.Iterator,
 	conditions []traceql.Condition,
-	allConditions bool,
 	dedicatedColumns backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
 	var (
@@ -514,25 +503,13 @@ func createDistinctResourceIterator(
 
 	batchCol := &distinctBatchCollector{keep: keep}
 
-	var required []parquetquery.Iterator
-
-	// This is an optimization for when all of the resource conditions must be met.
-	// We simply move all iterators into the required list.
-	if allConditions {
-		required = append(required, iters...)
-		iters = nil
-	}
-
-	// Put span iterator last so it is only read when
+	// Put span iterator last, so it is only read when
 	// the resource conditions are met.
 	if spanIterator != nil {
-		required = append(required, spanIterator)
+		iters = append(iters, spanIterator)
 	}
 
-	// Left join here means the span iterator + 1 are required,
-	// and all other resource conditions are optional. Whatever matches
-	// is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, batchCol), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
 }
 
 func createDistinctTraceIterator(
@@ -540,7 +517,6 @@ func createDistinctTraceIterator(
 	keep keepFn,
 	resourceIter parquetquery.Iterator,
 	conds []traceql.Condition,
-	allConditions bool,
 ) (parquetquery.Iterator, error) {
 	var err error
 	traceIters := make([]parquetquery.Iterator, 0, 3)
@@ -555,31 +531,25 @@ func createDistinctTraceIterator(
 
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createIntPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
+			pred, err = createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
 			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
 
 		case traceql.IntrinsicTraceRootSpan:
 			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createStringPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
+			pred, err = createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
 			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
 
 		case traceql.IntrinsicTraceRootService:
 			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createStringPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
+			pred, err = createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
 			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
 		}
