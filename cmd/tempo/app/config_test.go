@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 )
 
 func TestConfig_CheckConfig(t *testing.T) {
@@ -79,7 +79,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 			name: "warnings for v2 settings when they drift from default",
 			config: func() *Config {
 				cfg := newDefaultConfig()
-				cfg.StorageConfig.Trace.Block.Version = vparquet2.VersionString
+				cfg.StorageConfig.Trace.Block.Version = vparquet3.VersionString
 				cfg.StorageConfig.Trace.Block.IndexDownsampleBytes = 1
 				cfg.StorageConfig.Trace.Block.IndexPageSizeBytes = 1
 				cfg.Compactor.Compactor.ChunkSizeBytes = 1
