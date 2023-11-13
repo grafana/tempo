@@ -39,8 +39,8 @@
       },
       tempo_config+:: {
         server+: {
-          http_listen_address: '[::0]',
-          grpc_listen_address: '[::0]',
+          http_listen_address: '::0',
+          grpc_listen_address: '::0',
         },
         ingester+: {
           lifecycler+: {
