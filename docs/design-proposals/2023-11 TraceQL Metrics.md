@@ -34,7 +34,7 @@ A normal TraceQL query finds matching spans and returns data points like time, d
 `<span query...> | <metrics query...>`
 
 An important understanding is that _any_ valid TraceQL query can be turned into a metrics query. This finds the call rates to service B but only when initiated upstream by service A:  
-` {resource.service.name="A"} >> {resouce.service.name="B"} | rate()`
+`{resource.service.name="A"} >> {resouce.service.name="B"} | rate()`
 
 
 ## First Stage
