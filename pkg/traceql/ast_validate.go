@@ -156,7 +156,7 @@ func (f ScalarFilter) validate() error {
 	return nil
 }
 
-func (o BinaryOperation) validate() error {
+func (o *BinaryOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
