@@ -2,6 +2,7 @@ package vparquet3
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -358,10 +359,37 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				sp.(*span).cbSpanset = nil
 				sp.(*span).cbSpansetFinal = false
 				sp.(*span).rowNum = parquetquery.RowNumber{}
+
+				// sort actual attrs to get consistent comparisons
+				sortSpanAttrs(sp.(*span))
 			}
 			s.ReleaseFn = nil
 		}
 
-		require.Equal(t, tc.expectedResults, ss, "search request:", req) // sclie equality sometimes fails due to ordering
+		// sort expected attrs to get consistent comparisons
+		for _, s := range tc.expectedResults {
+			for _, sp := range s.Spans {
+				sortSpanAttrs(sp.(*span))
+			}
+		}
+
+		require.Equal(t, tc.expectedResults, ss, "search request:", req)
 	}
+}
+
+func sortSpanAttrs(s *span) {
+	// create sort func
+	sortFn := func(a, b attrVal) bool {
+		return a.a.String() < b.a.String()
+	}
+	// sort
+	sort.Slice(s.spanAttrs, func(i, j int) bool {
+		return sortFn(s.spanAttrs[i], s.spanAttrs[j])
+	})
+	sort.Slice(s.resourceAttrs, func(i, j int) bool {
+		return sortFn(s.resourceAttrs[i], s.resourceAttrs[j])
+	})
+	sort.Slice(s.traceAttrs, func(i, j int) bool {
+		return sortFn(s.traceAttrs[i], s.traceAttrs[j])
+	})
 }
