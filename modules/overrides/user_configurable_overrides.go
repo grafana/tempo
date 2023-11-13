@@ -215,10 +215,6 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(use
 	return o.Interface.MetricsGeneratorDisableCollection(userID)
 }
 
-func (o *userConfigurableOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
-	return o.Interface.MetricsGenerationTraceIDLabelName(userID)
-}
-
 func (o *userConfigurableOverridesManager) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	if collectionInterval, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetCollectionInterval(); ok {
 		return collectionInterval
