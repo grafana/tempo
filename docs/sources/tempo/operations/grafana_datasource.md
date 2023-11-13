@@ -7,13 +7,15 @@ aliases:
 weight: 15
 ---
 
+# Grafana Tempo Datasource
+
 There are one main thing to take into account when you deploy the `TempoStack` and want to use as Grafana datasource.
 
 If the tempo is deployed the Gateway in front, an authentication information needs to be provided to Grafana, and the URL of the tenant it wants to access.
 
 If the gateway is not used, the only requirement is to Grafana can access to the `frontend-query` endpoints.
 
-# Use with gateway
+## Use with gateway
 
 The gateway is an optional component deployed as part of Tempo Operator. It provides secure access to Tempo's distributor (i.e. for pushing spans) and query-frontend (i.e. for querying traces) via consulting an OAuth/OIDC endpoint for the request subject.
 
@@ -64,7 +66,7 @@ If you prefer to set the Bearer token directly, and not use the  **Forward Oauth
 
 <p align="center"><img src="../grafana_datasource_tempo_headers.png" alt="Tempo Datasource configured for the gateway using Bearer token"></p>
 
-# Without the gateway
+## Without the gateway
 
 If you are not using the gateway make sure your grafana can access to the query-frontend endpoints, you can do this 
 creating an ingress or a route in OpenShift.
