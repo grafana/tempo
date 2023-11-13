@@ -107,6 +107,11 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	// Get the meta file of all non-compacted blocks for the given tenant
 	blocklist := rw.blocklist.Metas(tenantID)
 
+	window := rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID)
+	if window == 0 {
+		window = rw.compactorCfg.MaxCompactionRange
+	}
+
 	// Select which blocks to compact.
 	//
 	// Blocks are firstly divided by the active compaction window (default: most recent 24h)
@@ -115,7 +120,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
 	blockSelector := newTimeWindowBlockSelector(blocklist,
-		rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID),
+		window,
 		rw.compactorCfg.MaxCompactionObjects,
 		rw.compactorCfg.MaxBlockBytes,
 		defaultMinInputBlocks,
