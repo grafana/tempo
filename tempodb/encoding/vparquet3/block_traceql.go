@@ -120,12 +120,14 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.resourceAttrs); attr != nil {
 			return *attr, true
 		}
+		return traceql.Static{}, false
 	}
 
 	if a.Scope == traceql.AttributeScopeSpan {
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
+		return traceql.Static{}, false
 	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
@@ -137,24 +139,20 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.traceAttrs); attr != nil {
 			return *attr, true
 		}
+
 	}
 
-	// span attrs brute force
+	// name search in span and then resource to give precedence to span
+	// we don't need to do a name search at the trace level b/c it is intrinsics only
 	if attr := findName(a.Name, s.spanAttrs); attr != nil {
 		return *attr, true
 	}
 
-	// resource attrs brute force
 	if attr := findName(a.Name, s.resourceAttrs); attr != nil {
 		return *attr, true
 	}
 
-	// trace attrs brute force
-	if attr := findName(a.Name, s.traceAttrs); attr != nil {
-		return *attr, true
-	}
-
-	return traceql.NewStaticNil(), false
+	return traceql.Static{}, false
 }
 
 func (s *span) ID() []byte {
