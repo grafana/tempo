@@ -3,6 +3,7 @@ package traceql
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"time"
 )
 
@@ -368,10 +369,12 @@ type BinaryOperation struct {
 	Op  Operator
 	LHS FieldExpression
 	RHS FieldExpression
+
+	compiledExpression *regexp.Regexp
 }
 
-func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) BinaryOperation {
-	return BinaryOperation{
+func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) *BinaryOperation {
+	return &BinaryOperation{
 		Op:  op,
 		LHS: lhs,
 		RHS: rhs,
@@ -381,7 +384,7 @@ func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) B
 // nolint: revive
 func (BinaryOperation) __fieldExpression() {}
 
-func (o BinaryOperation) impliedType() StaticType {
+func (o *BinaryOperation) impliedType() StaticType {
 	if o.Op.isBoolean() {
 		return TypeBoolean
 	}
@@ -396,7 +399,7 @@ func (o BinaryOperation) impliedType() StaticType {
 	return o.RHS.impliedType()
 }
 
-func (o BinaryOperation) referencesSpan() bool {
+func (o *BinaryOperation) referencesSpan() bool {
 	return o.LHS.referencesSpan() || o.RHS.referencesSpan()
 }
 

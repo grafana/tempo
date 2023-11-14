@@ -1,6 +1,9 @@
 package traceql
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 // unsupportedError is returned for traceql features that are not yet supported.
 type unsupportedError struct {
@@ -156,7 +159,7 @@ func (f ScalarFilter) validate() error {
 	return nil
 }
 
-func (o BinaryOperation) validate() error {
+func (o *BinaryOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
@@ -177,6 +180,14 @@ func (o BinaryOperation) validate() error {
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
+	}
+
+	// if this is a regex operator confirm the RHS is a valid regex
+	if o.Op == OpRegex || o.Op == OpNotRegex {
+		_, err := regexp.Compile(o.RHS.String())
+		if err != nil {
+			return fmt.Errorf("invalid regex: %s", o.RHS.String())
+		}
 	}
 
 	// this condition may not be possible to hit since it's not parseable.

@@ -31,7 +31,7 @@ func (o SelectOperation) extractConditions(request *FetchSpansRequest) {
 	request.SecondPassConditions = append(request.SecondPassConditions, selectR.Conditions...)
 }
 
-func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
+func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO we can further optimise this by attempting to execute every FieldExpression, if they only contain statics it should resolve
 	switch o.LHS.(type) {
 	case Attribute:

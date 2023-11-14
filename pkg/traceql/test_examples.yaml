@@ -205,6 +205,9 @@ validate_fails:
   - '{ traceDuration > "test" }'
   - '{ rootServiceName = 1 }'
   - '{ rootName != 3.2 }'
+  # invalid regexes
+  - '{ span.foo =~ "[" }'
+  - '{ span.foo !~ "[" }'
   # unary operators - incorrect types
   - '{ -true }'
   - '{ -"foo" = "bar" }'
