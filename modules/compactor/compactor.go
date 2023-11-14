@@ -258,6 +258,10 @@ func (c *Compactor) MaxBytesPerTraceForTenant(tenantID string) int {
 	return c.overrides.MaxBytesPerTrace(tenantID)
 }
 
+func (c *Compactor) MaxCompactionRangeForTenant(tenantID string) time.Duration {
+	return c.overrides.MaxCompactionRange(tenantID)
+}
+
 func (c *Compactor) isSharded() bool {
 	return c.cfg.ShardingRing.KVStore.Store != ""
 }

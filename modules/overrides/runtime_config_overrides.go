@@ -261,6 +261,11 @@ func (o *runtimeConfigOverridesManager) MaxGlobalTracesPerUser(userID string) in
 	return o.getOverridesForUser(userID).Ingestion.MaxGlobalTracesPerUser
 }
 
+// MaxCompactionRange returns the maximum compaction window for this tenant.
+func (o *runtimeConfigOverridesManager) MaxCompactionRange(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).Compaction.CompactionWindow)
+}
+
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).Ingestion.RateLimitBytes)

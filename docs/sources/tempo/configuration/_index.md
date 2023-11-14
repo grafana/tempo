@@ -1323,6 +1323,9 @@ overrides:
       # Per-user block retention. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [block_retention: <duration> | default = 0s]
+      # Per-user compaction window. If this value is set to 0 (default),
+      # then block_retention in the compactor configuration is used.
+      [compaction_window: <duration> | default = 0s]
       
     # Metrics-generator related overrides
     metrics_generator:

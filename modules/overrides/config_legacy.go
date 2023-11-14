@@ -48,7 +48,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:         c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
 		MetricsGeneratorIngestionSlack:                                   c.MetricsGenerator.IngestionSlack,
 
-		BlockRetention: c.Compaction.BlockRetention,
+		BlockRetention:   c.Compaction.BlockRetention,
+		CompactionWindow: c.Compaction.CompactionWindow,
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
@@ -103,7 +104,8 @@ type LegacyOverrides struct {
 	MetricsGeneratorIngestionSlack                                   time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 
 	// Compactor enforced limits.
-	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
+	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
+	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
@@ -135,7 +137,8 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxSearchDuration:          l.MaxSearchDuration,
 		},
 		Compaction: CompactionOverrides{
-			BlockRetention: l.BlockRetention,
+			BlockRetention:   l.BlockRetention,
+			CompactionWindow: l.CompactionWindow,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
 			RingSize:           l.MetricsGeneratorRingSize,

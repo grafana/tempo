@@ -46,8 +46,9 @@ type mockJobSharder struct{}
 func (m *mockJobSharder) Owns(string) bool { return true }
 
 type mockOverrides struct {
-	blockRetention   time.Duration
-	maxBytesPerTrace int
+	blockRetention      time.Duration
+	maxBytesPerTrace    int
+	maxCompactionWindow time.Duration
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
@@ -56,6 +57,10 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 
 func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
 	return m.maxBytesPerTrace
+}
+
+func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
+	return m.maxCompactionWindow
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
