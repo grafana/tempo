@@ -6,16 +6,15 @@ package httpgrpc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/go-kit/log/level"
-	"google.golang.org/grpc/metadata"
-	grpcstatus "google.golang.org/grpc/status"
-
 	spb "github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
+	"google.golang.org/grpc/metadata"
+
+	"github.com/grafana/dskit/grpcutil"
 
 	"github.com/grafana/dskit/log"
 )
@@ -46,7 +45,7 @@ func ErrorFromHTTPResponse(resp *HTTPResponse) error {
 
 // HTTPResponseFromError converts a grpc error into an HTTP response
 func HTTPResponseFromError(err error) (*HTTPResponse, bool) {
-	s, ok := statusFromError(err)
+	s, ok := grpcutil.ErrorToStatus(err)
 	if !ok {
 		return nil, false
 	}
@@ -63,29 +62,6 @@ func HTTPResponseFromError(err error) (*HTTPResponse, bool) {
 	}
 
 	return &resp, true
-}
-
-// statusFromError tries to cast the given error into status.Status.
-// If the given error, or any error from its tree are a status.Status,
-// that status.Status and the outcome true are returned.
-// Otherwise, nil and the outcome false are returned.
-// This implementation differs from status.FromError() because the
-// latter checks only if the given error can be cast to status.Status,
-// and doesn't check other errors in the given error's tree.
-func statusFromError(err error) (*status.Status, bool) {
-	if err == nil {
-		return nil, false
-	}
-	type grpcStatus interface{ GRPCStatus() *grpcstatus.Status }
-	var gs grpcStatus
-	if errors.As(err, &gs) {
-		st := gs.GRPCStatus()
-		if st == nil {
-			return nil, false
-		}
-		return status.FromGRPCStatus(st), true
-	}
-	return nil, false
 }
 
 const (
