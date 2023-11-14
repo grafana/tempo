@@ -17,34 +17,33 @@ If you install using the new Helm charts, then Parquet is enabled by default.
 
 ## Considerations
 
-The Parquet block format is enabled by default in Tempo 2.0. No data conversion or upgrade process is necessary. As soon as the format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
+The Parquet block format is enabled by default since Tempo 2.0. No data conversion or upgrade process is necessary. As soon as the format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
 
 Block formats based on Parquet require more CPU and memory resources than the previous `v2` format but provide search and TraceQL functionality.
 
 ## Choose a different block format
 
-The default block format is `vParquet2`, which is the latest iteration of Tempo's Parquet based columnar block format.
-It is still possible to use the previous format `vParquet`.
-To enable it, set the block version option to `vParquet` in the Storage section of the configuration file.
-
-Since v2.3, the block format `vParquet3` is available.
+The default block format is `vParquet3`, which is the latest iteration of Tempo's Parquet-based columnar block format.
 It introduces dedicated attribute columns, which improve query performance by storing attributes in own columns,
 rather than in the generic attribute key-value list.
 For more information, see [Dedicated attribute columns]({{< relref "../operations/tempo_cli" >}}).
 
+You can still use the previous format `vParquet2`.
+To enable it, set the block version option to `vParquet2` in the Storage section of the configuration file.
+
 ```yaml
 # block format version. options: v2, vParquet, vParquet2, vParquet3
-[version: vParquet3]
+[version: vParquet2]
 ```
 
-It is possible to disable Parquet and use the previous `v2` block format. This disables all forms of search, but also reduces resource consumption, and may be desired for a high-throughput cluster that does not need these capabilities. Set the block version option to `v2` in the Storage section of the configuration file.
+In some cases, you may choose to disable Parquet and use the old `v2` block format. Using the `v2` block format disables all forms of search, but also reduces resource consumption, and may be desired for a high-throughput cluster that does not need these capabilities. To make this change, set the block version option to `v2` in the Storage section of the configuration file.
 
 ```yaml
 # block format version. options: v2, vParquet, vParquet2, vParquet3
 [version: v2]
 ```
 
-To re-enable the default `vParquet2` format, remove the block version option from the Storage section of the configuration file or set the option to `vParquet2`.
+To re-enable the default `vParquet3` format, remove the block version option from the Storage section of the configuration file or set the option to `vParquet3`.
 
 ## Parquet configuration parameters
 

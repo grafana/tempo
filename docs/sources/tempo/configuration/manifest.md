@@ -18,7 +18,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 ## Complete configuration
 
 {{% admonition type="note" %}}
-This manifest was generated on 2023-08-23.
+This manifest was generated on 2023-11-13.
 {{% /admonition %}}
 
 ```yaml
@@ -54,6 +54,7 @@ server:
     register_instrumentation: true
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
+    http_server_read_header_timeout: 0s
     http_server_write_timeout: 30s
     http_server_idle_timeout: 2m0s
     grpc_server_max_recv_msg_size: 16777216
@@ -66,6 +67,7 @@ server:
     grpc_server_keepalive_timeout: 20s
     grpc_server_min_time_between_pings: 10s
     grpc_server_ping_without_stream_allowed: true
+    grpc_server_num_workers: 0
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -105,6 +107,7 @@ internal_server:
     register_instrumentation: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
+    http_server_read_header_timeout: 0s
     http_server_write_timeout: 30s
     http_server_idle_timeout: 2m0s
     grpc_server_max_recv_msg_size: 0
@@ -117,8 +120,9 @@ internal_server:
     grpc_server_keepalive_timeout: 0s
     grpc_server_min_time_between_pings: 0s
     grpc_server_ping_without_stream_allowed: false
-    log_format: ""
-    log_level: ""
+    grpc_server_num_workers: 0
+    log_format: logfmt
+    log_level: info
     log_source_ips_enabled: false
     log_source_ips_header: ""
     log_source_ips_regex: ""
@@ -171,7 +175,7 @@ distributor:
     override_ring_key: distributor
     forwarders: []
     extend_writes: true
-    retry_after_on_resource_exhausted: '0'
+    retry_after_on_resource_exhausted: 0s
 ingester_client:
     pool_config:
         checkinterval: 15s
@@ -511,7 +515,7 @@ metrics_generator:
             block:
                 bloom_filter_false_positive: 0.01
                 bloom_filter_shard_size_bytes: 102400
-                version: vParquet2
+                version: vParquet3
                 search_encoding: snappy
                 search_page_size_bytes: 1048576
                 v2_index_downsample_bytes: 1048576
@@ -543,7 +547,7 @@ metrics_generator:
         path: ""
         wal:
             wal_segment_size: 134217728
-            wal_compression: false
+            wal_compression: none
             stripe_size: 16384
             truncate_frequency: 2h0m0s
             min_wal_time: 300000
@@ -558,7 +562,7 @@ metrics_generator:
         v2_encoding: none
         search_encoding: none
         ingestion_time_range_slack: 0s
-        version: vParquet2
+        version: vParquet3
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
@@ -574,11 +578,11 @@ storage:
             v2_encoding: snappy
             search_encoding: none
             ingestion_time_range_slack: 2m0s
-            version: vParquet2
+            version: vParquet3
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
-            version: vParquet2
+            version: vParquet3
             search_encoding: snappy
             search_page_size_bytes: 1048576
             v2_index_downsample_bytes: 1048576
@@ -615,6 +619,7 @@ storage:
             insecure: false
             object_cache_control: ""
             object_metadata: {}
+            list_blocks_concurrency: 3
         s3:
             tls_cert_path: ""
             tls_key_path: ""
@@ -641,6 +646,7 @@ storage:
             storage_class: ""
             metadata: {}
             native_aws_auth_enabled: false
+            list_blocks_concurrency: 3
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -694,6 +700,7 @@ overrides:
                 insecure: false
                 object_cache_control: ""
                 object_metadata: {}
+                list_blocks_concurrency: 3
             s3:
                 tls_cert_path: ""
                 tls_key_path: ""
@@ -720,6 +727,7 @@ overrides:
                 storage_class: ""
                 metadata: {}
                 native_aws_auth_enabled: false
+                list_blocks_concurrency: 3
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
