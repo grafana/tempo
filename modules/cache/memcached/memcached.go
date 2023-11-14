@@ -15,7 +15,7 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, logger log.Logger) cache.Cache {
+func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, name string, logger log.Logger) cache.Cache {
 	if cfg.ClientConfig.MaxIdleConns == 0 {
 		cfg.ClientConfig.MaxIdleConns = 16
 	}
@@ -26,13 +26,13 @@ func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, logger log.Lo
 		cfg.ClientConfig.UpdateInterval = time.Minute
 	}
 
-	client := cache.NewMemcachedClient(cfg.ClientConfig, "tempo", prometheus.DefaultRegisterer, logger)
+	client := cache.NewMemcachedClient(cfg.ClientConfig, name, prometheus.DefaultRegisterer, logger)
 	memcachedCfg := cache.MemcachedConfig{
 		Expiration:  cfg.TTL,
 		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
 		Parallelism: 0,
 	}
-	c := cache.NewMemcached(memcachedCfg, client, "tempo", prometheus.DefaultRegisterer, logger)
+	c := cache.NewMemcached(memcachedCfg, client, name, prometheus.DefaultRegisterer, logger)
 
-	return cache.NewBackground("tempo", *cfgBackground, c, prometheus.DefaultRegisterer)
+	return cache.NewBackground(name, *cfgBackground, c, prometheus.DefaultRegisterer)
 }

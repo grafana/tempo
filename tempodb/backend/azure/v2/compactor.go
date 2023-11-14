@@ -45,7 +45,7 @@ func (rw *V2) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	}
 
 	// delete the old file
-	return rw.Delete(ctx, metaFilename, []string{}, false)
+	return rw.Delete(ctx, metaFilename, []string{}, nil)
 }
 
 func (rw *V2) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -78,7 +78,7 @@ func (rw *V2) ClearBlock(blockID uuid.UUID, tenantID string) error {
 				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
 			}
 
-			err = rw.Delete(ctx, *b.Name, []string{}, false)
+			err = rw.Delete(ctx, *b.Name, []string{}, nil)
 			if err != nil {
 				warning = err
 				continue

@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
@@ -53,6 +54,7 @@ type Config struct {
 	Overrides       overrides.Config        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
+	CacheProvider   cache.Config            `yaml:"cache,omitempty"`
 }
 
 func newDefaultConfig() *Config {

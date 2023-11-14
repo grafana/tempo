@@ -19,31 +19,29 @@ type ContextReader interface {
 
 // backendReader is a shim that allows a backend.Reader to be used as a ContextReader
 type backendReader struct {
-	meta        *BlockMeta
-	name        string
-	r           Reader
-	shouldCache bool
+	meta *BlockMeta
+	name string
+	r    Reader
 }
 
 // NewContextReader creates a ReaderAt for the given BlockMeta
-func NewContextReader(meta *BlockMeta, name string, r Reader, shouldCache bool) ContextReader {
+func NewContextReader(meta *BlockMeta, name string, r Reader) ContextReader {
 	return &backendReader{
-		meta:        meta,
-		name:        name,
-		r:           r,
-		shouldCache: shouldCache,
+		meta: meta,
+		name: name,
+		r:    r,
 	}
 }
 
 // ReadAt implements ContextReader
 func (b *backendReader) ReadAt(ctx context.Context, p []byte, off int64) (int, error) {
-	err := b.r.ReadRange(ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, false)
+	err := b.r.ReadRange(ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, nil)
 	return len(p), err
 }
 
 // ReadAll implements ContextReader
 func (b *backendReader) ReadAll(ctx context.Context) ([]byte, error) {
-	return b.r.Read(ctx, b.name, b.meta.BlockID, b.meta.TenantID, b.shouldCache)
+	return b.r.Read(ctx, b.name, b.meta.BlockID, b.meta.TenantID, nil)
 }
 
 // Reader implements ContextReader

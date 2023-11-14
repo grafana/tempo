@@ -29,6 +29,7 @@ This document explains the configuration options for Tempo as well as the detail
       - [Standard overrides](#standard-overrides)
       - [Tenant-specific overrides](#tenant-specific-overrides)
       - [Override strategies](#override-strategies)
+  - [Cache](#cache)
   - [Usage-report](#usage-report)
 
 Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
@@ -921,6 +922,7 @@ storage:
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
+        # Deprecated. See [cache](#cache) section below.
         [cache: <string>]
 
         # Minimum compaction level of block to qualify for bloom filter caching. Default is 0 (disabled), meaning
@@ -958,6 +960,7 @@ storage:
             [read_buffer_count: <int>]
 
             # Granular cache control settings for parquet metadata objects
+            # Deprecated. See [cache](#cache) section below.
             cache_control:
 
                 # Specifies if footer should be cached
@@ -969,119 +972,19 @@ storage:
                 # Specifies if offset index should be cached
                 [offset_index: <bool> | default = false]
 
-        # Cortex Background cache configuration. Requires having a cache configured.
+
+        # Background cache configuration. Requires having a cache configured.
+        # Deprecated. See [cache](#cache) section below.
         background_cache:
 
-            # at what concurrency to write back to cache. Default is 10.
-            [writeback_goroutines: <int>]
-
-            # how many key batches to buffer for background write-back. Default is 10000.
-            [writeback_buffer: <int>]
-
         # Memcached caching configuration block
+        # Deprecated. See [cache](#cache) section below.
         memcached:
-
-            # hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
-            # Example: "host: memcached"
-            [host: <string>]
-
-            # Optional
-            # SRV service used to discover memcache servers. (default: memcached)
-            # Example: "service: memcached-client"
-            [service: <string>]
-
-            # Optional
-            # comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
-            # (default: "")
-            # Example: "addresses: memcached"
-            [addresses: <comma separated strings>]
-
-            # Optional
-            # Maximum time to wait before giving up on memcached requests.
-            # (default: 100ms)
-            [timeout: <duration>]
-
-            # Optional
-            # Maximum number of idle connections in pool.
-            # (default: 16)
-            [max_idle_conns: <int>]
-
-            # Optional
-            # period with which to poll DNS for memcache servers.
-            # (default: 1m)
-            [update_interval: <duration>]
-
-            # Optional
-            # use consistent hashing to distribute keys to memcache servers.
-            # (default: true)
-            [consistent_hash: <bool>]
-
-            # Optional
-            # trip circuit-breaker after this number of consecutive dial failures.
-            # (default: 10)
-            [circuit_breaker_consecutive_failures: 10]
-
-            # Optional
-            # duration circuit-breaker remains open after tripping.
-            # (default: 10s)
-            [circuit_breaker_timeout: 10s]
-
-            # Optional
-            # reset circuit-breaker counts after this long.
-            # (default: 10s)
-            [circuit_breaker_interval: 10s]
 
         # Redis configuration block
         # EXPERIMENTAL
+        # Deprecated. See [cache](#cache) section below.
         redis:
-
-            # redis endpoint to use when caching.
-            [endpoint: <string>]
-
-            # optional.
-            # maximum time to wait before giving up on redis requests. (default 100ms)
-            [timeout: 500ms]
-
-            # optional.
-            # redis Sentinel master name. (default "")
-            # Example: "master-name: redis-master"
-            [master-name: <string>]
-
-            # optional.
-            # database index. (default 0)
-            [db: <int>]
-
-            # optional.
-            # how long keys stay in the redis. (default 0)
-            [expiration: <duration>]
-
-            # optional.
-            # enable connecting to redis with TLS. (default false)
-            [tls-enabled: <bool>]
-
-            # optional.
-            # skip validating server certificate. (default false)
-            [tls-insecure-skip-verify: <bool>]
-
-            # optional.
-            # maximum number of connections in the pool. (default 0)
-            [pool-size: <int>]
-
-            # optional.
-            # password to use when connecting to redis. (default "")
-            [password: <string>]
-
-            # optional.
-            # close connections after remaining idle for this duration. (default 0s)
-            {idle-timeout: <duration>}
-
-            # optional.
-            # close connections older than this duration. (default 0s)
-            [max-connection-age: <duration>]
-
-            # optional.
-            # password to use when connecting to redis sentinel. (default "")
-            [sentinel_password: <string>]
 
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
@@ -1571,4 +1474,161 @@ This value is available in the the [tempo-distributed](https://github.com/grafan
 ```yaml
 # -- If true, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs
 reportingEnabled: true
+```
+
+## Cache
+
+Use this block to configure caches available throughout the application. Multiple caches can be created and assigned roles
+which determine how they are used by Tempo.
+
+```yaml
+cache:
+    # Background cache configuration. Requires having a cache configured. These settings apply
+    # to all configured caches.
+    background:
+
+        # at what concurrency to write back to cache. Default is 10.
+        [writeback_goroutines: <int>]
+
+        # how many key batches to buffer for background write-back. Default is 10000.
+        [writeback_buffer: <int>]
+
+
+    caches:
+
+        # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and 
+        # every cache must have at least one role. Allowed values:
+        # bloom              - Bloom filters for trace id lookup.
+	      # parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
+	      # parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
+	      # parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
+
+    -   roles:
+        - <role1>
+        - <role2>
+
+        # Memcached caching configuration block
+        memcached:
+
+            # hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
+            # Example: "host: memcached"
+            [host: <string>]
+
+            # Optional
+            # SRV service used to discover memcache servers. (default: memcached)
+            # Example: "service: memcached-client"
+            [service: <string>]
+
+            # Optional
+            # comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
+            # (default: "")
+            # Example: "addresses: memcached"
+            [addresses: <comma separated strings>]
+
+            # Optional
+            # Maximum time to wait before giving up on memcached requests.
+            # (default: 100ms)
+            [timeout: <duration>]
+
+            # Optional
+            # Maximum number of idle connections in pool.
+            # (default: 16)
+            [max_idle_conns: <int>]
+
+            # Optional
+            # period with which to poll DNS for memcache servers.
+            # (default: 1m)
+            [update_interval: <duration>]
+
+            # Optional
+            # use consistent hashing to distribute keys to memcache servers.
+            # (default: true)
+            [consistent_hash: <bool>]
+
+            # Optional
+            # trip circuit-breaker after this number of consecutive dial failures.
+            # (default: 10)
+            [circuit_breaker_consecutive_failures: 10]
+
+            # Optional
+            # duration circuit-breaker remains open after tripping.
+            # (default: 10s)
+            [circuit_breaker_timeout: 10s]
+
+            # Optional
+            # reset circuit-breaker counts after this long.
+            # (default: 10s)
+            [circuit_breaker_interval: 10s]
+
+        # Redis configuration block
+        # EXPERIMENTAL
+        # Deprecated. See [cache](#cache) section below.
+        redis:
+
+            # redis endpoint to use when caching.
+            [endpoint: <string>]
+
+            # optional.
+            # maximum time to wait before giving up on redis requests. (default 100ms)
+            [timeout: 500ms]
+
+            # optional.
+            # redis Sentinel master name. (default "")
+            # Example: "master-name: redis-master"
+            [master-name: <string>]
+
+            # optional.
+            # database index. (default 0)
+            [db: <int>]
+
+            # optional.
+            # how long keys stay in the redis. (default 0)
+            [expiration: <duration>]
+
+            # optional.
+            # enable connecting to redis with TLS. (default false)
+            [tls-enabled: <bool>]
+
+            # optional.
+            # skip validating server certificate. (default false)
+            [tls-insecure-skip-verify: <bool>]
+
+            # optional.
+            # maximum number of connections in the pool. (default 0)
+            [pool-size: <int>]
+
+            # optional.
+            # password to use when connecting to redis. (default "")
+            [password: <string>]
+
+            # optional.
+            # close connections after remaining idle for this duration. (default 0s)
+            {idle-timeout: <duration>}
+
+            # optional.
+            # close connections older than this duration. (default 0s)
+            [max-connection-age: <duration>]
+
+            # optional.
+            # password to use when connecting to redis sentinel. (default "")
+            [sentinel_password: <string>]  
+```
+
+Example config:
+
+```yaml
+cache:
+  background:
+    writeback_goroutines: 5
+  caches:
+  - roles:
+    - parquet-footer
+    - parquet-column-idx
+    - parquet-offset-idx
+    memcached:
+      host: memcached-instance
+  - roles:
+    - bloom
+    redis:
+      endpoint: redis-instance
 ```

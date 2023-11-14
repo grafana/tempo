@@ -8,6 +8,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -52,7 +53,10 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	tenantID := b.meta.TenantID
 
 	nameBloom := common.BloomName(shardKey)
-	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, true)
+	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, &backend.CacheInfo{
+		Meta: b.meta,
+		Role: cache.RoleBloom,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -67,13 +71,13 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader, false)
+	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader)
 	indexReader, err := NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("error building index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
+	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader)
 	dataReader, err := NewDataReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("error building page reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
@@ -93,7 +97,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
 func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (BytesIterator, error) {
 	// read index
-	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
+	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader)
 	dataReader, err := NewDataReader(ra, b.meta.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dataReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
@@ -108,7 +112,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (BytesIterator, error) {
 }
 
 func (b *BackendBlock) NewIndexReader() (IndexReader, error) {
-	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader, false)
+	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader)
 	reader, err := NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index reader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)

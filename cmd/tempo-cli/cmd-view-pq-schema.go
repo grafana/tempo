@@ -36,7 +36,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 	fmt.Printf("\n***************     block meta    *********************\n\n\n")
 	fmt.Printf("%+v\n", meta)
 
-	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
+	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
 	pf, err := parquet.OpenFile(rr, int64(meta.Size))
 	if err != nil {
 		return err

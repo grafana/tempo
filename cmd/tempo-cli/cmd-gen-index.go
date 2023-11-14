@@ -140,7 +140,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	}
 
 	// write to the local backend
-	err = w.Write(context.TODO(), "index", blockID, cmd.TenantID, indexBytes, false)
+	err = w.Write(context.TODO(), "index", blockID, cmd.TenantID, indexBytes, nil)
 	if err != nil {
 		fmt.Println("error writing index to backend", err)
 		return err
