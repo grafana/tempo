@@ -573,8 +573,6 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 
 ## Tempo GRPC API
 
-**Deprecated**
-
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
 the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
