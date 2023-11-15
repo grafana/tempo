@@ -8,6 +8,10 @@ import (
 	"path"
 	"testing"
 	"time"
+	"os"
+	"errors"
+	"io"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -21,6 +25,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/parquet-go/parquet-go"
 )
 
 func TestOne(t *testing.T) {
@@ -560,6 +565,86 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
 		})
 	}
+}
+ 
+func BenchmarkBlockIO(b *testing.B){
+	tenant := "337385"
+	blockID := uuid.MustParse("0115db62-40a0-4f94-b7fa-9f8e561bb819")
+	rawR, _, _, err := local.New(&local.Config{
+		Path: "./test-data",
+	})
+	require.NoError(b, err)
+
+	r := backend.NewReader(rawR)
+	ctx := context.Background()
+
+	in, err := os.Open("./test-data/337385/0115db62-40a0-4f94-b7fa-9f8e561bb819/data.parquet")
+	require.NoError(b, err)
+	defer in.Close()
+
+	inStat, err := in.Stat()
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		pf, err := parquet.OpenFile(in, inStat.Size())
+		require.NoError(b, err)
+
+		// create out block
+		outR, outW, _, err := local.New(&local.Config{
+			Path: "./out-" + strconv.Itoa(n),
+		})
+		require.NoError(b, err)
+
+		blockCfg := &common.BlockConfig{
+			BloomFP:             0.99,
+			BloomShardSizeBytes: 1024 * 1024,
+			Version:             VersionString,
+			RowGroupSizeBytes:   100 * 1024 * 1024,
+		}
+		meta, err := r.BlockMeta(ctx, blockID, tenant)
+		require.NoError(b, err)
+
+		// create iterator over in file
+		iter := &parquetIterator{
+			r: parquet.NewGenericReader[*Trace](pf),
+			m: meta,
+		}
+		//commonIter := newCommonIterator(meta, iter, sch)
+		require.NoError(b, err)
+		defer iter.Close()
+
+		_, err = CreateBlock(ctx, blockCfg, meta, iter, backend.NewReader(outR), backend.NewWriter(outW))
+		require.NoError(b, err)
+	}
+}
+
+type parquetIterator struct {
+	r *parquet.GenericReader[*Trace]
+	i int
+	m *backend.BlockMeta
+}
+
+func (i *parquetIterator) Next(_ context.Context) (common.ID, *tempopb.Trace, error) {
+	traces := make([]*Trace, 1)
+
+	i.i++
+
+	_, err := i.r.Read(traces)
+	if errors.Is(err, io.EOF) {
+		return nil, nil, io.EOF
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pqTrace := traces[0]
+	pbTrace := parquetTraceToTempopbTrace(i.m, pqTrace)
+	return pqTrace.TraceID, pbTrace, nil
+}
+
+func (i *parquetIterator) Close() {
+	_ = i.r.Close()
 }
 
 // BenchmarkBackendBlockGetMetrics This doesn't really belong here but I can't think of
