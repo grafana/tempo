@@ -549,6 +549,7 @@ func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 			Value: credentials.Value{
 				AccessKeyID:     cfg.AccessKey,
 				SecretAccessKey: cfg.SecretKey.String(),
+				SessionToken:    cfg.SessionToken.String(),
 			},
 		}),
 		wrapCredentialsProvider(&credentials.EnvAWS{}),

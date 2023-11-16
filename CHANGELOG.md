@@ -9,6 +9,7 @@
 * [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
 * [ENHANCEMENT] Update poller to make use of previous results and reduce backend load. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
 * [ENHANCEMENT] Improve TraceQL regex performance in certain queries. [#3139](https://github.com/grafana/tempo/pull/3139) (@joe-elliott)
+* [BUGFIX] Readd session token to s3 credentials. [#3144](https://github.com/grafana/tempo/pull/3144) (@farodin91)
 
 ## v2.3.0 / 2023-10-30
 
