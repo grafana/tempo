@@ -8,9 +8,10 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/prometheus/common/model"
 )
@@ -44,6 +45,7 @@ const (
 	MetricIngestionRateLimitBytes         = "ingestion_rate_limit_bytes"
 	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
 	MetricBlockRetention                  = "block_retention"
+	MetricCompactionWindow                = "compaction_window"
 	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
@@ -129,7 +131,8 @@ type ReadOverrides struct {
 
 type CompactionOverrides struct {
 	// Compactor enforced overrides.
-	BlockRetention model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	BlockRetention   model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	CompactionWindow model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
 }
 
 type GlobalOverrides struct {

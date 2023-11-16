@@ -21,6 +21,7 @@ import (
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -202,10 +203,11 @@ func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID string) map[string]struct{} {
-	if processors, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors(); ok {
-		return processors.GetMap()
-	}
-	return o.Interface.MetricsGeneratorProcessors(userID)
+	// We merge settings from both layers meaning if a processor is enabled on any layer it will be always enabled (OR logic)
+	processorsUserConfigurable, _ := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors()
+	processorsRuntime := o.Interface.MetricsGeneratorProcessors(userID)
+
+	return listtomap.Merge(processorsUserConfigurable, processorsRuntime)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {

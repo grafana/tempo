@@ -319,7 +319,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 	return output, nil
 }
 
-func (o BinaryOperation) execute(span Span) (Static, error) {
+func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -381,10 +381,22 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	case OpNotEqual:
 		return NewStaticBool(!lhs.Equals(rhs)), nil
 	case OpRegex:
-		matched, err := regexp.MatchString(rhs.S, lhs.S)
+		if o.compiledExpression == nil {
+			o.compiledExpression, err = regexp.Compile(rhs.S)
+			if err != nil {
+				return NewStaticNil(), err
+			}
+		}
+		matched := o.compiledExpression.MatchString(lhs.S)
 		return NewStaticBool(matched), err
 	case OpNotRegex:
-		matched, err := regexp.MatchString(rhs.S, lhs.S)
+		if o.compiledExpression == nil {
+			o.compiledExpression, err = regexp.Compile(rhs.S)
+			if err != nil {
+				return NewStaticNil(), err
+			}
+		}
+		matched := o.compiledExpression.MatchString(lhs.S)
 		return NewStaticBool(!matched), err
 	case OpAnd:
 		return NewStaticBool(lhs.B && rhs.B), nil

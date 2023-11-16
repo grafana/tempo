@@ -16,6 +16,8 @@ The Metrics summary API is an [experimental feature](/docs/release-life-cycle) t
 This document explains how to use the metrics summary API in Tempo.
 This API returns RED metrics (span count, erroring span count, and latency information) for `kind=server` spans sent to Tempo in the last hour, grouped by a user-specified attribute.
 
+{{< youtube id="g97CjKOZqT4" >}}
+
 ## Configuration
 
 To enable the experimental metrics summary API, you must turn on the local blocks processor in the metrics generator.
@@ -43,9 +45,9 @@ All query parameters must be URL-encoded to preserve non-URL-safe characters in 
 | Name      | Examples                                                                                         | Definition                                                                                                                                | Required? |
 | --------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | `q`       | `{ resource.service.name = "foo" && span.http.status_code != 200 }`                              | The TraceQL query with full syntax. All spans matching this query are included in the calculations. Any valid TraceQL query is supported. | Yes       |
-| `groupBy` | `name` <br /> `.foo` <br/> `resource.namespace` <br/> `span.http.url,span.http.status_code` <br> | The TraceQL value(s) to group by. Any valid intrinsic or attribute with scope. To group by multiple values use a comma-delimited list.    | Yes       |
-| `start `  | 1672549200                                                                                       | Start of time range in unix seconds. If not specified, then all recent data is queried.                                                   | No        |
-| `end`     | 1672549200                                                                                       | End of the time range in unix seconds. If not specified, then all recent data is queried.                                                 | No        |
+| `groupBy` | `name` <br /> `.foo` <br/> `resource.namespace` <br/> `span.http.url,span.http.status_code` <br> | One or more TraceQL values to group by. Any valid intrinsic or attribute with scope. To group by multiple values use a comma-delimited list.    | Yes       |
+| `start `  | 1672549200                                                                                       | Start of time range in Unix seconds. If not specified, then all recent data is queried.                                                   | No        |
+| `end`     | 1672549200                                                                                       | End of the time range in Unix seconds. If not specified, then all recent data is queried.                                                 | No        |
 
 Example:
 
@@ -123,7 +125,7 @@ Example:
 | `.series`         | The unique values for this group. A key/value pair will be returned for each entry in `groupBy`.                                                                                                                                                                                                    |
 | `.key`            | Key name.                                                                                                                                                                                                                                                                                           |
 | `.value`          | Value with TraceQL underlying type.                                                                                                                                                                                                                                                                 |
-| `.type`           | Data type enum defined [here](https://github.com/grafana/tempo/blob/main/pkg/traceql/enum_statics.go#L8) (This field will not be present if the value is `0`.) <br/>0 = nil<br/>3 = integer<br/> 4 = float <br/> 5 = string<br/> 6 = bool<br/> 7 = duration<br/> 8 = span status<br/> 9 = span kind |
+| `.type`           | Data type `enum`` defined [here](https://github.com/grafana/tempo/blob/main/pkg/traceql/enum_statics.go#L8) (This field will not be present if the value is `0`.) <br/>0 = `nil`<br/>3 = `integer`<br/> 4 = `float` <br/> 5 = `string`<br/> 6 = `bool`<br/> 7 = `duration`<br/> 8 = span status<br/> 9 = span kind |
 | `.n`              | Populated if this is an integer value.                                                                                                                                                                                                                                                              |
 | `.s`              | Populated if this is a string value.                                                                                                                                                                                                                                                                |
 | `.f`              | Populated if this is a float value.                                                                                                                                                                                                                                                                 |
