@@ -35,7 +35,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
-	
+
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -427,7 +427,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 				} else {
 					level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
 				}
-
 			}
 		} else {
 			for ringIndex, pushError := range pushResponse.ErrorsByTrace {
