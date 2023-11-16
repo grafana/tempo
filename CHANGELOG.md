@@ -2,6 +2,7 @@
 
 * [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
 * [BUGFIX] Fix compactor ignore configured S3 headers [#3149](https://github.com/grafana/tempo/pull/3154) (@Batkilin) 
+* [BUGFIX] Readd session token to s3 credentials. [#3144](https://github.com/grafana/tempo/pull/3144) (@farodin91)
 
 ## v2.3.0-rc.0 / 2023-10-20
 
