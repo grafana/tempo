@@ -143,9 +143,32 @@ func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
 	return m, nil
 }
 
+func (c *Client) SearchTagsV2() (*tempopb.SearchTagsV2Response, error) {
+	m := &tempopb.SearchTagsV2Response{}
+	resp, err := c.getFor(c.BaseURL+"/api/v2/search/tags", m)
+	fmt.Printf("==== SearchTagsV2: resp: %v \n", resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error) {
 	m := &tempopb.SearchTagValuesResponse{}
 	_, err := c.getFor(c.BaseURL+"/api/search/tag/"+key+"/values", m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error) {
+	m := &tempopb.SearchTagValuesV2Response{}
+	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values?q=%s`, key, url.QueryEscape(query))
+
+	_, err := c.getFor(c.BaseURL+urlPath, m)
 	if err != nil {
 		return nil, err
 	}
