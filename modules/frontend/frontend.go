@@ -94,9 +94,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	metrics := spanMetricsMiddleware.Wrap(next)
 
 	return &QueryFrontend{
-		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
-		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
-		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
+		TraceByIDHandler:  newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
+		SearchHandler:     newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
+		SearchTagsHandler: newHandler(searchTags, nil, nil, logger),
+		// FIXME: need a dedicated middleware and combiner to handle v2 response
 		SearchTagsV2Handler:       newHandler(searchTags, nil, nil, logger),
 		SearchTagsValuesHandler:   newHandler(searchTagValues, nil, nil, logger),
 		SearchTagsValuesV2Handler: newHandler(searchTagValuesV2, nil, nil, logger),

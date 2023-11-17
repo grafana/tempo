@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/go-kit/log"
@@ -14,6 +15,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -26,16 +28,16 @@ const (
 var (
 	tenantSuccessTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "tempo_tenant_federation",
-			Name:      "success_total",
+			Namespace: "tempo",
+			Name:      "tenant_federation_success_total",
 			Help:      "Total number of successful fetches of a trace per tenant.",
 		},
 		[]string{tenantLabel})
 
 	tenantFailureTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "tempo_tenant_federation",
-			Name:      "failures_total",
+			Namespace: "tempo",
+			Name:      "tenant_federation_failures_total",
 			Help:      "Total number of failing fetches of a trace per tenant.",
 		},
 		[]string{tenantLabel, statusCodeLabel})
@@ -53,8 +55,6 @@ type tenantRoundTripper struct {
 	tenantSuccessTotal *prometheus.CounterVec
 	tenantFailureTotal *prometheus.CounterVec
 }
-
-// TODO: add a middleware to return error in case of multiple tenants in unsupported routes
 
 // newMultiTenantMiddleware returns a middleware that takes a request and fans it out to each tenant
 func newMultiTenantMiddleware(cfg Config, combinerFn func() combiner.Combiner, logger log.Logger) Middleware {
@@ -96,7 +96,8 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		return t.next.RoundTrip(req)
 	}
 
-	_ = level.Debug(t.logger).Log("msg", "got multiple tenant ids...", "tenants", tenants)
+	// join tenants for logger because list value type is unsupported.
+	_ = level.Debug(t.logger).Log("msg", "handling multi-tenant query", "tenants", strings.Join(tenants, ","))
 
 	var wg sync.WaitGroup
 	respCombiner := t.newCombiner()
@@ -135,16 +136,19 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 
 			// If we get here, we have a successful response
 			if err := respCombiner.AddRequest(resp, injectTenantResource(tenant)); err != nil {
+				// FIXME: this fails, there will be zero failures once we fix this
+				// 19:23:57 tempo: level=error ts=2023-11-17T13:53:57.366689389Z caller=tenant.go:138 msg="error combining responses" tenant=test err="error unmarshalling response body: error unmarshalling response body: unknown field \"scopes\" in tempopb.SearchTagsResponse"
 				_ = level.Error(t.logger).Log("msg", "error combining responses", "tenant", tenant, "err", err)
 				t.tenantFailureTotal.With(prometheus.Labels{tenantLabel: tenant, statusCodeLabel: strconv.Itoa(resp.StatusCode)}).Inc()
 				return
 			}
 
-			_ = level.Debug(t.logger).Log("msg", "success probing", "tenant", tenant)
+			_ = level.Debug(t.logger).Log("msg", "multi-tenant request success", "tenant", tenant)
 			t.tenantSuccessTotal.With(prometheus.Labels{tenantLabel: tenant}).Inc()
 		}(tenantID)
 	}
-	// TODO: will this work for search streaming, look into it. might need a search steaming combiner
+
+	// TODO: will this work for search streaming??, look into it. might need a search steaming combiner
 	wg.Wait()
 
 	return respCombiner.Complete()
@@ -176,5 +180,65 @@ func injectTenantResource(tenant string) func(t *tempopb.Trace) {
 				},
 			})
 		}
+	}
+}
+
+// newMultiTenantUnsupportedMiddleware(cfg, handler)
+// return error if we have multiple tenants.
+// pass through to handler if we get single tenant.
+
+type unsupportedRoundTripper struct {
+	cfg    Config
+	next   http.RoundTripper
+	logger log.Logger
+
+	resolver tenant.Resolver
+}
+
+func newMultiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		return &unsupportedRoundTripper{
+			cfg:      cfg,
+			next:     next,
+			logger:   logger,
+			resolver: tenant.NewMultiResolver(),
+		}
+	})
+}
+
+// TODO: is it easy to have a handler instead of Middleware here? maybe yes??
+// FIXME: I think we need handler to wrap newSearchStreamingWSHandler and newSearchStreamingGRPCHandler
+
+func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if !t.cfg.MultiTenantQueriesEnabled {
+		// move on to next tripper if multi-tenant queries are not enabled
+		return t.next.RoundTrip(req)
+	}
+
+	if !t.cfg.MultiTenantQueriesEnabled {
+		// move on to next tripper if multi-tenant queries are not enabled
+		return t.next.RoundTrip(req)
+	}
+
+	_, ctx, err := user.ExtractOrgIDFromHTTPRequest(req)
+	if err == user.ErrNoOrgID {
+		// no org id, move to next tripper
+		return t.next.RoundTrip(req)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract org id from request: %w", err)
+	}
+
+	// extract tenant ids
+	tenants, err := t.resolver.TenantIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// for single tenant, fall through to next round tripper
+	if len(tenants) <= 1 {
+		return t.next.RoundTrip(req)
+	} else {
+		// fail in case we get multiple tenants
+		return nil, common.ErrUnsupported
 	}
 }

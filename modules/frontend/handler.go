@@ -131,6 +131,8 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contentLength = resp.ContentLength
 	}
 
+	// we are still logging composite tenantIDs here: like this: tenant=test|test2
+	// TODO: i think we should keep logging them like this :)
 	level.Info(f.logger).Log(
 		"tenant", orgID,
 		"method", r.Method,

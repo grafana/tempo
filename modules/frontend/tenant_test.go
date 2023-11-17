@@ -127,3 +127,8 @@ func TestMultiTenant(t *testing.T) {
 		})
 	}
 }
+
+// FIXME: add this test??
+// func TestMultiTenantUnsupported(t *testing.T) {
+//
+// }
