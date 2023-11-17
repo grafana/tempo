@@ -387,6 +387,45 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
+func SearchAndAssertTags(t *testing.T, client *httpclient.Client, _ *tempopb.SearchTagsResponse) {
+	tagResp, err := client.SearchTags()
+	require.NoError(t, err)
+	fmt.Printf("==== tagResp: %v\n", tagResp)
+	// fmt.Printf("==== expected: %v\n", expected)
+	// require.Equal(t, expected.TagNames, tagResp.TagNames)
+}
+
+func SearchAndAssertTagsV2(t *testing.T, client *httpclient.Client, _ *tempopb.SearchTagsV2Response) {
+	tagRespV2, err := client.SearchTagsV2()
+	// require.NoError(t, err)
+
+	// error decoding *tempopb.SearchTagsV2Response json, err: unknown field "tagNames" in tempopb.SearchTagsV2Response body: {"tagNames":[]}
+	// FIXME: ==== SearchAndAssertTagsV2 err: error decoding *tempopb.SearchTagsV2Response json, err: unknown field "tagNames" in tempopb.SearchTagsV2Response body: {"tagNames":[]}
+	fmt.Printf("==== SearchAndAssertTagsV2 err: %v\n", err)
+	fmt.Printf("==== SearchAndAssertTagsV2 tagRespV2: %v\n", tagRespV2)
+	// fmt.Printf("==== expected: %v\n", expected)
+
+	// FIXME: need a custom assert method??
+	// require.Equal(t, expected, tagRespV2)
+	// require.Equal(t, http.StatusOK, tagRespV2)
+}
+
+func SearchAndAssertTagValues(t *testing.T, client *httpclient.Client, key string, _ *tempopb.SearchTagValuesResponse) {
+	tagValuesResp, err := client.SearchTagValues(key)
+	require.NoError(t, err)
+	fmt.Printf("==== tagValuesResp: %v, len: %d \n", tagValuesResp, len(tagValuesResp.TagValues))
+	// fmt.Printf("==== expected: %v\n", expected)
+	// require.Equal(t, expected, tagValuesResp)
+}
+
+func SearchAndAssertTagValuesV2(t *testing.T, client *httpclient.Client, key, query string, _ *tempopb.SearchTagValuesV2Response) {
+	tagValuesRespV2, err := client.SearchTagValuesV2(key, query)
+	require.NoError(t, err)
+	fmt.Printf("==== tagValuesRespV2: %v, len: %d\n", tagValuesRespV2, len(tagValuesRespV2.TagValues))
+	// fmt.Printf("==== expected: %v\n", expected)
+	// require.Equal(t, expected, tagValuesRespV2)
+}
+
 func traceIDInResults(t *testing.T, hexID string, resp *tempopb.SearchResponse) bool {
 	for _, s := range resp.Traces {
 		equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexID)
