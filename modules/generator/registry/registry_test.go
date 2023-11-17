@@ -297,6 +297,10 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
+func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
+	return ""
+}
+
 func mustGetHostname() string {
 	hostname, _ := os.Hostname()
 	return hostname
