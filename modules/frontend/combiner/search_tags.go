@@ -9,8 +9,10 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-var _ Combiner = (*genericCombiner[*tempopb.SearchTagsResponse])(nil)
-var _ Combiner = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
+var (
+	_ Combiner = (*genericCombiner[*tempopb.SearchTagsResponse])(nil)
+	_ Combiner = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
+)
 
 func NewSearchTags() Combiner {
 	// Distinct collector with no limit

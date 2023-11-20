@@ -199,7 +199,6 @@ func TestMultiTenantSearch(t *testing.T) {
 			for _, rt := range routeTable {
 				assertRequestCountMetric(t, tempo, rt.route, rt.reqCount)
 			}
-
 		})
 	}
 }
