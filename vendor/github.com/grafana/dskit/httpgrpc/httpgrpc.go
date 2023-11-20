@@ -9,11 +9,12 @@ import (
 	"fmt"
 
 	"github.com/go-kit/log/level"
-	"google.golang.org/grpc/metadata"
-
 	spb "github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
+	"google.golang.org/grpc/metadata"
+
+	"github.com/grafana/dskit/grpcutil"
 
 	"github.com/grafana/dskit/log"
 )
@@ -44,7 +45,7 @@ func ErrorFromHTTPResponse(resp *HTTPResponse) error {
 
 // HTTPResponseFromError converts a grpc error into an HTTP response
 func HTTPResponseFromError(err error) (*HTTPResponse, bool) {
-	s, ok := status.FromError(err)
+	s, ok := grpcutil.ErrorToStatus(err)
 	if !ok {
 		return nil, false
 	}

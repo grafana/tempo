@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -165,7 +166,7 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
 	_, ids, reqs := streamingBlock(t, cfg, w)
 
 	// meta?
-	uuids, err := r.Blocks(context.Background(), testTenantID)
+	uuids, _, err := r.Blocks(context.Background(), testTenantID)
 	require.NoError(t, err, "error listing blocks")
 	require.Len(t, uuids, 1)
 

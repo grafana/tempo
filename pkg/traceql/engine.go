@@ -237,7 +237,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 			Attributes:        nil,
 		}
 
-		atts := span.Attributes()
+		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
 			tempopbSpan.Name = name.S

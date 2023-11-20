@@ -45,6 +45,7 @@ max_global_traces_per_user: 1000
 max_bytes_per_trace: 100_000
 
 block_retention: 24h
+compaction_window: 4h
 
 per_tenant_override_config: /etc/Overrides.yaml
 per_tenant_override_period: 1m
@@ -65,6 +66,7 @@ max_search_duration: 5m
 	"max_bytes_per_trace": 100000,
 
 	"block_retention": "24h",
+	"compaction_window": "4h",
 
 	"per_tenant_override_config": "/etc/Overrides.yaml",
 	"per_tenant_override_period": "1m",

@@ -28,6 +28,8 @@ type histogram struct {
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
+
+	traceIDLabelName string
 }
 
 type histogramSeries struct {
@@ -48,7 +50,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *histogram {
+func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string) *histogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -56,6 +58,10 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 	}
 	if onRemoveSeries == nil {
 		onRemoveSeries = func(uint32) {}
+	}
+
+	if traceIDLabelName == "" {
+		traceIDLabelName = "traceID"
 	}
 
 	// add +Inf bucket
@@ -67,15 +73,16 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 	}
 
 	return &histogram{
-		metricName:    name,
-		nameCount:     fmt.Sprintf("%s_count", name),
-		nameSum:       fmt.Sprintf("%s_sum", name),
-		nameBucket:    fmt.Sprintf("%s_bucket", name),
-		buckets:       buckets,
-		bucketLabels:  bucketLabels,
-		series:        make(map[uint64]*histogramSeries),
-		onAddSerie:    onAddSeries,
-		onRemoveSerie: onRemoveSeries,
+		metricName:       name,
+		nameCount:        fmt.Sprintf("%s_count", name),
+		nameSum:          fmt.Sprintf("%s_sum", name),
+		nameBucket:       fmt.Sprintf("%s_bucket", name),
+		buckets:          buckets,
+		bucketLabels:     bucketLabels,
+		series:           make(map[uint64]*histogramSeries),
+		onAddSerie:       onAddSeries,
+		onRemoveSerie:    onRemoveSeries,
+		traceIDLabelName: traceIDLabelName,
 	}
 }
 
@@ -201,7 +208,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 			if ex != "" {
 				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
 					Labels: []labels.Label{{
-						Name:  "traceID",
+						Name:  h.traceIDLabelName,
 						Value: ex,
 					}},
 					Value: s.exemplarValues[i].Load(),

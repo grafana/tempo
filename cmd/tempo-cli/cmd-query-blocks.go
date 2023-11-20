@@ -84,12 +84,14 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 }
 
 func queryBucket(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) ([]queryResults, error) {
-	blockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}
 
 	fmt.Println("total blocks to search: ", len(blockIDs))
+
+	blockIDs = append(blockIDs, compactedBlockIDs...)
 
 	// Load in parallel
 	wg := boundedwaitgroup.New(100)

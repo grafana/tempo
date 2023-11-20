@@ -1,16 +1,23 @@
 package blocklist
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"maps"
+	"math/rand"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 var (
@@ -147,6 +154,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			c := newMockCompactor(tc.compactedList, tc.expectsError)
 			r := newMockReader(tc.list, tc.compactedList, tc.expectsError)
 			w := &backend.MockWriter{}
+			b := newBlocklist(PerTenant{}, PerTenantCompacted{})
 
 			poller := NewPoller(&PollerConfig{
 				PollConcurrency:     testPollConcurrency,
@@ -155,7 +163,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
-			actualList, actualCompactedList, err := poller.Do()
+			actualList, actualCompactedList, err := poller.Do(b)
 
 			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
@@ -238,13 +246,16 @@ func TestTenantIndexFallback(t *testing.T) {
 				"test": []*backend.BlockMeta{},
 			}, nil, false)
 			w := &backend.MockWriter{}
+			b := newBlocklist(PerTenant{}, PerTenantCompacted{})
 
 			r.(*backend.MockReader).TenantIndexFn = func(ctx context.Context, tenantID string) (*backend.TenantIndex, error) {
 				if tc.errorOnCreateTenantIndex {
 					return nil, errors.New("err")
 				}
 				return &backend.TenantIndex{
-					CreatedAt: time.Now().Add(-5 * time.Minute), // always make the tenant index 5 minutes old so the above tests can use that for fallback testing
+					CreatedAt: time.Now().
+						Add(-5 * time.Minute),
+					// always make the tenant index 5 minutes old so the above tests can use that for fallback testing
 				}, nil
 			}
 
@@ -256,7 +267,7 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
-			_, _, err := poller.Do()
+			_, _, err := poller.Do(b)
 
 			assert.Equal(t, tc.expectsError, err != nil)
 			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
@@ -343,7 +354,7 @@ func TestPollBlock(t *testing.T) {
 				PollFallback:        testPollFallback,
 				TenantIndexBuilders: testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
-			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID)
+			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID, false)
 
 			assert.Equal(t, tc.expectedMeta, actualMeta)
 			assert.Equal(t, tc.expectedCompactedMeta, actualCompactedMeta)
@@ -502,6 +513,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 		c = newMockCompactor(PerTenantCompacted{}, false)
 		w = &backend.MockWriter{}
 		s = &mockJobSharder{owns: true}
+		b = newBlocklist(PerTenant{}, PerTenantCompacted{})
 	)
 
 	testCases := []struct {
@@ -529,9 +541,15 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:          "too many errors",
-			tolerate:      2,
-			tenantErrors:  []error{nil, errors.New("tenant 1 err"), errors.New("tenant 2 err"), errors.New("tenant 3 err"), nil},
+			name:     "too many errors",
+			tolerate: 2,
+			tenantErrors: []error{
+				nil,
+				errors.New("tenant 1 err"),
+				errors.New("tenant 2 err"),
+				errors.New("tenant 3 err"),
+				nil,
+			},
 			expectedError: errors.New("tenant 3 err"),
 		},
 	}
@@ -540,9 +558,9 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
-				BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+				BlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
 					i, _ := strconv.Atoi(tenantID)
-					return nil, tc.tenantErrors[i]
+					return nil, nil, tc.tenantErrors[i]
 				},
 			}
 			// Tenant ID for each index in the slice
@@ -557,11 +575,370 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				TolerateConsecutiveErrors: tc.tolerate,
 			}, s, r, c, w, log.NewNopLogger())
 
-			_, _, err := poller.Do()
+			_, _, err := poller.Do(b)
 
-			assert.Equal(t, tc.expectedError, err)
+			if tc.expectedError != nil {
+				assert.ErrorContains(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
+}
+
+func TestPollComparePreviousResults(t *testing.T) {
+	zero := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	aaa := uuid.MustParse("00000000-0000-0000-0000-00000000000A")
+	eff := uuid.MustParse("00000000-0000-0000-0000-00000000000F")
+
+	testCases := []struct {
+		name string
+
+		previousPerTenant          PerTenant
+		previousCompactedPerTenant PerTenantCompacted
+
+		currentPerTenant          PerTenant
+		currentCompactedPerTenant PerTenantCompacted
+
+		expectedPerTenant          PerTenant
+		expectedCompactedPerTenant PerTenantCompacted
+
+		expectedBlockMetaCalls          map[string]map[uuid.UUID]int
+		expectedCompactedBlockMetaCalls map[string]map[uuid.UUID]int
+
+		readerErr bool
+		err       error
+	}{
+		{
+			name:                       "with no previous results, the blocklist is polled",
+			previousPerTenant:          PerTenant{},
+			previousCompactedPerTenant: PerTenantCompacted{},
+			currentPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: zero},
+				},
+			},
+			currentCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			expectedPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: zero},
+				},
+			},
+			expectedCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					zero: 1,
+				},
+			},
+			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					eff: 1,
+				},
+			},
+		},
+		{
+			name: "with previous results, meta should be read from only new blocks",
+			previousPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: zero},
+					{BlockID: eff},
+				},
+			},
+			previousCompactedPerTenant: PerTenantCompacted{},
+			currentPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: zero},
+					{BlockID: eff},
+				},
+			},
+			currentCompactedPerTenant: PerTenantCompacted{},
+			expectedPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: zero},
+					{BlockID: eff},
+				},
+			},
+			expectedCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{},
+			},
+			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+		},
+		{
+			name: "with previous results, blocks that have been compacted since the last poll should be known as compacted",
+			previousPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: zero},
+					{BlockID: aaa},
+				},
+			},
+			previousCompactedPerTenant: PerTenantCompacted{},
+			currentPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: eff},
+				},
+			},
+			currentCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+				},
+			},
+			expectedPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{
+					{BlockID: eff},
+				},
+			},
+			expectedCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+				},
+			},
+			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					eff: 1,
+				},
+			},
+			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
+				"test": {
+					aaa:  1,
+					zero: 1,
+				},
+			},
+		},
+		{
+			name:              "with previous compactions should be known",
+			previousPerTenant: PerTenant{},
+			previousCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			currentPerTenant: PerTenant{},
+			currentCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			expectedPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{},
+			},
+			expectedCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+		},
+		{
+			name:              "with previous compactions removed, should be forgotten",
+			previousPerTenant: PerTenant{},
+			previousCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+				},
+			},
+			currentPerTenant:           PerTenant{},
+			currentCompactedPerTenant:  PerTenantCompacted{},
+			expectedPerTenant:          PerTenant{},
+			expectedCompactedPerTenant: PerTenantCompacted{},
+			expectedBlockMetaCalls:     map[string]map[uuid.UUID]int{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				c        = newMockCompactor(tc.currentCompactedPerTenant, false)
+				w        = &backend.MockWriter{}
+				s        = &mockJobSharder{owns: true}
+				r        = newMockReader(tc.currentPerTenant, tc.currentCompactedPerTenant, tc.readerErr)
+				previous = newBlocklist(tc.previousPerTenant, tc.previousCompactedPerTenant)
+			)
+
+			// This mock reader returns error or nil based on the tenant ID
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:     testPollConcurrency,
+				PollFallback:        testPollFallback,
+				TenantIndexBuilders: testBuilders,
+			}, s, r, c, w, log.NewNopLogger())
+
+			metas, compactedMetas, err := poller.Do(previous)
+			require.Equal(t, tc.err, err)
+
+			require.Equal(t, len(tc.expectedPerTenant), len(metas))
+			for tenantID, expectedMetas := range tc.expectedPerTenant {
+				l := metas[tenantID]
+				sort.Slice(l, func(i, j int) bool {
+					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					return x > 0
+				})
+
+				sort.Slice(expectedMetas, func(i, j int) bool {
+					x := bytes.Compare(expectedMetas[i].BlockID[:], expectedMetas[j].BlockID[:])
+					return x > 0
+				})
+
+				require.Equal(t, expectedMetas, l)
+			}
+
+			require.Equal(t, len(tc.expectedCompactedPerTenant), len(compactedMetas))
+			for tenantID, expectedCompactedMetas := range tc.expectedCompactedPerTenant {
+				l := compactedMetas[tenantID]
+				sort.Slice(l, func(i, j int) bool {
+					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					return x > 0
+				})
+
+				sort.Slice(expectedCompactedMetas, func(i, j int) bool {
+					x := bytes.Compare(expectedCompactedMetas[i].BlockID[:], expectedCompactedMetas[j].BlockID[:])
+					return x > 0
+				})
+				require.Equal(t, expectedCompactedMetas, l)
+			}
+
+			require.Equal(t, tc.expectedBlockMetaCalls, r.(*backend.MockReader).BlockMetaCalls)
+			require.Equal(t, tc.expectedCompactedBlockMetaCalls, c.(*backend.MockCompactor).CompactedBlockMetaCalls)
+		})
+	}
+}
+
+func BenchmarkPoller10k(b *testing.B) {
+	tests := []struct {
+		tenantCount     int
+		blocksPerTenant int
+	}{
+		{
+			tenantCount:     1,
+			blocksPerTenant: 100,
+		},
+		{
+			tenantCount:     1,
+			blocksPerTenant: 1000,
+		},
+		{
+			tenantCount:     1,
+			blocksPerTenant: 10000,
+		},
+		{
+			tenantCount:     1,
+			blocksPerTenant: 100000,
+		},
+	}
+
+	for _, tc := range tests {
+		previousPerTenant := newPerTenant(tc.tenantCount, tc.blocksPerTenant)
+		previousPerTenantCompacted := newPerTenantCompacted(tc.tenantCount, tc.blocksPerTenant)
+
+		// currentPerTenant := newPerTenant(uuids, tc.tenantCount, tc.blocksPerTenant)
+		// currentPerTenantCompacted := newPerTenantCompacted(uuids, tc.tenantCount, tc.blocksPerTenant)
+		currentPerTenant := maps.Clone(previousPerTenant)
+		currentPerTenantCompacted := maps.Clone(previousPerTenantCompacted)
+
+		var (
+			c        = newMockCompactor(currentPerTenantCompacted, false)
+			w        = &backend.MockWriter{}
+			s        = &mockJobSharder{owns: true}
+			r        = newMockReader(currentPerTenant, currentPerTenantCompacted, false)
+			previous = newBlocklist(previousPerTenant, previousPerTenantCompacted)
+		)
+
+		// This mock reader returns error or nil based on the tenant ID
+		poller := NewPoller(&PollerConfig{
+			PollConcurrency:     testPollConcurrency,
+			PollFallback:        testPollFallback,
+			TenantIndexBuilders: testBuilders,
+		}, s, r, c, w, log.NewNopLogger())
+
+		runName := fmt.Sprintf("%d-%d", tc.tenantCount, tc.blocksPerTenant)
+		b.Run(runName, func(b *testing.B) {
+			for tenant := range previousPerTenant {
+				benchmarkPollTenant(b, poller, tenant, previous)
+			}
+		})
+	}
+}
+
+func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
+		require.NoError(b, err)
+	}
+}
+
+func newBlockMetas(count int) []*backend.BlockMeta {
+	metas := make([]*backend.BlockMeta, count)
+	for i := 0; i < count; i++ {
+		metas[i] = &backend.BlockMeta{
+			BlockID: uuid.New(),
+		}
+	}
+
+	return metas
+}
+
+func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
+	metas := make([]*backend.CompactedBlockMeta, count)
+	for i := 0; i < count; i++ {
+		metas[i] = &backend.CompactedBlockMeta{
+			BlockMeta: backend.BlockMeta{
+				BlockID: uuid.New(),
+			},
+		}
+	}
+
+	return metas
+}
+
+var chars = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = chars[rand.Intn(len(chars))]
+	}
+	return string(b)
+}
+
+func newPerTenant(tenantCount, blockCount int) PerTenant {
+	perTenant := make(PerTenant, tenantCount)
+	var metas []*backend.BlockMeta
+	var id string
+	for i := 0; i < tenantCount; i++ {
+		metas = newBlockMetas(blockCount)
+		id = randString(5)
+		perTenant[id] = metas
+	}
+
+	return perTenant
+}
+
+func newPerTenantCompacted(tenantCount, blockCount int) PerTenantCompacted {
+	perTenantCompacted := make(PerTenantCompacted)
+	var metas []*backend.CompactedBlockMeta
+	var id string
+	for i := 0; i < tenantCount; i++ {
+		metas = newCompactedMetas(blockCount)
+		id = randString(5)
+		perTenantCompacted[id] = metas
+	}
+
+	return perTenantCompacted
 }
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
@@ -589,31 +966,39 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 
 func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsError bool) backend.Reader {
 	tenants := []string{}
+	ttt := make(map[string]bool)
+
 	for t := range list {
-		tenants = append(tenants, t)
+		ttt[t] = true
 	}
 	for t := range compactedList {
-		tenants = append(tenants, t)
+		ttt[t] = true
+	}
+
+	for k := range ttt {
+		tenants = append(tenants, k)
 	}
 
 	return &backend.MockReader{
 		T: tenants,
-		BlockFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
+		BlocksFn: func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
 			if expectsError {
-				return nil, errors.New("err")
+				return nil, nil, errors.New("err")
 			}
 			blocks := list[tenantID]
 			uuids := []uuid.UUID{}
+			compactedUUIDs := []uuid.UUID{}
 			for _, b := range blocks {
 				uuids = append(uuids, b.BlockID)
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				uuids = append(uuids, b.BlockID)
+				compactedUUIDs = append(compactedUUIDs, b.BlockID)
 			}
 
-			return uuids, nil
+			return uuids, compactedUUIDs, nil
 		},
+		BlockMetaCalls: make(map[string]map[uuid.UUID]int),
 		BlockMetaFn: func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
@@ -633,4 +1018,12 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			return nil, backend.ErrDoesNotExist
 		},
 	}
+}
+
+func newBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) *List {
+	l := New()
+
+	l.ApplyPollResults(metas, compactedMetas)
+
+	return l
 }

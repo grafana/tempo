@@ -26,6 +26,7 @@ type Interface interface {
 	MaxLocalTracesPerUser(userID string) int
 	MaxGlobalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
+	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
@@ -37,6 +38,7 @@ type Interface interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
+	MetricsGenerationTraceIDLabelName(userID string) string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64

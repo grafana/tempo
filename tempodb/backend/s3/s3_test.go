@@ -20,11 +20,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -284,7 +285,7 @@ func TestNilConfig(t *testing.T) {
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(returnIn)
 
 		atomic.AddInt32(counter, 1)

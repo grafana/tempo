@@ -77,9 +77,12 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 }
 
 type Span interface {
-	// these are the actual fields used by the engine to evaluate queries
-	// if a Filter parameter is passed the spans returned will only have this field populated
-	Attributes() map[Attribute]Static
+	// AttributeFor returns the attribute for the given key. If the attribute is not found then
+	// the second return value will be false.
+	AttributeFor(Attribute) (Static, bool)
+	// AllAttributes returns a map of all attributes for this span. AllAttributes should be used sparingly
+	// and is expected to be significantly slower than AttributeFor.
+	AllAttributes() map[Attribute]Static
 
 	ID() []byte
 	StartTimeUnixNanos() uint64

@@ -90,9 +90,10 @@ func dedicatedColPathForVersion(i int, scope backend.DedicatedColumnScope, v str
 type analyseBlockCmd struct {
 	backendOptions
 
-	TenantID string `arg:"" help:"tenant-id within the bucket"`
-	BlockID  string `arg:"" help:"block ID to list"`
-	NumAttr  int    `help:"Number of attributes to display" default:"15"`
+	TenantID        string `arg:"" help:"tenant-id within the bucket"`
+	BlockID         string `arg:"" help:"block ID to list"`
+	NumAttr         int    `help:"Number of attributes to display" default:"15"`
+	GenerateJsonnet bool   `help:"Generate overrides Jsonnet for dedicated columns"`
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
@@ -110,7 +111,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("failed to process block")
 	}
 
-	return blockSum.print(cmd.NumAttr)
+	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet)
 }
 
 func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID string, _ time.Duration, minCompactionLvl uint8) (*blockSummary, error) {
@@ -198,11 +199,20 @@ type blockSummary struct {
 	spanSummary, resourceSummary genericAttrSummary
 }
 
-func (s *blockSummary) print(maxAttr int) error {
+func (s *blockSummary) print(maxAttr int, generateJsonnet bool) error {
 	if err := printSummary("span", maxAttr, s.spanSummary); err != nil {
 		return err
 	}
-	return printSummary("resource", maxAttr, s.resourceSummary)
+
+	if err := printSummary("resource", maxAttr, s.resourceSummary); err != nil {
+		return err
+	}
+
+	if generateJsonnet {
+		printDedicatedColumnOverridesJsonnet(s.spanSummary, s.resourceSummary)
+	}
+
+	return nil
 }
 
 type genericAttrSummary struct {
@@ -332,6 +342,25 @@ func printSummary(scope string, max int, summary genericAttrSummary) error {
 	}
 
 	return w.Flush()
+}
+
+func printDedicatedColumnOverridesJsonnet(spanSummary genericAttrSummary, resourceSummary genericAttrSummary) {
+	fmt.Println("")
+	fmt.Printf("parquet_dedicated_columns: [\n")
+
+	// span attributes first
+	spanAttrList := topN(10, spanSummary.attributes)
+	for _, a := range spanAttrList {
+		fmt.Printf(" { scope: 'span', name: '%s', type: 'string' },\n", a.name)
+	}
+
+	// span attributes first
+	resourceAttrList := topN(10, resourceSummary.attributes)
+	for _, a := range resourceAttrList {
+		fmt.Printf(" { scope: 'resource', name: '%s', type: 'string' },\n", a.name)
+	}
+	fmt.Printf("], \n")
+	fmt.Println("")
 }
 
 func topN(n int, attrs map[string]uint64) []attribute {

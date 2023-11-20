@@ -27,7 +27,8 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	req := traceql.MustExtractFetchSpansRequestWithMetadata(`{ traceDuration > 1s }`)
+	q := `{ traceDuration > 1s }`
+	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
 	req.EndTimeUnixNanos = uint64(1001 * time.Second)
@@ -38,6 +39,7 @@ func TestOne(t *testing.T) {
 	spanSet, err := resp.Results.Next(ctx)
 	require.NoError(t, err, "search request:", req)
 
+	fmt.Println(q)
 	fmt.Println("-----------")
 	fmt.Println(resp.Results.(*spansetIterator).iter)
 	fmt.Println("-----------")
@@ -562,40 +564,32 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		query string
 	}{
 		// span
-		{"spanAttNameNoMatch", "{ span.foo = `bar` }"},
 		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
-		{"spanAttValMatch", "{ span.bloom > 0 }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
-		{"spanAttIntrinsicMatch", "{ name = `gcs.ReadRange` }"},
-		{"spanAttIntrinsicRegexNoMatch", "{ name =~ `asdfasdf` }"},
-		{"spanAttIntrinsicRegexMatch", "{ name =~ `gcs.ReadRange` }"},
 
 		// resource
-		{"resourceAttNameNoMatch", "{ resource.foo = `bar` }"},
 		{"resourceAttValNoMatch", "{ resource.module.path = `bar` }"},
-		{"resourceAttValMatch", "{ resource.os.type = `linux` }"},
-		{"resourceAttIntrinsicNoMatch", "{ resource.service.name = `a` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
 
 		// mixed
-		{"mixedNameNoMatch", "{ .foo = `bar` }"},
 		{"mixedValNoMatch", "{ .bloom = `bar` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
-		{"mixedValBothMatch", "{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }"},
 
-		{"count", "{} | count() > 1"},
-		{"desc", "{ resource.service.name = `loki-querier` } >> { resource.service.name = `loki-querier` }"},
+		{"count", "{ } | count() > 1"},
+		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-querier` && status = error }"},
+		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-ingester` }"},
+		{"mixed", `{resource.namespace!="" && resource.service.name="loki-distributor" && duration>2s && resource.cluster=~"prod.*"}`},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	// blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("000d37d0-1e66-4f4e-bbd4-f85c1deb6e5e")
+	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/home/joe/testblock/"),
-		Path: path.Join("/Users/marty/src/tmp"),
+		Path: path.Join("/home/joe/testblock/"),
+		// Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
@@ -605,7 +599,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
-	opts.TotalPages = 10
+	opts.TotalPages = 1
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)

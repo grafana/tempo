@@ -19,7 +19,7 @@ func TestRawIteratorReadsAllRows(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, err := r.Blocks(ctx, "single-tenant")
+	blocks, _, err := r.Blocks(ctx, "single-tenant")
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 

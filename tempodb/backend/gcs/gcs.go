@@ -11,6 +11,9 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -21,6 +24,7 @@ import (
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
+	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -184,6 +188,124 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	}
 
 	return objects, nil
+}
+
+// ListBlocks implements backend.Reader
+func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
+	defer span.Finish()
+
+	var (
+		wg                sync.WaitGroup
+		mtx               sync.Mutex
+		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
+		errChan           = make(chan error, len(bb))
+		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
+		min               uuid.UUID
+		max               uuid.UUID
+		blockIDs          = make([]uuid.UUID, 0, 1000)
+		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+	)
+
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix += "/"
+	}
+
+	for i := 0; i < len(bb)-1; i++ {
+		min = uuid.UUID(bb[i])
+		max = uuid.UUID(bb[i+1])
+
+		wg.Add(1)
+		go func(min, max uuid.UUID) {
+			defer wg.Done()
+
+			var (
+				query = &storage.Query{
+					Prefix:      prefix,
+					Delimiter:   "",
+					Versions:    false,
+					StartOffset: prefix + min.String(),
+				}
+				parts []string
+				id    uuid.UUID
+			)
+
+			// If max is global max, then we don't want to set an end offset to
+			// ensure we reach the end.  EndOffset is exclusive.
+			if max != backend.GlobalMaxBlockID {
+				query.EndOffset = prefix + max.String()
+			}
+
+			iter := rw.bucket.Objects(ctx, query)
+
+			for {
+				if ctx.Err() != nil {
+					return
+				}
+
+				attrs, err := iter.Next()
+				if errors.Is(err, iterator.Done) {
+					return
+				}
+				if err != nil {
+					errChan <- fmt.Errorf("iterating blocks: %w", err)
+					return
+				}
+
+				parts = strings.Split(attrs.Name, "/")
+				// ie: <tenant>/<blockID>/meta.json
+				if len(parts) != 3 {
+					continue
+				}
+
+				switch parts[2] {
+				case backend.MetaName:
+				case backend.CompactedMetaName:
+				default:
+					continue
+				}
+
+				id, err = uuid.Parse(parts[1])
+				if err != nil {
+					continue
+				}
+
+				if bytes.Compare(id[:], min[:]) < 0 {
+					errChan <- fmt.Errorf("block UUID below shard minimum")
+					return
+				}
+
+				if max != backend.GlobalMaxBlockID {
+					if bytes.Compare(id[:], max[:]) >= 0 {
+						return
+					}
+				}
+
+				mtx.Lock()
+				switch parts[2] {
+				case backend.MetaName:
+					blockIDs = append(blockIDs, id)
+				case backend.CompactedMetaName:
+					compactedBlockIDs = append(compactedBlockIDs, id)
+				}
+				mtx.Unlock()
+			}
+		}(min, max)
+	}
+	wg.Wait()
+	close(errChan)
+
+	errs := make([]error, 0, len(errChan))
+	for e := range errChan {
+		errs = append(errs, e)
+	}
+
+	if len(errs) > 0 {
+		return nil, nil, errors.Join(errs...)
+	}
+
+	return blockIDs, compactedBlockIDs, nil
 }
 
 // Read implements backend.Reader
@@ -377,6 +499,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 	if cfg.Endpoint != "" {
 		storageClientOptions = append(storageClientOptions, option.WithEndpoint(cfg.Endpoint))
+		storageClientOptions = append(storageClientOptions, storage.WithJSONReads())
 	}
 	client, err := storage.NewClient(ctx, storageClientOptions...)
 	if err != nil {

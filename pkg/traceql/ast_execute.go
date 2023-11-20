@@ -319,7 +319,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 	return output, nil
 }
 
-func (o BinaryOperation) execute(span Span) (Static, error) {
+func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -381,10 +381,22 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	case OpNotEqual:
 		return NewStaticBool(!lhs.Equals(rhs)), nil
 	case OpRegex:
-		matched, err := regexp.MatchString(rhs.S, lhs.S)
+		if o.compiledExpression == nil {
+			o.compiledExpression, err = regexp.Compile(rhs.S)
+			if err != nil {
+				return NewStaticNil(), err
+			}
+		}
+		matched := o.compiledExpression.MatchString(lhs.S)
 		return NewStaticBool(matched), err
 	case OpNotRegex:
-		matched, err := regexp.MatchString(rhs.S, lhs.S)
+		if o.compiledExpression == nil {
+			o.compiledExpression, err = regexp.Compile(rhs.S)
+			if err != nil {
+				return NewStaticNil(), err
+			}
+		}
+		matched := o.compiledExpression.MatchString(lhs.S)
 		return NewStaticBool(!matched), err
 	case OpAnd:
 		return NewStaticBool(lhs.B && rhs.B), nil
@@ -463,23 +475,9 @@ func (s Static) execute(Span) (Static, error) {
 }
 
 func (a Attribute) execute(span Span) (Static, error) {
-	atts := span.Attributes()
-	static, ok := atts[a]
+	static, ok := span.AttributeFor(a)
 	if ok {
 		return static, nil
-	}
-
-	if a.Scope == AttributeScopeNone {
-		for attribute, static := range atts {
-			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
-				return static, nil
-			}
-		}
-		for attribute, static := range atts {
-			if a.Name == attribute.Name {
-				return static, nil
-			}
-		}
 	}
 
 	return NewStaticNil(), nil

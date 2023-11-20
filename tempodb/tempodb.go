@@ -78,7 +78,7 @@ type Reader interface {
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
-	EnablePolling(sharder blocklist.JobSharder)
+	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 
 	Shutdown()
 }
@@ -96,6 +96,7 @@ type CompactorSharder interface {
 type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
 	MaxBytesPerTraceForTenant(tenantID string) int
+	MaxCompactionRangeForTenant(tenantID string) time.Duration
 }
 
 type WriteableBlock interface {
@@ -407,7 +408,7 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 // EnablePolling activates the polling loop. Pass nil if this component
 //
 //	should never be a tenant index builder.
-func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
+func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
 	}
@@ -424,7 +425,7 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 
-	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "concurrency", rw.cfg.BlocklistPollConcurrency)
+	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 		PollConcurrency:           rw.cfg.BlocklistPollConcurrency,
@@ -441,20 +442,26 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 	// that when this method returns the block list is updated
 	rw.pollBlocklist()
 
-	go rw.pollingLoop()
+	go rw.pollingLoop(ctx)
 }
 
-func (rw *readerWriter) pollingLoop() {
+func (rw *readerWriter) pollingLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
-	for range ticker.C {
-		rw.pollBlocklist()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			rw.pollBlocklist()
+		}
 	}
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(rw.blocklist)
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
+		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 		return
 	}
 

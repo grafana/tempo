@@ -1032,7 +1032,8 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	ctx := context.Background()
+	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch := searchTestSuite()
@@ -1461,7 +1462,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(&mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
 	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)

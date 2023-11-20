@@ -149,7 +149,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 	}
 
 	// this will block until one poll cycle is complete
-	c.store.EnablePolling(c)
+	c.store.EnablePolling(ctx, c)
 
 	return nil
 }
@@ -256,6 +256,10 @@ func (c *Compactor) BlockRetentionForTenant(tenantID string) time.Duration {
 
 func (c *Compactor) MaxBytesPerTraceForTenant(tenantID string) int {
 	return c.overrides.MaxBytesPerTrace(tenantID)
+}
+
+func (c *Compactor) MaxCompactionRangeForTenant(tenantID string) time.Duration {
+	return c.overrides.MaxCompactionRange(tenantID)
 }
 
 func (c *Compactor) isSharded() bool {

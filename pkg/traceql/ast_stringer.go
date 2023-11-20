@@ -58,7 +58,7 @@ func (f ScalarFilter) String() string {
 	return binaryOp(f.op, f.lhs, f.rhs)
 }
 
-func (o BinaryOperation) String() string {
+func (o *BinaryOperation) String() string {
 	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 

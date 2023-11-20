@@ -36,9 +36,9 @@ ingester:
     enable_inet6: true
 
 server:
-  grpc_listen_address: '[::0]'
+  grpc_listen_address: '::0'
   grpc_listen_port: 9095
-  http_listen_address: '[::0]'
+  http_listen_address: '::0'
   http_listen_port: 3200
 ```
 
