@@ -414,5 +414,4 @@ func sortSpanAttrs(s *span) {
 	sort.Slice(s.traceAttrs, func(i, j int) bool {
 		return sortFn(s.traceAttrs[i], s.traceAttrs[j])
 	})
-
 }
