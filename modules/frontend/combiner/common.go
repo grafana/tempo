@@ -13,7 +13,7 @@ import (
 )
 
 type TResponse interface {
-	*tempopb.SearchResponse | *tempopb.SearchTagsResponse | *tempopb.SearchTagValuesResponse | *tempopb.SearchTagValuesV2Response
+	*tempopb.SearchResponse | *tempopb.SearchTagsResponse | *tempopb.SearchTagsV2Response | *tempopb.SearchTagValuesResponse | *tempopb.SearchTagValuesV2Response
 }
 
 type genericCombiner[R TResponse] struct {

@@ -10,6 +10,7 @@ import (
 )
 
 var _ Combiner = (*genericCombiner[*tempopb.SearchTagsResponse])(nil)
+var _ Combiner = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 
 func NewSearchTags() Combiner {
 	// Distinct collector with no limit
@@ -30,6 +31,43 @@ func NewSearchTags() Combiner {
 		},
 		result: func(response *tempopb.SearchTagsResponse) (string, error) {
 			response.TagNames = d.Values()
+			return new(jsonpb.Marshaler).MarshalToString(response)
+		},
+	}
+}
+
+func NewSearchTagsV2() Combiner {
+	// Distinct collector map to collect scopes and scope values
+	distinctValues := map[string]*util.DistinctStringCollector{}
+
+	return &genericCombiner[*tempopb.SearchTagsV2Response]{
+		code:  200,
+		final: &tempopb.SearchTagsV2Response{Scopes: make([]*tempopb.SearchTagsV2Scope, 0)},
+		combine: func(body io.ReadCloser, final *tempopb.SearchTagsV2Response) error {
+			response := &tempopb.SearchTagsV2Response{}
+			if err := jsonpb.Unmarshal(body, response); err != nil {
+				return fmt.Errorf("error unmarshalling response body: %w", err)
+			}
+			for _, res := range response.GetScopes() {
+				dvc := distinctValues[res.Name]
+				if dvc == nil {
+					// no limit collector to collect scope values
+					dvc = util.NewDistinctStringCollector(0)
+					distinctValues[res.Name] = dvc
+				}
+				for _, tag := range res.Tags {
+					dvc.Collect(tag)
+				}
+			}
+			return nil
+		},
+		result: func(response *tempopb.SearchTagsV2Response) (string, error) {
+			for scope, dvc := range distinctValues {
+				response.Scopes = append(response.Scopes, &tempopb.SearchTagsV2Scope{
+					Name: scope,
+					Tags: dvc.Strings(),
+				})
+			}
 			return new(jsonpb.Marshaler).MarshalToString(response)
 		},
 	}
