@@ -11,6 +11,7 @@
 * [ENHANCEMENT] Update poller to make use of previous results and reduce backend load. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
 * [ENHANCEMENT] Improve TraceQL regex performance in certain queries. [#3139](https://github.com/grafana/tempo/pull/3139) (@joe-elliott)
 * [ENHANCEMENT] Improve TraceQL performance in complex queries. [#3113](https://github.com/grafana/tempo/pull/3113) (@joe-elliott)
+* [BUGFIX] Fix compactor ignore configured S3 headers [#3149](https://github.com/grafana/tempo/pull/3154) (@Batkilin) 
 
 ## v2.3.0 / 2023-10-30
 
