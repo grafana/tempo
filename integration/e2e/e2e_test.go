@@ -536,14 +536,13 @@ func assertEcho(t *testing.T, url string) {
 }
 
 func queryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
-	_, err := client.QueryTrace(info.HexID())
+	resp, err := client.QueryTrace(info.HexID())
 	require.NoError(t, err)
 
-	// expected, err := info.ConstructTraceFromEpoch()
-	// require.NoError(t, err)
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
 
-	// FIXME: skip assert to debug other stuff, will assert it later
-	// assertEqualTrace(t, resp, expected)
+	assertEqualTrace(t, resp, expected)
 }
 
 func assertEqualTrace(t *testing.T, a, b *tempopb.Trace) {

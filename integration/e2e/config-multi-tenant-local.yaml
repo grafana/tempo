@@ -4,7 +4,7 @@ multitenancy_enabled: true
 
 server:
   http_listen_port: 3200
-  log_level: debug
+  log_level: warn
 
 query_frontend:
   search:
