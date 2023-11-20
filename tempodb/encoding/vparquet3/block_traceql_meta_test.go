@@ -161,7 +161,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						spanAttrs: []attrVal{
 							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticNil()},
 							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(500)}, // This is the only attribute that matched anything
-							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
 						},
 						resourceAttrs: []attrVal{
 							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo"), traceql.NewStaticNil()},

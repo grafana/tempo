@@ -365,7 +365,7 @@ func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteReq
 
 		for _, ss := range evalSS {
 			for _, s := range ss.Spans {
-				for attr, static := range s.Attributes() {
+				for attr, static := range s.AllAttributes() {
 					if attr.Name != req.TagName.Name {
 						continue
 					}
