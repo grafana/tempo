@@ -423,7 +423,11 @@ query_frontend:
     # (default: 5)
     [max_batch_size: <int>]
 
-    # Enable multi-tenant queries
+    # Enable multi-tenant queries.
+    # If enabled, queries can be federated across multiple tenants.
+    # The tenant IDs involved need to be specified separated by a '|'
+    # character in the 'X-Scope-OrgID' header. 
+    # note: this is no-op if cluster doesn't have `multitenancy_enabled: true`
     # (default: true)
     [multi_tenant_queries_enabled: <bool>]
 

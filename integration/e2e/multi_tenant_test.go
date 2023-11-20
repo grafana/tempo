@@ -33,6 +33,7 @@ type traceStringsMap struct {
 
 // TODO: add a test for unsupported endpoints??
 // TODO: test search streaming?? we don't support multi-tenant query there, will do in the next pass
+// TODO: should we test this with `multitenancy_enabled: false` as well?? not sure??
 
 // TestMultiTenantSearch tests multi tenant query support
 func TestMultiTenantSearch(t *testing.T) {
