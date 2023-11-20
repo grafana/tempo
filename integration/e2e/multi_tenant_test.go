@@ -31,13 +31,11 @@ type traceStringsMap struct {
 	spanNames []string
 }
 
+// TODO: add a test for unsupported endpoints??
+// TODO: test search streaming?? we don't support multi-tenant query there, will do in the next pass
+
+// TestMultiTenantSearch tests multi tenant query support
 func TestMultiTenantSearch(t *testing.T) {
-	// test multi tenant query support
-
-	// allows multi tenant query for following endpoints
-	// search, search streaming, tracebyid, search tags
-	// handles following cases: 1. single tenant, 2. multiple tenants, 3. * is treated as regular tenant
-
 	testTenants := []struct {
 		name       string
 		tenant     string
@@ -99,32 +97,17 @@ func TestMultiTenantSearch(t *testing.T) {
 			// write traces for all tenants
 			for _, tenant := range tenants {
 				info = tempoUtil.NewTraceInfo(time.Now(), tenant)
-				fmt.Printf("==== info: %v, tenant: %v \n", info, tenant)
 				require.NoError(t, info.EmitAllBatches(c))
 
 				trace, err := info.ConstructTraceFromEpoch()
-				// store it to assert tests
-				traceMap = getAttrsAndSpanNames(trace)
+				traceMap = getAttrsAndSpanNames(trace) // store it to assert tests
 
-				fmt.Printf("==== rKeys: %v, tenant: %v \n", traceMap.rKeys, tenant)
-				fmt.Printf("==== rValues: %v, tenant: %v \n", traceMap.rValues, tenant)
-				fmt.Printf("==== sNames: %v, tenant: %v \n", traceMap.spanNames, tenant)
-
-				// fmt.Printf("==== trace: %v, tenant: %v \n", trace, tenant)
 				require.NoError(t, err)
 				expected = expected + spanCount(trace)
-
-				// emit some spans with tags and values to assert later
-				// batch := makeThriftBatchWithSpanCountAttributeAndName(2, "foo", "bar")
-				// require.NoError(t, c.EmitBatch(context.Background(), batch))
-				//
-				// batch2 := makeThriftBatchWithSpanCountAttributeAndName(2, "baz", "qux")
-				// require.NoError(t, c.EmitBatch(context.Background(), batch2))
 			}
 
-			// we create one trace for each tenant
+			// assert that we have one trace and each tenant and correct number of spans received
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(float64(tc.tenantSize)), "tempo_ingester_traces_created_total"))
-			// check that all spans are written
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(expected), "tempo_distributor_spans_received_total"))
 
 			// Wait for the traces to be written to the WAL
@@ -133,27 +116,13 @@ func TestMultiTenantSearch(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-			// pass tenantID as id from test case
+			// client will have testcase tenant id
 			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), tc.tenant)
 
-			// query an in-memory trace, this tests trace by id search
-			// FIXME: maybe I need to make the API call directly here instead of using queryAndAssertTrace method??
-			// queryAndAssertTrace(t, apiClient, info)
-
-			// single traceid can only belong on single tenant so we will only see results from one tenant
-			// query a random trace id??
-			// FIXME: run this query for all tenants??
-			// for _, tname := range tenants {
-			// fmt.Printf("==== traceID: %v \n", info[tenants[0]].HexID())
-			// response
-
+			// check trace by id
 			resp, err := apiClient.QueryTrace(info.HexID())
 			require.NoError(t, err)
 			respTm := getAttrsAndSpanNames(resp)
-			// fmt.Printf("==== resp rKeys: %v, tenant: %v \n", tm.rKeys)
-			// fmt.Printf("==== resp rValues: %v, tenant: %v \n", tm.rValues, tname)
-			// fmt.Printf("==== resp sNames: %v, tenant: %v \n", tm.spanNames, tname)
-
 			if tc.tenantSize > 1 {
 				// resource keys should contain tenant key in case of a multi-tenant query
 				traceMap.rKeys = append(traceMap.rKeys, "tenant")
@@ -169,7 +138,7 @@ func TestMultiTenantSearch(t *testing.T) {
 			// flush trace to backend
 			callFlush(t, tempo)
 
-			// SearchAndAssertTrace also calls SearchTagValues
+			// search and traceql search, note: SearchAndAssertTrace also calls SearchTagValues
 			util.SearchAndAssertTrace(t, apiClient, info)
 			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
@@ -179,48 +148,25 @@ func TestMultiTenantSearch(t *testing.T) {
 			// wait for flush to complete
 			time.Sleep(3 * time.Second)
 
-			// Search for tags
+			// search tags endpoints
 			_, err = apiClient.SearchTags()
 			require.NoError(t, err)
 
-			// tagsExp := []string{"service.name", "vulture-0", "vulture-1", "vulture-2", "vulture-3", "vulture-process-0", "vulture-process-1", "vulture-process-2", "vulture-process-3"}
-			// util.SearchAndAssertTags(t, apiClient, &tempopb.SearchTagsResponse{TagNames: tagsExp})
-
-			// intrinsicScope := &tempopb.SearchTagsV2Scope{Name: "intrinsic", Tags: []string{"duration", "kind", "name", "rootName", "rootServiceName", "status", "statusMessage", "traceDuration"}}
-			// resourceScope := &tempopb.SearchTagsV2Scope{Name: "resource", Tags: []string{"service.name", "vulture-process-0", "vulture-process-1", "vulture-process-2", "vulture-process-3"}}
-			// spanScope := &tempopb.SearchTagsV2Scope{Name: "span", Tags: []string{"vulture-0", "vulture-1", "vulture-2", "vulture-3"}}
-			// util.SearchAndAssertTagsV2(t, apiClient, &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{intrinsicScope, resourceScope, spanScope}})
-			tagRespV2, err := apiClient.SearchTagsV2()
+			_, err = apiClient.SearchTagsV2()
 			require.NoError(t, err)
 
-			// fmt.Printf("==== err: %v\n", err)
-			fmt.Printf("==== tagRespV2: %v\n", tagRespV2)
-
-			// FIXME: fix this??
-			// v1ValuesExp := &tempopb.SearchTagValuesResponse{TagValues: []string{"bar", "qux"}}
-			// util.SearchAndAssertTagValues(t, apiClient, "vulture-0", v1ValuesExp)
-			tagValuesResp, err := apiClient.SearchTagValues("vulture-0")
-			require.NoError(t, err)
-			fmt.Printf("==== tagValuesResp: %v, len: %d \n", tagValuesResp, len(tagValuesResp.TagValues))
-
-			// FIXME: fix this??
-			// v2ValuesExp := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Type: "string", Value: "bar"}, {Type: "string", Value: "qux"}}}
-			// util.SearchAndAssertTagValuesV2(t, apiClient, "span.vulture-0", "{}", v2ValuesExp)
-			tagValuesRespV2, err := apiClient.SearchTagValuesV2("span.vulture-0", "{}")
-			require.NoError(t, err)
-			fmt.Printf("==== tagValuesRespV2: %v, len: %d\n", tagValuesRespV2, len(tagValuesRespV2.TagValues))
-
-			// dump metrics, TODO: REMOVE THIS
-			met := callMetrics(t, tempo)
-			// // fmt.Printf("/metrics: %v \n", met)
-			err = os.WriteFile("/home/suraj/wd/grafana/tempo/metrics_"+tc.tenant+".txt", met, 0644)
+			_, err = apiClient.SearchTagValues("vulture-0")
 			require.NoError(t, err)
 
+			_, err = apiClient.SearchTagValuesV2("span.vulture-0", "{}")
+			require.NoError(t, err)
+
+			// assert tenant federation metrics
 			if tc.tenantSize > 1 {
 				for _, ta := range tenants {
 					matcher, err := labels.NewMatcher(labels.MatchEqual, "tenant", ta)
 					require.NoError(t, err)
-					// check multi-tenant search metrics, 8 calls for each tenant, and 0 failures
+					// we should have 8 requests for each tenant
 					err = tempo.WaitSumMetricsWithOptions(e2e.Equals(8),
 						[]string{"tempo_tenant_federation_success_total"},
 						e2e.WithLabelMatchers(matcher),
@@ -229,6 +175,7 @@ func TestMultiTenantSearch(t *testing.T) {
 				}
 			}
 
+			// check metrics for all routes
 			routeTable := []struct {
 				route    string
 				reqCount int
@@ -257,7 +204,7 @@ func TestMultiTenantSearch(t *testing.T) {
 }
 
 func assertRequestCountMetric(t *testing.T, s *e2e.HTTPService, route string, reqCount int) {
-	fmt.Printf("=== assertRequestCountMetric route: %v, rt.reqCount: %v \n", route, reqCount)
+	fmt.Printf("==== %s, assertRequestCountMetric route: %v, rt.reqCount: %v \n", t.Name(), route, reqCount)
 
 	err := s.WaitSumMetricsWithOptions(e2e.Equals(float64(reqCount)),
 		[]string{"tempo_request_duration_seconds"},
