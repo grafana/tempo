@@ -37,8 +37,34 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
-func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
+func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	return s.attributes
+}
+
+func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
+	atts := s.attributes
+	static, ok := atts[a]
+	if ok {
+		return static, ok
+	}
+
+	// if the requested attribute has a scope none then we will check first for span attributes matching
+	// then any attributes matching. we don't need to both if this is an intrinsic b/c those will always
+	// be caught above if they exist
+	if a.Scope == traceql.AttributeScopeNone && a.Intrinsic == traceql.IntrinsicNone {
+		for attribute, static := range atts {
+			if a.Name == attribute.Name && attribute.Scope == traceql.AttributeScopeSpan {
+				return static, true
+			}
+		}
+		for attribute, static := range atts {
+			if a.Name == attribute.Name {
+				return static, true
+			}
+		}
+	}
+
+	return traceql.NewStaticNil(), false
 }
 
 func (s *span) ID() []byte {

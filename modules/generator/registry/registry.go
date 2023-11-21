@@ -144,7 +144,7 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 }
 
 func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
-	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, r.overrides.MetricsGenerationTraceIDLabelName(r.tenant))
 	r.registerMetric(h)
 	return h
 }

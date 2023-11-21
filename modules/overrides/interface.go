@@ -38,6 +38,7 @@ type Interface interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
+	MetricsGenerationTraceIDLabelName(userID string) string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
