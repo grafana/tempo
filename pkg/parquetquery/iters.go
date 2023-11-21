@@ -1357,6 +1357,13 @@ type LeftJoinIterator struct {
 var _ Iterator = (*LeftJoinIterator)(nil)
 
 func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate) *LeftJoinIterator {
+	// No query should ever result in a left-join with no required iterators.
+	// If this happens, it's a bug in the iter building code.
+	// LeftJoinIterator is not designed to handle this case and will loop forever.
+	if len(required) == 0 {
+		panic("required iterators must be provided")
+	}
+
 	j := LeftJoinIterator{
 		definitionLevel: definitionLevel,
 		required:        required,
