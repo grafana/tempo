@@ -159,7 +159,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -168,7 +168,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -177,7 +177,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -399,7 +399,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
+       "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -408,7 +408,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_receiver_refused_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval]))",
+       "expr": "sum(rate(tempo_receiver_refused_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -495,7 +495,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -504,7 +504,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_distributor_push_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -513,7 +513,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by () * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_distributor_push_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_distributor_push_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -705,7 +705,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -714,7 +714,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -723,7 +723,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -915,7 +915,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -924,7 +924,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -933,7 +933,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1125,7 +1125,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1134,7 +1134,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1143,7 +1143,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1335,7 +1335,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1344,7 +1344,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1353,7 +1353,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by () * 1e3 / sum(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempo_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1545,7 +1545,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1554,7 +1554,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1563,7 +1563,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__interval])) by ()",
+       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,

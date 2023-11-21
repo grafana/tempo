@@ -72,8 +72,8 @@ dashboard_utils {
         g.row('Distributor')
         .addPanel(
           $.panel('Spans/Second') +
-          $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
-          $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
+          $.queryPanel('sum(rate(tempo_receiver_accepted_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'accepted') +
+          $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused')
         )
         .addPanel(
           $.panel('Latency') +
