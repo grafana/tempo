@@ -40,7 +40,7 @@ func NewSearchTags() Combiner {
 
 func NewSearchTagsV2() Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := map[string]*util.DistinctStringCollector{}
+	distinctValues := map[string]*util.DistinctValueCollector[string]{}
 
 	return &genericCombiner[*tempopb.SearchTagsV2Response]{
 		code:  200,
@@ -54,7 +54,7 @@ func NewSearchTagsV2() Combiner {
 				dvc := distinctValues[res.Name]
 				if dvc == nil {
 					// no limit collector to collect scope values
-					dvc = util.NewDistinctStringCollector(0)
+					dvc = util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
 					distinctValues[res.Name] = dvc
 				}
 				for _, tag := range res.Tags {
@@ -67,7 +67,7 @@ func NewSearchTagsV2() Combiner {
 			for scope, dvc := range distinctValues {
 				response.Scopes = append(response.Scopes, &tempopb.SearchTagsV2Scope{
 					Name: scope,
-					Tags: dvc.Strings(),
+					Tags: dvc.Values(),
 				})
 			}
 			return new(jsonpb.Marshaler).MarshalToString(response)
