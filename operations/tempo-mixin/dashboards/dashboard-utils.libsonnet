@@ -68,7 +68,7 @@ grafana {
     nullPointMode: 'null as zero',
     targets: [
       {
-        expr: 'histogram_quantile(0.99, sum(rate(%s_bucket%s[$__interval])) by (le,%s)) * %s' % [metricName, selector, additional_grouping, multiplier],
+        expr: 'histogram_quantile(0.99, sum(rate(%s_bucket%s[$__rate_interval])) by (le,%s)) * %s' % [metricName, selector, additional_grouping, multiplier],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: '{{route}} 99th',
@@ -77,7 +77,7 @@ grafana {
         interval: '1m',
       },
       {
-        expr: 'histogram_quantile(0.50, sum(rate(%s_bucket%s[$__interval])) by (le,%s)) * %s' % [metricName, selector, additional_grouping, multiplier],
+        expr: 'histogram_quantile(0.50, sum(rate(%s_bucket%s[$__rate_interval])) by (le,%s)) * %s' % [metricName, selector, additional_grouping, multiplier],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: '{{route}} 50th',
@@ -86,7 +86,7 @@ grafana {
         interval: '1m',
       },
       {
-        expr: 'sum(rate(%s_sum%s[$__interval])) by (%s) * %s / sum(rate(%s_count%s[$__interval])) by (%s)' % [metricName, selector, additional_grouping, multiplier, metricName, selector, additional_grouping],
+        expr: 'sum(rate(%s_sum%s[$__rate_interval])) by (%s) * %s / sum(rate(%s_count%s[$__rate_interval])) by (%s)' % [metricName, selector, additional_grouping, multiplier, metricName, selector, additional_grouping],
         format: 'time_series',
         intervalFactor: 2,
         legendFormat: '{{route}} Average',
@@ -104,7 +104,7 @@ grafana {
   containerCPUUsagePanel(title, containerName)::
     $.panel(title) +
     $.queryPanel([
-      'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container=~"%s"}[$__interval]))' % [$.namespaceMatcher(), containerName],
+      'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container=~"%s"}[$__rate_interval]))' % [$.namespaceMatcher(), containerName],
       'min(container_spec_cpu_quota{%s,container=~"%s"} / container_spec_cpu_period{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName, $.namespaceMatcher(), containerName],
       'min(kube_pod_container_resource_requests{%s,container=~"%s", resource="cpu"} > 0)' % [$.namespaceMatcher(), containerName],
     ], ['{{pod}}', 'limit', 'request']) +
