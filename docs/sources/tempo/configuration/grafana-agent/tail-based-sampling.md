@@ -16,9 +16,9 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 Tail-based sampling works with Grafana Agent in Flow or static modes.
-Flow mode configuration files are [written in River](https://grafana.com/docs/agent/latest/flow/config-language).
-Static mode configuration files are [written in YAML](https://grafana.com/docs/agent/latest/static/configuration).
-Examples in this document are for Flow mode. You can also use the [Static mode Kubernetes operator](https://grafana.com/docs/agent/latest/operator).
+Flow mode configuration files are [written in River](/docs/agent/latest/flow/config-language).
+Static mode configuration files are [written in YAML](/docs/agent/latest/static/configuration).
+Examples in this document are for Flow mode. You can also use the [Static mode Kubernetes operator](/docs/agent/latest/operator).
 
 ## How tail-based sampling works
 
@@ -59,10 +59,10 @@ To see all the available configuration options, refer to the [configuration refe
 
 ## Example for Grafana Agent Flow
 
-[Grafana Agent Flow](https://grafana.com/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
+[Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files written in River instead of YAML.
 
-Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](https://grafana.com/docs/agent/latest/flow/reference/components/otelcol.processor.tail_sampling/)` for tail-based sampling.
+Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](/docs/agent/latest/flow/reference/components/otelcol.processor.tail_sampling/)` for tail-based sampling.
 
 ```river
 otelcol.receiver.otlp "otlp_receiver" {
@@ -128,12 +128,11 @@ otelcol.processor.tail_sampling "errors" {
         traces = [otelcol.processor.batch.default.input]
     }
 }
-
 ```
 
 ## Examples for Grafana Agent static mode
 
-For additional information, refer to the blog post, [An introduction to trace sampling with Grafana Tempo and Grafana Agent](https://grafana.com/blog/2022/05/11/an-introduction-to-trace-sampling-with-grafana-tempo-and-grafana-agent/).
+For additional information, refer to the blog post, [An introduction to trace sampling with Grafana Tempo and Grafana Agent](/blog/2022/05/11/an-introduction-to-trace-sampling-with-grafana-tempo-and-grafana-agent).
 
 ### Status code tail sampling policy
 
@@ -154,12 +153,11 @@ traces:
 
 ### Span attribute tail sampling policy
 
-The following policy will only sample  traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/`.
+The following policy only samples traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/`.
 
 ```yaml
 traces:
    configs:
-will only sample  traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/`.
    - name: default
     tail_sampling:
       policies:
@@ -171,13 +169,18 @@ will only sample  traces where the span attribute `http.target` does *not* conta
             enabled_regex_matching: true
             invert_match: true
 ```
-``````` tail_sampling:
-      policies:
 
 ### And compound tail sampling policy
+
 The following policy will only sample traces where all of the conditions for the sub-policies are met. In this case, it takes the prior two policies and will only sample traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/` *and* at least one of the spans of the trace contains an OpenTelemetry Error status code.
-        - type: and
-   yaml       and:
+
+```yaml
+traces:
+   configs:
+   - name: default
+    tail_sampling:
+      policies:
+       - type: and
             and_sub_policy:
             - name: and_tag_policy
               type: string_attribute
@@ -192,3 +195,4 @@ The following policy will only sample traces where all of the conditions for the
               status_code:
                 status_codes:
                   - ERROR
+```

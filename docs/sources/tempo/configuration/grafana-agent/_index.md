@@ -27,22 +27,21 @@ leverages all the data that is processed in the pipeline.
 
 Grafana Agent is available in three different variants:
 
-* [Static mode](https://grafana.com/docs/agent/latest/static): The original Grafana Agent.
-* [Static mode Kubernetes operator](https://grafana.com/docs/agent/latest/operator): The Kubernetes operator for Static mode.
-* [Flow mode](https://grafana.com/docs/agent/latest/flow): The new, component-based Grafana Agent.
+* [Static mode](/docs/agent/latest/static): The original Grafana Agent.
+* [Static mode Kubernetes operator](/docs/agent/latest/operator): The Kubernetes operator for Static mode.
+* [Flow mode](/docs/agent/latest/flow): The new, component-based Grafana Agent.
 
-Grafana Agent Flow configuration files are [written in River](https://grafana.com/docs/agent/latest/flow/config-language/). Static configuraiton files are [written in YAML](https://grafana.com/docs/agent/latest/static/configuration/).
+Grafana Agent Flow configuration files are [written in River](/docs/agent/latest/flow/config-language/). Static configuraiton files are [written in YAML](/docs/agent/latest/static/configuration/).
 Examples in this document are for Flow mode.
 
-For more information, refer to the [Introduction to Grafana Agent](https://grafana.com/docs/agent/latest/about/).
+For more information, refer to the [Introduction to Grafana Agent](/docs/agent/latest/about/).
 
 ## Architecture
 
 The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry,
 and consist of `receivers`, `processors` and `exporters`. The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
-See the [configuration reference](https://grafana.com/docs/agent/latest/static/configuration/traces-config/) for all available configuration options.
-For a quick start, refer to this [blog post](/blog/2020/11/17/tracing-with-the-grafana-cloud-agent-and-grafana-tempo/).
+See the [configuration reference](/agent/latest/static/configuration/traces-config/) for all available configuration options.
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
 
@@ -118,6 +117,8 @@ The Agent implements tail-based sampling for distributed tracing systems and mul
 With this feature, sampling decisions can be made based on data from a trace, rather than exclusively with probabilistic methods.
 
 For a detailed description, go to [Tail-based sampling]({{< relref "./tail-based-sampling" >}}).
+
+For additional information, refer to the blog post, [An introduction to trace sampling with Grafana Tempo and Grafana Agent](/blog/2022/05/11/an-introduction-to-trace-sampling-with-grafana-tempo-and-grafana-agent)
 
 #### Generating metrics from spans
 
