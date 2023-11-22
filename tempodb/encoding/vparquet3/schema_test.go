@@ -607,6 +607,9 @@ func BenchmarkProtoToParquet(b *testing.B) {
 }
 
 func BenchmarkEventToParquet(b *testing.B) {
+	s := &v1_trace.Span{
+		StartTimeUnixNano: 100,
+	}
 	e := &v1_trace.Span_Event{
 		TimeUnixNano: 1000,
 		Name:         "blerg",
@@ -639,7 +642,7 @@ func BenchmarkEventToParquet(b *testing.B) {
 
 	ee := &Event{}
 	for i := 0; i < b.N; i++ {
-		eventToParquet(e, ee)
+		eventToParquet(e, ee, s.StartTimeUnixNano)
 	}
 }
 

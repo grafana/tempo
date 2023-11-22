@@ -156,10 +156,26 @@ type EventAttribute struct {
 }
 
 type Event struct {
-	TimeUnixNano           uint64           `parquet:",delta"`
-	Name                   string           `parquet:",snappy"`
-	Attrs                  []EventAttribute `parquet:",list"`
-	DroppedAttributesCount int32            `parquet:",snappy,delta"`
+	TimeSinceStartUnixNano uint64      `parquet:",delta"`
+	Name                   string      `parquet:",snappy"`
+	Attrs                  []Attribute `parquet:",list"`
+	DroppedAttributesCount int32       `parquet:",snappy"`
+}
+
+func (e *Event) addDroppedAttr(n int32) {
+	e.DroppedAttributesCount += n
+}
+
+type Link struct {
+	TraceID                []byte      `parquet:","`
+	SpanID                 []byte      `parquet:","`
+	TraceState             string      `parquet:",snappy"`
+	Attrs                  []Attribute `parquet:",list"`
+	DroppedAttributesCount int32       `parquet:",snappy"`
+}
+
+func (l *Link) addDroppedAttr(n int32) {
+	l.DroppedAttributesCount += n
 }
 
 // nolint:revive
@@ -183,7 +199,7 @@ type Span struct {
 	DroppedAttributesCount int32       `parquet:",snappy"`
 	Events                 []Event     `parquet:",list"`
 	DroppedEventsCount     int32       `parquet:",snappy"`
-	Links                  []byte      `parquet:",snappy"` // proto encoded []*v1_trace.Span_Link
+	Links                  []Link      `parquet:",list"` // proto encoded []*v1_trace.Span_Link
 	DroppedLinksCount      int32       `parquet:",snappy"`
 
 	// Static dedicated attribute columns
@@ -472,7 +488,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
 				for ie, e := range s.Events {
-					eventToParquet(e, &ss.Events[ie])
+					eventToParquet(e, &ss.Events[ie], s.StartTimeUnixNano)
 				}
 
 				// nested set values do not come from the proto, they are calculated
@@ -501,15 +517,12 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 				ss.HttpUrl = nil
 				ss.HttpStatusCode = nil
 				ss.DedicatedAttributes = DedicatedAttributes{}
-				if len(s.Links) > 0 {
-					links := tempopb.LinkSlice{
-						Links: s.Links,
-					}
-					ss.Links = extendReuseSlice(links.Size(), ss.Links)
-					_, _ = links.MarshalToSizedBuffer(ss.Links)
-				} else {
-					ss.Links = ss.Links[:0] // you can 0 length slice a nil slice
+
+				ss.Links = extendReuseSlice(len(s.Links), ss.Links)
+				for ie, e := range s.Links {
+					linkToParquet(e, &ss.Links[ie])
 				}
+
 				ss.DroppedLinksCount = int32(s.DroppedLinksCount)
 
 				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
@@ -593,16 +606,26 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	return ot, assignNestedSetModelBounds(ot)
 }
 
-func eventToParquet(e *v1_trace.Span_Event, ee *Event) {
+func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
 	ee.Name = e.Name
-	ee.TimeUnixNano = e.TimeUnixNano
+	ee.TimeSinceStartUnixNano = e.TimeUnixNano - spanStartTime
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
 
 	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
 	for i, a := range e.Attributes {
-		ee.Attrs[i].Key = a.Key
-		ee.Attrs[i].Value = extendReuseSlice(a.Value.Size(), ee.Attrs[i].Value)
-		_, _ = a.Value.MarshalToSizedBuffer(ee.Attrs[i].Value)
+		attrToParquet(a, &ee.Attrs[i], ee)
+	}
+}
+
+func linkToParquet(l *v1_trace.Span_Link, ll *Link) {
+	ll.TraceID = l.TraceId
+	ll.SpanID = l.SpanId
+	ll.TraceState = l.TraceState
+	ll.DroppedAttributesCount = int32(l.DroppedAttributesCount)
+
+	ll.Attrs = extendReuseSlice(len(l.Attributes), ll.Attrs)
+	for i, a := range l.Attributes {
+		attrToParquet(a, &ll.Attrs[i], ll)
 	}
 }
 
@@ -708,7 +731,32 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 	return protoAttrs
 }
 
-func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
+func parquetToLinks(parquetLinks []Link, span Span) []*v1_trace.Span_Link {
+	var protoLinks []*v1_trace.Span_Link
+
+	if len(parquetLinks) > 0 {
+		protoLinks = make([]*v1_trace.Span_Link, 0, len(parquetLinks))
+		for _, l := range parquetLinks {
+			protoLink := &v1_trace.Span_Link{
+				TraceId:                l.TraceID,
+				SpanId:                 l.SpanID,
+				TraceState:             l.TraceState,
+				DroppedAttributesCount: uint32(l.DroppedAttributesCount),
+				Attributes:             nil,
+			}
+
+			if len(l.Attrs) > 0 {
+				protoLink.Attributes = parquetToProtoAttrs(l.Attrs, &l, false)
+			}
+
+			protoLinks = append(protoLinks, protoLink)
+		}
+	}
+
+	return protoLinks
+}
+
+func parquetToProtoEvents(parquetEvents []Event, span Span) []*v1_trace.Span_Event {
 	var protoEvents []*v1_trace.Span_Event
 
 	if len(parquetEvents) > 0 {
@@ -717,30 +765,14 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 		for _, e := range parquetEvents {
 
 			protoEvent := &v1_trace.Span_Event{
-				TimeUnixNano:           e.TimeUnixNano,
+				TimeUnixNano:           e.TimeSinceStartUnixNano + span.StartTimeUnixNano,
 				Name:                   e.Name,
 				Attributes:             nil,
 				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
 			}
 
 			if len(e.Attrs) > 0 {
-				protoEvent.Attributes = make([]*v1.KeyValue, 0, len(e.Attrs))
-
-				for _, a := range e.Attrs {
-					protoAttr := &v1.KeyValue{
-						Key:   a.Key,
-						Value: &v1.AnyValue{},
-					}
-
-					// event attributes are currently encoded as proto, but were previously json.
-					// this code attempts proto first and, if there was an error, falls back to json
-					err := protoAttr.Value.Unmarshal(a.Value)
-					if err != nil {
-						_ = jsonpb.Unmarshal(bytes.NewBuffer(a.Value), protoAttr.Value)
-					}
-
-					protoEvent.Attributes = append(protoEvent.Attributes, protoAttr)
-				}
+				protoEvent.Attributes = parquetToProtoAttrs(e.Attrs, &e, false)
 			}
 
 			protoEvents = append(protoEvents, protoEvent)
@@ -842,17 +874,12 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 					},
 					Attributes:             spanAttr,
 					DroppedAttributesCount: uint32(span.DroppedAttributesCount),
-					Events:                 parquetToProtoEvents(span.Events),
+					Events:                 parquetToProtoEvents(span.Events, span),
 					DroppedEventsCount:     uint32(span.DroppedEventsCount),
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 				}
 
-				// unmarshal links
-				if len(span.Links) > 0 {
-					links := tempopb.LinkSlice{}
-					_ = links.Unmarshal(span.Links) // todo: bubble these errors up
-					protoSpan.Links = links.Links
-				}
+				protoSpan.Links = parquetToLinks(span.Links, span)
 
 				// dynamically assigned dedicated resource attribute columns
 				dedicatedSpanAttributes.forEach(func(attr string, col dedicatedColumn) {
