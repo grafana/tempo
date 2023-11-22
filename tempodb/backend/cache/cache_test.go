@@ -57,11 +57,11 @@ type mockProvider struct {
 	c cache.Cache
 }
 
-func (p *mockProvider) CacheFor(r cache.Role) cache.Cache {
+func (p *mockProvider) CacheFor(_ cache.Role) cache.Cache {
 	return p.c
 }
 
-func (p *mockProvider) AddCache(_ cache.Role, c cache.Cache) error {
+func (p *mockProvider) AddCache(_ cache.Role, _ cache.Cache) error {
 	return nil
 }
 

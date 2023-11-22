@@ -16,7 +16,7 @@ type Config struct {
 	Caches     []CacheConfig           `yaml:"caches"`
 }
 
-type CacheConfig struct {
+type CacheConfig struct { // nolint: revive
 	Role            []cache.Role      `yaml:"roles"`
 	MemcachedConfig *memcached.Config `yaml:"memcached"`
 	RedisConfig     *redis.Config     `yaml:"redis"`
