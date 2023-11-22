@@ -25,6 +25,7 @@ type provider struct {
 	caches map[cache.Role]cache.Cache
 }
 
+// NewProvider creates a new cache provider with the given config.
 func NewProvider(cfg *Config, logger log.Logger) (cache.Provider, error) {
 	p := &provider{
 		caches: map[cache.Role]cache.Cache{},
@@ -65,10 +66,14 @@ func NewProvider(cfg *Config, logger log.Logger) (cache.Provider, error) {
 	return p, nil
 }
 
+// CacheFor is used to retrieve a cache for a given role.
 func (p *provider) CacheFor(role cache.Role) cache.Cache {
 	return p.caches[role]
 }
 
+// AddCache is used to add a cache for a given role. It currently
+// only exists to add the legacy cache in tempodb. It should
+// likely be removed in the future.
 func (p *provider) AddCache(role cache.Role, c cache.Cache) error {
 	if _, ok := p.caches[role]; ok {
 		return fmt.Errorf("cache for role %s already exists", role)

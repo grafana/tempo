@@ -1562,7 +1562,6 @@ cache:
 
         # Redis configuration block
         # EXPERIMENTAL
-        # Deprecated. See [cache](#cache) section below.
         redis:
 
             # redis endpoint to use when caching.
