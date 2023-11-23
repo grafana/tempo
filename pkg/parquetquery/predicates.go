@@ -39,8 +39,11 @@ func NewStringInPredicate(ss []string) Predicate {
 
 func (p *StringInPredicate) String() string {
 	var strings string
-	for _, s := range p.ss {
-		strings += fmt.Sprintf("%s, ", string(s))
+	for i, s := range p.ss {
+		if i > 0 {
+			strings += ", "
+		}
+		strings += string(s)
 	}
 	return fmt.Sprintf("StringInPredicate{%s}", strings)
 }
@@ -269,9 +272,9 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-// Generic predicate with callbacks to evalulate data of type T
-// Fn evalulates a single data point and is required. Optionally,
-// a RangeFn can evalulate a min/max range and is used to
+// GenericPredicate with callbacks to evaluate data of type T
+// Fn evaluates a single data point and is required. Optionally,
+// a RangeFn can evaluate a min/max range and is used to
 // skip column chunks and pages when RangeFn is supplied and
 // the column chunk or page also include bounds metadata.
 type GenericPredicate[T any] struct {

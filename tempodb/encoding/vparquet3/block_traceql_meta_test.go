@@ -35,11 +35,12 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 	}
 
 	testCases := []struct {
+		name            string
 		req             traceql.FetchSpansRequest
 		expectedResults []*traceql.Spanset
 	}{
 		{
-			// Empty request returns 1 spanset with all spans
+			"Empty request returns 1 spanset with all spans",
 			makeReq(),
 			makeSpansets(
 				makeSpanset(
@@ -66,7 +67,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
-							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(0)},
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -78,7 +79,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			// Span attributes lookup
+			"Span attributes lookup",
 			// Only matches 1 condition. Returns span but only attributes that matched
 			makeReq(
 				parse(t, `{span.foo = "bar"}`), // matches resource but not span
@@ -110,7 +111,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			// Resource attributes lookup
+			"Resource attributes lookup",
 			makeReq(
 				parse(t, `{resource.foo = "abc"}`), // matches resource but not span
 			),
@@ -141,7 +142,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			// Multiple attributes, only 1 matches and is returned
+			"Multiple attributes, only 1 matches and is returned",
 			makeReq(
 				parse(t, `{.foo = "xyz"}`),                   // doesn't match anything
 				parse(t, `{.`+LabelHTTPStatusCode+` = 500}`), // matches span
@@ -175,7 +176,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			// Project attributes of all types
+			"Project attributes of all types",
 			makeReq(
 				parse(t, `{.foo }`),                    // String
 				parse(t, `{.`+LabelHTTPStatusCode+`}`), // Int
@@ -209,18 +210,38 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
 						},
 					},
+					&span{
+						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
+						spanAttrs: []attrVal{
+							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticString("ghi")},
+							{newSpanAttr("float"), traceql.NewStaticFloat(456.789)},
+							{newSpanAttr("bool"), traceql.NewStaticBool(true)},
+							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(501)}, // This is the only attribute that matched anything
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
+						},
+						resourceAttrs: []attrVal{
+							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo"), traceql.NewStaticString("abc2")},
+						},
+						traceAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan), traceql.NewStaticString("RootSpan")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
+						},
+					},
 				),
 			),
 		},
 
 		{
-			// doesn't match anything
+			"Doesn't match anything",
 			makeReq(parse(t, `{.xyz = "xyz"}`)),
 			nil,
 		},
 
 		{
-			// Intrinsics. 2nd span only
+			"Intrinsics. 2nd span only",
 			makeReq(
 				parse(t, `{ name = "world" }`),
 				parse(t, `{ status = unset }`),
@@ -238,8 +259,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicName), traceql.NewStaticString("world")},
-							{traceql.NewIntrinsic(traceql.IntrinsicStatus), traceql.NewStaticStatus(traceql.StatusUnset)},
-							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(0)},
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -251,7 +271,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			// Intrinsic duration with no filtering
+			"Intrinsic duration with no filtering",
 			makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}),
 			makeSpansets(
 				makeSpanset(
@@ -283,8 +303,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						spanAttrs: []attrVal{
 							// duration exists twice on the span attrs b/c it's requested twice. once in the normal fetch conditions and once in the second
 							// pass conditions. the actual engine code removes meta conditions based on the actual conditions so this won't normally happen
-							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(0)},
-							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(0)},
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -296,7 +316,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			// Intrinsic span id with no filtering
+			"Intrinsic span id with no filtering",
 			makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicSpanID)}),
 			makeSpansets(
 				makeSpanset(
@@ -323,7 +343,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
-							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(0)},
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -337,43 +357,45 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := tc.req
-		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
-		require.NoError(t, err, "search request:", req)
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:", req)
 
-		// Turn iterator into slice
-		var ss []*traceql.Spanset
-		for {
-			spanSet, err := resp.Results.Next(ctx)
-			require.NoError(t, err)
-			if spanSet == nil {
-				break
+			// Turn iterator into slice
+			var ss []*traceql.Spanset
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err)
+				if spanSet == nil {
+					break
+				}
+				ss = append(ss, spanSet)
 			}
-			ss = append(ss, spanSet)
-		}
 
-		// equal will fail on the rownum mismatches. this is an internal detail to the
-		// fetch layer. just wipe them out here
-		for _, s := range ss {
-			for _, sp := range s.Spans {
-				sp.(*span).cbSpanset = nil
-				sp.(*span).cbSpansetFinal = false
-				sp.(*span).rowNum = parquetquery.RowNumber{}
+			// equal will fail on the rownum mismatches. this is an internal detail to the
+			// fetch layer. just wipe them out here
+			for _, s := range ss {
+				for _, sp := range s.Spans {
+					sp.(*span).cbSpanset = nil
+					sp.(*span).cbSpansetFinal = false
+					sp.(*span).rowNum = parquetquery.RowNumber{}
 
-				// sort actual attrs to get consistent comparisons
-				sortSpanAttrs(sp.(*span))
+					// sort actual attrs to get consistent comparisons
+					sortSpanAttrs(sp.(*span))
+				}
+				s.ReleaseFn = nil
 			}
-			s.ReleaseFn = nil
-		}
 
-		// sort expected attrs to get consistent comparisons
-		for _, s := range tc.expectedResults {
-			for _, sp := range s.Spans {
-				sortSpanAttrs(sp.(*span))
+			// sort expected attrs to get consistent comparisons
+			for _, s := range tc.expectedResults {
+				for _, sp := range s.Spans {
+					sortSpanAttrs(sp.(*span))
+				}
 			}
-		}
 
-		require.Equal(t, tc.expectedResults, ss, "search request:", req)
+			require.Equal(t, tc.expectedResults, ss, "search request:", req)
+		})
 	}
 }
 

@@ -306,6 +306,11 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
+// FetchTagValues implements traceql.Searcher
+func (a *walBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+	return common.ErrUnsupported
+}
+
 func (a *walBlock) fullFilename() string {
 	filename := a.fullFilenameSeparator("+")
 	_, e1 := os.Stat(filename)

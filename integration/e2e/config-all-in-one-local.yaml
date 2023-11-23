@@ -43,6 +43,8 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 100
+    block:
+      version: vParquet3
 
 overrides:
   user_configurable_overrides:

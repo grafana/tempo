@@ -99,12 +99,15 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 		// Attribute that conflicts with intrinsic
 		{traceql.MustParseIdentifier(".name"), []traceql.Static{
 			traceql.NewStaticString("Bob"),
+			traceql.NewStaticString("Bob2"),
 		}},
 
 		// Mixed types
 		{traceql.MustParseIdentifier(".http.status_code"), []traceql.Static{
 			traceql.NewStaticInt(500),
+			traceql.NewStaticInt(501),
 			traceql.NewStaticString("500ouch"),
+			traceql.NewStaticString("500ouch2"),
 		}},
 
 		// Trace-level special
@@ -117,30 +120,37 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 			traceql.NewStaticString("myservice"),
 			traceql.NewStaticString("service2"),
 			traceql.NewStaticInt(123),
+			traceql.NewStaticInt(1234),
 		}},
 
 		// Span only
 		{traceql.MustParseIdentifier("span.service.name"), []traceql.Static{
 			traceql.NewStaticString("spanservicename"),
+			traceql.NewStaticString("spanservicename2"),
 		}},
 
 		// Float column
 		{traceql.MustParseIdentifier(".float"), []traceql.Static{
 			traceql.NewStaticFloat(456.78),
+			traceql.NewStaticFloat(456.789),
 		}},
 
 		// Attr present at both resource and span level
 		{traceql.MustParseIdentifier(".foo"), []traceql.Static{
 			traceql.NewStaticString("abc"),
+			traceql.NewStaticString("abc2"),
 			traceql.NewStaticString("def"),
+			traceql.NewStaticString("ghi"),
 		}},
 
 		// Dedicated resource attributes
 		{traceql.MustParseIdentifier(".dedicated.resource.3"), []traceql.Static{
 			traceql.NewStaticString("dedicated-resource-attr-value-3"),
+			traceql.NewStaticString("dedicated-resource-attr-value-8"),
 		}},
 		{traceql.MustParseIdentifier("resource.dedicated.resource.2"), []traceql.Static{
 			traceql.NewStaticString("dedicated-resource-attr-value-2"),
+			traceql.NewStaticString("dedicated-resource-attr-value-7"),
 		}},
 
 		// Dedicated span attributes

@@ -347,39 +347,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-
-	cb := func(v traceql.Static) bool {
-		tv := tempopb.TagValue{}
-
-		switch v.Type {
-		case traceql.TypeString:
-			tv.Type = "string"
-			tv.Value = v.S // avoid formatting
-
-		case traceql.TypeBoolean:
-			tv.Type = "bool"
-			tv.Value = v.String()
-
-		case traceql.TypeInt:
-			tv.Type = "int"
-			tv.Value = v.String()
-
-		case traceql.TypeFloat:
-			tv.Type = "float"
-			tv.Value = v.String()
-
-		case traceql.TypeDuration:
-			tv.Type = "duration"
-			tv.Value = v.String()
-
-		case traceql.TypeStatus:
-			tv.Type = "keyword"
-			tv.Value = v.String()
-		}
-
-		return distinctValues.Collect(tv)
-	}
+	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 	engine := traceql.NewEngine()
 
@@ -399,7 +367,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	query := extractMatchers(req.Query)
 
 	var searchBlock func(common.Searcher) error
-	if i.autocompleteFilteringEnabled && len(query) > 0 {
+	if !i.autocompleteFilteringEnabled || isEmptyQuery(query) {
+		// If filtering is disabled or query is empty,
+		// we can use the more efficient SearchTagValuesV2 method.
 		searchBlock = func(s common.Searcher) error {
 			if anyErr.Load() != nil {
 				return nil // Early exit if any error has occurred
@@ -409,11 +379,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				return nil
 			}
 
-			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return s.Fetch(ctx, req, common.DefaultSearchOptions())
-			})
-
-			return engine.ExecuteTagValues(ctx, tag, query, cb, fetcher)
+			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 		}
 	} else {
 		searchBlock = func(s common.Searcher) error {
@@ -425,7 +391,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				return nil
 			}
 
-			return s.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+				return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+			})
+
+			return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 		}
 	}
 
@@ -478,13 +448,13 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return nil, err
 	}
 
-	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+	if valueCollector.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", valueCollector.TotalDataSize())
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{}
 
-	for _, v := range distinctValues.Values() {
+	for _, v := range valueCollector.Values() {
 		v2 := v
 		resp.TagValues = append(resp.TagValues, &v2)
 	}
@@ -492,15 +462,24 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
+func isEmptyQuery(query string) bool {
+	return query == emptyQuery || len(query) == 0
+}
+
+// TODO: Support spaces, quotes
+//  See: https://github.com/grafana/grafana/issues/77394
+
 // Regex to extract matchers from a query string
 // This regular expression matches a string that contains three groups separated by operators.
-// The first group is a string of alphabetical characters, dots, and underscores.
+// The first group matches one or more Unicode letters, digits, underscores, or periods. It essentially matches variable names or identifiers
 // The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
-// The third group is one of several possible values: a string enclosed in double quotes,
-// a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
-// a plain number, or the boolean values "true" or "false".
+// The third group is one of several possible values:
+//  1. A double-quoted string consisting of one or more Unicode characters, including letters, digits, punctuation, diacritical marks, and symbols,
+//  2. A sequence of one or more digits, which can represent numeric values, possibly with units like 's', 'm', or 'h'.
+//  3. The boolean values "true" or "false".
+//
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z./_0-9-]+"|[0-9smh]+|true|false)`)
+var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
 
 // TODO: Merge into a single regular expression
 
@@ -508,26 +487,30 @@ var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*
 // This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
 // Examples
 //
-//	Query                        |  Match
+//	Query                                    |  Match
 //
 // { .bar = "foo" }                          |   Yes
 // { .bar = "foo" && .foo = "bar" }          |   Yes
 // { .bar = "foo" || .foo = "bar" }          |   No
 // { .bar = "foo" } && { .foo = "bar" }      |   No
 // { .bar = "foo" } || { .foo = "bar" }      |   No
-var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()/&=<>~!0-9"]*}$`)
+var singleFilterRegexp = regexp.MustCompile(`^\{[^|{}]*[^|{}]}?$`)
+
+const emptyQuery = "{}"
+
+// TODO: Move to traceql package
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {
 	query = strings.TrimSpace(query)
 
 	if len(query) == 0 {
-		return "{}"
+		return emptyQuery
 	}
 
 	selector := singleFilterRegexp.FindString(query)
 	if len(selector) == 0 {
-		return "{}"
+		return emptyQuery
 	}
 
 	matchers := matchersRegexp.FindAllString(query, -1)
