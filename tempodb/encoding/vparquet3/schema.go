@@ -150,11 +150,6 @@ type DedicatedAttributes struct {
 	String10 *string `parquet:",snappy,optional,dict"`
 }
 
-type EventAttribute struct {
-	Key   string `parquet:",snappy,dict"`
-	Value []byte `parquet:",snappy"` // Was json-encoded data, is now proto encoded data
-}
-
 type Event struct {
 	TimeSinceStartUnixNano uint64      `parquet:",delta"`
 	Name                   string      `parquet:",snappy"`

@@ -498,13 +498,13 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 								},
 								Events: []Event{
-									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
-										{Key: "foo", Value: []byte("fake proto encoded data. i hope this never matters")},
-										{Key: "bar", Value: []byte("fake proto encoded data. i hope this never matters")},
+									{TimeSinceStartUnixNano: 1, Name: "e1", Attrs: []Attribute{
+										{Key: "foo", Value: strPtr("fake proto encoded data. i hope this never matters")},
+										{Key: "bar", Value: strPtr("fake proto encoded data. i hope this never matters")},
 									}},
-									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
+									{TimeSinceStartUnixNano: 2, Name: "e2", Attrs: []Attribute{}},
 								},
-								Links: linkBytes,
+								Links: []Link{},
 								DedicatedAttributes: DedicatedAttributes{
 									String01: ptr("dedicated-span-attr-value-1"),
 									String02: ptr("dedicated-span-attr-value-2"),
