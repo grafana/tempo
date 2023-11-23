@@ -34,7 +34,7 @@ const (
 	// ErrorPrefixTraceTooLarge is used to flag batches from the ingester that were rejected b/c they exceeded the single trace limit
 	ErrorPrefixTraceTooLarge = "TRACE_TOO_LARGE"
 	// ErrorPrefixRateLimited is used to flag batches that have exceeded the spans/second of the tenant
-	ErrorPrefixRateLimited = "RATE_LIMITED:"
+	ErrorPrefixRateLimited = "RATE_LIMITED"
 
 	// metrics
 	MetricMaxLocalTracesPerUser           = "max_local_traces_per_user"

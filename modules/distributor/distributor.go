@@ -279,7 +279,7 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
 		return status.Errorf(codes.ResourceExhausted,
-			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
+			"%s: ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
 			int(d.ingestionRateLimiter.Limit(now, userID)),
 			tracesSize, userID)
@@ -566,14 +566,15 @@ func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceInde
 
 	for traceIndex, numSuccess := range numSuccessByTraceIndex {
 		// we will count anything that did not receive min success as discarded
-		if numSuccess < quorum {
-			spanCount := traces[traceIndex].spanCount
-			switch lastErrorReasonByTraceIndex[traceIndex] {
-			case tempopb.PushErrorReason_MAX_LIVE_TRACES:
-				maxLiveDiscardedCount += spanCount
-			case tempopb.PushErrorReason_TRACE_TOO_LARGE:
-				traceTooLargeDiscardedCount += spanCount
-			}
+		if numSuccess >= quorum {
+			continue
+		}
+		spanCount := traces[traceIndex].spanCount
+		switch lastErrorReasonByTraceIndex[traceIndex] {
+		case tempopb.PushErrorReason_MAX_LIVE_TRACES:
+			maxLiveDiscardedCount += spanCount
+		case tempopb.PushErrorReason_TRACE_TOO_LARGE:
+			traceTooLargeDiscardedCount += spanCount
 		}
 	}
 
@@ -584,12 +585,11 @@ func (d *Distributor) processPushResponse(pushResponse *tempopb.PushResponse, nu
 	// no errors
 	if len(pushResponse.ErrorsByTrace) == 0 {
 		for _, reqBatchIndex := range indexes {
-			if reqBatchIndex < numOfTraces {
-				currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
-				numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
-			} else {
+			if reqBatchIndex > numOfTraces {
 				level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+				continue
 			}
+			numSuccessByTraceIndex[reqBatchIndex]++
 		}
 	} else {
 		for ringIndex, pushError := range pushResponse.ErrorsByTrace {
@@ -597,16 +597,16 @@ func (d *Distributor) processPushResponse(pushResponse *tempopb.PushResponse, nu
 			// since the request batch gets split up into smaller batches based on the indexes
 			// like [0,1] [1] [2] [0,2]
 			reqBatchIndex := indexes[ringIndex]
-			if reqBatchIndex < numOfTraces {
-				// batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
-				if pushError == tempopb.PushErrorReason_NO_ERROR {
-					currentNumSuccess := numSuccessByTraceIndex[reqBatchIndex]
-					numSuccessByTraceIndex[reqBatchIndex] = currentNumSuccess + 1
-				} else {
-					lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
-				}
-			} else {
+			if reqBatchIndex > numOfTraces {
 				level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+				continue
+			}
+
+			// batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
+			if pushError == tempopb.PushErrorReason_NO_ERROR {
+				numSuccessByTraceIndex[reqBatchIndex]++
+			} else {
+				lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
 			}
 		}
 	}
