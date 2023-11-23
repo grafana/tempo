@@ -1,5 +1,6 @@
 ## main / unreleased
 
++ [BUGFIX] Change exit code if config is successfully verified [#3174](https://github.com/grafana/tempo/pull/3174) (@am3o @agrib-01)
 * [ENHANCEMENT] Introduced `AttributePolicyMatch` & `IntrinsicPolicyMatch` structures to match span attributes based on strongly typed values & precompiled regexp [#3025](https://github.com/grafana/tempo/pull/3025) (@andriusluk)
 * [CHANGE] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
 * [CHANGE] Merge the processors overrides set through runtime overrides and user-configurable overrides [#3125](https://github.com/grafana/tempo/pull/3125) (@kvrhdn)
