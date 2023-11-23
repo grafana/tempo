@@ -1011,7 +1011,7 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		"status_message": "OK",
 		"first_only":     "first-value",
 		"world_only":     "world-value",
-		"first/last":     "first-value->last-value",
+		"first_last":     "first-value->last-value",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
