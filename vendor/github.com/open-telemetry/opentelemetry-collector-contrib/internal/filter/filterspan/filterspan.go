@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package filterspan // import "github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterspan"
 
@@ -18,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
@@ -25,14 +15,25 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filtermatcher"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
+)
+
+var useOTTLBridge = featuregate.GlobalRegistry().MustRegister(
+	"filter.filterspan.useOTTLBridge",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("When enabled, filterspan will convert filterspan configuration to OTTL and use filterottl evaluation"),
+	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/18642"),
 )
 
 // NewSkipExpr creates a BoolExpr that on evaluation returns true if a span should NOT be processed or kept.
 // The logic determining if a span should be processed is based on include and exclude settings.
 // Include properties are checked before exclude settings are checked.
 func NewSkipExpr(mp *filterconfig.MatchConfig) (expr.BoolExpr[ottlspan.TransformContext], error) {
+	if useOTTLBridge.IsEnabled() {
+		return filterottl.NewSpanSkipExprBridge(mp)
+	}
 	var matchers []expr.BoolExpr[ottlspan.TransformContext]
 	inclExpr, err := newExpr(mp.Include)
 	if err != nil {

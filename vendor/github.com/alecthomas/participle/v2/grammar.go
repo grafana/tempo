@@ -30,7 +30,7 @@ func (g *generatorContext) addUnionDefs(defs []unionDef) error {
 		}
 		unionNode := &union{
 			unionDef:    def,
-			nodeMembers: make([]node, 0, len(def.members)),
+			disjunction: disjunction{nodes: make([]node, 0, len(def.members))},
 		}
 		g.typeNodes[def.typ], unionNodes[i] = unionNode, unionNode
 	}
@@ -41,7 +41,7 @@ func (g *generatorContext) addUnionDefs(defs []unionDef) error {
 			if err != nil {
 				return err
 			}
-			unionNode.nodeMembers = append(unionNode.nodeMembers, memberNode)
+			unionNode.disjunction.nodes = append(unionNode.disjunction.nodes, memberNode)
 		}
 	}
 	return nil
@@ -61,6 +61,9 @@ func (g *generatorContext) addCustomDefs(defs []customDef) error {
 func (g *generatorContext) parseType(t reflect.Type) (_ node, returnedError error) {
 	t = indirectType(t)
 	if n, ok := g.typeNodes[t]; ok {
+		if s, ok := n.(*strct); ok {
+			s.usages++
+		}
 		return n, nil
 	}
 	if t.Implements(parseableType) {
@@ -244,7 +247,7 @@ func (g *generatorContext) parseCapture(slexer *structLexer) (node, error) {
 	}
 	ft := indirectType(field.Type)
 	if ft.Kind() == reflect.Struct && ft != tokenType && ft != tokensType && !implements(ft, captureType) && !implements(ft, textUnmarshalerType) {
-		return nil, fmt.Errorf("structs can only be parsed with @@ or by implementing the Capture or encoding.TextUnmarshaler interfaces")
+		return nil, fmt.Errorf("%s: structs can only be parsed with @@ or by implementing the Capture or encoding.TextUnmarshaler interfaces", ft)
 	}
 	n, err := g.parseTermNoModifiers(slexer, false)
 	if err != nil {

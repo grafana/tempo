@@ -1,24 +1,15 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package kafkaexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2"
 )
 
 // TracesMarshaler marshals traces into Message array.
@@ -52,11 +43,15 @@ type LogsMarshaler interface {
 func tracesMarshalers() map[string]TracesMarshaler {
 	otlpPb := newPdataTracesMarshaler(&ptrace.ProtoMarshaler{}, defaultEncoding)
 	otlpJSON := newPdataTracesMarshaler(&ptrace.JSONMarshaler{}, "otlp_json")
+	zipkinProto := newPdataTracesMarshaler(zipkinv2.NewProtobufTracesMarshaler(), "zipkin_proto")
+	zipkinJSON := newPdataTracesMarshaler(zipkinv2.NewJSONTracesMarshaler(), "zipkin_json")
 	jaegerProto := jaegerMarshaler{marshaler: jaegerProtoSpanMarshaler{}}
 	jaegerJSON := jaegerMarshaler{marshaler: newJaegerJSONMarshaler()}
 	return map[string]TracesMarshaler{
 		otlpPb.Encoding():      otlpPb,
 		otlpJSON.Encoding():    otlpJSON,
+		zipkinProto.Encoding(): zipkinProto,
+		zipkinJSON.Encoding():  zipkinJSON,
 		jaegerProto.Encoding(): jaegerProto,
 		jaegerJSON.Encoding():  jaegerJSON,
 	}

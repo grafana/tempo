@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	util "github.com/grafana/tempo/integration"
@@ -108,7 +108,7 @@ func TestReceivers(t *testing.T) {
 				exporter.CreateSettings{
 					TelemetrySettings: component.TelemetrySettings{
 						Logger:         logger,
-						TracerProvider: trace.NewNoopTracerProvider(),
+						TracerProvider: tracenoop.NewTracerProvider(),
 						MeterProvider:  metricnoop.NewMeterProvider(),
 					},
 					BuildInfo: component.NewDefaultBuildInfo(),
