@@ -82,7 +82,7 @@ func main() {
 
 	// Exit if config.verify flag is true
 	if configVerify {
-		if isValid {
+		if !isValid {
 			os.Exit(1)
 		}
 		os.Exit(0)
