@@ -307,6 +307,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID st
 	return o.getOverridesForUser(userID).MetricsGenerator.IngestionSlack
 }
 
+// MetricsGeneratorRemoteWriteHeaders returns the custom remote write headers for this tenant.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string {
+	return o.getOverridesForUser(userID).MetricsGenerator.RemoteWriteHeaders
+}
+
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.
 // Using shuffle sharding, a tenant can use a smaller ring than the entire ring.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorRingSize(userID string) int {

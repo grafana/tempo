@@ -39,6 +39,7 @@ type Interface interface {
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64

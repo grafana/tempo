@@ -248,7 +248,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 	// main registry only if successful.
 	reg := prometheus.NewRegistry()
 
-	wal, err := storage.New(&g.cfg.Storage, id, reg, g.logger)
+	wal, err := storage.New(&g.cfg.Storage, g.overrides, id, reg, g.logger)
 	if err != nil {
 		return nil, err
 	}

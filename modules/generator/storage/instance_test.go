@@ -40,7 +40,7 @@ func TestInstance(t *testing.T) {
 	cfg.Path = t.TempDir()
 	cfg.RemoteWrite = mockServer.remoteWriteConfig()
 
-	instance, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, logger)
+	instance, err := New(&cfg, &mockOverrides{}, "test-tenant", prometheus.DefaultRegisterer, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -115,7 +115,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	var instances []Storage
 
 	for i := 0; i < 3; i++ {
-		instance, err := New(&cfg, strconv.Itoa(i), prometheus.DefaultRegisterer, logger)
+		instance, err := New(&cfg, &mockOverrides{}, strconv.Itoa(i), prometheus.DefaultRegisterer, logger)
 		assert.NoError(t, err)
 		instances = append(instances, instance)
 	}
@@ -183,9 +183,9 @@ func TestInstance_cantWriteToWAL(t *testing.T) {
 	cfg.Path = "/root"
 
 	// We should be able to attempt to create the instance multiple times
-	_, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
+	_, err := New(&cfg, &mockOverrides{}, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
 	require.Error(t, err)
-	_, err = New(&cfg, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
+	_, err = New(&cfg, &mockOverrides{}, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
 	require.Error(t, err)
 }
 
@@ -285,3 +285,9 @@ func waitUntil(timeout time.Duration, f func() bool) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+var _ Overrides = (*mockOverrides)(nil)
+
+type mockOverrides struct{}
+
+func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string { return nil }
