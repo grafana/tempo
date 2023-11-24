@@ -380,7 +380,7 @@ func createDistinctAttributeIterator(
 	if len(valueIters) > 0 || len(iters) > 0 {
 
 		if len(valueIters) > 0 {
-			tagIter := parquetquery.NewLeftJoinIterator(
+			tagIter, err := parquetquery.NewLeftJoinIterator(
 				definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 				valueIters,
@@ -389,6 +389,9 @@ func createDistinctAttributeIterator(
 					keep:  keep,
 				},
 			)
+			if err != nil {
+				return nil, fmt.Errorf("creating left join iterator: %w", err)
+			}
 			iters = append(iters, tagIter)
 		}
 		return parquetquery.NewJoinIterator(
