@@ -60,7 +60,7 @@ spec:
 
 In the url you should set it to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`
 
-In order to use it as a data source you need to set the Authentication Method to **Forward Oauth Identify**, and make sure  you use the same `clientID` and `clientSecret` for gateway and for the oauth configuration. This will forward the access_token to the gateway ,so it can authenticate the client.
+To use it as a data source, set the Authentication Method to **Forward Oauth Identify** using the same `clientID` and `clientSecret` for gateway and for the OAuth configuration. This will forward the `access_token` to the gateway so it can authenticate the client.
 
 <p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo Datasource configured for the gateway forwarding oauth access token"></p>
 
