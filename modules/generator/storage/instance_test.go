@@ -40,7 +40,7 @@ func TestInstance(t *testing.T) {
 	cfg.Path = t.TempDir()
 	cfg.RemoteWrite = mockServer.remoteWriteConfig()
 
-	instance, err := New(&cfg, &mockOverrides{}, "test-tenant", prometheus.NewRegistry(), logger)
+	instance, err := New(&cfg, &mockOverrides{}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -115,7 +115,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	var instances []Storage
 
 	for i := 0; i < 3; i++ {
-		instance, err := New(&cfg, &mockOverrides{}, strconv.Itoa(i), prometheus.NewRegistry(), logger)
+		instance, err := New(&cfg, &mockOverrides{}, strconv.Itoa(i), &noopRegisterer{}, logger)
 		assert.NoError(t, err)
 		instances = append(instances, instance)
 	}
@@ -183,9 +183,9 @@ func TestInstance_cantWriteToWAL(t *testing.T) {
 	cfg.Path = "/root"
 
 	// We should be able to attempt to create the instance multiple times
-	_, err := New(&cfg, &mockOverrides{}, "test-tenant", prometheus.NewRegistry(), log.NewNopLogger())
+	_, err := New(&cfg, &mockOverrides{}, "test-tenant", &noopRegisterer{}, log.NewNopLogger())
 	require.Error(t, err)
-	_, err = New(&cfg, &mockOverrides{}, "test-tenant", prometheus.NewRegistry(), log.NewNopLogger())
+	_, err = New(&cfg, &mockOverrides{}, "test-tenant", &noopRegisterer{}, log.NewNopLogger())
 	require.Error(t, err)
 }
 
@@ -203,7 +203,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers}, "test-tenant", prometheus.NewRegistry(), logger)
+	instance, err := New(&cfg, &mockOverrides{headers}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -367,3 +367,13 @@ type mockOverrides struct {
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
 }
+
+var _ prometheus.Registerer = (*noopRegisterer)(nil)
+
+type noopRegisterer struct{}
+
+func (n *noopRegisterer) Register(prometheus.Collector) error { return nil }
+
+func (n *noopRegisterer) MustRegister(...prometheus.Collector) {}
+
+func (n *noopRegisterer) Unregister(prometheus.Collector) bool { return true }
