@@ -38,7 +38,7 @@ stringData:
 type: Opaque
 ```
 
-Then deploy TempoStack with gateway enabled
+Then deploy `TempoStack` with gateway enabled:
 
 ```yaml
 spec:
