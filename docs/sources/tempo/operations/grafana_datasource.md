@@ -9,11 +9,13 @@ weight: 15
 
 # Grafana Tempo Datasource
 
-There are one main thing to take into account when you deploy the `TempoStack` and want to use as Grafana datasource.
+Using the instructions on this page, you can configure the `TempoStack` to send data to Grafana and configure the Tempo data source.  
 
-If the tempo is deployed the Gateway in front, an authentication information needs to be provided to Grafana, and the URL of the tenant it wants to access.
+You can choose to either use Tempo Operator's gateway or not: 
 
-If the gateway is not used, the only requirement is to Grafana can access to the `frontend-query` endpoints.
+* If the `TempoStack` is deployed using the gateway, you'll need to provide authentication information  to Grafana, along with the URL of the tenant it wants to access.
+
+* If the gateway is not used, then you need to make sure Grafana can access to the `frontend-query` endpoints.
 
 ## Use with gateway
 
