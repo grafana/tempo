@@ -64,7 +64,7 @@ To use it as a data source, set the Authentication Method to **Forward Oauth Ide
 
 <p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo Datasource configured for the gateway forwarding oauth access token"></p>
 
-If you prefer to set the Bearer token directly, and not use the  **Forward Oauth Identify** you can add it to the "Authorization" Header 
+If you prefer to set the Bearer token directly and not use the  **Forward Oauth Identify**, you can add it to the "Authorization" Header.
 
 <p align="center"><img src="../grafana_datasource_tempo_headers.png" alt="Tempo Datasource configured for the gateway using Bearer token"></p>
 
