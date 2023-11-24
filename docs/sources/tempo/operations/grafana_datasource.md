@@ -1,6 +1,6 @@
 ---
 title: Grafana Tempo Datasource
-description: A collection of documents that detail how to deploy tempo and use it with Grafana
+description: Use the Tempo Operator to deploy Tempo and use it as a data source with Grafana
 aliases:
  - /docs/tempo/latest/gateway
  - /docs/tempo/operations/gateway
