@@ -64,7 +64,7 @@ The datasource URL parameter should set to `http://<HOST>:<PORT>/api/traces/v1/{
 
 To use it as a data source, set the Authentication Method to **Forward Oauth Identify** using the same `clientID` and `clientSecret` for gateway and for the OAuth configuration. This will forward the `access_token` to the gateway so it can authenticate the client.
 
-<p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo Datasource configured for the gateway forwarding oauth access token"></p>
+<p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo data source configured for the gateway forwarding OAuth access token"></p>
 
 If you prefer to set the Bearer token directly and not use the  **Forward Oauth Identify**, you can add it to the "Authorization" Header.
 
