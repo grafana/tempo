@@ -13,7 +13,7 @@ Using the instructions on this page, you can configure the `TempoStack` to send 
 
 You can choose to either use Tempo Operator's gateway or not: 
 
-* If the `TempoStack` is deployed using the gateway, you'll need to provide authentication information  to Grafana, along with the URL of the tenant it wants to access.
+* If the `TempoStack` is deployed using the gateway, you'll need to provide authentication information to Grafana, along with the URL of the tenant from which you expect to see the traces.
 
 * If the gateway is not used, then you need to make sure Grafana can access the `query-frontend` endpoints.
 
@@ -60,7 +60,7 @@ spec:
        name: oidc-test
 ```
 
-The datasource URL parameter should set to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`
+Set the Datasource URL parameter to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`, where `{tenant}` is the name of the tenant.
 
 To use it as a Datasource, set the Authentication Method to **Forward Oauth Identify** using the same `clientID` and `clientSecret` for gateway and for the OAuth configuration. This will forward the `access_token` to the gateway so it can authenticate the client.
 
