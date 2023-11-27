@@ -72,7 +72,7 @@ otelcol.receiver.otlp "otlp_receiver" {
 
     output {
         traces = [
-            otelcol.processor.tail_sampling.errors.input,
+            otelcol.processor.tail_sampling.policies.input,
         ]
     }
 }
@@ -85,12 +85,10 @@ otelcol.exporter.otlp "tempo" {
 
 // The Tail Sampling processor will use a set of policies to determine which received traces to keep
 // and send to Tempo.
-otelcol.processor.tail_sampling "errors" {
+otelcol.processor.tail_sampling "policies" {
     // Total wait time from the start of a trace before making a sampling decision. Note that smaller time
     // periods can potentially cause a decision to be made before the end of a trace has occurred.
     decision_wait = "30s"
-    // The number of traces to keep in memory by the Agent.
-    num_traces = 100
 
     // The following policies follow a logical OR pattern, meaning that if any of the policies match,
     // the trace will be kept. For logical AND, you can use the `and` policy. Every span of a trace is
@@ -99,7 +97,7 @@ otelcol.processor.tail_sampling "errors" {
     // This policy defines that traces that contain errors should be kept.
     policy {
         // The name of the policy can be used for logging purposes.
-        name = "only-sample-erroring-traces"
+        name = "sample-erroring-traces"
         // The type must match the type of policy to be used, in this case examing the status code
         // of every span in the trace.
         type = "status_code"
@@ -113,7 +111,7 @@ otelcol.processor.tail_sampling "errors" {
     // This policy defines that only traces that are longer than 200ms in total should be kept.
     policy {
         // The name of the policy can be used for logging purposes.
-        name = "only-sample-long-traces"
+        name = "sample-long-traces"
         // The type must match the policy to be used, in this case the total latency of the trace.
         type = "latency"
         // This block determines the total length of the trace in milliseconds.
@@ -125,7 +123,7 @@ otelcol.processor.tail_sampling "errors" {
     // The output block forwards the kept traces onto the batch processor, which will marshall them
     // for exporting to Tempo.
     output {
-        traces = [otelcol.processor.batch.default.input]
+        traces = [otelcol.exporter.otlp.tempo.input]
     }
 }
 ```
