@@ -1,15 +1,15 @@
 ---
 title: Grafana Tempo Datasource
-description: Use the Tempo Operator to deploy Tempo and use it as a data source with Grafana
+description: Use the Tempo Operator to deploy Tempo and use it as a Datasource with Grafana
 aliases:
  - /docs/tempo/latest/gateway
  - /docs/tempo/operations/gateway
 weight: 15
 ---
 
-# Grafana Tempo data source
+# Grafana Tempo Datasource
 
-Using the instructions on this page, you can configure the `TempoStack` to send data to Grafana and configure the Tempo data source.  
+Using the instructions on this page, you can configure the `TempoStack` to send data to Grafana and configure the Tempo Datasource.  
 
 You can choose to either use Tempo Operator's gateway or not: 
 
@@ -17,7 +17,7 @@ You can choose to either use Tempo Operator's gateway or not:
 
 * If the gateway is not used, then you need to make sure Grafana can access the `query-frontend` endpoints.
 
-For more information, refer to the [Tempo data source for Grafana](/docs/grafana/latest/datasources/tempo/),
+For more information, refer to the [Tempo Datasource for Grafana](/docs/grafana/latest/datasources/tempo/),
 
 ## Use with gateway
 
@@ -25,7 +25,7 @@ The gateway, an optional component deployed as part of Tempo Operator, provides 
 
 The OIDC configuration expects `clientID` and `clientSecret`. They should be provided via a Kubernetes secret that the `TempoStack` admin provides upfront.
 
-The gateway exposes all Tempo query endpoints, so you can use the endpoint as a Tempo Grafana data source.
+The gateway exposes all Tempo query endpoints, so you can use the endpoint as a Tempo Grafana Datasource.
 
 If Grafana is configured with some OAuth provider, such as generic OAuth, the `TempoStack` with the gateway should be deployed using the same `clientID` and `clientSecret`:
 
@@ -62,9 +62,9 @@ spec:
 
 The datasource URL parameter should set to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`
 
-To use it as a data source, set the Authentication Method to **Forward Oauth Identify** using the same `clientID` and `clientSecret` for gateway and for the OAuth configuration. This will forward the `access_token` to the gateway so it can authenticate the client.
+To use it as a Datasource, set the Authentication Method to **Forward Oauth Identify** using the same `clientID` and `clientSecret` for gateway and for the OAuth configuration. This will forward the `access_token` to the gateway so it can authenticate the client.
 
-<p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo data source configured for the gateway forwarding OAuth access token"></p>
+<p align="center"><img src="../grafana_datasource_tempo.png" alt="Tempo Datasource configured for the gateway forwarding OAuth access token"></p>
 
 If you prefer to set the Bearer token directly and not use the  **Forward Oauth Identify**, you can add it to the "Authorization" Header.
 
@@ -74,4 +74,4 @@ If you prefer to set the Bearer token directly and not use the  **Forward Oauth 
 
 If you are not using the gateway, make sure your Grafana can access to the query-frontend endpoints, you can do this by creating an ingress or a route in OpenShift.
 
-Once you have the endpoint, you can set it as `URL` when you create the Tempo data source.
+Once you have the endpoint, you can set it as `URL` when you create the Tempo Datasource.
