@@ -241,6 +241,14 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	return nil
 }
 
+func (o *runtimeConfigOverridesManager) GetLevel(_ Level) Interface {
+	return o
+}
+
+func (o *runtimeConfigOverridesManager) GetOverrides(userID string) *Overrides {
+	return o.getOverridesForUser(userID)
+}
+
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
 // to each distributor instance (local) or evenly shared across the cluster (global).
 func (o *runtimeConfigOverridesManager) IngestionRateStrategy() string {

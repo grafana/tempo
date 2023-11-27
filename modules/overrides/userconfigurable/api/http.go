@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
@@ -26,9 +27,11 @@ const (
 
 	errNoIfMatchHeader = "must specify If-Match header"
 
-	queryParamScope = "scope"
-	scopeAPI        = "api"
-	scopeMerged     = "merged"
+	queryParamScope       = "scope"
+	queryParamScopeAPI    = "api"
+	queryParamScopeMerged = "merged"
+
+	queryParamSkipConflictingOverridesCheck = "skip-conflicting-overrides-check"
 )
 
 // GetHandler retrieves the user-configured overrides from the backend.
@@ -43,11 +46,11 @@ func (a *UserConfigOverridesAPI) GetHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	scope := scopeAPI
+	scope := queryParamScopeAPI
 	if value, ok := r.URL.Query()[queryParamScope]; ok {
 		scope = value[0]
 	}
-	if scope != scopeAPI && scope != scopeMerged {
+	if scope != queryParamScopeAPI && scope != queryParamScopeMerged {
 		http.Error(w, fmt.Sprintf("unknown scope \"%s\", valid options are api and merged", scope), http.StatusBadRequest)
 	}
 
@@ -57,7 +60,7 @@ func (a *UserConfigOverridesAPI) GetHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if scope == scopeMerged {
+	if scope == queryParamScopeMerged {
 		limits = limitsFromOverrides(a.overrides, userID)
 	}
 
@@ -82,13 +85,18 @@ func (a *UserConfigOverridesAPI) PostHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	skipConflictingOverridesCheck := false
+	if value, ok := r.URL.Query()[queryParamSkipConflictingOverridesCheck]; ok && len(value) > 0 {
+		skipConflictingOverridesCheck, _ = strconv.ParseBool(value[0])
+	}
+
 	limits, err := a.parseLimits(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	version, err := a.set(ctx, userID, limits, backend.Version(ifMatchVersion))
+	version, err := a.set(ctx, userID, limits, backend.Version(ifMatchVersion), skipConflictingOverridesCheck)
 	if err != nil {
 		writeError(w, err)
 	}
@@ -113,7 +121,12 @@ func (a *UserConfigOverridesAPI) PatchHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	patchedLimits, version, err := a.update(ctx, userID, patch)
+	skipConflictingOverridesCheck := false
+	if value, ok := r.URL.Query()[queryParamSkipConflictingOverridesCheck]; ok && len(value) > 0 {
+		skipConflictingOverridesCheck, _ = strconv.ParseBool(value[0])
+	}
+
+	patchedLimits, version, err := a.update(ctx, userID, patch, skipConflictingOverridesCheck)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -156,6 +169,10 @@ func writeError(w http.ResponseWriter, err error) {
 	}
 	var valErr *validationError
 	if ok := errors.As(err, &valErr); ok {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if ok := errors.Is(err, errConflictingRuntimeOverrides); ok {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

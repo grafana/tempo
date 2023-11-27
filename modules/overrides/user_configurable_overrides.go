@@ -39,7 +39,16 @@ type UserConfigurableOverridesConfig struct {
 	// PollInterval controls how often the overrides will be refreshed by polling the backend
 	PollInterval time.Duration `yaml:"poll_interval"`
 
-	Client userconfigurableoverrides.Config `yaml:"client"`
+	Client userconfigurableoverrides.Config   `yaml:"client"`
+	API    UserConfigurableOverridesAPIConfig `yaml:"api"`
+}
+
+type UserConfigurableOverridesAPIConfig struct {
+	// CheckForConflictingRuntimeOverrides will refuse requests that create new user-configurable
+	// overrides for a tenant that has conflicting runtime overrides. If the user already has
+	// user-configurable overrides requests will still be allowed.
+	// This check can be ignored by the caller by setting the query parameter skip-conflicting-overrides-check=true
+	CheckForConflictingRuntimeOverrides bool `yaml:"check_for_conflicting_runtime_overrides"`
 }
 
 func (cfg *UserConfigurableOverridesConfig) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
@@ -193,6 +202,13 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 	} else {
 		o.tenantLimits[userID] = limits
 	}
+}
+
+func (o *userConfigurableOverridesManager) GetLevel(level Level) Interface {
+	if level == LevelUserConfigurable {
+		return o
+	}
+	return o.Interface.GetLevel(level)
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {

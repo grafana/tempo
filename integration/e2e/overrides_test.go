@@ -67,7 +67,7 @@ func TestOverrides(t *testing.T) {
 
 			// Create overrides
 			initialLimits := &client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					DisableCollection: boolPtr(true),
 				},
 			}
@@ -92,7 +92,7 @@ func TestOverrides(t *testing.T) {
 
 			// Update overrides - POST
 			updatedLimits := &client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					DisableCollection: nil,
 					Processors:        map[string]struct{}{"span-metrics": {}},
 				},
@@ -129,7 +129,7 @@ func TestOverrides(t *testing.T) {
 
 			// Modify overrides - PATCH
 			patch := &client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					DisableCollection: boolPtr(true),
 				},
 			}
@@ -164,7 +164,7 @@ func TestOverrides(t *testing.T) {
 
 			// Recreate overrides - PATCH
 			patch = &client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					DisableCollection: boolPtr(true),
 				},
 			}

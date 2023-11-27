@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/brianvoe/gofakeit/v6"
 )
 
 type Duration struct {
@@ -39,7 +41,13 @@ func (d *Duration) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (d *Duration) Fake(faker *gofakeit.Faker) (any, error) {
+	*d = Duration{Duration: time.Duration(faker.Second()) * time.Second}
+	return *d, nil
+}
+
 var (
-	_ json.Marshaler   = (*Duration)(nil)
-	_ json.Unmarshaler = (*Duration)(nil)
+	_ json.Marshaler    = (*Duration)(nil)
+	_ json.Unmarshaler  = (*Duration)(nil)
+	_ gofakeit.Fakeable = (*Duration)(nil)
 )

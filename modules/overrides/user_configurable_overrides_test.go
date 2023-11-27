@@ -95,18 +95,18 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	// Inject user-configurable overrides
 	mgr.tenantLimits[tenant1] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-forwarder"},
-		MetricsGenerator: &userconfigurableoverrides.LimitsMetricsGenerator{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors:         map[string]struct{}{"service-graphs": {}},
 			DisableCollection:  boolPtr(true),
 			CollectionInterval: &userconfigurableoverrides.Duration{Duration: 60 * time.Second},
-			Processor: &userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
-				ServiceGraphs: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
+			Processor: userconfigurableoverrides.LimitsMetricsGeneratorProcessor{
+				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
 					EnableClientServerPrefix: boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
 					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
 				},
-				SpanMetrics: &userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
+				SpanMetrics: userconfigurableoverrides.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:       &[]string{"sm-dimension"},
 					EnableTargetInfo: boolPtr(true),
 					FilterPolicies: &[]filterconfig.FilterPolicy{
@@ -372,7 +372,7 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	// Set Forwarders in UserConfigOverrides limits
 	mgr.tenantLimits[tenantID] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
-		MetricsGenerator: &userconfigurableoverrides.LimitsMetricsGenerator{
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
 			Processors: map[string]struct{}{"local-blocks": {}},
 		},
 	}

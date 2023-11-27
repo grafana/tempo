@@ -18,8 +18,22 @@ type Service interface {
 	Interface
 }
 
+type Level string
+
+const (
+	LevelRuntime          Level = "runtime"
+	LevelUserConfigurable Level = "user-configurable"
+)
+
 type Interface interface {
 	prometheus.Collector
+
+	// GetLevel returns Interface constrained to the given level. You can use this to get overrides
+	// from a lower level that are masked.
+	GetLevel(level Level) Interface
+
+	// temp
+	GetOverrides(userID string) *Overrides
 
 	// Config
 	IngestionRateStrategy() string
