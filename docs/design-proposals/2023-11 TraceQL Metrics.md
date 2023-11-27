@@ -1,7 +1,7 @@
 ---
 Authors: Martin Disibio (@mdisibio)
 Created: 2023 November
-Last updated: 2023-11-13
+Last updated: 2023-11-27
 ---
 
 # TraceQL Metrics
@@ -21,8 +21,12 @@ This document is **not** meant to be a complete language specification. Rather i
   - [Filtering](#filtering)
 - [Additional Stages](#additional-stages)
 - [Arithmetic](#arithmetic)
+- [Future](#future)
+  - [Joins](#joins-between-time-series)
+  - [Batching](#multiple-metrics-per-query)
 - [Notes](#notes)
   - [Step Interval](#step-interval)
+  - [Departure from PromQL/LogQL](#departure-from-promqllogql)
 
 ## Intro
 
@@ -106,7 +110,64 @@ Operations:
 * `+`
 * `-`
 
+
+## Future
+These are language features and ideas that will be iterated on in the future.
+
+### Joins between time-series
+Arithmetic operations bring up the need to define the join semantics between time-series.  For context see [PromQL join semantics (vector-matching)](https://prometheus.io/docs/prometheus/latest/querying/operators/#vector-matching)
+
+This area is TBD however the current direction is to provide the same functionality with a useful default behavior and specializations to support one-to-many and many-to-one.
+
+### Multiple metrics per query
+It would be great to extend the query language to support calculating multiple metrics in a single query.  It is common to plot related values like error rate and total rate together. This is more efficient because Tempo could compute all the metrics in a single pass over the data.
+
+`quantile_over_time` is already a step in this direction and supports calculating multiple quantiles (e.g. p50 and p95 in one query).  However the full solution needs a higher-level construct like pipeline-splitting to support embedding the full range of metrics calculations in one query.
+
 ## Notes
 
 ### Step Interval
 The step interval is the explicit resolution of a query.  It is identical to the [Prometheus step interval](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries).  A step interval of `1m` means that a data point will be returned once every 60 seconds.  It is separate from the `interval` of an aggregation like `rate(1h)`.  The query `rate(1h)` with `step=1m` will still return a data point every 60 seconds but each data point is the rate smoothed over the previous hour.
+
+### Departure from PromQL/LogQL
+The proposed pipeline-oriented syntax and aggregation functions are a departure from PromQL and LogQL. This is not done lightly but after much consideration deemed a better fit for Tempo architecture and goals.  
+
+#### Labels
+Tempo's fundamental architecture is different than Prometheus/Loki which would require awkward and misleading translations of even the most basic PromQL queries to the tracing data model.
+
+Let's take a look at an example. Suppose we want to plot the rate by service.  The PromQL-like query would look like this:
+
+`sum(rate({}[5m])) by (resource.service.name)`
+
+The outer sum expects the resource.service.name label to be provided by the rate, but it is not. Let's unwind one level.
+
+`rate({}[5m])`
+
+In PromQL/LogQL this returns a time-series per stream and they have inherent labels, defined from a combination of the application instrumentation and the metrics pipeline.  But in Tempo there is no stream definition and we are left with two possibilities. 
+
+1. It returns an unlabeled total rate unless it has knowledge of the grouping labels.  This is the proposed syntax for `rate() by(...)`
+
+2. It simulates streams using the available data such as resource/span attributes.  Unfortunately this is not feasible because there is no rule to choose which attributes should be included, and including everything leads to impossibly high cardinality.  I.e. imagine a standard http request: attributes like path, method, status code are desirable for a stream definition, but others like request/response content length, headers, or full url with query params leads to uncontrollable cardinality.
+
+To summarize:  what does `{} | rate()` return?  Option 1 is a single time-series, Option 2 would be billions.
+
+#### Rate
+PromQL and LogQL rates are calculated using a [range vector selector](https://prometheus.io/docs/prometheus/latest/querying/basics/#range-vector-selectors) like `[5m]` combined with a metric.  Both of these examples are valid constructs:
+
+`metric{}`
+
+`metric{}[5m]`
+
+This does not translate to Tempo because there are no streams, only a sea of spans.
+
+`{}` is valid and finds spans
+
+`{}[5m]` But this doesn't mean anything without aggregation.
+
+From there, the interval can be simplified as an parameter to the aggregation function instead of specialized syntax.
+
+#### Pipeline
+The pipeline syntax was chosen over functional syntax for a few reasons.
+
+* Easier to understand as computation flows in a single direction. 
+* Easier to write as modifications require simply adding or deleting a stage instead of the delicate removal/addition of a function, its parameters and closing parenthesees.  An existing query to find spans is converted to a metrics query by adding a stage in one place.
