@@ -23,7 +23,7 @@ For more information, refer to the [Tempo data source for Grafana](/docs/grafana
 
 The gateway, an optional component deployed as part of Tempo Operator, provides secure access to Tempo's distributor (for example, for pushing spans) and query-frontend (for example, for querying traces) via consulting an OAuth/OIDC endpoint for the request subject.
 
-The OIDC configuration expects `clientID`, `clientSecret` which should be provided via a Kubernetes secret that the `TempoStack` admin provides upfront.
+The OIDC configuration expects `clientID` and `clientSecret`. They should be provided via a Kubernetes secret that the `TempoStack` admin provides upfront.
 
 The gateway exposes all Tempo query endpoints, so you can use the endpoint as a Tempo Grafana data source.
 
