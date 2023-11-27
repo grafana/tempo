@@ -7,7 +7,7 @@ aliases:
 weight: 15
 ---
 
-# Grafana Tempo Datasource
+# Grafana Tempo data source
 
 Using the instructions on this page, you can configure the `TempoStack` to send data to Grafana and configure the Tempo data source.  
 
