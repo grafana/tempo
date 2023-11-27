@@ -1487,21 +1487,21 @@ cache:
     # to all configured caches.
     background:
 
-        # at what concurrency to write back to cache. Default is 10.
+        # At what concurrency to write back to cache. Default is 10.
         [writeback_goroutines: <int>]
 
-        # how many key batches to buffer for background write-back. Default is 10000.
+        # How many key batches to buffer for background write-back. Default is 10000.
         [writeback_buffer: <int>]
-
 
     caches:
 
         # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and 
-        # every cache must have at least one role. Allowed values:
-        # bloom              - Bloom filters for trace id lookup.
-	      # parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
-	      # parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
-	      # parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
+        # every cache must have at least one role.
+        # Allowed values:
+        #   bloom              - Bloom filters for trace id lookup.
+	      #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
+	      #   parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
+	      #   parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
 
     -   roles:
         - <role1>
@@ -1510,7 +1510,7 @@ cache:
         # Memcached caching configuration block
         memcached:
 
-            # hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
+            # Hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
             # Example: "host: memcached"
             [host: <string>]
 
@@ -1520,7 +1520,7 @@ cache:
             [service: <string>]
 
             # Optional
-            # comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
+            # Comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
             # (default: "")
             # Example: "addresses: memcached"
             [addresses: <comma separated strings>]
@@ -1536,27 +1536,27 @@ cache:
             [max_idle_conns: <int>]
 
             # Optional
-            # period with which to poll DNS for memcache servers.
+            # Period with which to poll DNS for memcache servers.
             # (default: 1m)
             [update_interval: <duration>]
 
             # Optional
-            # use consistent hashing to distribute keys to memcache servers.
+            # Use consistent hashing to distribute keys to memcache servers.
             # (default: true)
             [consistent_hash: <bool>]
 
             # Optional
-            # trip circuit-breaker after this number of consecutive dial failures.
+            # Trip circuit-breaker after this number of consecutive dial failures.
             # (default: 10)
             [circuit_breaker_consecutive_failures: 10]
 
             # Optional
-            # duration circuit-breaker remains open after tripping.
+            # Duration circuit-breaker remains open after tripping.
             # (default: 10s)
             [circuit_breaker_timeout: 10s]
 
             # Optional
-            # reset circuit-breaker counts after this long.
+            # Reset circuit-breaker counts after this long.
             # (default: 10s)
             [circuit_breaker_interval: 10s]
 
@@ -1564,52 +1564,52 @@ cache:
         # EXPERIMENTAL
         redis:
 
-            # redis endpoint to use when caching.
+            # Redis endpoint to use when caching.
             [endpoint: <string>]
 
             # optional.
-            # maximum time to wait before giving up on redis requests. (default 100ms)
+            # Maximum time to wait before giving up on redis requests. (default 100ms)
             [timeout: 500ms]
 
             # optional.
-            # redis Sentinel master name. (default "")
+            # Redis Sentinel master name. (default "")
             # Example: "master-name: redis-master"
             [master-name: <string>]
 
             # optional.
-            # database index. (default 0)
+            # Database index. (default 0)
             [db: <int>]
 
             # optional.
-            # how long keys stay in the redis. (default 0)
+            # How long keys stay in the redis. (default 0)
             [expiration: <duration>]
 
             # optional.
-            # enable connecting to redis with TLS. (default false)
+            # Enable connecting to redis with TLS. (default false)
             [tls-enabled: <bool>]
 
             # optional.
-            # skip validating server certificate. (default false)
+            # Skip validating server certificate. (default false)
             [tls-insecure-skip-verify: <bool>]
 
             # optional.
-            # maximum number of connections in the pool. (default 0)
+            # Maximum number of connections in the pool. (default 0)
             [pool-size: <int>]
 
             # optional.
-            # password to use when connecting to redis. (default "")
+            # Password to use when connecting to redis. (default "")
             [password: <string>]
 
             # optional.
-            # close connections after remaining idle for this duration. (default 0s)
-            {idle-timeout: <duration>}
+            # Close connections after remaining idle for this duration. (default 0s)
+            [idle-timeout: <duration>]
 
             # optional.
-            # close connections older than this duration. (default 0s)
+            # Close connections older than this duration. (default 0s)
             [max-connection-age: <duration>]
 
             # optional.
-            # password to use when connecting to redis sentinel. (default "")
+            # Password to use when connecting to redis sentinel. (default "")
             [sentinel_password: <string>]  
 ```
 
