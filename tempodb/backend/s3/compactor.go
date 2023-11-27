@@ -20,6 +20,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		return backend.ErrEmptyBlockID
 	}
 
+	putObjectOptions := getPutObjectOptions(rw)
+
 	metaFileName := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	// copy meta.json to meta.compacted.json
 	_, err := rw.core.CopyObject(
@@ -30,7 +32,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix),
 		nil,
 		minio.CopySrcOptions{},
-		minio.PutObjectOptions{},
+		putObjectOptions,
 	)
 	if err != nil {
 		return fmt.Errorf("error copying obj meta to compacted obj meta: %w", err)
