@@ -15,7 +15,9 @@ You can choose to either use Tempo Operator's gateway or not:
 
 * If the `TempoStack` is deployed using the gateway, you'll need to provide authentication information  to Grafana, along with the URL of the tenant it wants to access.
 
-* If the gateway is not used, then you need to make sure Grafana can access to the `query-frontend` endpoints.
+* If the gateway is not used, then you need to make sure Grafana can access the `query-frontend` endpoints.
+
+For more information, refer to the [Tempo data source for Grafana](/docs/grafana/latest/datasources/tempo/),
 
 ## Use with gateway
 
