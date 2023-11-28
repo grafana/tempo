@@ -104,6 +104,9 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 
 	blockSum, err := processBlock(r, c, cmd.TenantID, cmd.BlockID, time.Hour, 0)
 	if err != nil {
+		if errors.Is(err, backend.ErrDoesNotExist) {
+			return fmt.Errorf("unable to analyze block: block has no block.meta because it was compacted")
+		}
 		return err
 	}
 
@@ -118,15 +121,9 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
-	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+	if err != nil {
 		return nil, err
 	}
-
-	if meta == nil {
-		fmt.Println("Unable to load any meta for block", blockID)
-		return nil, nil
-	}
-
 	if meta.CompactionLevel < minCompactionLvl {
 		return nil, nil
 	}
@@ -344,7 +341,7 @@ func printSummary(scope string, max int, summary genericAttrSummary) error {
 	return w.Flush()
 }
 
-func printDedicatedColumnOverridesJsonnet(spanSummary genericAttrSummary, resourceSummary genericAttrSummary) {
+func printDedicatedColumnOverridesJsonnet(spanSummary, resourceSummary genericAttrSummary) {
 	fmt.Println("")
 	fmt.Printf("parquet_dedicated_columns: [\n")
 
