@@ -7,14 +7,18 @@
 * [CHANGE] Make vParquet3 the default block encoding [#2526](https://github.com/grafana/tempo/pull/3134) (@stoewer)
 * [FEATURE] Introduce list_blocks_concurrency on GCS and S3 backends to control backend load and performance. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
 * [FEATURE] Add per-tenant compaction window [#3129](https://github.com/grafana/tempo/pull/3129) (@zalegrala)
-* [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
 * [ENHANCEMENT] Make the trace ID label name configurable for remote written exemplars [#3074](https://github.com/grafana/tempo/pull/3074)
 * [ENHANCEMENT] Update poller to make use of previous results and reduce backend load. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
 * [ENHANCEMENT] Improve TraceQL regex performance in certain queries. [#3139](https://github.com/grafana/tempo/pull/3139) (@joe-elliott)
 * [ENHANCEMENT] Improve TraceQL performance in complex queries. [#3113](https://github.com/grafana/tempo/pull/3113) (@joe-elliott)
-* [BUGFIX] Fix compactor ignore configured S3 headers [#3149](https://github.com/grafana/tempo/pull/3154) (@Batkilin) 
 * [BUGFIX] Prevent building parquet iterators that would loop forever. [#3159](https://github.com/grafana/tempo/pull/3159) (@mapno)
 * [BUGFIX] Sanitize name in mapped dimensions in span-metrics processor [#3171](https://github.com/grafana/tempo/pull/3171) (@mapno)
+
+## v2.3.1 / 2023-11-28
+
+* [BUGFIX] Include statusMessage intrinsic attribute in tag search. [#3084](https://github.com/grafana/tempo/pull/3084) (@rcrowe)
+* [BUGFIX] Fix compactor ignore configured S3 headers [#3149](https://github.com/grafana/tempo/pull/3154) (@Batkilin) 
+* [BUGFIX] Readd session token to s3 credentials. [#3144](https://github.com/grafana/tempo/pull/3144) (@farodin91)
 
 ## v2.3.0 / 2023-10-30
 
