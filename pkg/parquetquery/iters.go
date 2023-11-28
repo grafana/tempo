@@ -508,6 +508,7 @@ type SyncIterator struct {
 	currRowGroupMax RowNumber
 	currChunk       *ColumnChunkHelper
 	currPage        pq.Page
+	currPageMin     RowNumber
 	currPageMax     RowNumber
 	currValues      pq.ValueReader
 	currBuf         []pq.Value
@@ -581,6 +582,18 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	}
 	if done {
 		return nil, nil
+	}
+
+	// reslice the page to jump directly to the desired row number
+	row := to[0] - c.currPageMin[0]
+	if row > 1 {
+		fmt.Println(row)
+		pg := c.currPage.Slice(row-1, c.currPage.NumRows())
+		pq.Release(c.currPage)
+		c.curr = to.Preceding() // we need to cut off to to a certain def lvl for safety
+		c.currPage = pg
+		c.currPageMin = c.curr // set c.currPageMin below? is it safer?
+		c.currValues = pg.Values()
 	}
 
 	// The row group and page have been selected to where this value is possibly
@@ -808,6 +821,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	// Reset value buffers
 	c.currValues = nil
 	c.currPageMax = EmptyRowNumber()
+	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
 
 	// If we don't immediately have a new incoming page
@@ -822,6 +836,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		rn := c.curr
 		rn.Skip(pg.NumRows() + 1) // Exclusive upper bound, points at the first rownumber in the next page
 		c.currPage = pg
+		c.currPageMin = c.curr
 		c.currPageMax = rn
 		c.currValues = pg.Values()
 	}
