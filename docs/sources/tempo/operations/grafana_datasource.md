@@ -25,7 +25,7 @@ The gateway, an optional component deployed as part of Tempo Operator, provides 
 
 The OIDC configuration expects `clientID` and `clientSecret`. They should be provided via a Kubernetes secret that the `TempoStack` admin provides upfront.
 
-The gateway exposes all Tempo query endpoints, so you can use the endpoint as a Tempo Grafana Datasource.
+The gateway exposes all Tempo query endpoints, so you can use the endpoint as a Tempo data source for Grafana.
 
 If Grafana is configured with some OAuth provider, such as generic OAuth, the `TempoStack` with the gateway should be deployed using the same `clientID` and `clientSecret`:
 
