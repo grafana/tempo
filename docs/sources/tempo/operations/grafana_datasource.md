@@ -60,7 +60,7 @@ spec:
        name: oidc-test
 ```
 
-Set the Datasource URL parameter to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`, where `{tenant}` is the name of the tenant.
+Set the data source URL parameter to `http://<HOST>:<PORT>/api/traces/v1/{tenant}/tempo/`, where `{tenant}` is the name of the tenant.
 
 To use it as a data source, set the Authentication Method to **Forward Oauth Identify** using the same `clientID` and `clientSecret` for gateway and for the OAuth configuration. This will forward the `access_token` to the gateway so it can authenticate the client.
 
