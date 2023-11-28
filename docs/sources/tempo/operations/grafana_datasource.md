@@ -17,7 +17,7 @@ You can choose to either use Tempo Operator's gateway or not:
 
 * If the gateway is not used, then you need to make sure Grafana can access the `query-frontend` endpoints.
 
-For more information, refer to the [Tempo Datasource for Grafana](/docs/grafana/latest/datasources/tempo/),
+For more information, refer to the [Tempo data source for Grafana](/docs/grafana/latest/datasources/tempo/),
 
 ## Use with gateway
 
