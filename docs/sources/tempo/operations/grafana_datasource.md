@@ -74,4 +74,4 @@ If you prefer to set the Bearer token directly and not use the  **Forward Oauth 
 
 If you are not using the gateway, make sure your Grafana can access to the query-frontend endpoints, you can do this by creating an ingress or a route in OpenShift.
 
-Once you have the endpoint, you can set it as `URL` when you create the Tempo Datasource.
+Once you have the endpoint, you can set it as `URL` when you create the Tempo data source.
