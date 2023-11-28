@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/scrape"
@@ -19,6 +20,12 @@ import (
 	"github.com/prometheus/prometheus/tsdb/agent"
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 )
+
+var metricStorageHeadersUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "metrics_generator_storage_headers_update_failed_total",
+	Help:      "The total number of times updating the remote write headers failed",
+}, []string{"tenant"})
 
 type Storage interface {
 	storage.Appendable
@@ -134,6 +141,7 @@ func (s *storageImpl) watchOverrides() {
 					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger),
 				})
 				if err != nil {
+					metricStorageHeadersUpdateFailed.WithLabelValues(s.tenantID).Inc()
 					level.Error(s.logger).Log("msg", "Failed to update remote write headers. Remote write will continue with old headers", "err", err)
 				}
 			}
