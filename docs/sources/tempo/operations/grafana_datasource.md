@@ -9,7 +9,7 @@ weight: 15
 
 # Grafana Tempo data source
 
-Using the instructions on this page, you can configure the `TempoStack` to send data to Grafana and configure the Tempo data source.  
+You can configure the `TempoStack` to send data to Grafana and configure the Tempo data source.  
 
 You can choose to either use Tempo Operator's gateway or not: 
 
