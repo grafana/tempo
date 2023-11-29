@@ -576,7 +576,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
-	// fmt.Println("seeking to", to, c.columnName)
+	fmt.Println("seeking to", to, c.columnName)
 
 	done, err := c.seekPages(to, definitionLevel)
 	if err != nil {
@@ -587,27 +587,35 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	}
 
 	// if c.columnName == "rs.list.element.Resource.Attrs.list.element.Key" && to[0] == 1 {
-	// 	fmt.Println("?")  // this is when bad things happen
+	// 	fmt.Println("?") // this is when bad things happen
 	// } else if c.columnName == "rs.list.element.Resource.Attrs.list.element.Key" {
 	// 	fmt.Println("!")
 	// }
 
 	// reslice the page to jump directly to the desired row number
-	row := to[0] - c.currPageMin[0]
+	row := to[0] - c.currPageMin[0] // jpe don't skip if to is greater than or equal to curr
 	if row > 1 {
 		//fmt.Println(row)
 		pg := c.currPage.Slice(row-1, c.currPage.NumRows())
 		// pq.Release(c.currPage) - can i release here? i think the internal buffers are  are preserved, so no
-		to[1] = -1
-		to[2] = -1
-		to[3] = -1
-		to[4] = -1
-		to[5] = -1 // works slightly better? still fails sometimes
 
-		c.curr = to.Preceding() // we need to cut off to to a certain def lvl for safety
+		c.curr = to //.Preceding() // we need to cut off to to a certain def lvl for safety
+		for i := 1; i < 5; i++ {
+			c.curr[i] = -1
+		}
+		c.curr = c.curr.Preceding()
+
+		// to[1] = -1
+		// to[2] = -1
+		// to[3] = -1
+		// to[4] = -1
+		// to[5] = -1 // works slightly better? still fails sometimes
+
 		c.currPage = pg
 		c.currPageMin = c.curr // set c.currPageMin below? is it safer?
 		c.currValues = pg.Values()
+		syncIteratorPoolPut(c.currBuf)
+		c.currBuf = nil
 	}
 
 	// The row group and page have been selected to where this value is possibly
