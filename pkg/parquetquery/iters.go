@@ -576,6 +576,8 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
+	// fmt.Println("seeking to", to, c.columnName)
+
 	done, err := c.seekPages(to, definitionLevel)
 	if err != nil {
 		return nil, err
@@ -584,12 +586,24 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
+	// if c.columnName == "rs.list.element.Resource.Attrs.list.element.Key" && to[0] == 1 {
+	// 	fmt.Println("?")  // this is when bad things happen
+	// } else if c.columnName == "rs.list.element.Resource.Attrs.list.element.Key" {
+	// 	fmt.Println("!")
+	// }
+
 	// reslice the page to jump directly to the desired row number
 	row := to[0] - c.currPageMin[0]
 	if row > 1 {
-		fmt.Println(row)
+		//fmt.Println(row)
 		pg := c.currPage.Slice(row-1, c.currPage.NumRows())
-		pq.Release(c.currPage)
+		// pq.Release(c.currPage) - can i release here? i think the internal buffers are  are preserved, so no
+		to[1] = -1
+		to[2] = -1
+		to[3] = -1
+		to[4] = -1
+		to[5] = -1 // works slightly better? still fails sometimes
+
 		c.curr = to.Preceding() // we need to cut off to to a certain def lvl for safety
 		c.currPage = pg
 		c.currPageMin = c.curr // set c.currPageMin below? is it safer?
