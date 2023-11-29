@@ -10,7 +10,7 @@ This example demonstrates how to debug Tempo running in docker-compose.
 The make target `docker-tempo-debug` compiles tempo without optimizations and creates a docker 
 image that runs Tempo using [`dlv exec`](https://github.com/go-delve/delve/blob/master/Documentation/usage/dlv_exec.md).
 
-1. Build the tempo debug image:
+1. Build the tempo debug image (in the root directory of this project, not in this directory):
 
 ```console
 make docker-tempo-debug
@@ -29,7 +29,7 @@ grafana/tempo-debug                            latest                         3d
 variable `DEBUG_BLOCK` controls whether delve halts the execution of Tempo until a debugger is connected.
 Setting this option to `1` is helpful to debug errors during the start-up phase.
 
-3. Now start up the stack.
+3. Now start up the stack (from this directory).
 
 ```console
 docker-compose up -d
