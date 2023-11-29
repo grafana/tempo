@@ -114,7 +114,7 @@ func TestHedge(t *testing.T) {
 					_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, nil)
 					// Write consists of two operations:
 					// - Put Block operation
-					//   https://docs.microso).com/en-us/rest/api/storageservices/put-block
+					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
 					// - Put Block List operation
 					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
 					if useV2 {
