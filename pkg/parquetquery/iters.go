@@ -576,7 +576,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
-	fmt.Println("seeking to", to, c.columnName)
+	// fmt.Println("seeking to", to, c.columnName)
 
 	done, err := c.seekPages(to, definitionLevel)
 	if err != nil {
@@ -592,30 +592,30 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	// 	fmt.Println("!")
 	// }
 
-	// reslice the page to jump directly to the desired row number
-	row := to[0] - c.currPageMin[0] // jpe don't skip if to is greater than or equal to curr
-	if row > 1 {
-		//fmt.Println(row)
-		pg := c.currPage.Slice(row-1, c.currPage.NumRows())
-		// pq.Release(c.currPage) - can i release here? i think the internal buffers are  are preserved, so no
+	// only skip if to is ahead of curr
+	if CompareRowNumbers(definitionLevel, to, c.curr) > 0 {
+		// skips are calculated off the start of the page
+		rowSkip := to[0] - c.currPageMin[0]
+		if rowSkip > 1 {
+			// reslice the page to jump directly to the desired row number
+			pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
+			pq.Release(c.currPage) //- can i release here? i think the internal buffers are  are preserved, so no
 
-		c.curr = to //.Preceding() // we need to cut off to to a certain def lvl for safety
-		for i := 1; i < 5; i++ {
-			c.curr[i] = -1
+			// set curr to what it will be now that we've resliced
+			c.curr = to
+			// remove all detail below the row number
+			for i := 1; i < 5; i++ {
+				c.curr[i] = -1
+			}
+			c.curr = c.curr.Preceding()
+
+			// reset buffers and other vars
+			c.currPage = pg
+			c.currPageMin = c.curr
+			c.currValues = pg.Values()
+			syncIteratorPoolPut(c.currBuf)
+			c.currBuf = nil
 		}
-		c.curr = c.curr.Preceding()
-
-		// to[1] = -1
-		// to[2] = -1
-		// to[3] = -1
-		// to[4] = -1
-		// to[5] = -1 // works slightly better? still fails sometimes
-
-		c.currPage = pg
-		c.currPageMin = c.curr // set c.currPageMin below? is it safer?
-		c.currValues = pg.Values()
-		syncIteratorPoolPut(c.currBuf)
-		c.currBuf = nil
 	}
 
 	// The row group and page have been selected to where this value is possibly
