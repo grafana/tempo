@@ -10,7 +10,6 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 )
 
-// role must be pipe based and valid
 type Config struct {
 	Background *cache.BackgroundConfig `yaml:"background"`
 	Caches     []CacheConfig           `yaml:"caches"`
