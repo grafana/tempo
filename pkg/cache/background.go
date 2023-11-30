@@ -72,7 +72,7 @@ func NewBackground(name string, cfg BackgroundConfig, cache Cache, reg prometheu
 
 // Stop the background flushing goroutines.
 func (c *backgroundCache) Stop() {
-	close(c.quit)
+	close(c.quit) // jpe closing multiple times?
 	c.wg.Wait()
 
 	c.Cache.Stop()

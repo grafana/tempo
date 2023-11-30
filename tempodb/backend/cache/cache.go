@@ -111,6 +111,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		k = strings.Join(keyGen, ":")
 		found, vals, _ := cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
+			// jpe - double check this is correct? always one val? found always the requested key?
 			copy(buffer, vals[0])
 			return nil
 		}
@@ -136,6 +137,7 @@ func (r *readerWriter) Shutdown() {
 		}
 	}
 
+	// jpe - can't blindly close all. some may already be closed due to being the same
 	stopCache(r.footerCache)
 	stopCache(r.bloomCache)
 	stopCache(r.offsetIdxCache)
