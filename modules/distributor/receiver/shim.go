@@ -228,11 +228,16 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := receiver.CreateSettings{TelemetrySettings: component.TelemetrySettings{
-		Logger:         zapLogger,
-		TracerProvider: tracenoop.NewTracerProvider(),
-		MeterProvider:  metricnoop.NewMeterProvider(),
-	}}
+	params := receiver.CreateSettings{
+		TelemetrySettings: component.TelemetrySettings{
+			Logger:         zapLogger,
+			TracerProvider: tracenoop.NewTracerProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
+			ReportComponentStatus: func(*component.StatusEvent) error {
+				return nil
+			},
+		},
+	}
 
 	for componentID, cfg := range conf.Receivers {
 		factoryBase := receiverFactories[componentID.Type()]
