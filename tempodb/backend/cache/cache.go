@@ -57,6 +57,7 @@ func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter ba
 		"offset_idx", rw.offsetIdxCache != nil,
 		"column_idx", rw.columnIdxCache != nil,
 		"trace_id_idx", rw.traceIDIdxCache != nil,
+		"page", rw.pageCache != nil,
 	)
 
 	return rw, rw, nil
@@ -111,6 +112,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		found, vals, _ := cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
 			copy(buffer, vals[0])
+			return nil
 		}
 	}
 
@@ -139,6 +141,7 @@ func (r *readerWriter) Shutdown() {
 	stopCache(r.offsetIdxCache)
 	stopCache(r.columnIdxCache)
 	stopCache(r.traceIDIdxCache)
+	stopCache(r.pageCache)
 }
 
 // Write implements backend.Writer
@@ -191,6 +194,8 @@ func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 		return r.columnIdxCache
 	case cache.RoleParquetOffsetIdx:
 		return r.offsetIdxCache
+	case cache.RoleParquetPage:
+		return r.pageCache
 	case cache.RoleTraceIDIdx:
 		return r.traceIDIdxCache
 	case cache.RoleBloom:

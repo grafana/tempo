@@ -15,6 +15,7 @@ import (
 func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
+	// jpe - back to buffered reader?
 	pf, err := parquet.OpenFile(rr, int64(b.meta.Size), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.ReadBufferSize(4*1024*1024))
 	if err != nil {
 		return nil, nil, err
