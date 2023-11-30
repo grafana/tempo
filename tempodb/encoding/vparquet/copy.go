@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -20,14 +21,19 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 		return to.StreamWriter(ctx, name, toMeta.BlockID, toMeta.TenantID, reader, size)
 	}
 
+	cacheInfo := &backend.CacheInfo{
+		Role: cache.RoleBloom,
+	}
 	// Read entire object and attempt to cache
-	cpy := func(name string) error {
-		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, true)
+	cpyBloom := func(name string) error {
+		cacheInfo.Meta = fromMeta
+		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
-		return to.Write(ctx, name, toMeta.BlockID, toMeta.TenantID, b, true)
+		cacheInfo.Meta = toMeta
+		return to.Write(ctx, name, toMeta.BlockID, toMeta.TenantID, b, cacheInfo)
 	}
 
 	// Data
@@ -38,7 +44,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 
 	// Bloom
 	for i := 0; i < common.ValidateShardCount(int(fromMeta.BloomShardCount)); i++ {
-		err = cpy(common.BloomName(i))
+		err = cpyBloom(common.BloomName(i))
 		if err != nil {
 			return err
 		}
@@ -55,9 +61,13 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	if err != nil {
 		return err
 	}
+	cacheInfo := &backend.CacheInfo{
+		Role: cache.RoleBloom,
+		Meta: meta,
+	}
 	for i, bloom := range blooms {
 		nameBloom := common.BloomName(i)
-		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, true)
+		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}

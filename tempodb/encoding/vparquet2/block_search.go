@@ -63,7 +63,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	defer b.openMtx.Unlock()
 
 	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
-	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
 	// no searches currently require bloom filters or the page index. so just add them statically
 	o := []parquet.FileOption{
@@ -90,9 +90,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
 
 	// cached reader
-	if opts.CacheControl.ColumnIndex || opts.CacheControl.Footer || opts.CacheControl.OffsetIndex {
-		readerAt = newCachedReaderAt(readerAt, backendReaderAt, opts.CacheControl)
-	}
+	readerAt = newCachedReaderAt(readerAt, backendReaderAt)
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()

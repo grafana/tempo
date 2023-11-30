@@ -15,7 +15,7 @@ type Config struct {
 	TTL time.Duration `yaml:"ttl"`
 }
 
-func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, logger log.Logger) cache.Cache {
+func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, name string, logger log.Logger) cache.Cache {
 	if cfg.ClientConfig.Timeout == 0 {
 		cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	}
@@ -24,7 +24,7 @@ func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, logger log.Lo
 	}
 
 	client := cache.NewRedisClient(&cfg.ClientConfig)
-	c := cache.NewRedisCache("tempo", client, prometheus.DefaultRegisterer, logger)
+	c := cache.NewRedisCache(name, client, prometheus.DefaultRegisterer, logger)
 
-	return cache.NewBackground("tempo", *cfgBackground, c, prometheus.DefaultRegisterer)
+	return cache.NewBackground(name, *cfgBackground, c, prometheus.DefaultRegisterer)
 }

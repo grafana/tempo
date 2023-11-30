@@ -90,12 +90,12 @@ func TestHedge(t *testing.T) {
 
 					// the first call on each client initiates an extra http request
 					// clearing that here
-					_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), false)
+					_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
 					time.Sleep(tc.returnIn)
 					atomic.StoreInt32(&count, 0)
 
 					// calls that should hedge
-					_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), false)
+					_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
 					time.Sleep(tc.returnIn)
 					assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
 					atomic.StoreInt32(&count, 0)
@@ -111,7 +111,7 @@ func TestHedge(t *testing.T) {
 					assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 					atomic.StoreInt32(&count, 0)
 
-					_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, false)
+					_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, nil)
 					// Write consists of two operations:
 					// - Put Block operation
 					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
@@ -130,7 +130,7 @@ func TestHedge(t *testing.T) {
 						// blockSize := 2000000
 						// u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
 						// require.NoError(t, err)
-						// _ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, false)
+						// _ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, nil)
 					} else {
 						assert.Equal(t, int32(2), atomic.LoadInt32(&count))
 					}
@@ -246,7 +246,7 @@ func TestObjectWithPrefix(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, false)
+			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, nil)
 			assert.NoError(t, err)
 		})
 	}

@@ -120,7 +120,7 @@ func (cmd *bloomCmd) Run(ctx *globalOptions) error {
 	}
 
 	for i := 0; i < len(bloomBytes); i++ {
-		err = w.Write(context.TODO(), bloomFilePrefix+strconv.Itoa(i), blockID, cmd.TenantID, bloomBytes[i], false)
+		err = w.Write(context.TODO(), bloomFilePrefix+strconv.Itoa(i), blockID, cmd.TenantID, bloomBytes[i], nil)
 		if err != nil {
 			fmt.Println("error writing bloom filter to backend", err)
 			return err
@@ -132,7 +132,7 @@ func (cmd *bloomCmd) Run(ctx *globalOptions) error {
 	// verify generated bloom
 	shardedBloomFilter := make([]*willf_bloom.BloomFilter, meta.BloomShardCount)
 	for i := 0; i < int(meta.BloomShardCount); i++ {
-		bloomBytes, err := r.Read(context.TODO(), bloomFilePrefix+strconv.Itoa(i), blockID, cmd.TenantID, false)
+		bloomBytes, err := r.Read(context.TODO(), bloomFilePrefix+strconv.Itoa(i), blockID, cmd.TenantID, nil)
 		if err != nil {
 			fmt.Println("error reading bloom from backend")
 			return nil

@@ -12,6 +12,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/willf/bloom"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -43,7 +44,10 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	nameBloom := common.BloomName(shardKey)
 	span.SetTag("bloom", nameBloom)
 
-	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, true)
+	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
+		Meta: b.meta,
+		Role: cache.RoleBloom,
+	})
 	if err != nil {
 		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
@@ -70,7 +74,10 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		})
 	defer span.Finish()
 
-	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, true)
+	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
+		Meta: b.meta,
+		Role: cache.RoleTraceIDIdx,
+	})
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		return true, -1, nil
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,15 +15,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	pkg_cache "github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/modules/cache/memcached"
+	"github.com/grafana/tempo/modules/cache/redis"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/cache"
-	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
-	"github.com/grafana/tempo/tempodb/backend/cache/redis"
+	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -109,9 +110,6 @@ type readerWriter struct {
 	w backend.Writer
 	c backend.Compactor
 
-	uncachedReader backend.Reader
-	uncachedWriter backend.Writer
-
 	wal  *wal.WAL
 	pool *pool.Pool
 
@@ -128,7 +126,7 @@ type readerWriter struct {
 }
 
 // New creates a new tempodb
-func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
+func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 	var rawR backend.RawReader
 	var rawW backend.RawWriter
 	var c backend.Compactor
@@ -155,20 +153,22 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 		return nil, nil, nil, err
 	}
 
-	uncachedReader := backend.NewReader(rawR)
-	uncachedWriter := backend.NewWriter(rawW)
+	// build a caching layer if we have a provider
+	if cacheProvider != nil {
+		legacyCache, roles, err := createLegacyCache(cfg, logger)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 
-	var cacheBackend pkg_cache.Cache
+		// inject legacy cache into the cache provider for the roles
+		for _, role := range roles {
+			err = cacheProvider.AddCache(role, legacyCache)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("error adding legacy cache to provider: %w", err)
+			}
+		}
 
-	switch cfg.Cache {
-	case "redis":
-		cacheBackend = redis.NewClient(cfg.Redis, cfg.BackgroundCache, logger)
-	case "memcached":
-		cacheBackend = memcached.NewClient(cfg.Memcached, cfg.BackgroundCache, logger)
-	}
-
-	if cacheBackend != nil {
-		rawR, rawW, err = cache.NewCache(rawR, rawW, cacheBackend)
+		rawR, rawW, err = backend_cache.NewCache(&cfg.BloomCacheCfg, rawR, rawW, cacheProvider, logger)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -177,15 +177,13 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
-		c:              c,
-		r:              r,
-		uncachedReader: uncachedReader,
-		uncachedWriter: uncachedWriter,
-		w:              w,
-		cfg:            cfg,
-		logger:         logger,
-		pool:           pool.NewPool(cfg.Pool),
-		blocklist:      blocklist.New(),
+		c:         c,
+		r:         r,
+		w:         w,
+		cfg:       cfg,
+		logger:    logger,
+		pool:      pool.NewPool(cfg.Pool),
+		blocklist: blocklist.New(),
 	}
 
 	rw.wal, err = wal.New(rw.cfg.WAL)
@@ -197,8 +195,7 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 }
 
 func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error {
-	w := rw.getWriterForBlock(c.BlockMeta(), time.Now())
-	return c.Write(ctx, w)
+	return c.Write(ctx, rw.w)
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
@@ -314,11 +311,9 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
 
-	curTime := time.Now()
 	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
-		r := rw.getReaderForBlock(meta, curTime)
-		block, err := encoding.OpenBlock(meta, r)
+		block, err := encoding.OpenBlock(meta, rw.r)
 		if err != nil {
 			return nil, fmt.Errorf("error opening block for reading, blockID: %s: %w", meta.BlockID.String(), err)
 		}
@@ -358,6 +353,7 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
+// it only uses rw.r which has caching enabled
 func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
@@ -468,36 +464,6 @@ func (rw *readerWriter) pollBlocklist() {
 	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
 }
 
-func (rw *readerWriter) shouldCache(meta *backend.BlockMeta, curTime time.Time) bool {
-	// compaction level is _atleast_ CacheMinCompactionLevel
-	if rw.cfg.CacheMinCompactionLevel > 0 && meta.CompactionLevel < rw.cfg.CacheMinCompactionLevel {
-		return false
-	}
-
-	// block is not older than CacheMaxBlockAge
-	if rw.cfg.CacheMaxBlockAge > 0 && curTime.Sub(meta.StartTime) > rw.cfg.CacheMaxBlockAge {
-		return false
-	}
-
-	return true
-}
-
-func (rw *readerWriter) getReaderForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Reader {
-	if rw.shouldCache(meta, curTime) {
-		return rw.r
-	}
-
-	return rw.uncachedReader
-}
-
-func (rw *readerWriter) getWriterForBlock(meta *backend.BlockMeta, curTime time.Time) backend.Writer {
-	if rw.shouldCache(meta, curTime) {
-		return rw.w
-	}
-
-	return rw.uncachedWriter
-}
-
 // includeBlock indicates whether a given block should be included in a backend search
 func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
 	// todo: restore this functionality once it works. min/max ids are currently not recorded
@@ -530,4 +496,51 @@ func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockSta
 		return false
 	}
 	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd)
+}
+
+// createLegacyCache uses the config to return a cache and a list of roles.
+func createLegacyCache(cfg *Config, logger gkLog.Logger) (cache.Cache, []cache.Role, error) {
+	var legacyCache cache.Cache
+	// if there's any cache configured, it always handles bloom filters and the trace id index
+	roles := []cache.Role{cache.RoleBloom, cache.RoleTraceIDIdx}
+
+	switch cfg.Cache {
+	case "redis":
+		legacyCache = redis.NewClient(cfg.Redis, cfg.BackgroundCache, "legacy", logger)
+	case "memcached":
+		legacyCache = memcached.NewClient(cfg.Memcached, cfg.BackgroundCache, "legacy", logger)
+	}
+
+	if legacyCache == nil {
+		if cfg.Search != nil &&
+			(cfg.Search.CacheControl.ColumnIndex ||
+				cfg.Search.CacheControl.Footer ||
+				cfg.Search.CacheControl.OffsetIndex) {
+			return nil, nil, errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration.")
+		}
+
+		return nil, nil, nil
+	}
+
+	// accumulate additional search roles
+	if cfg.Search != nil {
+		if cfg.Search.CacheControl.ColumnIndex {
+			roles = append(roles, cache.RoleParquetColumnIdx)
+		}
+		if cfg.Search.CacheControl.Footer {
+			roles = append(roles, cache.RoleParquetFooter)
+		}
+		if cfg.Search.CacheControl.OffsetIndex {
+			roles = append(roles, cache.RoleParquetOffsetIdx)
+		}
+	}
+
+	// log the roles
+	rolesStr := make([]string, len(roles))
+	for i, role := range roles {
+		rolesStr[i] = string(role)
+	}
+	level.Warn(logger).Log("msg", "legacy cache configured with the following roles. Please migrate to the new top level cache configuration.", "roles", rolesStr)
+
+	return legacyCache, roles, nil
 }

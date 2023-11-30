@@ -131,11 +131,11 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 	var reader io.ReaderAt
 	switch meta.Version {
 	case vparquet.VersionString:
-		reader = vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
+		reader = vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
 	case vparquet2.VersionString:
-		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta.BlockID, meta.TenantID)
+		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta)
 	case vparquet3.VersionString:
-		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta.BlockID, meta.TenantID)
+		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil

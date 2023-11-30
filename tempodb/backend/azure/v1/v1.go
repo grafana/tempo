@@ -77,7 +77,7 @@ func New(cfg *config.Config, confirm bool) (*V1, error) {
 }
 
 // Write implements backend.Writer
-func (rw *V1) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+func (rw *V1) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Write")
@@ -114,7 +114,7 @@ func (rw *V1) CloseAppend(context.Context, backend.AppendTracker) error {
 	return nil
 }
 
-func (rw *V1) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+func (rw *V1) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
 	blobURL, err := GetBlobURL(ctx, rw.cfg, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return fmt.Errorf("cannot get Azure blob URL, name: %s: %w", backend.ObjectFileName(keypath, name), err)
@@ -227,7 +227,7 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 }
 
 // Read implements backend.Reader
-func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Read")
@@ -243,7 +243,7 @@ func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ 
 }
 
 // ReadRange implements backend.Reader
-func (rw *V1) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+func (rw *V1) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadRange", opentracing.Tags{
@@ -282,7 +282,7 @@ func (rw *V1) WriteVersioned(ctx context.Context, name string, keypath backend.K
 		return "", backend.ErrVersionDoesNotMatch
 	}
 
-	err = rw.Write(ctx, name, keypath, data, -1, false)
+	err = rw.Write(ctx, name, keypath, data, -1, nil)
 	if err != nil {
 		return "", err
 	}
@@ -301,7 +301,7 @@ func (rw *V1) DeleteVersioned(ctx context.Context, name string, keypath backend.
 		return backend.ErrVersionDoesNotMatch
 	}
 
-	return rw.Delete(ctx, name, keypath, false)
+	return rw.Delete(ctx, name, keypath, nil)
 }
 
 func (rw *V1) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {

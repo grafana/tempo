@@ -10,7 +10,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 var tenantID = "single-tenant"
@@ -48,7 +47,7 @@ func TestParquetGoSetsMetadataSections(t *testing.T) {
 	meta, err := r.BlockMeta(ctx, blocks[0], tenantID)
 	require.NoError(t, err)
 
-	br := NewBackendReaderAt(ctx, r, DataFileName, meta.BlockID, tenantID)
+	br := NewBackendReaderAt(ctx, r, DataFileName, meta)
 	dr := &dummyReader{r: br}
 	_, err = parquet.OpenFile(dr, int64(meta.Size))
 	require.NoError(t, err)
@@ -104,10 +103,10 @@ func TestCachingReaderAt(t *testing.T) {
 	meta, err := r.BlockMeta(ctx, blocks[0], tenantID)
 	require.NoError(t, err)
 
-	br := NewBackendReaderAt(ctx, r, DataFileName, meta.BlockID, tenantID)
+	br := NewBackendReaderAt(ctx, r, DataFileName, meta)
 	rr := &recordingReaderAt{}
 
-	cr := newCachedReaderAt(rr, br, common.CacheControl{Footer: true, ColumnIndex: true, OffsetIndex: true})
+	cr := newCachedReaderAt(rr, br)
 
 	// cached items should not hit rr
 	cr.SetColumnIndexSection(1, 34)

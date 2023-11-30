@@ -32,7 +32,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
+	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
 	pf, err := parquet.OpenFile(rr, int64(meta.Size))
 	if err != nil {
 		return err

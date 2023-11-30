@@ -6,7 +6,6 @@ import (
 	"flag"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
@@ -64,7 +63,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 			MaxBytesPerTrace: 50_000_000,
 		})
 
-		_, err = c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+		_, err = c.Compact(ctx, l, r, w, inputs)
 		require.NoError(b, err)
 	}
 }
@@ -102,7 +101,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 			SpansDiscarded:   func(traceID, rootSpanName string, rootServiceName string, spans int) {},
 		})
 
-		_, err = c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+		_, err = c.Compact(ctx, l, r, w, inputs)
 		require.NoError(b, err)
 	}
 }
@@ -207,7 +206,7 @@ func TestCompact(t *testing.T) {
 
 	inputs := []*backend.BlockMeta{meta1, meta2}
 
-	newMeta, err := c.Compact(context.Background(), log.NewNopLogger(), r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+	newMeta, err := c.Compact(context.Background(), log.NewNopLogger(), r, w, inputs)
 	require.NoError(t, err)
 	require.Len(t, newMeta, 1)
 	require.Equal(t, 20, newMeta[0].TotalObjects)

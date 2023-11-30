@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -16,15 +17,19 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 
 	// index
-	err = w.Write(ctx, common.NameIndex, meta.BlockID, meta.TenantID, indexBytes, false)
+	err = w.Write(ctx, common.NameIndex, meta.BlockID, meta.TenantID, indexBytes, nil)
 	if err != nil {
 		return fmt.Errorf("unexpected error writing index: %w", err)
 	}
 
+	cacheInfo := &backend.CacheInfo{
+		Meta: meta,
+		Role: cache.RoleBloom,
+	}
 	// bloom
 	for i, bloom := range blooms {
 		nameBloom := common.BloomName(i)
-		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, true)
+		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
@@ -57,14 +62,20 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 		return dest.StreamWriter(ctx, name, destMeta.BlockID, destMeta.TenantID, reader, size)
 	}
 
+	cacheInfo := &backend.CacheInfo{
+		Role: cache.RoleBloom,
+	}
+
 	// Read entire object and attempt to cache
-	cpy := func(name string) error {
-		b, err := src.Read(ctx, name, srcMeta.BlockID, srcMeta.TenantID, true)
+	cpyBloom := func(name string) error {
+		cacheInfo.Meta = srcMeta
+		b, err := src.Read(ctx, name, srcMeta.BlockID, srcMeta.TenantID, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
-		return dest.Write(ctx, name, destMeta.BlockID, destMeta.TenantID, b, true)
+		cacheInfo.Meta = destMeta
+		return dest.Write(ctx, name, destMeta.BlockID, destMeta.TenantID, b, cacheInfo)
 	}
 
 	// Data
@@ -75,7 +86,7 @@ func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src ba
 
 	// Bloom
 	for i := 0; i < common.ValidateShardCount(int(srcMeta.BloomShardCount)); i++ {
-		err = cpy(common.BloomName(i))
+		err = cpyBloom(common.BloomName(i))
 		if err != nil {
 			return err
 		}
