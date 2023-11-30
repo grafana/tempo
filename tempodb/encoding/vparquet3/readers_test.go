@@ -8,6 +8,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
@@ -64,53 +65,36 @@ func TestParquetReaderAt(t *testing.T) {
 	expectedReads := []read{}
 
 	// magic number doesn't pass through
-	_, err := pr.ReadAt(make([]byte, 4), 0)
+	_, err := pr.ReadAtWithCache(make([]byte, 4), 0, cache.RoleNone)
 	require.NoError(t, err)
 
 	// footer size doesn't pass through
-	_, err = pr.ReadAt(make([]byte, 8), 992)
+	_, err = pr.ReadAtWithCache(make([]byte, 8), 992, cache.RoleNone)
 	require.NoError(t, err)
 
 	// other calls pass through
-	_, err = pr.ReadAt(make([]byte, 13), 25)
+	_, err = pr.ReadAtWithCache(make([]byte, 13), 25, cache.RoleNone)
 	require.NoError(t, err)
 	expectedReads = append(expectedReads, read{13, 25})
 
-	_, err = pr.ReadAt(make([]byte, 97), 118)
+	_, err = pr.ReadAtWithCache(make([]byte, 97), 118, cache.RoleNone)
 	require.NoError(t, err)
 	expectedReads = append(expectedReads, read{97, 118})
 
-	_, err = pr.ReadAt(make([]byte, 59), 421)
+	_, err = pr.ReadAtWithCache(make([]byte, 59), 421, cache.RoleNone)
 	require.NoError(t, err)
 	expectedReads = append(expectedReads, read{59, 421})
 
 	require.Equal(t, expectedReads, rr.reads)
 }
 
-func TestCachingReaderAt(t *testing.T) {
-	rawR, _, _, err := local.New(&local.Config{
-		Path: "./test-data",
-	})
-	require.NoError(t, err)
-
-	r := backend.NewReader(rawR)
-	ctx := context.Background()
-
-	blocks, _, err := r.Blocks(ctx, tenantID)
-	require.NoError(t, err)
-	require.Len(t, blocks, 1)
-
-	meta, err := r.BlockMeta(ctx, blocks[0], tenantID)
-	require.NoError(t, err)
-
-	br := NewBackendReaderAt(ctx, r, DataFileName, meta)
+func TestCachingReaderAt(t *testing.T) { // jpe test for page
 	rr := &recordingReaderAt{}
-
-	cr := newCachedReaderAt(rr, br)
+	cr := newCachedReaderAt(rr, 1000)
 
 	// cached items should not hit rr
 	cr.SetColumnIndexSection(1, 34)
-	_, err = cr.ReadAt(make([]byte, 34), 1)
+	_, err := cr.ReadAt(make([]byte, 34), 1)
 	require.NoError(t, err)
 
 	cr.SetFooterSection(14, 20)
@@ -148,6 +132,12 @@ type recordingReaderAt struct {
 }
 
 func (r *recordingReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	r.reads = append(r.reads, read{len(p), off})
+
+	return len(p), nil
+}
+
+func (r *recordingReaderAt) ReadAtWithCache(p []byte, off int64, _ cache.Role) (n int, err error) {
 	r.reads = append(r.reads, read{len(p), off})
 
 	return len(p), nil

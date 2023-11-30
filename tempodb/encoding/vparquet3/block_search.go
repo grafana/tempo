@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -66,6 +64,8 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
+	readerAt := cacheReaderAt(backendReaderAt)
+
 	// no searches currently require bloom filters or the page index. so just add them statically
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
@@ -73,29 +73,22 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
-	// backend reader
-	readerAt := io.ReaderAt(backendReaderAt)
-
 	// buffering
-	if opts.ReadBufferSize > 0 {
+	if opts.ReadBufferSize > 0 { // jpe - readbuffersize must be > 0?
 		//   only use buffered reader at if the block is small, otherwise it's far more effective to use larger
 		//   buffers in the parquet sdk
-		if opts.ReadBufferCount*opts.ReadBufferSize > int(b.meta.Size) {
-			readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-		} else {
-			o = append(o, parquet.ReadBufferSize(opts.ReadBufferSize))
-		}
+		o = append(o, parquet.ReadBufferSize(opts.ReadBufferSize))
 	}
 
 	// optimized reader
 	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
 
 	// cached reader
-	readerAt = newCachedReaderAt(readerAt, backendReaderAt)
+	readerAt = newCachedReaderAt(readerAt, opts.ReadBufferSize)
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()
-	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
+	pf, err := parquet.OpenFile(readerAt.(*cachedReaderAt), int64(b.meta.Size), o...)
 
 	return pf, backendReaderAt, err
 }

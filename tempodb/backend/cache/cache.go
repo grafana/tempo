@@ -33,6 +33,7 @@ type readerWriter struct {
 	columnIdxCache  cache.Cache
 	offsetIdxCache  cache.Cache
 	traceIDIdxCache cache.Cache
+	pageCache       cache.Cache
 }
 
 func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter backend.RawWriter, cacheProvider cache.Provider, logger log.Logger) (backend.RawReader, backend.RawWriter, error) {
@@ -44,6 +45,7 @@ func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter ba
 		offsetIdxCache:  cacheProvider.CacheFor(cache.RoleParquetOffsetIdx),
 		columnIdxCache:  cacheProvider.CacheFor(cache.RoleParquetColumnIdx),
 		traceIDIdxCache: cacheProvider.CacheFor(cache.RoleTraceIDIdx),
+		pageCache:       cacheProvider.CacheFor(cache.RoleParquetPage),
 
 		nextReader: nextReader,
 		nextWriter: nextWriter,

@@ -11,11 +11,9 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// This stack of readers is used to bridge the gap between the backend.Reader and the parquet.File.
-//  each fulfills a different role.
-// backend.Reader <- BackendReaderAt <- io.BufferedReaderAt <- parquetOptimizedReaderAt <- cachedReaderAt <- parquet.File
-//                                \                                                         /
-//                                  <------------------------------------------------------
+type cacheReaderAt interface {
+	ReadAtWithCache([]byte, int64, cache.Role) (int, error)
+}
 
 // BackendReaderAt is used to track backend requests and present a io.ReaderAt interface backed
 // by a backend.Reader
@@ -28,6 +26,7 @@ type BackendReaderAt struct {
 	bytesRead atomic.Uint64
 }
 
+var _ cacheReaderAt = (*BackendReaderAt)(nil)
 var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
 func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta *backend.BlockMeta) *BackendReaderAt {
@@ -35,12 +34,7 @@ func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta
 }
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
-	b.bytesRead.Add(uint64(len(p)))
-	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, nil)
-	if err != nil {
-		return 0, err
-	}
-	return len(p), err
+	return b.ReadAtWithCache(p, off, cache.RoleNone)
 }
 
 func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
@@ -62,18 +56,18 @@ func (b *BackendReaderAt) BytesRead() uint64 {
 // file parquet always requests the magic number and then the footer length. We can save
 // both of these calls from going to the backend.
 type parquetOptimizedReaderAt struct {
-	r          io.ReaderAt
+	r          cacheReaderAt
 	readerSize int64
 	footerSize uint32
 }
 
-var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
+var _ cacheReaderAt = (*parquetOptimizedReaderAt)(nil)
 
-func newParquetOptimizedReaderAt(r io.ReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
+func newParquetOptimizedReaderAt(r cacheReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
 	return &parquetOptimizedReaderAt{r, size, footerSize}
 }
 
-func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
+func (r *parquetOptimizedReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
 	if len(p) == 4 && off == 0 {
 		// Magic header
 		return copy(p, []byte("PAR1")), nil
@@ -86,7 +80,7 @@ func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 		return 8, nil
 	}
 
-	return r.r.ReadAt(p, off)
+	return r.r.ReadAtWithCache(p, off, role)
 }
 
 type cachedObjectRecord struct {
@@ -97,15 +91,16 @@ type cachedObjectRecord struct {
 // cachedReaderAt is used to route specific reads to the caching layer. this must be passed directly into
 // the parquet.File so thet Set*Section() methods get called.
 type cachedReaderAt struct {
-	r             io.ReaderAt
-	br            *BackendReaderAt
+	r             cacheReaderAt
 	cachedObjects map[int64]cachedObjectRecord // storing offsets and length of objects we want to cache
+
+	maxPageSize int
 }
 
-var _ io.ReaderAt = (*cachedReaderAt)(nil)
+var _ cacheReaderAt = (*cachedReaderAt)(nil)
 
-func newCachedReaderAt(br io.ReaderAt, rr *BackendReaderAt) *cachedReaderAt {
-	return &cachedReaderAt{br, rr, map[int64]cachedObjectRecord{}}
+func newCachedReaderAt(r cacheReaderAt, maxPageSize int) *cachedReaderAt {
+	return &cachedReaderAt{r, map[int64]cachedObjectRecord{}, maxPageSize}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of footer section
@@ -127,10 +122,18 @@ func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	// check if the offset and length is stored as a special object
 	rec := r.cachedObjects[off]
 	if rec.length == int64(len(p)) {
-		return r.br.ReadAtWithCache(p, off, rec.role)
+		return r.r.ReadAtWithCache(p, off, rec.role)
 	}
 
-	return r.r.ReadAt(p, off)
+	if rec.length <= int64(r.maxPageSize) {
+		return r.r.ReadAtWithCache(p, off, cache.RoleParquetPage) // jpe should these smarts be in the cache layer?
+	}
+
+	return r.r.ReadAtWithCache(p, off, cache.RoleNone)
+}
+
+func (r *cachedReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
+	return r.r.ReadAtWithCache(p, off, role)
 }
 
 // walReaderAt is wrapper over io.ReaderAt, and is used to measure the total bytes read when searching walBlock.
