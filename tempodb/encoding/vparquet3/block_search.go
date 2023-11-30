@@ -73,18 +73,19 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
-	// buffering
-	if opts.ReadBufferSize > 0 { // jpe - readbuffersize must be > 0?
-		//   only use buffered reader at if the block is small, otherwise it's far more effective to use larger
-		//   buffers in the parquet sdk
-		o = append(o, parquet.ReadBufferSize(opts.ReadBufferSize))
+	// if the read buffer size provided is <= 0 then we'll use the parquet default
+	readBufferSize := opts.ReadBufferSize
+	if readBufferSize <= 0 {
+		readBufferSize = parquet.DefaultFileConfig().ReadBufferSize
 	}
+
+	o = append(o, parquet.ReadBufferSize(readBufferSize))
 
 	// optimized reader
 	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
 
 	// cached reader
-	readerAt = newCachedReaderAt(readerAt, opts.ReadBufferSize)
+	readerAt = newCachedReaderAt(readerAt, readBufferSize) // most reads to the backend are going to be readbuffersize so use it as our "page cache" size
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()

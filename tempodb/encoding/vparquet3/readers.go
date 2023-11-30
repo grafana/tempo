@@ -126,7 +126,7 @@ func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	}
 
 	if rec.length <= int64(r.maxPageSize) {
-		return r.r.ReadAtWithCache(p, off, cache.RoleParquetPage) // jpe should these smarts be in the cache layer?
+		return r.r.ReadAtWithCache(p, off, cache.RoleParquetPage)
 	}
 
 	return r.r.ReadAtWithCache(p, off, cache.RoleNone)
