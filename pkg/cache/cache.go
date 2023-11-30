@@ -10,7 +10,7 @@ type Role string
 
 const (
 	// individual roles
-	RoleNone             Role = "none" // jpe - don't allow this to be configured
+	RoleNone             Role = "none"
 	RoleBloom            Role = "bloom"
 	RoleTraceIDIdx       Role = "trace-id-index"
 	RoleParquetFooter    Role = "parquet-footer"

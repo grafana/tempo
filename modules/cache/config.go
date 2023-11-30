@@ -42,6 +42,10 @@ func (cfg *Config) Validate() error {
 
 		// check that all roles are unique
 		for _, role := range cacheCfg.Role {
+			if role == cache.RoleNone {
+				return fmt.Errorf("role none is not a valid role")
+			}
+
 			if _, ok := allRoles[role]; !ok {
 				return fmt.Errorf("role %s is not a valid role", role)
 			}

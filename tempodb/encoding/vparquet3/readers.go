@@ -129,7 +129,7 @@ func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 		return r.r.ReadAtWithCache(p, off, cache.RoleParquetPage) // jpe should these smarts be in the cache layer?
 	}
 
-	return r.r.ReadAtWithCache(p, off, cache.RoleNone) // jpe against the rules to configure a "none" cache
+	return r.r.ReadAtWithCache(p, off, cache.RoleNone)
 }
 
 func (r *cachedReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
