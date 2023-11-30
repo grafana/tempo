@@ -8,6 +8,7 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -15,8 +16,10 @@ import (
 func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
-	// jpe - back to buffered reader?
-	pf, err := parquet.OpenFile(rr, int64(b.meta.Size), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.ReadBufferSize(4*1024*1024))
+	// 128 MB memory buffering
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 2*1024*1024, 64)
+
+	pf, err := parquet.OpenFile(br, int64(b.meta.Size), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
 	if err != nil {
 		return nil, nil, err
 	}
