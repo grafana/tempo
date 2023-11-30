@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"strings"
 
@@ -54,6 +55,12 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (cfg *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
+	cfg.Background = &cache.BackgroundConfig{}
+	cfg.Background.WriteBackBuffer = 10000
+	cfg.Background.WriteBackGoroutines = 10
 }
 
 // Name returns a string representation of the roles claimed by this cache.
