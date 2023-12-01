@@ -45,7 +45,7 @@ func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) 
 	if err != nil {
 		return 0, err
 	}
-	return len(p), err
+	return len(p), nil
 }
 
 func (b *BackendReaderAt) BytesRead() uint64 {
@@ -158,7 +158,12 @@ func (wr *walReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	n, err := wr.r.ReadAt(p, off)
 	// ReadAt can read less than len(p) bytes in some cases
 	wr.bytesRead.Add(uint64(n))
-	return n, err
+
+	if err != nil {
+		return 0, err
+	}
+
+	return n, nil
 }
 
 func (wr *walReaderAt) BytesRead() uint64 {

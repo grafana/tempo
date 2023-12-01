@@ -89,7 +89,17 @@ func (p *provider) starting(_ context.Context) error {
 }
 
 func (p *provider) stopping(_ error) error {
+	// jpe - split interface so external callers can't stop caches
+	// we can only stop a cache once (or it panics). use this map
+	// to track which caches we've stopped.
+	stopped := map[cache.Cache]struct{}{}
+
 	for _, c := range p.caches {
+		if _, ok := stopped[c]; ok {
+			continue
+		}
+
+		stopped[c] = struct{}{}
 		c.Stop()
 	}
 

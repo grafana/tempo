@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -111,6 +112,14 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		k = strings.Join(keyGen, ":")
 		found, vals, _ := cache.Fetch(ctx, []string{k})
 		if len(found) > 0 {
+
+			if found[0] != k || len(vals[0]) != len(buffer) {
+				fmt.Println("??? mismatch", found[0], k, len(vals[0]), len(buffer))
+			}
+			if len(buffer) > 1048576 {
+				fmt.Println("??? unexpected len", len(buffer))
+			}
+
 			// jpe - double check this is correct? always one val? found always the requested key?
 			copy(buffer, vals[0])
 			return nil
@@ -130,20 +139,6 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 // Shutdown implements backend.RawReader
 func (r *readerWriter) Shutdown() {
 	r.nextReader.Shutdown()
-
-	stopCache := func(c cache.Cache) {
-		if c != nil {
-			c.Stop()
-		}
-	}
-
-	// jpe - can't blindly close all. some may already be closed due to being the same
-	stopCache(r.footerCache)
-	stopCache(r.bloomCache)
-	stopCache(r.offsetIdxCache)
-	stopCache(r.columnIdxCache)
-	stopCache(r.traceIDIdxCache)
-	stopCache(r.pageCache)
 }
 
 // Write implements backend.Writer
