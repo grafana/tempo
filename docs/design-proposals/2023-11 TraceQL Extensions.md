@@ -93,8 +93,8 @@ Legacy intrinsics will be kept for the foreseeable future to preserve backwards 
 | ------ | -------------- | ------ | ----------- |
 | trace  | :duration      | traceDuration   | Max end time of any span minus the min start time of any span in the trace. |
 |        | :id            |                 | Trace id |
-|        | :rootName      | rootServiceName | `span:name` of the root span |
-|        | :rootService   | rootName        | `resource.service.name` of the root span |
+|        | :rootName      | rootName | `span:name` of the root span |
+|        | :rootService   | rootServiceName        | `resource.service.name` of the root span |
 | scope  | :name          |                 | Instrumentation scope name |
 |        | :version       |                 | Instrumentation scope version |
 | span   | :id            |                 | Span id |
