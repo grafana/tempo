@@ -201,7 +201,7 @@ func TestTraceToParquet(t *testing.T) {
 						K8sPodName:       strPtr("k8s-pod-a"),
 						K8sContainerName: strPtr("k8s-container-a"),
 						Attrs: []Attribute{
-							{Key: "res.attr", ValueInt: intPtr(int64(123))},
+							attr("res.attr", 123),
 						},
 						DedicatedAttributes: DedicatedAttributes{
 							String01: strPtr("dedicated-resource-attr-value-1"),
@@ -222,7 +222,7 @@ func TestTraceToParquet(t *testing.T) {
 							HttpUrl:        strPtr("https://example.com"),
 							HttpStatusCode: intPtr(201),
 							Attrs: []Attribute{
-								{Key: "span.attr", Value: strPtr("aaa")},
+								attr("span.attr", "aaa"),
 							},
 							DedicatedAttributes: DedicatedAttributes{
 								String01: strPtr("dedicated-span-attr-value-1"),
@@ -301,7 +301,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetRight: 6,
 								ParentID:       -1,
 								Attrs: []Attribute{
-									{Key: "span.attr", Value: strPtr("aaa")},
+									attr("span.attr", "aaa"),
 								},
 							},
 							{
@@ -312,7 +312,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetLeft:  2,
 								NestedSetRight: 3,
 								Attrs: []Attribute{
-									{Key: "span.attr", Value: strPtr("bbb")},
+									attr("span.attr", "bbb"),
 								},
 							},
 							{
@@ -323,7 +323,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetLeft:  4,
 								NestedSetRight: 5,
 								Attrs: []Attribute{
-									{Key: "span.attr", Value: strPtr("ccc")},
+									attr("span.attr", "ccc"),
 								},
 							},
 						},

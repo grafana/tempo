@@ -47,7 +47,7 @@ func TestBackendBlockSearch(t *testing.T) {
 					K8sPodName:       strPtr("k8spod"),
 					K8sContainerName: strPtr("k8scontainer"),
 					Attrs: []Attribute{
-						{Key: "bat", Value: strPtr("baz")},
+						attr("bat", "baz"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: strPtr("dedicated-resource-attr-value-1"),
@@ -69,7 +69,7 @@ func TestBackendBlockSearch(t *testing.T) {
 								ParentSpanID:   []byte{},
 								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{
-									{Key: "foo", Value: strPtr("bar")},
+									attr("foo", "bar"),
 								},
 								DedicatedAttributes: DedicatedAttributes{
 									String01: strPtr("dedicated-span-attr-value-1"),
@@ -368,10 +368,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 					K8sPodName:       ptr("kpod"),
 					K8sContainerName: ptr("k8scon"),
 					Attrs: []Attribute{
-						{
-							Key:   key,
-							Value: &val,
-						},
+						attr(key, val),
 					},
 					DedicatedAttributes: dedicatedResourceAttrs,
 				},
@@ -394,10 +391,7 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 					HttpStatusCode: &sts,
 					StatusCode:     2,
 					Attrs: []Attribute{
-						{
-							Key:   key,
-							Value: &val,
-						},
+						attr(key, val),
 					},
 					DedicatedAttributes: dedicatedSpanAttrs,
 				}

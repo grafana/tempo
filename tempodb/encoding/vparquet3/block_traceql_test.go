@@ -393,8 +393,6 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	// Helper functions to make pointers
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
-	fltPtr := func(f float64) *float64 { return &f }
-	boolPtr := func(b bool) *bool { return &b }
 
 	links := tempopb.LinkSlice{
 		Links: []*v1.Span_Link{
@@ -463,11 +461,10 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sPodName:       strPtr("k8spod"),
 					K8sContainerName: strPtr("k8scontainer"),
 					Attrs: []Attribute{
-						{Key: "foo", Value: strPtr("abc")},
-						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
-
+						attr("foo", "abc"),
+						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
-						{Key: "unsupported-array", ValueDropped: arrayAttrValue},
+						{Key: "unsupported-array", ValueDropped: arrayAttrValue, ValueType: attrTypeNotSupported},
 					},
 					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
@@ -497,18 +494,16 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								DroppedAttributesCount: 42,
 								DroppedEventsCount:     43,
 								Attrs: []Attribute{
-									{Key: "foo", Value: strPtr("def")},
-									{Key: "bar", ValueInt: intPtr(123)},
-									{Key: "float", ValueDouble: fltPtr(456.78)},
-									{Key: "bool", ValueBool: boolPtr(false)},
-
+									attr("foo", "def"),
+									attr("bar", 123),
+									attr("float", 456.78),
+									attr("bool", false),
 									// Edge-cases
-									{Key: LabelName, Value: strPtr("Bob")},                    // Conflicts with intrinsic but still looked up by .name
-									{Key: LabelServiceName, Value: strPtr("spanservicename")}, // Overrides resource-level dedicated column
-									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch")},      // Different type than dedicated column
-
+									attr(LabelName, "Bob"),                    // Conflicts with intrinsic but still looked up by .name
+									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
+									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
-									{Key: "unsupported-array", ValueDropped: arrayAttrValue},
+									{Key: "unsupported-array", ValueDropped: arrayAttrValue, ValueType: attrTypeNotSupported},
 								},
 								Events: []Event{
 									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
@@ -542,8 +537,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sPodName:       strPtr("k8spod2"),
 					K8sContainerName: strPtr("k8scontainer2"),
 					Attrs: []Attribute{
-						{Key: "foo", Value: strPtr("abc2")},
-						{Key: LabelServiceName, ValueInt: intPtr(1234)}, // Different type than dedicated column
+						attr("foo", "abc2"),
+						attr(LabelServiceName, 1234), // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: strPtr("dedicated-resource-attr-value-6"),
@@ -571,15 +566,14 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								DroppedAttributesCount: 45,
 								DroppedEventsCount:     46,
 								Attrs: []Attribute{
-									{Key: "foo", Value: strPtr("ghi")},
-									{Key: "bar", ValueInt: intPtr(1234)},
-									{Key: "float", ValueDouble: fltPtr(456.789)},
-									{Key: "bool", ValueBool: boolPtr(true)},
-
+									attr("foo", "ghi"),
+									attr("bar", 1234),
+									attr("float", 456.789),
+									attr("bool", true),
 									// Edge-cases
-									{Key: LabelName, Value: strPtr("Bob2")},                    // Conflicts with intrinsic but still looked up by .name
-									{Key: LabelServiceName, Value: strPtr("spanservicename2")}, // Overrides resource-level dedicated column
-									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch2")},      // Different type than dedicated column
+									attr(LabelName, "Bob2"),                    // Conflicts with intrinsic but still looked up by .name
+									attr(LabelServiceName, "spanservicename2"), // Overrides resource-level dedicated column
+									attr(LabelHTTPStatusCode, "500ouch2"),      // Different type than dedicated column
 								},
 							},
 						},
@@ -708,5 +702,28 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 				require.NotNil(b, r)
 			}
 		})
+	}
+}
+
+func attr(key string, val any) Attribute {
+	switch val := val.(type) {
+	case string:
+		return Attribute{Key: key, Value: []string{val}, ValueType: attrTypeString}
+	case []string:
+		return Attribute{Key: key, Value: val, ValueType: attrTypeStringArray}
+	case int:
+		return Attribute{Key: key, ValueInt: []int64{int64(val)}, ValueType: attrTypeInt}
+	case []int64:
+		return Attribute{Key: key, ValueInt: val, ValueType: attrTypeIntArray}
+	case float64:
+		return Attribute{Key: key, ValueDouble: []float64{val}, ValueType: attrTypeDouble}
+	case []float64:
+		return Attribute{Key: key, ValueDouble: val, ValueType: attrTypeDoubleArray}
+	case bool:
+		return Attribute{Key: key, ValueBool: []bool{val}, ValueType: attrTypeBool}
+	case []bool:
+		return Attribute{Key: key, ValueBool: val, ValueType: attrTypeBoolArray}
+	default:
+		panic("Type not supported")
 	}
 }
