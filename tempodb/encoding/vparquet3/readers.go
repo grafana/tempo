@@ -45,42 +45,12 @@ func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) 
 	if err != nil {
 		return 0, err
 	}
+	b.bytesRead.Add(uint64(len(p)))
 	return len(p), nil
 }
 
 func (b *BackendReaderAt) BytesRead() uint64 {
 	return b.bytesRead.Load()
-}
-
-// parquetOptimizedReaderAt is used to cheat a few parquet calls. By default when opening a
-// file parquet always requests the magic number and then the footer length. We can save
-// both of these calls from going to the backend.
-type parquetOptimizedReaderAt struct {
-	r          cacheReaderAt
-	readerSize int64
-	footerSize uint32
-}
-
-var _ cacheReaderAt = (*parquetOptimizedReaderAt)(nil)
-
-func newParquetOptimizedReaderAt(r cacheReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
-	return &parquetOptimizedReaderAt{r, size, footerSize}
-}
-
-func (r *parquetOptimizedReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
-	if len(p) == 4 && off == 0 {
-		// Magic header
-		return copy(p, []byte("PAR1")), nil
-	}
-
-	if len(p) == 8 && off == r.readerSize-8 && r.footerSize > 0 /* not present in previous block metas */ {
-		// Magic footer
-		binary.LittleEndian.PutUint32(p, r.footerSize)
-		copy(p[4:8], []byte("PAR1"))
-		return 8, nil
-	}
-
-	return r.r.ReadAtWithCache(p, off, role)
 }
 
 type cachedObjectRecord struct {
@@ -94,13 +64,16 @@ type cachedReaderAt struct {
 	r             cacheReaderAt
 	cachedObjects map[int64]cachedObjectRecord // storing offsets and length of objects we want to cache
 
+	readerSize int64
+	footerSize uint32
+
 	maxPageSize int
 }
 
 var _ cacheReaderAt = (*cachedReaderAt)(nil)
 
-func newCachedReaderAt(r cacheReaderAt, maxPageSize int) *cachedReaderAt {
-	return &cachedReaderAt{r, map[int64]cachedObjectRecord{}, maxPageSize}
+func newCachedReaderAt(r cacheReaderAt, maxPageSize int, size int64, footerSize uint32) *cachedReaderAt {
+	return &cachedReaderAt{r, map[int64]cachedObjectRecord{}, size, footerSize, maxPageSize}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of footer section
@@ -119,13 +92,25 @@ func (r *cachedReaderAt) SetOffsetIndexSection(offset, length int64) {
 }
 
 func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if len(p) == 4 && off == 0 {
+		// Magic header
+		return copy(p, []byte("PAR1")), nil
+	}
+
+	if len(p) == 8 && off == r.readerSize-8 && r.footerSize > 0 /* not present in previous block metas */ {
+		// Magic footer
+		binary.LittleEndian.PutUint32(p, r.footerSize)
+		copy(p[4:8], []byte("PAR1"))
+		return 8, nil
+	}
+
 	// check if the offset and length is stored as a special object
-	rec := r.cachedObjects[off]
-	if rec.length == int64(len(p)) {
+	rec, ok := r.cachedObjects[off]
+	if ok && rec.length == int64(len(p)) {
 		return r.r.ReadAtWithCache(p, off, rec.role)
 	}
 
-	if rec.length <= int64(r.maxPageSize) {
+	if len(p) <= r.maxPageSize {
 		return r.r.ReadAtWithCache(p, off, cache.RoleParquetPage)
 	}
 
