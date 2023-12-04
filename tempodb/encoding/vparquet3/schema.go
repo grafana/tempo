@@ -550,6 +550,8 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 		} else if attr.ValueDropped != "" && includeDroppedAttr {
 			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueDropped), protoVal)
 			counter.addDroppedAttr(-1)
+		} else {
+			continue
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{
