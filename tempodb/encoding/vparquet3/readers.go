@@ -27,7 +27,6 @@ type BackendReaderAt struct {
 }
 
 var _ cacheReaderAt = (*BackendReaderAt)(nil)
-var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
 func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta *backend.BlockMeta) *BackendReaderAt {
 	return &BackendReaderAt{ctx, r, name, meta, atomic.Uint64{}}
@@ -70,7 +69,10 @@ type cachedReaderAt struct {
 	maxPageSize int
 }
 
-var _ cacheReaderAt = (*cachedReaderAt)(nil)
+var (
+	_ cacheReaderAt = (*cachedReaderAt)(nil)
+	_ io.ReaderAt   = (*cachedReaderAt)(nil)
+)
 
 func newCachedReaderAt(r cacheReaderAt, maxPageSize int, size int64, footerSize uint32) *cachedReaderAt {
 	return &cachedReaderAt{r, map[int64]cachedObjectRecord{}, size, footerSize, maxPageSize}
