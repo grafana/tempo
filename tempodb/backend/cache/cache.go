@@ -225,9 +225,5 @@ func store(ctx context.Context, cache cache.Cache, role cache.Role, key string, 
 // needsCopy returns true if the role should be copied into a new buffer before being written to the cache
 // todo: should this be signalled through cacheinfo instead?
 func needsCopy(role cache.Role) bool {
-	if role == cache.RoleParquetPage { // parquet pages are reused by the library. if we don't copy them then the buffer may be reused before written to cache
-		return true
-	}
-
-	return false
+	return role == cache.RoleParquetPage // parquet pages are reused by the library. if we don't copy them then the buffer may be reused before written to cache
 }
