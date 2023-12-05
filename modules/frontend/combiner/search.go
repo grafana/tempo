@@ -57,6 +57,7 @@ func NewSearch() Combiner {
 	}
 }
 
+// TODO: merge this with /pkg/traceql/combine.go#L46-L95, this method is slightly different so look into it and merge both.
 func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
 	if existing.TraceID == "" {
 		existing.TraceID = incoming.TraceID
