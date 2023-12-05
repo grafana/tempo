@@ -100,7 +100,9 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	metrics := spanMetricsMiddleware.Wrap(next)
 
-	streamingMiddleware := MergeMiddlewares(newMultiTenantUnsupportedMiddleware(cfg, logger), retryWare).Wrap(next)
+	streamingMiddleware := MergeMiddlewares(
+		newMultiTenantMiddleware(cfg, combiner.NewSearch, logger),
+		retryWare).Wrap(next)
 
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
