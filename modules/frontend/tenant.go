@@ -2,7 +2,9 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,7 +15,6 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -22,6 +23,8 @@ const (
 	statusCodeLabel = "status_code"
 	tenantLabel     = "tenant"
 )
+
+var ErrMultiTenantUnsupported = errors.New("multi-tenant query unsupported")
 
 var (
 	tenantSuccessTotal = promauto.NewCounterVec(
@@ -84,7 +87,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		return nil, fmt.Errorf("failed to extract org id from request: %w", err)
 	}
 
-	// extract tenant ids
+	// extract tenant ids, this will normalize and de-duplicate tenant ids
 	tenants, err := t.resolver.TenantIDs(ctx)
 	if err != nil {
 		return nil, err
@@ -116,7 +119,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 				return
 			}
 
-			_ = level.Info(t.logger).Log("msg", "sending request for tenant", "path", req.URL.EscapedPath(), "tenant", tenant)
+			_ = level.Info(t.logger).Log("msg", "sending request for tenant", "tenant", tenant, "path", req.URL.EscapedPath())
 
 			r := requestForTenant(subCtx, req, tenant)
 			resp, err := t.next.RoundTrip(r)
@@ -159,10 +162,6 @@ func requestForTenant(ctx context.Context, r *http.Request, tenant string) *http
 	return rCopy
 }
 
-// newMultiTenantUnsupportedMiddleware(cfg, handler)
-// return error if we have multiple tenants.
-// pass through to handler if we get single tenant.
-
 type unsupportedRoundTripper struct {
 	cfg    Config
 	next   http.RoundTripper
@@ -182,39 +181,41 @@ func newMultiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) Middlewa
 	})
 }
 
-// TODO: is it easy to have a handler instead of Middleware here? maybe yes??
-// FIXME: I think we need handler to wrap newSearchStreamingWSHandler and newSearchStreamingGRPCHandler
-
 func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !t.cfg.MultiTenantQueriesEnabled {
-		// move on to next tripper if multi-tenant queries are not enabled
-		return t.next.RoundTrip(req)
+	err := MultiTenantNotSupported(t.cfg, t.resolver, req)
+	if err != nil {
+		_ = level.Debug(t.logger).Log("msg", "multi-tenant query is not supported", "path", req.URL.EscapedPath())
+
+		// if we return an err here, downstream handler will turn it into HTTP 500 Internal Server Error.
+		// respond with 400 and error as body and return nil error.
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Status:     http.StatusText(http.StatusBadRequest),
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
 	}
 
-	if !t.cfg.MultiTenantQueriesEnabled {
-		// move on to next tripper if multi-tenant queries are not enabled
-		return t.next.RoundTrip(req)
+	return t.next.RoundTrip(req)
+}
+
+func MultiTenantNotSupported(cfg Config, resolver tenant.Resolver, req *http.Request) error {
+	if !cfg.MultiTenantQueriesEnabled {
+		return nil
 	}
 
 	_, ctx, err := user.ExtractOrgIDFromHTTPRequest(req)
-	if err == user.ErrNoOrgID {
-		// no org id, move to next tripper
-		return t.next.RoundTrip(req)
-	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract org id from request: %w", err)
+		return fmt.Errorf("failed to extract org id from request: %w", err)
 	}
 
 	// extract tenant ids
-	tenants, err := t.resolver.TenantIDs(ctx)
+	tenants, err := resolver.TenantIDs(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	// for single tenant, fall through to next round tripper
-	if len(tenants) <= 1 {
-		return t.next.RoundTrip(req)
-	} else {
-		// fail in case we get multiple tenants
-		return nil, common.ErrUnsupported
+	// error if we get more then 1 tenant
+	if len(tenants) > 1 {
+		return ErrMultiTenantUnsupported
 	}
+	return nil
 }

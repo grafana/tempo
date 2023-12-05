@@ -87,7 +87,9 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValuesV2, logger),
 		newSearchTagsMiddleware(), retryWare)
 
-	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(), retryWare)
+	spanMetricsMiddleware := MergeMiddlewares(
+		newMultiTenantUnsupportedMiddleware(cfg, logger),
+		newSpanMetricsMiddleware(), retryWare)
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)

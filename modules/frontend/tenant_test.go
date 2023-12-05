@@ -5,15 +5,18 @@ import (
 	"crypto/rand"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -124,6 +127,51 @@ func TestMultiTenant(t *testing.T) {
 			}
 			// Check if the trace is the same as the original.
 			require.Equal(t, trace, responseTrace)
+		})
+	}
+}
+
+func TestMultiTenantNotSupported(t *testing.T) {
+	tests := []struct {
+		name   string
+		cfg    Config
+		tenant string
+		err    error
+	}{
+		{
+			name:   "multi-tenant queries disabled",
+			cfg:    Config{MultiTenantQueriesEnabled: false},
+			tenant: "test",
+			err:    nil,
+		},
+		{
+			name:   "multi-tenant queries disabled with multiple tenant",
+			cfg:    Config{MultiTenantQueriesEnabled: false},
+			tenant: "test|test1",
+			err:    nil,
+		},
+		{
+			name:   "multi-tenant queries enabled with single tenant",
+			cfg:    Config{MultiTenantQueriesEnabled: true},
+			tenant: "test",
+			err:    nil,
+		},
+		{
+			name:   "multi-tenant queries enabled with multiple tenants",
+			cfg:    Config{MultiTenantQueriesEnabled: true},
+			tenant: "test|test1",
+			err:    ErrMultiTenantUnsupported,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Add("X-Scope-OrgID", tc.tenant)
+			resolver := tenant.NewMultiResolver()
+
+			err := MultiTenantNotSupported(tc.cfg, resolver, req)
+			assert.Equal(t, tc.err, err)
 		})
 	}
 }
