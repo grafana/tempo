@@ -13,10 +13,12 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 const (
 	internalErrorMsg = "internal error"
+	tenantLabel      = "tenant"
 )
 
 type traceByIDCombiner struct {
@@ -36,7 +38,7 @@ func NewTraceByID() Combiner {
 	}
 }
 
-func (c *traceByIDCombiner) AddRequest(res *http.Response, cb func(t *tempopb.Trace)) error {
+func (c *traceByIDCombiner) AddRequest(res *http.Response, tenant string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -77,10 +79,8 @@ func (c *traceByIDCombiner) AddRequest(res *http.Response, cb func(t *tempopb.Tr
 		return c.err
 	}
 
-	// Call the callback
-	if cb != nil {
-		cb(trace)
-	}
+	// inject tenant label as resource in trace
+	InjectTenantResource(tenant, trace)
 
 	// Consume the trace
 	_, err = c.c.Consume(trace)
@@ -153,4 +153,22 @@ func (c *traceByIDCombiner) shouldQuit() bool {
 
 	// 2xx and 404 are OK
 	return false
+}
+
+// InjectTenantResource will add tenantLabel attribute into response to show which tenant the response came from
+func InjectTenantResource(tenant string, t *tempopb.Trace) {
+	if t == nil || t.Batches == nil {
+		return
+	}
+
+	for _, b := range t.Batches {
+		b.Resource.Attributes = append(b.Resource.Attributes, &v1.KeyValue{
+			Key: tenantLabel,
+			Value: &v1.AnyValue{
+				Value: &v1.AnyValue_StringValue{
+					StringValue: tenant,
+				},
+			},
+		})
+	}
 }

@@ -13,8 +13,6 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -118,7 +116,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 				return
 			}
 
-			_ = level.Info(t.logger).Log("msg", "sending request for tenant", "tenant", tenant)
+			_ = level.Info(t.logger).Log("msg", "sending request for tenant", "path", req.URL.EscapedPath(), "tenant", tenant)
 
 			r := requestForTenant(subCtx, req, tenant)
 			resp, err := t.next.RoundTrip(r)
@@ -135,9 +133,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			}
 
 			// If we get here, we have a successful response
-			if err := respCombiner.AddRequest(resp, injectTenantResource(tenant)); err != nil {
-				// FIXME: this fails, there will be zero failures once we fix this
-				// 19:23:57 tempo: level=error ts=2023-11-17T13:53:57.366689389Z caller=tenant.go:138 msg="error combining responses" tenant=test err="error unmarshalling response body: error unmarshalling response body: unknown field \"scopes\" in tempopb.SearchTagsResponse"
+			if err := respCombiner.AddRequest(resp, tenant); err != nil {
 				_ = level.Error(t.logger).Log("msg", "error combining responses", "tenant", tenant, "err", err)
 				t.tenantFailureTotal.With(prometheus.Labels{tenantLabel: tenant, statusCodeLabel: strconv.Itoa(resp.StatusCode)}).Inc()
 				return
@@ -161,26 +157,6 @@ func requestForTenant(ctx context.Context, r *http.Request, tenant string) *http
 	rCopy := r.Clone(ctx)
 	rCopy.Header.Set(user.OrgIDHeaderName, tenant)
 	return rCopy
-}
-
-// injectTenantResource will add tenantLabel attribute into response to show which tenant the response came from
-func injectTenantResource(tenant string) func(t *tempopb.Trace) {
-	return func(t *tempopb.Trace) {
-		if t == nil || t.Batches == nil {
-			return
-		}
-
-		for _, b := range t.Batches {
-			b.Resource.Attributes = append(b.Resource.Attributes, &v1.KeyValue{
-				Key: tenantLabel,
-				Value: &v1.AnyValue{
-					Value: &v1.AnyValue_StringValue{
-						StringValue: tenant,
-					},
-				},
-			})
-		}
-	}
 }
 
 // newMultiTenantUnsupportedMiddleware(cfg, handler)

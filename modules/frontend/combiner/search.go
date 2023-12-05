@@ -11,6 +11,8 @@ import (
 
 var _ Combiner = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
+// TODO: we also have a combiner in pkg/traceql/combine.go, which is slightly different then this.
+// this Combiner locks, and merges the spans slightly differently. compare and consolidate both if possible.
 func NewSearch() Combiner {
 	resultsMap := make(map[string]*tempopb.TraceSearchMetadata)
 	return &genericCombiner[*tempopb.SearchResponse]{
@@ -55,9 +57,6 @@ func NewSearch() Combiner {
 	}
 }
 
-// TODO (mdisibio) - This function exists in Tempo but is missing TraceQL results and is also
-// being relocated in a refactor soon.  Delete this copy once it is in the final location
-// and updated for TraceQL results.
 func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
 	if existing.TraceID == "" {
 		existing.TraceID = incoming.TraceID

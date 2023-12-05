@@ -120,15 +120,10 @@ func TestMultiTenant(t *testing.T) {
 			require.NoError(t, responseTrace.Unmarshal(buff))
 			// Add tenant to the original trace to compare.
 			if len(tenants) > 1 {
-				injectTenantResource(fastestTenant)(trace)
+				combiner.InjectTenantResource(fastestTenant, trace)
 			}
 			// Check if the trace is the same as the original.
 			require.Equal(t, trace, responseTrace)
 		})
 	}
 }
-
-// FIXME: add this test??
-// func TestMultiTenantUnsupported(t *testing.T) {
-//
-// }

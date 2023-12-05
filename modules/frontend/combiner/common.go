@@ -29,7 +29,7 @@ type genericCombiner[R TResponse] struct {
 	err           error
 }
 
-func (c *genericCombiner[R]) AddRequest(res *http.Response, _ func(t *tempopb.Trace)) error {
+func (c *genericCombiner[R]) AddRequest(res *http.Response, _ string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
