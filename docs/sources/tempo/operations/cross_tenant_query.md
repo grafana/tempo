@@ -32,14 +32,16 @@ Update Tempo datasource to send `X-Scope-OrgID` header with values of tenants se
 
 <p align="center"><img src="../header_ds.png" alt="X-Scope-OrgID Headers in Datasource"></p>
 
-If you are provisioning tempo datasource via Grafana Provisioning, you can configure `X-Scope-OrgID` header like this:
+If you are provisioning tempo datasource via Grafana Provisioning, you can configure `x-scope-orgid` header like this:
 
 ```yaml
   jsonData:
-    httpHeaderName1: 'X-Scope-OrgID'
+    httpHeaderName1: 'x-scope-orgid'
   secureJsonData:
     httpHeaderValue1: 'test|test1'
 ```
+
+> NOTE: for streaming search, header `x-scope-orgid` needs to be lowercase.
 
 Queries are performed using the cross-tenant configured data source in either **Explore** or inside of dashboards are performed across all the tenants that you specified in the **X-Scope-OrgID** header. 
 
