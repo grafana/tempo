@@ -9,67 +9,18 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type mockClient struct {
-	client map[string][]byte
-}
-
-func (m *mockClient) Store(_ context.Context, key []string, val [][]byte) {
-	m.client[key[0]] = val[0]
-}
-
-func (m *mockClient) Fetch(_ context.Context, key []string) (found []string, bufs [][]byte, missing []string) {
-	val, ok := m.client[key[0]]
-	if ok {
-		found = append(found, key[0])
-		bufs = append(bufs, val)
-	} else {
-		missing = append(missing, key[0])
-	}
-	return
-}
-
-func (m *mockClient) Stop() {
-}
-
-// NewMockClient makes a new mockClient.
-func NewMockClient() cache.Cache {
-	return &mockClient{
-		client: map[string][]byte{},
-	}
-}
-
-func newMockProvider() *mockProvider {
-	return &mockProvider{
-		c: NewMockClient(),
-	}
-}
-
-type mockProvider struct {
-	services.Service
-
-	c cache.Cache
-}
-
-func (p *mockProvider) CacheFor(_ cache.Role) cache.Cache {
-	return p.c
-}
-
-func (p *mockProvider) AddCache(_ cache.Role, _ cache.Cache) error {
-	return nil
-}
-
 func TestCacheFor(t *testing.T) {
 	reader, _, err := NewCache(&BloomConfig{
 		CacheMaxBlockAge:        time.Hour,
 		CacheMinCompactionLevel: 1,
-	}, nil, nil, newMockProvider(), log.NewNopLogger())
+	}, nil, nil, test.NewMockProvider(), log.NewNopLogger())
 	require.NoError(t, err)
 
 	rw := reader.(*readerWriter)
@@ -146,7 +97,7 @@ func TestCacheFor(t *testing.T) {
 }
 
 func TestCacheForReturnsBloomWithNoConfig(t *testing.T) {
-	reader, _, err := NewCache(nil, nil, nil, newMockProvider(), log.NewNopLogger())
+	reader, _, err := NewCache(nil, nil, nil, test.NewMockProvider(), log.NewNopLogger())
 	require.NoError(t, err)
 
 	rw := reader.(*readerWriter)
@@ -242,7 +193,7 @@ func TestReadWrite(t *testing.T) {
 			mockW := &backend.MockRawWriter{}
 
 			// READ
-			r, _, err := NewCache(nil, mockR, mockW, newMockProvider(), log.NewNopLogger())
+			r, _, err := NewCache(nil, mockR, mockW, test.NewMockProvider(), log.NewNopLogger())
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -258,7 +209,7 @@ func TestReadWrite(t *testing.T) {
 			assert.Equal(t, len(tt.expectedCache), len(read))
 
 			// WRITE
-			_, w, err := NewCache(nil, mockR, mockW, newMockProvider(), log.NewNopLogger())
+			_, w, err := NewCache(nil, mockR, mockW, test.NewMockProvider(), log.NewNopLogger())
 			require.NoError(t, err)
 
 			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)), tt.cacheInfo)
@@ -294,7 +245,7 @@ func TestList(t *testing.T) {
 			}
 			mockW := &backend.MockRawWriter{}
 
-			rw, _, _ := NewCache(nil, mockR, mockW, newMockProvider(), log.NewNopLogger())
+			rw, _, _ := NewCache(nil, mockR, mockW, test.NewMockProvider(), log.NewNopLogger())
 
 			ctx := context.Background()
 			list, _ := rw.List(ctx, backend.KeyPathForBlock(blockID, tenantID))

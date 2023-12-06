@@ -72,6 +72,7 @@ func allRoles() map[cache.Role]struct{} {
 		cache.RoleParquetColumnIdx,
 		cache.RoleParquetOffsetIdx,
 		cache.RoleTraceIDIdx,
+		cache.RoleFrontendSearch,
 	}
 
 	roles := map[cache.Role]struct{}{}
