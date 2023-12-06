@@ -1954,11 +1954,14 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	// Pre-allocate the final number of spans
+	// Pre-allocate the final number of spans and serviceStats
 	numSpans := 0
+	numServiceStats := 0
 	for _, e := range res.OtherEntries {
 		if _, ok := e.Value.(*span); ok {
 			numSpans++
+		} else if _, ok := e.Value.(traceql.ServiceStats); ok {
+			numServiceStats++
 		}
 	}
 	if cap(finalSpanset.Spans) < numSpans {
@@ -1980,7 +1983,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	finalSpanset.ServiceStats = make(map[string]traceql.ServiceStats)
+	finalSpanset.ServiceStats = make(map[string]traceql.ServiceStats, numServiceStats)
 	for _, e := range res.OtherEntries {
 		if serviceStats, ok := e.Value.(traceql.ServiceStats); ok {
 			finalSpanset.ServiceStats[e.Key] = serviceStats
