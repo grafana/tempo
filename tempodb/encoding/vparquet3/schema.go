@@ -288,13 +288,70 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 	case *v1.AnyValue_BoolValue:
 		p.ValueBool = append(p.ValueBool, v.BoolValue)
 		p.ValueType = attrTypeBool
+	case *v1.AnyValue_ArrayValue:
+		if v.Size() == 0 {
+			p.ValueType = attrTypeStringArray
+			return
+		}
+		switch v.ArrayValue.Values[0].Value.(type) {
+		case *v1.AnyValue_StringValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_StringValue)
+				if !ok {
+					p.Value = p.Value[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+				}
+
+				p.Value = append(p.Value, ev.StringValue)
+				p.ValueType = attrTypeStringArray
+			}
+		case *v1.AnyValue_IntValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_IntValue)
+				if !ok {
+					p.ValueInt = p.ValueInt[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+				}
+
+				p.ValueInt = append(p.ValueInt, ev.IntValue)
+				p.ValueType = attrTypeIntArray
+			}
+		case *v1.AnyValue_DoubleValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_DoubleValue)
+				if !ok {
+					p.ValueDouble = p.ValueDouble[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+				}
+
+				p.ValueDouble = append(p.ValueDouble, ev.DoubleValue)
+				p.ValueType = attrTypeDoubleArray
+			}
+		case *v1.AnyValue_BoolValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_BoolValue)
+				if !ok {
+					p.ValueBool = p.ValueBool[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+				}
+
+				p.ValueBool = append(p.ValueBool, ev.BoolValue)
+				p.ValueType = attrTypeBoolArray
+			}
+		default:
+			attrToParquetTypeUnsupported(a, p, counter)
+		}
 	default:
-		jsonBytes := &bytes.Buffer{}
-		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
-		p.ValueDropped = jsonBytes.String()
-		p.ValueType = attrTypeNotSupported
-		counter.addDroppedAttr(1)
+		attrToParquetTypeUnsupported(a, p, counter)
 	}
+}
+
+func attrToParquetTypeUnsupported(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
+	jsonBytes := &bytes.Buffer{}
+	_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
+	p.ValueDropped = jsonBytes.String()
+	p.ValueType = attrTypeNotSupported
+	counter.addDroppedAttr(1)
 }
 
 // traceToParquet converts a tempopb.Trace to this schema's object model. Returns the new object and
@@ -578,6 +635,58 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 				v.BoolValue = attr.ValueBool[0]
 			}
 			protoVal.Value = &v
+		case attrTypeStringArray:
+			values := make([]*v1.AnyValue, len(attr.Value))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			strValues := make([]v1.AnyValue_StringValue, len(values))
+			for i, v := range attr.Value {
+				s := &strValues[i]
+				s.StringValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = s
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeIntArray:
+			values := make([]*v1.AnyValue, len(attr.ValueInt))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			intValues := make([]v1.AnyValue_IntValue, len(values))
+			for i, v := range attr.ValueInt {
+				n := &intValues[i]
+				n.IntValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = n
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeDoubleArray:
+			values := make([]*v1.AnyValue, len(attr.ValueDouble))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			intValues := make([]v1.AnyValue_DoubleValue, len(values))
+			for i, v := range attr.ValueDouble {
+				n := &intValues[i]
+				n.DoubleValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = n
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeBoolArray:
+			values := make([]*v1.AnyValue, len(attr.ValueBool))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			intValues := make([]v1.AnyValue_BoolValue, len(values))
+			for i, v := range attr.ValueBool {
+				n := &intValues[i]
+				n.BoolValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = n
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
 		case attrTypeNotSupported:
 			if attr.ValueDropped == "" || !includeDroppedAttr {
 				continue

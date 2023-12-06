@@ -417,19 +417,19 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 		panic("failed to marshal links")
 	}
 
-	arrayAttr := &v1_common.AnyValue{
-		Value: &v1_common.AnyValue_ArrayValue{
-			ArrayValue: &v1_common.ArrayValue{
-				Values: []*v1_common.AnyValue{
-					{Value: &v1_common.AnyValue_StringValue{StringValue: "value-one"}},
-					{Value: &v1_common.AnyValue_StringValue{StringValue: "value-two"}},
+	kvListAttr := &v1_common.AnyValue{
+		Value: &v1_common.AnyValue_KvlistValue{
+			KvlistValue: &v1_common.KeyValueList{
+				Values: []*v1_common.KeyValue{
+					{Key: "key-one", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value-one"}}},
+					{Key: "key-two", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value-two"}}},
 				},
 			},
 		},
 	}
 	jsonBytes := &bytes.Buffer{}
-	_ = jsonMarshaler.Marshal(jsonBytes, arrayAttr) // deliberately marshalling a.Value because of AnyValue logic
-	arrayAttrValue := jsonBytes.String()
+	_ = jsonMarshaler.Marshal(jsonBytes, kvListAttr) // deliberately marshalling a.Value because of AnyValue logic
+	kvListValue := jsonBytes.String()
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
@@ -462,9 +462,10 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sContainerName: strPtr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
+						attr("str.array", []string{"value-one", "value-two"}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
-						{Key: "unsupported-array", ValueDropped: arrayAttrValue, ValueType: attrTypeNotSupported},
+						{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 					},
 					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
@@ -498,12 +499,15 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr("bar", 123),
 									attr("float", 456.78),
 									attr("bool", false),
+									attr("int-array", []int64{11, 22}),
+									attr("double-array", []float64{1.1, 2.2, 3.3}),
+									attr("bool-array", []bool{true, false, true, false}),
 									// Edge-cases
 									attr(LabelName, "Bob"),                    // Conflicts with intrinsic but still looked up by .name
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
 									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
-									{Key: "unsupported-array", ValueDropped: arrayAttrValue, ValueType: attrTypeNotSupported},
+									{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 								},
 								Events: []Event{
 									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
