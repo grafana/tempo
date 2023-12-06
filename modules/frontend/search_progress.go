@@ -153,7 +153,7 @@ func (r *searchProgress) result() *shardedSearchResults {
 
 		// copy service stats
 		if len(m.ServiceStats) > 0 {
-			mCopy.ServiceStats = map[string]*tempopb.ServiceStats{}
+			mCopy.ServiceStats = make(map[string]*tempopb.ServiceStats, len(m.ServiceStats))
 			for service, stat := range m.ServiceStats {
 				mCopy.ServiceStats[service] = &tempopb.ServiceStats{
 					SpanCount:  stat.SpanCount,
