@@ -117,7 +117,7 @@ func (o *userConfigurableOverridesManager) running(ctx context.Context) error {
 
 		case <-ticker.C:
 			err := o.reloadAllTenantLimits(ctx)
-			if err != nil {
+			if err != nil && !errors.Is(err, context.Canceled) {
 				metricUserConfigurableOverridesReloadFailed.Inc()
 				level.Error(o.logger).Log("msg", "failed to refresh user-configurable config", "err", err)
 			}
