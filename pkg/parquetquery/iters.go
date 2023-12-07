@@ -753,7 +753,10 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 
 	// skips are calculated off the start of the page
 	rowSkip := to[0] - c.currPageMin[0]
-	if rowSkip <= 2 { // skipping 1 or 2 row causes test to fail? jpe
+	if rowSkip < 1 {
+		return
+	}
+	if rowSkip > c.currPage.NumRows() {
 		return
 	}
 
@@ -761,7 +764,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
 
 	// remove all detail below the row number
-	c.curr = TruncateRowNumber(1, to)
+	c.curr = TruncateRowNumber(0, to)
 	c.curr = c.curr.Preceding()
 
 	// reset buffers and other vars
