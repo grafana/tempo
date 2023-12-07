@@ -281,7 +281,7 @@ type Trace struct {
 	ResourceSpans []ResourceSpans `parquet:"rs,list"`
 }
 
-func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
+func AttrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 	p.Key = a.Key
 	p.ValueType = 0
 	p.Value = p.Value[:0]
@@ -452,7 +452,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 				if !written {
 					// Other attributes put in generic columns
-					attrToParquet(a, &ob.Resource.Attrs[attrCount], &ob.Resource)
+					AttrToParquet(a, &ob.Resource.Attrs[attrCount], &ob.Resource)
 					attrCount++
 				}
 			}
@@ -553,7 +553,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 					if !written {
 						// Other attributes put in generic columns
-						attrToParquet(a, &ss.Attrs[attrCount], ss)
+						AttrToParquet(a, &ss.Attrs[attrCount], ss)
 						attrCount++
 					}
 				}
@@ -620,7 +620,7 @@ func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
 
 	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
 	for i, a := range e.Attributes {
-		attrToParquet(a, &ee.Attrs[i], ee)
+		AttrToParquet(a, &ee.Attrs[i], ee)
 	}
 }
 
@@ -632,7 +632,7 @@ func linkToParquet(l *v1_trace.Span_Link, ll *Link) {
 
 	ll.Attrs = extendReuseSlice(len(l.Attributes), ll.Attrs)
 	for i, a := range l.Attributes {
-		attrToParquet(a, &ll.Attrs[i], ll)
+		AttrToParquet(a, &ll.Attrs[i], ll)
 	}
 }
 
