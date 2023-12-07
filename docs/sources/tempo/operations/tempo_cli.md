@@ -97,7 +97,7 @@ Options:
 - `--path-prefix <value>` String to prefix search paths with
 
 {{% admonition type="note" %}}
-Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../../api_docs" >}}).
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
 
