@@ -716,13 +716,9 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 }
 
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
-	// only skip if to is ahead of curr
-	if CompareRowNumbers(definitionLevel, to, c.curr) <= 0 {
-		return
-	}
-
-	// constantly skipping can be more expensive than just nexting
-	// this requires at least skipping 1 row to pass. something of a made up threshold
+	// constantly skipping can be more expensive than just nexting. this is not guaranteed but
+	// it's impossible to predict at this point which is more efficient. choosing 1
+	// as a safety valve to prevent perf regressions on queries that do constantly seek 1 row
 	rowSkipRelative := to[0] - c.curr[0]
 	if rowSkipRelative <= 1 {
 		return
@@ -730,7 +726,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 
 	// skips are calculated off the start of the page
 	rowSkip := to[0] - c.currPageMin[0]
-	if rowSkip <= 1 {
+	if rowSkip <= 1 { // sanity check. if you tried to skip from row 0 to 0 the below would panic. this should never happen
 		return
 	}
 
