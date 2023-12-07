@@ -513,6 +513,7 @@ type SyncIterator struct {
 	currValues      pq.ValueReader
 	currBuf         []pq.Value
 	currBufN        int
+	currRepLvl      int
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -575,8 +576,6 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	if c.seekRowGroup(to, definitionLevel) {
 		return nil, nil
 	}
-
-	// fmt.Println("seeking to", to, c.columnName)
 
 	done, err := c.seekPages(to, definitionLevel)
 	if err != nil {
@@ -724,6 +723,28 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 		return
 	}
 
+	// count forward from current rep lvl to see how far to the next row.
+	replvls := c.currPage.RepetitionLevels()
+	magicThreshold := 10
+	tonextrow := 0
+	for i := c.currRepLvl + 1; i < len(replvls); i++ {
+		if rowSkipRelative > 0 && replvls[i] == 0 {
+			rowSkipRelative--
+			continue
+		}
+		tonextrow++
+		if replvls[i] == 0 {
+			break
+		}
+		if tonextrow > magicThreshold {
+			break
+		}
+	}
+
+	if tonextrow <= magicThreshold {
+		return
+	}
+
 	// skips are calculated off the start of the page
 	rowSkip := to[0] - c.currPageMin[0]
 	if rowSkip <= 1 { // sanity check. if you tried to skip from row 0 to 0 the below would panic. this should never happen
@@ -741,9 +762,9 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	c.currPage = pg
 	c.currPageMin = c.curr
 	c.currValues = pg.Values()
+	c.currRepLvl = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
-
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
@@ -814,6 +835,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			// even if the value is filtered out next.
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
+			c.currRepLvl++
 
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
@@ -846,6 +868,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
+	c.currRepLvl = 0
 
 	// If we don't immediately have a new incoming page
 	// then return the buffer to the pool.
