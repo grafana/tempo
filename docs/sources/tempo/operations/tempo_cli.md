@@ -154,7 +154,6 @@ See backend options above.
 tempo-cli query trace-summary f1cfe82a8eef933b single-tenant
 ```
 
-##
 
 ## List blocks
 Lists information about all blocks for the given tenant, and optionally perform integrity checks on indexes for duplicate records.
