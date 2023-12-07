@@ -717,26 +717,31 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	// only skip if to is ahead of curr
-	if CompareRowNumbers(definitionLevel, to, c.curr) > 0 {
-		// skips are calculated off the start of the page
-		rowSkip := to[0] - c.currPageMin[0]
-		if rowSkip > 5 { // made up threshold worth skipping
-			// reslice the page to jump directly to the desired row number
-			pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
-			pq.Release(c.currPage) //- can i release here? i think the internal buffers are  are preserved, so no
-
-			// remove all detail below the row number
-			c.curr = TruncateRowNumber(1, to)
-			c.curr = c.curr.Preceding()
-
-			// reset buffers and other vars
-			c.currPage = pg
-			c.currPageMin = c.curr
-			c.currValues = pg.Values()
-			syncIteratorPoolPut(c.currBuf)
-			c.currBuf = nil
-		}
+	if CompareRowNumbers(definitionLevel, to, c.curr) <= 0 {
+		return
 	}
+
+	// skips are calculated off the start of the page
+	rowSkip := to[0] - c.currPageMin[0]
+	if rowSkip <= 5 { // made up threshold worth skipping
+		return
+	}
+
+	// reslice the page to jump directly to the desired row number
+	pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
+	pq.Release(c.currPage) //- can i release here? i think the internal buffers are  are preserved, so no
+
+	// remove all detail below the row number
+	c.curr = TruncateRowNumber(1, to)
+	c.curr = c.curr.Preceding()
+
+	// reset buffers and other vars
+	c.currPage = pg
+	c.currPageMin = c.curr
+	c.currValues = pg.Values()
+	syncIteratorPoolPut(c.currBuf)
+	c.currBuf = nil
+
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
