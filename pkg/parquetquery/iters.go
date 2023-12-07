@@ -715,33 +715,39 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 }
 
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
-	// constantly skipping can be more expensive than just nexting. this is not guaranteed but
-	// it's impossible to predict at this point which is more efficient. choosing 1
-	// as a safety valve to prevent perf regressions on queries that do constantly seek 1 row
-	rowSkipRelative := to[0] - c.curr[0]
-	if rowSkipRelative <= 1 {
-		return
+	rowSkipRelative := int(to[0] - c.curr[0])
+	magicThreshold := 50
+	shouldSkip := false
+
+	if definitionLevel == 0 {
+		// if definition level is 0 there is always a 1:1 ratio between nexts and rows. it's only deeper
+		// levels of nesting we have to manually count
+		shouldSkip = rowSkipRelative > magicThreshold
+	} else {
+		// this is a nested iterator, let's count the nexts required to get to the desired row number
+		// and decide if we should skip or not
+		replvls := c.currPage.RepetitionLevels()
+		nextsRequired := 0
+
+		for i := c.currRepLvl + 1; i < len(replvls); i++ {
+			nextsRequired++
+
+			if nextsRequired > magicThreshold {
+				shouldSkip = true
+				break
+			}
+
+			if replvls[i] == 0 { // 0 rep lvl indicates a new row
+				rowSkipRelative-- // decrement the number of rows we need to skip
+				if rowSkipRelative <= 0 {
+					// if we hit here we skipped all rows and did not exceed the magic threshold, so we're leaving shouldSkip false
+					break
+				}
+			}
+		}
 	}
 
-	// count forward from current rep lvl to see how far to the next row.
-	replvls := c.currPage.RepetitionLevels()
-	magicThreshold := 10
-	tonextrow := 0
-	for i := c.currRepLvl + 1; i < len(replvls); i++ {
-		if rowSkipRelative > 0 && replvls[i] == 0 {
-			rowSkipRelative--
-			continue
-		}
-		tonextrow++
-		if replvls[i] == 0 {
-			break
-		}
-		if tonextrow > magicThreshold {
-			break
-		}
-	}
-
-	if tonextrow <= magicThreshold {
+	if !shouldSkip {
 		return
 	}
 
