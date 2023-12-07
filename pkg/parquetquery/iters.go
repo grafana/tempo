@@ -732,7 +732,6 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 
 	// reslice the page to jump directly to the desired row number
 	pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
-	pq.Release(c.currPage) //- can i release here? i think the internal buffers are  are preserved, so no
 
 	// remove all detail below the row number
 	c.curr = TruncateRowNumber(1, to)
