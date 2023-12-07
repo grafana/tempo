@@ -716,7 +716,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	rowSkipRelative := int(to[0] - c.curr[0])
-	magicThreshold := 50
+	magicThreshold := 1000 // jpe change this to 5 so tests fail and fix.
 	shouldSkip := false
 
 	if definitionLevel == 0 {
@@ -729,7 +729,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 		replvls := c.currPage.RepetitionLevels()
 		nextsRequired := 0
 
-		for i := c.currRepLvl + 1; i < len(replvls); i++ {
+		for i := c.currRepLvl; i < len(replvls); i++ {
 			nextsRequired++
 
 			if nextsRequired > magicThreshold {
