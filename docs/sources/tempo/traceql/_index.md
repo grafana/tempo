@@ -44,7 +44,8 @@ For more information, refer to [Write TraceQL queries in Grafana]({{< relref "./
 By streaming results to the client, you can start to look at traces matching your query before the entire query completes.
 
 The [GRPC streaming API endpoint]({{< relref "../api_docs#tempo-grpc-api" >}}) in Tempo’s query frontend allows a client to stream search results from Tempo.
-The [`tempo-cli`]({{< relref "../operations/tempo-cli" >}}) also uses this streaming endpoint.
+The `tempo-cli` also uses this streaming endpoint.
+For more information, refer to the [Tempo CLI documentation]({{< relref "../operations/tempo_cli#query-api-command" >}}).
 
 To use streaming in Grafana, you must first enable the `traceQLStreaming` feature toggle.
 
