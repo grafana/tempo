@@ -63,10 +63,6 @@ const (
 	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool"
 )
 
-const (
-	MaxServiceStats = 100
-)
-
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
 
@@ -496,23 +492,21 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 		}
 	}
 
-	// Calculate service meta information/statistics per trace if the trace contains less than MaxServiceStats services
+	// Calculate service meta information/statistics per trace
 	ot.ServiceStats = map[string]ServiceStats{}
-	if len(ot.ResourceSpans) < MaxServiceStats {
-		for _, res := range ot.ResourceSpans {
-			stats := ot.ServiceStats[res.Resource.ServiceName]
+	for _, res := range ot.ResourceSpans {
+		stats := ot.ServiceStats[res.Resource.ServiceName]
 
-			for _, ss := range res.ScopeSpans {
-				stats.SpanCount += uint32(len(ss.Spans))
-				for _, s := range ss.Spans {
-					if s.StatusCode == int(v1_trace.Status_STATUS_CODE_ERROR) {
-						stats.ErrorCount++
-					}
+		for _, ss := range res.ScopeSpans {
+			stats.SpanCount += uint32(len(ss.Spans))
+			for _, s := range ss.Spans {
+				if s.StatusCode == int(v1_trace.Status_STATUS_CODE_ERROR) {
+					stats.ErrorCount++
 				}
 			}
-
-			ot.ServiceStats[res.Resource.ServiceName] = stats
 		}
+
+		ot.ServiceStats[res.Resource.ServiceName] = stats
 	}
 
 	return ot, assignNestedSetModelBounds(ot)
