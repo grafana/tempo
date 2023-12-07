@@ -586,7 +586,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
-	c.seekRows(to, definitionLevel)
+	c.seekWithinPage(to, definitionLevel)
 
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
@@ -715,7 +715,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 	return false, nil
 }
 
-func (c *SyncIterator) seekRows(to RowNumber, definitionLevel int) {
+func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	// only skip if to is ahead of curr
 	if CompareRowNumbers(definitionLevel, to, c.curr) > 0 {
 		// skips are calculated off the start of the page
@@ -725,12 +725,8 @@ func (c *SyncIterator) seekRows(to RowNumber, definitionLevel int) {
 			pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
 			pq.Release(c.currPage) //- can i release here? i think the internal buffers are  are preserved, so no
 
-			// set curr to what it will be now that we've resliced
-			c.curr = to
 			// remove all detail below the row number
-			for i := 1; i < 5; i++ {
-				c.curr[i] = -1
-			}
+			c.curr = TruncateRowNumber(1, to)
 			c.curr = c.curr.Preceding()
 
 			// reset buffers and other vars
