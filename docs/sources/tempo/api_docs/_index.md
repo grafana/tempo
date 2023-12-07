@@ -574,17 +574,25 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 
 ## Tempo GRPC API
 
-Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
-the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
+Tempo uses GRPC to internally communicate with itself, but only has one externally supported client.
+The query-frontend component implements the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
-By default this service is only offered over the GRPC port. However, one can offer this streaming service over the HTTP port as well (which Grafana expects).
-To enable the streaming service over the http port for use with Grafana set the following.
-> **Note**: Enabling this setting is incompatible with TLS.
+By default, this service is only offered over the GRPC port.
+You can use streaming service over the HTTP port as well (which Grafana expects).
+
+{{% admonition type="note" %}}
+Enabling this setting is incompatible with TLS.
+{{% /admonition %}}
+
+To enable the streaming service over the HTTP port for use with Grafana, set the following:
+
 ```
 stream_over_http_enabled: true
 ```
-The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response. The
-final response sent is guaranteed to have the entire resultset.
+
+The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response.
+The final response sent is guaranteed to have the entire resultset.
+
 ```protobuf
 service StreamingQuerier {
   rpc Search(SearchRequest) returns (stream SearchResponse);
