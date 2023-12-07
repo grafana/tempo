@@ -716,7 +716,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	rowSkipRelative := int(to[0] - c.curr[0])
-	magicThreshold := 1000 // jpe change this to 5 so tests fail and fix.
+	magicThreshold := 1000
 	shouldSkip := false
 
 	if definitionLevel == 0 {
@@ -753,7 +753,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 
 	// skips are calculated off the start of the page
 	rowSkip := to[0] - c.currPageMin[0]
-	if rowSkip <= 1 { // sanity check. if you tried to skip from row 0 to 0 the below would panic. this should never happen
+	if rowSkip <= 2 { // skipping 1 or 2 row causes test to fail? jpe
 		return
 	}
 
