@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util"
+
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -32,6 +30,9 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -80,7 +81,9 @@ type Reader interface {
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
-
+	SearchForTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
+	SearchForTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
+	SearchForTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 	Shutdown()
 }
 
@@ -351,6 +354,93 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Search(ctx, req, opts)
+}
+
+func (rw *readerWriter) SearchForTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+	attributeScope := traceql.AttributeScopeFromString(scope)
+
+	if attributeScope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", scope)
+	}
+
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+	var tags []string
+	tagsMap := make(map[string]bool)
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTags(ctx, attributeScope, func(t string) {
+		tagsMap[t] = true
+	}, opts)
+
+	for key := range tagsMap {
+		tags = append(tags, key)
+	}
+	return &tempopb.SearchTagsResponse{
+		TagNames: tags,
+	}, err
+}
+
+func (rw *readerWriter) SearchForTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+	var tags []string
+	tagsMap := make(map[string]bool)
+
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTagValues(ctx, tag, func(t string) {
+		tagsMap[t] = true
+	}, opts)
+
+	for key := range tagsMap {
+		tags = append(tags, key)
+	}
+	return tags, err
+}
+
+func (rw *readerWriter) SearchForTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+
+	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
+	engine := traceql.NewEngine()
+
+	tag, err := traceql.ParseIdentifier(req.TagName)
+	if err != nil {
+		return nil, err
+	}
+
+	query := traceql.ExtractMatchers(req.Query)
+
+	if !traceql.IsEmptyQuery(query) {
+		fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+			return block.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+		})
+
+		err := engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resp := &tempopb.SearchTagValuesV2Response{}
+
+	for _, v := range valueCollector.Values() {
+		v2 := v
+		resp.TagValues = append(resp.TagValues, &v2)
+	}
+	return resp, nil
 }
 
 // it only uses rw.r which has caching enabled

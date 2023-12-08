@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"sort"
 	"testing"
 	"time"
 
@@ -67,6 +68,113 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 	r, w, c, err := New(cfg, nil, log.NewNopLogger())
 	require.NoError(t, err)
 	return r, w, c, tempDir
+}
+
+func testTagsConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
+	tempDir := t.TempDir()
+
+	cfg := &Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
+			Encoding:             enc,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: blocklistPoll,
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	r, w, c, err := New(cfg, nil, log.NewNopLogger())
+	require.NoError(t, err)
+	return r, w, c, tempDir
+}
+
+func TestSearchForTags(t *testing.T) {
+	r, w, c, _ := testTagsConfig(t, backend.EncGZIP, 0)
+
+	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(context.Background(), &mockJobSharder{})
+
+	blockID := uuid.New()
+
+	wal := w.WAL()
+
+	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	assert.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// write
+	numMsgs := 2
+	reqs := make([]*tempopb.Trace, 2)
+	ids := make([]common.ID, 2)
+	for i := 0; i < numMsgs; i++ {
+		ids[i] = test.ValidTraceID(nil)
+		reqs[i] = test.MakeTraceWithTags(ids[i])
+		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
+	}
+
+	block, err := w.CompleteBlock(context.Background(), head)
+	assert.NoError(t, err)
+
+	tags, err := r.SearchForTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
+	assert.NoError(t, err)
+	expectedTags := []string{"stringTag", "intTag", "service.name", "other"}
+	sort.Strings(expectedTags)
+	sort.Strings(tags.TagNames)
+	assert.Equal(t, expectedTags, tags.TagNames)
+
+	values, err := r.SearchForTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
+	assert.Equal(t, []string{"test-service"}, values)
+
+	values, err = r.SearchForTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	assert.Equal(t, []string{"2"}, values)
+
+	values, err = r.SearchForTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	assert.Equal(t, []string{"2"}, values)
+
+	tagValues, err := r.SearchForTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
+		TagName: ".service.name",
+	}, common.DefaultSearchOptions())
+
+	expected := []*tempopb.TagValue{{
+		Type:  "string",
+		Value: "test-service",
+	}}
+
+	tagValues, err = r.SearchForTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
+		TagName: ".intTag",
+	}, common.DefaultSearchOptions())
+
+	expected = []*tempopb.TagValue{{
+		Type:  "int",
+		Value: "2",
+	}}
+
+	assert.Equal(t, expected, tagValues.TagValues)
 }
 
 func TestDB(t *testing.T) {

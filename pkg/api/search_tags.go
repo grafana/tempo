@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -56,6 +57,22 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 		Query:   query,
 	}
 
+	if s, ok := extractQueryParam(r, urlParamStart); ok {
+		start, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start: %w", err)
+		}
+		req.Start = uint32(start)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+		end, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end: %w", err)
+		}
+		req.End = uint32(end)
+	}
+
 	return req, nil
 }
 
@@ -67,7 +84,23 @@ func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error)
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 
-	return &tempopb.SearchTagsRequest{
-		Scope: scope,
-	}, nil
+	req := &tempopb.SearchTagsRequest{}
+	req.Scope = scope
+
+	if s, ok := extractQueryParam(r, urlParamStart); ok {
+		start, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start: %w", err)
+		}
+		req.Start = uint32(start)
+	}
+
+	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+		end, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end: %w", err)
+		}
+		req.End = uint32(end)
+	}
+	return req, nil
 }

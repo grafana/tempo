@@ -28,11 +28,12 @@ import (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler, SearchWSHandler, QueryRangeHandler http.Handler
-	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler     http.Handler
-	cacheProvider                                                                                  cache.Provider
-	streamingSearch                                                                                streamingSearchHandler
-	logger                                                                                         log.Logger
+	log.Logger
+	TraceByIDHandler, SearchHandler, SearchTagsHandler, SearchTagsValuesHandler, SpanMetricsSummaryHandler, SearchWSHandler,
+	SearchTagsV2Handler, SearchTagsValuesV2Handler http.Handler
+	cacheProvider   cache.Provider
+	streamingSearch streamingSearchHandler
+	logger          log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -71,19 +72,20 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchTagsMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTags, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, TagsResultHandlerFactory), retryWare)
 
 	searchTagsV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagsV2, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, TagsV2ResultHandlerFactory), retryWare)
 
 	searchTagsValuesMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValues, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, TagValuesResultHandlerFactory), retryWare)
 
 	searchTagsValuesV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValuesV2, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, TagValuesV2ResultHandlerFactory), retryWare)
+
 	metricsMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
 		newMetricsMiddleware(), retryWare)
@@ -226,9 +228,9 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 }
 
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware() Middleware {
+func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger, TagShardHandler tagResultHandlerFactory) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		ingesterSearchRT := next
+		ingesterSearchRT := NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, TagShardHandler, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// ingester search tags queries only need to be proxied to a single querier

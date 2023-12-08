@@ -42,6 +42,22 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
+func (m *mockReader) SearchForTags(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+	return nil, nil
+}
+
+func (m *mockReader) SearchForTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockReader) SearchForTagsV2(context.Context, *backend.BlockMeta, []string, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
+	return nil, nil
+}
+
+func (m *mockReader) SearchForTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+	return nil, nil
+}
+
 func (m *mockReader) Find(context.Context, string, common.ID, string, string, int64, int64, common.SearchOptions) ([]*tempopb.Trace, []error, error) {
 	return nil, nil, nil
 }
@@ -504,7 +520,7 @@ func TestBackendRange(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualStart, actualEnd := backendRange(searchReq, tc.queryBackendAfter)
+		actualStart, actualEnd := backendRange(searchReq.Start, searchReq.End, tc.queryBackendAfter)
 		assert.Equal(t, int(tc.expectedStart), int(actualStart))
 		assert.Equal(t, int(tc.expectedEnd), int(actualEnd))
 	}
