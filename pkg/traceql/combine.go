@@ -69,6 +69,17 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 		existing.DurationMs = incoming.DurationMs
 	}
 
+	// Merge service stats
+	for service, incomingStats := range incoming.ServiceStats {
+		existingStats, ok := existing.ServiceStats[service]
+		if !ok {
+			existingStats = &tempopb.ServiceStats{}
+			existing.ServiceStats[service] = existingStats
+		}
+		existingStats.SpanCount += incomingStats.SpanCount
+		existingStats.ErrorCount += incomingStats.ErrorCount
+	}
+
 	// make a map of existing Spansets
 	existingSS := make(map[string]*tempopb.SpanSet)
 	for _, ss := range existing.SpanSets {
