@@ -513,7 +513,7 @@ type SyncIterator struct {
 	currValues      pq.ValueReader
 	currBuf         []pq.Value
 	currBufN        int
-	currRepLvl      int
+	currPageN       int
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -729,7 +729,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 		replvls := c.currPage.RepetitionLevels()
 		nextsRequired := 0
 
-		for i := c.currRepLvl; i < len(replvls); i++ {
+		for i := c.currPageN; i < len(replvls); i++ {
 			nextsRequired++
 
 			if nextsRequired > magicThreshold {
@@ -768,10 +768,11 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	c.curr = c.curr.Preceding()
 
 	// reset buffers and other vars
+	pq.Release(c.currPage)
 	c.currPage = pg
 	c.currPageMin = c.curr
 	c.currValues = pg.Values()
-	c.currRepLvl = 0
+	c.currPageN = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
 }
@@ -844,7 +845,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			// even if the value is filtered out next.
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
-			c.currRepLvl++
+			c.currPageN++
 
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
@@ -877,7 +878,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
-	c.currRepLvl = 0
+	c.currPageN = 0
 
 	// If we don't immediately have a new incoming page
 	// then return the buffer to the pool.
