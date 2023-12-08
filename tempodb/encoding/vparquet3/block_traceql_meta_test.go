@@ -30,7 +30,17 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			RootServiceName:    rootServiceName,
 			StartTimeUnixNanos: startTimeUnixNano,
 			DurationNanos:      durationNanos,
-			Spans:              spans,
+			ServiceStats: map[string]traceql.ServiceStats{
+				"myservice": {
+					SpanCount:  1,
+					ErrorCount: 0,
+				},
+				"service2": {
+					SpanCount:  1,
+					ErrorCount: 0,
+				},
+			},
+			Spans: spans,
 		}
 	}
 
@@ -233,13 +243,11 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				),
 			),
 		},
-
 		{
 			"Doesn't match anything",
 			makeReq(parse(t, `{.xyz = "xyz"}`)),
 			nil,
 		},
-
 		{
 			"Intrinsics. 2nd span only",
 			makeReq(
