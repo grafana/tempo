@@ -21,10 +21,6 @@ import (
 )
 
 func TestBackendBlockSearch(t *testing.T) {
-	// Helper functions to make pointers
-	strPtr := func(s string) *string { return &s }
-	intPtr := func(i int64) *int64 { return &i }
-
 	// Trace
 	// This is a fully-populated trace that we search for every condition
 	wantTr := &Trace{
@@ -38,23 +34,23 @@ func TestBackendBlockSearch(t *testing.T) {
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          strPtr("cluster"),
-					Namespace:        strPtr("namespace"),
-					Pod:              strPtr("pod"),
-					Container:        strPtr("container"),
-					K8sClusterName:   strPtr("k8scluster"),
-					K8sNamespaceName: strPtr("k8snamespace"),
-					K8sPodName:       strPtr("k8spod"),
-					K8sContainerName: strPtr("k8scontainer"),
+					Cluster:          ptr("cluster"),
+					Namespace:        ptr("namespace"),
+					Pod:              ptr("pod"),
+					Container:        ptr("container"),
+					K8sClusterName:   ptr("k8scluster"),
+					K8sNamespaceName: ptr("k8snamespace"),
+					K8sPodName:       ptr("k8spod"),
+					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("bat", "baz"),
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-resource-attr-value-1"),
-						String02: strPtr("dedicated-resource-attr-value-2"),
-						String03: strPtr("dedicated-resource-attr-value-3"),
-						String04: strPtr("dedicated-resource-attr-value-4"),
-						String05: strPtr("dedicated-resource-attr-value-5"),
+						String01: ptr("dedicated-resource-attr-value-1"),
+						String02: ptr("dedicated-resource-attr-value-2"),
+						String03: ptr("dedicated-resource-attr-value-3"),
+						String04: ptr("dedicated-resource-attr-value-4"),
+						String05: ptr("dedicated-resource-attr-value-5"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -62,9 +58,9 @@ func TestBackendBlockSearch(t *testing.T) {
 						Spans: []Span{
 							{
 								Name:           "hello",
-								HttpMethod:     strPtr("get"),
-								HttpUrl:        strPtr("url/hello/world"),
-								HttpStatusCode: intPtr(500),
+								HttpMethod:     ptr("get"),
+								HttpUrl:        ptr("url/hello/world"),
+								HttpStatusCode: ptr(int64(500)),
 								SpanID:         []byte{},
 								ParentSpanID:   []byte{},
 								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
@@ -72,11 +68,11 @@ func TestBackendBlockSearch(t *testing.T) {
 									attr("foo", "bar"),
 								},
 								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-span-attr-value-1"),
-									String02: strPtr("dedicated-span-attr-value-2"),
-									String03: strPtr("dedicated-span-attr-value-3"),
-									String04: strPtr("dedicated-span-attr-value-4"),
-									String05: strPtr("dedicated-span-attr-value-5"),
+									String01: ptr("dedicated-span-attr-value-1"),
+									String02: ptr("dedicated-span-attr-value-2"),
+									String03: ptr("dedicated-span-attr-value-3"),
+									String04: ptr("dedicated-span-attr-value-4"),
+									String05: ptr("dedicated-span-attr-value-5"),
 								},
 							},
 						},
@@ -296,8 +292,6 @@ func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]st
 	intrinsicVals := map[string]string{}
 	resourceAttrVals := map[string]string{}
 	spanAttrVals := map[string]string{}
-
-	ptr := func(s string) *string { return &s }
 
 	resourceAttrVals[LabelCluster] = "cluster"
 	resourceAttrVals[LabelServiceName] = "servicename"

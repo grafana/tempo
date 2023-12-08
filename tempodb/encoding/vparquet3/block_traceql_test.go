@@ -390,10 +390,6 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
-	// Helper functions to make pointers
-	strPtr := func(s string) *string { return &s }
-	intPtr := func(i int64) *int64 { return &i }
-
 	links := tempopb.LinkSlice{
 		Links: []*v1.Span_Link{
 			{
@@ -467,14 +463,14 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          strPtr("cluster"),
-					Namespace:        strPtr("namespace"),
-					Pod:              strPtr("pod"),
-					Container:        strPtr("container"),
-					K8sClusterName:   strPtr("k8scluster"),
-					K8sNamespaceName: strPtr("k8snamespace"),
-					K8sPodName:       strPtr("k8spod"),
-					K8sContainerName: strPtr("k8scontainer"),
+					Cluster:          ptr("cluster"),
+					Namespace:        ptr("namespace"),
+					Pod:              ptr("pod"),
+					Container:        ptr("container"),
+					K8sClusterName:   ptr("k8scluster"),
+					K8sNamespaceName: ptr("k8snamespace"),
+					K8sPodName:       ptr("k8spod"),
+					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
 						attr("str-array", []string{"value-one", "value-two"}),
@@ -485,11 +481,11 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					},
 					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-resource-attr-value-1"),
-						String02: strPtr("dedicated-resource-attr-value-2"),
-						String03: strPtr("dedicated-resource-attr-value-3"),
-						String04: strPtr("dedicated-resource-attr-value-4"),
-						String05: strPtr("dedicated-resource-attr-value-5"),
+						String01: ptr("dedicated-resource-attr-value-1"),
+						String02: ptr("dedicated-resource-attr-value-2"),
+						String03: ptr("dedicated-resource-attr-value-3"),
+						String04: ptr("dedicated-resource-attr-value-4"),
+						String05: ptr("dedicated-resource-attr-value-5"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -500,9 +496,9 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								Name:                   "hello",
 								StartTimeUnixNano:      uint64(100 * time.Second),
 								DurationNano:           uint64(100 * time.Second),
-								HttpMethod:             strPtr("get"),
-								HttpUrl:                strPtr("url/hello/world"),
-								HttpStatusCode:         intPtr(500),
+								HttpMethod:             ptr("get"),
+								HttpUrl:                ptr("url/hello/world"),
+								HttpStatusCode:         ptr(int64(500)),
 								ParentSpanID:           []byte{},
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
@@ -536,11 +532,11 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								},
 								Links: linkBytes,
 								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-span-attr-value-1"),
-									String02: strPtr("dedicated-span-attr-value-2"),
-									String03: strPtr("dedicated-span-attr-value-3"),
-									String04: strPtr("dedicated-span-attr-value-4"),
-									String05: strPtr("dedicated-span-attr-value-5"),
+									String01: ptr("dedicated-span-attr-value-1"),
+									String02: ptr("dedicated-span-attr-value-2"),
+									String03: ptr("dedicated-span-attr-value-3"),
+									String04: ptr("dedicated-span-attr-value-4"),
+									String05: ptr("dedicated-span-attr-value-5"),
 								},
 							},
 						},
@@ -550,24 +546,24 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "service2",
-					Cluster:          strPtr("cluster2"),
-					Namespace:        strPtr("namespace2"),
-					Pod:              strPtr("pod2"),
-					Container:        strPtr("container2"),
-					K8sClusterName:   strPtr("k8scluster2"),
-					K8sNamespaceName: strPtr("k8snamespace2"),
-					K8sPodName:       strPtr("k8spod2"),
-					K8sContainerName: strPtr("k8scontainer2"),
+					Cluster:          ptr("cluster2"),
+					Namespace:        ptr("namespace2"),
+					Pod:              ptr("pod2"),
+					Container:        ptr("container2"),
+					K8sClusterName:   ptr("k8scluster2"),
+					K8sNamespaceName: ptr("k8snamespace2"),
+					K8sPodName:       ptr("k8spod2"),
+					K8sContainerName: ptr("k8scontainer2"),
 					Attrs: []Attribute{
 						attr("foo", "abc2"),
 						attr(LabelServiceName, 1234), // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-resource-attr-value-6"),
-						String02: strPtr("dedicated-resource-attr-value-7"),
-						String03: strPtr("dedicated-resource-attr-value-8"),
-						String04: strPtr("dedicated-resource-attr-value-9"),
-						String05: strPtr("dedicated-resource-attr-value-10"),
+						String01: ptr("dedicated-resource-attr-value-6"),
+						String02: ptr("dedicated-resource-attr-value-7"),
+						String03: ptr("dedicated-resource-attr-value-8"),
+						String04: ptr("dedicated-resource-attr-value-9"),
+						String05: ptr("dedicated-resource-attr-value-10"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
@@ -578,9 +574,9 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
-								HttpMethod:             strPtr("PUT"),
-								HttpUrl:                strPtr("url/hello/world/2"),
-								HttpStatusCode:         intPtr(501),
+								HttpMethod:             ptr("PUT"),
+								HttpUrl:                ptr("url/hello/world/2"),
+								HttpStatusCode:         ptr(int64(501)),
 								StatusCode:             int(v1.Status_STATUS_CODE_OK),
 								StatusMessage:          v1.Status_STATUS_CODE_OK.String(),
 								TraceState:             "tracestate2",
@@ -725,6 +721,10 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 			}
 		})
 	}
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
 
 func attr(key string, val any) Attribute {

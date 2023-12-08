@@ -122,9 +122,6 @@ func TestFieldsAreCleared(t *testing.T) {
 }
 
 func TestTraceToParquet(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
-	intPtr := func(i int64) *int64 { return &i }
-
 	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
 	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
@@ -192,23 +189,23 @@ func TestTraceToParquet(t *testing.T) {
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
 						ServiceName:      "service-a",
-						Cluster:          strPtr("cluster-a"),
-						Namespace:        strPtr("namespace-a"),
-						Pod:              strPtr("pod-a"),
-						Container:        strPtr("container-a"),
-						K8sClusterName:   strPtr("k8s-cluster-a"),
-						K8sNamespaceName: strPtr("k8s-namespace-a"),
-						K8sPodName:       strPtr("k8s-pod-a"),
-						K8sContainerName: strPtr("k8s-container-a"),
+						Cluster:          ptr("cluster-a"),
+						Namespace:        ptr("namespace-a"),
+						Pod:              ptr("pod-a"),
+						Container:        ptr("container-a"),
+						K8sClusterName:   ptr("k8s-cluster-a"),
+						K8sNamespaceName: ptr("k8s-namespace-a"),
+						K8sPodName:       ptr("k8s-pod-a"),
+						K8sContainerName: ptr("k8s-container-a"),
 						Attrs: []Attribute{
 							attr("res.attr", 123),
 						},
 						DedicatedAttributes: DedicatedAttributes{
-							String01: strPtr("dedicated-resource-attr-value-1"),
-							String02: strPtr("dedicated-resource-attr-value-2"),
-							String03: strPtr("dedicated-resource-attr-value-3"),
-							String04: strPtr("dedicated-resource-attr-value-4"),
-							String05: strPtr("dedicated-resource-attr-value-5"),
+							String01: ptr("dedicated-resource-attr-value-1"),
+							String02: ptr("dedicated-resource-attr-value-2"),
+							String03: ptr("dedicated-resource-attr-value-3"),
+							String04: ptr("dedicated-resource-attr-value-4"),
+							String05: ptr("dedicated-resource-attr-value-5"),
 						},
 					},
 					ScopeSpans: []ScopeSpans{{
@@ -218,18 +215,18 @@ func TestTraceToParquet(t *testing.T) {
 							NestedSetLeft:  1,
 							NestedSetRight: 2,
 							ParentID:       -1,
-							HttpMethod:     strPtr("POST"),
-							HttpUrl:        strPtr("https://example.com"),
-							HttpStatusCode: intPtr(201),
+							HttpMethod:     ptr("POST"),
+							HttpUrl:        ptr("https://example.com"),
+							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
 							},
 							DedicatedAttributes: DedicatedAttributes{
-								String01: strPtr("dedicated-span-attr-value-1"),
-								String02: strPtr("dedicated-span-attr-value-2"),
-								String03: strPtr("dedicated-span-attr-value-3"),
-								String04: strPtr("dedicated-span-attr-value-4"),
-								String05: strPtr("dedicated-span-attr-value-5"),
+								String01: ptr("dedicated-span-attr-value-1"),
+								String02: ptr("dedicated-span-attr-value-2"),
+								String03: ptr("dedicated-span-attr-value-3"),
+								String04: ptr("dedicated-span-attr-value-4"),
+								String05: ptr("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},
