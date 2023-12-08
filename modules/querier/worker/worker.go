@@ -251,6 +251,11 @@ func (w *querierWorker) connect(ctx context.Context, address string) (*grpc.Clie
 		return nil, err
 	}
 
+	opts = append(opts, grpc.WithDefaultCallOptions(
+		grpc.MaxCallRecvMsgSize(w.cfg.GRPCClientConfig.MaxRecvMsgSize),
+		grpc.MaxCallSendMsgSize(w.cfg.GRPCClientConfig.MaxSendMsgSize),
+	))
+
 	conn, err := grpc.DialContext(ctx, address, opts...)
 	if err != nil {
 		return nil, err
