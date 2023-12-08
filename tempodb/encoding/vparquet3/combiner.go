@@ -87,6 +87,14 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 	}
 	c.result.DurationNano = c.result.EndTimeUnixNano - c.result.StartTimeUnixNano
 
+	// Merge service stats
+	for service, incomingStats := range tr.ServiceStats {
+		combinedStats := c.result.ServiceStats[service]
+		combinedStats.SpanCount += incomingStats.SpanCount
+		combinedStats.ErrorCount += incomingStats.ErrorCount
+		c.result.ServiceStats[service] = combinedStats
+	}
+
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
 		notFoundILS := b.ScopeSpans[:0]
