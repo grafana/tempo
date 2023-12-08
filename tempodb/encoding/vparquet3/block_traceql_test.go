@@ -417,6 +417,21 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 		panic("failed to marshal links")
 	}
 
+	mixedArrayAttr := &v1_common.AnyValue{
+		Value: &v1_common.AnyValue_ArrayValue{
+			ArrayValue: &v1_common.ArrayValue{
+				Values: []*v1_common.AnyValue{
+					{Value: &v1_common.AnyValue_StringValue{StringValue: "value-one"}},
+					{Value: &v1_common.AnyValue_IntValue{IntValue: 100}},
+				},
+			},
+		},
+	}
+
+	var jsonBytes bytes.Buffer
+	_ = jsonMarshaler.Marshal(&jsonBytes, mixedArrayAttr)
+	mixedArrayAttrValue := jsonBytes.String()
+
 	kvListAttr := &v1_common.AnyValue{
 		Value: &v1_common.AnyValue_KvlistValue{
 			KvlistValue: &v1_common.KeyValueList{
@@ -427,8 +442,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			},
 		},
 	}
-	jsonBytes := &bytes.Buffer{}
-	_ = jsonMarshaler.Marshal(jsonBytes, kvListAttr) // deliberately marshalling a.Value because of AnyValue logic
+	jsonBytes.Reset()
+	_ = jsonMarshaler.Marshal(&jsonBytes, kvListAttr)
 	kvListValue := jsonBytes.String()
 
 	return &Trace{
@@ -462,9 +477,10 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sContainerName: strPtr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
-						attr("str.array", []string{"value-one", "value-two"}),
+						attr("str-array", []string{"value-one", "value-two"}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
+						{Key: "unsupported-mixed-array", ValueDropped: mixedArrayAttrValue, ValueType: attrTypeNotSupported},
 						{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 					},
 					DroppedAttributesCount: 22,
@@ -499,6 +515,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr("bar", 123),
 									attr("float", 456.78),
 									attr("bool", false),
+									attr("string-array", []string{"value-one"}),
 									attr("int-array", []int64{11, 22}),
 									attr("double-array", []float64{1.1, 2.2, 3.3}),
 									attr("bool-array", []bool{true, false, true, false}),
@@ -507,6 +524,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
 									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
+									{Key: "unsupported-mixed-array", ValueDropped: mixedArrayAttrValue, ValueType: attrTypeNotSupported},
 									{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 								},
 								Events: []Event{

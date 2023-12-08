@@ -289,7 +289,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 		p.ValueBool = append(p.ValueBool, v.BoolValue)
 		p.ValueType = attrTypeBool
 	case *v1.AnyValue_ArrayValue:
-		if v.Size() == 0 {
+		if v.ArrayValue == nil || len(v.ArrayValue.Values) == 0 {
 			p.ValueType = attrTypeStringArray
 			return
 		}
@@ -300,6 +300,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 				if !ok {
 					p.Value = p.Value[:0]
 					attrToParquetTypeUnsupported(a, p, counter)
+					return
 				}
 
 				p.Value = append(p.Value, ev.StringValue)
@@ -311,6 +312,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 				if !ok {
 					p.ValueInt = p.ValueInt[:0]
 					attrToParquetTypeUnsupported(a, p, counter)
+					return
 				}
 
 				p.ValueInt = append(p.ValueInt, ev.IntValue)
@@ -322,6 +324,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 				if !ok {
 					p.ValueDouble = p.ValueDouble[:0]
 					attrToParquetTypeUnsupported(a, p, counter)
+					return
 				}
 
 				p.ValueDouble = append(p.ValueDouble, ev.DoubleValue)
@@ -333,6 +336,7 @@ func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 				if !ok {
 					p.ValueBool = p.ValueBool[:0]
 					attrToParquetTypeUnsupported(a, p, counter)
+					return
 				}
 
 				p.ValueBool = append(p.ValueBool, ev.BoolValue)
