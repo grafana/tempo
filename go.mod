@@ -23,7 +23,7 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/protobuf v1.5.3
 	github.com/golang/snappy v0.0.4
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.3.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grafana/dskit v0.0.0-20231120170505-765e343eda4f
@@ -54,7 +54,7 @@ require (
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0
 	github.com/prometheus/prometheus v0.47.1
-	github.com/prometheus/statsd_exporter v0.22.7 // indirect
+	github.com/prometheus/statsd_exporter v0.22.7
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.4.1
@@ -72,13 +72,13 @@ require (
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0015
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.82.0
 	go.opentelemetry.io/collector/semconv v0.86.0
-	go.opentelemetry.io/otel v1.18.0
+	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/bridge/opencensus v0.41.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.16.0
-	go.opentelemetry.io/otel/metric v1.18.0
+	go.opentelemetry.io/otel/metric v1.21.0
 	go.opentelemetry.io/otel/sdk v1.18.0
-	go.opentelemetry.io/otel/trace v1.18.0
+	go.opentelemetry.io/otel/trace v1.21.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.2.1
 	go.uber.org/multierr v1.11.0
@@ -162,7 +162,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
+	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
