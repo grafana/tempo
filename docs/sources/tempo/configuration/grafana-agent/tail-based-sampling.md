@@ -60,7 +60,7 @@ To see all the available configuration options, refer to the [configuration refe
 ## Example for Grafana Agent Flow
 
 [Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
-Flow configuration files written in River instead of YAML.
+Flow configuration files are written in River instead of YAML.
 
 Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](/docs/agent/latest/flow/reference/components/otelcol.processor.tail_sampling/)` for tail-based sampling.
 
