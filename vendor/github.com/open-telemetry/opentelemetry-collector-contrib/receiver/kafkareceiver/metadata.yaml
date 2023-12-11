@@ -1,0 +1,15 @@
+type: kafka
+
+status:
+  class: receiver
+  stability:
+    beta: [metrics, logs, traces]
+  distributions:
+  - contrib
+  - aws
+  - grafana
+  - observiq
+  - splunk
+  - sumo
+  codeowners:
+    active: [pavolloffay, MovieStoreGuy]

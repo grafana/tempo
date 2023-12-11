@@ -1,9 +1,13 @@
 package vm
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"reflect"
 	"regexp"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/antonmedv/expr/ast"
 	"github.com/antonmedv/expr/builtin"
@@ -15,14 +19,23 @@ type Program struct {
 	Node      ast.Node
 	Source    *file.Source
 	Locations []file.Location
-	Constants []interface{}
+	Variables []any
+	Constants []any
 	Bytecode  []Opcode
 	Arguments []int
 	Functions []Function
+	DebugInfo map[string]string
 }
 
 func (program *Program) Disassemble() string {
-	out := ""
+	var buf bytes.Buffer
+	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	program.Opcodes(w)
+	_ = w.Flush()
+	return buf.String()
+}
+
+func (program *Program) Opcodes(w io.Writer) {
 	ip := 0
 	for ip < len(program.Bytecode) {
 		pp := ip
@@ -31,19 +44,22 @@ func (program *Program) Disassemble() string {
 		ip += 1
 
 		code := func(label string) {
-			out += fmt.Sprintf("%v\t%v\n", pp, label)
+			_, _ = fmt.Fprintf(w, "%v\t%v\n", pp, label)
 		}
 		jump := func(label string) {
-			out += fmt.Sprintf("%v\t%v\t%v\t(%v)\n", pp, label, arg, ip+arg)
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\t(%v)\n", pp, label, arg, ip+arg)
 		}
 		jumpBack := func(label string) {
-			out += fmt.Sprintf("%v\t%v\t%v\t(%v)\n", pp, label, arg, ip-arg)
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\t(%v)\n", pp, label, arg, ip-arg)
 		}
 		argument := func(label string) {
-			out += fmt.Sprintf("%v\t%v\t%v\n", pp, label, arg)
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\n", pp, label, arg)
+		}
+		argumentWithInfo := func(label string, prefix string) {
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\t%v\n", pp, label, arg, program.DebugInfo[fmt.Sprintf("%s_%d", prefix, arg)])
 		}
 		constant := func(label string) {
-			var c interface{}
+			var c any
 			if arg < len(program.Constants) {
 				c = program.Constants[arg]
 			} else {
@@ -58,25 +74,30 @@ func (program *Program) Disassemble() string {
 			if method, ok := c.(*runtime.Method); ok {
 				c = fmt.Sprintf("{%v %v}", method.Name, method.Index)
 			}
-			out += fmt.Sprintf("%v\t%v\t%v\t%v\n", pp, label, arg, c)
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\t%v\n", pp, label, arg, c)
 		}
-		builtIn := func(label string) {
-			f, ok := builtin.Builtins[arg]
-			if !ok {
-				panic(fmt.Sprintf("unknown builtin %v", arg))
-			}
-			out += fmt.Sprintf("%v\t%v\t%v\n", pp, "OpBuiltin", f.Name)
+		builtinArg := func(label string) {
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\t%v\n", pp, label, arg, builtin.Builtins[arg].Name)
 		}
 
 		switch op {
+		case OpInvalid:
+			code("OpInvalid")
+
 		case OpPush:
 			constant("OpPush")
 
-		case OpPushInt:
-			argument("OpPushInt")
+		case OpInt:
+			argument("OpInt")
 
 		case OpPop:
 			code("OpPop")
+
+		case OpStore:
+			argumentWithInfo("OpStore", "var")
+
+		case OpLoadVar:
+			argumentWithInfo("OpLoadVar", "var")
 
 		case OpLoadConst:
 			constant("OpLoadConst")
@@ -92,6 +113,9 @@ func (program *Program) Disassemble() string {
 
 		case OpLoadFunc:
 			argument("OpLoadFunc")
+
+		case OpLoadEnv:
+			code("OpLoadEnv")
 
 		case OpFetch:
 			code("OpFetch")
@@ -205,16 +229,16 @@ func (program *Program) Disassemble() string {
 			argument("OpCall")
 
 		case OpCall0:
-			argument("OpCall0")
+			argumentWithInfo("OpCall0", "func")
 
 		case OpCall1:
-			argument("OpCall1")
+			argumentWithInfo("OpCall1", "func")
 
 		case OpCall2:
-			argument("OpCall2")
+			argumentWithInfo("OpCall2", "func")
 
 		case OpCall3:
-			argument("OpCall3")
+			argumentWithInfo("OpCall3", "func")
 
 		case OpCallN:
 			argument("OpCallN")
@@ -223,10 +247,11 @@ func (program *Program) Disassemble() string {
 			argument("OpCallFast")
 
 		case OpCallTyped:
-			argument("OpCallTyped")
+			signature := reflect.TypeOf(FuncTypes[arg]).Elem().String()
+			_, _ = fmt.Fprintf(w, "%v\t%v\t<%v>\t%v\n", pp, "OpCallTyped", arg, signature)
 
-		case OpBuiltin:
-			builtIn("OpBuiltin")
+		case OpCallBuiltin1:
+			builtinArg("OpCallBuiltin1")
 
 		case OpArray:
 			code("OpArray")
@@ -243,11 +268,20 @@ func (program *Program) Disassemble() string {
 		case OpDeref:
 			code("OpDeref")
 
-		case OpIncrementIt:
-			code("OpIncrementIt")
+		case OpIncrementIndex:
+			code("OpIncrementIndex")
+
+		case OpDecrementIndex:
+			code("OpDecrementIndex")
 
 		case OpIncrementCount:
 			code("OpIncrementCount")
+
+		case OpGetIndex:
+			code("OpGetIndex")
+
+		case OpSetIndex:
+			code("OpSetIndex")
 
 		case OpGetCount:
 			code("OpGetCount")
@@ -255,8 +289,23 @@ func (program *Program) Disassemble() string {
 		case OpGetLen:
 			code("OpGetLen")
 
+		case OpGetGroupBy:
+			code("OpGetGroupBy")
+
+		case OpGetAcc:
+			code("OpGetAcc")
+
 		case OpPointer:
 			code("OpPointer")
+
+		case OpThrow:
+			code("OpThrow")
+
+		case OpGroupBy:
+			code("OpGroupBy")
+
+		case OpSetAcc:
+			code("OpSetAcc")
 
 		case OpBegin:
 			code("OpBegin")
@@ -265,8 +314,7 @@ func (program *Program) Disassemble() string {
 			code("OpEnd")
 
 		default:
-			out += fmt.Sprintf("%v\t%#x\n", ip, op)
+			_, _ = fmt.Fprintf(w, "%v\t%#x (unknown)\n", ip, op)
 		}
 	}
-	return out
 }
