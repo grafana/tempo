@@ -145,14 +145,19 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		return nil, nil, err
 	}
 
-	blocklist := PerTenant{}
-	compactedBlocklist := PerTenantCompacted{}
-
-	consecutiveErrors := 0
+	var (
+		blocklist          = PerTenant{}
+		compactedBlocklist = PerTenantCompacted{}
+		consecutiveErrors  = 0
+	)
 
 	for _, tenantID := range tenants {
 		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
 		if err != nil {
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				continue
+			}
+
 			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
 			consecutiveErrors++
 			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
@@ -201,6 +206,12 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
 		err = p.tenantIndexPollError(i, err)
+
+		if errors.Is(err, backend.ErrDoesNotExist) {
+			level.Info(p.logger).Log("msg", "poller skipping tenant for missing index", "tenant", tenantID)
+			return nil, nil, err
+		}
+
 		if err == nil {
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
@@ -223,12 +234,13 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 		// polling fallback is true, log the error and continue in this method to completely poll the backend
 		level.Error(p.logger).Log("msg", "failed to pull bucket index for tenant. falling back to polling", "tenant", tenantID, "err", err)
+	} else {
+		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	}
 
 	// if we're here then we have been configured to be a tenant index builder OR
 	// there was a failure to pull the tenant index and we are configured to fall
 	// back to polling.
-	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
 		return nil, nil, err

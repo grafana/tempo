@@ -552,6 +552,22 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			},
 			expectedError: errors.New("tenant 3 err"),
 		},
+		{
+			name:     "index not found",
+			tolerate: 2,
+			tenantErrors: []error{
+				nil,
+				backend.ErrDoesNotExist,
+				errors.New("tenant 1 err"),
+				backend.ErrDoesNotExist,
+				errors.New("tenant 2 err"),
+				backend.ErrDoesNotExist,
+				errors.New("tenant 3 err"),
+				backend.ErrDoesNotExist,
+				nil,
+			},
+			expectedError: errors.New("tenant 3 err"),
+		},
 	}
 
 	for _, tc := range testCases {
