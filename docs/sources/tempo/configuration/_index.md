@@ -1502,6 +1502,7 @@ cache:
 	      #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
 	      #   parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
 	      #   parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
+        #   frontend-search    - Frontend search job results.
 
     -   roles:
         - <role1>
