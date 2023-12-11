@@ -29,8 +29,8 @@ This document explains the configuration options for Tempo as well as the detail
       - [Standard overrides](#standard-overrides)
       - [Tenant-specific overrides](#tenant-specific-overrides)
       - [Override strategies](#override-strategies)
-  - [Cache](#cache)
   - [Usage-report](#usage-report)
+  - [Cache](#cache)
 
 Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
@@ -69,7 +69,7 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 # Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
 # If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
 # and returns only tag values that match the query.
-[autocomplete_filtering_enabled: <bool> | default = false]
+[autocomplete_filtering_enabled: <bool> | default = true]
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
@@ -208,7 +208,7 @@ distributor:
 
     # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
-    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to 
+    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
     [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 ```
@@ -1168,7 +1168,7 @@ overrides:
 
   # Global ingestion limits configurations
   defaults:
-    
+
     # Ingestion related overrides
     ingestion:
 
@@ -1196,11 +1196,11 @@ overrides:
       #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
       # This override limit is used by the ingester.
       [max_traces_per_user: <int> | default = 10000]
-      
+
       # Maximum number of active traces per user, across the cluster.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
-      
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
@@ -1220,7 +1220,7 @@ overrides:
       # Per-user max search duration. If this value is set to 0 (default), then max_duration
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
-    
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
@@ -1229,7 +1229,7 @@ overrides:
       # Per-user compaction window. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
-      
+
     # Metrics-generator related overrides
     metrics_generator:
 
@@ -1270,10 +1270,10 @@ overrides:
       # This setting is useful if you wish to test how many active series a tenant will generate, without
       # actually writing these metrics.
       [disable_collection: <bool> | default = false]
-        
+
       # Per-user configuration of the trace-id label name. This value will be used as name for the label to store the
-      # trace ID of exemplars in generated metrics. If not set, the default value "trace_id" will be used.  
-      [trace_id_label_name: <string> | default = "trace_id"]  
+      # trace ID of exemplars in generated metrics. If not set, the default value "trace_id" will be used.
+      [trace_id_label_name: <string> | default = "trace_id"]
 
       # This option only allows spans with end time that occur within the configured duration to be
       # considered in metrics generation.
@@ -1286,10 +1286,10 @@ overrides:
         # The length of the queue and the amount of workers pulling from the queue can be configured.
         [queue_size: <int> | default = 100]
         [workers: <int> | default = 2]
-      
+
       # Per processor configuration
       processor:
-        
+
         # Configuration for the service-graphs processor
         service_graphs:
           [histogram_buckets: <list of float>]
@@ -1305,7 +1305,7 @@ overrides:
           [intrinsic_dimensions: <map string to bool>]
           [filter_policies: [
             [
-              include/exclude: 
+              include/exclude:
                 match_type: <string> # options: strict, regexp
                 attributes:
                   - key: <string>
@@ -1326,13 +1326,13 @@ overrides:
           [flush_check_period: <duration>]
           [trace_idle_period: <duration>]
           [complete_block_timeout: <duration>]
-      
+
     # Generic forwarding configuration
 
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
     forwarders: <list of string>
-      
+
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes.  A value of 0 disables the size
@@ -1495,7 +1495,7 @@ cache:
 
     caches:
 
-        # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and 
+        # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and
         # every cache must have at least one role.
         # Allowed values:
         #   bloom              - Bloom filters for trace id lookup.
@@ -1610,7 +1610,7 @@ cache:
 
             # optional.
             # Password to use when connecting to redis sentinel. (default "")
-            [sentinel_password: <string>]  
+            [sentinel_password: <string>]
 ```
 
 Example config:
