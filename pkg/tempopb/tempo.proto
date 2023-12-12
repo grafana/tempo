@@ -16,7 +16,6 @@ service Pusher {
 service MetricsGenerator {
   rpc PushSpans(PushSpansRequest) returns (PushResponse) {}
   rpc GetMetrics(SpanMetricsRequest) returns (SpanMetricsResponse) {}
-  rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 
 service Querier {
