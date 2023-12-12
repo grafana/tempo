@@ -1286,6 +1286,22 @@ func TestCacheKeyForJob(t *testing.T) {
 			pagesToSearch: 2,
 			expected:      "",
 		},
+		{
+			name:      "meta encapsulates search range",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(5, 0),
+				EndTime:   time.Unix(30, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
 	}
 
 	for _, tc := range tcs {
