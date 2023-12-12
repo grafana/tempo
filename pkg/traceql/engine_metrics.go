@@ -226,15 +226,15 @@ func (g *GroupingAggregator) Observe(span Span) {
 func (g *GroupingAggregator) labelsFor(vals FastValues) labels.Labels {
 	b := labels.NewBuilder(nil)
 
-	any := false
+	present := false
 	for i, v := range vals {
 		if v.Type != TypeNil {
 			b.Set(g.by[i].String(), v.EncodeToString(false))
-			any = true
+			present = true
 		}
 	}
 
-	if !any {
+	if !present {
 		// Force at least 1 label or else this series is displayed weird
 		b.Set(g.by[0].String(), "<nil>")
 	}
@@ -352,7 +352,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	// (1) Evalulate the query for any overlapping trace
 	// (2) For any matching spans: only include the ones that started in this time frame.
 	// This will increase redundant trace evalulation, but it ensures that matching spans are
-	// gauranteed to be found and included in the metrcs.
+	// guaranteed to be found and included in the metrcs.
 	startTime := NewIntrinsic(IntrinsicSpanStartTime)
 	if !storageReq.HasAttribute(startTime) {
 		if storageReq.AllConditions {
@@ -419,10 +419,9 @@ func lookup(needles []Attribute, haystack Span) Static {
 }
 
 type MetricsEvalulator struct {
-	start, end  uint64
-	checkTime   bool
-	dedupeSpans bool
-	// deduper         *SpanBloomDeduper
+	start, end      uint64
+	checkTime       bool
+	dedupeSpans     bool
 	deduper         *SpanDeduper2
 	storageReq      *FetchSpansRequest
 	metricsPipeline metricsFirstStageElement
@@ -442,7 +441,6 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
 
 	if e.dedupeSpans && e.deduper == nil {
 		e.deduper = NewSpanDeduper2()
-		// e.deduper = NewSpanBloomDeduper()
 	}
 
 	defer fetch.Results.Close()
@@ -490,78 +488,6 @@ func (e *MetricsEvalulator) Results() (SeriesSet, error) {
 	return e.metricsPipeline.result(), nil
 }
 
-// SpanDeduper using sharded maps in-memory.  So far this is the most
-// performant.  We are effectively only using the bottom 5 bytes of
-// every span ID.  Byte [3] is used to select a sharded map and the
-// next 4 are the uint32 within that map. Is this good enough? Maybe... let's find out!
-/*type SpanDeduper struct {
-	m []map[uint32]struct{}
-}
-
-func NewSpanDeduper() *SpanDeduper {
-	maps := make([]map[uint32]struct{}, 256)
-	for i := range maps {
-		maps[i] = make(map[uint32]struct{}, 1000)
-	}
-	return &SpanDeduper{
-		m: maps,
-	}
-}
-
-func (d *SpanDeduper) Skip(id []byte) bool {
-	if len(id) != 8 {
-		return false
-	}
-
-	m := d.m[id[3]]
-	v := binary.BigEndian.Uint32(id[4:8])
-
-	if _, ok := m[v]; ok {
-		return true
-	}
-
-	m[v] = struct{}{}
-	return false
-}*/
-
-/*
-// This dedupes span IDs using a chain of bloom filters.  I thought it
-// was going to be awesome but it is WAY TOO SLOW
-type SpanBloomDeduper struct {
-	blooms []*bloom.BloomFilter
-	count  int
-}
-
-func NewSpanBloomDeduper() *SpanBloomDeduper {
-	//first := bloom.NewWithEstimates(1_000_000, 0.001)
-	first := bloom.New(999499917, 1)
-
-	return &SpanBloomDeduper{
-		blooms: []*bloom.BloomFilter{first},
-	}
-}
-
-func (d *SpanBloomDeduper) Skip(id []byte) bool {
-
-	for _, b := range d.blooms {
-		if b.Test(id) {
-			return true
-		}
-	}
-
-	d.count++
-	if d.count%1_000_000 == 0 {
-		// Time for another filter
-		//d.blooms = append(d.blooms, bloom.NewWithEstimates(1_000_000, 0.001))
-		d.blooms = append(d.blooms, bloom.New(999499917, 1))
-	}
-
-	// Set in latest filter
-	d.blooms[len(d.blooms)-1].Add(id)
-
-	return false
-}*/
-
 // SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
 // without requiring any new data fields.  It uses trace ID and span start time
 // which are already loaded. This of course terrible, but did I mention that
@@ -589,7 +515,7 @@ func NewSpanDeduper2() *SpanDeduper2 {
 
 func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
 	d.h.Reset()
-	d.h.Write([]byte(tid))
+	d.h.Write(tid)
 	binary.BigEndian.PutUint64(d.buf, startTime)
 	d.h.Write(d.buf)
 
