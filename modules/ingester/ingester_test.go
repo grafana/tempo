@@ -428,7 +428,7 @@ func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Confi
 				Filepath: tmpDir,
 			},
 		},
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error store")
 
 	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry())

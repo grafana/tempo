@@ -33,6 +33,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				Target: MetricsGenerator,
 				StorageConfig: storage.Config{
 					Trace: tempodb.Config{
+						Cache:         "supercache",
 						Backend:       backend.S3,
 						BlocklistPoll: time.Minute,
 						Block: &common.BlockConfig{
@@ -57,6 +58,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
 				warnNativeAWSAuthEnabled,
+				warnConfiguredLegacyCache,
 			},
 		},
 		{

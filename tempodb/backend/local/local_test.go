@@ -49,23 +49,23 @@ func TestReadWrite(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error writing")
 
-		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.json")
-		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), false)
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
 	}
 
-	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), false)
+	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), nil)
 	assert.NoError(t, err, "unexpected error reading")
 	actualObjectBytes, err := io.ReadAllWithEstimate(actualObject, size)
 	assert.NoError(t, err, "unexpected error reading")
 	assert.Equal(t, fakeObject, actualObjectBytes)
 
 	actualReadRange := make([]byte, 5)
-	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange, false)
+	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange, nil)
 	assert.NoError(t, err, "unexpected error range")
 	assert.Equal(t, fakeObject[5:10], actualReadRange)
 
@@ -92,7 +92,7 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	tenant := "fake"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), false)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
@@ -117,7 +117,7 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	tenant := "tenant"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), false)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)

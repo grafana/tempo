@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
@@ -54,6 +55,8 @@ const (
 	UsageReport    string = "usage-report"
 	Overrides      string = "overrides"
 	OverridesAPI   string = "overrides-api"
+	CacheProvider  string = "cache-provider"
+
 	// rings
 	IngesterRing          string = "ring"
 	SecondaryIngesterRing string = "secondary-ring"
@@ -426,7 +429,7 @@ func (t *App) initCompactor() (services.Service, error) {
 }
 
 func (t *App) initStore() (services.Service, error) {
-	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, log.Logger)
+	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, t.cacheProvider, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
@@ -506,6 +509,16 @@ func (t *App) initUsageReport() (services.Service, error) {
 	return ur, nil
 }
 
+func (t *App) initCacheProvider() (services.Service, error) {
+	c, err := cache.NewProvider(&t.cfg.CacheProvider, util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache provider: %w", err)
+	}
+
+	t.cacheProvider = c
+	return c, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -519,6 +532,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
 	mm.RegisterModule(OverridesAPI, t.initOverridesAPI)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
+	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
@@ -536,8 +550,9 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(ScalableSingleBinary, nil)
 
 	deps := map[string][]string{
-		// Store:          nil,
 		// InternalServer: nil,
+		// CacheProvider:  nil,
+		Store:                 {CacheProvider},
 		Server:                {InternalServer},
 		Overrides:             {Server},
 		OverridesAPI:          {Server, Overrides},

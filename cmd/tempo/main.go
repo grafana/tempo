@@ -18,7 +18,6 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
-	oc "go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
 	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
@@ -287,7 +286,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	ot.SetGlobalTracer(bridgeTracer)
 
 	// Install the OpenCensus bridge
-	oc.DefaultTracer = oc_bridge.NewTracer(tp.Tracer("OpenCensus"))
+	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))
 
 	return shutdown, nil
 }

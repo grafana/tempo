@@ -1021,7 +1021,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{
@@ -1451,7 +1451,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	err = c.EnableCompaction(context.Background(), &CompactorConfig{

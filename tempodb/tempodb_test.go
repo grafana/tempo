@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -12,9 +13,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/cache/memcached"
+	"github.com/grafana/tempo/modules/cache/redis"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -59,7 +64,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 		opt(cfg)
 	}
 
-	r, w, c, err := New(cfg, log.NewNopLogger())
+	r, w, c, err := New(cfg, nil, log.NewNopLogger())
 	require.NoError(t, err)
 	return r, w, c, tempDir
 }
@@ -668,7 +673,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 			Filepath:       path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -694,72 +699,6 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	// Verify the block time was constrained to the slack time.
 	require.Equal(t, now.Unix(), complete.BlockMeta().StartTime.Unix())
 	require.Equal(t, now.Unix(), complete.BlockMeta().EndTime.Unix())
-}
-
-func TestShouldCache(t *testing.T) {
-	tempDir := t.TempDir()
-
-	r, _, _, err := New(&Config{
-		Backend: backend.Local,
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 17,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncLZ4_256k,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll:           0,
-		CacheMaxBlockAge:        time.Hour,
-		CacheMinCompactionLevel: 1,
-	}, log.NewNopLogger())
-	require.NoError(t, err)
-
-	rw := r.(*readerWriter)
-
-	testCases := []struct {
-		name            string
-		compactionLevel uint8
-		startTime       time.Time
-		cache           bool
-	}{
-		{
-			name:            "both pass",
-			compactionLevel: 1,
-			startTime:       time.Now(),
-			cache:           true,
-		},
-		{
-			name:            "startTime fail",
-			compactionLevel: 2,
-			startTime:       time.Now().Add(-2 * time.Hour),
-			cache:           false,
-		},
-		{
-			name:            "compactionLevel fail",
-			compactionLevel: 0,
-			startTime:       time.Now(),
-			cache:           false,
-		},
-		{
-			name:            "both fail",
-			compactionLevel: 0,
-			startTime:       time.Now(),
-			cache:           false,
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.cache, rw.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()))
-		})
-	}
 }
 
 func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
@@ -806,7 +745,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 			Filepath:       path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(b, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -833,5 +772,83 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	for i := 0; i < b.N; i++ {
 		_, err := w.CompleteBlock(context.Background(), blk)
 		require.NoError(b, err)
+	}
+}
+
+func TestCreateLegacyCache(t *testing.T) {
+	tcs := []struct {
+		name          string
+		cfg           *Config
+		expectedErr   error
+		expectedRoles []cache.Role
+		expectedCache bool
+	}{
+		{
+			name: "no caches",
+			cfg:  &Config{},
+		},
+		{
+			name: "redis",
+			cfg: &Config{
+				Cache:           "redis",
+				Redis:           &redis.Config{},
+				BackgroundCache: &cache.BackgroundConfig{},
+			},
+			expectedRoles: []cache.Role{cache.RoleBloom, cache.RoleTraceIDIdx},
+			expectedCache: true,
+		},
+		{
+			name: "memcached",
+			cfg: &Config{
+				Cache:           "memcached",
+				Memcached:       &memcached.Config{},
+				BackgroundCache: &cache.BackgroundConfig{},
+			},
+			expectedRoles: []cache.Role{cache.RoleBloom, cache.RoleTraceIDIdx},
+			expectedCache: true,
+		},
+		{
+			name: "no cache but cache control",
+			cfg: &Config{
+				Search: &SearchConfig{
+					CacheControl: CacheControlConfig{
+						Footer: true,
+					},
+				},
+			},
+			expectedErr: errors.New("no legacy cache configured, but cache_control is enabled. Please use the new top level cache configuration."),
+		},
+		{
+			name: "memcached + cache control",
+			cfg: &Config{
+				Cache:           "memcached",
+				Memcached:       &memcached.Config{},
+				BackgroundCache: &cache.BackgroundConfig{},
+				Search: &SearchConfig{
+					CacheControl: CacheControlConfig{
+						Footer:      true,
+						ColumnIndex: true,
+						OffsetIndex: true,
+					},
+				},
+			},
+			expectedRoles: []cache.Role{cache.RoleBloom, cache.RoleTraceIDIdx, cache.RoleParquetColumnIdx, cache.RoleParquetFooter, cache.RoleParquetOffsetIdx},
+			expectedCache: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			prometheus.DefaultRegisterer = prometheus.NewRegistry() // prevent duplicate registration
+
+			cache, actualRoles, actualErr := createLegacyCache(tc.cfg, log.NewNopLogger())
+			require.Equal(t, tc.expectedErr, actualErr)
+			require.Equal(t, tc.expectedRoles, actualRoles)
+			if tc.expectedCache {
+				require.NotNil(t, cache)
+			} else {
+				require.Nil(t, cache)
+			}
+		})
 	}
 }

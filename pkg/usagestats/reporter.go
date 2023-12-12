@@ -200,7 +200,7 @@ func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) b
 
 // readSeedFile reads the cluster seed file from the object store.
 func (rep *Reporter) readSeedFile(ctx context.Context) (*ClusterSeed, error) {
-	reader, _, err := rep.reader.Read(ctx, backend.ClusterSeedFileName, backend.KeyPath{}, false)
+	reader, _, err := rep.reader.Read(ctx, backend.ClusterSeedFileName, backend.KeyPath{}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (rep *Reporter) writeSeedFile(ctx context.Context, seed ClusterSeed) error 
 	if err != nil {
 		return err
 	}
-	return rep.writer.Write(ctx, backend.ClusterSeedFileName, []string{}, bytes.NewReader(data), -1, false)
+	return rep.writer.Write(ctx, backend.ClusterSeedFileName, []string{}, bytes.NewReader(data), -1, nil)
 }
 
 // running inits the reporter seed and start sending report for every interval

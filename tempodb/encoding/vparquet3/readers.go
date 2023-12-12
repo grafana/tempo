@@ -5,11 +5,10 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/google/uuid"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // This stack of readers is used to bridge the gap between the backend.Reader and the parquet.File.
@@ -21,32 +20,34 @@ import (
 // BackendReaderAt is used to track backend requests and present a io.ReaderAt interface backed
 // by a backend.Reader
 type BackendReaderAt struct {
-	ctx      context.Context
-	r        backend.Reader
-	name     string
-	blockID  uuid.UUID
-	tenantID string
+	ctx  context.Context
+	r    backend.Reader
+	name string
+	meta *backend.BlockMeta
 
 	bytesRead atomic.Uint64
 }
 
 var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
-func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *BackendReaderAt {
-	return &BackendReaderAt{ctx, r, name, blockID, tenantID, atomic.Uint64{}}
+func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta *backend.BlockMeta) *BackendReaderAt {
+	return &BackendReaderAt{ctx, r, name, meta, atomic.Uint64{}}
 }
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	b.bytesRead.Add(uint64(len(p)))
-	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, false)
+	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, nil)
 	if err != nil {
 		return 0, err
 	}
 	return len(p), err
 }
 
-func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64) (int, error) {
-	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, true)
+func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
+	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, &backend.CacheInfo{
+		Role: role,
+		Meta: b.meta,
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -88,46 +89,45 @@ func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	return r.r.ReadAt(p, off)
 }
 
+type cachedObjectRecord struct {
+	length int64
+	role   cache.Role
+}
+
 // cachedReaderAt is used to route specific reads to the caching layer. this must be passed directly into
 // the parquet.File so thet Set*Section() methods get called.
 type cachedReaderAt struct {
 	r             io.ReaderAt
 	br            *BackendReaderAt
-	cacheControl  common.CacheControl
-	cachedObjects map[int64]int64 // storing offsets and length of objects we want to cache
+	cachedObjects map[int64]cachedObjectRecord // storing offsets and length of objects we want to cache
 }
 
 var _ io.ReaderAt = (*cachedReaderAt)(nil)
 
-func newCachedReaderAt(br io.ReaderAt, rr *BackendReaderAt, cc common.CacheControl) *cachedReaderAt {
-	return &cachedReaderAt{br, rr, cc, map[int64]int64{}}
+func newCachedReaderAt(br io.ReaderAt, rr *BackendReaderAt) *cachedReaderAt {
+	return &cachedReaderAt{br, rr, map[int64]cachedObjectRecord{}}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of footer section
 func (r *cachedReaderAt) SetFooterSection(offset, length int64) {
-	if r.cacheControl.Footer {
-		r.cachedObjects[offset] = length
-	}
+	r.cachedObjects[offset] = cachedObjectRecord{length, cache.RoleParquetFooter}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of column indexes
 func (r *cachedReaderAt) SetColumnIndexSection(offset, length int64) {
-	if r.cacheControl.ColumnIndex {
-		r.cachedObjects[offset] = length
-	}
+	r.cachedObjects[offset] = cachedObjectRecord{length, cache.RoleParquetColumnIdx}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of offset index section
 func (r *cachedReaderAt) SetOffsetIndexSection(offset, length int64) {
-	if r.cacheControl.OffsetIndex {
-		r.cachedObjects[offset] = length
-	}
+	r.cachedObjects[offset] = cachedObjectRecord{length, cache.RoleParquetOffsetIdx}
 }
 
 func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	// check if the offset and length is stored as a special object
-	if r.cachedObjects[off] == int64(len(p)) {
-		return r.br.ReadAtWithCache(p, off)
+	rec := r.cachedObjects[off]
+	if rec.length == int64(len(p)) {
+		return r.br.ReadAtWithCache(p, off, rec.role)
 	}
 
 	return r.r.ReadAt(p, off)

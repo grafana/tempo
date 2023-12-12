@@ -43,7 +43,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 // Write implements backend.Writer
-func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 	return dst.Close()
 }
 
-func (rw *Backend) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+func (rw *Backend) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 }
 
 // Read implements backend.Reader
-func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, -1, err
 	}
@@ -212,7 +212,7 @@ func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPat
 }
 
 // ReadRange implements backend.Reader
-func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
