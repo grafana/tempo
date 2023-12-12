@@ -714,17 +714,20 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 	return false, nil
 }
 
+// seekWithinPage decides if it should reslice the current page to jump directly to the desired row number
+// or allow the iterator to call Next() until it finds the desired row number. it uses the magicThreshold
+// as its balance point. if the number of Next()s to skip is less than the magicThreshold, it will not reslice
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	rowSkipRelative := int(to[0] - c.curr[0])
-	magicThreshold := 1000
+	const magicThreshold = 1000
 	shouldSkip := false
 
 	if definitionLevel == 0 {
-		// if definition level is 0 there is always a 1:1 ratio between nexts and rows. it's only deeper
+		// if definition level is 0 there is always a 1:1 ratio between Next()s and rows. it's only deeper
 		// levels of nesting we have to manually count
 		shouldSkip = rowSkipRelative > magicThreshold
 	} else {
-		// this is a nested iterator, let's count the nexts required to get to the desired row number
+		// this is a nested iterator, let's count the Next()s required to get to the desired row number
 		// and decide if we should skip or not
 		replvls := c.currPage.RepetitionLevels()
 		nextsRequired := 0
