@@ -288,9 +288,13 @@ func (i *baseColumnIndexer) observe(numValues, numNulls int64) {
 }
 
 func (i *baseColumnIndexer) columnIndex(minValues, maxValues [][]byte, minOrder, maxOrder int) format.ColumnIndex {
+	nullPages := make([]bool, len(i.nullPages))
+	copy(nullPages, i.nullPages)
+	nullCounts := make([]int64, len(i.nullCounts))
+	copy(nullCounts, i.nullCounts)
 	return format.ColumnIndex{
-		NullPages:     i.nullPages,
-		NullCounts:    i.nullCounts,
+		NullPages:     nullPages,
+		NullCounts:    nullCounts,
 		MinValues:     minValues,
 		MaxValues:     maxValues,
 		BoundaryOrder: boundaryOrderOf(minOrder, maxOrder),

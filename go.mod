@@ -54,7 +54,7 @@ require (
 	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.45.0
 	github.com/prometheus/prometheus v0.47.2
-	github.com/prometheus/statsd_exporter v0.22.7 // indirect
+	github.com/prometheus/statsd_exporter v0.22.7
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.4.1
@@ -109,7 +109,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.89.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.89.0
-	github.com/parquet-go/parquet-go v0.18.1-0.20231023162157-1748e4b3ff04
+	github.com/parquet-go/parquet-go v0.20.1-0.20231211122939-bec192ac8b06
 	github.com/stoewer/parquet-cli v0.0.5
 	go.opentelemetry.io/collector/config/configgrpc v0.89.0
 	go.opentelemetry.io/collector/config/confighttp v0.89.0

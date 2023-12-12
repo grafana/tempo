@@ -49,7 +49,7 @@ func (p *StringInPredicate) String() string {
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	if ci := cc.ColumnIndex(); ci != nil {
+	if ci, _ := cc.ColumnIndex(); ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
 				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
@@ -246,7 +246,7 @@ func (p *IntBetweenPredicate) String() string {
 }
 
 func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	if ci := c.ColumnIndex(); ci != nil {
+	if ci, _ := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Int64()
 			max := ci.MaxValue(i).Int64()
@@ -298,7 +298,7 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
 		return true
 	}
 
-	if ci := c.ColumnIndex(); ci != nil {
+	if ci, _ := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := p.Extract(ci.MinValue(i))
 			max := p.Extract(ci.MaxValue(i))
@@ -367,7 +367,7 @@ func (p *FloatBetweenPredicate) String() string {
 }
 
 func (p *FloatBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	if ci := c.ColumnIndex(); ci != nil {
+	if ci, _ := c.ColumnIndex(); ci != nil { // jpe check these errs
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Double()
 			max := ci.MaxValue(i).Double()

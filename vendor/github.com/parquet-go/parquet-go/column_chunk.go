@@ -1,7 +1,13 @@
 package parquet
 
 import (
+	"errors"
 	"io"
+)
+
+var (
+	ErrMissingColumnIndex = errors.New("missing column index")
+	ErrMissingOffsetIndex = errors.New("missing offset index")
 )
 
 // The ColumnChunk interface represents individual columns of a row group.
@@ -22,9 +28,17 @@ type ColumnChunk interface {
 	// Note that the returned value may be the same across calls to these
 	// methods, programs must treat those as read-only.
 	//
-	// If the column chunk does not have a page index, the methods return nil.
-	ColumnIndex() ColumnIndex
-	OffsetIndex() OffsetIndex
+	// If the column chunk does not have a column or offset index, the methods return
+	// ErrMissingColumnIndex or ErrMissingOffsetIndex respectively.
+	//
+	// Prior to v0.20, these methods did not return an error because the page index
+	// for a file was either fully read when the file was opened, or skipped
+	// completely using the parquet.SkipPageIndex option. Version v0.20 introduced a
+	// change that the page index can be read on-demand at any time, even if a file
+	// was opened with the parquet.SkipPageIndex option. Since reading the page index
+	// can fail, these methods now return an error.
+	ColumnIndex() (ColumnIndex, error)
+	OffsetIndex() (OffsetIndex, error)
 	BloomFilter() BloomFilter
 
 	// Returns the number of values in the column chunk.
