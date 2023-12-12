@@ -54,6 +54,10 @@ type FetchSpansRequest struct {
 	EndTimeUnixNanos   uint64
 	Conditions         []Condition
 
+	// mdisibio - Better to push trace by ID filtering into Conditions with a new between op?
+	Shard int
+	Of    int
+
 	// Hints
 
 	// By default the storage layer fetches spans meeting any of the criteria.
@@ -74,6 +78,21 @@ type FetchSpansRequest struct {
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
+}
+
+func (f *FetchSpansRequest) HasAttribute(a Attribute) bool {
+	for _, cc := range f.Conditions {
+		if cc.Attribute == a {
+			return true
+		}
+	}
+	for _, cc := range f.SecondPassConditions {
+		if cc.Attribute == a {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Span interface {

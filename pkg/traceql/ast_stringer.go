@@ -27,8 +27,8 @@ func (o CoalesceOperation) String() string {
 }
 
 func (o SelectOperation) String() string {
-	s := make([]string, 0, len(o.exprs))
-	for _, e := range o.exprs {
+	s := make([]string, 0, len(o.attrs))
+	for _, e := range o.attrs {
 		s = append(s, e.String())
 	}
 	return "select(" + strings.Join(s, ", ") + ")"
@@ -118,11 +118,15 @@ func (a Attribute) String() string {
 	}
 
 	// Top-level attributes get a "." but top-level intrinsics don't
-	if scope == "" && a.Intrinsic == IntrinsicNone {
+	if scope == "" && a.Intrinsic == IntrinsicNone && len(att) > 0 {
 		scope += "."
 	}
 
 	return scope + att
+}
+
+func (a MetricsAggregate) String() string {
+	return a.op.String()
 }
 
 func binaryOp(op Operator, lhs Element, rhs Element) string {

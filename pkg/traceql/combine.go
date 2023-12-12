@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"golang.org/x/exp/maps"
 )
 
 type MetadataCombiner struct {
@@ -118,4 +119,47 @@ func spansetID(ss *tempopb.SpanSet) string {
 	}
 
 	return id
+}
+
+type QueryRangeCombiner struct {
+	ts map[string]*tempopb.TimeSeries
+}
+
+func (q *QueryRangeCombiner) Combine(set []*tempopb.TimeSeries) {
+	if len(set) == 0 {
+		return
+	}
+
+	if q.ts == nil {
+		q.ts = make(map[string]*tempopb.TimeSeries, len(set))
+	}
+
+	for _, series := range set {
+
+		existing, ok := q.ts[series.PromLabels]
+		if !ok {
+			q.ts[series.PromLabels] = series
+			continue
+		}
+
+		q.combine(series, existing)
+	}
+}
+
+func (QueryRangeCombiner) combine(in *tempopb.TimeSeries, out *tempopb.TimeSeries) {
+outer:
+	for _, sample := range in.Samples {
+		for i, existing := range out.Samples {
+			if sample.TimestampMs == existing.TimestampMs {
+				out.Samples[i].Value += sample.Value
+				continue outer
+			}
+		}
+
+		out.Samples = append(out.Samples, sample)
+	}
+}
+
+func (q *QueryRangeCombiner) Results() []*tempopb.TimeSeries {
+	return maps.Values(q.ts)
 }
