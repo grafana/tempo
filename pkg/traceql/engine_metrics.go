@@ -17,7 +17,6 @@ import (
 )
 
 func DefaultQueryRangeStep(start, end uint64) uint64 {
-
 	delta := time.Duration(end - start)
 
 	// Try to get this many data points
@@ -65,7 +64,7 @@ const maxGroupBys = 5 // TODO - Delete me
 type FastValues [maxGroupBys]Static
 
 type TimeSeries struct {
-	//Labels LabelSet
+	// Labels LabelSet
 	Labels labels.Labels
 	Values []float64
 }
@@ -206,7 +205,6 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 }
 
 func (g *GroupingAggregator) Observe(span Span) {
-
 	// Get grouping values
 	for i, lookups := range g.byLookups {
 		g.buf[i] = lookup(lookups, span)
@@ -391,8 +389,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	// TODO - Make this dynamic since it can be faster to skip
 	// the trace-level timestamp check when all or most of the traces
 	// overlap the window.
-	//storageReq.StartTimeUnixNanos = req.Start
-	//storageReq.EndTimeUnixNanos = req.End // Should this be exclusive?
+	// storageReq.StartTimeUnixNanos = req.Start
+	// storageReq.EndTimeUnixNanos = req.End // Should this be exclusive?
 	// (2) Only include spans that started in this time frame.
 	//     This is checked inside the evaluator
 	me.checkTime = true
@@ -424,7 +422,7 @@ type MetricsEvalulator struct {
 	start, end  uint64
 	checkTime   bool
 	dedupeSpans bool
-	//deduper         *SpanBloomDeduper
+	// deduper         *SpanBloomDeduper
 	deduper         *SpanDeduper2
 	storageReq      *FetchSpansRequest
 	metricsPipeline metricsFirstStageElement
@@ -444,7 +442,7 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
 
 	if e.dedupeSpans && e.deduper == nil {
 		e.deduper = NewSpanDeduper2()
-		//e.deduper = NewSpanBloomDeduper()
+		// e.deduper = NewSpanBloomDeduper()
 	}
 
 	defer fetch.Results.Close()
@@ -590,7 +588,6 @@ func NewSpanDeduper2() *SpanDeduper2 {
 }
 
 func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
-
 	d.h.Reset()
 	d.h.Write([]byte(tid))
 	binary.BigEndian.PutUint64(d.buf, startTime)
