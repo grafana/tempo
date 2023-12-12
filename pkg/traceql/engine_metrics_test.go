@@ -15,8 +15,8 @@ func TestDefaultQueryRangeStep(t *testing.T) {
 		expected   time.Duration
 	}{
 		{time.Unix(0, 0), time.Unix(100, 0), time.Second},
-		{time.Unix(0, 0), time.Unix(600, 0), 5 * time.Second},
-		{time.Unix(0, 0), time.Unix(3600, 0), 30 * time.Second},
+		{time.Unix(0, 0), time.Unix(600, 0), 2 * time.Second},
+		{time.Unix(0, 0), time.Unix(3600, 0), 15 * time.Second},
 	}
 
 	for _, c := range tc {
