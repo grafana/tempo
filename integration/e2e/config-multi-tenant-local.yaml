@@ -1,10 +1,10 @@
 target: all
-# enable multi-tenancy to test cross tenant queries
 multitenancy_enabled: true
+stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
-  log_level: debug
+  log_level: warn
 
 query_frontend:
   search:
@@ -36,6 +36,21 @@ ingester:
   max_block_duration: 2s
   complete_block_timeout: 20s
   flush_check_period: 1s
+
+metrics_generator:
+  processor:
+    service_graphs:
+      histogram_buckets: [1, 2]  # seconds
+    span_metrics:
+      histogram_buckets: [1, 2]
+  registry:
+    collection_interval: 1s
+  storage:
+    path: /var/tempo
+    remote_write:
+      - url: http://tempo_e2e-prometheus:9090/api/v1/write
+        send_exemplars: true
+
 
 storage:
   trace:

@@ -104,7 +104,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	respCombiner := t.newCombiner()
 
 	// call RoundTrip for each tenant and combine results
-	// Send one request per tenant to down-stream tripper
+	// Send one request per tenant to downstream tripper
 	// Return early if statusCode is already set by a previous response
 	for _, tenantID := range tenants {
 		wg.Add(1)
@@ -147,7 +147,6 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		}(tenantID)
 	}
 
-	// TODO: will this work for search streaming??, look into it. might need a search steaming combiner
 	wg.Wait()
 
 	return respCombiner.Complete()
@@ -182,7 +181,14 @@ func newMultiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) Middlewa
 }
 
 func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	fmt.Printf("=== unsupportedRoundTripper.RoundTrip called...")
+
 	err := MultiTenantNotSupported(t.cfg, t.resolver, req)
+	if err == user.ErrNoOrgID {
+		// no org id, move to next tripper
+		return t.next.RoundTrip(req)
+	}
+
 	if err != nil {
 		_ = level.Debug(t.logger).Log("msg", "multi-tenant query is not supported", "path", req.URL.EscapedPath())
 
@@ -205,7 +211,7 @@ func MultiTenantNotSupported(cfg Config, resolver tenant.Resolver, req *http.Req
 
 	_, ctx, err := user.ExtractOrgIDFromHTTPRequest(req)
 	if err != nil {
-		return fmt.Errorf("failed to extract org id from request: %w", err)
+		return err
 	}
 
 	// extract tenant ids

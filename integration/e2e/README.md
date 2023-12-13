@@ -20,6 +20,6 @@ make docker-tempo && go test -count=1 -v ./integration/e2e/... -run TestMicroser
 # run a single e2e tests with timeout
 go test -timeout 3m -count=1 -v ./integration/e2e/... -run ^TestMultiTenantSearch$
 
-# follow and watch logs while tests are running (assuming only e2e test container is running...)
-docker logs $(docker container ls -q) -f
+# follow and watch logs while tests are running (assuming e2e test container is named tempo_e2e-tempo)
+docker logs $(docker container ls -f name=tempo_e2e-tempo -q) -f
 ```

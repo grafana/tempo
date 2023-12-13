@@ -100,9 +100,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	metrics := spanMetricsMiddleware.Wrap(next)
 
-	streamingMiddleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewSearch, logger),
-		retryWare).Wrap(next)
+	streamingMiddleware := MergeMiddlewares(retryWare).Wrap(next)
 
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
@@ -120,6 +118,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	}, nil
 }
 
+// Search implements StreamingQuerierServer interface for streaming search
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 	return q.streamingSearch(req, srv)
 }

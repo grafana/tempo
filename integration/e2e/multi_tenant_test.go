@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -81,7 +82,7 @@ func TestMultiTenantSearch(t *testing.T) {
 
 			require.NoError(t, util.CopyFileToSharedDir(s, configMultiTenant, "config.yaml"))
 			tempo := util.NewTempoAllInOne()
-			require.NoError(t, s.StartAndWaitReady(tempo))
+			require.NoError(t, s.StartAndWaitReady(tempo, newPrometheus()))
 
 			// Get port for the Jaeger gRPC receiver endpoint
 			c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
@@ -198,6 +199,33 @@ func TestMultiTenantSearch(t *testing.T) {
 			}
 			for _, rt := range routeTable {
 				assertRequestCountMetric(t, tempo, rt.route, rt.reqCount)
+			}
+
+			// test all the unsupported endpoints
+			now := time.Now()
+			_, msErr := apiClient.MetricsSummary("{}", "name", 0, 0)
+
+			// test websockets search
+			wsClient := httpclient.New("ws://"+tempo.Endpoint(3200), tc.tenant)
+			_, wsErr := wsClient.SearchWithWebsocket(&tempopb.SearchRequest{
+				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
+			}, func(sr *tempopb.SearchResponse) {})
+
+			// test streaming search over grpc
+			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(3200))
+			require.NoError(t, err)
+			_, grpcErr := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
+				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
+			})
+
+			if tc.tenantSize > 1 { // we expect error in case of multi-tenant request
+				require.Error(t, msErr)
+				require.Error(t, wsErr)
+				require.Error(t, grpcErr)
+			} else {
+				require.NoError(t, msErr)
+				require.NoError(t, wsErr)
+				require.NoError(t, grpcErr)
 			}
 		})
 	}
