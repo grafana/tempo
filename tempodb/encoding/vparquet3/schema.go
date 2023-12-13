@@ -129,8 +129,7 @@ type droppedAttrCounter interface {
 type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
-	// This is a bad design that leads to millions of null values. How can we fix this?
-	ValueType    AttrType  `parquet:",snappy"`
+	ValueType    AttrType  `parquet:",snappy,delta"`
 	Value        []string  `parquet:",snappy,dict,list"`
 	ValueInt     []int64   `parquet:",snappy,list"`
 	ValueDouble  []float64 `parquet:",snappy,list"`
