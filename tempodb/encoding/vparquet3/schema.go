@@ -51,16 +51,30 @@ const (
 	DefinitionLevelResourceSpansILSSpanAttrs = 4
 
 	FieldResourceAttrKey       = "rs.list.element.Resource.Attrs.list.element.Key"
-	FieldResourceAttrVal       = "rs.list.element.Resource.Attrs.list.element.Value"
-	FieldResourceAttrValInt    = "rs.list.element.Resource.Attrs.list.element.ValueInt"
-	FieldResourceAttrValDouble = "rs.list.element.Resource.Attrs.list.element.ValueDouble"
-	FieldResourceAttrValBool   = "rs.list.element.Resource.Attrs.list.element.ValueBool"
+	FieldResourceAttrVal       = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
+	FieldResourceAttrValInt    = "rs.list.element.Resource.Attrs.list.element.ValueInt.list.element"
+	FieldResourceAttrValDouble = "rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element"
+	FieldResourceAttrValBool   = "rs.list.element.Resource.Attrs.list.element.ValueBool.list.element"
 
 	FieldSpanAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
-	FieldSpanAttrVal       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value"
-	FieldSpanAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt"
-	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble"
-	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool"
+	FieldSpanAttrVal       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
+	FieldSpanAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
+	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
+	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
+)
+
+type AttrType int32
+
+const (
+	attrTypeNotSupported AttrType = iota
+	attrTypeString
+	attrTypeInt
+	attrTypeDouble
+	attrTypeBool
+	attrTypeStringArray
+	attrTypeIntArray
+	attrTypeDoubleArray
+	attrTypeBoolArray
 )
 
 var (
@@ -114,12 +128,12 @@ type droppedAttrCounter interface {
 type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
-	// This is a bad design that leads to millions of null values. How can we fix this?
-	Value        *string  `parquet:",dict,snappy,optional"`
-	ValueInt     *int64   `parquet:",snappy,optional"`
-	ValueDouble  *float64 `parquet:",snappy,optional"`
-	ValueBool    *bool    `parquet:",snappy,optional"`
-	ValueDropped string   `parquet:",snappy,optional"`
+	ValueType    AttrType  `parquet:",snappy,delta"`
+	Value        []string  `parquet:",snappy,dict,list"`
+	ValueInt     []int64   `parquet:",snappy,list"`
+	ValueDouble  []float64 `parquet:",snappy,list"`
+	ValueBool    []bool    `parquet:",snappy,list"`
+	ValueDropped string    `parquet:",snappy,optional"`
 }
 
 // DedicatedAttributes add spare columns to the schema that can be assigned to attributes at runtime.
@@ -252,27 +266,94 @@ type Trace struct {
 
 func attrToParquet(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
 	p.Key = a.Key
-	p.Value = nil
-	p.ValueBool = nil
-	p.ValueDouble = nil
-	p.ValueInt = nil
+	p.ValueType = 0
+	p.Value = p.Value[:0]
+	p.ValueInt = p.ValueInt[:0]
+	p.ValueDouble = p.ValueDouble[:0]
+	p.ValueBool = p.ValueBool[:0]
 	p.ValueDropped = ""
 
 	switch v := a.GetValue().Value.(type) {
 	case *v1.AnyValue_StringValue:
-		p.Value = &v.StringValue
+		p.Value = append(p.Value, v.StringValue)
+		p.ValueType = attrTypeString
 	case *v1.AnyValue_IntValue:
-		p.ValueInt = &v.IntValue
+		p.ValueInt = append(p.ValueInt, v.IntValue)
+		p.ValueType = attrTypeInt
 	case *v1.AnyValue_DoubleValue:
-		p.ValueDouble = &v.DoubleValue
+		p.ValueDouble = append(p.ValueDouble, v.DoubleValue)
+		p.ValueType = attrTypeDouble
 	case *v1.AnyValue_BoolValue:
-		p.ValueBool = &v.BoolValue
+		p.ValueBool = append(p.ValueBool, v.BoolValue)
+		p.ValueType = attrTypeBool
+	case *v1.AnyValue_ArrayValue:
+		if v.ArrayValue == nil || len(v.ArrayValue.Values) == 0 {
+			p.ValueType = attrTypeStringArray
+			return
+		}
+		switch v.ArrayValue.Values[0].Value.(type) {
+		case *v1.AnyValue_StringValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_StringValue)
+				if !ok {
+					p.Value = p.Value[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+					return
+				}
+
+				p.Value = append(p.Value, ev.StringValue)
+				p.ValueType = attrTypeStringArray
+			}
+		case *v1.AnyValue_IntValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_IntValue)
+				if !ok {
+					p.ValueInt = p.ValueInt[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+					return
+				}
+
+				p.ValueInt = append(p.ValueInt, ev.IntValue)
+				p.ValueType = attrTypeIntArray
+			}
+		case *v1.AnyValue_DoubleValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_DoubleValue)
+				if !ok {
+					p.ValueDouble = p.ValueDouble[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+					return
+				}
+
+				p.ValueDouble = append(p.ValueDouble, ev.DoubleValue)
+				p.ValueType = attrTypeDoubleArray
+			}
+		case *v1.AnyValue_BoolValue:
+			for _, e := range v.ArrayValue.Values {
+				ev, ok := e.Value.(*v1.AnyValue_BoolValue)
+				if !ok {
+					p.ValueBool = p.ValueBool[:0]
+					attrToParquetTypeUnsupported(a, p, counter)
+					return
+				}
+
+				p.ValueBool = append(p.ValueBool, ev.BoolValue)
+				p.ValueType = attrTypeBoolArray
+			}
+		default:
+			attrToParquetTypeUnsupported(a, p, counter)
+		}
 	default:
-		jsonBytes := &bytes.Buffer{}
-		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
-		p.ValueDropped = jsonBytes.String()
-		counter.addDroppedAttr(1)
+		attrToParquetTypeUnsupported(a, p, counter)
 	}
+}
+
+func attrToParquetTypeUnsupported(a *v1.KeyValue, p *Attribute, counter droppedAttrCounter) {
+	jsonBytes := &bytes.Buffer{}
+	_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
+	p.ValueDropped = jsonBytes.String()
+	p.ValueType = attrTypeNotSupported
+	counter.addDroppedAttr(1)
 }
 
 // traceToParquet converts a tempopb.Trace to this schema's object model. Returns the new object and
@@ -529,32 +610,98 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 	var protoAttrs []*v1.KeyValue
 
 	for _, attr := range parquetAttrs {
-		protoVal := &v1.AnyValue{}
+		var protoVal v1.AnyValue
 
-		if attr.Value != nil {
-			protoVal.Value = &v1.AnyValue_StringValue{
-				StringValue: *attr.Value,
+		switch attr.ValueType {
+		case attrTypeString:
+			var v v1.AnyValue_StringValue
+			if len(attr.Value) > 0 {
+				v.StringValue = attr.Value[0]
 			}
-		} else if attr.ValueInt != nil {
-			protoVal.Value = &v1.AnyValue_IntValue{
-				IntValue: *attr.ValueInt,
+			protoVal.Value = &v
+		case attrTypeInt:
+			var v v1.AnyValue_IntValue
+			if len(attr.ValueInt) > 0 {
+				v.IntValue = attr.ValueInt[0]
 			}
-		} else if attr.ValueDouble != nil {
-			protoVal.Value = &v1.AnyValue_DoubleValue{
-				DoubleValue: *attr.ValueDouble,
+			protoVal.Value = &v
+		case attrTypeDouble:
+			var v v1.AnyValue_DoubleValue
+			if len(attr.ValueDouble) > 0 {
+				v.DoubleValue = attr.ValueDouble[0]
 			}
-		} else if attr.ValueBool != nil {
-			protoVal.Value = &v1.AnyValue_BoolValue{
-				BoolValue: *attr.ValueBool,
+			protoVal.Value = &v
+		case attrTypeBool:
+			var v v1.AnyValue_BoolValue
+			if len(attr.ValueBool) > 0 {
+				v.BoolValue = attr.ValueBool[0]
 			}
-		} else if attr.ValueDropped != "" && includeDroppedAttr {
-			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueDropped), protoVal)
+			protoVal.Value = &v
+		case attrTypeStringArray:
+			values := make([]*v1.AnyValue, len(attr.Value))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			strValues := make([]v1.AnyValue_StringValue, len(values))
+			for i, v := range attr.Value {
+				s := &strValues[i]
+				s.StringValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = s
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeIntArray:
+			values := make([]*v1.AnyValue, len(attr.ValueInt))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			intValues := make([]v1.AnyValue_IntValue, len(values))
+			for i, v := range attr.ValueInt {
+				n := &intValues[i]
+				n.IntValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = n
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeDoubleArray:
+			values := make([]*v1.AnyValue, len(attr.ValueDouble))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			intValues := make([]v1.AnyValue_DoubleValue, len(values))
+			for i, v := range attr.ValueDouble {
+				n := &intValues[i]
+				n.DoubleValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = n
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeBoolArray:
+			values := make([]*v1.AnyValue, len(attr.ValueBool))
+
+			anyValues := make([]v1.AnyValue, len(values))
+			intValues := make([]v1.AnyValue_BoolValue, len(values))
+			for i, v := range attr.ValueBool {
+				n := &intValues[i]
+				n.BoolValue = v
+				values[i] = &anyValues[i]
+				values[i].Value = n
+			}
+
+			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+		case attrTypeNotSupported:
+			if attr.ValueDropped == "" || !includeDroppedAttr {
+				continue
+			}
+			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueDropped), &protoVal)
 			counter.addDroppedAttr(-1)
+		default:
+			continue
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{
 			Key:   attr.Key,
-			Value: protoVal,
+			Value: &protoVal,
 		})
 	}
 
