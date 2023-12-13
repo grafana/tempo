@@ -122,8 +122,18 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	go concurrent(func() {
+		_, err := p.QueryRange(ctx, &tempopb.QueryRangeRequest{
+			Query: "{} | rate()",
+			Start: uint64(time.Now().Add(-5 * time.Minute).UnixNano()),
+			End:   uint64(time.Now().UnixNano()),
+			Step:  uint64(30 * time.Second),
+		})
+		require.NoError(t, err)
+	})
+
 	// Run for a bit
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(20000 * time.Millisecond)
 
 	// Cleanup
 	close(end)

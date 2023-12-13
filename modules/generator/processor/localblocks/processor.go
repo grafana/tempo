@@ -13,9 +13,9 @@ import (
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 	gen "github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"go.uber.org/atomic"
 )
 
 const timeBuffer = 5 * time.Minute
@@ -104,17 +105,19 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
-	var count int
+	//var count int
 	before := p.liveTraces.Len()
 
 	for _, batch := range req.Batches {
-		if batch, count = filterBatch(batch); batch != nil {
-			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
-			if errors.Is(err, errMaxExceeded) {
-				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
-			}
-			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(count))
+		//if batch, count = filterBatch(batch); batch != nil {
+		err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
+		if errors.Is(err, errMaxExceeded) {
+			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 		}
+		for _, ss := range batch.ScopeSpans {
+			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(len(ss.Spans)))
+		}
+		//}
 	}
 
 	after := p.liveTraces.Len()
@@ -387,6 +390,70 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	return resp, nil
 }
 
+// QueryRange returns metrics.
+func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (traceql.SeriesSet, error) {
+	p.blocksMtx.RLock()
+	defer p.blocksMtx.RUnlock()
+
+	cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
+	if req.Start < uint64(cutoff.UnixNano()) {
+		return nil, fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
+	}
+
+	// Blocks to check
+	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
+	if p.headBlock != nil {
+		blocks = append(blocks, p.headBlock)
+	}
+	for _, b := range p.walBlocks {
+		blocks = append(blocks, b)
+	}
+	for _, b := range p.completeBlocks {
+		blocks = append(blocks, b)
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false)
+	if err != nil {
+		return nil, err
+	}
+
+	wg := boundedwaitgroup.New(5)
+	jobErr := atomic.Error{}
+
+	for _, b := range blocks {
+
+		start := uint64(b.BlockMeta().StartTime.UnixNano())
+		end := uint64(b.BlockMeta().EndTime.UnixNano())
+		if start > req.End || end < req.Start {
+			// Out of time range
+			continue
+		}
+
+		wg.Add(1)
+		go func(b common.BackendBlock) {
+			defer wg.Done()
+
+			// TODO - caching
+			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, common.DefaultSearchOptions())
+			})
+
+			err = eval.Do(ctx, f)
+			if err != nil {
+				jobErr.Store(err)
+			}
+		}(b)
+	}
+
+	wg.Wait()
+
+	if err := jobErr.Load(); err != nil {
+		return nil, err
+	}
+
+	return eval.Results()
+}
+
 func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {
 	p.cacheMtx.RLock()
 	defer p.cacheMtx.RUnlock()
@@ -625,7 +692,7 @@ func (p *Processor) recordBlockBytes() {
 // filterBatch to only root spans or kind==server. Does not modify the input
 // but returns a new struct referencing the same input pointers. Returns nil
 // if there were no matching spans.
-func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
+/*func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
 	var keep int
 	var keepSS []*v1.ScopeSpans
 	for _, ss := range batch.ScopeSpans {
@@ -654,7 +721,7 @@ func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
 	}
 
 	return nil, 0
-}
+}*/
 
 func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue {
 	var r []*tempopb.KeyValue
