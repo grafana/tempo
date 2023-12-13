@@ -720,6 +720,6 @@ func attr(key string, val any) Attribute {
 	case []bool:
 		return Attribute{Key: key, ValueBool: val, ValueType: attrTypeBoolArray}
 	default:
-		panic("Type not supported")
+		panic(fmt.Sprintf("type %T not supported for attribute '%s'", val, key))
 	}
 }

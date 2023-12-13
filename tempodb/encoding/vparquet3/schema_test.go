@@ -77,9 +77,8 @@ func TestFieldsAreCleared(t *testing.T) {
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1.KeyValue{
-						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
+						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 123.456}}},
 					},
-					DroppedAttributesCount: 10,
 				},
 				ScopeSpans: []*v1_trace.ScopeSpans{
 					{
@@ -89,18 +88,17 @@ func TestFieldsAreCleared(t *testing.T) {
 								TraceId: traceID,
 								Status:  &v1_trace.Status{},
 								Attributes: []*v1.KeyValue{
-									{
-										Key: "a",
-										Value: &v1.AnyValue{
-											Value: &v1.AnyValue_StringValue{StringValue: "b"},
-										},
-									},
+									// an attribute for every type in order to make sure attributes are reused with different
+									// type combinations
+									{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 11}}},
+									{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bbb"}}},
+									{Key: "c", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+									{Key: "d", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 111.11}}},
 								},
 								Events: []*v1_trace.Span_Event{
 									{
 										// An attribute of every type
 										Attributes: []*v1.KeyValue{
-											// String
 											{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 										},
 									},
@@ -113,14 +111,42 @@ func TestFieldsAreCleared(t *testing.T) {
 		},
 	}
 
+	expectedTrace := &Trace{
+		TraceID:      traceID,
+		TraceIDText:  "102030405060708090a0b0c0d0e0f",
+		ServiceStats: map[string]ServiceStats{"": {SpanCount: 1}},
+		ResourceSpans: []ResourceSpans{{
+			Resource: Resource{
+				Attrs: []Attribute{
+					attr("i", 123.456),
+				},
+			},
+			ScopeSpans: []ScopeSpans{{
+				Spans: []Span{{
+					ParentID:       -1,
+					NestedSetLeft:  1,
+					NestedSetRight: 2,
+					Attrs: []Attribute{
+						attr("a", 11),
+						attr("b", "bbb"),
+						attr("c", true),
+						attr("d", 111.11),
+					},
+					Events: []Event{{Attrs: []EventAttribute{
+						{Key: "i", Value: []uint8{0x18, 0x7b}},
+					}}},
+				}},
+			}},
+		}},
+	}
+
 	// first convert a trace that sets all fields and then convert
 	// a minimal trace to make sure nothing bleeds through
 	tr := &Trace{}
 	_, _ = traceToParquet(&meta, traceID, complexTrace, tr)
+	actualTrace, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
 
-	parqTr, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
-	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr, false)
-	require.Equal(t, simpleTrace, actualTrace)
+	assertEqualEquateEmpty(t, expectedTrace, actualTrace)
 }
 
 func TestTraceToParquet(t *testing.T) {
@@ -550,10 +576,7 @@ func TestTraceToParquet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var actual Trace
 			traceToParquet(&meta, tt.id, &tt.trace, &actual)
-			if !cmp.Equal(tt.expected, actual, cmpopts.EquateEmpty()) {
-				t.Log(cmp.Diff(tt.expected, actual))
-				assert.Fail(t, "tt.expected and actual are not equal")
-			}
+			assertEqualEquateEmpty(t, tt.expected, actual)
 		})
 	}
 }
@@ -740,5 +763,13 @@ func BenchmarkExtendReuseSlice(b *testing.B) {
 	in := []int{1, 2, 3}
 	for i := 0; i < b.N; i++ {
 		_ = extendReuseSlice(100, in)
+	}
+}
+
+// assertEqualEquateEmpty asserts similar to assert.Equal but treats empty / nil slices and maps as equal
+func assertEqualEquateEmpty(t *testing.T, expected, actual interface{}, messages ...interface{}) {
+	if !cmp.Equal(expected, actual, cmpopts.EquateEmpty()) {
+		t.Log(cmp.Diff(expected, actual))
+		assert.Fail(t, "expected and actual are not equal", messages...)
 	}
 }
