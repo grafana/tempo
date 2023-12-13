@@ -20,6 +20,7 @@ type Config struct {
 	MaxRetries int             `yaml:"max_retries,omitempty"`
 	Search     SearchConfig    `yaml:"search"`
 	TraceByID  TraceByIDConfig `yaml:"trace_by_id"`
+	Metrics    MetricsConfig   `yaml:"metrics"`
 }
 
 type SearchConfig struct {
@@ -32,6 +33,10 @@ type TraceByIDConfig struct {
 	ConcurrentShards int           `yaml:"concurrent_shards,omitempty"`
 	Hedging          HedgingConfig `yaml:",inline"`
 	SLO              SLOConfig     `yaml:",inline"`
+}
+
+type MetricsConfig struct {
+	Sharder QueryRangeSharderConfig `yaml:",inline"`
 }
 
 type HedgingConfig struct {
@@ -71,6 +76,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		Hedging: HedgingConfig{
 			HedgeRequestsAt:   2 * time.Second,
 			HedgeRequestsUpTo: 2,
+		},
+	}
+	cfg.Metrics = MetricsConfig{
+		Sharder: QueryRangeSharderConfig{
+			QueryBackendAfter:     time.Hour,
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: 100 * 1024 * 1024,
+			Interval:              5 * time.Minute,
 		},
 	}
 }

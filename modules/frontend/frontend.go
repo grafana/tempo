@@ -27,10 +27,10 @@ import (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler, SearchWSHandler http.Handler
-	cacheProvider                                                                                  cache.Provider
-	streamingSearch                                                                                streamingSearchHandler
-	logger                                                                                         log.Logger
+	TraceByIDHandler, SearchHandler, SearchTagsHandler, SpanMetricsSummaryHandler, SearchWSHandler, QueryRangeHandler http.Handler
+	cacheProvider                                                                                                     cache.Provider
+	streamingSearch                                                                                                   streamingSearchHandler
+	logger                                                                                                            log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -62,19 +62,21 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, o, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, reader, searchCache, logger), retryWare)
 	searchTagsMiddleware := MergeMiddlewares(newSearchTagsMiddleware(), retryWare)
-
-	spanMetricsMiddleware := MergeMiddlewares(newSpanMetricsMiddleware(), retryWare)
+	metricsMiddleware := MergeMiddlewares(newMetricsMiddleware(), retryWare)
+	queryRangeMiddleware := MergeMiddlewares(newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	searchTags := searchTagsMiddleware.Wrap(next)
-	metrics := spanMetricsMiddleware.Wrap(next)
+	metrics := metricsMiddleware.Wrap(next)
+	queryrange := queryRangeMiddleware.Wrap(next)
 
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
 		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
 		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
 		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
+		QueryRangeHandler:         newHandler(queryrange, nil, nil, logger),
 		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
 		cacheProvider:             cacheProvider,
 		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
@@ -205,8 +207,8 @@ func newSearchTagsMiddleware() Middleware {
 	})
 }
 
-// newSpanMetricsMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSpanMetricsMiddleware() Middleware {
+// newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
+func newMetricsMiddleware() Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		generatorRT := next
 
@@ -234,4 +236,14 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	}
 
 	return uri
+}
+
+func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		searchRT := NewRoundTripper(next, newQueryRangeSharder(reader, o, cfg.Metrics.Sharder, newSearchProgress, logger))
+
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return searchRT.RoundTrip(r)
+		})
+	})
 }
