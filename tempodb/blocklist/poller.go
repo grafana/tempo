@@ -201,6 +201,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	// are we a tenant index builder?
 	builder := p.tenantIndexBuilder(tenantID)
 	span.SetTag("tenant_index_builder", builder)
+
 	if !builder {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
 

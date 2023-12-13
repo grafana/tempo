@@ -186,6 +186,27 @@ func NewNamedTempoQuerier(name string, extraArgs ...string) *e2e.HTTPService {
 	return s
 }
 
+func NewTempoCompactor(extraArgs ...string) *e2e.HTTPService {
+	return NewNamedTempoComponent("compactor", extraArgs...)
+}
+
+func NewNamedTempoComponent(name string, extraArgs ...string) *e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=" + name}
+	args = buildArgsWithExtra(args, extraArgs)
+
+	s := e2e.NewHTTPService(
+		name,
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
 func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
 	args = buildArgsWithExtra(args, extraArgs)

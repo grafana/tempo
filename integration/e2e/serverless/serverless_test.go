@@ -56,8 +56,9 @@ func TestServerless(t *testing.T) {
 			tempoDistributor := util.NewTempoDistributor()
 			tempoQueryFrontend := util.NewTempoQueryFrontend()
 			tempoQuerier := util.NewTempoQuerier()
+			tempoCompactor := util.NewTempoCompactor()
 			tempoServerless := tc.serverless
-			require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier, tempoServerless))
+			require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier, tempoServerless, tempoCompactor))
 
 			// wait for 2 active ingesters
 			time.Sleep(1 * time.Second)
