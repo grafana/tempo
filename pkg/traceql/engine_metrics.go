@@ -60,16 +60,13 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
-const maxGroupBys = 5 // TODO - Delete me
-type FastValues [maxGroupBys]Static
-
 type TimeSeries struct {
-	// Labels LabelSet
 	Labels labels.Labels
 	Values []float64
 }
 
-// TODO - Make an analog of me in tempopb proto for over-the-wire transmission
+// SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
+// text description: {x="a",y="b"}
 type SeriesSet map[string]TimeSeries
 
 // VectorAggregator turns a vector of spans into a single numeric scalar
@@ -162,6 +159,16 @@ func (s *StepAggregator) Samples() []float64 {
 	return ss
 }
 
+const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
+
+// FastValues is an array of attribute values (static values) that can be used
+// as a map key.  This offers good performance and works with native Go maps and
+// has no chance for collisions (whereas a hash32 has a non-zero chance of
+// collisions).  However it means we have to arbitrarily set an upper limit on
+// the maximum number of values.
+type FastValues [maxGroupBys]Static
+
+// GroupingAggregator groups spans into series based on attribute values.
 type GroupingAggregator struct {
 	// Config
 	by        []Attribute   // Original attributes: .foo
@@ -187,6 +194,7 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 	for i, attr := range by {
 		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
 			// Unscoped attribute. Check span-level, then resource-level.
+			// TODO - Is this taken care of by span.AttributeFor now?
 			lookups[i] = []Attribute{
 				NewScopedAttribute(AttributeScopeSpan, false, attr.Name),
 				NewScopedAttribute(AttributeScopeResource, false, attr.Name),
@@ -204,8 +212,11 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 	}
 }
 
+// Observe the span by looking up its group-by attributes, mapping to the series,
+// and passing to the inner aggregate.  This is a critical hot path.
 func (g *GroupingAggregator) Observe(span Span) {
 	// Get grouping values
+	// Reuse same buffer
 	for i, lookups := range g.byLookups {
 		g.buf[i] = lookup(lookups, span)
 	}
@@ -219,10 +230,34 @@ func (g *GroupingAggregator) Observe(span Span) {
 	agg.Observe(span)
 }
 
-// labelsFor gives the final labels for the series. Slower and can't be on the hot path.
-// This is tweaked to match what prometheus does.  For grouped metrics we don't
-// include the metric name, just the group labels.
-// rate() by (x) => {x=a}, {x=b}, ...
+// labelsFor gives the final labels for the series. Slower and not on the hot path.
+// This is tweaked to match what prometheus does where possible with an exception.
+// In the case of all values missing.
+// (1) Standard case: a label is created for each group-by value in the series:
+//
+//	Ex: rate() by (x,y) can yield:
+//	{x=a,y=b}
+//	{x=c,y=d}
+//	etc
+//
+// (2) Nils are dropped. A nil can be present for any label, so any combination
+// of the remaining labels is possible. Label order is preserved.
+//
+//	Ex: rate() by (x,y,z) can yield all of these combinations:
+//	{x=..., y=..., z=...}
+//	{x=...,        z=...}
+//	{x=...              }
+//	{       y=..., z=...}
+//	{       y=...       }
+//	etc
+//
+// (3) Exceptional case: All Nils. Real Prometheus-style metrics have a name, so there is
+// always at least 1 label. Not so here. We have to force at least 1 label or else things
+// may not be handled correctly downstream.  In this case we take the first label and
+// make it the string "nil"
+//
+//	Ex: rate() by (x,y,z) and all nil yields:
+//	{x="nil"}
 func (g *GroupingAggregator) labelsFor(vals FastValues) labels.Labels {
 	b := labels.NewBuilder(nil)
 
@@ -235,7 +270,6 @@ func (g *GroupingAggregator) labelsFor(vals FastValues) labels.Labels {
 	}
 
 	if !present {
-		// Force at least 1 label or else this series is displayed weird
 		b.Set(g.by[0].String(), "<nil>")
 	}
 
