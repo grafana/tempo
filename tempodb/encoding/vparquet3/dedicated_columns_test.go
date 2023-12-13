@@ -145,10 +145,9 @@ func TestDedicatedColumnsToColumnMapping(t *testing.T) {
 }
 
 func TestDedicatedColumn_readValue(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
 	attrComplete := DedicatedAttributes{
-		strPtr("one"), strPtr("two"), strPtr("three"), strPtr("four"), strPtr("five"),
-		strPtr("six"), strPtr("seven"), strPtr("eight"), strPtr("nine"), strPtr("ten"),
+		ptr("one"), ptr("two"), ptr("three"), ptr("four"), ptr("five"),
+		ptr("six"), ptr("seven"), ptr("eight"), ptr("nine"), ptr("ten"),
 	}
 
 	tests := []struct {
@@ -186,8 +185,6 @@ func TestDedicatedColumn_readValue(t *testing.T) {
 }
 
 func TestDedicatedColumn_writeValue(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
-
 	tests := []struct {
 		name            string
 		dedicatedColumn dedicatedColumn
@@ -200,7 +197,7 @@ func TestDedicatedColumn_writeValue(t *testing.T) {
 			dedicatedColumn: dedicatedColumn{Type: "string", ColumnIndex: 4},
 			value:           &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "five"}},
 			expectedWritten: true,
-			expectedAttr:    DedicatedAttributes{String05: strPtr("five")},
+			expectedAttr:    DedicatedAttributes{String05: ptr("five")},
 		},
 		{
 			name:            "wrong type",
