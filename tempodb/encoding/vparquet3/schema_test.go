@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,6 +155,34 @@ func TestTraceToParquet(t *testing.T) {
 							{Key: "dedicated.resource.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-3"}}},
 							{Key: "dedicated.resource.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-4"}}},
 							{Key: "dedicated.resource.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-5"}}},
+							{Key: "res.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
+									{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
+									{Value: &v1.AnyValue_StringValue{StringValue: "three"}},
+								},
+							}}}},
+							{Key: "res.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_IntValue{IntValue: 1}},
+									{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+								},
+							}}}},
+							{Key: "res.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}},
+									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}},
+									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3.3}},
+								},
+							}}}},
+							{Key: "res.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+									{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
+									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+								},
+							}}}},
 						},
 					},
 					ScopeSpans: []*v1_trace.ScopeSpans{{
@@ -170,6 +200,46 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
 								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
 								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-5"}}},
+								{Key: "span.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
+										{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
+									},
+								}}}},
+								{Key: "span.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_IntValue{IntValue: 1}},
+										{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+										{Value: &v1.AnyValue_IntValue{IntValue: 3}},
+									},
+								}}}},
+								{Key: "span.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}},
+										{Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}},
+									},
+								}}}},
+								{Key: "span.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
+									},
+								}}}},
+								{Key: "span.unsupported.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+										{Value: &v1.AnyValue_IntValue{IntValue: 1}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+									},
+								}}}},
+								{Key: "span.unsupported.kvlist", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{
+									Values: []*v1.KeyValue{
+										{Key: "key-a", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "val-a"}}},
+										{Key: "key-b", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "val-b"}}},
+									},
+								}}}},
 							},
 						}},
 					}},
@@ -199,6 +269,10 @@ func TestTraceToParquet(t *testing.T) {
 						K8sContainerName: ptr("k8s-container-a"),
 						Attrs: []Attribute{
 							attr("res.attr", 123),
+							attr("res.string.array", []string{"one", "two", "three"}),
+							attr("res.int.array", []int64{1, 2}),
+							attr("res.double.array", []float64{1.1, 2.2, 3.3}),
+							attr("res.bool.array", []bool{true, false, true, true}),
 						},
 						DedicatedAttributes: DedicatedAttributes{
 							String01: ptr("dedicated-resource-attr-value-1"),
@@ -220,7 +294,14 @@ func TestTraceToParquet(t *testing.T) {
 							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
 								attr("span.attr", "aaa"),
+								attr("span.string.array", []string{"one", "two"}),
+								attr("span.int.array", []int64{1, 2, 3}),
+								attr("span.double.array", []float64{1.1, 2.2}),
+								attr("span.bool.array", []bool{true, false, true, false}),
+								{Key: "span.unsupported.array", ValueDropped: "{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}", ValueType: attrTypeNotSupported},
+								{Key: "span.unsupported.kvlist", ValueDropped: "{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}", ValueType: attrTypeNotSupported},
 							},
+							DroppedAttributesCount: 2,
 							DedicatedAttributes: DedicatedAttributes{
 								String01: ptr("dedicated-span-attr-value-1"),
 								String02: ptr("dedicated-span-attr-value-2"),
@@ -469,7 +550,10 @@ func TestTraceToParquet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var actual Trace
 			traceToParquet(&meta, tt.id, &tt.trace, &actual)
-			assert.Equal(t, tt.expected, actual)
+			if !cmp.Equal(tt.expected, actual, cmpopts.EquateEmpty()) {
+				t.Log(cmp.Diff(tt.expected, actual))
+				assert.Fail(t, "tt.expected and actual are not equal")
+			}
 		})
 	}
 }

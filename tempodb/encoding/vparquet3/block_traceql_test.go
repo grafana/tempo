@@ -413,34 +413,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 		panic("failed to marshal links")
 	}
 
-	mixedArrayAttr := &v1_common.AnyValue{
-		Value: &v1_common.AnyValue_ArrayValue{
-			ArrayValue: &v1_common.ArrayValue{
-				Values: []*v1_common.AnyValue{
-					{Value: &v1_common.AnyValue_StringValue{StringValue: "value-one"}},
-					{Value: &v1_common.AnyValue_IntValue{IntValue: 100}},
-				},
-			},
-		},
-	}
-
-	var jsonBytes bytes.Buffer
-	_ = jsonMarshaler.Marshal(&jsonBytes, mixedArrayAttr)
-	mixedArrayAttrValue := jsonBytes.String()
-
-	kvListAttr := &v1_common.AnyValue{
-		Value: &v1_common.AnyValue_KvlistValue{
-			KvlistValue: &v1_common.KeyValueList{
-				Values: []*v1_common.KeyValue{
-					{Key: "key-one", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value-one"}}},
-					{Key: "key-two", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value-two"}}},
-				},
-			},
-		},
-	}
-	jsonBytes.Reset()
-	_ = jsonMarshaler.Marshal(&jsonBytes, kvListAttr)
-	kvListValue := jsonBytes.String()
+	mixedArrayAttrValue := "{\"arrayValue\":{\"values\":[{\"stringValue\":\"value-one\"},{\"intValue\":\"100\"}]}}"
+	kvListValue := "{\"kvlistValue\":{\"values\":[{\"key\":\"key-one\",\"value\":{\"stringValue\":\"value-one\"}},{\"key\":\"key-two\",\"value\":{\"stringValue\":\"value-two\"}}]}}"
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
