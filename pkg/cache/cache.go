@@ -15,6 +15,7 @@ const (
 	RoleParquetFooter    Role = "parquet-footer"
 	RoleParquetColumnIdx Role = "parquet-column-idx"
 	RoleParquetOffsetIdx Role = "parquet-offset-idx"
+	RoleFrontendSearch   Role = "frontend-search"
 )
 
 // Provider is an object that can return a cache for a requested role

@@ -359,7 +359,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
