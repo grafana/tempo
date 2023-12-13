@@ -874,7 +874,7 @@ func (q *Querier) internalTagSearchBlock(ctx context.Context, req *tempopb.Searc
 	opts.TotalPages = int(req.PagesToSearch)
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
-	return q.store.SearchForTags(ctx, meta, req.SearchReq.Scope, opts)
+	return q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 }
 
 func (q *Querier) internalTagSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
@@ -883,7 +883,7 @@ func (q *Querier) internalTagSearchBlockV2(ctx context.Context, req *tempopb.Sea
 	if req.SearchReq.Scope == "" {
 		// start with intrinsic scope and all traceql attribute scopes
 		atts := traceql.AllAttributeScopes()
-		scopes = make([]string, 0, len(atts)) // +1 for intrinsic
+		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
 		scopes = append(scopes, api.ParamScopeIntrinsic)
 		for _, att := range atts {
 			scopes = append(scopes, att.String())
@@ -969,7 +969,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
 	if !v2 {
-		tags, err := q.store.SearchForTagValues(ctx, meta, req.SearchReq.TagName, opts)
+		tags, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -979,7 +979,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 			},
 		}, nil
 	}
-	resp, err := q.store.SearchForTagValuesV2(ctx, meta, req.SearchReq, opts)
+	resp, err := q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	if err != nil {
 		return nil, err
 	}

@@ -48,7 +48,7 @@ func TestTagsResultsHandler(t *testing.T) {
 			result2:        "{ \"tagNames\":[\"tag2\",\"tag3\"]}",
 			expectedResult: "{\"tagNames\":[\"tag1\",\"tag2\",\"tag3\"]}",
 			expectedReq: func(r *http.Request) *http.Request {
-				expectedReq, _ := api.BuildSearchTagRequest(r, &tempopb.SearchTagsRequest{
+				expectedReq, _ := api.BuildSearchTagsRequest(r, &tempopb.SearchTagsRequest{
 					Scope: "all",
 					Start: start,
 					End:   end,

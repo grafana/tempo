@@ -42,19 +42,19 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) SearchForTags(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
 	return nil, nil
 }
 
-func (m *mockReader) SearchForTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) ([]string, error) {
+func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) ([]string, error) {
 	return nil, nil
 }
 
-func (m *mockReader) SearchForTagsV2(context.Context, *backend.BlockMeta, []string, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
+func (m *mockReader) SearchTagsV2(context.Context, *backend.BlockMeta, []string, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
 	return nil, nil
 }
 
-func (m *mockReader) SearchForTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
 	return nil, nil
 }
 

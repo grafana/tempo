@@ -81,9 +81,9 @@ type Reader interface {
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
-	SearchForTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
-	SearchForTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
-	SearchForTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
+	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
+	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
+	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 	Shutdown()
 }
 
@@ -356,7 +356,7 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
-func (rw *readerWriter) SearchForTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
 	attributeScope := traceql.AttributeScopeFromString(scope)
 
 	if attributeScope == traceql.AttributeScopeUnknown {
@@ -382,7 +382,7 @@ func (rw *readerWriter) SearchForTags(ctx context.Context, meta *backend.BlockMe
 	}, err
 }
 
-func (rw *readerWriter) SearchForTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
+func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return nil, err
@@ -401,7 +401,7 @@ func (rw *readerWriter) SearchForTagValues(ctx context.Context, meta *backend.Bl
 	return tags, err
 }
 
-func (rw *readerWriter) SearchForTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return nil, err
@@ -420,7 +420,7 @@ func (rw *readerWriter) SearchForTagValuesV2(ctx context.Context, meta *backend.
 
 	if !traceql.IsEmptyQuery(query) {
 		fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
-			return block.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+			return block.FetchTagValues(ctx, req, cb, opts)
 		})
 
 		err := engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)

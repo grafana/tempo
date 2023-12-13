@@ -35,7 +35,7 @@ func (r *tagsSearchRequest) adjustRange(start, end uint32) tagSearchReq {
 }
 
 func (r *tagsSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
-	return api.BuildSearchTagRequest(subR, &r.request)
+	return api.BuildSearchTagsRequest(subR, &r.request)
 }
 
 func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,

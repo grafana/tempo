@@ -288,7 +288,7 @@ func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {
 	}
 }
 
-func MakeTraceWithTags(traceID []byte) *tempopb.Trace {
+func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.Trace {
 	now := time.Now()
 
 	traceID = ValidTraceID(traceID)
@@ -305,7 +305,7 @@ func MakeTraceWithTags(traceID []byte) *tempopb.Trace {
 
 	attributes = append(attributes, &v1_common.KeyValue{
 		Key:   "intTag",
-		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}},
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: intValue}},
 	})
 
 	trace.Batches = append(trace.Batches, &v1_trace.ResourceSpans{
@@ -315,7 +315,7 @@ func MakeTraceWithTags(traceID []byte) *tempopb.Trace {
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
 						Value: &v1_common.AnyValue_StringValue{
-							StringValue: "test-service",
+							StringValue: service,
 						},
 					},
 				},
@@ -323,7 +323,7 @@ func MakeTraceWithTags(traceID []byte) *tempopb.Trace {
 					Key: "other",
 					Value: &v1_common.AnyValue{
 						Value: &v1_common.AnyValue_StringValue{
-							StringValue: "test-service",
+							StringValue: "other-value",
 						},
 					},
 				},

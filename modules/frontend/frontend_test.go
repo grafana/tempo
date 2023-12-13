@@ -70,7 +70,7 @@ func TestFrontendRoundTripsTagSearch(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
-	}, next, nil, nil, "", log.NewNopLogger(), nil)
+	}, next, nil, nil, nil, "", log.NewNopLogger(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/", nil)
