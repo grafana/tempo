@@ -140,14 +140,14 @@ func (c *multiColumnChunk) Pages() Pages {
 	return &multiPages{column: c}
 }
 
-func (c *multiColumnChunk) ColumnIndex() ColumnIndex {
+func (c *multiColumnChunk) ColumnIndex() (ColumnIndex, error) {
 	// TODO: implement
-	return nil
+	return nil, nil
 }
 
-func (c *multiColumnChunk) OffsetIndex() OffsetIndex {
+func (c *multiColumnChunk) OffsetIndex() (OffsetIndex, error) {
 	// TODO: implement
-	return nil
+	return nil, nil
 }
 
 func (c *multiColumnChunk) BloomFilter() BloomFilter {
