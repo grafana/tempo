@@ -1,6 +1,6 @@
 ---
 title: Cross-tenant query federation
-menuTitle: Query
+menuTitle: Cross-tenant query
 description: Cross-tenant query federation
 weight: 70
 aliases:
@@ -10,8 +10,10 @@ aliases:
 
 # Cross-tenant query federation
 
-> NOTE: you need to enable `multitenancy_enabled: true` in the cluster for multi-tenant querying to work.
-> see [enable multi-tenancy]({{< relref "./multitenancy" >}}) for more details and implications of `multitenancy_enabled: true`.
+{{% admonition type=note" %}}
+You need to enable `multitenancy_enabled: true` in the cluster for multi-tenant querying to work.
+see [enable multi-tenancy]({{< relref "./multitenancy" >}}) for more details and implications of `multitenancy_enabled: true`.
+{{% /admonition %}}
 
 Tempo supports multi-tenant queries. where users can send list of tenants  multiple tenants.
 
