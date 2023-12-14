@@ -211,10 +211,12 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			tempoIngester2 := util.NewTempoIngester(2)
 			tempoIngester3 := util.NewTempoIngester(3)
 
+			tempoCompactor := util.NewTempoCompactor()
+
 			tempoDistributor := util.NewTempoDistributor()
 			tempoQueryFrontend := util.NewTempoQueryFrontend()
 			tempoQuerier := util.NewTempoQuerier()
-			require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
+			require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier, tempoCompactor))
 
 			// wait for active ingesters
 			time.Sleep(1 * time.Second)
