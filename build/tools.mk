@@ -15,9 +15,15 @@ TOOLS_IMAGE_NAME ?= grafana/tempo-tools
 
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
-tools-image-build:
-	@echo "=== [ tools-image-build]: Building tools image..."
-	@docker build -t $(TOOLS_IMAGE_NAME) -f ./tools/Dockerfile .
+.PHONY: tools-docker-build
+tools-docker-build:
+	@echo "=== [ tools-docker-build]: Building tools image..."
+	@docker buildx build -t $(TOOLS_IMAGE_NAME) -f ./tools/Dockerfile .
+
+.PHONY: tools-docker
+tools-docker:
+	@echo "=== [ tools-docker     ]: Running tools in docker..."
+	@docker run -it -v $(shell pwd):/var/tempo $(TOOLS_IMAGE_NAME) make -C /var/tempo tools
 
 tools:
 	@echo "=== [ tools            ]: Installing tools required by the project..."

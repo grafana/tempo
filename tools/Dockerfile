@@ -1,4 +1,3 @@
-FROM golang:1.21.3-alpine3.18
+FROM golang:1.21.5-alpine3.19
 
-RUN apk update
-RUN apk add make
+RUN apk --update add --no-cache make git

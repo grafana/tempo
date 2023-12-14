@@ -158,7 +158,7 @@ check-jsonnetfmt: jsonnetfmt
 
 
 .PHONY: fmt-docker
-fmt-docker: tools-image-build
+fmt-docker: tools-docker-build
 	@docker run --rm --volume ".:/var/tempo" $(TOOLS_IMAGE_NAME) make -C /var/tempo fmt jsonnetfmt
 
 .PHONY: lint
