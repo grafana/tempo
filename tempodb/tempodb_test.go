@@ -118,12 +118,16 @@ func TestSearchForTags(t *testing.T) {
 	assert.Equal(t, expectedTags, tags.TagNames)
 
 	values, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
+	assert.NoError(t, err)
+
 	expectedTagsValues := []string{"test-service", "test-service-2"}
 	sort.Strings(expectedTagsValues)
 	sort.Strings(values)
 	assert.Equal(t, expectedTagsValues, values)
 
 	values, err = r.SearchTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	assert.NoError(t, err)
+
 	expectedTagsValues = []string{"2", "3"}
 	sort.Strings(expectedTagsValues)
 	sort.Strings(values)
@@ -132,6 +136,7 @@ func TestSearchForTags(t *testing.T) {
 	tagValues, err := r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
 		TagName: ".service.name",
 	}, common.DefaultSearchOptions())
+	assert.NoError(t, err)
 
 	expected := []*tempopb.TagValue{
 		{

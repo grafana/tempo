@@ -2,9 +2,11 @@ package frontend
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -27,18 +29,19 @@ func TestTagsResultsHandler(t *testing.T) {
 	bm.TotalRecords = 2
 
 	tests := []struct {
-		name             string
-		request          string
-		factory          tagResultHandlerFactory
-		result1          string
-		result2          string
-		wrongResult      string
-		expectedResult   string
-		expectedReq      func(r *http.Request) *http.Request
-		expectedBlockURL string
-		overflowRes1     string
-		overflowRes2     string
-		limit            int
+		name                 string
+		request              string
+		factory              tagResultHandlerFactory
+		result1              string
+		result2              string
+		wrongResult          string
+		expectedResult       string
+		expectedReq          func(r *http.Request) *http.Request
+		expectedBlockURL     string
+		overflowRes1         string
+		overflowRes2         string
+		limit                int
+		assertResultFunction func(t *testing.T, result, expected string)
 	}{
 		{
 			name:           "TagsResultHandler",
@@ -61,6 +64,19 @@ func TestTagsResultsHandler(t *testing.T) {
 			overflowRes1: "{ \"tagNames\":[\"tag1\"]}",
 			overflowRes2: "{ \"tagNames\":[\"tag2\"]}",
 			limit:        5,
+			assertResultFunction: func(t *testing.T, result, expected string) {
+				resultStruct := tempopb.SearchTagsResponse{}
+				expectedStruct := tempopb.SearchTagsResponse{}
+
+				err := json.Unmarshal([]byte(result), &resultStruct)
+				require.NoError(t, err)
+				err = json.Unmarshal([]byte(expected), &expectedStruct)
+				require.NoError(t, err)
+
+				sort.Strings(expectedStruct.TagNames)
+				sort.Strings(resultStruct.TagNames)
+				assert.Equal(t, expectedStruct, resultStruct)
+			},
 		},
 		{
 			name:           "TagValuesResultHandler",
@@ -82,6 +98,19 @@ func TestTagsResultsHandler(t *testing.T) {
 			overflowRes1: "{ \"tagValues\":[\"tag1\"]}",
 			overflowRes2: "{ \"tagValues\":[\"tag2\"]}",
 			limit:        5,
+			assertResultFunction: func(t *testing.T, result, expected string) {
+				resultStruct := tempopb.SearchTagValuesResponse{}
+				expectedStruct := tempopb.SearchTagValuesResponse{}
+
+				err := json.Unmarshal([]byte(result), &resultStruct)
+				require.NoError(t, err)
+				err = json.Unmarshal([]byte(expected), &expectedStruct)
+				require.NoError(t, err)
+
+				sort.Strings(expectedStruct.TagValues)
+				sort.Strings(resultStruct.TagValues)
+				assert.Equal(t, expectedStruct, resultStruct)
+			},
 		},
 		{
 			name:           "TagValuesV2ResultHandler",
@@ -103,6 +132,25 @@ func TestTagsResultsHandler(t *testing.T) {
 			overflowRes1: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"tag1\"}]}",
 			overflowRes2: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"tag2\"}]}",
 			limit:        15,
+			assertResultFunction: func(t *testing.T, result, expected string) {
+				resultStruct := tempopb.SearchTagValuesV2Response{}
+				expectedStruct := tempopb.SearchTagValuesV2Response{}
+
+				err := json.Unmarshal([]byte(result), &resultStruct)
+				require.NoError(t, err)
+				err = json.Unmarshal([]byte(expected), &expectedStruct)
+				require.NoError(t, err)
+
+				sort.SliceStable(resultStruct.TagValues, func(i, j int) bool {
+					return resultStruct.TagValues[i].Value < resultStruct.TagValues[j].Value
+				})
+
+				sort.SliceStable(expectedStruct.TagValues, func(i, j int) bool {
+					return expectedStruct.TagValues[i].Value < expectedStruct.TagValues[j].Value
+				})
+
+				assert.Equal(t, expectedStruct, resultStruct)
+			},
 		},
 		{
 			name:           "TagsV2ResultHandler",
@@ -124,6 +172,20 @@ func TestTagsResultsHandler(t *testing.T) {
 			overflowRes1: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"tag1\"]}]}",
 			overflowRes2: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"tag2\"]}]}",
 			limit:        5,
+			assertResultFunction: func(t *testing.T, result, expected string) {
+				resultStruct := tempopb.SearchTagsV2Response{}
+				expectedStruct := tempopb.SearchTagsV2Response{}
+
+				err := json.Unmarshal([]byte(result), &resultStruct)
+				require.NoError(t, err)
+				err = json.Unmarshal([]byte(expected), &expectedStruct)
+				require.NoError(t, err)
+
+				sort.Strings(resultStruct.Scopes[0].Tags)
+				sort.Strings(expectedStruct.Scopes[0].Tags)
+
+				assert.Equal(t, expectedStruct, resultStruct)
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -149,8 +211,7 @@ func TestTagsResultsHandler(t *testing.T) {
 
 			res, err := handler.marshalResult()
 			require.NoError(t, err)
-
-			require.JSONEq(t, tc.expectedResult, res)
+			tc.assertResultFunction(t, tc.expectedResult, res)
 
 			// Test parse request
 			req, err := handler.parseRequest(r)
@@ -160,6 +221,7 @@ func TestTagsResultsHandler(t *testing.T) {
 
 			// Test build
 			backReq, err := req.buildSearchTagRequest(r)
+			assert.NoError(t, err)
 
 			assert.Equal(t, backReq, tc.expectedReq(r))
 
