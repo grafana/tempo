@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] Increase default size and workers count of the queue used in Forwarder component [#3234](https://github.com/grafana/tempo/pull/3234) (@Blinkuu)
 * [FEATURE] Add support for multi-tenant queries. [#3087](https://github.com/grafana/tempo/pull/3087) (@electron0zero)
 * [BUGFIX] Change exit code if config is successfully verified [#3174](https://github.com/grafana/tempo/pull/3174) (@am3o @agrib-01)
 * [BUGFIX] The tempo-cli analyse blocks command no longer fails on compacted blocks [#3183](https://github.com/grafana/tempo/pull/3183) (@stoewer)
