@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -31,10 +32,6 @@ type traceStringsMap struct {
 	rValues   []string
 	spanNames []string
 }
-
-// TODO: add a test for unsupported endpoints??
-// TODO: test search streaming?? we don't support multi-tenant query there, will do in the next pass
-// TODO: should we test this with `multitenancy_enabled: false` as well?? not sure??
 
 // TestMultiTenantSearch tests multi tenant query support
 func TestMultiTenantSearch(t *testing.T) {
@@ -212,13 +209,21 @@ func TestMultiTenantSearch(t *testing.T) {
 			}, func(sr *tempopb.SearchResponse) {})
 
 			// test streaming search over grpc
-			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(3200))
+			grpcCtx := user.InjectOrgID(context.Background(), tc.tenant)
+			grpcCtx, err = user.InjectIntoGRPCRequest(grpcCtx)
 			require.NoError(t, err)
-			_, grpcErr := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
+
+			grpcClient, err := util.NewSearchGRPCClient(grpcCtx, tempo.Endpoint(3200))
+			require.NoError(t, err)
+			grpcResp, err := grpcClient.Search(grpcCtx, &tempopb.SearchRequest{
 				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
 			})
+			require.NoError(t, err)
+			// actual error comes in resp, need to call Recv to get it.
+			_, grpcErr := grpcResp.Recv()
 
-			if tc.tenantSize > 1 { // we expect error in case of multi-tenant request
+			if tc.tenantSize > 1 {
+				// we expect error in case of multi-tenant request for unsupported endpoints
 				require.Error(t, msErr)
 				require.Error(t, wsErr)
 				require.Error(t, grpcErr)

@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"io"
 	"net/http"
@@ -73,7 +74,7 @@ func TestMultiTenant(t *testing.T) {
 				reqCount.Inc() // Count the number of requests.
 
 				// Check if the tenant is in the list of tenants.
-				tenantID, _, err := user.ExtractOrgIDFromHTTPRequest(req)
+				tenantID, err := user.ExtractOrgID(req.Context())
 				require.NoError(t, err)
 				_, ok := tenantsMap[tenantID]
 				require.True(t, ok)
@@ -81,8 +82,6 @@ func TestMultiTenant(t *testing.T) {
 				// we do this in requestForTenant method, which is skipped for single tenant
 				if len(tenants) > 1 {
 					// ensure that tenant id in http header is same as org id in context
-					// some places are using http headers and some are using context to
-					// extract tenant id form the request so need both to be set and be correct.
 					orgID, err := user.ExtractOrgID(req.Context())
 					require.NoError(t, err)
 					require.Equal(t, tenantID, orgID)
@@ -108,7 +107,8 @@ func TestMultiTenant(t *testing.T) {
 
 			req, err := http.NewRequest(http.MethodGet, "http://localhost:8080/", nil)
 			require.NoError(t, err)
-			req.Header.Set(user.OrgIDHeaderName, tc.tenants)
+			ctx := user.InjectOrgID(context.Background(), tc.tenants)
+			req = req.WithContext(ctx)
 
 			res, err := rt.RoundTrip(req)
 			require.NoError(t, err)
@@ -133,41 +133,56 @@ func TestMultiTenant(t *testing.T) {
 
 func TestMultiTenantNotSupported(t *testing.T) {
 	tests := []struct {
-		name   string
-		cfg    Config
-		tenant string
-		err    error
+		name    string
+		cfg     Config
+		tenant  string
+		err     error
+		context bool
 	}{
 		{
-			name:   "multi-tenant queries disabled",
-			cfg:    Config{MultiTenantQueriesEnabled: false},
-			tenant: "test",
-			err:    nil,
+			name:    "multi-tenant queries disabled",
+			cfg:     Config{MultiTenantQueriesEnabled: false},
+			tenant:  "test",
+			err:     nil,
+			context: true,
 		},
 		{
-			name:   "multi-tenant queries disabled with multiple tenant",
-			cfg:    Config{MultiTenantQueriesEnabled: false},
-			tenant: "test|test1",
-			err:    nil,
+			name:    "multi-tenant queries disabled with multiple tenant",
+			cfg:     Config{MultiTenantQueriesEnabled: false},
+			tenant:  "test|test1",
+			err:     nil,
+			context: true,
 		},
 		{
-			name:   "multi-tenant queries enabled with single tenant",
-			cfg:    Config{MultiTenantQueriesEnabled: true},
-			tenant: "test",
-			err:    nil,
+			name:    "multi-tenant queries enabled with single tenant",
+			cfg:     Config{MultiTenantQueriesEnabled: true},
+			tenant:  "test",
+			err:     nil,
+			context: true,
 		},
 		{
-			name:   "multi-tenant queries enabled with multiple tenants",
-			cfg:    Config{MultiTenantQueriesEnabled: true},
-			tenant: "test|test1",
-			err:    ErrMultiTenantUnsupported,
+			name:    "multi-tenant queries enabled with multiple tenants",
+			cfg:     Config{MultiTenantQueriesEnabled: true},
+			tenant:  "test|test1",
+			err:     ErrMultiTenantUnsupported,
+			context: true,
+		},
+		{
+			name:    "no org id in request context",
+			cfg:     Config{MultiTenantQueriesEnabled: true},
+			tenant:  "test",
+			err:     user.ErrNoOrgID,
+			context: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
-			req.Header.Add("X-Scope-OrgID", tc.tenant)
+			if tc.context {
+				ctx := user.InjectOrgID(context.Background(), tc.tenant)
+				req = req.WithContext(ctx)
+			}
 			resolver := tenant.NewMultiResolver()
 
 			err := MultiTenantNotSupported(tc.cfg, resolver, req)

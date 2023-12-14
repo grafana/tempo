@@ -280,8 +280,8 @@ func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func NewSearchGRPCClient(endpoint string) (tempopb.StreamingQuerierClient, error) {
-	clientConn, err := grpc.DialContext(context.Background(), endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
+	clientConn, err := grpc.DialContext(ctx, endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

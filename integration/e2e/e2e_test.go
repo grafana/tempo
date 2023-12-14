@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -127,7 +128,7 @@ func TestAllInOne(t *testing.T) {
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
 			// find the trace with streaming. using the http server b/c that's what Grafana will do
-			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(3200))
+			grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
 			require.NoError(t, err)
 
 			util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
