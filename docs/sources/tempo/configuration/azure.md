@@ -40,7 +40,6 @@ tempo:
         secretKeyRef:
           name: secret-name
           key: STORAGE_ACCOUNT_ACCESS_KEY
-
 ```
 
 ### Azure Workload Identity
@@ -54,7 +53,6 @@ tempo:
         container_name: container-name
         storage_account_name: storage-account-name
         use_federated_token: true
-
 ```
 ## Azure blocklist polling
 
