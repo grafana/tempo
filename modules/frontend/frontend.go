@@ -60,8 +60,6 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// cache
 	searchCache := newFrontendCache(cacheProvider, cache.RoleFrontendSearch, logger)
 
-	// TODO: return error for routes that don't support multi-tenant queries
-
 	// inject multi-tenant middleware in multi-tenant routes
 	traceByIDMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewTraceByID, logger),
@@ -100,8 +98,6 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	metrics := spanMetricsMiddleware.Wrap(next)
 
-	streamingMiddleware := MergeMiddlewares(retryWare).Wrap(next)
-
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
 		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
@@ -111,9 +107,9 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchTagsValuesV2Handler: newHandler(searchTagValuesV2, nil, nil, logger),
 
 		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
-		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, streamingMiddleware, reader, searchCache, apiPrefix, logger),
+		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
 		cacheProvider:             cacheProvider,
-		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, streamingMiddleware, reader, searchCache, apiPrefix, logger),
+		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
 		logger:                    logger,
 	}, nil
 }
