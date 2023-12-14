@@ -92,7 +92,7 @@ func TestMultiTenantSearch(t *testing.T) {
 			tenants := strings.Split(tc.tenant, "|")
 			require.Equal(t, tc.tenantSize, len(tenants))
 
-			var expected float64
+			var expectedSpans float64
 			// write traces for all tenants
 			for _, tenant := range tenants {
 				info = tempoUtil.NewTraceInfo(time.Now(), tenant)
@@ -102,12 +102,12 @@ func TestMultiTenantSearch(t *testing.T) {
 				traceMap = getAttrsAndSpanNames(trace) // store it to assert tests
 
 				require.NoError(t, err)
-				expected = expected + spanCount(trace)
+				expectedSpans = expectedSpans + spanCount(trace)
 			}
 
 			// assert that we have one trace and each tenant and correct number of spans received
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(float64(tc.tenantSize)), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(expected), "tempo_distributor_spans_received_total"))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(expectedSpans), "tempo_distributor_spans_received_total"))
 
 			// Wait for the traces to be written to the WAL
 			time.Sleep(time.Second * 3)
@@ -144,21 +144,28 @@ func TestMultiTenantSearch(t *testing.T) {
 			// force clear completed block
 			callFlush(t, tempo)
 
-			// wait for flush to complete
-			time.Sleep(3 * time.Second)
+			// wait for flush to complete for all tenants, each tenant will have one block
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(float64(tc.tenantSize)), "tempo_ingester_blocks_flushed_total"))
 
-			// search tags endpoints
-			_, err = apiClient.SearchTags()
+			// call search tags endpoints, ensure no errors and results are not empty
+			tagsResp, err := apiClient.SearchTags()
 			require.NoError(t, err)
+			require.NotEmpty(t, tagsResp.TagNames)
 
-			_, err = apiClient.SearchTagsV2()
+			tagsV2Resp, err := apiClient.SearchTagsV2()
 			require.NoError(t, err)
+			require.Equal(t, 3, len(tagsV2Resp.GetScopes()))
+			for _, s := range tagsV2Resp.Scopes {
+				require.NotEmpty(t, s.Tags)
+			}
 
-			_, err = apiClient.SearchTagValues("vulture-0")
+			tagsValuesResp, err := apiClient.SearchTagValues("vulture-0")
 			require.NoError(t, err)
+			require.NotEmpty(t, tagsValuesResp.TagValues)
 
-			_, err = apiClient.SearchTagValuesV2("span.vulture-0", "{}")
+			tagsValuesV2Resp, err := apiClient.SearchTagValuesV2("span.vulture-0", "{}")
 			require.NoError(t, err)
+			require.NotEmpty(t, tagsValuesV2Resp.TagValues)
 
 			// assert tenant federation metrics
 			if tc.tenantSize > 1 {
