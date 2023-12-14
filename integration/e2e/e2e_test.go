@@ -482,7 +482,7 @@ func writeMetrics(t *testing.T, tempo *e2e.HTTPService, filename string) {
 
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	err = os.WriteFile("metrics_"+filename+"_dump.txt", body, 0644)
+	err = os.WriteFile("metrics_"+filename+"_dump.txt", body, 0o644)
 	require.NoError(t, err)
 }
 

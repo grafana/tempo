@@ -178,9 +178,7 @@ func newMultiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) Middlewa
 }
 
 func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-
 	err := MultiTenantNotSupported(t.cfg, t.resolver, req)
-
 	if err != nil {
 		_ = level.Debug(t.logger).Log("msg", "multi-tenant query unsupported", "error", err, "path", req.URL.EscapedPath())
 
