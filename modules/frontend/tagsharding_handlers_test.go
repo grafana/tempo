@@ -30,6 +30,7 @@ func TestTagsResultsHandler(t *testing.T) {
 
 	encodingURLPart := "&dataEncoding=asdf&encoding=gzip&end=200&"
 	totalRecordsURLPart := "totalRecords=2&version=wdwad"
+	blockIDURLPart := "blockID="
 
 	tests := []struct {
 		name                 string
@@ -61,7 +62,7 @@ func TestTagsResultsHandler(t *testing.T) {
 				})
 				return expectedReq
 			},
-			expectedBlockURL: "blockID=" + bm.BlockID.String() + encodingURLPart +
+			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
 				"footerSize=0&indexPageSize=0&pagesToSearch=1&scope=all&size=209715200&start=100&startPage=0&" +
 				totalRecordsURLPart,
 			overflowRes1: "{ \"tagNames\":[\"tag1\"]}",
@@ -95,7 +96,7 @@ func TestTagsResultsHandler(t *testing.T) {
 				})
 				return expectedReq
 			},
-			expectedBlockURL: "blockID=" + bm.BlockID.String() + encodingURLPart +
+			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
 				"footerSize=0&indexPageSize=0&pagesToSearch=1&q=&size=209715200&start=100&startPage=0&" +
 				totalRecordsURLPart,
 			overflowRes1: "{ \"tagValues\":[\"tag1\"]}",
@@ -129,7 +130,7 @@ func TestTagsResultsHandler(t *testing.T) {
 				})
 				return expectedReq
 			},
-			expectedBlockURL: "blockID=" + bm.BlockID.String() + encodingURLPart +
+			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
 				"footerSize=0&indexPageSize=0&pagesToSearch=1&q=&size=209715200&start=100&startPage=0&" +
 				totalRecordsURLPart,
 			overflowRes1: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"tag1\"}]}",
@@ -169,7 +170,7 @@ func TestTagsResultsHandler(t *testing.T) {
 				})
 				return expectedReq
 			},
-			expectedBlockURL: "blockID=" + bm.BlockID.String() + encodingURLPart +
+			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
 				"footerSize=0&indexPageSize=0&pagesToSearch=1&q=&scope=&size=209715200&start=100&startPage=0&" +
 				totalRecordsURLPart,
 			overflowRes1: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"tag1\"]}]}",

@@ -181,6 +181,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
 
 	urlStartReq := "/?start="
+	startPart := "&start="
 
 	tests := []struct {
 		request             string
@@ -202,7 +203,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		{
 			request:             urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 30 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&start=" + strconv.Itoa(tenMinutesAgo),
+			expectedURI:         "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(tenMinutesAgo),
 			start:               tenMinutesAgo,
 			end:                 now,
 		},
@@ -217,7 +218,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		{
 			request:             urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&start=" + strconv.Itoa(fifteenMinutesAgo),
+			expectedURI:         "/querier?end=" + strconv.Itoa(tenMinutesAgo) + startPart + strconv.Itoa(fifteenMinutesAgo),
 			start:               twentyMinutesAgo,
 			end:                 tenMinutesAgo,
 		},
@@ -227,7 +228,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		{
 			request:             urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&start=" + strconv.Itoa(tenMinutesAgo),
+			expectedURI:         "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(tenMinutesAgo),
 			start:               tenMinutesAgo,
 			end:                 now,
 		},
@@ -237,7 +238,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		{
 			request:             urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&start=" + strconv.Itoa(fifteenMinutesAgo),
+			expectedURI:         "/querier?end=" + strconv.Itoa(now) + startPart + strconv.Itoa(fifteenMinutesAgo),
 			start:               twentyMinutesAgo,
 			end:                 now,
 		},
