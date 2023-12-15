@@ -61,7 +61,7 @@ func (r *faceReq) buildSearchTagRequest(subR *http.Request) (*http.Request, erro
 }
 
 func (r *faceReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
-	startPage int, pages int, m *backend.BlockMeta,
+	startPage int, pages int, _ *backend.BlockMeta,
 ) (*http.Request, error) {
 	newReq := subR.Clone(subR.Context())
 	q := subR.URL.Query()
@@ -180,6 +180,8 @@ func TestTagsIngesterRequest(t *testing.T) {
 	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
 	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
 
+	urlStartReq := "/?start="
+
 	tests := []struct {
 		request             string
 		queryIngestersUntil time.Duration
@@ -198,7 +200,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		},
 		// start/end is inside queryBackendAfter
 		{
-			request:             "/?start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			request:             urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 30 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&start=" + strconv.Itoa(tenMinutesAgo),
 			start:               tenMinutesAgo,
@@ -206,14 +208,14 @@ func TestTagsIngesterRequest(t *testing.T) {
 		},
 		// backendAfter/ingsetersUntil = 0 results in no ingester query
 		{
-			request: "/?start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			request: urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			start:   tenMinutesAgo,
 			end:     now,
 		},
 		// start/end = 20 - 10 mins ago - break across query ingesters until
 		//  ingester start/End = 15 - 10 mins ago
 		{
-			request:             "/?start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
+			request:             urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&start=" + strconv.Itoa(fifteenMinutesAgo),
 			start:               twentyMinutesAgo,
@@ -223,7 +225,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		//  ingester start/End = 10 - now mins ago
 		//  backend start/End = 15 - 10 mins ago
 		{
-			request:             "/?start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
+			request:             urlStartReq + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&start=" + strconv.Itoa(tenMinutesAgo),
 			start:               tenMinutesAgo,
@@ -233,7 +235,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		//  ingester start/End = 15 - now mins ago
 		//  backend start/End = 20 - 5 mins ago
 		{
-			request:             "/?start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
+			request:             urlStartReq + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 15 * time.Minute,
 			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&start=" + strconv.Itoa(fifteenMinutesAgo),
 			start:               twentyMinutesAgo,
