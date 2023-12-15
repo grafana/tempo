@@ -1,6 +1,7 @@
 package poller
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"sort"
@@ -170,23 +171,44 @@ func TestPollerOwnership(t *testing.T) {
 
 			l.ApplyPollResults(mm, cm)
 
-			metas := l.Metas(tenant)
+			assertMetas(t, l, expected)
 
-			actual := []uuid.UUID{}
-			for _, m := range metas {
-				actual = append(actual, m.BlockID)
-			}
+			mm, cm, err = blocklistPoller.Do(l)
+			require.NoError(t, err)
+			t.Logf("mm: %v", mm)
+			t.Logf("cm: %v", cm)
 
-			sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
+			assertMetas(t, l, expected)
 
-			assert.Equal(t, expected, actual)
-			assert.Equal(t, len(expected), len(metas))
-			t.Logf("actual: %v", actual)
+			writeCorruptIndex(t, ww, rr, tenant)
 
-			for _, e := range expected {
-				assert.True(t, found(e, metas))
-			}
+			mm, cm, err = blocklistPoller.Do(l)
+			require.NoError(t, err)
+			t.Logf("mm: %v", mm)
+			t.Logf("cm: %v", cm)
+
+			assertMetas(t, l, expected)
 		})
+	}
+}
+
+func assertMetas(t *testing.T, l *blocklist.List, expected []uuid.UUID) {
+	metas := l.Metas(tenant)
+
+	actual := []uuid.UUID{}
+	for _, m := range metas {
+		actual = append(actual, m.BlockID)
+	}
+
+	sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
+
+	assert.Equal(t, expected, actual)
+	assert.Equal(t, len(expected), len(metas))
+
+	t.Logf("actual: %v", actual)
+
+	for _, e := range expected {
+		assert.True(t, found(e, metas))
 	}
 }
 
@@ -211,6 +233,25 @@ func writeTenantBlocks(t *testing.T, w backend.Writer, tenant string, blockIDs [
 		err = w.WriteBlockMeta(context.Background(), meta)
 		require.NoError(t, err)
 	}
+}
+
+func writeCorruptIndex(t *testing.T, ww backend.RawWriter, rr backend.RawReader, tenant string) {
+	indexBytes := []byte("{")
+
+	t.Logf("writing corrupt index")
+
+	err := ww.Write(
+		context.Background(),
+		backend.TenantIndexName,
+		backend.KeyPath([]string{tenant}),
+		bytes.NewReader(indexBytes),
+		int64(len(indexBytes)), nil)
+
+	require.NoError(t, err)
+
+	items, err := rr.List(context.Background(), backend.KeyPath([]string{tenant}))
+	require.NoError(t, err)
+	t.Logf("items: %v", items)
 }
 
 func decrementUUIDBytes(uuidBytes []byte) {
