@@ -63,6 +63,18 @@ func TestConfigValidation(t *testing.T) {
 			expected: errors.New("configured caches require a valid role"),
 		},
 		{
+			name: "invalid - none",
+			cfg: &Config{
+				Caches: []CacheConfig{
+					{
+						Role:            []cache.Role{cache.RoleNone},
+						MemcachedConfig: &memcached.Config{},
+					},
+				},
+			},
+			expected: errors.New("role none is not a valid role"),
+		},
+		{
 			name: "invalid - both caches configged",
 			cfg: &Config{
 				Caches: []CacheConfig{
