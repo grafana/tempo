@@ -216,7 +216,7 @@ func TestPollerNonOwnership(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testCompactorOwnershipBackends {
 		t.Run(tc.name, func(t *testing.T) {
-			s, err := e2e.NewScenario("tempo-integration")
+			s, err := e2e.NewScenario("tempo-integration-poller-non-ownership")
 			require.NoError(t, err)
 			defer s.Close()
 
