@@ -145,38 +145,43 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
-	atLeastOneError := false
 	pr := &tempopb.PushResponse{}
 
 	for j := range req.Traces {
-
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
-		if err != nil {
-			// only make list if there is at least one error
-			if !atLeastOneError {
-				pr.ErrorsByTrace = make([]tempopb.PushErrorReason, 0, len(req.Traces))
-				// because this is the first error, fill list with NO_ERROR for the traces before this one
-				for k := 0; k < j; k++ {
-					pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_NO_ERROR)
-				}
-
-				atLeastOneError = true
-			}
-			if errors.Is(err, errMaxLiveTraces) {
-				pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_MAX_LIVE_TRACES)
-				continue
-			}
-
-			if errors.Is(err, errTraceTooLarge) {
-				pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_TRACE_TOO_LARGE)
-				continue
-			}
-		} else if err == nil && atLeastOneError {
-			pr.ErrorsByTrace = append(pr.ErrorsByTrace, tempopb.PushErrorReason_NO_ERROR)
-		}
+		pr.ErrorsByTrace = i.addTraceError(pr.ErrorsByTrace, err, len(req.Traces), j)
 	}
 
 	return pr
+}
+
+func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushError error, numTraces int, traceIndex int) []tempopb.PushErrorReason {
+	if pushError != nil {
+		// only make list if there is at least one error
+		if len(errorsByTrace) == 0 {
+			errorsByTrace = make([]tempopb.PushErrorReason, 0, numTraces)
+			// because this is the first error, fill list with NO_ERROR for the traces before this one
+			for k := 0; k < traceIndex; k++ {
+				errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
+			}
+		}
+		if errors.Is(pushError, errMaxLiveTraces) {
+			errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_MAX_LIVE_TRACES)
+			return errorsByTrace
+		}
+
+		if errors.Is(pushError, errTraceTooLarge) {
+			errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_TRACE_TOO_LARGE)
+			return errorsByTrace
+		}
+		// error is not either MaxLiveTraces or TraceTooLarge
+		level.Error(log.Logger).Log("msg", "Unexpected error during PushBytes", "tenant", i.instanceID, "error", pushError)
+
+	} else if pushError == nil && len(errorsByTrace) > 0 {
+		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
+	}
+
+	return errorsByTrace
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance

@@ -1029,7 +1029,6 @@ func TestRateLimitRespected(t *testing.T) {
 }
 
 func TestDiscardCountReplicationFactor(t *testing.T) {
-
 	tt := []struct {
 		name                                string
 		pushErrorByTrace                    [][]tempopb.PushErrorReason
