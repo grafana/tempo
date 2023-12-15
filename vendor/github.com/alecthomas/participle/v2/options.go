@@ -84,7 +84,9 @@ func ParseTypeWith[T any](parseFn func(*lexer.PeekingLexer) (T, error)) Option {
 
 // Union associates several member productions with some interface type T.
 // Given members X, Y, Z, and W for a union type U, then the EBNF rule is:
-//    U = X | Y | Z | W .
+//
+//	U = X | Y | Z | W .
+//
 // When the parser encounters a field of type T, it will attempt to parse each member
 // in sequence and take the first match. Because of this, the order in which the
 // members are defined is important. You must be careful to order your members appropriately.

@@ -2,7 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type analyseBlocksCmd struct {
@@ -26,17 +31,30 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	processedBlocks := 0
+	processedBlocks := map[uuid.UUID]struct{}{}
 	topSpanAttrs, topResourceAttrs := make(map[string]uint64), make(map[string]uint64)
 	totalSpanBytes, totalResourceBytes := uint64(0), uint64(0)
-	for _, block := range blocks {
-		if processedBlocks >= cmd.MaxBlocks {
-			break
+
+	for i := 0; i < len(blocks) && len(processedBlocks) < cmd.MaxBlocks; i++ {
+		block := blocks[i]
+		if _, ok := processedBlocks[block]; ok {
+			continue
 		}
 
 		blockSum, err := processBlock(r, c, cmd.TenantID, block.String(), time.Hour, uint8(cmd.MinCompactionLevel))
 		if err != nil {
-			return err
+			if !errors.Is(err, backend.ErrDoesNotExist) {
+				return err
+			}
+
+			// the block was already compacted and blocks might be outdated: refreshing blocks
+			blocks, _, err = r.Blocks(context.Background(), cmd.TenantID)
+			if err != nil {
+				return err
+			}
+			i = -1
+
+			continue
 		}
 
 		if blockSum == nil {
@@ -53,8 +71,9 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 		}
 		totalResourceBytes += blockSum.resourceSummary.totalBytes
 
-		processedBlocks++
+		processedBlocks[block] = struct{}{}
 	}
+
 	// Get top N attributes from map
 	return (&blockSummary{
 		spanSummary: genericAttrSummary{

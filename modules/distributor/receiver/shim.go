@@ -29,7 +29,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -228,11 +228,16 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := receiver.CreateSettings{TelemetrySettings: component.TelemetrySettings{
-		Logger:         zapLogger,
-		TracerProvider: trace.NewNoopTracerProvider(),
-		MeterProvider:  metricnoop.NewMeterProvider(),
-	}}
+	params := receiver.CreateSettings{
+		TelemetrySettings: component.TelemetrySettings{
+			Logger:         zapLogger,
+			TracerProvider: tracenoop.NewTracerProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
+			ReportComponentStatus: func(*component.StatusEvent) error {
+				return nil
+			},
+		},
+	}
 
 	for componentID, cfg := range conf.Receivers {
 		factoryBase := receiverFactories[componentID.Type()]

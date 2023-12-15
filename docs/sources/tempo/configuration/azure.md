@@ -44,14 +44,14 @@ tempo:
 ## Azure blocklist polling
 
 If you are hosting Tempo on Azure, two values may need to be updated to ensure consistent successful blocklist polling. If you are
-experiencing [this issue](https://stackoverflow.com/questions/12917857/the-specified-block-list-is-invalid-while-uploading-blobs-in-parallel/55902744#55902744), we recommend to set `blocklist_poll_tenant_index_builders` to 1.
+experiencing [this issue](https://stackoverflow.com/questions/12917857/the-specified-block-list-is-invalid-while-uploading-blobs-in-parallel/55902744#55902744), try setting `blocklist_poll_tenant_index_builders` to 1.
 
 Additionally, if you are seeing DNS failures like the ones below, try increasing `blocklist_poll_jitter_ms`. Discussion [here](https://github.com/grafana/tempo/issues/1462).
 ```
 reading storage container: Head "https://tempoe**************.blob.core.windows.net/tempo/single-tenant/d8aafc48-5796-4221-ac0b-58e001d18515/meta.compacted.json?timeout=61": dial tcp: lookup tempoe**************.blob.core.windows.net on 10.0.0.10:53: dial udp 10.0.0.10:53: operation was canceled
 ```
 
-Your final config may look something like:
+Your final configuration may look something like:
 ```
   storage:
     trace:

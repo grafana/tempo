@@ -215,7 +215,9 @@ func New(options Options) *Cors {
 	}
 
 	// Pre-compute exposed headers header value
-	c.exposedHeaders = []string{strings.Join(convert(options.ExposedHeaders, http.CanonicalHeaderKey), ", ")}
+	if len(options.ExposedHeaders) > 0 {
+		c.exposedHeaders = []string{strings.Join(convert(options.ExposedHeaders, http.CanonicalHeaderKey), ", ")}
+	}
 
 	// Pre-compute prefight Vary header to save allocations
 	if c.allowPrivateNetwork {

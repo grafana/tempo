@@ -67,7 +67,7 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	}
 
 	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, m.Name)
+		labels = append(labels, sanitizeLabelNameWithCollisions(m.Name))
 	}
 
 	p := &Processor{

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
@@ -24,12 +23,12 @@ type RowStats struct {
 	Stats     []RowCellStats
 }
 
-func (rs *RowStats) Data() interface{} {
+func (rs *RowStats) Data() any {
 	return rs.Stats
 }
 
-func (rs *RowStats) Cells() []interface{} {
-	cells := make([]interface{}, 0, len(rs.Stats)*len(rowCellFields)+1)
+func (rs *RowStats) Cells() []any {
+	cells := make([]any, 0, len(rs.Stats)*len(rowCellFields)+1)
 	cells = append(cells, rs.RowNumber)
 	for _, c := range rs.Stats {
 		cells = append(cells, c.Size, c.Values, c.Nulls)
@@ -52,14 +51,14 @@ func NewRowStatCalculator(file *parquet.File, options RowStatOptions) (*RowStatC
 		columns = make([]*parquet.Column, 0, len(options.Columns))
 		for _, idx := range options.Columns {
 			if idx >= len(all) {
-				return nil, errors.Errorf("column index expectd be below %d but was %d", idx, len(all))
+				return nil, fmt.Errorf("column index expectd be below %d but was %d", idx, len(all))
 			}
 			columns = append(columns, all[idx])
 		}
 	}
 
 	c := RowStatCalculator{
-		header:     make([]interface{}, 0, len(columns)*len(rowCellFields)+1),
+		header:     make([]any, 0, len(columns)*len(rowCellFields)+1),
 		columnIter: make([]*groupingColumnIterator, 0, len(columns)),
 	}
 
@@ -67,7 +66,7 @@ func NewRowStatCalculator(file *parquet.File, options RowStatOptions) (*RowStatC
 	for _, col := range columns {
 		it, err := newGroupingColumnIterator(col, nil, options.Pagination)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to create row stats calculator")
+			return nil, fmt.Errorf("unable to create row stats calculator: %w", err)
 		}
 		c.columnIter = append(c.columnIter, it)
 		c.header = append(c.header, fmt.Sprintf("%d/%s: %s", col.Index(), col.Name(), rowCellFields[0]), rowCellFields[1], rowCellFields[2])
@@ -77,12 +76,12 @@ func NewRowStatCalculator(file *parquet.File, options RowStatOptions) (*RowStatC
 }
 
 type RowStatCalculator struct {
-	header     []interface{}
+	header     []any
 	columnIter []*groupingColumnIterator
 	rowNumber  int
 }
 
-func (c *RowStatCalculator) Header() []interface{} {
+func (c *RowStatCalculator) Header() []any {
 	return c.header
 }
 

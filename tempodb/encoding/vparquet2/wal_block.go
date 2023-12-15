@@ -670,6 +670,11 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}, nil
 }
 
+func (b *walBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+	// TODO: Add support?
+	return common.ErrUnsupported
+}
+
 func (b *walBlock) walPath() string {
 	filename := fmt.Sprintf("%s+%s+%s", b.meta.BlockID, b.meta.TenantID, VersionString)
 	return filepath.Join(b.path, filename)

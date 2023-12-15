@@ -1,7 +1,10 @@
 package vparquet2
 
 import (
+	"context"
 	"sync"
+
+	"github.com/grafana/tempo/pkg/traceql"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -29,4 +32,9 @@ func newBackendBlock(meta *backend.BlockMeta, r backend.Reader) *backendBlock {
 
 func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
+}
+
+func (b *backendBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+	// TODO: Add support?
+	return common.ErrUnsupported
 }

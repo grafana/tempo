@@ -38,6 +38,7 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -77,6 +78,7 @@ type App struct {
 	generator      *generator.Generator
 	store          storage.Store
 	usageReport    *usagestats.Reporter
+	cacheProvider  cache.Provider
 	MemberlistKV   *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface

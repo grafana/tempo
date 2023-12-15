@@ -90,18 +90,27 @@ Arguments:
 
 Options:
 - `--org-id <value>`      Organization ID (for use in multi-tenant setup).
-- `--use-grpc`            Use deprecated GRPC streaming
+- `--use-grpc`            Use GRPC streaming
 - `--use-ws`              Use HTTP/Websocket streaming
-- `--spss <value>`        Number of spans to return for each spanset 
+- `--spss <value>`        Number of spans to return for each spanset
 - `--limit <value>`       Number of results to return
 - `--path-prefix <value>` String to prefix search paths with
 
+{{% admonition type="note" %}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
+
+
 ## Query blocks command
+
 Iterate over all backend blocks and dump all data found for a given trace id.
+
 ```bash
 tempo-cli query blocks <trace-id> <tenant-id>
 ```
- **Note:** can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
+{{% admonition type="note" %}}
+ This can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
+ {{% /admonition %}}
 
 Arguments:
 - `trace-id` Trace ID as a hexadecimal string.
@@ -116,7 +125,7 @@ tempo-cli query blocks f1cfe82a8eef933b single-tenant
 ```
 
 ## Query trace summary command
-Iterate over all backend blocks and dump a summary for a given trace id. 
+Iterate over all backend blocks and dump a summary for a given trace id.
 
 The summary includes:
 - number of blocks the trace is found in
@@ -145,7 +154,6 @@ See backend options above.
 tempo-cli query trace-summary f1cfe82a8eef933b single-tenant
 ```
 
-## 
 
 ## List blocks
 Lists information about all blocks for the given tenant, and optionally perform integrity checks on indexes for duplicate records.
@@ -342,12 +350,12 @@ This utility command is useful when testing the impact of different combinations
 all listed columns are assumed to be at the span scope.
 
 ```bash
-tempo-cli parquet convert-2-to-3 <in file> <out path> <list of dedicated columns> 
+tempo-cli parquet convert-2-to-3 <in file> <out path> <list of dedicated columns>
 ```
 
 Arguments:
 - `in file` Filename of an existing vParquet2 file containing Tempo trace data
-- `out path` Path to write the vParquet3 block to. 
+- `out path` Path to write the vParquet3 block to.
 - `list of dedicated columns` Additional params indicating which columns to make dedicated. Max 10. Dedicated columns
   should be named using TraceQL syntax with scope. i.e. `span.db.statement` or `resource.namespace`.
 

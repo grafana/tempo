@@ -49,32 +49,56 @@ func isHTTPStatus4xx(err error) bool {
 	return code/100 == 4
 }
 
-// DoBatch is a special case of DoBatchWithClientError where errors
-// containing HTTP status code 4xx are treated as client errors.
+// DoBatch is a deprecated version of DoBatchWithOptions where grpc errors containing status codes 4xx are treated as client errors.
+// Deprecated. Use DoBatchWithOptions instead.
 func DoBatch(ctx context.Context, op Operation, r ReadRing, keys []uint32, callback func(InstanceDesc, []int) error, cleanup func()) error {
-	return DoBatchWithClientError(ctx, op, r, keys, callback, cleanup, isHTTPStatus4xx)
+	return DoBatchWithOptions(ctx, op, r, keys, callback, DoBatchOptions{
+		Cleanup:       cleanup,
+		IsClientError: isHTTPStatus4xx,
+	})
 }
 
-// DoBatchWithClientError request against a set of keys in the ring,
-// handling replication and failures. For example if we want to write
-// N items where they may all hit different instances, and we want them
-// all replicated R ways with quorum writes, we track the relationship
-// between batch RPCs and the items within them.
+// DoBatchOptions defines options for the DoBatchWithOptions call.
+// Zero value options are valid, as well as individual zero valued fields.
+type DoBatchOptions struct {
+	// Cleanup is always called, either on an error before starting the batches or after they are all finished.
+	// If nil, a noop will be called.
+	Cleanup func()
+
+	// IsClientError classifies errors returned by `callback()` into client or server errors.
+	// See `batchTracker.record()` function for details about how errors are combined into final error returned by DoBatchWithClientError.
+	// If nil, a default implementation is used that classifies grpc errors containing status codes 4xx as client errors.
+	IsClientError func(error) bool
+
+	// Go will be used to spawn the callback goroutines, and can be used to use a worker pool like concurrency.ReusableGoroutinesPool.
+	Go func(func())
+}
+
+func (o *DoBatchOptions) replaceZeroValuesWithDefaults() {
+	if o.Cleanup == nil {
+		o.Cleanup = func() {}
+	}
+	if o.IsClientError == nil {
+		o.IsClientError = isHTTPStatus4xx
+	}
+	if o.Go == nil {
+		o.Go = func(f func()) { go f() }
+	}
+}
+
+// DoBatchWithOptions request against a set of keys in the ring, handling replication and failures.
+// For example if we want to write N items where they may all hit different instances,
+// and we want them all replicated R ways with quorum writes,
+// we track the relationship between batch RPCs and the items within them.
 //
-// callback() is passed the instance to target, and the indexes of the keys
-// to send to that instance.
-//
-// cleanup() is always called, either on an error before starting the batches
-// or after they all finish.
-//
-// isClientError() classifies errors returned by `callback()` into client or
-// server errors. See `batchTracker.record()` function for details about how
-// errors are combined into final error returned by DoBatchWithClientError.
+// See comments on DoBatchOptions for available options for this call.
 //
 // Not implemented as a method on Ring, so we can test separately.
-func DoBatchWithClientError(ctx context.Context, op Operation, r ReadRing, keys []uint32, callback func(InstanceDesc, []int) error, cleanup func(), isClientError func(error) bool) error {
+func DoBatchWithOptions(ctx context.Context, op Operation, r ReadRing, keys []uint32, callback func(InstanceDesc, []int) error, o DoBatchOptions) error {
+	o.replaceZeroValuesWithDefaults()
+
 	if r.InstancesCount() <= 0 {
-		cleanup()
+		o.Cleanup()
 		return fmt.Errorf("DoBatch: InstancesCount <= 0")
 	}
 	expectedTrackers := len(keys) * (r.ReplicationFactor() + 1) / r.InstancesCount()
@@ -89,7 +113,7 @@ func DoBatchWithClientError(ctx context.Context, op Operation, r ReadRing, keys 
 	for i, key := range keys {
 		replicationSet, err := r.Get(key, op, bufDescs[:0], bufHosts[:0], bufZones[:0])
 		if err != nil {
-			cleanup()
+			o.Cleanup()
 			return err
 		}
 		itemTrackers[i].minSuccess = len(replicationSet.Instances) - replicationSet.MaxErrors
@@ -120,19 +144,19 @@ func DoBatchWithClientError(ctx context.Context, op Operation, r ReadRing, keys 
 
 	wg.Add(len(instances))
 	for _, i := range instances {
-		go func(i instance) {
+		i := i
+		o.Go(func() {
 			err := callback(i.desc, i.indexes)
-			tracker.record(i.itemTrackers, err, isClientError)
+			tracker.record(i.itemTrackers, err, o.IsClientError)
 			wg.Done()
-		}(i)
+		})
 	}
 
 	// Perform cleanup at the end.
-	go func() {
+	o.Go(func() {
 		wg.Wait()
-
-		cleanup()
-	}()
+		o.Cleanup()
+	})
 
 	select {
 	case err := <-tracker.err:

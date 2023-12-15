@@ -137,7 +137,7 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ *backend.CacheInfo) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Write")
 	defer span.Finish()
 
@@ -244,7 +244,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
-func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
 	filename := backend.ObjectFileName(keypath, name)
 	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, filename, minio.RemoveObjectOptions{})
 }
@@ -392,7 +392,7 @@ func (rw *readerWriter) ListBlocks(
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")
 	defer span.Finish()
 
@@ -406,7 +406,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.ReadRange", opentracing.Tags{
 		"len":    len(buffer),
 		"offset": offset,
@@ -442,7 +442,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	}
 
 	// TODO extract Write to a separate method which returns minio.UploadInfo, saves us a GetObject request
-	err = rw.Write(ctx, name, keypath, data, -1, false)
+	err = rw.Write(ctx, name, keypath, data, -1, nil)
 	if err != nil {
 		return "", err
 	}
@@ -464,7 +464,7 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 		return backend.ErrVersionDoesNotMatch
 	}
 
-	return rw.Delete(ctx, name, keypath, false)
+	return rw.Delete(ctx, name, keypath, nil)
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {

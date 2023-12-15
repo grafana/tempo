@@ -897,7 +897,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 	cfg.IntrinsicDimensions.StatusMessage = true
 	cfg.DimensionMappings = []sharedconfig.DimensionMappings{
 		{
-			Name:        "foobar",
+			Name:        "foo.bar",
 			SourceLabel: []string{"foo", "bar"},
 			Join:        "/",
 		},
@@ -933,7 +933,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
-		"foobar":         "foo-value/bar-value",
+		"foo_bar":        "foo-value/bar-value",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -1011,7 +1011,7 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		"status_message": "OK",
 		"first_only":     "first-value",
 		"world_only":     "world-value",
-		"first/last":     "first-value->last-value",
+		"first_last":     "first-value->last-value",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))

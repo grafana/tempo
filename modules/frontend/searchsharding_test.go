@@ -26,9 +26,11 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
@@ -197,13 +199,15 @@ func TestBuildBackendRequests(t *testing.T) {
 
 	for _, tc := range tests {
 		req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
+		searchReq, err := api.ParseSearchRequest(req)
+		require.NoError(t, err)
 
 		stopCh := make(chan struct{})
 		defer close(stopCh)
 		reqCh := make(chan *backendReqMsg)
 
 		go func() {
-			buildBackendRequests(context.Background(), "test", req, tc.metas, tc.targetBytesPerRequest, reqCh, stopCh)
+			buildBackendRequests(context.Background(), "test", req, searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, stopCh)
 		}()
 
 		actualURIs := []string{}
@@ -707,7 +711,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, newSearchProgress, log.NewNopLogger())
+			}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -773,7 +777,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
@@ -808,7 +812,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -841,13 +845,138 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
 	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
+}
+
+func TestSharderAccessesCache(t *testing.T) {
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{{
+				TraceID:         util.TraceIDToHexString(test.ValidTraceID(nil)),
+				RootServiceName: "test",
+				RootTraceName:   "bar",
+			}},
+			Metrics: &tempopb.SearchMetrics{
+				InspectedBytes: 4,
+			},
+		})
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(resString)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	// setup mock cache
+	c := cache.NewMockCache()
+
+	o, err := overrides.NewOverrides(overrides.Config{})
+	require.NoError(t, err)
+
+	meta := &backend.BlockMeta{
+		StartTime:    time.Unix(15, 0),
+		EndTime:      time.Unix(16, 0),
+		Size:         defaultTargetBytesPerRequest,
+		TotalRecords: 1,
+		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+	}
+
+	// setup sharder
+	sharder := newSearchSharder(&mockReader{
+		metas: []*backend.BlockMeta{meta},
+	}, o, SearchSharderConfig{
+		QueryIngestersUntil:   15 * time.Minute,
+		ConcurrentRequests:    1, // 1 concurrent request to force order
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, newSearchProgress, &frontendCache{
+		c: c,
+	}, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	// setup query
+	query := "{}"
+	hash := hashForTraceQLQuery(query)
+	start := uint32(10)
+	end := uint32(20)
+	cacheKey := cacheKeyForJob(hash, &tempopb.SearchRequest{Start: start, End: end}, meta, 0, 1)
+
+	// confirm cache key coesn't exist
+	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
+	require.Equal(t, 0, len(bufs))
+
+	// execute query
+	path := fmt.Sprintf("/?start=%d&end=%d&q=%s", start, end, query) // encapsulates block above
+	req := httptest.NewRequest("GET", path, nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	resp, err := testRT.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	actualResp := &tempopb.SearchResponse{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	// confirm cache key exists and matches the response above
+	_, bufs, _ = c.Fetch(context.Background(), []string{cacheKey})
+	require.Equal(t, 1, len(bufs))
+
+	actualCache := &tempopb.SearchResponse{}
+	err = jsonpb.Unmarshal(bytes.NewReader(bufs[0]), actualCache)
+	require.NoError(t, err)
+
+	// zeroing these out b/c they are set by the sharder and won't be in cache
+	cacheResponsesEqual(t, actualCache, actualResp)
+
+	// now let's "poison" cache by writing different values directly and confirm
+	// the sharder returns them
+	overwriteResp := &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{{
+			TraceID:         util.TraceIDToHexString(test.ValidTraceID(nil)),
+			RootServiceName: "test2",
+			RootTraceName:   "bar2",
+		}},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes: 11,
+		},
+	}
+	overwriteString, err := (&jsonpb.Marshaler{}).MarshalToString(overwriteResp)
+	require.NoError(t, err)
+
+	c.Store(context.Background(), []string{cacheKey}, [][]byte{[]byte(overwriteString)})
+
+	resp, err = testRT.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	actualResp = &tempopb.SearchResponse{}
+	bytesResp, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	cacheResponsesEqual(t, overwriteResp, actualResp)
+}
+
+func cacheResponsesEqual(t *testing.T, cacheResponse *tempopb.SearchResponse, pipelineResp *tempopb.SearchResponse) {
+	// zeroing these out b/c they are set by the sharder and won't be in cache
+	pipelineResp.Metrics.TotalJobs = 0
+	pipelineResp.Metrics.CompletedJobs = 0
+	pipelineResp.Metrics.TotalBlockBytes = 0
+	pipelineResp.Metrics.TotalBlocks = 0
+
+	require.Equal(t, pipelineResp, cacheResponse)
 }
 
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {
@@ -970,7 +1099,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		ConcurrentRequests:    10,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		DefaultLimit:          2,
-	}, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
 
 	// return some things and assert the right subrequests are cancelled
 	// 500, err, limit
@@ -1018,6 +1147,167 @@ func TestSubRequestsCancelled(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			_, _ = testRT.RoundTrip(req)
+		})
+	}
+}
+
+func TestHashTraceQLQuery(t *testing.T) {
+	// exact same queries should have the same hash
+	h1 := hashForTraceQLQuery("{ span.foo = `bar` }")
+	h2 := hashForTraceQLQuery("{ span.foo = `bar` }")
+	require.Equal(t, h1, h2)
+
+	// equivalent queries should have the same hash
+	h1 = hashForTraceQLQuery("{ span.foo = `bar`     }")
+	h2 = hashForTraceQLQuery("{ span.foo = `bar` }")
+	require.Equal(t, h1, h2)
+
+	h1 = hashForTraceQLQuery("{ (span.foo = `bar`) || (span.bar = `foo`) }")
+	h2 = hashForTraceQLQuery("{ span.foo = `bar` || span.bar = `foo` }")
+	require.Equal(t, h1, h2)
+
+	// different queries should have different hashes
+	h1 = hashForTraceQLQuery("{ span.foo = `bar` }")
+	h2 = hashForTraceQLQuery("{ span.foo = `baz` }")
+	require.NotEqual(t, h1, h2)
+
+	// invalid queries should return 0
+	h1 = hashForTraceQLQuery("{ span.foo = `bar` ")
+	require.Equal(t, uint64(0), h1)
+
+	h1 = hashForTraceQLQuery("")
+	require.Equal(t, uint64(0), h1)
+}
+
+func TestCacheKeyForJob(t *testing.T) {
+	tcs := []struct {
+		name          string
+		queryHash     uint64
+		req           *tempopb.SearchRequest
+		meta          *backend.BlockMeta
+		searchPage    int
+		pagesToSearch int
+
+		expected string
+	}{
+		{
+			name:      "valid!",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(15, 0),
+				EndTime:   time.Unix(16, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "sj:42:00000000-0000-0000-0000-000000000123:1:2",
+		},
+		{
+			name:      "no query hash means no query cache",
+			queryHash: 0,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(15, 0),
+				EndTime:   time.Unix(16, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
+		{
+			name:      "meta before start time",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(5, 0),
+				EndTime:   time.Unix(6, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
+		{
+			name:      "meta overlaps search start",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(5, 0),
+				EndTime:   time.Unix(15, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
+		{
+			name:      "meta overlaps search end",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(15, 0),
+				EndTime:   time.Unix(25, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
+		{
+			name:      "meta after search range",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(25, 0),
+				EndTime:   time.Unix(30, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
+		{
+			name:      "meta encapsulates search range",
+			queryHash: 42,
+			req: &tempopb.SearchRequest{
+				Start: 10,
+				End:   20,
+			},
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				StartTime: time.Unix(5, 0),
+				EndTime:   time.Unix(30, 0),
+			},
+			searchPage:    1,
+			pagesToSearch: 2,
+			expected:      "",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := cacheKeyForJob(tc.queryHash, tc.req, tc.meta, tc.searchPage, tc.pagesToSearch)
+			require.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -1076,7 +1366,7 @@ func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 	}, o, SearchSharderConfig{
 		ConcurrentRequests:    100,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, newSearchProgress, log.NewNopLogger())
+	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work
@@ -1089,5 +1379,24 @@ func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
 		succeedAfter = atomic.NewInt32(s)
 		_, err = testRT.RoundTrip(req)
 		require.NoError(b, err)
+	}
+}
+
+func BenchmarkCacheKeyForJob(b *testing.B) {
+	req := &tempopb.SearchRequest{
+		Start: 10,
+		End:   20,
+	}
+	meta := &backend.BlockMeta{
+		BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+		StartTime: time.Unix(15, 0),
+		EndTime:   time.Unix(16, 0),
+	}
+
+	for i := 0; i < b.N; i++ {
+		s := cacheKeyForJob(10, req, meta, 1, 2)
+		if len(s) == 0 {
+			b.Fatalf("expected non-empty string")
+		}
 	}
 }

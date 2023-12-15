@@ -30,13 +30,13 @@ type Feature int
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
 	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
-	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, shouldCache bool) error
+	Write(ctx context.Context, name string, keypath KeyPath, data io.Reader, size int64, cacheInfo *CacheInfo) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// CloseAppend closes any resources associated with the AppendTracker.
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// Delete deletes a file.
-	Delete(ctx context.Context, name string, keypath KeyPath, shouldCache bool) error
+	Delete(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) error
 }
 
 // RawReader is a collection of methods to read data from tempodb backends
@@ -46,10 +46,10 @@ type RawReader interface {
 	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
 	ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
-	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	Read(ctx context.Context, name string, keyPath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.
 	// There will be an attempt to retrieve this from cache if shouldCache is true. Cache key will be tenantID:blockID:offset:bufferLength
-	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, shouldCache bool) error
+	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, cacheInfo *CacheInfo) error
 	// Shutdown must be called when the Reader is finished and cleans up any associated resources.
 	Shutdown()
 }
@@ -72,13 +72,13 @@ func NewWriter(w RawWriter) Writer {
 // )
 
 // Write implements backend.Writer
-func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), shouldCache)
+func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *CacheInfo) error {
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), cacheInfo)
 }
 
 // Write implements backend.Writer
 func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, false)
+	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, nil)
 }
 
 // Write implements backend.Writer
@@ -91,7 +91,7 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		return err
 	}
 
-	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), false)
+	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
 }
 
 // Write implements backend.Writer
@@ -109,7 +109,7 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 	// If meta and compactedMeta are empty, call delete the tenant index.
 	if len(meta) == 0 && len(compactedMeta) == 0 {
 		// Skip returning an error when the object is already deleted.
-		err := w.w.Delete(ctx, TenantIndexName, []string{tenantID}, false)
+		err := w.w.Delete(ctx, TenantIndexName, []string{tenantID}, nil)
 		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
@@ -123,7 +123,7 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), false)
+	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
 	if err != nil {
 		return err
 	}
@@ -143,8 +143,8 @@ func NewReader(r RawReader) Reader {
 }
 
 // Read implements backend.Reader
-func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
-	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
+func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, cacheInfo *CacheInfo) ([]byte, error) {
+	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), cacheInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -154,12 +154,12 @@ func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenan
 
 // StreamReader implements backend.Reader
 func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
-	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), false)
+	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), nil)
 }
 
 // ReadRange implements backend.Reader
-func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error {
-	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, shouldCache)
+func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error {
+	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
 }
 
 // Tenants implements backend.Reader
@@ -184,7 +184,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 
 // BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), false)
+	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 
 // TenantIndex implements backend.Reader
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), false)
+	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
 	if err != nil {
 		return nil, err
 	}

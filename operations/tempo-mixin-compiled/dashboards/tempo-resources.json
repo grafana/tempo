@@ -75,7 +75,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"cortex-gw(-internal)?\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"cortex-gw(-internal)?\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -402,7 +402,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"distributor\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"distributor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -729,7 +729,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1056,7 +1056,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"metrics-generator\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"metrics-generator\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1383,7 +1383,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"query-frontend\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"query-frontend\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1710,7 +1710,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"querier\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"querier\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -2037,7 +2037,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,

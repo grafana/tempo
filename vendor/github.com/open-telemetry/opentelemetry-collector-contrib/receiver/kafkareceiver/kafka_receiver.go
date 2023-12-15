@@ -1,34 +1,24 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.uber.org/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka"
 )
 
 const (
@@ -36,6 +26,7 @@ const (
 )
 
 var errUnrecognizedEncoding = fmt.Errorf("unrecognized encoding")
+var errInvalidInitialOffset = fmt.Errorf("invalid initial offset")
 
 // kafkaTracesConsumer uses sarama to consume and handle messages from kafka.
 type kafkaTracesConsumer struct {
@@ -49,6 +40,8 @@ type kafkaTracesConsumer struct {
 
 	autocommitEnabled bool
 	messageMarking    MessageMarking
+	headerExtraction  bool
+	headers           []string
 }
 
 // kafkaMetricsConsumer uses sarama to consume and handle messages from kafka.
@@ -63,6 +56,8 @@ type kafkaMetricsConsumer struct {
 
 	autocommitEnabled bool
 	messageMarking    MessageMarking
+	headerExtraction  bool
+	headers           []string
 }
 
 // kafkaLogsConsumer uses sarama to consume and handle messages from kafka.
@@ -77,6 +72,8 @@ type kafkaLogsConsumer struct {
 
 	autocommitEnabled bool
 	messageMarking    MessageMarking
+	headerExtraction  bool
+	headers           []string
 }
 
 var _ receiver.Traces = (*kafkaTracesConsumer)(nil)
@@ -96,6 +93,14 @@ func newTracesReceiver(config Config, set receiver.CreateSettings, unmarshalers 
 	c.Metadata.Retry.Backoff = config.Metadata.Retry.Backoff
 	c.Consumer.Offsets.AutoCommit.Enable = config.AutoCommit.Enable
 	c.Consumer.Offsets.AutoCommit.Interval = config.AutoCommit.Interval
+	if initialOffset, err := toSaramaInitialOffset(config.InitialOffset); err == nil {
+		c.Consumer.Offsets.Initial = initialOffset
+	} else {
+		return nil, err
+	}
+	if config.ResolveCanonicalBootstrapServersOnly {
+		c.Net.ResolveCanonicalBootstrapServers = true
+	}
 	if config.ProtocolVersion != "" {
 		version, err := sarama.ParseKafkaVersion(config.ProtocolVersion)
 		if err != nil {
@@ -103,7 +108,7 @@ func newTracesReceiver(config Config, set receiver.CreateSettings, unmarshalers 
 		}
 		c.Version = version
 	}
-	if err := kafkaexporter.ConfigureAuthentication(config.Authentication, c); err != nil {
+	if err := kafka.ConfigureAuthentication(config.Authentication, c); err != nil {
 		return nil, err
 	}
 	client, err := sarama.NewConsumerGroup(config.Brokers, config.GroupID, c)
@@ -118,13 +123,15 @@ func newTracesReceiver(config Config, set receiver.CreateSettings, unmarshalers 
 		settings:          set,
 		autocommitEnabled: config.AutoCommit.Enable,
 		messageMarking:    config.MessageMarking,
+		headerExtraction:  config.HeaderExtraction.ExtractHeaders,
+		headers:           config.HeaderExtraction.Headers,
 	}, nil
 }
 
 func (c *kafkaTracesConsumer) Start(_ context.Context, host component.Host) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancelConsumeLoop = cancel
-	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
+	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             c.settings.ID,
 		Transport:              transport,
 		ReceiverCreateSettings: c.settings,
@@ -140,6 +147,13 @@ func (c *kafkaTracesConsumer) Start(_ context.Context, host component.Host) erro
 		obsrecv:           obsrecv,
 		autocommitEnabled: c.autocommitEnabled,
 		messageMarking:    c.messageMarking,
+		headerExtractor:   &nopHeaderExtractor{},
+	}
+	if c.headerExtraction {
+		consumerGroup.headerExtractor = &headerExtractor{
+			logger:  c.settings.Logger,
+			headers: c.headers,
+		}
 	}
 	go func() {
 		if err := c.consumeLoop(ctx, consumerGroup); err != nil {
@@ -184,7 +198,11 @@ func newMetricsReceiver(config Config, set receiver.CreateSettings, unmarshalers
 	c.Metadata.Retry.Backoff = config.Metadata.Retry.Backoff
 	c.Consumer.Offsets.AutoCommit.Enable = config.AutoCommit.Enable
 	c.Consumer.Offsets.AutoCommit.Interval = config.AutoCommit.Interval
-
+	if initialOffset, err := toSaramaInitialOffset(config.InitialOffset); err == nil {
+		c.Consumer.Offsets.Initial = initialOffset
+	} else {
+		return nil, err
+	}
 	if config.ProtocolVersion != "" {
 		version, err := sarama.ParseKafkaVersion(config.ProtocolVersion)
 		if err != nil {
@@ -192,7 +210,7 @@ func newMetricsReceiver(config Config, set receiver.CreateSettings, unmarshalers
 		}
 		c.Version = version
 	}
-	if err := kafkaexporter.ConfigureAuthentication(config.Authentication, c); err != nil {
+	if err := kafka.ConfigureAuthentication(config.Authentication, c); err != nil {
 		return nil, err
 	}
 	client, err := sarama.NewConsumerGroup(config.Brokers, config.GroupID, c)
@@ -207,13 +225,15 @@ func newMetricsReceiver(config Config, set receiver.CreateSettings, unmarshalers
 		settings:          set,
 		autocommitEnabled: config.AutoCommit.Enable,
 		messageMarking:    config.MessageMarking,
+		headerExtraction:  config.HeaderExtraction.ExtractHeaders,
+		headers:           config.HeaderExtraction.Headers,
 	}, nil
 }
 
 func (c *kafkaMetricsConsumer) Start(_ context.Context, host component.Host) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancelConsumeLoop = cancel
-	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
+	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             c.settings.ID,
 		Transport:              transport,
 		ReceiverCreateSettings: c.settings,
@@ -229,6 +249,13 @@ func (c *kafkaMetricsConsumer) Start(_ context.Context, host component.Host) err
 		obsrecv:           obsrecv,
 		autocommitEnabled: c.autocommitEnabled,
 		messageMarking:    c.messageMarking,
+		headerExtractor:   &nopHeaderExtractor{},
+	}
+	if c.headerExtraction {
+		metricsConsumerGroup.headerExtractor = &headerExtractor{
+			logger:  c.settings.Logger,
+			headers: c.headers,
+		}
 	}
 	go func() {
 		if err := c.consumeLoop(ctx, metricsConsumerGroup); err != nil {
@@ -261,11 +288,6 @@ func (c *kafkaMetricsConsumer) Shutdown(context.Context) error {
 }
 
 func newLogsReceiver(config Config, set receiver.CreateSettings, unmarshalers map[string]LogsUnmarshaler, nextConsumer consumer.Logs) (*kafkaLogsConsumer, error) {
-	unmarshaler := unmarshalers[config.Encoding]
-	if unmarshaler == nil {
-		return nil, errUnrecognizedEncoding
-	}
-
 	c := sarama.NewConfig()
 	c.ClientID = config.ClientID
 	c.Metadata.Full = config.Metadata.Full
@@ -273,14 +295,24 @@ func newLogsReceiver(config Config, set receiver.CreateSettings, unmarshalers ma
 	c.Metadata.Retry.Backoff = config.Metadata.Retry.Backoff
 	c.Consumer.Offsets.AutoCommit.Enable = config.AutoCommit.Enable
 	c.Consumer.Offsets.AutoCommit.Interval = config.AutoCommit.Interval
+	if initialOffset, err := toSaramaInitialOffset(config.InitialOffset); err == nil {
+		c.Consumer.Offsets.Initial = initialOffset
+	} else {
+		return nil, err
+	}
+	unmarshaler, err := getLogsUnmarshaler(config.Encoding, unmarshalers)
+	if err != nil {
+		return nil, err
+	}
 	if config.ProtocolVersion != "" {
-		version, err := sarama.ParseKafkaVersion(config.ProtocolVersion)
+		var version sarama.KafkaVersion
+		version, err = sarama.ParseKafkaVersion(config.ProtocolVersion)
 		if err != nil {
 			return nil, err
 		}
 		c.Version = version
 	}
-	if err := kafkaexporter.ConfigureAuthentication(config.Authentication, c); err != nil {
+	if err = kafka.ConfigureAuthentication(config.Authentication, c); err != nil {
 		return nil, err
 	}
 	client, err := sarama.NewConsumerGroup(config.Brokers, config.GroupID, c)
@@ -295,13 +327,42 @@ func newLogsReceiver(config Config, set receiver.CreateSettings, unmarshalers ma
 		settings:          set,
 		autocommitEnabled: config.AutoCommit.Enable,
 		messageMarking:    config.MessageMarking,
+		headerExtraction:  config.HeaderExtraction.ExtractHeaders,
+		headers:           config.HeaderExtraction.Headers,
 	}, nil
+}
+
+func getLogsUnmarshaler(encoding string, unmarshalers map[string]LogsUnmarshaler) (LogsUnmarshaler, error) {
+	var enc string
+	unmarshaler, ok := unmarshalers[encoding]
+	if !ok {
+		split := strings.SplitN(encoding, "_", 2)
+		prefix := split[0]
+		if len(split) > 1 {
+			enc = split[1]
+		}
+		unmarshaler, ok = unmarshalers[prefix].(LogsUnmarshalerWithEnc)
+		if !ok {
+			return nil, errUnrecognizedEncoding
+		}
+	}
+
+	if unmarshalerWithEnc, ok := unmarshaler.(LogsUnmarshalerWithEnc); ok {
+		// This should be called even when enc is an empty string to initialize the encoding.
+		unmarshaler, err := unmarshalerWithEnc.WithEnc(enc)
+		if err != nil {
+			return nil, err
+		}
+		return unmarshaler, nil
+	}
+
+	return unmarshaler, nil
 }
 
 func (c *kafkaLogsConsumer) Start(_ context.Context, host component.Host) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancelConsumeLoop = cancel
-	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
+	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             c.settings.ID,
 		Transport:              transport,
 		ReceiverCreateSettings: c.settings,
@@ -318,6 +379,13 @@ func (c *kafkaLogsConsumer) Start(_ context.Context, host component.Host) error 
 		obsrecv:           obsrecv,
 		autocommitEnabled: c.autocommitEnabled,
 		messageMarking:    c.messageMarking,
+		headerExtractor:   &nopHeaderExtractor{},
+	}
+	if c.headerExtraction {
+		logsConsumerGroup.headerExtractor = &headerExtractor{
+			logger:  c.settings.Logger,
+			headers: c.headers,
+		}
 	}
 	go func() {
 		if err := c.consumeLoop(ctx, logsConsumerGroup); err != nil {
@@ -358,10 +426,11 @@ type tracesConsumerGroupHandler struct {
 
 	logger *zap.Logger
 
-	obsrecv *obsreport.Receiver
+	obsrecv *receiverhelper.ObsReport
 
 	autocommitEnabled bool
 	messageMarking    MessageMarking
+	headerExtractor   HeaderExtractor
 }
 
 type metricsConsumerGroupHandler struct {
@@ -373,10 +442,11 @@ type metricsConsumerGroupHandler struct {
 
 	logger *zap.Logger
 
-	obsrecv *obsreport.Receiver
+	obsrecv *receiverhelper.ObsReport
 
 	autocommitEnabled bool
 	messageMarking    MessageMarking
+	headerExtractor   HeaderExtractor
 }
 
 type logsConsumerGroupHandler struct {
@@ -388,10 +458,11 @@ type logsConsumerGroupHandler struct {
 
 	logger *zap.Logger
 
-	obsrecv *obsreport.Receiver
+	obsrecv *receiverhelper.ObsReport
 
 	autocommitEnabled bool
 	messageMarking    MessageMarking
+	headerExtractor   HeaderExtractor
 }
 
 var _ sarama.ConsumerGroupHandler = (*tracesConsumerGroupHandler)(nil)
@@ -448,6 +519,7 @@ func (c *tracesConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSe
 				return err
 			}
 
+			c.headerExtractor.extractHeadersTraces(traces, message)
 			spanCount := traces.SpanCount()
 			err = c.nextConsumer.ConsumeTraces(session.Context(), traces)
 			c.obsrecv.EndTracesOp(ctx, c.unmarshaler.Encoding(), spanCount, err)
@@ -466,7 +538,7 @@ func (c *tracesConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSe
 
 		// Should return when `session.Context()` is done.
 		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
-		// https://github.com/Shopify/sarama/issues/1192
+		// https://github.com/IBM/sarama/issues/1192
 		case <-session.Context().Done():
 			return nil
 		}
@@ -522,6 +594,7 @@ func (c *metricsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupS
 				}
 				return err
 			}
+			c.headerExtractor.extractHeadersMetrics(metrics, message)
 
 			dataPointCount := metrics.DataPointCount()
 			err = c.nextConsumer.ConsumeMetrics(session.Context(), metrics)
@@ -541,7 +614,7 @@ func (c *metricsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupS
 
 		// Should return when `session.Context()` is done.
 		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
-		// https://github.com/Shopify/sarama/issues/1192
+		// https://github.com/IBM/sarama/issues/1192
 		case <-session.Context().Done():
 			return nil
 		}
@@ -602,10 +675,10 @@ func (c *logsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSess
 				}
 				return err
 			}
-
+			c.headerExtractor.extractHeadersLogs(logs, message)
+			logRecordCount := logs.LogRecordCount()
 			err = c.nextConsumer.ConsumeLogs(session.Context(), logs)
-			// TODO
-			c.obsrecv.EndLogsOp(ctx, c.unmarshaler.Encoding(), logs.LogRecordCount(), err)
+			c.obsrecv.EndLogsOp(ctx, c.unmarshaler.Encoding(), logRecordCount, err)
 			if err != nil {
 				if c.messageMarking.After && c.messageMarking.OnError {
 					session.MarkMessage(message, "")
@@ -621,9 +694,22 @@ func (c *logsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSess
 
 		// Should return when `session.Context()` is done.
 		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
-		// https://github.com/Shopify/sarama/issues/1192
+		// https://github.com/IBM/sarama/issues/1192
 		case <-session.Context().Done():
 			return nil
 		}
+	}
+}
+
+func toSaramaInitialOffset(initialOffset string) (int64, error) {
+	switch initialOffset {
+	case offsetEarliest:
+		return sarama.OffsetOldest, nil
+	case offsetLatest:
+		fallthrough
+	case "":
+		return sarama.OffsetNewest, nil
+	default:
+		return 0, errInvalidInitialOffset
 	}
 }
