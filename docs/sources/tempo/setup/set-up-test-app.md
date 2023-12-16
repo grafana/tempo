@@ -30,10 +30,7 @@ To do this, you need to create a configuration that can be used by the Agent to 
 
 Create a new `values.yaml` file which we'll use as part of the Agent install.
 
-1. Create the file by using `touch`.
-   ```bash
-   touch values.yaml
-   ```
+1. Create a new `values.yaml` file which we'll use as part of the Agent install.
 1. Edit the `values.yaml` file and add the following configuration to it:
    ```yaml
    agent:
@@ -105,7 +102,7 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 1. Select **Tempo**.
 
-1. Set the URL to `http://<TEMPO-DISTRIBUTOR-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to Tempo's query frontend service, and the configured HTTP API prefix. If you have followed the [Deploy Tempo with Helm installation example]({{< relref "../setup/helm-chart.md" >}}), the query frontend service's URL will look something like this: `http://tempo-cluster-query-frontend.<namespace>.svc.cluster.local:3100`
+1. Set the URL to `http://<TEMPO-QUERY-FRONTEND-SERVICE>:<HTTP-LISTEN-PORT>/`, filling in the path to Tempo's query frontend service, and the configured HTTP API prefix. If you have followed the [Deploy Tempo with Helm installation example]({{< relref "../setup/helm-chart.md" >}}), the query frontend service's URL will look something like this: `http://tempo-cluster-query-frontend.<namespace>.svc.cluster.local:3100`
 
 1. Click **Save & Test**.
 
