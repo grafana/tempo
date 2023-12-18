@@ -72,19 +72,19 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchTagsMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTags, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, TagsResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagsResultHandlerFactory), retryWare)
 
 	searchTagsV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagsV2, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, TagsV2ResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagsV2ResultHandlerFactory), retryWare)
 
 	searchTagsValuesMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValues, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, TagValuesResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesResultHandlerFactory), retryWare)
 
 	searchTagsValuesV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValuesV2, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, TagValuesV2ResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesV2ResultHandlerFactory), retryWare)
 
 	metricsMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
@@ -228,19 +228,9 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 }
 
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger, TagShardHandler tagResultHandlerFactory) Middleware {
+func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger, resultsHandlerFactory tagResultHandlerFactory) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		ingesterSearchRT := NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, TagShardHandler, logger))
-
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// ingester search tags queries only need to be proxied to a single querier
-			orgID, _ := user.ExtractOrgID(r.Context())
-
-			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
-
-			return ingesterSearchRT.RoundTrip(r)
-		})
+		return NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, resultsHandlerFactory, logger))
 	})
 }
 

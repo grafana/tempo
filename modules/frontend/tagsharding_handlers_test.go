@@ -49,7 +49,7 @@ func TestTagsResultsHandler(t *testing.T) {
 	}{
 		{
 			name:           "TagsResultHandler",
-			factory:        TagsResultHandlerFactory,
+			factory:        tagsResultHandlerFactory,
 			request:        "/?start=100&end=200",
 			result1:        "{ \"tagNames\":[\"tag1\"]}",
 			result2:        "{ \"tagNames\":[\"tag2\",\"tag3\"]}",
@@ -84,7 +84,7 @@ func TestTagsResultsHandler(t *testing.T) {
 		},
 		{
 			name:           "TagValuesResultHandler",
-			factory:        TagValuesResultHandlerFactory,
+			factory:        tagValuesResultHandlerFactory,
 			request:        "/?start=100&end=200",
 			result1:        "{ \"tagValues\":[\"tag1\"]}",
 			result2:        "{ \"tagValues\":[\"tag2\",\"tag3\"]}",
@@ -119,7 +119,7 @@ func TestTagsResultsHandler(t *testing.T) {
 		{
 			name:           "TagValuesV2ResultHandler",
 			request:        "/.service.name/?start=100&end=200",
-			factory:        TagValuesV2ResultHandlerFactory,
+			factory:        tagValuesV2ResultHandlerFactory,
 			result1:        "{\"tagValues\":[{\"type\":\"string\",\"value\":\"v1\"}]}",
 			result2:        "{\"tagValues\":[{\"type\":\"string\",\"value\":\"v2\"},{\"type\":\"string\",\"value\":\"v3\"}]}",
 			expectedResult: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"v1\"},{\"type\":\"string\",\"value\":\"v2\"},{\"type\":\"string\",\"value\":\"v3\"}]}",
@@ -159,7 +159,7 @@ func TestTagsResultsHandler(t *testing.T) {
 		{
 			name:           "TagsV2ResultHandler",
 			request:        "/.service.name/?start=100&end=200",
-			factory:        TagsV2ResultHandlerFactory,
+			factory:        tagsV2ResultHandlerFactory,
 			result1:        "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"v1\"]}]}",
 			result2:        "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"v1\",\"v2\"]}]}",
 			expectedResult: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"v1\",\"v2\"]}]}",

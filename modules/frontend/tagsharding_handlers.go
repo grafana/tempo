@@ -99,13 +99,13 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 	})
 }
 
-// TagsResultsHandler handled all request/response payloads for querier and for return to frontend for tags.
-type TagsResultsHandler struct {
+// tagsResultsHandler handled all request/response payloads for querier and for return to frontend for tags.
+type tagsResultsHandler struct {
 	limit           int
 	resultsCombiner *util.DistinctStringCollector
 }
 
-func (h *TagsResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
+func (h *tagsResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
 	searchReq, err := api.ParseSearchTagsRequest(r)
 	if err != nil {
 		return nil, err
@@ -115,11 +115,11 @@ func (h *TagsResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error)
 	}, nil
 }
 
-func (h *TagsResultsHandler) shouldQuit() bool {
+func (h *tagsResultsHandler) shouldQuit() bool {
 	return h.resultsCombiner.Exceeded()
 }
 
-func (h *TagsResultsHandler) addResponse(r io.ReadCloser) error {
+func (h *tagsResultsHandler) addResponse(r io.ReadCloser) error {
 	results := &tempopb.SearchTagsResponse{}
 	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(r, results)
 	if err != nil {
@@ -131,7 +131,7 @@ func (h *TagsResultsHandler) addResponse(r io.ReadCloser) error {
 	return nil
 }
 
-func (h *TagsResultsHandler) marshalResult() (string, error) {
+func (h *tagsResultsHandler) marshalResult() (string, error) {
 	m := &jsonpb.Marshaler{}
 	bodyString, err := m.MarshalToString(&tempopb.SearchTagsResponse{
 		TagNames: h.resultsCombiner.Strings(),
@@ -142,20 +142,20 @@ func (h *TagsResultsHandler) marshalResult() (string, error) {
 	return bodyString, nil
 }
 
-func TagsResultHandlerFactory(limit int) tagResultsHandler {
-	return &TagsResultsHandler{
+func tagsResultHandlerFactory(limit int) tagResultsHandler {
+	return &tagsResultsHandler{
 		limit:           limit,
 		resultsCombiner: util.NewDistinctStringCollector(limit),
 	}
 }
 
-// TagValuesResultsHandler handled all request/response payloads for querier and for return to frontend for tag values.
-type TagValuesResultsHandler struct {
+// tagValuesResultsHandler handled all request/response payloads for querier and for return to frontend for tag values.
+type tagValuesResultsHandler struct {
 	limit           int
 	resultsCombiner *util.DistinctStringCollector
 }
 
-func (h *TagValuesResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
+func (h *tagValuesResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
 	searchReq, err := api.ParseSearchTagValuesRequest(r)
 	if err != nil {
 		return nil, err
@@ -165,11 +165,11 @@ func (h *TagValuesResultsHandler) parseRequest(r *http.Request) (tagSearchReq, e
 	}, nil
 }
 
-func (h *TagValuesResultsHandler) shouldQuit() bool {
+func (h *tagValuesResultsHandler) shouldQuit() bool {
 	return h.resultsCombiner.Exceeded()
 }
 
-func (h *TagValuesResultsHandler) addResponse(r io.ReadCloser) error {
+func (h *tagValuesResultsHandler) addResponse(r io.ReadCloser) error {
 	results := &tempopb.SearchTagValuesResponse{}
 	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(r, results)
 	if err != nil {
@@ -181,7 +181,7 @@ func (h *TagValuesResultsHandler) addResponse(r io.ReadCloser) error {
 	return nil
 }
 
-func (h *TagValuesResultsHandler) marshalResult() (string, error) {
+func (h *tagValuesResultsHandler) marshalResult() (string, error) {
 	m := &jsonpb.Marshaler{}
 	bodyString, err := m.MarshalToString(&tempopb.SearchTagValuesResponse{
 		TagValues: h.resultsCombiner.Strings(),
@@ -192,20 +192,20 @@ func (h *TagValuesResultsHandler) marshalResult() (string, error) {
 	return bodyString, nil
 }
 
-func TagValuesResultHandlerFactory(limit int) tagResultsHandler {
-	return &TagValuesResultsHandler{
+func tagValuesResultHandlerFactory(limit int) tagResultsHandler {
+	return &tagValuesResultsHandler{
 		limit:           limit,
 		resultsCombiner: util.NewDistinctStringCollector(limit),
 	}
 }
 
-// TagsV2ResultsHandler handled all request/response payloads for querier and for return to frontend for tags for v2
-type TagsV2ResultsHandler struct {
+// tagsV2ResultsHandler handled all request/response payloads for querier and for return to frontend for tags for v2
+type tagsV2ResultsHandler struct {
 	limit           int
 	resultsCombiner map[string]*util.DistinctStringCollector
 }
 
-func (h *TagsV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
+func (h *tagsV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
 	searchReq, err := api.ParseSearchTagsRequest(r)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func (h *TagsV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, erro
 	}, nil
 }
 
-func (h *TagsV2ResultsHandler) shouldQuit() bool {
+func (h *tagsV2ResultsHandler) shouldQuit() bool {
 	for _, combiner := range h.resultsCombiner {
 		if combiner.Exceeded() {
 			return true
@@ -224,7 +224,7 @@ func (h *TagsV2ResultsHandler) shouldQuit() bool {
 	return false
 }
 
-func (h *TagsV2ResultsHandler) addResponse(r io.ReadCloser) error {
+func (h *tagsV2ResultsHandler) addResponse(r io.ReadCloser) error {
 	results := &tempopb.SearchTagsV2Response{}
 	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(r, results)
 	if err != nil {
@@ -242,7 +242,7 @@ func (h *TagsV2ResultsHandler) addResponse(r io.ReadCloser) error {
 	return nil
 }
 
-func (h *TagsV2ResultsHandler) marshalResult() (string, error) {
+func (h *tagsV2ResultsHandler) marshalResult() (string, error) {
 	var scopes []*tempopb.SearchTagsV2Scope
 	for name, tags := range h.resultsCombiner {
 		scopes = append(scopes, &tempopb.SearchTagsV2Scope{
@@ -262,19 +262,19 @@ func (h *TagsV2ResultsHandler) marshalResult() (string, error) {
 	return bodyString, nil
 }
 
-func TagsV2ResultHandlerFactory(limit int) tagResultsHandler {
-	return &TagsV2ResultsHandler{
+func tagsV2ResultHandlerFactory(limit int) tagResultsHandler {
+	return &tagsV2ResultsHandler{
 		limit:           limit,
 		resultsCombiner: map[string]*util.DistinctStringCollector{},
 	}
 }
 
-type TagValuesV2ResultsHandler struct {
+type tagValuesV2ResultsHandler struct {
 	limit           int
 	resultsCombiner *util.DistinctValueCollector[tempopb.TagValue]
 }
 
-func (h *TagValuesV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
+func (h *tagValuesV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
 	searchReq, err := api.ParseSearchTagValuesRequest(r)
 	if err != nil {
 		return nil, err
@@ -284,11 +284,11 @@ func (h *TagValuesV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq,
 	}, nil
 }
 
-func (h *TagValuesV2ResultsHandler) shouldQuit() bool {
+func (h *tagValuesV2ResultsHandler) shouldQuit() bool {
 	return h.resultsCombiner.Exceeded()
 }
 
-func (h *TagValuesV2ResultsHandler) addResponse(r io.ReadCloser) error {
+func (h *tagValuesV2ResultsHandler) addResponse(r io.ReadCloser) error {
 	results := &tempopb.SearchTagValuesV2Response{}
 	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(r, results)
 	if err != nil {
@@ -302,7 +302,7 @@ func (h *TagValuesV2ResultsHandler) addResponse(r io.ReadCloser) error {
 	return nil
 }
 
-func (h *TagValuesV2ResultsHandler) marshalResult() (string, error) {
+func (h *tagValuesV2ResultsHandler) marshalResult() (string, error) {
 	m := &jsonpb.Marshaler{}
 
 	var resp []*tempopb.TagValue
@@ -321,8 +321,8 @@ func (h *TagValuesV2ResultsHandler) marshalResult() (string, error) {
 	return bodyString, nil
 }
 
-func TagValuesV2ResultHandlerFactory(limit int) tagResultsHandler {
-	return &TagValuesV2ResultsHandler{
+func tagValuesV2ResultHandlerFactory(limit int) tagResultsHandler {
+	return &tagValuesV2ResultsHandler{
 		limit:           limit,
 		resultsCombiner: util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }),
 	}
