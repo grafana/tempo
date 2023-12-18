@@ -172,7 +172,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{}, start.Unix(), end.Unix())
+			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, tc.expected, start.Unix(), end.Unix())
 		})
 	}
 }
@@ -217,7 +217,7 @@ func TestSearchTags(t *testing.T) {
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
-	// Assert tags on storage backen
+	// Assert tags on storage backend
 	now := time.Now()
 	start := now.Add(-2 * time.Hour)
 	end := now.Add(2 * time.Hour)
@@ -256,9 +256,7 @@ func TestSearchTagValues(t *testing.T) {
 	time.Sleep(time.Second * 3)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
-	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
-	// 5s for security.
-	time.Sleep(time.Second * 30)
+	callFlush(t, tempo)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
 	// Assert no more on the ingester
 
@@ -287,7 +285,8 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	if end != 0 {
 		q.Set("end", strconv.Itoa(int(end)))
 	}
-	// req.URL.RawQuery = q.Encode()
+
+	req.URL.RawQuery = q.Encode()
 
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
