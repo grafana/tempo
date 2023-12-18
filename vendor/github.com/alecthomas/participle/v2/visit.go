@@ -20,7 +20,7 @@ func visit(n node, visitor func(n node, next func() error) error) error {
 		case *custom:
 			return nil
 		case *union:
-			for _, member := range n.nodeMembers {
+			for _, member := range n.disjunction.nodes {
 				if err := visit(member, visitor); err != nil {
 					return err
 				}
@@ -40,10 +40,6 @@ func visit(n node, visitor func(n node, next func() error) error) error {
 			return visit(n.node, visitor)
 		case *reference:
 			return nil
-		case *optional:
-			return visit(n.node, visitor)
-		case *repetition:
-			return visit(n.node, visitor)
 		case *negation:
 			return visit(n.node, visitor)
 		case *literal:

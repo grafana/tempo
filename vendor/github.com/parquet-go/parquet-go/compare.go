@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"encoding/binary"
+	"sync"
 
 	"github.com/parquet-go/parquet-go/deprecated"
 )
@@ -258,6 +259,8 @@ func compareRowsFuncOfColumnIndexes(leafColumns []leafColumn, sortingColumns []S
 	}
 }
 
+var columnPool = &sync.Pool{New: func() any { return make([][2]int32, 0, 128) }}
+
 //go:noinline
 func compareRowsFuncOfColumnValues(leafColumns []leafColumn, sortingColumns []SortingColumn) func(Row, Row) int {
 	highestColumnIndex := int16(0)
@@ -289,8 +292,14 @@ func compareRowsFuncOfColumnValues(leafColumns []leafColumn, sortingColumns []So
 	}
 
 	return func(row1, row2 Row) int {
-		columns1 := make([][2]int32, 0, 64)
-		columns2 := make([][2]int32, 0, 64)
+		columns1 := columnPool.Get().([][2]int32)
+		columns2 := columnPool.Get().([][2]int32)
+		defer func() {
+			columns1 = columns1[:0]
+			columns2 = columns2[:0]
+			columnPool.Put(columns1)
+			columnPool.Put(columns2)
+		}()
 
 		i1 := 0
 		i2 := 0

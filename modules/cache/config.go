@@ -2,6 +2,7 @@ package cache
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"strings"
 
@@ -41,6 +42,10 @@ func (cfg *Config) Validate() error {
 
 		// check that all roles are unique
 		for _, role := range cacheCfg.Role {
+			if role == cache.RoleNone {
+				return fmt.Errorf("role none is not a valid role")
+			}
+
 			if _, ok := allRoles[role]; !ok {
 				return fmt.Errorf("role %s is not a valid role", role)
 			}
@@ -54,6 +59,12 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (cfg *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
+	cfg.Background = &cache.BackgroundConfig{}
+	cfg.Background.WriteBackBuffer = 10000
+	cfg.Background.WriteBackGoroutines = 10
 }
 
 // Name returns a string representation of the roles claimed by this cache.
@@ -72,6 +83,8 @@ func allRoles() map[cache.Role]struct{} {
 		cache.RoleParquetColumnIdx,
 		cache.RoleParquetOffsetIdx,
 		cache.RoleTraceIDIdx,
+		cache.RoleFrontendSearch,
+		cache.RoleParquetPage,
 	}
 
 	roles := map[cache.Role]struct{}{}

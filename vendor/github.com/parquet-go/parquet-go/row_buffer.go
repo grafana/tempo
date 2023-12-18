@@ -180,9 +180,9 @@ func (c *rowBufferColumnChunk) Column() int { return c.page.Column() }
 
 func (c *rowBufferColumnChunk) Pages() Pages { return onePage(&c.page) }
 
-func (c *rowBufferColumnChunk) ColumnIndex() ColumnIndex { return nil }
+func (c *rowBufferColumnChunk) ColumnIndex() (ColumnIndex, error) { return nil, nil }
 
-func (c *rowBufferColumnChunk) OffsetIndex() OffsetIndex { return nil }
+func (c *rowBufferColumnChunk) OffsetIndex() (OffsetIndex, error) { return nil, nil }
 
 func (c *rowBufferColumnChunk) BloomFilter() BloomFilter { return nil }
 

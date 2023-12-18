@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package opencensus // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus"
 
@@ -22,9 +11,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
-// OCToMetrics converts OC data format to data.MetricData.
-// Deprecated: use pmetric.Metrics instead. OCToMetrics may be used only by OpenCensus
-// receiver and exporter implementations.
+// OCToMetrics converts OC data format to pmetric.Metrics,
+// may be used only by OpenCensus receiver and exporter implementations.
 func OCToMetrics(node *occommon.Node, resource *ocresource.Resource, metrics []*ocmetrics.Metric) pmetric.Metrics {
 	dest := pmetric.NewMetrics()
 	if node == nil && resource == nil && len(metrics) == 0 {

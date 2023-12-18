@@ -49,7 +49,12 @@ func (p *StringInPredicate) String() string {
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
-	if ci := cc.ColumnIndex(); ci != nil {
+	if d := cc.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	ci, err := cc.ColumnIndex()
+	if err == nil && ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
 				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
@@ -60,10 +65,6 @@ func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 			}
 		}
 		return false
-	}
-
-	if d := cc.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
 	}
 
 	return true
@@ -246,7 +247,8 @@ func (p *IntBetweenPredicate) String() string {
 }
 
 func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	if ci := c.ColumnIndex(); ci != nil {
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Int64()
 			max := ci.MaxValue(i).Int64()
@@ -294,11 +296,16 @@ func (p *GenericPredicate[T]) String() string {
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
 	if p.RangeFn == nil {
 		return true
 	}
 
-	if ci := c.ColumnIndex(); ci != nil {
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := p.Extract(ci.MinValue(i))
 			max := p.Extract(ci.MaxValue(i))
@@ -307,10 +314,6 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c *ColumnChunkHelper) bool {
 			}
 		}
 		return false
-	}
-
-	if d := c.Dictionary(); d != nil {
-		return keepDictionary(d, p.KeepValue)
 	}
 
 	return true
@@ -367,7 +370,8 @@ func (p *FloatBetweenPredicate) String() string {
 }
 
 func (p *FloatBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	if ci := c.ColumnIndex(); ci != nil {
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
 			min := ci.MinValue(i).Double()
 			max := ci.MaxValue(i).Double()
