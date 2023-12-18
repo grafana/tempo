@@ -204,13 +204,6 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 	}
 }
 
-func (o *userConfigurableOverridesManager) GetLevel(level Level) Interface {
-	if level == LevelUserConfigurable {
-		return o
-	}
-	return o.Interface.GetLevel(level)
-}
-
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 	if forwarders, ok := o.getTenantLimits(userID).GetForwarders(); ok {
 		return forwarders

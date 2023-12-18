@@ -191,8 +191,7 @@ func (a *UserConfigOverridesAPI) assertNoConflictingRuntimeOverrides(ctx context
 		return nil
 	}
 
-	runtimeOverridesManager := a.overrides.GetLevel(overrides.LevelRuntime)
-	runtimeOverrides := runtimeOverridesManager.GetOverrides(userID)
+	runtimeOverrides := a.overrides.GetRuntimeOverridesFor(userID)
 
 	// convert overrides.Overrides to client.Limits through marshalling and unmarshalling it from json
 	// this is the easiest way to convert the optional fields

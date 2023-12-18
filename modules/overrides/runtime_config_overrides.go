@@ -241,11 +241,7 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	return nil
 }
 
-func (o *runtimeConfigOverridesManager) GetLevel(_ Level) Interface {
-	return o
-}
-
-func (o *runtimeConfigOverridesManager) GetOverrides(userID string) *Overrides {
+func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
 	return o.getOverridesForUser(userID)
 }
 
