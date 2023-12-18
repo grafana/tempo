@@ -1,0 +1,71 @@
+target: all
+multitenancy_enabled: true
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+query_frontend:
+  search:
+    query_backend_after: 0 # setting these both to 0 will force all range searches to hit the backend
+    query_ingesters_until: 0
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+    otlp:
+      protocols:
+        grpc:
+    zipkin:
+  log_received_spans:
+    enabled: true
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 1s
+  max_block_bytes: 1
+  max_block_duration: 2s
+  complete_block_timeout: 20s
+  flush_check_period: 1s
+
+metrics_generator:
+  processor:
+    service_graphs:
+      histogram_buckets: [1, 2]  # seconds
+    span_metrics:
+      histogram_buckets: [1, 2]
+  registry:
+    collection_interval: 1s
+  storage:
+    path: /var/tempo
+    remote_write:
+      - url: http://tempo_e2e-prometheus:9090/api/v1/write
+        send_exemplars: true
+
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    pool:
+      max_workers: 10
+      queue_depth: 100
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
+    client:
+      backend: local
+      local:
+        path: /var/tempo_overrides
