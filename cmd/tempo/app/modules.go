@@ -370,12 +370,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		return nil, err
 	}
 
-	// wrap handlers with auth
-	middleware := middleware.Merge(
-		t.HTTPAuthMiddleware,
-		httpGzipMiddleware(),
-	)
-
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
 	// we register the streaming querier service on both the http and grpc servers. Grafana expects
