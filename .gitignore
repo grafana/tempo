@@ -17,3 +17,5 @@
 /tempo-vulture
 /tempodb/encoding/benchmark_block
 private-key.key
+integration/e2e/e2e_integration_test[0-9]*
+integration/e2e/metrics_*_dump.txt
