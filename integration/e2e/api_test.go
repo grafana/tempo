@@ -190,19 +190,7 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
-	type batchTmpl struct {
-		spanCount                  int
-		name                       string
-		resourceAttVal, spanAttVal string
-	}
-
-	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar"}
-	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux"}
-
-	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal)
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal)
+	batch := makeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
@@ -237,26 +225,14 @@ func TestSearchTagValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
-	type batchTmpl struct {
-		spanCount                  int
-		name                       string
-		resourceAttVal, spanAttVal string
-	}
-
-	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar"}
-	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux"}
-
-	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal)
-	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
-
-	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal)
+	batch := makeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
-	callFlush(t, tempo)
+	time.Sleep(time.Second * 30)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
 	// Assert no more on the ingester
 
