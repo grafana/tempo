@@ -124,7 +124,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 
 	go concurrent(func() {
 		_, err := p.QueryRange(ctx, &tempopb.QueryRangeRequest{
-			Query: "{} | rate()",
+			Query: "{} | rate() by (resource.service.name)",
 			Start: uint64(time.Now().Add(-5 * time.Minute).UnixNano()),
 			End:   uint64(time.Now().UnixNano()),
 			Step:  uint64(30 * time.Second),
