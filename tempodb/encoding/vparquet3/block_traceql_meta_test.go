@@ -373,16 +373,28 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				ss = append(ss, spanSet)
 			}
 
-			// equal will fail on the rownum mismatches. this is an internal detail to the
-			// fetch layer. just wipe them out here
+			// Clean up span internal details for consistent comparison.
+			// (1) Wipe out internal fields like rownum.
+			// (2) Wipe out empty leftover buffers from pooling.
 			for _, s := range ss {
 				for _, sp := range s.Spans {
-					sp.(*span).cbSpanset = nil
-					sp.(*span).cbSpansetFinal = false
-					sp.(*span).rowNum = parquetquery.RowNumber{}
+					spn := sp.(*span)
+					spn.cbSpanset = nil
+					spn.cbSpansetFinal = false
+					spn.rowNum = parquetquery.RowNumber{}
+
+					if len(spn.traceAttrs) == 0 {
+						spn.traceAttrs = nil
+					}
+					if len(spn.resourceAttrs) == 0 {
+						spn.resourceAttrs = nil
+					}
+					if len(spn.spanAttrs) == 0 {
+						spn.spanAttrs = nil
+					}
 
 					// sort actual attrs to get consistent comparisons
-					sortSpanAttrs(sp.(*span))
+					sortSpanAttrs(spn)
 				}
 				s.ReleaseFn = nil
 			}
