@@ -205,16 +205,6 @@ type tagsV2ResultsHandler struct {
 	resultsCombiner map[string]*util.DistinctStringCollector
 }
 
-func (h *tagsV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
-	searchReq, err := api.ParseSearchTagsRequest(r)
-	if err != nil {
-		return nil, err
-	}
-	return &tagsSearchRequest{
-		request: *searchReq,
-	}, nil
-}
-
 func (h *tagsV2ResultsHandler) shouldQuit() bool {
 	for _, combiner := range h.resultsCombiner {
 		if combiner.Exceeded() {
@@ -272,16 +262,6 @@ func tagsV2ResultHandlerFactory(limit int) tagResultsHandler {
 type tagValuesV2ResultsHandler struct {
 	limit           int
 	resultsCombiner *util.DistinctValueCollector[tempopb.TagValue]
-}
-
-func (h *tagValuesV2ResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
-	searchReq, err := api.ParseSearchTagValuesRequest(r)
-	if err != nil {
-		return nil, err
-	}
-	return &tagValueSearchRequest{
-		request: *searchReq,
-	}, nil
 }
 
 func (h *tagValuesV2ResultsHandler) shouldQuit() bool {
