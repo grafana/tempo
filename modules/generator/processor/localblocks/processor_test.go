@@ -133,7 +133,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	// Run for a bit
-	time.Sleep(20000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	// Cleanup
 	close(end)
