@@ -22,21 +22,22 @@ import (
 )
 
 type tagResultsHandler interface {
-	parseRequest(*http.Request) (tagSearchReq, error)
 	shouldQuit() bool
 	addResponse(io.ReadCloser) error
 	marshalResult() (string, error)
 }
 
-type tagResultHandlerFactory func(limit int) tagResultsHandler
-
-type tagSearchReq interface {
-	start() uint32
-	end() uint32
-	adjustRange(start, end uint32) tagSearchReq
-	buildSearchTagRequest(subR *http.Request) (*http.Request, error)
-	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
-}
+type (
+	tagResultHandlerFactory func(limit int) tagResultsHandler
+	parseRequestFunction    func(r *http.Request) (tagSearchReq, error)
+	tagSearchReq            interface {
+		start() uint32
+		end() uint32
+		adjustRange(start, end uint32) tagSearchReq
+		buildSearchTagRequest(subR *http.Request) (*http.Request, error)
+		buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
+	}
+)
 
 type tagResultCollector struct {
 	delegate   tagResultsHandler
@@ -54,6 +55,7 @@ type searchTagSharder struct {
 	tagShardHandlerFactory tagResultHandlerFactory
 	cfg                    SearchSharderConfig
 	logger                 log.Logger
+	parseRequest           parseRequestFunction
 }
 
 type tagResults struct {
@@ -64,9 +66,9 @@ type tagResults struct {
 	marshallErr error
 }
 
-func (r *tagResultCollector) parseRequest(re *http.Request) (tagSearchReq, error) {
+/* func (r *tagResultCollector) parseRequest(re *http.Request) (tagSearchReq, error) {
 	return r.delegate.parseRequest(re)
-}
+}*/
 
 func (r *tagResultCollector) shouldQuit() bool {
 	r.mtx.Lock()
@@ -149,7 +151,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	handler := newTagResultCollector(requestCtx, s.tagShardHandlerFactory, s.overrides.MaxBytesPerTagValuesQuery(tenantID))
 
-	searchReq, err := handler.parseRequest(r)
+	searchReq, err := s.parseRequest(r)
 	if err != nil {
 		return s.httpErrorResponse(err), nil
 	}
@@ -416,6 +418,7 @@ func (s searchTagSharder) maxDuration(tenantID string) time.Duration {
 func newTagsSharding(
 	reader tempodb.Reader, o overrides.Interface,
 	cfg SearchSharderConfig, tagShardHandler tagResultHandlerFactory, logger log.Logger,
+	parseRequest parseRequestFunction,
 ) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchTagSharder{
@@ -425,6 +428,7 @@ func newTagsSharding(
 			cfg:                    cfg,
 			logger:                 logger,
 			tagShardHandlerFactory: tagShardHandler,
+			parseRequest:           parseRequest,
 		}
 	})
 }

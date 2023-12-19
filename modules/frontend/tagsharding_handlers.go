@@ -105,7 +105,7 @@ type tagsResultsHandler struct {
 	resultsCombiner *util.DistinctStringCollector
 }
 
-func (h *tagsResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
+func parseTagsRequest(r *http.Request) (tagSearchReq, error) {
 	searchReq, err := api.ParseSearchTagsRequest(r)
 	if err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ type tagValuesResultsHandler struct {
 	resultsCombiner *util.DistinctStringCollector
 }
 
-func (h *tagValuesResultsHandler) parseRequest(r *http.Request) (tagSearchReq, error) {
+func parseTagValuesRequest(r *http.Request) (tagSearchReq, error) {
 	searchReq, err := api.ParseSearchTagValuesRequest(r)
 	if err != nil {
 		return nil, err

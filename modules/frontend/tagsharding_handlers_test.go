@@ -46,6 +46,7 @@ func TestTagsResultsHandler(t *testing.T) {
 		overflowRes2         string
 		limit                int
 		assertResultFunction func(t *testing.T, result, expected string)
+		parseRequestFunction parseRequestFunction
 	}{
 		{
 			name:           "TagsResultHandler",
@@ -81,6 +82,7 @@ func TestTagsResultsHandler(t *testing.T) {
 				sort.Strings(resultStruct.TagNames)
 				assert.Equal(t, expectedStruct, resultStruct)
 			},
+			parseRequestFunction: parseTagsRequest,
 		},
 		{
 			name:           "TagValuesResultHandler",
@@ -115,6 +117,7 @@ func TestTagsResultsHandler(t *testing.T) {
 				sort.Strings(resultStruct.TagValues)
 				assert.Equal(t, expectedStruct, resultStruct)
 			},
+			parseRequestFunction: parseTagValuesRequest,
 		},
 		{
 			name:           "TagValuesV2ResultHandler",
@@ -155,6 +158,7 @@ func TestTagsResultsHandler(t *testing.T) {
 
 				assert.Equal(t, expectedStruct, resultStruct)
 			},
+			parseRequestFunction: parseTagValuesRequest,
 		},
 		{
 			name:           "TagsV2ResultHandler",
@@ -190,6 +194,7 @@ func TestTagsResultsHandler(t *testing.T) {
 
 				assert.Equal(t, expectedStruct, resultStruct)
 			},
+			parseRequestFunction: parseTagsRequest,
 		},
 	}
 	for _, tc := range tests {
@@ -218,7 +223,7 @@ func TestTagsResultsHandler(t *testing.T) {
 			tc.assertResultFunction(t, tc.expectedResult, res)
 
 			// Test parse request
-			req, err := handler.parseRequest(r)
+			req, err := tc.parseRequestFunction(r)
 			require.NoError(t, err)
 			assert.Equal(t, start, req.start())
 			assert.Equal(t, end, req.end())

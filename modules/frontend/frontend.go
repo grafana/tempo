@@ -72,19 +72,19 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchTagsMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTags, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagsResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagsResultHandlerFactory, parseTagsRequest), retryWare)
 
 	searchTagsV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagsV2, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagsV2ResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagsV2ResultHandlerFactory, parseTagsRequest), retryWare)
 
 	searchTagsValuesMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValues, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesResultHandlerFactory, parseTagValuesRequest), retryWare)
 
 	searchTagsValuesV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValuesV2, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesV2ResultHandlerFactory), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesV2ResultHandlerFactory, parseTagValuesRequest), retryWare)
 
 	metricsMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
@@ -228,9 +228,11 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 }
 
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger, resultsHandlerFactory tagResultHandlerFactory) Middleware {
+func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger,
+	resultsHandlerFactory tagResultHandlerFactory, parseRequest parseRequestFunction,
+) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, resultsHandlerFactory, logger))
+		return NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, resultsHandlerFactory, logger, parseRequest))
 	})
 }
 

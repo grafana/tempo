@@ -54,7 +54,7 @@ func (m *mockReader) SearchTagsV2(context.Context, *backend.BlockMeta, []string,
 	return nil, nil
 }
 
-func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, bool, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
 	return nil, nil
 }
 
