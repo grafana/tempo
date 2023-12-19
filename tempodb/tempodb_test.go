@@ -135,7 +135,7 @@ func TestSearchForTags(t *testing.T) {
 
 	tagValues, err := r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
 		TagName: ".service.name",
-	}, common.DefaultSearchOptions())
+	}, true, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 
 	expected := []*tempopb.TagValue{
@@ -160,7 +160,7 @@ func TestSearchForTags(t *testing.T) {
 
 	tagValues, err = r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
 		TagName: "span.intTag",
-	}, common.DefaultSearchOptions())
+	}, true, common.DefaultSearchOptions())
 	require.NoError(t, err)
 
 	expected = []*tempopb.TagValue{
@@ -185,7 +185,7 @@ func TestSearchForTags(t *testing.T) {
 	tagValues, err = r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
 		TagName: "span.intTag",
 		Query:   `{resource.service.name="test-service-2"}`,
-	}, common.DefaultSearchOptions())
+	}, true, common.DefaultSearchOptions())
 
 	require.NoError(t, err)
 

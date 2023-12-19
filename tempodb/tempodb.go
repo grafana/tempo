@@ -83,7 +83,7 @@ type Reader interface {
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
-	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
+	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, enableAutocompleteFilter bool, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 	Shutdown()
 }
 
@@ -401,7 +401,7 @@ func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.Block
 	return tags, err
 }
 
-func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, enableAutocompleteFilter bool, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return nil, err
@@ -418,7 +418,7 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 
 	query := traceql.ExtractMatchers(req.Query)
 
-	if !traceql.IsEmptyQuery(query) {
+	if !enableAutocompleteFilter || !traceql.IsEmptyQuery(query) {
 		fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
 			return block.FetchTagValues(ctx, req, cb, opts)
 		})

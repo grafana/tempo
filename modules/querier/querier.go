@@ -978,7 +978,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 			},
 		}, nil
 	}
-	resp, err := q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
+	resp, err := q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, true, opts)
 	if err != nil {
 		return nil, err
 	}
