@@ -97,12 +97,12 @@ type analyseBlockCmd struct {
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
-	r, _, c, err := loadBackend(&cmd.backendOptions, ctx)
+	r, _, _, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
 	}
 
-	blockSum, err := processBlock(r, c, cmd.TenantID, cmd.BlockID, time.Hour, 0)
+	blockSum, err := processBlock(r, cmd.TenantID, cmd.BlockID, time.Time{}, 0)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
 			return fmt.Errorf("unable to analyze block: block has no block.meta because it was compacted")
@@ -117,7 +117,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet)
 }
 
-func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID string, _ time.Duration, minCompactionLvl uint8) (*blockSummary, error) {
+func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime time.Time, minCompactionLvl uint8) (*blockSummary, error) {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
@@ -125,6 +125,9 @@ func processBlock(r backend.Reader, _ backend.Compactor, tenantID, blockID strin
 		return nil, err
 	}
 	if meta.CompactionLevel < minCompactionLvl {
+		return nil, nil
+	}
+	if meta.StartTime.After(maxStartTime) {
 		return nil, nil
 	}
 

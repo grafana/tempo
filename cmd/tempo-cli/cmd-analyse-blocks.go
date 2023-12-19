@@ -17,10 +17,11 @@ type analyseBlocksCmd struct {
 	MinCompactionLevel int    `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks          int    `help:"Max number of blocks to analyse" default:"10"`
 	NumAttr            int    `help:"Number of attributes to display" default:"15"`
+	MaxStartTime       string `help:"Oldest start time for a block to be processed. RFC3339 format '2006-01-02T15:04:05Z07:00'" default:""`
 }
 
 func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
-	r, _, c, err := loadBackend(&cmd.backendOptions, ctx)
+	r, _, _, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
 	}
@@ -35,13 +36,21 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 	topSpanAttrs, topResourceAttrs := make(map[string]uint64), make(map[string]uint64)
 	totalSpanBytes, totalResourceBytes := uint64(0), uint64(0)
 
+	var maxStartTime time.Time
+	if cmd.MaxStartTime != "" {
+		maxStartTime, err = time.Parse(time.RFC3339, cmd.MaxStartTime)
+		if err != nil {
+			return err
+		}
+	}
+
 	for i := 0; i < len(blocks) && len(processedBlocks) < cmd.MaxBlocks; i++ {
 		block := blocks[i]
 		if _, ok := processedBlocks[block]; ok {
 			continue
 		}
 
-		blockSum, err := processBlock(r, c, cmd.TenantID, block.String(), time.Hour, uint8(cmd.MinCompactionLevel))
+		blockSum, err := processBlock(r, cmd.TenantID, block.String(), maxStartTime, uint8(cmd.MinCompactionLevel))
 		if err != nil {
 			if !errors.Is(err, backend.ErrDoesNotExist) {
 				return err
