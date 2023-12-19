@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
@@ -13,12 +12,12 @@ type DumpLine struct {
 	Line      []*parquet.Value
 }
 
-func (d *DumpLine) Data() interface{} {
+func (d *DumpLine) Data() any {
 	return d.Line
 }
 
-func (d *DumpLine) Cells() []interface{} {
-	cells := make([]interface{}, 0, len(d.Line)+1)
+func (d *DumpLine) Cells() []any {
+	cells := make([]any, 0, len(d.Line)+1)
 	if d.RowNumber == nil {
 		cells = append(cells, "")
 	} else {
@@ -41,10 +40,10 @@ func (d *DumpLine) Cells() []interface{} {
 
 type RowDumpOptions struct {
 	Pagination
-	SelectedCols []int
+	Columns []int
 }
 
-func NewRowDump(file *parquet.File, options RowStatOptions) (*RowDump, error) {
+func NewRowDump(file *parquet.File, options RowDumpOptions) (*RowDump, error) {
 	all := LeafColumns(file)
 	var columns []*parquet.Column
 
@@ -54,14 +53,14 @@ func NewRowDump(file *parquet.File, options RowStatOptions) (*RowDump, error) {
 		columns = make([]*parquet.Column, 0, len(options.Columns))
 		for _, idx := range options.Columns {
 			if idx >= len(all) {
-				return nil, errors.Errorf("column index expectd be below %d but was %d", idx, len(all))
+				return nil, fmt.Errorf("column index expectd be below %d but was %d", idx, len(all))
 			}
 			columns = append(columns, all[idx])
 		}
 	}
 
 	c := RowDump{
-		header:     make([]interface{}, 0, len(columns)+1),
+		header:     make([]any, 0, len(columns)+1),
 		columnIter: make([]*groupingColumnIterator, 0, len(columns)),
 		row: rowValues{
 			values: make([][]parquet.Value, len(columns)),
@@ -72,7 +71,7 @@ func NewRowDump(file *parquet.File, options RowStatOptions) (*RowDump, error) {
 	for _, col := range columns {
 		it, err := newGroupingColumnIterator(col, nil, options.Pagination)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to create row stats calculator")
+			return nil, fmt.Errorf("unable to create row stats calculator: %w", err)
 		}
 		c.columnIter = append(c.columnIter, it)
 		c.header = append(c.header, col.Name()+" d:r")
@@ -87,13 +86,13 @@ type rowValues struct {
 }
 
 type RowDump struct {
-	header     []interface{}
+	header     []any
 	columnIter []*groupingColumnIterator
 	rowNumber  int
 	row        rowValues
 }
 
-func (rd *RowDump) Header() []interface{} {
+func (rd *RowDump) Header() []any {
 	return rd.header
 }
 

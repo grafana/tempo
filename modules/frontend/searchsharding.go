@@ -1,12 +1,14 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,11 +19,13 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -47,6 +51,7 @@ type searchSharder struct {
 	reader    tempodb.Reader
 	overrides overrides.Interface
 	progress  searchProgressFactory
+	cache     *frontendCache
 
 	cfg    SearchSharderConfig
 	logger log.Logger
@@ -63,21 +68,23 @@ type SearchSharderConfig struct {
 }
 
 type backendReqMsg struct {
-	req *http.Request
-	err error
+	req      *http.Request
+	cacheKey string
+	err      error
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, progress searchProgressFactory, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, progress searchProgressFactory, cache *frontendCache, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
-			cfg:       cfg,
-			logger:    logger,
+			progress:  progress,
+			cache:     cache,
 
-			progress: progress,
+			cfg:    cfg,
+			logger: logger,
 		}
 	})
 }
@@ -161,7 +168,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		wg.Add(1)
 		startedReqs++
 
-		go func(innerR *http.Request) {
+		go func(innerR *http.Request, cacheKey string) {
 			defer func() {
 				if progress.shouldQuit() {
 					subCancel()
@@ -169,44 +176,59 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				wg.Done()
 			}()
 
-			resp, err := s.next.RoundTrip(innerR)
-			if err != nil {
-				// context cancelled error happens when we exit early.
-				// bail, and don't log and don't set this error.
-				if errors.Is(err, context.Canceled) {
-					_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", err)
+			// check cache first
+			searchResp := &tempopb.SearchResponse{}
+			foundInCache := s.cache.fetch(cacheKey, searchResp)
+
+			// if not found send it down the pipeline
+			if !foundInCache {
+				resp, err := s.next.RoundTrip(innerR)
+				if err != nil {
+					// context cancelled error happens when we exit early.
+					// bail, and don't log and don't set this error.
+					if errors.Is(err, context.Canceled) {
+						_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", err)
+						return
+					}
+
+					_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
+					progress.setError(err)
 					return
 				}
 
-				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-				progress.setError(err)
-				return
-			}
-
-			// if the status code is anything but happy, save the error and pass it down the line
-			if resp.StatusCode != http.StatusOK {
-				statusCode := resp.StatusCode
-				bytesMsg, err := io.ReadAll(resp.Body)
-				if err != nil {
-					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+				// if the status code is anything but happy, save the error and pass it down the line
+				if resp.StatusCode != http.StatusOK {
+					statusCode := resp.StatusCode
+					bytesMsg, err := io.ReadAll(resp.Body)
+					if err != nil {
+						_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+					}
+					statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
+					progress.setStatus(statusCode, statusMsg)
+					return
 				}
-				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
-				progress.setStatus(statusCode, statusMsg)
-				return
-			}
 
-			// successful query, read the body
-			results := &tempopb.SearchResponse{}
-			err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(resp.Body, results)
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				progress.setError(err)
-				return
+				// successful query, read the body
+				bodyBuffer, err := io.ReadAll(resp.Body)
+				if err != nil {
+					_ = level.Error(s.logger).Log("msg", "error reading response body buffer", "url", innerR.RequestURI, "err", err)
+					progress.setError(err)
+					return
+				}
+				err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bodyBuffer), searchResp)
+				if err != nil {
+					_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
+					progress.setError(err)
+					return
+				}
+
+				// everything worked so stick it in cache before we add to response below
+				s.cache.store(ctx, cacheKey, bodyBuffer)
 			}
 
 			// happy path
-			progress.addResponse(results)
-		}(req.req)
+			progress.addResponse(searchResp)
+		}(req.req, req.cacheKey)
 	}
 
 	// wait for all goroutines running in wg to finish or cancelled
@@ -335,7 +357,7 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 	}
 
 	go func() {
-		buildBackendRequests(ctx, tenantID, parent, blocks, targetBytesPerRequest, reqCh, stopCh)
+		buildBackendRequests(ctx, tenantID, parent, searchReq, blocks, targetBytesPerRequest, reqCh, stopCh)
 	}()
 
 	return
@@ -364,8 +386,10 @@ func backendRange(searchReq *tempopb.SearchRequest, queryBackendAfter time.Durat
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) {
 	defer close(reqCh)
+
+	queryHash := hashForTraceQLQuery(searchReq.Query)
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
@@ -403,14 +427,62 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			}
 
 			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
+			key := cacheKeyForJob(queryHash, searchReq, m, startPage, pages)
 
 			select {
-			case reqCh <- &backendReqMsg{req: subR}:
+			case reqCh <- &backendReqMsg{req: subR, cacheKey: key}:
 			case <-stopCh:
 				return
 			}
 		}
 	}
+}
+
+// hashForTraceQLQuery returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
+// before hashing the query is forced into a canonical form so equivalent queries will hash to the same value.
+func hashForTraceQLQuery(query string) uint64 {
+	if query == "" {
+		return 0
+	}
+
+	ast, err := traceql.Parse(query)
+	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
+		return 0
+	}
+
+	// forces the query into a canonical form
+	query = ast.String()
+
+	return fnv1a.HashString64(query)
+}
+
+// cacheKeyForJob returns a string that can be used as a cache key for a backend search job. if a valid key cannot be calculated
+// it returns an empty string.
+func cacheKeyForJob(queryHash uint64, searchReq *tempopb.SearchRequest, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
+	// if the query hash is 0 we can't cache. this may occur if the user is using the old search api
+	if queryHash == 0 {
+		return ""
+	}
+
+	// unless the search range completely encapsulates the block range we can't cache. this is b/c different search ranges will return different results
+	// for a given block unless the search range covers the entire block
+	if !(meta.StartTime.Unix() > int64(searchReq.Start) &&
+		meta.EndTime.Unix() < int64(searchReq.End)) {
+		return ""
+	}
+
+	sb := strings.Builder{}
+	sb.Grow(3 + 20 + 1 + 36 + 1 + 3 + 1 + 2) // 3 for prefix, 20 for query hash, 1 for :, 36 for block id, 1 for :, 3 for start page, 1 for :, 2 for pages to search
+	sb.WriteString("sj:")                    // sj for search job. prefix prevents unexpected collisions and an easy way to version for future iterations
+	sb.WriteString(strconv.FormatUint(queryHash, 10))
+	sb.WriteString(":")
+	sb.WriteString(meta.BlockID.String())
+	sb.WriteString(":")
+	sb.WriteString(strconv.Itoa(startPage))
+	sb.WriteString(":")
+	sb.WriteString(strconv.Itoa(pagesToSearch))
+
+	return sb.String()
 }
 
 // pagesPerRequest returns an integer value that indicates the number of pages

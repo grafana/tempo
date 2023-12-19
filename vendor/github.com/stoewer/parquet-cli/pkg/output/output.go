@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"text/tabwriter"
-
-	"github.com/pkg/errors"
 )
 
 // Format describes a printable data representation.
@@ -33,9 +32,16 @@ func (f *Format) Validate() error {
 // A Table that can be printed / encoded in different output formats.
 type Table interface {
 	// Header returns the header of the table
-	Header() []interface{}
+	Header() []any
 	// NextRow returns a new TableRow until the error is io.EOF
 	NextRow() (TableRow, error)
+}
+
+// SerializableData represents table data that can be converted to JSON.
+type SerializableData interface {
+	// Data returns the table data suitable for structured data formats
+	// such as json.
+	Data() any
 }
 
 // A TableRow represents all data that belongs to a table row.
@@ -43,10 +49,7 @@ type TableRow interface {
 	// Cells returns all table cells for this row. This is used to
 	// print tabular formats such csv. The returned slice has the same
 	// length as the header slice returned by the parent Table.
-	Cells() []interface{}
-	// Data returns the table row suitable for structured data formats
-	// such as json.
-	Data() interface{}
+	Cells() []any
 }
 
 // PrintTable writes the Table data to w using the provided format.
@@ -59,7 +62,7 @@ func PrintTable(w io.Writer, f Format, data Table) error {
 	case FormatCSV:
 		return printCSV(w, data)
 	default:
-		return errors.Errorf("format not supported yet '%s'", f)
+		return fmt.Errorf("format not supported yet '%s'", f)
 	}
 }
 
@@ -126,6 +129,12 @@ func printCSV(w io.Writer, data Table) error {
 }
 
 func printJSON(w io.Writer, data Table) error {
+	if serializable, ok := data.(SerializableData); ok {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(serializable.Data())
+	}
+
 	_, err := fmt.Fprintln(w, "[")
 	if err != nil {
 		return err
@@ -144,9 +153,13 @@ func printJSON(w io.Writer, data Table) error {
 		if err != nil {
 			return err
 		}
+		serializableRow, ok := row.(SerializableData)
+		if !ok {
+			return errors.New("JSON not supported for sub command")
+		}
 
 		buf.Reset()
-		err = json.NewEncoder(buf).Encode(row.Data())
+		err = json.NewEncoder(buf).Encode(serializableRow.Data())
 		if err != nil {
 			return err
 		}
@@ -168,7 +181,7 @@ func printJSON(w io.Writer, data Table) error {
 	return err
 }
 
-func toStringSlice(in []interface{}, buf []string) []string {
+func toStringSlice(in []any, buf []string) []string {
 	for i, v := range in {
 		var s string
 		switch v := v.(type) {

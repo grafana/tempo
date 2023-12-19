@@ -1,10 +1,11 @@
 package inspect
 
 import (
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 )
 
 // newGroupingColumnIterator creates a new groupingColumnIterator.
@@ -24,7 +25,7 @@ func newGroupingColumnIterator(column, groupByColumn *parquet.Column, pagination
 	}
 	err := it.forwardToOffset()
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create grouping column iterator")
+		return nil, fmt.Errorf("unable to create grouping column iterator: %w", err)
 	}
 
 	return &it, err
@@ -54,7 +55,7 @@ func (r *groupingColumnIterator) NextGroup() ([]parquet.Value, error) {
 	for {
 		for i, v := range r.unread {
 			if r.groupLimit != nil && r.currentGroup >= *r.groupLimit+r.groupOffset {
-				return nil, errors.Wrapf(io.EOF, "stop iteration: group limit reached")
+				return nil, fmt.Errorf("stop iteration: group limit reached: %w", io.EOF)
 			}
 			if r.isNewGroup(&v) && len(result) > 0 {
 				r.unread = r.unread[i:]
@@ -66,7 +67,7 @@ func (r *groupingColumnIterator) NextGroup() ([]parquet.Value, error) {
 
 		count, err := r.values.ReadValues(r.readBuffer)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, errors.Wrapf(err, "unable to read values from column '%s'", r.column.Name())
+			return nil, fmt.Errorf("unable to read values from column '%s': %w", r.column.Name(), err)
 		}
 
 		r.unread = r.readBuffer[:count]
@@ -78,7 +79,7 @@ func (r *groupingColumnIterator) NextGroup() ([]parquet.Value, error) {
 			p, err := r.pages.ReadPage()
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					return nil, errors.Wrapf(err, "unable to read new page from column '%s'", r.column.Name())
+					return nil, fmt.Errorf("unable to read new page from column '%s': %w", r.column.Name(), err)
 				}
 				if len(result) > 0 {
 					return result, nil
@@ -95,7 +96,7 @@ func (r *groupingColumnIterator) forwardToOffset() error {
 		page, err := r.pages.ReadPage()
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				return errors.Wrapf(err, "unable to read new page from column '%s'", r.column.Name())
+				return fmt.Errorf("unable to read new page from column '%s': %w", r.column.Name(), err)
 			}
 			return err
 		}
@@ -121,7 +122,7 @@ func (r *groupingColumnIterator) forwardToOffset() error {
 
 		count, err := r.values.ReadValues(r.readBuffer)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return errors.Wrapf(err, "unable to read values from column '%s'", r.column.Name())
+			return fmt.Errorf("unable to read values from column '%s': %w", r.column.Name(), err)
 		}
 
 		r.unread = r.readBuffer[:count]

@@ -359,22 +359,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
-
-	// wrap handlers with auth
-	middleware := middleware.Merge(
-		t.HTTPAuthMiddleware,
-		httpGzipMiddleware(),
-	)
-
-	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
-	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
-	searchWSHandler := middleware.Wrap(queryFrontend.SearchWSHandler)
-	spanMetricsSummaryHandler := middleware.Wrap(queryFrontend.SpanMetricsSummaryHandler)
-	searchTagsHandler := middleware.Wrap(queryFrontend.SearchTagsHandler)
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
@@ -383,19 +371,25 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC, queryFrontend)
 	tempopb.RegisterStreamingQuerierServer(t.Server.GRPCOnHTTPServer, queryFrontend)
 
+	// wrap handlers with auth
+	base := middleware.Merge(
+		t.HTTPAuthMiddleware,
+		httpGzipMiddleware(),
+	)
+
 	// http trace by id endpoint
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), traceByIDHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
 
 	// http search endpoints
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), searchHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), searchWSHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), searchTagsHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), searchTagsHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), searchTagsHandler)
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), searchTagsHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), base.Wrap(queryFrontend.SearchWSHandler))
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
 
 	// http metrics endpoints
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), spanMetricsSummaryHandler)
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(context.Background(), nil)

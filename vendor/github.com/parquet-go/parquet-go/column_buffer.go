@@ -91,12 +91,16 @@ type columnLevels struct {
 	definitionLevel byte
 }
 
-func columnIndexOfNullable(base ColumnBuffer, maxDefinitionLevel byte, definitionLevels []byte) ColumnIndex {
+func columnIndexOfNullable(base ColumnBuffer, maxDefinitionLevel byte, definitionLevels []byte) (ColumnIndex, error) {
+	index, err := base.ColumnIndex()
+	if err != nil {
+		return nil, err
+	}
 	return &nullableColumnIndex{
-		ColumnIndex:        base.ColumnIndex(),
+		ColumnIndex:        index,
 		maxDefinitionLevel: maxDefinitionLevel,
 		definitionLevels:   definitionLevels,
-	}
+	}, nil
 }
 
 type nullableColumnIndex struct {
@@ -187,11 +191,11 @@ func (col *optionalColumnBuffer) NumValues() int64 {
 	return int64(len(col.definitionLevels))
 }
 
-func (col *optionalColumnBuffer) ColumnIndex() ColumnIndex {
+func (col *optionalColumnBuffer) ColumnIndex() (ColumnIndex, error) {
 	return columnIndexOfNullable(col.base, col.maxDefinitionLevel, col.definitionLevels)
 }
 
-func (col *optionalColumnBuffer) OffsetIndex() OffsetIndex {
+func (col *optionalColumnBuffer) OffsetIndex() (OffsetIndex, error) {
 	return col.base.OffsetIndex()
 }
 
@@ -477,11 +481,11 @@ func (col *repeatedColumnBuffer) NumValues() int64 {
 	return int64(len(col.definitionLevels))
 }
 
-func (col *repeatedColumnBuffer) ColumnIndex() ColumnIndex {
+func (col *repeatedColumnBuffer) ColumnIndex() (ColumnIndex, error) {
 	return columnIndexOfNullable(col.base, col.maxDefinitionLevel, col.definitionLevels)
 }
 
-func (col *repeatedColumnBuffer) OffsetIndex() OffsetIndex {
+func (col *repeatedColumnBuffer) OffsetIndex() (OffsetIndex, error) {
 	return col.base.OffsetIndex()
 }
 
@@ -762,12 +766,12 @@ func (col *booleanColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *booleanColumnBuffer) ColumnIndex() ColumnIndex {
-	return booleanColumnIndex{&col.booleanPage}
+func (col *booleanColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return booleanColumnIndex{&col.booleanPage}, nil
 }
 
-func (col *booleanColumnBuffer) OffsetIndex() OffsetIndex {
-	return booleanOffsetIndex{&col.booleanPage}
+func (col *booleanColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return booleanOffsetIndex{&col.booleanPage}, nil
 }
 
 func (col *booleanColumnBuffer) BloomFilter() BloomFilter { return nil }
@@ -922,9 +926,13 @@ func (col *int32ColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *int32ColumnBuffer) ColumnIndex() ColumnIndex { return int32ColumnIndex{&col.int32Page} }
+func (col *int32ColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return int32ColumnIndex{&col.int32Page}, nil
+}
 
-func (col *int32ColumnBuffer) OffsetIndex() OffsetIndex { return int32OffsetIndex{&col.int32Page} }
+func (col *int32ColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return int32OffsetIndex{&col.int32Page}, nil
+}
 
 func (col *int32ColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1017,9 +1025,13 @@ func (col *int64ColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *int64ColumnBuffer) ColumnIndex() ColumnIndex { return int64ColumnIndex{&col.int64Page} }
+func (col *int64ColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return int64ColumnIndex{&col.int64Page}, nil
+}
 
-func (col *int64ColumnBuffer) OffsetIndex() OffsetIndex { return int64OffsetIndex{&col.int64Page} }
+func (col *int64ColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return int64OffsetIndex{&col.int64Page}, nil
+}
 
 func (col *int64ColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1111,9 +1123,13 @@ func (col *int96ColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *int96ColumnBuffer) ColumnIndex() ColumnIndex { return int96ColumnIndex{&col.int96Page} }
+func (col *int96ColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return int96ColumnIndex{&col.int96Page}, nil
+}
 
-func (col *int96ColumnBuffer) OffsetIndex() OffsetIndex { return int96OffsetIndex{&col.int96Page} }
+func (col *int96ColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return int96OffsetIndex{&col.int96Page}, nil
+}
 
 func (col *int96ColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1204,9 +1220,13 @@ func (col *floatColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *floatColumnBuffer) ColumnIndex() ColumnIndex { return floatColumnIndex{&col.floatPage} }
+func (col *floatColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return floatColumnIndex{&col.floatPage}, nil
+}
 
-func (col *floatColumnBuffer) OffsetIndex() OffsetIndex { return floatOffsetIndex{&col.floatPage} }
+func (col *floatColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return floatOffsetIndex{&col.floatPage}, nil
+}
 
 func (col *floatColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1298,9 +1318,13 @@ func (col *doubleColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *doubleColumnBuffer) ColumnIndex() ColumnIndex { return doubleColumnIndex{&col.doublePage} }
+func (col *doubleColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return doubleColumnIndex{&col.doublePage}, nil
+}
 
-func (col *doubleColumnBuffer) OffsetIndex() OffsetIndex { return doubleOffsetIndex{&col.doublePage} }
+func (col *doubleColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return doubleOffsetIndex{&col.doublePage}, nil
+}
 
 func (col *doubleColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1406,12 +1430,12 @@ func (col *byteArrayColumnBuffer) cloneLengths() []uint32 {
 	return lengths
 }
 
-func (col *byteArrayColumnBuffer) ColumnIndex() ColumnIndex {
-	return byteArrayColumnIndex{&col.byteArrayPage}
+func (col *byteArrayColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return byteArrayColumnIndex{&col.byteArrayPage}, nil
 }
 
-func (col *byteArrayColumnBuffer) OffsetIndex() OffsetIndex {
-	return byteArrayOffsetIndex{&col.byteArrayPage}
+func (col *byteArrayColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return byteArrayOffsetIndex{&col.byteArrayPage}, nil
 }
 
 func (col *byteArrayColumnBuffer) BloomFilter() BloomFilter { return nil }
@@ -1566,12 +1590,12 @@ func (col *fixedLenByteArrayColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *fixedLenByteArrayColumnBuffer) ColumnIndex() ColumnIndex {
-	return fixedLenByteArrayColumnIndex{&col.fixedLenByteArrayPage}
+func (col *fixedLenByteArrayColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return fixedLenByteArrayColumnIndex{&col.fixedLenByteArrayPage}, nil
 }
 
-func (col *fixedLenByteArrayColumnBuffer) OffsetIndex() OffsetIndex {
-	return fixedLenByteArrayOffsetIndex{&col.fixedLenByteArrayPage}
+func (col *fixedLenByteArrayColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return fixedLenByteArrayOffsetIndex{&col.fixedLenByteArrayPage}, nil
 }
 
 func (col *fixedLenByteArrayColumnBuffer) BloomFilter() BloomFilter { return nil }
@@ -1686,9 +1710,13 @@ func (col *uint32ColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *uint32ColumnBuffer) ColumnIndex() ColumnIndex { return uint32ColumnIndex{&col.uint32Page} }
+func (col *uint32ColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return uint32ColumnIndex{&col.uint32Page}, nil
+}
 
-func (col *uint32ColumnBuffer) OffsetIndex() OffsetIndex { return uint32OffsetIndex{&col.uint32Page} }
+func (col *uint32ColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return uint32OffsetIndex{&col.uint32Page}, nil
+}
 
 func (col *uint32ColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1780,9 +1808,13 @@ func (col *uint64ColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *uint64ColumnBuffer) ColumnIndex() ColumnIndex { return uint64ColumnIndex{&col.uint64Page} }
+func (col *uint64ColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return uint64ColumnIndex{&col.uint64Page}, nil
+}
 
-func (col *uint64ColumnBuffer) OffsetIndex() OffsetIndex { return uint64OffsetIndex{&col.uint64Page} }
+func (col *uint64ColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return uint64OffsetIndex{&col.uint64Page}, nil
+}
 
 func (col *uint64ColumnBuffer) BloomFilter() BloomFilter { return nil }
 
@@ -1874,12 +1906,12 @@ func (col *be128ColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
-func (col *be128ColumnBuffer) ColumnIndex() ColumnIndex {
-	return be128ColumnIndex{&col.be128Page}
+func (col *be128ColumnBuffer) ColumnIndex() (ColumnIndex, error) {
+	return be128ColumnIndex{&col.be128Page}, nil
 }
 
-func (col *be128ColumnBuffer) OffsetIndex() OffsetIndex {
-	return be128OffsetIndex{&col.be128Page}
+func (col *be128ColumnBuffer) OffsetIndex() (OffsetIndex, error) {
+	return be128OffsetIndex{&col.be128Page}, nil
 }
 
 func (col *be128ColumnBuffer) BloomFilter() BloomFilter { return nil }
