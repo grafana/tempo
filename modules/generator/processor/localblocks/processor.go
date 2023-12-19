@@ -105,11 +105,11 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
-	//var count int
+	// var count int
 	before := p.liveTraces.Len()
 
 	for _, batch := range req.Batches {
-		//if batch, count = filterBatch(batch); batch != nil {
+		// if batch, count = filterBatch(batch); batch != nil {
 		err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
 		if errors.Is(err, errMaxExceeded) {
 			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()

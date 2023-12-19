@@ -160,7 +160,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-				//progress.setError(err)
+				// progress.setError(err)
 				return
 			}
 
@@ -182,7 +182,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(resp.Body, results)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				//progress.setError(err)
+				// progress.setError(err)
 				return
 			}
 
@@ -243,7 +243,6 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 }
 
 func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, reqCh chan *queryRangeJob, stopCh <-chan struct{}) error {
-
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -331,7 +330,6 @@ func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, query
 }
 
 func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest) (*queryRangeJob, error) {
-
 	now := time.Now()
 	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
 
@@ -377,7 +375,6 @@ func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 }
 
 func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse) PromResponse {
-
 	// Sort series alphabetically so they are stable in the UI
 	sort.Slice(resp.Series, func(i, j int) bool {
 		a := resp.Series[i].Labels
