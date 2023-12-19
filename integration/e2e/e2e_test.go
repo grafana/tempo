@@ -473,19 +473,6 @@ func callFlush(t *testing.T, ingester *e2e.HTTPService) {
 	require.Equal(t, http.StatusNoContent, res.StatusCode)
 }
 
-// writeMetrics calls /metrics and write it to text file, useful for debugging e2e tests
-func writeMetrics(t *testing.T, tempo *e2e.HTTPService, filename string) {
-	fmt.Printf("Calling /metrics on %s\n", tempo.Name())
-	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/metrics")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
-
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	err = os.WriteFile("metrics_"+filename+"_dump.txt", body, 0o644)
-	require.NoError(t, err)
-}
-
 func callIngesterRing(t *testing.T, svc *e2e.HTTPService) {
 	endpoint := "/ingester/ring"
 	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
