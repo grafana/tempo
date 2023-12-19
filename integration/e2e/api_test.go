@@ -156,7 +156,9 @@ func TestSearchTagValuesV2(t *testing.T) {
 
 	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
 	// 1s for security.
-	time.Sleep(time.Second * 30)
+	callFlush(t, tempo)
+	time.Sleep(time.Second * 21)
+	callFlush(t, tempo)
 
 	// Assert no more on the ingester
 	for _, tc := range testCases {
@@ -198,8 +200,10 @@ func TestSearchTags(t *testing.T) {
 	callSearchTagAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
 	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
-	// 5s for security.
-	time.Sleep(time.Second * 30)
+	callFlush(t, tempo)
+	time.Sleep(time.Second * 21)
+	callFlush(t, tempo)
+
 	callSearchTagAndAssert(t, tempo, searchTagsResponse{}, 0, 0)
 	// Assert no more on the ingester
 
@@ -232,10 +236,11 @@ func TestSearchTagValues(t *testing.T) {
 	time.Sleep(time.Second * 3)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
-	time.Sleep(time.Second * 30)
+	callFlush(t, tempo)
+	time.Sleep(time.Second * 21)
+	callFlush(t, tempo)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
 	// Assert no more on the ingester
-
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backen
