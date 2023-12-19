@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -80,6 +81,7 @@ type PollerConfig struct {
 	StaleTenantIndex          time.Duration
 	PollJitterMs              int
 	TolerateConsecutiveErrors int
+	TenantPollConcurrency     uint
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -99,6 +101,12 @@ func (ownsNothingSharder) Owns(_ string) bool {
 
 const jobPrefix = "build-tenant-index-"
 
+var metricTenantQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "tempo",
+	Name:      "poller_tenant_queue_length",
+	Help:      "The total number of tenants pending in the queue.",
+})
+
 // Poller retrieves the blocklist
 type Poller struct {
 	reader    backend.Reader
@@ -109,23 +117,41 @@ type Poller struct {
 
 	sharder JobSharder
 	logger  log.Logger
+
+	tenantQueues     *flushqueues.ExclusiveQueues
+	tenantQueuesDone sync.WaitGroup
+	tenantsPolled    map[string]time.Time
+
+	perTenantChan          chan *PerTenant
+	perTenantCompactedChan chan *PerTenantCompacted
+	perTenantErrChan       chan error
+
+	blocklist *List
 }
 
 // NewPoller creates the Poller
-func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger) *Poller {
+func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, compactor backend.Compactor, writer backend.Writer, logger log.Logger, blocklist *List) *Poller {
 	return &Poller{
 		reader:    reader,
 		compactor: compactor,
 		writer:    writer,
 
-		cfg:     cfg,
-		sharder: sharder,
-		logger:  logger,
+		cfg:           cfg,
+		sharder:       sharder,
+		logger:        logger,
+		tenantQueues:  flushqueues.New(int(cfg.TenantPollConcurrency), metricTenantQueueLength),
+		tenantsPolled: make(map[string]time.Time, 1000),
+
+		perTenantChan:          make(chan *PerTenant, 1000),
+		perTenantCompactedChan: make(chan *PerTenantCompacted, 1000),
+		perTenantErrChan:       make(chan error, 1000),
+
+		blocklist: blocklist,
 	}
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -145,50 +171,167 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		return nil, nil, err
 	}
 
-	blocklist := PerTenant{}
-	compactedBlocklist := PerTenantCompacted{}
-
-	consecutiveErrors := 0
+	var (
+		blocklist          = PerTenant{}
+		compactedBlocklist = PerTenantCompacted{}
+		consecutiveErrors  = 0
+		lastTenantPoll     time.Time
+		errs               []error
+	)
 
 	for _, tenantID := range tenants {
-		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+		lastTenantPoll = time.Now()
+		if last, ok := p.tenantsPolled[tenantID]; ok {
+			lastTenantPoll = last
+		}
+
+		err = p.tenantQueues.Enqueue(&tenantOp{
+			at:       lastTenantPoll,
+			tenantID: tenantID,
+		})
 		if err != nil {
-			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
-			consecutiveErrors++
-			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
-				return nil, nil, err
-			}
-			continue
+			metricBlocklistErrors.WithLabelValues(tenantID).Inc()
+			return nil, nil, err
 		}
-
-		consecutiveErrors = 0
-		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
-			blocklist[tenantID] = newBlockList
-			compactedBlocklist[tenantID] = newCompactedBlockList
-
-			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
-
-			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-			continue
-		}
-		metricBlocklistLength.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendBytes.DeleteLabelValues(tenantID)
 	}
 
-	return blocklist, compactedBlocklist, nil
+	// Clean up metrics for tenants with no blocks.
+	defer func() {
+		if len(errs) > 0 {
+			return
+		}
+
+		for _, tenantID := range tenants {
+			if _, ok := blocklist[tenantID]; !ok {
+				if _, ok := compactedBlocklist[tenantID]; !ok {
+					metricBlocklistLength.DeleteLabelValues(tenantID)
+					metricBackendObjects.DeleteLabelValues(tenantID)
+					metricBackendBytes.DeleteLabelValues(tenantID)
+					metricBackendObjects.DeleteLabelValues(tenantID)
+				}
+			}
+		}
+	}()
+
+	ticker := time.NewTicker(1 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return nil, nil, nil
+			}
+
+			return nil, nil, ctx.Err()
+		case <-ticker.C:
+			if p.tenantQueues.IsEmpty() {
+
+				for tenantID := range blocklist {
+					metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist[tenantID])))
+
+					backendMetaMetrics := sumTotalBackendMetaMetrics(blocklist[tenantID], compactedBlocklist[tenantID])
+					metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+					metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+					metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+					metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+				}
+
+				// Ensure that even empty results in either the blocklist or compacted blocklist contain the same tenants.
+				for tenantID := range compactedBlocklist {
+					if _, ok := blocklist[tenantID]; !ok {
+						blocklist[tenantID] = []*backend.BlockMeta{}
+					}
+				}
+
+				for tenantID := range blocklist {
+					if _, ok := compactedBlocklist[tenantID]; !ok {
+						compactedBlocklist[tenantID] = []*backend.CompactedBlockMeta{}
+					}
+				}
+
+				return blocklist, compactedBlocklist, nil
+			}
+
+		case err := <-p.perTenantErrChan:
+			consecutiveErrors++
+			errs = append(errs, err)
+			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+				return nil, nil, errors.Join(errs...)
+			}
+			continue
+		case m := <-p.perTenantChan:
+			if m != nil {
+				consecutiveErrors = 0
+				for tenantID, newBlockList := range *m {
+					p.tenantsPolled[tenantID] = time.Now()
+					blocklist[tenantID] = newBlockList
+				}
+			}
+		case c := <-p.perTenantCompactedChan:
+			if c != nil {
+				consecutiveErrors = 0
+				for tenantID, newCompactedBlockList := range *c {
+					p.tenantsPolled[tenantID] = time.Now()
+					compactedBlocklist[tenantID] = newCompactedBlockList
+				}
+			}
+		}
+	}
+}
+
+func (p *Poller) Start(ctx context.Context) {
+	p.tenantQueuesDone.Add(int(p.cfg.TenantPollConcurrency))
+	for j := 0; j < int(p.cfg.TenantPollConcurrency); j++ {
+		go p.tenantPollLoop(ctx, j)
+	}
+}
+
+func (p *Poller) tenantPollLoop(ctx context.Context, j int) {
+	defer func() {
+		level.Debug(p.logger).Log("msg", "Poller.tenantPollLoop() exited")
+		p.tenantQueuesDone.Done()
+	}()
+
+	for {
+		o := p.tenantQueues.Dequeue(j)
+		if o == nil {
+			return
+		}
+		op := o.(*tenantOp)
+		op.attempts++
+
+		var (
+			err error
+			m   []*backend.BlockMeta
+			c   []*backend.CompactedBlockMeta
+		)
+
+		m, c, err = p.pollTenantAndCreateIndex(ctx, op.tenantID)
+		if err != nil {
+			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", op.tenantID, "err", err)
+			p.perTenantErrChan <- err
+		}
+
+		if len(m) > 0 {
+			p.perTenantChan <- &PerTenant{
+				op.tenantID: m,
+			}
+		}
+
+		if len(c) > 0 {
+			p.perTenantCompactedChan <- &PerTenantCompacted{
+				op.tenantID: c,
+			}
+		}
+
+		p.tenantQueues.Clear(op)
+	}
 }
 
 func (p *Poller) pollTenantAndCreateIndex(
 	ctx context.Context,
 	tenantID string,
-	previous *List,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantAndCreateIndex", opentracing.Tag{Key: "tenant", Value: tenantID})
 	defer span.Finish()
@@ -229,7 +372,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	// there was a failure to pull the tenant index and we are configured to fall
 	// back to polling.
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -249,7 +392,6 @@ func (p *Poller) pollTenantAndCreateIndex(
 func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
-	previous *List,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Poller.pollTenantBlocks")
 	defer span.Finish()
@@ -260,8 +402,8 @@ func (p *Poller) pollTenantBlocks(
 	}
 
 	var (
-		metas                 = previous.Metas(tenantID)
-		compactedMetas        = previous.CompactedMetas(tenantID)
+		metas                 = p.blocklist.Metas(tenantID)
+		compactedMetas        = p.blocklist.CompactedMetas(tenantID)
 		mm                    = make(map[uuid.UUID]*backend.BlockMeta, len(metas))
 		cm                    = make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
 		newBlockList          = make([]*backend.BlockMeta, 0, len(currentBlockIDs))

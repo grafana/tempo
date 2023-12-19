@@ -501,6 +501,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 
+	if rw.cfg.TenantPollConcurrency == 0 {
+		rw.cfg.TenantPollConcurrency = DefaultTenantPollConcurrency
+	}
+
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
@@ -510,9 +514,12 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		StaleTenantIndex:          rw.cfg.BlocklistPollStaleTenantIndex,
 		PollJitterMs:              rw.cfg.BlocklistPollJitterMs,
 		TolerateConsecutiveErrors: rw.cfg.BlocklistPollTolerateConsecutiveErrors,
-	}, sharder, rw.r, rw.c, rw.w, rw.logger)
+		TenantPollConcurrency:     rw.cfg.TenantPollConcurrency,
+	}, sharder, rw.r, rw.c, rw.w, rw.logger, rw.blocklist)
 
 	rw.blocklistPoller = blocklistPoller
+
+	rw.blocklistPoller.Start(ctx)
 
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
@@ -535,7 +542,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(rw.blocklist)
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 		return

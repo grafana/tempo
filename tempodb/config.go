@@ -28,6 +28,7 @@ const (
 	DefaultRetentionConcurrency      = uint(10)
 	DefaultTenantIndexBuilders       = 2
 	DefaultTolerateConsecutiveErrors = 1
+	DefaultTenantPollConcurrency     = uint(4)
 
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
@@ -50,6 +51,8 @@ type Config struct {
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
+
+	TenantPollConcurrency uint `yaml:"tenant_poll_concurrency"`
 
 	// backends
 	Backend string        `yaml:"backend"`
