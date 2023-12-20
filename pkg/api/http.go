@@ -480,8 +480,8 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	}
 
 	q := req.URL.Query()
-	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	q.Set(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	q.Set(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
 	q.Set(urlParamStep, time.Duration(searchReq.Step).String())
 	q.Set(urlParamShard, strconv.FormatUint(uint64(searchReq.Shard), 10))
 	q.Set(urlParamOf, strconv.FormatUint(uint64(searchReq.Of), 10))

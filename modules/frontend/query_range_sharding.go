@@ -114,10 +114,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	generatorReq, err = s.generatorRequest(*queryRangeReq)
-	if err != nil {
-		return nil, err
-	}
+	generatorReq = s.generatorRequest(*queryRangeReq)
 
 	reqCh := make(chan *queryRangeJob, 1) // buffer of 1 allows us to insert ingestReq if it exists
 	stopCh := make(chan struct{})
@@ -127,10 +124,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqCh <- generatorReq
 	}
 
-	err = s.backendRequests(tenantID, queryRangeReq, now, reqCh, stopCh)
-	if err != nil {
-		return nil, err
-	}
+	s.backendRequests(tenantID, queryRangeReq, now, reqCh, stopCh)
 
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
 	c := traceql.QueryRangeCombiner{}
@@ -242,11 +236,11 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, reqCh chan *queryRangeJob, stopCh <-chan struct{}) error {
+func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, reqCh chan *queryRangeJob, stopCh <-chan struct{}) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
-		return nil
+		return
 	}
 
 	// calculate duration (start and end) to search the backend blocks
@@ -260,14 +254,12 @@ func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.
 	// no need to search backend
 	if start == end {
 		close(reqCh)
-		return nil
+		return
 	}
 
 	go func() {
 		s.buildBackendRequests(tenantID, searchReq, start, end, reqCh, stopCh)
 	}()
-
-	return nil
 }
 
 func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, start, end uint64, reqCh chan *queryRangeJob, stopCh <-chan struct{}) {
@@ -300,8 +292,8 @@ func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tem
 			shardR := *searchReq
 			shardR.Start = thisStart
 			shardR.End = thisEnd
-			shardR.Shard = uint32(i)
-			shardR.Of = uint32(shards)
+			shardR.Shard = i
+			shardR.Of = shards
 
 			select {
 			case reqCh <- &queryRangeJob{req: shardR}:
@@ -329,13 +321,13 @@ func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, query
 	return start, end
 }
 
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest) (*queryRangeJob, error) {
+func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest) *queryRangeJob {
 	now := time.Now()
 	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
 
 	// if there's no overlap between the query and ingester range just return nil
 	if searchReq.End < cutoff {
-		return nil, nil
+		return nil
 	}
 
 	if searchReq.Start < cutoff {
@@ -344,7 +336,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 
 	// if ingester start == ingester end then we don't need to query it
 	if searchReq.Start == searchReq.End {
-		return nil, nil
+		return nil
 	}
 
 	// Shard 0 indicates generator request
@@ -352,7 +344,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.Of = 0
 	return &queryRangeJob{
 		req: searchReq,
-	}, nil
+	}
 }
 
 func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.QueryRangeRequest, parent *http.Request, tenantID string) *http.Request {
