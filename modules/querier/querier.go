@@ -872,7 +872,6 @@ func (q *Querier) internalTagSearchBlock(ctx context.Context, req *tempopb.Searc
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
-	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
 	return q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 }
