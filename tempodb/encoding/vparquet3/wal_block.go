@@ -633,7 +633,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 	return nil
 }
 
-func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
@@ -652,7 +652,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		pf := file.parquetFile
 
-		iter, err := fetch(ctx, req, pf, pf.RowGroups(), opts, b.meta.DedicatedColumns)
+		iter, err := fetch(ctx, req, pf, pf.RowGroups(), b.meta.DedicatedColumns)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 		}
