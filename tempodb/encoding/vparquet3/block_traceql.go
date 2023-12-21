@@ -1,6 +1,7 @@
 package vparquet3
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,8 +14,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 
+	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -548,7 +552,17 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 		return traceql.FetchSpansResponse{}, err
 	}
 
-	iter, err := fetch(ctx, req, pf, opts, b.meta.DedicatedColumns)
+	var rgs []parquet.RowGroup
+	if req.Of > 0 {
+		rgs, err = b.rowGroupsForShard(ctx, pf, *b.meta, req.Shard, req.Of)
+		if err != nil {
+			return traceql.FetchSpansResponse{}, err
+		}
+	} else {
+		rgs = rowGroupsFromFile(pf, opts)
+	}
+
+	iter, err := fetch(ctx, req, pf, rgs, opts, b.meta.DedicatedColumns)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 	}
@@ -981,8 +995,8 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, pf, opts, dc)
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, opts common.SearchOptions, dc backend.DedicatedColumns) (*spansetIterator, error) {
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.Shard, req.Of, rowGroups, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -990,7 +1004,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, pf, opts, dc)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, req.Shard, req.Of, rowGroups, pf, opts, dc)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
@@ -1037,14 +1051,15 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 	return mingled, spanConditions, resourceConditions, traceConditions, nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64,
+	shard, of int, rgs []parquet.RowGroup, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns,
+) (parquetquery.Iterator, error) {
 	// categorizeConditions conditions into span-level or resource-level
 	mingledConditions, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
 	if err != nil {
 		return nil, err
 	}
 
-	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	// Global state
@@ -1085,7 +1100,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
-	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, allConditions)
+	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, shard, of, allConditions)
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -1421,7 +1436,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required, iters, batchCol)
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, shard, of int, allConditions bool) (parquetquery.Iterator, error) {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
 
 	var err error
@@ -1432,7 +1447,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
-			traceIters = append(traceIters, makeIter(columnPathTraceID, nil, columnPathTraceID))
+			traceIters = append(traceIters, makeIter(columnPathTraceID, NewTraceIDShardingPredicate(shard, of), columnPathTraceID))
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
 			if allConditions {
@@ -2168,4 +2183,141 @@ func unsafeToString(b []byte) string {
 		return ""
 	}
 	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+// traceIDShardRanges is used to divide trace IDs into shards for job splitting.  For the given
+// shard number and total number of shards, it returns helper functions that match trace IDs in
+// that shard.  Internally this is similar to how queriers divide the block ID-space, but
+// here it's trace IDs instead.  The inputs are 1-based because it seems more readable: shard 1 of 10.
+// Of course there are some caveats:
+//   - Trace IDs can be 16 or 8 bytes.  If we naively sharded only in 16-byte space it would
+//     be unbalanced because all 8-byte IDs would land in the first shard. Therefore we
+//     divide in both 16- and 8-byte spaces and a single shard covers a range in each.
+//   - The boundaries are inclusive/exclusive: [min, max), except the max of the last shard
+//     is the valid ID FFFFF... and inclusive/inclusive.
+func traceIDShardRanges(shard, of int) (testSingle func([]byte) bool, testRange func([]byte, []byte) bool) {
+	// We reuse this method to divide the trace ID space up into
+	// shards. The output is 16-bytes but only the upper 8 are used.
+	allBounds := blockboundary.CreateBlockBoundaries(of)
+
+	// The set of all min/max ID boundaries.
+	pairs := []struct {
+		min, max []byte
+	}{}
+
+	// First pair is 8-byte IDs left-padded with zeroes to make 16-byte divisions
+	// that matches the 16-byte layout in the block.
+	// We reuse the upper 8-bytes of the boundaries.
+	pairs = append(pairs, struct {
+		min []byte
+		max []byte
+	}{
+		min: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, allBounds[shard-1][0:8]...),
+		max: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, allBounds[shard][0:8]...),
+	})
+
+	// Second pair is normal full precision 16-byte IDs.
+	// However there is one caveat - We adjust the very first boundary to ensure it doesn't
+	// overlap with the 8-byte precision ones. I.e. the minimum 16-byte ID 0x0000.... would
+	// unintentionally include all 8-byte IDs.
+	// The first 16-byte ID starts here:
+	allBounds[0] = []byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}
+	pairs = append(pairs, struct {
+		min []byte
+		max []byte
+	}{
+		min: allBounds[shard-1],
+		max: allBounds[shard],
+	})
+
+	// Top most 0xFFFFF... boundary is inclusive
+	upperInclusive := -1
+	if shard == of {
+		upperInclusive = 0
+	}
+
+	isMatch := func(id []byte) bool {
+		for _, p := range pairs {
+			if bytes.Compare(p.min, id) <= 0 && bytes.Compare(id, p.max) <= upperInclusive {
+				return true
+			}
+		}
+		return false
+	}
+
+	withinRange := func(min []byte, max []byte) bool {
+		for _, p := range pairs {
+			if bytes.Compare(p.min, max) <= 0 && bytes.Compare(min, p.max) <= upperInclusive {
+				return true
+			}
+		}
+		return false
+	}
+
+	return isMatch, withinRange
+}
+
+// NewTraceIDShardingPredicate creates a predicate for the TraceID column to match only IDs
+// within the shard.  If sharding isn't present, returns nil meaning no predicate.
+func NewTraceIDShardingPredicate(shard, of int) parquetquery.Predicate {
+	if of <= 1 || shard <= 0 {
+		return nil
+	}
+
+	isMatch, withinRange := traceIDShardRanges(shard, of)
+	extract := func(v parquet.Value) []byte { return v.ByteArray() }
+
+	return parquetquery.NewGenericPredicate(isMatch, withinRange, extract)
+}
+
+// rowGroupsForShard uses the block trace ID index to more efficiently find the row
+// groups that contain trace IDs within the given shard.  Reading the trace ID index
+// is a single read and typically comes from cache.   Without this we have to test every
+// row group in the file which would be N reads.
+func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, m backend.BlockMeta, shard, of int) ([]parquet.RowGroup, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.rowGroupsForShard")
+	defer span.Finish()
+
+	cacheInfo := &backend.CacheInfo{
+		Meta: &m,
+		Role: cache.RoleTraceIDIdx,
+	}
+
+	indexBytes, err := b.r.Read(ctx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, cacheInfo)
+	if errors.Is(err, backend.ErrDoesNotExist) {
+		// No index, check all groups
+		return pf.RowGroups(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	index, err := unmarshalIndex(indexBytes)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	_, testRange := traceIDShardRanges(shard, of)
+
+	rgs := pf.RowGroups()
+	matches := []parquet.RowGroup{}
+	for i := 0; i < len(index.RowGroups); i++ {
+		if i == 0 {
+			// The index contains the max trace ID for each row
+			// group.  So to determine the min/max for the first
+			// entry we use the minimum ID from block meta.
+			if testRange(m.MinID, index.RowGroups[i]) {
+				matches = append(matches, rgs[i])
+			}
+		} else {
+			if testRange(index.RowGroups[i-1], index.RowGroups[i]) {
+				matches = append(matches, rgs[i])
+			}
+		}
+	}
+
+	span.SetTag("totalRowGroups", len(rgs))
+	span.SetTag("matchedRowGroups", len(matches))
+
+	return matches, nil
 }
