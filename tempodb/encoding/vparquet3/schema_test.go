@@ -103,6 +103,14 @@ func TestFieldsAreCleared(t *testing.T) {
 										},
 									},
 								},
+								Links: []*v1_trace.Span_Link{
+									{
+										Attributes: []*v1.KeyValue{
+											// String
+											{Key: "link-attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
+										},
+									},
+								},
 							},
 						},
 					},
@@ -564,6 +572,103 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetLeft:  6,
 								NestedSetRight: 7,
 								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
+							},
+						},
+					}},
+				}},
+			},
+		},
+		{
+			name: "links and events attributes",
+			id:   traceID,
+			trace: tempopb.Trace{
+				Batches: []*v1_trace.ResourceSpans{{
+					Resource: &v1_resource.Resource{
+						Attributes: []*v1.KeyValue{
+							{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-a"}}},
+						},
+					},
+					ScopeSpans: []*v1_trace.ScopeSpans{{
+							Scope: &v1.InstrumentationScope{},
+							Spans: []*v1_trace.Span{
+								{
+									Name:   "span-with-link",
+									SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, //01
+									StartTimeUnixNano: 1500,
+									EndTimeUnixNano: 3000,
+									Links: []*v1_trace.Span_Link{{
+										TraceId: traceID,
+										SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, //02
+										Attributes: []*v1.KeyValue{
+											{Key: "link.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "aaa"}}},
+										},
+										TraceState: "link trace state",
+									}},
+								},
+								{
+									Name:   "span-with-event",
+									SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, //02
+									StartTimeUnixNano: 1000,
+									EndTimeUnixNano: 4000,
+									Events: []*v1_trace.Span_Event{{
+										TimeUnixNano: 2000,
+										Name: "event name",
+										Attributes: []*v1.KeyValue{
+											{Key: "event.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bbb"}}},
+										},
+									}},
+								},
+							},
+						}},
+				}},
+			},
+			expected: Trace{
+				TraceID:         traceID,
+				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				RootSpanName:    "span-with-event",
+				RootServiceName: "service-a",
+				StartTimeUnixNano: 1000,
+				EndTimeUnixNano: 4000,
+				DurationNano: 3000,
+				ResourceSpans: []ResourceSpans{{
+					Resource: Resource{
+						ServiceName: "service-a",
+						Attrs:       []Attribute{},
+					},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{
+								Name:           "span-with-link",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+								NestedSetLeft:  1,
+								NestedSetRight: 2,
+								ParentID:       -1,
+								StartTimeUnixNano: 1500,
+								DurationNano: 1500,
+								Links: []Link{{
+									TraceID: traceID,
+									SpanID: []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+									Attrs: []Attribute{
+										{Key: "link.attr", Value: strPtr("aaa")},
+									},
+									TraceState: "link trace state",
+								}},
+							},
+							{
+								Name:           "span-with-event",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+								NestedSetLeft:  3,
+								NestedSetRight: 4,
+								ParentID:       -1,
+								StartTimeUnixNano: 1000,
+								DurationNano: 3000,
+								Events: []Event{{
+									TimeSinceStartUnixNano: 1000,
+									Name: "event name",
+									Attrs: []Attribute{
+										{Key: "event.attr", Value: strPtr("bbb")},
+									},
+								}},
 							},
 						},
 					}},
