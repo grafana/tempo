@@ -99,7 +99,7 @@ func TestFieldsAreCleared(t *testing.T) {
 									{
 										// An attribute of every type
 										Attributes: []*v1.KeyValue{
-											{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
+											{Key: "event-attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 										},
 									},
 								},
@@ -140,9 +140,12 @@ func TestFieldsAreCleared(t *testing.T) {
 						attr("c", true),
 						attr("d", 111.11),
 					},
-					Events: []Event{{Attrs: []EventAttribute{
-						{Key: "i", Value: []uint8{0x18, 0x7b}},
-					}}},
+					Events: []Event{{Attrs: []Attribute{
+						attr("event-attr", 123)},
+					}},
+					Links: []Link{{Attrs: []Attribute{
+						attr("link-attr", 123)},
+					}},
 				}},
 			}},
 		}},
@@ -630,6 +633,12 @@ func TestTraceToParquet(t *testing.T) {
 				StartTimeUnixNano: 1000,
 				EndTimeUnixNano:   4000,
 				DurationNano:      3000,
+				ServiceStats: map[string]ServiceStats{
+					"service-a": {
+						SpanCount:  2,
+						ErrorCount: 0,
+					},
+				},
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
 						ServiceName: "service-a",
@@ -649,7 +658,7 @@ func TestTraceToParquet(t *testing.T) {
 									TraceID: traceID,
 									SpanID:  []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
 									Attrs: []Attribute{
-										{Key: "link.attr", Value: strPtr("aaa")},
+										attr("link.attr", "aaa"),
 									},
 									TraceState: "link trace state",
 								}},
@@ -666,7 +675,7 @@ func TestTraceToParquet(t *testing.T) {
 									TimeSinceStartUnixNano: 1000,
 									Name:                   "event name",
 									Attrs: []Attribute{
-										{Key: "event.attr", Value: strPtr("bbb")},
+										attr("event.attr", "bbb"),
 									},
 								}},
 							},
