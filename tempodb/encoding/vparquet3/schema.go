@@ -726,7 +726,7 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 	return protoAttrs
 }
 
-func parquetToLinks(parquetLinks []Link, span Span) []*v1_trace.Span_Link {
+func parquetToLinks(parquetLinks []Link) []*v1_trace.Span_Link {
 	var protoLinks []*v1_trace.Span_Link
 
 	if len(parquetLinks) > 0 {
@@ -874,7 +874,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 				}
 
-				protoSpan.Links = parquetToLinks(span.Links, span)
+				protoSpan.Links = parquetToLinks(span.Links)
 
 				// dynamically assigned dedicated resource attribute columns
 				dedicatedSpanAttributes.forEach(func(attr string, col dedicatedColumn) {
