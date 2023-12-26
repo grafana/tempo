@@ -497,13 +497,15 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									{Key: "unsupported-mixed-array", ValueDropped: mixedArrayAttrValue, ValueType: attrTypeNotSupported},
 									{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 								},
-								Events: []Event{{
-									TimeSinceStartUnixNano: 1,
-									Name:                   "e1",
-									Attrs: []Attribute{
-										attr("foo", "fake proto encoded data. i hope this never matters"),
-										attr("bar", "fake proto encoded data. i hope this never matters"),
-									}},
+								Events: []Event{
+									{
+										TimeSinceStartUnixNano: 1,
+										Name:                   "e1",
+										Attrs: []Attribute{
+											attr("foo", "fake proto encoded data. i hope this never matters"),
+											attr("bar", "fake proto encoded data. i hope this never matters"),
+										},
+									},
 									{TimeSinceStartUnixNano: 2, Name: "e2", Attrs: []Attribute{}},
 								},
 								Links: []Link{},

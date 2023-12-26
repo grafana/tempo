@@ -140,11 +140,15 @@ func TestFieldsAreCleared(t *testing.T) {
 						attr("c", true),
 						attr("d", 111.11),
 					},
-					Events: []Event{{Attrs: []Attribute{
-						attr("event-attr", 123)},
+					Events: []Event{{
+						Attrs: []Attribute{
+							attr("event-attr", 123),
+						},
 					}},
-					Links: []Link{{Attrs: []Attribute{
-						attr("link-attr", 123)},
+					Links: []Link{{
+						Attrs: []Attribute{
+							attr("link-attr", 123),
+						},
 					}},
 				}},
 			}},
@@ -596,12 +600,12 @@ func TestTraceToParquet(t *testing.T) {
 						Spans: []*v1_trace.Span{
 							{
 								Name:              "span-with-link",
-								SpanId:            common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, //01
+								SpanId:            common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, // 01
 								StartTimeUnixNano: 1500,
 								EndTimeUnixNano:   3000,
 								Links: []*v1_trace.Span_Link{{
 									TraceId: traceID,
-									SpanId:  common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, //02
+									SpanId:  common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, // 02
 									Attributes: []*v1.KeyValue{
 										{Key: "link.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "aaa"}}},
 									},
@@ -610,7 +614,7 @@ func TestTraceToParquet(t *testing.T) {
 							},
 							{
 								Name:              "span-with-event",
-								SpanId:            common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, //02
+								SpanId:            common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02}, // 02
 								StartTimeUnixNano: 1000,
 								EndTimeUnixNano:   4000,
 								Events: []*v1_trace.Span_Event{{
