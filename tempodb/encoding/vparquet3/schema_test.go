@@ -97,7 +97,6 @@ func TestFieldsAreCleared(t *testing.T) {
 								},
 								Events: []*v1_trace.Span_Event{
 									{
-										// An attribute of every type
 										Attributes: []*v1.KeyValue{
 											{Key: "event-attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 										},
@@ -106,7 +105,6 @@ func TestFieldsAreCleared(t *testing.T) {
 								Links: []*v1_trace.Span_Link{
 									{
 										Attributes: []*v1.KeyValue{
-											// String
 											{Key: "link-attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 										},
 									},
@@ -676,8 +674,8 @@ func TestTraceToParquet(t *testing.T) {
 								StartTimeUnixNano: 1000,
 								DurationNano:      3000,
 								Events: []Event{{
-									TimeSinceStartUnixNano: 1000,
-									Name:                   "event name",
+									TimeSinceStartNano: 1000,
+									Name:               "event name",
 									Attrs: []Attribute{
 										attr("event.attr", "bbb"),
 									},

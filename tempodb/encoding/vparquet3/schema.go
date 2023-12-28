@@ -151,8 +151,8 @@ type DedicatedAttributes struct {
 }
 
 type Event struct {
-	TimeSinceStartUnixNano uint64      `parquet:",delta"`
-	Name                   string      `parquet:",snappy"`
+	TimeSinceStartNano     uint64      `parquet:",delta"`
+	Name                   string      `parquet:",snappy,dic"`
 	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy"`
 }
@@ -194,7 +194,7 @@ type Span struct {
 	DroppedAttributesCount int32       `parquet:",snappy"`
 	Events                 []Event     `parquet:",list"`
 	DroppedEventsCount     int32       `parquet:",snappy"`
-	Links                  []Link      `parquet:",list"` // proto encoded []*v1_trace.Span_Link
+	Links                  []Link      `parquet:",list"`
 	DroppedLinksCount      int32       `parquet:",snappy"`
 
 	// Static dedicated attribute columns
@@ -603,7 +603,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 
 func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
 	ee.Name = e.Name
-	ee.TimeSinceStartUnixNano = e.TimeUnixNano - spanStartTime
+	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
 	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
 
 	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
@@ -760,7 +760,7 @@ func parquetToProtoEvents(parquetEvents []Event, span Span) []*v1_trace.Span_Eve
 		for _, e := range parquetEvents {
 
 			protoEvent := &v1_trace.Span_Event{
-				TimeUnixNano:           e.TimeSinceStartUnixNano + span.StartTimeUnixNano,
+				TimeUnixNano:           e.TimeSinceStartNano + span.StartTimeUnixNano,
 				Name:                   e.Name,
 				Attributes:             nil,
 				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
