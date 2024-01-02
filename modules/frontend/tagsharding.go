@@ -33,7 +33,7 @@ type (
 	tagSearchReq            interface {
 		start() uint32
 		end() uint32
-		adjustRange(start, end uint32) tagSearchReq
+		newWithRange(start, end uint32) tagSearchReq
 		buildSearchTagRequest(subR *http.Request) (*http.Request, error)
 		buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
 	}
@@ -353,6 +353,8 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 // ingesterRequest returns a new start and end time range for the backend as well as a http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
+// since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
+// unexpectedly changing the passed searchReq.
 func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq) (*http.Request, error) {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
@@ -380,7 +382,7 @@ func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, 
 		return nil, nil
 	}
 
-	newSearchReq := searchReq.adjustRange(ingesterStart, ingesterEnd)
+	newSearchReq := searchReq.newWithRange(ingesterStart, ingesterEnd)
 	return s.buildIngesterRequest(ctx, tenantID, parent, newSearchReq)
 }
 

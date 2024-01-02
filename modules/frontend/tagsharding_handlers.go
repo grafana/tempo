@@ -24,7 +24,7 @@ func (r *tagsSearchRequest) end() uint32 {
 	return r.request.End
 }
 
-func (r *tagsSearchRequest) adjustRange(start, end uint32) tagSearchReq {
+func (r *tagsSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 	newReq := r.request
 	newReq.Start = start
 	newReq.End = end
@@ -68,7 +68,7 @@ func (r *tagValueSearchRequest) end() uint32 {
 	return r.request.End
 }
 
-func (r *tagValueSearchRequest) adjustRange(start, end uint32) tagSearchReq {
+func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 	newReq := r.request
 	newReq.Start = start
 	newReq.End = end

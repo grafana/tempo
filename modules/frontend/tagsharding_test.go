@@ -43,7 +43,7 @@ func (r *faceReq) end() uint32 {
 	return r.endValue
 }
 
-func (r *faceReq) adjustRange(start, end uint32) tagSearchReq {
+func (r *faceReq) newWithRange(start, end uint32) tagSearchReq {
 	return &faceReq{
 		startValue: start,
 		endValue:   end,
