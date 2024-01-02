@@ -66,9 +66,6 @@ type tagResults struct {
 	marshallErr error
 }
 
-/* func (r *tagResultCollector) parseRequest(re *http.Request) (tagSearchReq, error) {
-	return r.delegate.parseRequest(re)
-}*/
 
 func (r *tagResultCollector) shouldQuit() bool {
 	r.mtx.Lock()
