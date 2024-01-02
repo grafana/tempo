@@ -155,10 +155,15 @@ func TestSearchTagValuesV2(t *testing.T) {
 	}
 
 	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
-	// 1s for security.
+	// 2s for security.
 	callFlush(t, tempo)
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Second * 22)
 	callFlush(t, tempo)
+
+	// test metrics
+	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
 	for _, tc := range testCases {
@@ -168,7 +173,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 	}
 
 	// Wait to blocklist_poll to be completed
-	time.Sleep(time.Second * 2)
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
 
 	// Assert tags on storage backend
 	now := time.Now()
@@ -239,8 +244,13 @@ func TestSearchTagValues(t *testing.T) {
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
 	callFlush(t, tempo)
-	time.Sleep(time.Second * 30)
+	time.Sleep(time.Second * 22)
 	callFlush(t, tempo)
+
+	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
+
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
 	// Assert no more on the ingester
 	// Wait to blocklist_poll to be completed
