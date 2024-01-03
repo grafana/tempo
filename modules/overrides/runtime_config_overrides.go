@@ -1,12 +1,14 @@
 package overrides
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 
 	"github.com/grafana/dskit/runtimeconfig"
@@ -60,9 +62,23 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(typ ConfigType) func(r io.Reader) (interface{}, error) {
+func loadPerTenantOverrides(typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
 	return func(r io.Reader) (interface{}, error) {
 		overrides := &perTenantOverrides{}
+
+		if expandEnv {
+			rr := r.(*bytes.Reader)
+			b, err := io.ReadAll(rr)
+			if err != nil {
+				return nil, err
+			}
+
+			s, err := envsubst.EvalEnv(string(b))
+			if err != nil {
+				return nil, fmt.Errorf("failed to expand env vars: %w", err)
+			}
+			r = bytes.NewReader([]byte(s))
+		}
 
 		decoder := yaml.NewDecoder(r)
 		decoder.SetStrict(true)
@@ -107,7 +123,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(cfg.ConfigType),
+			Loader:       loadPerTenantOverrides(cfg.ConfigType, cfg.ExpandEnv),
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
 		if err != nil {
@@ -309,7 +325,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID st
 
 // MetricsGeneratorRemoteWriteHeaders returns the custom remote write headers for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string {
-	return o.getOverridesForUser(userID).MetricsGenerator.RemoteWriteHeaders
+	return o.getOverridesForUser(userID).MetricsGenerator.RemoteWriteHeaders.toString()
 }
 
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.

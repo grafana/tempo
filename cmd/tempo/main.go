@@ -196,6 +196,8 @@ func loadConfig() (*app.Config, bool, error) {
 
 	}
 
+	config.Overrides.ExpandEnv = configExpandEnv
+
 	// overlay with cli
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
 	flagext.IgnoredFlag(flag.CommandLine, configExpandEnvOption, "Whether to expand environment variables in config file")
