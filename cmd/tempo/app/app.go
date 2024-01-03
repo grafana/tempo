@@ -66,20 +66,22 @@ var (
 type App struct {
 	cfg Config
 
-	Server         *server.Server
+	mux            *mux.Router
+	server         *server.Server
 	InternalServer *server.Server
-	readRings      map[string]*ring.Ring
-	Overrides      overrides.Service
-	distributor    *distributor.Distributor
-	querier        *querier.Querier
-	frontend       *frontend_v1.Frontend
-	compactor      *compactor.Compactor
-	ingester       *ingester.Ingester
-	generator      *generator.Generator
-	store          storage.Store
-	usageReport    *usagestats.Reporter
-	cacheProvider  cache.Provider
-	MemberlistKV   *memberlist.KVInitService
+
+	readRings     map[string]*ring.Ring
+	Overrides     overrides.Service
+	distributor   *distributor.Distributor
+	querier       *querier.Querier
+	frontend      *frontend_v1.Frontend
+	compactor     *compactor.Compactor
+	ingester      *ingester.Ingester
+	generator     *generator.Generator
+	store         storage.Store
+	usageReport   *usagestats.Reporter
+	cacheProvider cache.Provider
+	MemberlistKV  *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -94,6 +96,7 @@ func New(cfg Config) (*App, error) {
 	app := &App{
 		cfg:       cfg,
 		readRings: map[string]*ring.Ring{},
+		mux:       mux.NewRouter(),
 	}
 
 	usagestats.Edition("oss")
@@ -192,12 +195,12 @@ func (t *App) Run() error {
 		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm))
 	}
 
-	t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
+	t.mux.Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
 
-	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
-	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
-	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, grpcutil.NewHealthCheck(sm))
+	t.mux.Path("/ready").Handler(t.readyHandler(sm))
+	t.mux.Path("/status").Handler(t.statusHandler()).Methods("GET")
+	t.mux.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
+	grpc_health_v1.RegisterHealthServer(t.server.GRPC, grpcutil.NewHealthCheck(sm))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
@@ -226,7 +229,7 @@ func (t *App) Run() error {
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
 	// Setup signal handler. If signal arrives, we stop the manager, which stops all the services.
-	handler := signals.NewHandler(t.Server.Log)
+	handler := signals.NewHandler(t.server.Log)
 	go func() {
 		handler.Loop()
 		sm.StopAsync()
@@ -472,7 +475,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	endpoints := []endpoint{}
 
-	err := t.Server.HTTP.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	err := t.mux.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		e := endpoint{}
 
 		pathTemplate, err := route.GetPathTemplate()

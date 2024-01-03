@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
@@ -20,6 +21,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
@@ -95,13 +98,11 @@ func (t *App) initServer() (services.Service, error) {
 		))
 	}
 
+	t.cfg.Server.Router = t.mux
+	if t.cfg.StreamOverHTTPEnabled {
+		t.cfg.Server.Router = nil
+	}
 	DisableSignalHandling(&t.cfg.Server)
-
-	// this allows us to serve http and grpc over the primary http server.
-	//  to use this register services with GRPCOnHTTPServer
-	// Note: Enabling this breaks TLS
-	t.cfg.Server.RouteHTTPToGRPC = t.cfg.StreamOverHTTPEnabled
-
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server: %w", err)
@@ -118,8 +119,19 @@ func (t *App) initServer() (services.Service, error) {
 		return svs
 	}
 
-	t.Server = server
+	t.server = server
 	s := NewServerService(server, servicesToWaitFor)
+
+	if t.cfg.StreamOverHTTPEnabled {
+		t.server.HTTPServer.Handler = h2c.NewHandler(server.HTTPServer.Handler, &http2.Server{})
+		t.server.HTTP.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") { // jpe - both? i don't think grafana sends the content-type header
+				t.server.GRPC.ServeHTTP(w, req)
+			} else {
+				t.mux.ServeHTTP(w, req)
+			}
+		})
+	}
 
 	return s, nil
 }
@@ -178,7 +190,7 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 		return nil, fmt.Errorf("failed to create ring %s: %w", name, err)
 	}
 
-	t.Server.HTTP.Handle("/"+name+"/ring", ring)
+	t.mux.Handle("/"+name+"/ring", ring)
 	t.readRings[name] = ring
 
 	return ring, nil
@@ -217,10 +229,10 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return t.HTTPAuthMiddleware.Wrap(h)
 	}
 
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
-	t.Server.HTTP.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
+	t.mux.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
+	t.mux.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
+	t.mux.Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
+	t.mux.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
 
 	return userConfigOverridesAPI, nil
 }
@@ -241,7 +253,7 @@ func (t *App) initDistributor() (services.Service, error) {
 	t.distributor = distributor
 
 	if distributor.DistributorRing != nil {
-		t.Server.HTTP.Handle("/distributor/ring", distributor.DistributorRing)
+		t.mux.Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
 	return t.distributor, nil
@@ -257,10 +269,10 @@ func (t *App) initIngester() (services.Service, error) {
 	}
 	t.ingester = ingester
 
-	tempopb.RegisterPusherServer(t.Server.GRPC, t.ingester)
-	tempopb.RegisterQuerierServer(t.Server.GRPC, t.ingester)
-	t.Server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
-	t.Server.HTTP.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
+	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
+	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
+	t.mux.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
+	t.mux.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
 	return t.ingester, nil
 }
 
@@ -277,9 +289,9 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.generator = genSvc
 
 	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
+	t.mux.Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
 
-	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
+	tempopb.RegisterMetricsGeneratorServer(t.server.GRPC, t.generator)
 
 	return t.generator, nil
 }
@@ -326,27 +338,27 @@ func (t *App) initQuerier() (services.Service, error) {
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
 	searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
 	searchTagsV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsV2Handler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
 
 	searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
 
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
 
 	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
-	t.Server.HTTP.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
+	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
 
-	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPServer.Handler)
+	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
@@ -358,6 +370,15 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	t.frontend = v1
 
+	// jpe - add stream over http support here
+	//     - update docs to reflect new defaults
+	//     - remove stream_over_http_enabled config in integration tests
+	//     - review impact on GET
+	//     - remove support from dskit
+	//     - restore default = false
+	//     - remove ws support
+	//     - review dskit server settings, do i need to copy any to the router?
+
 	// create query frontend
 	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
@@ -365,11 +386,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 
 	// register grpc server for queriers to connect to
-	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
+	frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
 	// we register the streaming querier service on both the http and grpc servers. Grafana expects
 	// this GRPC service to be available on the HTTP server.
-	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC, queryFrontend)
-	tempopb.RegisterStreamingQuerierServer(t.Server.GRPCOnHTTPServer, queryFrontend)
+	tempopb.RegisterStreamingQuerierServer(t.server.GRPC, queryFrontend)
+	//	tempopb.RegisterStreamingQuerierServer(t.Server.GRPCOnHTTPServer, queryFrontend)
 
 	// wrap handlers with auth
 	base := middleware.Merge(
@@ -378,27 +399,27 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	)
 
 	// http trace by id endpoint
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
 
 	// http search endpoints
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), base.Wrap(queryFrontend.SearchWSHandler))
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), base.Wrap(queryFrontend.SearchWSHandler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
 
 	// http metrics endpoints
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(context.Background(), nil)
 
 	// http query echo endpoint
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
 
 	// http endpoint to see usage stats data
-	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
+	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
@@ -416,7 +437,7 @@ func (t *App) initCompactor() (services.Service, error) {
 	t.compactor = compactor
 
 	if t.compactor.Ring != nil {
-		t.Server.HTTP.Handle("/compactor/ring", t.compactor.Ring)
+		t.mux.Handle("/compactor/ring", t.compactor.Ring)
 	}
 
 	return t.compactor, nil
@@ -456,7 +477,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
-	t.Server.HTTP.Handle("/memberlist", t.MemberlistKV)
+	t.mux.Handle("/memberlist", t.MemberlistKV)
 
 	return t.MemberlistKV, nil
 }
