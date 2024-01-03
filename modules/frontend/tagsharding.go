@@ -180,7 +180,8 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	if ingesterReq != nil {
 		reqCh <- &backendReqMsg{req: ingesterReq}
 	}
-
+	// TODO: Needs to be reviewed how to shard this property, as this is not very accurate and needs more testing.
+	// 		 even for regular search this is not precise.
 	// pass subCtx in requests, so we can cancel and exit early
 	s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
 
@@ -353,8 +354,8 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 // ingesterRequest returns a new start and end time range for the backend as well as a http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
-// since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
-// unexpectedly changing the passed searchReq.
+// we should do a copy of the searchReq before use this function, as it is an interface, we cannot guaranteed  be passed
+// by value.
 func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq) (*http.Request, error) {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
