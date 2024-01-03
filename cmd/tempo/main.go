@@ -196,6 +196,7 @@ func loadConfig() (*app.Config, bool, error) {
 
 	}
 
+	// Pass --config.expand-env flag to overrides module
 	config.Overrides.ExpandEnv = configExpandEnv
 
 	// overlay with cli

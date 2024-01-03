@@ -325,7 +325,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID st
 
 // MetricsGeneratorRemoteWriteHeaders returns the custom remote write headers for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string {
-	return o.getOverridesForUser(userID).MetricsGenerator.RemoteWriteHeaders.toString()
+	return o.getOverridesForUser(userID).MetricsGenerator.RemoteWriteHeaders.toStringStringMap()
 }
 
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.

@@ -109,7 +109,7 @@ type ProcessorOverrides struct {
 
 type RemoteWriteHeaders map[string]config.Secret
 
-func (h *RemoteWriteHeaders) toString() map[string]string {
+func (h *RemoteWriteHeaders) toStringStringMap() map[string]string {
 	if h == nil {
 		return nil
 	}
