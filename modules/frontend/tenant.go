@@ -28,16 +28,16 @@ var ErrMultiTenantUnsupported = errors.New("multi-tenant query unsupported")
 var (
 	tenantSuccessTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "tenant_federation_success_total",
+			Namespace: "tempo_query_frontend",
+			Name:      "multitenant_success_total",
 			Help:      "Total number of successful fetches of a trace per tenant.",
 		},
 		[]string{tenantLabel})
 
 	tenantFailureTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "tenant_federation_failures_total",
+			Namespace: "tempo_query_frontend",
+			Name:      "multitenant_failures_total",
 			Help:      "Total number of failing fetches of a trace per tenant.",
 		},
 		[]string{tenantLabel, statusCodeLabel})
