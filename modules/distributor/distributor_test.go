@@ -17,7 +17,6 @@ import (
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	"github.com/grafana/dskit/flagext"
-	//"github.com/grafana/dskit/kv"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
