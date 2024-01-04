@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/grafana/pyroscope-go/godeltaprof/http/pprof" // anonymous import to get godelatprof handlers registered
+
 	gokit_log "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
@@ -92,10 +94,11 @@ type Config struct {
 	HTTPTLSConfig TLSConfig `yaml:"http_tls_config"`
 	GRPCTLSConfig TLSConfig `yaml:"grpc_tls_config"`
 
-	RegisterInstrumentation               bool `yaml:"register_instrumentation"`
-	ReportGRPCCodesInInstrumentationLabel bool `yaml:"report_grpc_codes_in_instrumentation_label_enabled"`
-	ExcludeRequestInLog                   bool `yaml:"-"`
-	DisableRequestSuccessLog              bool `yaml:"-"`
+	RegisterInstrumentation                  bool `yaml:"register_instrumentation"`
+	ReportGRPCCodesInInstrumentationLabel    bool `yaml:"report_grpc_codes_in_instrumentation_label_enabled"`
+	ReportHTTP4XXCodesInInstrumentationLabel bool `yaml:"-"`
+	ExcludeRequestInLog                      bool `yaml:"-"`
+	DisableRequestSuccessLog                 bool `yaml:"-"`
 
 	ServerGracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout"`
 	HTTPServerReadTimeout         time.Duration `yaml:"http_server_read_timeout"`
@@ -350,6 +353,22 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 
 	level.Info(logger).Log("msg", "server listening on addresses", "http", httpListener.Addr(), "grpc", grpcListener.Addr())
 
+	// Setup HTTP server
+	var router *mux.Router
+	if cfg.Router != nil {
+		router = cfg.Router
+	} else {
+		router = mux.NewRouter()
+	}
+	if cfg.PathPrefix != "" {
+		// Expect metrics and pprof handlers to be prefixed with server's path prefix.
+		// e.g. /loki/metrics or /loki/debug/pprof
+		router = router.PathPrefix(cfg.PathPrefix).Subrouter()
+	}
+	if cfg.RegisterInstrumentation {
+		RegisterInstrumentationWithGatherer(router, gatherer)
+	}
+
 	// Setup gRPC server
 	serverLog := middleware.GRPCServerLog{
 		Log:                      logger,
@@ -363,6 +382,7 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	grpcMiddleware := []grpc.UnaryServerInterceptor{
 		serverLog.UnaryServerInterceptor,
 		otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer()),
+		middleware.HTTPGRPCTracingInterceptor(router), // This must appear after the OpenTracingServerInterceptor.
 		middleware.UnaryServerInstrumentInterceptor(metrics.RequestDuration, reportGRPCStatusesOptions...),
 	}
 	grpcMiddleware = append(grpcMiddleware, cfg.GRPCMiddleware...)
@@ -419,55 +439,9 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	grpcServer := grpc.NewServer(grpcOptions...)
 	grpcOnHTTPServer := grpc.NewServer(grpcOptions...)
 
-	// Setup HTTP server
-	var router *mux.Router
-	if cfg.Router != nil {
-		router = cfg.Router
-	} else {
-		router = mux.NewRouter()
-	}
-	if cfg.PathPrefix != "" {
-		// Expect metrics and pprof handlers to be prefixed with server's path prefix.
-		// e.g. /loki/metrics or /loki/debug/pprof
-		router = router.PathPrefix(cfg.PathPrefix).Subrouter()
-	}
-	if cfg.RegisterInstrumentation {
-		RegisterInstrumentationWithGatherer(router, gatherer)
-	}
-
-	sourceIPs, err := middleware.NewSourceIPs(cfg.LogSourceIPsHeader, cfg.LogSourceIPsRegex)
+	httpMiddleware, err := BuildHTTPMiddleware(cfg, router, metrics, logger)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up source IP extraction: %v", err)
-	}
-	logSourceIPs := sourceIPs
-	if !cfg.LogSourceIPs {
-		// We always include the source IPs for traces,
-		// but only want to log them in the middleware if that is enabled.
-		logSourceIPs = nil
-	}
-
-	defaultLogMiddleware := middleware.NewLogMiddleware(logger, cfg.LogRequestHeaders, cfg.LogRequestAtInfoLevel, logSourceIPs, strings.Split(cfg.LogRequestExcludeHeadersList, ","))
-	defaultLogMiddleware.DisableRequestSuccessLog = cfg.DisableRequestSuccessLog
-
-	defaultHTTPMiddleware := []middleware.Interface{
-		middleware.Tracer{
-			RouteMatcher: router,
-			SourceIPs:    sourceIPs,
-		},
-		defaultLogMiddleware,
-		middleware.Instrument{
-			RouteMatcher:     router,
-			Duration:         metrics.RequestDuration,
-			RequestBodySize:  metrics.ReceivedMessageSize,
-			ResponseBodySize: metrics.SentMessageSize,
-			InflightRequests: metrics.InflightRequests,
-		},
-	}
-	var httpMiddleware []middleware.Interface
-	if cfg.DoNotAddDefaultHTTPMiddleware {
-		httpMiddleware = cfg.HTTPMiddleware
-	} else {
-		httpMiddleware = append(defaultHTTPMiddleware, cfg.HTTPMiddleware...)
+		return nil, fmt.Errorf("error building http middleware: %w", err)
 	}
 
 	httpServer := &http.Server{
@@ -517,6 +491,45 @@ func RegisterInstrumentationWithGatherer(router *mux.Router, gatherer prometheus
 	router.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 }
 
+func BuildHTTPMiddleware(cfg Config, router *mux.Router, metrics *Metrics, logger gokit_log.Logger) ([]middleware.Interface, error) {
+	sourceIPs, err := middleware.NewSourceIPs(cfg.LogSourceIPsHeader, cfg.LogSourceIPsRegex)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up source IP extraction: %w", err)
+	}
+	logSourceIPs := sourceIPs
+	if !cfg.LogSourceIPs {
+		// We always include the source IPs for traces,
+		// but only want to log them in the middleware if that is enabled.
+		logSourceIPs = nil
+	}
+
+	defaultLogMiddleware := middleware.NewLogMiddleware(logger, cfg.LogRequestHeaders, cfg.LogRequestAtInfoLevel, logSourceIPs, strings.Split(cfg.LogRequestExcludeHeadersList, ","))
+	defaultLogMiddleware.DisableRequestSuccessLog = cfg.DisableRequestSuccessLog
+
+	defaultHTTPMiddleware := []middleware.Interface{
+		middleware.Tracer{
+			RouteMatcher: router,
+			SourceIPs:    sourceIPs,
+		},
+		defaultLogMiddleware,
+		middleware.Instrument{
+			RouteMatcher:     router,
+			Duration:         metrics.RequestDuration,
+			RequestBodySize:  metrics.ReceivedMessageSize,
+			ResponseBodySize: metrics.SentMessageSize,
+			InflightRequests: metrics.InflightRequests,
+		},
+	}
+	var httpMiddleware []middleware.Interface
+	if cfg.DoNotAddDefaultHTTPMiddleware {
+		httpMiddleware = cfg.HTTPMiddleware
+	} else {
+		httpMiddleware = append(defaultHTTPMiddleware, cfg.HTTPMiddleware...)
+	}
+
+	return httpMiddleware, nil
+}
+
 // Run the server; blocks until SIGTERM (if signal handling is enabled), an error is received, or Stop() is called.
 func (s *Server) Run() error {
 	errChan := make(chan error, 1)
@@ -547,9 +560,12 @@ func (s *Server) Run() error {
 		}
 	}()
 
-	// Setup gRPC server
-	// for HTTP over gRPC, ensure we don't double-count the middleware
-	httpgrpc.RegisterHTTPServer(s.GRPC, httpgrpc_server.NewServer(s.HTTP))
+	serverOptions := make([]httpgrpc_server.Option, 0, 1)
+	if s.cfg.ReportHTTP4XXCodesInInstrumentationLabel {
+		serverOptions = append(serverOptions, httpgrpc_server.WithReturn4XXErrors)
+	}
+	// Setup gRPC server for HTTP over gRPC, ensure we don't double-count the middleware
+	httpgrpc.RegisterHTTPServer(s.GRPC, httpgrpc_server.NewServer(s.HTTP, serverOptions...))
 
 	go func() {
 		err := s.GRPC.Serve(s.grpcListener)

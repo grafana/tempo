@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
+	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"golang.org/x/net/http2"
@@ -65,14 +66,16 @@ func (s *tempoServer) EnableHTTP2() {
 func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error) {
 	var err error
 
+	metrics := server.NewServerMetrics(cfg)
 	// use tempo's mux unless we are doing grpc over http, then we will let the library instantiate its own
 	// router and piggy back on it to route grpc requests
 	cfg.Router = s.mux
 	if supportGRPCOnHTTP {
 		cfg.Router = nil
+		cfg.DoNotAddDefaultHTTPMiddleware = true // we don't want instrumentation on the "root" router, we want it on our mux
 	}
 	DisableSignalHandling(&cfg)
-	s.externalServer, err = server.New(cfg)
+	s.externalServer, err = server.NewWithMetrics(cfg, metrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server: %w", err)
 	}
@@ -80,6 +83,24 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 	// now that we have created the server and service let's setup our grpc/http router if necessary
 	if supportGRPCOnHTTP {
 		s.EnableHTTP2()
+		// jpe - this works as well
+		// s.externalServer.HTTP.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// 	// route to GRPC server if it's a GRPC request
+		// 	if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") { // jpe - both? i don't think grafana sends the content-type header
+		// 		s.externalServer.GRPC.ServeHTTP(w, req)
+		// 		return
+		// 	}
+
+		// 	w.WriteHeader(http.StatusNotFound)
+		// })
+
+		// recreate dskit instrumentation here
+		cfg.DoNotAddDefaultHTTPMiddleware = false
+		httpMiddleware, err := server.BuildHTTPMiddleware(cfg, s.mux, metrics, s.externalServer.Log)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create http middleware: %w", err)
+		}
+		router := middleware.Merge(httpMiddleware...).Wrap(s.mux)
 		s.externalServer.HTTP.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			// route to GRPC server if it's a GRPC request
 			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") { // jpe - both? i don't think grafana sends the content-type header
@@ -88,7 +109,7 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 			}
 
 			// default to standard http server
-			s.mux.ServeHTTP(w, req)
+			router.ServeHTTP(w, req)
 		})
 	}
 
