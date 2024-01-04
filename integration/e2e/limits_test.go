@@ -2,11 +2,14 @@ package e2e
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/binary"
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
@@ -15,11 +18,16 @@ import (
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/test"
+
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 const (
-	configLimits      = "config-limits.yaml"
-	configLimitsQuery = "config-limits-query.yaml"
+	configLimits             = "config-limits.yaml"
+	configLimitsQuery        = "config-limits-query.yaml"
+	configLimitsPartialError = "config-limits-partial-success.yaml"
 )
 
 func TestLimits(t *testing.T) {
@@ -38,14 +46,14 @@ func TestLimits(t *testing.T) {
 
 	// should fail b/c the trace is too large. each batch should be ~70 bytes
 	batch := makeThriftBatchWithSpanCount(2)
-	require.Error(t, c.EmitBatch(context.Background(), batch), "max trace size")
+	require.NoError(t, c.EmitBatch(context.Background(), batch), "max trace size")
 
 	// push a trace
 	require.NoError(t, c.EmitBatch(context.Background(), makeThriftBatchWithSpanCount(1)))
 
 	// should fail b/c this will be too many traces
 	batch = makeThriftBatch()
-	require.Error(t, c.EmitBatch(context.Background(), batch), "too many traces")
+	require.NoError(t, c.EmitBatch(context.Background(), batch), "too many traces")
 
 	// should fail b/c due to ingestion rate limit
 	batch = makeThriftBatchWithSpanCount(10)
@@ -132,4 +140,78 @@ func TestQueryLimits(t *testing.T) {
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
 	require.ErrorContains(t, err, "failed with response: 400") // confirm querier returns 400
+}
+
+func TestLimitsPartialSuccess(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+	require.NoError(t, util.CopyFileToSharedDir(s, configLimitsPartialError, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// otel grpc exporter
+	exporter, err := util.NewOtelGRPCExporter(tempo.Endpoint(4317))
+	require.NoError(t, err)
+
+	err = exporter.Start(context.Background(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// make request
+	traceIDs := make([][]byte, 6)
+	for index := range traceIDs {
+		traceID := make([]byte, 16)
+		_, err = crand.Read(traceID)
+		require.NoError(t, err)
+		traceIDs[index] = traceID
+	}
+
+	// 3 traces with trace_too_large and 3 with no error
+	spanCountsByTrace := []int{1, 4, 1, 5, 6, 1}
+	req := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
+
+	b, err := req.Marshal()
+	require.NoError(t, err)
+
+	// unmarshal into otlp proto
+	traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
+	require.NoError(t, err)
+	require.NotNil(t, traces)
+
+	ctx := user.InjectOrgID(context.Background(), tempoUtil.FakeTenantID)
+	ctx, err = user.InjectIntoGRPCRequest(ctx)
+	require.NoError(t, err)
+
+	// send traces to tempo
+	// partial success = no error
+	err = exporter.ConsumeTraces(ctx, traces)
+	require.NoError(t, err)
+
+	// shutdown to ensure traces are flushed
+	require.NoError(t, exporter.Shutdown(context.Background()))
+
+	// query for the one trace that didn't trigger an error
+	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
+	for i, count := range spanCountsByTrace {
+		if count == 1 {
+			result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
+			require.NoError(t, err)
+			assert.Equal(t, 1, len(result.Batches))
+		}
+	}
+
+	// test metrics
+	// 3 traces with trace_too_large each with 4+5+6 spans
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(15),
+		[]string{"tempo_discarded_spans_total"},
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
+	)
+	require.NoError(t, err)
+
+	// this metric should never exist
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(0),
+		[]string{"tempo_discarded_spans_total"},
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "unknown_error")),
+	)
+	require.NoError(t, err)
 }

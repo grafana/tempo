@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -47,6 +48,8 @@ const (
 	reasonLiveTracesExceeded = "live_traces_exceeded"
 	// reasonInternalError indicates an unexpected error occurred processing these spans. analogous to a 500
 	reasonInternalError = "internal_error"
+	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
+	reasonUnknown = "unknown_error"
 
 	distributorRingKey = "distributor"
 )
@@ -107,10 +110,11 @@ var (
 
 // rebatchedTrace is used to more cleanly pass the set of data
 type rebatchedTrace struct {
-	id    []byte
-	trace *tempopb.Trace
-	start uint32 // unix epoch seconds
-	end   uint32 // unix epoch seconds
+	id        []byte
+	trace     *tempopb.Trace
+	start     uint32 // unix epoch seconds
+	end       uint32 // unix epoch seconds
+	spanCount int
 }
 
 // Distributor coordinates replicates and distribution of log streams.
@@ -277,7 +281,7 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
 		return status.Errorf(codes.ResourceExhausted,
-			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
+			"%s: ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
 			int(d.ingestionRateLimiter.Limit(now, userID)),
 			tracesSize, userID)
@@ -347,9 +351,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
 	if err != nil {
-		recordDiscaredSpans(err, userID, spanCount)
 		return nil, err
 	}
 
@@ -364,8 +367,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, keys []uint32) error {
-	// Marshal to bytes once
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, totalSpanCount int, traces []*rebatchedTrace, keys []uint32) error {
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := d.traceEncoder.PrepareForWrite(t.trace, t.start, t.end)
@@ -379,6 +381,12 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	if d.cfg.ExtendWrites {
 		op = ring.Write
 	}
+
+	numOfTraces := len(keys)
+	numSuccessByTraceIndex := make([]int, numOfTraces)
+	lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, numOfTraces)
+
+	var mu sync.Mutex
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
@@ -401,15 +409,37 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			return err
 		}
 
-		_, err = c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
+		pushResponse, err := c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
-		if err != nil {
-			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
-		}
-		return err
-	}, func() {})
 
-	return err
+		if err != nil { // internal error, drop entire batch
+			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
+			return err
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		d.processPushResponse(pushResponse, numSuccessByTraceIndex, lastErrorReasonByTraceIndex, numOfTraces, indexes)
+
+		return nil
+	}, func() {})
+	// if err != nil, we discarded everything because of an internal error
+	if err != nil {
+		overrides.RecordDiscardedSpans(totalSpanCount, reasonInternalError, userID)
+		return err
+	}
+
+	// count discarded span count
+	mu.Lock()
+	defer mu.Unlock()
+
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, d.ingestersRing.ReplicationFactor())
+	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
+	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
+	overrides.RecordDiscardedSpans(unknownErrorCount, reasonUnknown, userID)
+
+	return nil
 }
 
 func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
@@ -493,8 +523,9 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 						trace: &tempopb.Trace{
 							Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
 						},
-						start: math.MaxUint32,
-						end:   0,
+						start:     math.MaxUint32,
+						end:       0,
+						spanCount: 0,
 					}
 
 					tracesByID[traceKey] = existingTrace
@@ -513,6 +544,9 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 						ScopeSpans: []*v1.ScopeSpans{existingILS},
 					})
 				}
+
+				// increase span count for trace
+				existingTrace.spanCount = existingTrace.spanCount + 1
 			}
 		}
 	}
@@ -530,19 +564,58 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func recordDiscaredSpans(err error, userID string, spanCount int) {
-	s := status.Convert(err)
-	if s == nil {
+func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount int) {
+	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
+
+	for traceIndex, numSuccess := range numSuccessByTraceIndex {
+		// we will count anything that did not receive min success as discarded
+		if numSuccess >= quorum {
+			continue
+		}
+		spanCount := traces[traceIndex].spanCount
+		switch lastErrorReasonByTraceIndex[traceIndex] {
+		case tempopb.PushErrorReason_MAX_LIVE_TRACES:
+			maxLiveDiscardedCount += spanCount
+		case tempopb.PushErrorReason_TRACE_TOO_LARGE:
+			traceTooLargeDiscardedCount += spanCount
+		case tempopb.PushErrorReason_UNKNOWN_ERROR:
+			unknownErrorCount += spanCount
+		}
+	}
+
+	return maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount
+}
+
+func (d *Distributor) processPushResponse(pushResponse *tempopb.PushResponse, numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, numOfTraces int, indexes []int) {
+	// no errors
+	if len(pushResponse.ErrorsByTrace) == 0 {
+		for _, reqBatchIndex := range indexes {
+			if reqBatchIndex > numOfTraces {
+				level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+				continue
+			}
+			numSuccessByTraceIndex[reqBatchIndex]++
+		}
 		return
 	}
-	desc := s.Message()
 
-	if strings.HasPrefix(desc, overrides.ErrorPrefixLiveTracesExceeded) {
-		overrides.RecordDiscardedSpans(spanCount, reasonLiveTracesExceeded, userID)
-	} else if strings.HasPrefix(desc, overrides.ErrorPrefixTraceTooLarge) {
-		overrides.RecordDiscardedSpans(spanCount, reasonTraceTooLarge, userID)
-	} else {
-		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
+	for ringIndex, pushError := range pushResponse.ErrorsByTrace {
+		// translate index of ring batch and req batch
+		// since the request batch gets split up into smaller batches based on the indexes
+		// like [0,1] [1] [2] [0,2]
+		reqBatchIndex := indexes[ringIndex]
+		if reqBatchIndex > numOfTraces {
+			level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+			continue
+		}
+
+		// if no error, record number of success
+		if pushError == tempopb.PushErrorReason_NO_ERROR {
+			numSuccessByTraceIndex[reqBatchIndex]++
+			continue
+		}
+		// else record last error
+		lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
 	}
 }
 
