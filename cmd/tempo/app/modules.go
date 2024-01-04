@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"strings"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
@@ -21,8 +20,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
@@ -98,16 +95,6 @@ func (t *App) initServer() (services.Service, error) {
 		))
 	}
 
-	t.cfg.Server.Router = t.mux
-	if t.cfg.StreamOverHTTPEnabled {
-		t.cfg.Server.Router = nil
-	}
-	DisableSignalHandling(&t.cfg.Server)
-	server, err := server.New(t.cfg.Server)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create server: %w", err)
-	}
-
 	servicesToWaitFor := func() []services.Service {
 		svs := []services.Service(nil)
 		for m, s := range t.serviceMap {
@@ -119,21 +106,7 @@ func (t *App) initServer() (services.Service, error) {
 		return svs
 	}
 
-	t.server = server
-	s := NewServerService(server, servicesToWaitFor)
-
-	if t.cfg.StreamOverHTTPEnabled {
-		t.server.HTTPServer.Handler = h2c.NewHandler(server.HTTPServer.Handler, &http2.Server{})
-		t.server.HTTP.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") { // jpe - both? i don't think grafana sends the content-type header
-				t.server.GRPC.ServeHTTP(w, req)
-			} else {
-				t.mux.ServeHTTP(w, req)
-			}
-		})
-	}
-
-	return s, nil
+	return t.server.StartAndReturnService(t.cfg.Server, t.cfg.StreamOverHTTPEnabled, servicesToWaitFor)
 }
 
 func (t *App) initInternalServer() (services.Service, error) {
@@ -190,7 +163,7 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 		return nil, fmt.Errorf("failed to create ring %s: %w", name, err)
 	}
 
-	t.mux.Handle("/"+name+"/ring", ring)
+	t.server.HTTP().Handle("/"+name+"/ring", ring)
 	t.readRings[name] = ring
 
 	return ring, nil
@@ -229,10 +202,10 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return t.HTTPAuthMiddleware.Wrap(h)
 	}
 
-	t.mux.Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
-	t.mux.Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
-	t.mux.Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
-	t.mux.Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
+	t.server.HTTP().Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
+	t.server.HTTP().Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
+	t.server.HTTP().Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
+	t.server.HTTP().Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
 
 	return userConfigOverridesAPI, nil
 }
@@ -253,7 +226,7 @@ func (t *App) initDistributor() (services.Service, error) {
 	t.distributor = distributor
 
 	if distributor.DistributorRing != nil {
-		t.mux.Handle("/distributor/ring", distributor.DistributorRing)
+		t.server.HTTP().Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
 	return t.distributor, nil
@@ -269,10 +242,10 @@ func (t *App) initIngester() (services.Service, error) {
 	}
 	t.ingester = ingester
 
-	tempopb.RegisterPusherServer(t.server.GRPC, t.ingester)
-	tempopb.RegisterQuerierServer(t.server.GRPC, t.ingester)
-	t.mux.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
-	t.mux.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
+	tempopb.RegisterPusherServer(t.server.GRPC(), t.ingester)
+	tempopb.RegisterQuerierServer(t.server.GRPC(), t.ingester)
+	t.server.HTTP().Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
+	t.server.HTTP().Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
 	return t.ingester, nil
 }
 
@@ -289,9 +262,9 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.generator = genSvc
 
 	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
-	t.mux.Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
 
-	tempopb.RegisterMetricsGeneratorServer(t.server.GRPC, t.generator)
+	tempopb.RegisterMetricsGeneratorServer(t.server.GRPC(), t.generator)
 
 	return t.generator, nil
 }
@@ -338,27 +311,27 @@ func (t *App) initQuerier() (services.Service, error) {
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
 	searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
 	searchTagsV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsV2Handler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
 
 	searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
 
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
 
 	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
-	t.mux.Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
+	t.server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
 
-	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTPServer.Handler)
+	return t.querier, t.querier.CreateAndRegisterWorker(t.server.HTTP())
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
@@ -386,11 +359,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 
 	// register grpc server for queriers to connect to
-	frontend_v1pb.RegisterFrontendServer(t.server.GRPC, t.frontend)
+	frontend_v1pb.RegisterFrontendServer(t.server.GRPC(), t.frontend)
 	// we register the streaming querier service on both the http and grpc servers. Grafana expects
 	// this GRPC service to be available on the HTTP server.
-	tempopb.RegisterStreamingQuerierServer(t.server.GRPC, queryFrontend)
-	//	tempopb.RegisterStreamingQuerierServer(t.Server.GRPCOnHTTPServer, queryFrontend)
+	tempopb.RegisterStreamingQuerierServer(t.server.GRPC(), queryFrontend)
 
 	// wrap handlers with auth
 	base := middleware.Merge(
@@ -399,27 +371,27 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	)
 
 	// http trace by id endpoint
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
 
 	// http search endpoints
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), base.Wrap(queryFrontend.SearchWSHandler))
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathWSSearch), base.Wrap(queryFrontend.SearchWSHandler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
 
 	// http metrics endpoints
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(context.Background(), nil)
 
 	// http query echo endpoint
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
 
 	// http endpoint to see usage stats data
-	t.mux.Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
+	t.server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
@@ -437,7 +409,7 @@ func (t *App) initCompactor() (services.Service, error) {
 	t.compactor = compactor
 
 	if t.compactor.Ring != nil {
-		t.mux.Handle("/compactor/ring", t.compactor.Ring)
+		t.server.HTTP().Handle("/compactor/ring", t.compactor.Ring)
 	}
 
 	return t.compactor, nil
@@ -477,7 +449,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
-	t.mux.Handle("/memberlist", t.MemberlistKV)
+	t.server.HTTP().Handle("/memberlist", t.MemberlistKV)
 
 	return t.MemberlistKV, nil
 }
