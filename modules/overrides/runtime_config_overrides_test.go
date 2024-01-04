@@ -569,6 +569,8 @@ func TestRemoteWriteHeaders(t *testing.T) {
 			},
 		},
 	}
+
+	prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
 	overrides, err := newRuntimeConfigOverrides(cfg)
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
@@ -613,6 +615,7 @@ overrides:
 	cfg.PerTenantOverrideConfig = overridesFile
 	cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
 
+	prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
 	overrides, err := newRuntimeConfigOverrides(cfg)
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
