@@ -48,6 +48,8 @@ const (
 	reasonLiveTracesExceeded = "live_traces_exceeded"
 	// reasonInternalError indicates an unexpected error occurred processing these spans. analogous to a 500
 	reasonInternalError = "internal_error"
+	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
+	reasonUnknown = "unknown_error"
 
 	distributorRingKey = "distributor"
 )
@@ -432,9 +434,10 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	mu.Lock()
 	defer mu.Unlock()
 
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, d.ingestersRing.ReplicationFactor())
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, d.ingestersRing.ReplicationFactor())
 	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
 	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
+	overrides.RecordDiscardedSpans(unknownErrorCount, reasonUnknown, userID)
 
 	return nil
 }
@@ -561,7 +564,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount int, traceTooLargeDiscardedCount int) {
+func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount int) {
 	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
 
 	for traceIndex, numSuccess := range numSuccessByTraceIndex {
@@ -575,10 +578,12 @@ func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceInde
 			maxLiveDiscardedCount += spanCount
 		case tempopb.PushErrorReason_TRACE_TOO_LARGE:
 			traceTooLargeDiscardedCount += spanCount
+		case tempopb.PushErrorReason_UNKNOWN_ERROR:
+			unknownErrorCount += spanCount
 		}
 	}
 
-	return maxLiveDiscardedCount, traceTooLargeDiscardedCount
+	return maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount
 }
 
 func (d *Distributor) processPushResponse(pushResponse *tempopb.PushResponse, numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, numOfTraces int, indexes []int) {
@@ -591,24 +596,26 @@ func (d *Distributor) processPushResponse(pushResponse *tempopb.PushResponse, nu
 			}
 			numSuccessByTraceIndex[reqBatchIndex]++
 		}
-	} else {
-		for ringIndex, pushError := range pushResponse.ErrorsByTrace {
-			// translate index of ring batch and req batch
-			// since the request batch gets split up into smaller batches based on the indexes
-			// like [0,1] [1] [2] [0,2]
-			reqBatchIndex := indexes[ringIndex]
-			if reqBatchIndex > numOfTraces {
-				level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
-				continue
-			}
+		return
+	}
 
-			// batchResults[reqBatchIndex] = append(batchResults[reqBatchIndex], pushError)
-			if pushError == tempopb.PushErrorReason_NO_ERROR {
-				numSuccessByTraceIndex[reqBatchIndex]++
-			} else {
-				lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
-			}
+	for ringIndex, pushError := range pushResponse.ErrorsByTrace {
+		// translate index of ring batch and req batch
+		// since the request batch gets split up into smaller batches based on the indexes
+		// like [0,1] [1] [2] [0,2]
+		reqBatchIndex := indexes[ringIndex]
+		if reqBatchIndex > numOfTraces {
+			level.Warn(d.logger).Log("msg", fmt.Sprintf("batch index %d out of bound for length %d", reqBatchIndex, numOfTraces))
+			continue
 		}
+
+		// if no error, record number of success
+		if pushError == tempopb.PushErrorReason_NO_ERROR {
+			numSuccessByTraceIndex[reqBatchIndex]++
+			continue
+		}
+		// else record last error
+		lastErrorReasonByTraceIndex[reqBatchIndex] = pushError
 	}
 }
 

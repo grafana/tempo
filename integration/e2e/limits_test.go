@@ -207,4 +207,11 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 	)
 	require.NoError(t, err)
+
+	// this metric should never exist
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(0),
+		[]string{"tempo_discarded_spans_total"},
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "unknown_error")),
+	)
+	require.NoError(t, err)
 }

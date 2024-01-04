@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
@@ -1175,7 +1174,7 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 				}
 			}
 
-			liveTraceDiscardedCount, traceTooLongDiscardedCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traceByID, tc.replicationFactor)
+			liveTraceDiscardedCount, traceTooLongDiscardedCount, _ := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traceByID, tc.replicationFactor)
 
 			require.Equal(t, tc.expectedLiveTracesDiscardedCount, liveTraceDiscardedCount)
 			require.Equal(t, tc.expectedTraceTooLargeDiscardedCount, traceTooLongDiscardedCount)
@@ -1301,7 +1300,7 @@ func TestIngesterPushBytes(t *testing.T) {
 		d.processPushResponse(pushResponse, numSuccessByTraceIndex, lastErrorReasonByTraceIndex, numOfTraces, indexes)
 	}
 
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, 3)
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount, _ := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, 3)
 	assert.Equal(t, traceTooLargeDiscardedCount, 6)
 	assert.Equal(t, maxLiveDiscardedCount, 35)
 }
@@ -1384,9 +1383,9 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger log.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger kitlog.Logger) *Distributor {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = kitlog.NewNopLogger()
 	}
 
 	var (

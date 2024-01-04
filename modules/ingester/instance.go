@@ -174,8 +174,11 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 			errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_TRACE_TOO_LARGE)
 			return errorsByTrace
 		}
+
 		// error is not either MaxLiveTraces or TraceTooLarge
 		level.Error(log.Logger).Log("msg", "Unexpected error during PushBytes", "tenant", i.instanceID, "error", pushError)
+		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_UNKNOWN_ERROR)
+		return errorsByTrace
 
 	} else if pushError == nil && len(errorsByTrace) > 0 {
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
