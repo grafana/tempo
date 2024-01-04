@@ -17,7 +17,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/dskit/kv"
+	//"github.com/grafana/dskit/kv"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -772,7 +772,7 @@ func TestDistributor(t *testing.T) {
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
-			d := prepare(t, limits, nil, nil)
+			d := prepare(t, limits, nil)
 
 			b := test.MakeBatch(tc.lines, []byte{})
 			traces := batchesToTraces(t, []*v1.ResourceSpans{b})
@@ -955,7 +955,7 @@ func TestLogSpans(t *testing.T) {
 			buf := &bytes.Buffer{}
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
 
-			d := prepare(t, limits, nil, logger)
+			d := prepare(t, limits, logger)
 			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
 				Enabled:              tc.LogReceivedSpansEnabled,
 				FilterByStatusError:  tc.filterByStatusError,
@@ -996,7 +996,7 @@ func TestRateLimitRespected(t *testing.T) {
 	}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, nil, logger)
+	d := prepare(t, overridesConfig, logger)
 	batches := []*v1.ResourceSpans{
 		makeResourceSpans("test-service", []*v1.ScopeSpans{
 			makeScope(
@@ -1226,7 +1226,7 @@ func TestProcessIngesterPushByteResponse(t *testing.T) {
 	overridesConfig := overrides.Config{}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, nil, logger)
+	d := prepare(t, overridesConfig, logger)
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1247,7 +1247,7 @@ func TestIngesterPushBytes(t *testing.T) {
 	overridesConfig := overrides.Config{}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, nil, logger)
+	d := prepare(t, overridesConfig, logger)
 
 	traces := []*rebatchedTrace{
 		{
@@ -1383,7 +1383,7 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger kitlog.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distributor {
 	if logger == nil {
 		logger = kitlog.NewNopLogger()
 	}
@@ -1414,7 +1414,7 @@ func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger ki
 
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
-	distributorConfig.DistributorRing.KVStore.Mock = kvStore
+	distributorConfig.DistributorRing.KVStore.Mock = nil
 	distributorConfig.DistributorRing.InstanceInterfaceNames = []string{"eth0", "en0", "lo0"}
 	distributorConfig.factory = func(addr string) (ring_client.PoolClient, error) {
 		return ingesters[addr], nil

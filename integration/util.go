@@ -25,8 +25,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
-	"go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/trace"
+	mnoop "go.opentelemetry.io/otel/metric/noop"
+	tnoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -290,8 +290,8 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 		exporter.CreateSettings{
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         logger,
-				TracerProvider: trace.NewNoopTracerProvider(),
-				MeterProvider:  noop.NewMeterProvider(),
+				TracerProvider: tnoop.NewTracerProvider(),
+				MeterProvider:  mnoop.NewMeterProvider(),
 			},
 			BuildInfo: component.NewDefaultBuildInfo(),
 		},
