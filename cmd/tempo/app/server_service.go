@@ -74,6 +74,7 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 		cfg.Router = nil
 		cfg.DoNotAddDefaultHTTPMiddleware = true // we don't want instrumentation on the "root" router, we want it on our mux
 	}
+
 	DisableSignalHandling(&cfg)
 	s.externalServer, err = server.NewWithMetrics(cfg, metrics)
 	if err != nil {
