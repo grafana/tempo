@@ -61,14 +61,14 @@ func newQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg Quer
 }
 
 func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	now := time.Now()
+	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
+	defer span.Finish()
 
 	var (
-		isProm        bool
-		err           error
-		queryRangeReq *tempopb.QueryRangeRequest
-		generatorReq  *queryRangeJob
-		tenantID      string
+		isProm       bool
+		err          error
+		generatorReq *queryRangeJob
+		now          = time.Now()
 	)
 
 	// This route supports two flavors. (1) Prometheus-compatible (2) Tempo native
@@ -84,23 +84,20 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		now = time.Unix(now.Unix(), 0)
 	}
 
-	queryRangeReq, err = api.ParseQueryRangeRequest(r)
+	queryRangeReq, err := api.ParseQueryRangeRequest(r)
 	if err != nil {
 		return s.respErrHandler(isProm, err)
 	}
 
-	_, err = traceql.Parse(queryRangeReq.Query)
+	expr, err := traceql.Parse(queryRangeReq.Query)
 	if err != nil {
 		return s.respErrHandler(isProm, err)
 	}
 
-	ctx := r.Context()
-	tenantID, err = user.ExtractOrgID(ctx)
+	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return s.respErrHandler(isProm, err)
 	}
-	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.QueryRangeSharder")
-	defer span.Finish()
 
 	subCtx, subCancel := context.WithCancel(ctx)
 	defer subCancel()
@@ -114,7 +111,15 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	generatorReq = s.generatorRequest(*queryRangeReq)
+	// Check sampling rate hint
+	samplingRate := 1.0
+	if ok, v := expr.Hints.GetFloat(traceql.HintSample); ok {
+		if v > 0 && v < 1.0 {
+			samplingRate = v
+		}
+	}
+
+	generatorReq = s.generatorRequest(*queryRangeReq, samplingRate)
 
 	reqCh := make(chan *queryRangeJob, 1) // buffer of 1 allows us to insert ingestReq if it exists
 	stopCh := make(chan struct{})
@@ -124,7 +129,10 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqCh <- generatorReq
 	}
 
-	s.backendRequests(tenantID, queryRangeReq, now, reqCh, stopCh)
+	totalBlocks, totalBlockBytes, err := s.backendRequests(tenantID, queryRangeReq, now, samplingRate, reqCh, stopCh)
+	if err != nil {
+		return nil, err
+	}
 
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
 	c := traceql.QueryRangeCombiner{}
@@ -180,20 +188,44 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				return
 			}
 
+			// Multiply up the sampling rate
+			if job.samplingRate != 1.0 {
+				for _, series := range results.Series {
+					for i, sample := range series.Samples {
+						sample.Value *= 1.0 / job.samplingRate
+						series.Samples[i] = sample
+					}
+				}
+			}
+
 			mtx.Lock()
 			defer mtx.Unlock()
-			c.Combine(results.Series)
+			c.Combine(results)
 		}(job)
 	}
 
 	// wait for all goroutines running in wg to finish or cancelled
 	wg.Wait()
 
+	res := c.Response()
+	res.Metrics.CompletedJobs = uint32(startedReqs)
+	res.Metrics.TotalBlocks = uint32(totalBlocks)
+	res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
+
+	reqTime := time.Since(now)
+	throughput := float64(res.Metrics.InspectedBytes) / reqTime.Seconds()
+
+	span.SetTag("totalBlocks", res.Metrics.TotalBlocks)
+	span.SetTag("inspectedBytes", res.Metrics.InspectedBytes)
+	span.SetTag("inspectedTraces", res.Metrics.InspectedTraces)
+	span.SetTag("totalBlockBytes", res.Metrics.TotalBlockBytes)
+	span.SetTag("totalJobs", res.Metrics.TotalJobs)
+	span.SetTag("finishedJobs", res.Metrics.CompletedJobs)
+	span.SetTag("requestThroughput", throughput)
+
 	var bodyString string
 	if isProm {
-		promResp := s.convertToPromFormat(&tempopb.QueryRangeResponse{
-			Series: c.Results(),
-		})
+		promResp := s.convertToPromFormat(res)
 		bytes, err := json.Marshal(promResp)
 		if err != nil {
 			return nil, err
@@ -201,9 +233,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		bodyString = string(bytes)
 	} else {
 		m := &jsonpb.Marshaler{}
-		bodyString, err = m.MarshalToString(&tempopb.QueryRangeResponse{
-			Series: c.Results(),
-		})
+		bodyString, err = m.MarshalToString(res)
 		if err != nil {
 			return nil, err
 		}
@@ -236,8 +266,7 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, reqCh chan *queryRangeJob, stopCh <-chan struct{}) {
-	// request without start or end, search only in generator
+func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, samplingRate float64, reqCh chan *queryRangeJob, stopCh <-chan struct{}) (totalBlocks, totalBlockBytes int, err error) { // request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
 		return
@@ -257,12 +286,28 @@ func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.
 		return
 	}
 
+	// Blocks within overall time range. This is just for instrumentation, more precise time
+	// range is checked for each window.
+	blocks := s.blockMetas(int64(start), int64(end), tenantID)
+	if len(blocks) == 0 {
+		// no need to search backend
+		close(reqCh)
+		return
+	}
+
+	totalBlocks = len(blocks)
+	for _, b := range blocks {
+		totalBlockBytes += int(b.Size)
+	}
+
 	go func() {
-		s.buildBackendRequests(tenantID, searchReq, start, end, reqCh, stopCh)
+		s.buildBackendRequests(tenantID, searchReq, start, end, samplingRate, reqCh, stopCh)
 	}()
+
+	return
 }
 
-func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, start, end uint64, reqCh chan *queryRangeJob, stopCh <-chan struct{}) {
+func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, start, end uint64, samplingRate float64, reqCh chan *queryRangeJob, stopCh <-chan struct{}) {
 	defer close(reqCh)
 
 	timeWindowSize := uint64(s.cfg.Interval.Nanoseconds())
@@ -295,8 +340,13 @@ func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tem
 			shardR.ShardID = i
 			shardR.ShardCount = shards
 
+			if samplingRate != 1.0 {
+				shardR.ShardID *= uint32(1.0 / samplingRate)
+				shardR.ShardCount *= uint32(1.0 / samplingRate)
+			}
+
 			select {
-			case reqCh <- &queryRangeJob{req: shardR}:
+			case reqCh <- &queryRangeJob{req: shardR, samplingRate: samplingRate}:
 			case <-stopCh:
 				return
 			}
@@ -321,7 +371,7 @@ func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, query
 	return start, end
 }
 
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest) *queryRangeJob {
+func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, samplingRate float64) *queryRangeJob {
 	now := time.Now()
 	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
 
@@ -470,6 +520,7 @@ type PromResult struct {
 }
 
 type queryRangeJob struct {
-	req tempopb.QueryRangeRequest
-	err error
+	req          tempopb.QueryRangeRequest
+	err          error
+	samplingRate float64
 }

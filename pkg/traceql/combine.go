@@ -122,19 +122,20 @@ func spansetID(ss *tempopb.SpanSet) string {
 }
 
 type QueryRangeCombiner struct {
-	ts map[string]*tempopb.TimeSeries
+	ts      map[string]*tempopb.TimeSeries
+	metrics *tempopb.SearchMetrics
 }
 
-func (q *QueryRangeCombiner) Combine(set []*tempopb.TimeSeries) {
-	if len(set) == 0 {
+func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
+	if resp == nil || len(resp.Series) == 0 {
 		return
 	}
 
 	if q.ts == nil {
-		q.ts = make(map[string]*tempopb.TimeSeries, len(set))
+		q.ts = make(map[string]*tempopb.TimeSeries, len(resp.Series))
 	}
 
-	for _, series := range set {
+	for _, series := range resp.Series {
 
 		existing, ok := q.ts[series.PromLabels]
 		if !ok {
@@ -143,6 +144,16 @@ func (q *QueryRangeCombiner) Combine(set []*tempopb.TimeSeries) {
 		}
 
 		q.combine(series, existing)
+	}
+
+	if q.metrics == nil {
+		q.metrics = &tempopb.SearchMetrics{}
+	}
+
+	if resp.Metrics != nil {
+		q.metrics.TotalBlocks += resp.Metrics.TotalBlocks
+		q.metrics.TotalBlockBytes += resp.Metrics.TotalBlockBytes
+		q.metrics.InspectedBytes += resp.Metrics.InspectedBytes
 	}
 }
 
@@ -160,6 +171,12 @@ outer:
 	}
 }
 
-func (q *QueryRangeCombiner) Results() []*tempopb.TimeSeries {
-	return maps.Values(q.ts)
+func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
+	if q.metrics == nil {
+		q.metrics = &tempopb.SearchMetrics{}
+	}
+	return &tempopb.QueryRangeResponse{
+		Series:  maps.Values(q.ts),
+		Metrics: q.metrics,
+	}
 }
