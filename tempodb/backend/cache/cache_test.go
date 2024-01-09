@@ -5,39 +5,154 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type mockClient struct {
-	client map[string][]byte
-}
+func TestCacheFor(t *testing.T) {
+	reader, _, err := NewCache(&BloomConfig{
+		CacheMaxBlockAge:        time.Hour,
+		CacheMinCompactionLevel: 1,
+	}, nil, nil, test.NewMockProvider(), log.NewNopLogger())
+	require.NoError(t, err)
 
-func (m *mockClient) Store(_ context.Context, key []string, val [][]byte) {
-	m.client[key[0]] = val[0]
-}
+	rw := reader.(*readerWriter)
 
-func (m *mockClient) Fetch(_ context.Context, key []string) (found []string, bufs [][]byte, missing []string) {
-	val, ok := m.client[key[0]]
-	if ok {
-		found = append(found, key[0])
-		bufs = append(bufs, val)
-	} else {
-		missing = append(missing, key[0])
+	testCases := []struct {
+		name          string
+		cacheInfo     *backend.CacheInfo
+		expectedCache cache.Cache
+	}{
+		// first three caches are unconditionally returned
+		{
+			name:          "footer is always returned",
+			cacheInfo:     &backend.CacheInfo{Role: cache.RoleParquetFooter},
+			expectedCache: rw.footerCache,
+		},
+		{
+			name:          "col idx is always returned",
+			cacheInfo:     &backend.CacheInfo{Role: cache.RoleParquetColumnIdx},
+			expectedCache: rw.columnIdxCache,
+		},
+		{
+			name:          "offset idx is always returned",
+			cacheInfo:     &backend.CacheInfo{Role: cache.RoleParquetOffsetIdx},
+			expectedCache: rw.offsetIdxCache,
+		},
+		{
+			name:          "trace id idx is always returned",
+			cacheInfo:     &backend.CacheInfo{Role: cache.RoleTraceIDIdx},
+			expectedCache: rw.traceIDIdxCache,
+		},
+		// bloom cache is returned if the meta is valid given the bloom config
+		{
+			name: "bloom - no meta means no cache",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+			},
+		},
+		{
+			name: "bloom - compaction lvl and start time valid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 1, StartTime: time.Now()},
+			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - start time invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 1, StartTime: time.Now().Add(-2 * time.Hour)},
+			},
+		},
+		{
+			name: "bloom - compaction lvl invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now()},
+			},
+		},
+		{
+			name: "bloom - both invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now().Add(-2 * time.Hour)},
+			},
+		},
 	}
-	return
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedCache, rw.cacheFor(tt.cacheInfo))
+		})
+	}
 }
 
-func (m *mockClient) Stop() {
-}
+func TestCacheForReturnsBloomWithNoConfig(t *testing.T) {
+	reader, _, err := NewCache(nil, nil, nil, test.NewMockProvider(), log.NewNopLogger())
+	require.NoError(t, err)
 
-// NewMockClient makes a new mockClient.
-func NewMockClient() cache.Cache {
-	return &mockClient{
-		client: map[string][]byte{},
+	rw := reader.(*readerWriter)
+
+	testCases := []struct {
+		name          string
+		cacheInfo     *backend.CacheInfo
+		expectedCache cache.Cache
+	}{
+		// bloom cache is returned if the meta is valid given the bloom config
+		{
+			name: "bloom - no meta means no cache",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - compaction lvl and start time valid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 1, StartTime: time.Now()},
+			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - start time invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 1, StartTime: time.Now().Add(-2 * time.Hour)},
+			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - compaction lvl invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now()},
+			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - both invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now().Add(-2 * time.Hour)},
+			},
+			expectedCache: rw.bloomCache,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedCache, rw.cacheFor(tt.cacheInfo))
+		})
 	}
 }
 
@@ -49,7 +164,7 @@ func TestReadWrite(t *testing.T) {
 		name          string
 		readerRead    []byte
 		readerName    string
-		shouldCache   bool
+		cacheInfo     *backend.CacheInfo
 		expectedRead  []byte
 		expectedCache []byte
 	}{
@@ -57,14 +172,14 @@ func TestReadWrite(t *testing.T) {
 			name:          "should cache",
 			readerName:    "foo",
 			readerRead:    []byte{0x02},
-			shouldCache:   true,
+			cacheInfo:     &backend.CacheInfo{Role: cache.RoleParquetFooter},
 			expectedRead:  []byte{0x02},
 			expectedCache: []byte{0x02},
 		},
 		{
 			name:         "should not cache",
 			readerName:   "bar",
-			shouldCache:  false,
+			cacheInfo:    &backend.CacheInfo{Role: cache.Role("foo")}, // fake role name will not find a matching cache
 			readerRead:   []byte{0x02},
 			expectedRead: []byte{0x02},
 		},
@@ -78,24 +193,27 @@ func TestReadWrite(t *testing.T) {
 			mockW := &backend.MockRawWriter{}
 
 			// READ
-			r, _, _ := NewCache(mockR, mockW, NewMockClient())
+			r, _, err := NewCache(nil, mockR, mockW, test.NewMockProvider(), log.NewNopLogger())
+			require.NoError(t, err)
 
 			ctx := context.Background()
-			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
+			reader, _, _ := r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.cacheInfo)
 			read, _ := io.ReadAll(reader)
 			assert.Equal(t, tt.expectedRead, read)
 
 			// clear reader and re-request
 			mockR.R = nil
 
-			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.cacheInfo)
 			read, _ = io.ReadAll(reader)
 			assert.Equal(t, len(tt.expectedCache), len(read))
 
 			// WRITE
-			_, w, _ := NewCache(mockR, mockW, NewMockClient())
-			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)), tt.shouldCache)
-			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.shouldCache)
+			_, w, err := NewCache(nil, mockR, mockW, test.NewMockProvider(), log.NewNopLogger())
+			require.NoError(t, err)
+
+			_ = w.Write(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), bytes.NewReader(tt.readerRead), int64(len(tt.readerRead)), tt.cacheInfo)
+			reader, _, _ = r.Read(ctx, tt.readerName, backend.KeyPathForBlock(blockID, tenantID), tt.cacheInfo)
 			read, _ = io.ReadAll(reader)
 			assert.Equal(t, len(tt.expectedCache), len(read))
 		})
@@ -127,7 +245,7 @@ func TestList(t *testing.T) {
 			}
 			mockW := &backend.MockRawWriter{}
 
-			rw, _, _ := NewCache(mockR, mockW, NewMockClient())
+			rw, _, _ := NewCache(nil, mockR, mockW, test.NewMockProvider(), log.NewNopLogger())
 
 			ctx := context.Background()
 			list, _ := rw.List(ctx, backend.KeyPathForBlock(blockID, tenantID))

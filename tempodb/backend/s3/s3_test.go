@@ -249,17 +249,17 @@ func TestHedge(t *testing.T) {
 
 			// the first call on each client initiates an extra http request
 			// clearing that here
-			_, _, _ = r.Read(ctx, "object", backend.KeyPath{"test"}, false)
+			_, _, _ = r.Read(ctx, "object", backend.KeyPath{"test"}, nil)
 			time.Sleep(tc.returnIn)
 			atomic.StoreInt32(&count, 0)
 
 			// calls that should hedge
-			_, _, _ = r.Read(ctx, "object", backend.KeyPath{"test"}, false)
+			_, _, _ = r.Read(ctx, "object", backend.KeyPath{"test"}, nil)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_ = r.ReadRange(ctx, "object", backend.KeyPath{"test"}, 10, []byte{}, false)
+			_ = r.ReadRange(ctx, "object", backend.KeyPath{"test"}, 10, []byte{}, nil)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
@@ -269,7 +269,7 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
+			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 		})
@@ -367,7 +367,7 @@ func TestObjectBlockTags(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
+			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 
 			for k, v := range tc.tags {
 				vv := obj.Get(k)
@@ -443,7 +443,7 @@ func TestObjectWithPrefix(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, false)
+			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, nil)
 			assert.NoError(t, err)
 		})
 	}
@@ -478,7 +478,7 @@ func TestObjectStorageClass(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
+			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 			require.Equal(t, obj.Has(tc.StorageClass), true)
 		})
 	}

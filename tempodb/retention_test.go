@@ -39,7 +39,7 @@ func TestRetention(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -102,7 +102,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -171,7 +171,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	overrides := &mockOverrides{}

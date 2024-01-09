@@ -98,7 +98,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -245,7 +245,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -389,7 +389,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -460,7 +460,7 @@ func TestCompactionMetrics(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -534,7 +534,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -607,7 +607,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			IngestionSlack: time.Since(time.Unix(0, 0)), // Let us use obvious start/end times below
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -737,7 +737,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(b, err)
 
 	rw := c.(*readerWriter)

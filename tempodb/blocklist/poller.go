@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 	spanlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -335,6 +336,7 @@ func (p *Poller) pollUnknown(
 	defer span.Finish()
 
 	var (
+		err                   error
 		errs                  []error
 		mtx                   sync.Mutex
 		bg                    = boundedwaitgroup.New(p.cfg.PollConcurrency)
@@ -343,8 +345,6 @@ func (p *Poller) pollUnknown(
 	)
 
 	for blockID, compacted := range unknownBlocks {
-		bg.Add(1)
-
 		// Avoid polling if we've already encountered an error
 		mtx.Lock()
 		if len(errs) > 0 {
@@ -353,6 +353,7 @@ func (p *Poller) pollUnknown(
 		}
 		mtx.Unlock()
 
+		bg.Add(1)
 		go func(id uuid.UUID, compacted bool) {
 			defer bg.Done()
 
@@ -383,8 +384,11 @@ func (p *Poller) pollUnknown(
 
 	if len(errs) > 0 {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
-		// TODO: add span status on error
-		return nil, nil, errors.Join(errs...)
+		err = errors.Join(errs...)
+		ext.Error.Set(span, true)
+		span.SetTag("err", err)
+
+		return nil, nil, err
 	}
 
 	return newBlockList, newCompactedBlocklist, nil

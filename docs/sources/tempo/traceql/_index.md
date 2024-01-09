@@ -27,13 +27,27 @@ The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02
 
 Check the [release notes]({{< relref "../release-notes" >}}) for the latest updates to TraceQL.
 
-TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend]({{< relref "..//configuration/parquet" >}}) Tempo documentation.
+## Requirements
 
-## TraceQL query editor
+TraceQL requires Tempo’s Parquet columnar format, which is enabled by default. For information on Parquet, refer to the [Apache Parquet backend]({{< relref "..//configuration/parquet" >}}) Tempo documentation.
 
-You can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor]({{< relref "./query-editor" >}}).
+## TraceQL queries in Grafana Explore
+
+You can use the TraceQL query editor and query builder in the Tempo data source to build queries and drill-down into result sets.
+The editor and builder are available in Grafana’s Explore interface.
+For more information, refer to [Write TraceQL queries in Grafana]({{< relref "./query-editor" >}}).
 
 <p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
+
+### Stream query results
+
+By streaming results to the client, you can start to look at traces matching your query before the entire query completes.
+
+The [GRPC streaming API endpoint]({{< relref "../api_docs#tempo-grpc-api" >}}) in Tempo’s query frontend allows a client to stream search results from Tempo.
+The `tempo-cli` also uses this streaming endpoint.
+For more information, refer to the [Tempo CLI documentation]({{< relref "../operations/tempo_cli#query-api-command" >}}).
+
+To use streaming in Grafana, you must first enable the `traceQLStreaming` feature toggle.
 
 ## Construct a TraceQL query
 

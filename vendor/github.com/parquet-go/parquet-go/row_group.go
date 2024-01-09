@@ -462,11 +462,11 @@ func (c *seekColumnChunk) Pages() Pages {
 	return pages
 }
 
-func (c *seekColumnChunk) ColumnIndex() ColumnIndex {
+func (c *seekColumnChunk) ColumnIndex() (ColumnIndex, error) {
 	return c.base.ColumnIndex()
 }
 
-func (c *seekColumnChunk) OffsetIndex() OffsetIndex {
+func (c *seekColumnChunk) OffsetIndex() (OffsetIndex, error) {
 	return c.base.OffsetIndex()
 }
 
@@ -510,13 +510,13 @@ type emptyColumnChunk struct {
 	column int16
 }
 
-func (c *emptyColumnChunk) Type() Type               { return c.typ }
-func (c *emptyColumnChunk) Column() int              { return int(c.column) }
-func (c *emptyColumnChunk) Pages() Pages             { return emptyPages{} }
-func (c *emptyColumnChunk) ColumnIndex() ColumnIndex { return emptyColumnIndex{} }
-func (c *emptyColumnChunk) OffsetIndex() OffsetIndex { return emptyOffsetIndex{} }
-func (c *emptyColumnChunk) BloomFilter() BloomFilter { return emptyBloomFilter{} }
-func (c *emptyColumnChunk) NumValues() int64         { return 0 }
+func (c *emptyColumnChunk) Type() Type                        { return c.typ }
+func (c *emptyColumnChunk) Column() int                       { return int(c.column) }
+func (c *emptyColumnChunk) Pages() Pages                      { return emptyPages{} }
+func (c *emptyColumnChunk) ColumnIndex() (ColumnIndex, error) { return emptyColumnIndex{}, nil }
+func (c *emptyColumnChunk) OffsetIndex() (OffsetIndex, error) { return emptyOffsetIndex{}, nil }
+func (c *emptyColumnChunk) BloomFilter() BloomFilter          { return emptyBloomFilter{} }
+func (c *emptyColumnChunk) NumValues() int64                  { return 0 }
 
 type emptyBloomFilter struct{}
 

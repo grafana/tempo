@@ -241,15 +241,11 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 
 	instance, err := i.getOrCreateInstance(instanceID)
 	if err != nil {
+		level.Warn(log.Logger).Log(err.Error())
 		return nil, err
 	}
 
-	err = instance.PushBytesRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &tempopb.PushResponse{}, nil
+	return instance.PushBytesRequest(ctx, req), nil
 }
 
 // FindTraceByID implements tempopb.Querier.f

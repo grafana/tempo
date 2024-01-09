@@ -49,15 +49,15 @@ func NewFakeVersionedReaderWriter(r RawReader, w RawWriter) *FakeVersionedReader
 }
 
 func (f *FakeVersionedReaderWriter) WriteVersioned(ctx context.Context, name string, keypath KeyPath, data io.Reader, _ Version) (Version, error) {
-	err := f.Write(ctx, name, keypath, data, -1, false)
+	err := f.Write(ctx, name, keypath, data, -1, nil)
 	return VersionNew, err
 }
 
 func (f *FakeVersionedReaderWriter) ReadVersioned(ctx context.Context, name string, keypath KeyPath) (io.ReadCloser, Version, error) {
-	readCloser, _, err := f.Read(ctx, name, keypath, false)
+	readCloser, _, err := f.Read(ctx, name, keypath, nil)
 	return readCloser, VersionNew, err
 }
 
 func (f *FakeVersionedReaderWriter) DeleteVersioned(ctx context.Context, name string, keypath KeyPath, _ Version) error {
-	return f.Delete(ctx, name, keypath, false)
+	return f.Delete(ctx, name, keypath, nil)
 }

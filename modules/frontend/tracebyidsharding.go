@@ -89,12 +89,12 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		go func(innerR *http.Request) {
 			defer wg.Done()
 
-			resp, err := s.next.RoundTrip(innerR)
+			resp, rtErr := s.next.RoundTrip(innerR)
 
 			mtx.Lock()
 			defer mtx.Unlock()
-			if err != nil {
-				overallError = err
+			if rtErr != nil {
+				overallError = rtErr
 			}
 
 			if shouldQuit(r.Context(), statusCode, overallError) {
@@ -102,9 +102,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			// check http error
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", err)
-				overallError = err
+			if rtErr != nil {
+				_ = level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", rtErr)
+				overallError = rtErr
 				return
 			}
 
@@ -112,19 +112,19 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
 				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
 				statusCode = resp.StatusCode
-				bytesMsg, err := io.ReadAll(resp.Body)
-				if err != nil {
-					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+				bytesMsg, readErr := io.ReadAll(resp.Body)
+				if readErr != nil {
+					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", readErr)
 				}
 				statusMsg = string(bytesMsg)
 				return
 			}
 
 			// read the body
-			buff, err := io.ReadAll(resp.Body)
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				overallError = err
+			buff, rtErr := io.ReadAll(resp.Body)
+			if rtErr != nil {
+				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", rtErr)
+				overallError = rtErr
 				return
 			}
 
@@ -132,10 +132,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			// todo: better define responsibilities between middleware. the parent middleware in frontend.go actually sets the header
 			//  which forces the body here to be a proto encoded tempopb.Trace{}
 			traceResp := &tempopb.TraceByIDResponse{}
-			err = proto.Unmarshal(buff, traceResp)
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", err, "body", string(buff))
-				overallError = err
+			rtErr = proto.Unmarshal(buff, traceResp)
+			if rtErr != nil {
+				_ = level.Error(s.logger).Log("msg", "error unmarshalling response", "url", innerR.RequestURI, "err", rtErr, "body", string(buff))
+				overallError = rtErr
 				return
 			}
 
@@ -146,9 +146,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			statusCode = http.StatusOK
-			_, err = combiner.Consume(traceResp.Trace)
-			if err != nil {
-				overallError = err
+			_, rtErr = combiner.Consume(traceResp.Trace)
+			if rtErr != nil {
+				overallError = rtErr
 			}
 		}(req)
 	}
@@ -164,7 +164,13 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		// translate non-404s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
-		if statusCode != http.StatusNotFound {
+
+		switch statusCode {
+		case http.StatusNotFound:
+			// Pass through 404s
+		case http.StatusTooManyRequests:
+			// Pass through 429s
+		default:
 			statusCode = http.StatusInternalServerError
 		}
 
@@ -234,6 +240,11 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if ctx.Err() != nil {
 		return true
 	}
+
+	if statusCode == http.StatusTooManyRequests {
+		return true
+	}
+
 	if statusCode/100 == 5 { // bail on any 5xx's
 		return true
 	}

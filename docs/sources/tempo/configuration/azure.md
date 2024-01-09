@@ -17,7 +17,7 @@ Tempo requires the following configuration to authenticate to and access Azure b
       - For a user-assigned managed identity, you'll need to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
   - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label.
 
-## Sample configuration
+## Sample configuration (for Tempo Monolithic Mode)
 
 This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
 
@@ -41,17 +41,87 @@ tempo:
           key: STORAGE_ACCOUNT_ACCESS_KEY
 ```
 
+## Sample configuration (for Tempo Distributed Mode)
+
+In Distributed mode the `trace` configuration needs to be applied against the `storage` object, which resides at the root of the Values object. Additionally, the `extraArgs` and `extraEnv` configuration need to be applied to each of the following services:
+ - distributor
+ - compactor
+ - ingester
+ - querier
+ - queryFrontend
+
+```
+storage:
+  trace:
+    backend: azure
+    azure:
+      container_name: tempo-traces
+      storage_account_name: stgappgeneraluks
+      storage_account_key: ${STORAGE_ACCOUNT_ACCESS_KEY}
+
+
+distributor:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+compactor:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+ingester:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+querier:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+queryFrontend:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+```
+
 ## Azure blocklist polling
 
 If you are hosting Tempo on Azure, two values may need to be updated to ensure consistent successful blocklist polling. If you are
-experiencing [this issue](https://stackoverflow.com/questions/12917857/the-specified-block-list-is-invalid-while-uploading-blobs-in-parallel/55902744#55902744), we recommend to set `blocklist_poll_tenant_index_builders` to 1.
+experiencing [this issue](https://stackoverflow.com/questions/12917857/the-specified-block-list-is-invalid-while-uploading-blobs-in-parallel/55902744#55902744), try setting `blocklist_poll_tenant_index_builders` to 1.
 
 Additionally, if you are seeing DNS failures like the ones below, try increasing `blocklist_poll_jitter_ms`. Discussion [here](https://github.com/grafana/tempo/issues/1462).
 ```
 reading storage container: Head "https://tempoe**************.blob.core.windows.net/tempo/single-tenant/d8aafc48-5796-4221-ac0b-58e001d18515/meta.compacted.json?timeout=61": dial tcp: lookup tempoe**************.blob.core.windows.net on 10.0.0.10:53: dial udp 10.0.0.10:53: operation was canceled
 ```
 
-Your final config may look something like:
+Your final configuration may look something like:
 ```
   storage:
     trace:

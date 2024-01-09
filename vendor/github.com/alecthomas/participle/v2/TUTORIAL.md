@@ -53,13 +53,22 @@ working towards. Read on below for details.
 
  type Property struct {
    Key   string `@Ident "="`
-   Value *Value `@@`
+   Value Value `@@`
  }
 
- type Value struct {
-   String *string  `  @String`
-   Number *float64 `| (@Float | @Int)`
- }
+type Value interface{ value() }
+
+type String struct {
+	String string `@String`
+}
+
+func (String) value() {}
+
+type Number struct {
+	Number float64 `@Float | @Int`
+}
+
+func (Number) value() {}
  ```
 
 <a id="markdown-root-of-the-ini-ast-structure-fields" name="root-of-the-ini-ast-structure-fields"></a>
@@ -125,35 +134,34 @@ type Property struct {
 
 For the purposes of our example we are only going to support quoted string
 and numeric property values. As each value can be *either* a string or a float
-we'll need something akin to a sum type. Go's type system cannot express this
-directly, so we'll use the common approach of making each element a pointer.
-The selected "case" will *not* be nil.
+we'll need something akin to a sum type. Participle supports this via the 
+`Union[T any](members...T) Option` parser option. This tells the parser that
+when a field of interface type `T` is encountered, it should try to match each
+of the `members` in turn, and return the first successful match.
 
 ```go
-type Value struct {
-  String *string
-  Number *float64
+type Value interface{ value() }
+
+type String struct {
+	String string `@String`
 }
+
+func (String) value() {}
+
+type Number struct {
+	Number float64 `@Float`
+}
+
+func (Number) value() {}
 ```
 
-> Note: Participle will hydrate pointers as necessary.
-
-To express matching a set of alternatives we use the `|` operator:
-
-```go
-type Value struct {
-  String *string  `  @String`
-  Number *float64 `| @Float`
-}
-```
-
-Since we want to parse also integers and the default lexer makes a difference,
-we need to be explicit:
+Since we want to also parse integers and the default lexer differentiates
+between floats and integers, we need to explicitly match either. To express
+matching a set of alternatives such as this, we use the `|` operator:
 
 ```go
-type Value struct {
-  String *string  `  @String`
-  Number *float64 `| (@Float | @Int)`
+type Number struct {
+	Number float64 `@Float | @Int`
 }
 ```
 
@@ -165,7 +173,7 @@ capture structs use `@@` (capture self):
 ```go
 type Property struct {
   Key   string `@Ident "="`
-  Value *Value `@@`
+  Value Value `@@`
 }
 ```
 
@@ -193,14 +201,23 @@ type INI struct {
 }
 
 type Property struct {
-  Key string   `@Ident "="`
-  Value *Value `@@`
+  Key   string   `@Ident "="`
+  Value Value    `@@`
 }
 
-type Value struct {
-  String *string  `  @String`
-  Number *float64 `| (@Float | @Int)`
+type Value interface{ value() }
+
+type String struct {
+	String string `@String`
 }
+
+func (String) value() {}
+
+type Number struct {
+	Number float64 `@Float | @Int`
+}
+
+func (Number) value() {}
 ```
 
 <a id="markdown-extending-our-grammar-to-support-sections" name="extending-our-grammar-to-support-sections"></a>
@@ -236,10 +253,16 @@ And we're done!
 If a grammar node includes a field with the name `Pos` and type `lexer.Position`, it will be automatically populated by positional information. eg.
 
 ```go
-type Value struct {
-  Pos    lexer.Position
-  String *string  `  @String`
-  Number *float64 `| (@Float | @Int)`
+type String struct {
+  Pos lexer.Position
+
+	String string `@String`
+}
+
+type Number struct {
+  Pos lexer.Position
+
+	Number float64 `@Float | @Int`
 }
 ```
 
@@ -252,7 +275,10 @@ To parse with this grammar we first construct the parser (we'll use the
 default lexer for now):
 
 ```go
-parser, err := participle.Build[INI]()
+parser, err := participle.Build[INI](
+  participle.Unquote("String"),
+  participle.Union[Value](String{}, Number{}),
+)
 ```
 
 Then parse a new INI file with `parser.Parse{,String,Bytes}()`:

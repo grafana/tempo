@@ -8,9 +8,9 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 var tenantID = "single-tenant"
@@ -48,7 +48,7 @@ func TestParquetGoSetsMetadataSections(t *testing.T) {
 	meta, err := r.BlockMeta(ctx, blocks[0], tenantID)
 	require.NoError(t, err)
 
-	br := NewBackendReaderAt(ctx, r, DataFileName, meta.BlockID, tenantID)
+	br := NewBackendReaderAt(ctx, r, DataFileName, meta)
 	dr := &dummyReader{r: br}
 	_, err = parquet.OpenFile(dr, int64(meta.Size))
 	require.NoError(t, err)
@@ -58,9 +58,9 @@ func TestParquetGoSetsMetadataSections(t *testing.T) {
 	require.True(t, dr.offsetIndex)
 }
 
-func TestParquetReaderAt(t *testing.T) {
+func TestCachingReaderShortcircuitsFooterHeader(t *testing.T) {
 	rr := &recordingReaderAt{}
-	pr := newParquetOptimizedReaderAt(rr, 1000, 100)
+	pr := newCachedReaderAt(rr, 1000, 1000, 100)
 
 	expectedReads := []read{}
 
@@ -75,81 +75,75 @@ func TestParquetReaderAt(t *testing.T) {
 	// other calls pass through
 	_, err = pr.ReadAt(make([]byte, 13), 25)
 	require.NoError(t, err)
-	expectedReads = append(expectedReads, read{13, 25})
+	expectedReads = append(expectedReads, read{13, 25, cache.RoleParquetPage})
 
 	_, err = pr.ReadAt(make([]byte, 97), 118)
 	require.NoError(t, err)
-	expectedReads = append(expectedReads, read{97, 118})
+	expectedReads = append(expectedReads, read{97, 118, cache.RoleParquetPage})
 
 	_, err = pr.ReadAt(make([]byte, 59), 421)
 	require.NoError(t, err)
-	expectedReads = append(expectedReads, read{59, 421})
+	expectedReads = append(expectedReads, read{59, 421, cache.RoleParquetPage})
 
 	require.Equal(t, expectedReads, rr.reads)
 }
 
 func TestCachingReaderAt(t *testing.T) {
-	rawR, _, _, err := local.New(&local.Config{
-		Path: "./test-data",
-	})
-	require.NoError(t, err)
-
-	r := backend.NewReader(rawR)
-	ctx := context.Background()
-
-	blocks, _, err := r.Blocks(ctx, tenantID)
-	require.NoError(t, err)
-	require.Len(t, blocks, 1)
-
-	meta, err := r.BlockMeta(ctx, blocks[0], tenantID)
-	require.NoError(t, err)
-
-	br := NewBackendReaderAt(ctx, r, DataFileName, meta.BlockID, tenantID)
 	rr := &recordingReaderAt{}
+	cr := newCachedReaderAt(rr, 1000, 100000, 10)
 
-	cr := newCachedReaderAt(rr, br, common.CacheControl{Footer: true, ColumnIndex: true, OffsetIndex: true})
+	expectedReads := []read{}
 
-	// cached items should not hit rr
+	// specially cached sections
 	cr.SetColumnIndexSection(1, 34)
-	_, err = cr.ReadAt(make([]byte, 34), 1)
+	_, err := cr.ReadAt(make([]byte, 34), 1)
+	expectedReads = append(expectedReads, read{34, 1, cache.RoleParquetColumnIdx})
 	require.NoError(t, err)
 
 	cr.SetFooterSection(14, 20)
 	_, err = cr.ReadAt(make([]byte, 20), 14)
+	expectedReads = append(expectedReads, read{20, 14, cache.RoleParquetFooter})
 	require.NoError(t, err)
 
 	cr.SetOffsetIndexSection(13, 12)
 	_, err = cr.ReadAt(make([]byte, 12), 13)
+	expectedReads = append(expectedReads, read{12, 13, cache.RoleParquetOffsetIdx})
 	require.NoError(t, err)
 
-	// other calls hit rr
-	expectedReads := []read{}
-
+	// everything else is a parquet page
 	_, err = cr.ReadAt(make([]byte, 13), 25)
 	require.NoError(t, err)
-	expectedReads = append(expectedReads, read{13, 25})
+	expectedReads = append(expectedReads, read{13, 25, cache.RoleParquetPage})
 
 	_, err = cr.ReadAt(make([]byte, 97), 118)
 	require.NoError(t, err)
-	expectedReads = append(expectedReads, read{97, 118})
+	expectedReads = append(expectedReads, read{97, 118, cache.RoleParquetPage})
 
-	_, err = cr.ReadAt(make([]byte, 59), 421)
+	// unless it's larger than the page size
+	_, err = cr.ReadAt(make([]byte, 1001), 421)
 	require.NoError(t, err)
-	expectedReads = append(expectedReads, read{59, 421})
+	expectedReads = append(expectedReads, read{1001, 421, cache.RoleNone})
 
 	require.Equal(t, expectedReads, rr.reads)
 }
 
 type read struct {
-	len int
-	off int64
+	len  int
+	off  int64
+	role cache.Role
 }
 type recordingReaderAt struct {
 	reads []read
 }
 
 func (r *recordingReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-	r.reads = append(r.reads, read{len(p), off})
+	r.reads = append(r.reads, read{len(p), off, ""})
+
+	return len(p), nil
+}
+
+func (r *recordingReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (n int, err error) {
+	r.reads = append(r.reads, read{len(p), off, role})
 
 	return len(p), nil
 }

@@ -63,7 +63,7 @@ func (s *structLexer) GetField(field int) structLexerField {
 	}
 }
 
-func (s *structLexer) Peek() (lexer.Token, error) {
+func (s *structLexer) Peek() (*lexer.Token, error) {
 	field := s.field
 	lex := s.lexer
 	for {
@@ -74,7 +74,8 @@ func (s *structLexer) Peek() (lexer.Token, error) {
 		}
 		field++
 		if field >= s.NumField() {
-			return lexer.EOFToken(token.Pos), nil
+			t := lexer.EOFToken(token.Pos)
+			return &t, nil
 		}
 		ft := s.GetField(field).StructField
 		tag := fieldLexerTag(ft)
@@ -86,14 +87,15 @@ func (s *structLexer) Peek() (lexer.Token, error) {
 	}
 }
 
-func (s *structLexer) Next() (lexer.Token, error) {
+func (s *structLexer) Next() (*lexer.Token, error) {
 	token := s.lexer.Next()
 	if !token.EOF() {
 		token.Pos.Line = s.field + 1
 		return token, nil
 	}
 	if s.field+1 >= s.NumField() {
-		return lexer.EOFToken(token.Pos), nil
+		t := lexer.EOFToken(token.Pos)
+		return &t, nil
 	}
 	s.field++
 	ft := s.Field().StructField

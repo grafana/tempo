@@ -1,12 +1,12 @@
 package inspect
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/pkg/errors"
 	"github.com/stoewer/parquet-cli/pkg/output"
 )
 
@@ -26,12 +26,12 @@ type Aggregate struct {
 	Stats []AggregateCellStats `json:"stats"`
 }
 
-func (rs *Aggregate) Data() interface{} {
+func (rs *Aggregate) Data() any {
 	return rs
 }
 
-func (rs *Aggregate) Cells() []interface{} {
-	cells := make([]interface{}, 0, len(rs.Stats)*len(aggregateCellFields)+1)
+func (rs *Aggregate) Cells() []any {
+	cells := make([]any, 0, len(rs.Stats)*len(aggregateCellFields)+1)
 	cells = append(cells, rs.Value)
 	for _, c := range rs.Stats {
 		cells = append(cells, c.Size, c.Values, c.Nulls)
@@ -49,7 +49,7 @@ func NewAggregateCalculator(file *parquet.File, options AggregateOptions) (*Aggr
 
 	idx := options.GroupByColumn
 	if idx >= len(all) {
-		return nil, errors.Errorf("group by column index expectd to be lower than %d but was %d", idx, len(all))
+		return nil, fmt.Errorf("group by column index expected to be lower than %d but was %d", idx, len(all))
 	}
 	groupByColumn := all[idx]
 
@@ -64,11 +64,11 @@ func NewAggregateCalculator(file *parquet.File, options AggregateOptions) (*Aggr
 		columns = make([]*parquet.Column, 0, len(options.Columns))
 		for _, idx := range options.Columns {
 			if idx >= len(all) {
-				return nil, errors.Errorf("column index expectd be lower than %d but was %d", idx, len(all))
+				return nil, fmt.Errorf("column index expectd be lower than %d but was %d", idx, len(all))
 			}
 			col := all[idx]
 			if col.MaxDefinitionLevel() < groupByColumn.MaxDefinitionLevel() {
-				return nil, errors.Errorf(
+				return nil, fmt.Errorf(
 					"column max definition level expected to be greater or equal than %d but was %d",
 					groupByColumn.MaxDefinitionLevel(), col.MaxRepetitionLevel())
 			}
@@ -76,7 +76,7 @@ func NewAggregateCalculator(file *parquet.File, options AggregateOptions) (*Aggr
 		}
 	}
 
-	header := make([]interface{}, 0, len(columns)*len(aggregateCellFields)+1)
+	header := make([]any, 0, len(columns)*len(aggregateCellFields)+1)
 	header = append(header, groupByColumn.Name()+" values")
 	for _, col := range columns {
 		header = append(header, fmt.Sprintf("%d/%s: %s", col.Index(), col.Name(), aggregateCellFields[0]), aggregateCellFields[1], aggregateCellFields[2])
@@ -85,25 +85,25 @@ func NewAggregateCalculator(file *parquet.File, options AggregateOptions) (*Aggr
 	c := AggregateCalculator{header: header}
 	err := c.calculateResults(groupByColumn, columns)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to calculate results")
+		return nil, fmt.Errorf("unable to calculate results: %w", err)
 	}
 
 	return &c, nil
 }
 
 type AggregateCalculator struct {
-	header    []interface{}
+	header    []any
 	result    []*Aggregate
 	resultIdx int
 }
 
-func (c *AggregateCalculator) Header() []interface{} {
+func (c *AggregateCalculator) Header() []any {
 	return c.header
 }
 
 func (c *AggregateCalculator) NextRow() (output.TableRow, error) {
 	if c.resultIdx >= len(c.result) {
-		return nil, errors.Wrap(io.EOF, "no more aggregate results")
+		return nil, fmt.Errorf("no more aggregate results: %w", io.EOF)
 	}
 
 	r := c.result[c.resultIdx]
@@ -116,14 +116,14 @@ func (c *AggregateCalculator) calculateResults(groupByColumn *parquet.Column, co
 	// setup column iterators
 	groupByIter, err := newGroupingColumnIterator(groupByColumn, groupByColumn, Pagination{})
 	if err != nil {
-		return errors.Wrapf(err, "unable to create aggregate calculator")
+		return fmt.Errorf("unable to create aggregate calculator: %w", err)
 	}
 
 	var columnIter []*groupingColumnIterator
 	for _, col := range columns {
 		it, err := newGroupingColumnIterator(col, groupByColumn, Pagination{})
 		if err != nil {
-			return errors.Wrapf(err, "unable to create aggregate calculator")
+			return fmt.Errorf("unable to create aggregate calculator: %w", err)
 		}
 		columnIter = append(columnIter, it)
 	}

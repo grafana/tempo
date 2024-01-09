@@ -10,7 +10,8 @@ const (
 	AttributeScopeSpan
 	AttributeScopeUnknown
 
-	none = "none"
+	none     = "none"
+	duration = "duration"
 )
 
 func AllAttributeScopes() []AttributeScope {
@@ -95,7 +96,7 @@ func (i Intrinsic) String() string {
 	case IntrinsicNone:
 		return none
 	case IntrinsicDuration:
-		return "duration"
+		return duration
 	case IntrinsicName:
 		return "name"
 	case IntrinsicStatus:
@@ -131,7 +132,7 @@ func (i Intrinsic) String() string {
 // intrinsicFromString returns the matching intrinsic for the given string or -1 if there is none
 func intrinsicFromString(s string) Intrinsic {
 	switch s {
-	case "duration":
+	case duration:
 		return IntrinsicDuration
 	case "name":
 		return IntrinsicName

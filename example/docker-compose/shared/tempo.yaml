@@ -1,5 +1,7 @@
+stream_over_http_enabled: true
 server:
   http_listen_port: 3200
+  log_level: info
 
 query_frontend:
   search:

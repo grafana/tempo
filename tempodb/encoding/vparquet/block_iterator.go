@@ -14,7 +14,7 @@ import (
 )
 
 func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
-	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
 	// 128 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 2*1024*1024, 64)

@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
@@ -53,6 +54,7 @@ type Config struct {
 	Overrides       overrides.Config        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
 	UsageReport     usagestats.Config       `yaml:"usage_report,omitempty"`
+	CacheProvider   cache.Config            `yaml:"cache,omitempty"`
 }
 
 func newDefaultConfig() *Config {
@@ -73,7 +75,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
-	f.BoolVar(&c.AutocompleteFilteringEnabled, "autocomplete-filtering.enabled", false, "Set to true to enable autocomplete filtering")
+	f.BoolVar(&c.AutocompleteFilteringEnabled, "autocomplete-filtering.enabled", true, "Set to false to disable autocomplete filtering")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
@@ -128,6 +130,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
 	c.StorageConfig.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "storage"), f)
 	c.UsageReport.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "reporting"), f)
+	c.CacheProvider.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "cache"), f)
 }
 
 // MultitenancyIsEnabled checks if multitenancy is enabled
@@ -209,6 +212,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnNativeAWSAuthEnabled)
 	}
 
+	if c.StorageConfig.Trace.Cache != "" {
+		warnings = append(warnings, warnConfiguredLegacyCache)
+	}
+
 	return warnings
 }
 
@@ -274,6 +281,11 @@ var (
 	warnNativeAWSAuthEnabled = ConfigWarning{
 		Message: "c.StorageConfig.Trace.S3.NativeAWSAuthEnabled is deprecated and will be removed in a future release.",
 		Explain: "This setting is no longer necessary and will be ignored.",
+	}
+
+	warnConfiguredLegacyCache = ConfigWarning{
+		Message: "c.StorageConfig.Trace.Cache is deprecated and will be removed in a future release.",
+		Explain: "Please migrate to the top level cache settings config.",
 	}
 )
 

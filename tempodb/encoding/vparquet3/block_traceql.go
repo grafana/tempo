@@ -999,15 +999,9 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	// Categorize conditions into span-level or resource-level
-	var (
-		mingledConditions  bool
-		spanConditions     []traceql.Condition
-		resourceConditions []traceql.Condition
-		traceConditions    []traceql.Condition
-	)
-	for _, cond := range conds {
+// categorizeConditions conditions into span, resource, and trace level.
+func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanConditions, resourceConditions, traceConditions []traceql.Condition, err error) {
+	for _, cond := range conditions {
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
 		if cond.Attribute.Scope == traceql.AttributeScopeNone {
@@ -1019,7 +1013,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		switch scope {
 
 		case traceql.AttributeScopeNone:
-			mingledConditions = true
+			mingled = true
 			spanConditions = append(spanConditions, cond)
 			resourceConditions = append(resourceConditions, cond)
 			continue
@@ -1037,8 +1031,17 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 			continue
 
 		default:
-			return nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
+			return false, nil, nil, nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
 		}
+	}
+	return mingled, spanConditions, resourceConditions, traceConditions, nil
+}
+
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+	// categorizeConditions conditions into span-level or resource-level
+	mingledConditions, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	if err != nil {
+		return nil, err
 	}
 
 	rgs := rowGroupsFromFile(pf, opts)
@@ -1297,7 +1300,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol)
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -1415,7 +1418,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	// and all other resource conditions are optional. Whatever matches
 	// is returned.
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
-		required, iters, batchCol), nil
+		required, iters, batchCol)
 }
 
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
@@ -1795,7 +1798,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
-			&attributeCollector{}), nil
+			&attributeCollector{})
 	}
 
 	return nil, nil

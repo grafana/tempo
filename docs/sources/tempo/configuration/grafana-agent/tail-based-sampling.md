@@ -126,6 +126,7 @@ otelcol.processor.tail_sampling "policies" {
         traces = [otelcol.exporter.otlp.tempo.input]
     }
 }
+
 ```
 
 ## Examples for Grafana Agent static mode

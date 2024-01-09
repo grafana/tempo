@@ -2,7 +2,31 @@ package cache
 
 import (
 	"context"
+
+	"github.com/grafana/dskit/services"
 )
+
+type Role string
+
+const (
+	// individual roles
+	RoleNone             Role = "none"
+	RoleBloom            Role = "bloom"
+	RoleTraceIDIdx       Role = "trace-id-index"
+	RoleParquetFooter    Role = "parquet-footer"
+	RoleParquetColumnIdx Role = "parquet-column-idx"
+	RoleParquetOffsetIdx Role = "parquet-offset-idx"
+	RoleFrontendSearch   Role = "frontend-search"
+	RoleParquetPage      Role = "parquet-page"
+)
+
+// Provider is an object that can return a cache for a requested role
+type Provider interface {
+	services.Service
+
+	CacheFor(role Role) Cache
+	AddCache(role Role, c Cache) error
+}
 
 // Cache byte arrays by key.
 //

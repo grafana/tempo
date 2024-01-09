@@ -255,7 +255,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds 
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
 of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
 
 ```
@@ -294,7 +294,7 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds 
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
 of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
 
 ```
@@ -371,7 +371,7 @@ $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 ### Search tag values V2
 
 This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.
-The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. 
+The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types.
 See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
 
 #### Example
@@ -407,11 +407,12 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
 ```
 
 #### Filtered tag values
-If you set Tempo's `autocomplete_filtering_enabled` configuration parameter to `true` (default value is `false`), you can provide an optional URL query parameter, `q` to your request.
-The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
-If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters. 
 
-Queries can be incomplete: for example, `{ .cluster = }`. Tempo extracts only the valid matchers and build a valid query. 
+Tempo's `autocomplete_filtering_enabled` configuration parameter is set to `true` by default. This provides an optional URL query parameter, `q`, to your request.
+The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
+If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters.
+
+Queries can be incomplete: for example, `{ .cluster = }`. Tempo extracts only the valid matchers and build a valid query.
 
 Only queries with a single selector `{}` and AND `&&` operators are supported.
   - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
@@ -423,7 +424,7 @@ The following request returns all discovered service names on spans with `span.h
 GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
 ```
 
-If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it would not be included in the list of values returned. 
+If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it would not be included in the list of values returned.
 
 ### Query Echo Endpoint
 
@@ -573,17 +574,25 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 
 ## Tempo GRPC API
 
-Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
-the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
+Tempo uses GRPC to internally communicate with itself, but only has one externally supported client.
+The query-frontend component implements the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
-By default this service is only offered over the GRPC port. However, one can offer this streaming service over the HTTP port as well (which Grafana expects).
-To enable the streaming service over the http port for use with Grafana set the following. 
-> **Note**: Enabling this setting is incompatible with TLS.
+By default, this service is only offered over the GRPC port.
+You can use streaming service over the HTTP port as well (which Grafana expects).
+
+{{% admonition type="note" %}}
+Enabling this setting is incompatible with TLS.
+{{% /admonition %}}
+
+To enable the streaming service over the HTTP port for use with Grafana, set the following:
+
 ```
 stream_over_http_enabled: true
 ```
-The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response. The
-final response sent is guaranteed to have the entire resultset.
+
+The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response.
+The final response sent is guaranteed to have the entire resultset.
+
 ```protobuf
 service StreamingQuerier {
   rpc Search(SearchRequest) returns (stream SearchResponse);

@@ -20,6 +20,13 @@ import (
 	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	mnoop "go.opentelemetry.io/otel/metric/noop"
+	tnoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -267,6 +274,31 @@ func TempoBackoff() backoff.Config {
 	}
 }
 
+func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+	factory := otlpexporter.NewFactory()
+	exporterCfg := factory.CreateDefaultConfig()
+	otlpCfg := exporterCfg.(*otlpexporter.Config)
+	otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
+		Endpoint: endpoint,
+		TLSSetting: configtls.TLSClientSetting{
+			Insecure: true,
+		},
+	}
+	logger, _ := zap.NewDevelopment()
+	return factory.CreateTracesExporter(
+		context.Background(),
+		exporter.CreateSettings{
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         logger,
+				TracerProvider: tnoop.NewTracerProvider(),
+				MeterProvider:  mnoop.NewMeterProvider(),
+			},
+			BuildInfo: component.NewDefaultBuildInfo(),
+		},
+		otlpCfg,
+	)
+}
+
 func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// new jaeger grpc exporter
 	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -280,8 +312,8 @@ func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func NewSearchGRPCClient(endpoint string) (tempopb.StreamingQuerierClient, error) {
-	clientConn, err := grpc.DialContext(context.Background(), endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
+	clientConn, err := grpc.DialContext(ctx, endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

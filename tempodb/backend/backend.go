@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/cache"
 )
 
 const (
@@ -24,13 +25,18 @@ var (
 	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 )
 
+type CacheInfo struct {
+	Meta *BlockMeta
+	Role cache.Role
+}
+
 // AppendTracker is an empty interface usable by the backend to track a long running append operation
 type AppendTracker interface{}
 
 // Writer is a collection of methods to write data to tempodb backends
 type Writer interface {
-	// Write is for in memory data. shouldCache specifies whether or not caching should be attempted.
-	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, shouldCache bool) error
+	// Write is for in memory data. cacheInfo contains information to make a caching decision.
+	Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *CacheInfo) error
 	// StreamWriter is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
 	StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
 	// WriteBlockMeta writes a block meta to its blocks
@@ -45,14 +51,12 @@ type Writer interface {
 
 // Reader is a collection of methods to read data from tempodb backends
 type Reader interface {
-	// Read is for reading entire objects from the backend. There will be an attempt to retrieve this
-	// from cache if shouldCache is true.
-	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error)
+	// Read is for reading entire objects from the backend. cacheInfo contains information to make a caching decision
+	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, cacheInfo *CacheInfo) ([]byte, error)
 	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
 	StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
-	// ReadRange is for reading parts of large objects from the backend.
-	// There will be an attempt to retrieve this from cache if shouldCache is true. Cache key will be tenantID:blockID:offset:bufferLength
-	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error
+	// ReadRange is for reading parts of large objects from the backend. cacheInfo contains information to make a caching decision
+	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error
 	// Tenants returns a list of all tenants in a backend
 	Tenants(ctx context.Context) ([]string, error)
 	// Blocks returns the blockIDs, compactedBlockIDs and an error from the backend.

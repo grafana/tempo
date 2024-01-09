@@ -163,6 +163,34 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
+// AutocompleteCallback is called to collect unique tag values.
+// Returns true if it has exceeded the maximum number of results.
+type AutocompleteCallback func(static Static) bool
+
+type AutocompleteRequest struct {
+	Conditions []Condition
+	TagName    Attribute
+	// TODO: Add start and end time?
+}
+
+type AutocompleteFetcher interface {
+	Fetch(context.Context, AutocompleteRequest, AutocompleteCallback) error
+}
+
+type AutocompleteFetcherWrapper struct {
+	f func(context.Context, AutocompleteRequest, AutocompleteCallback) error
+}
+
+var _ AutocompleteFetcher = (*AutocompleteFetcherWrapper)(nil)
+
+func NewAutocompleteFetcherWrapper(f func(context.Context, AutocompleteRequest, AutocompleteCallback) error) AutocompleteFetcher {
+	return AutocompleteFetcherWrapper{f}
+}
+
+func (s AutocompleteFetcherWrapper) Fetch(ctx context.Context, request AutocompleteRequest, callback AutocompleteCallback) error {
+	return s.f(ctx, request, callback)
+}
+
 // MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns
 // the storage layer conditions. Panics if the query fails to parse.
 func MustExtractFetchSpansRequestWithMetadata(query string) FetchSpansRequest {

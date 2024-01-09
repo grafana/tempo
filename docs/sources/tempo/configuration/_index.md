@@ -30,6 +30,7 @@ This document explains the configuration options for Tempo as well as the detail
       - [Tenant-specific overrides](#tenant-specific-overrides)
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
+  - [Cache](#cache)
 
 Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
@@ -68,7 +69,7 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 # Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
 # If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
 # and returns only tag values that match the query.
-[autocomplete_filtering_enabled: <bool> | default = false]
+[autocomplete_filtering_enabled: <bool> | default = true]
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
@@ -207,7 +208,7 @@ distributor:
 
     # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted. This parameter
-    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to 
+    # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
     [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 ```
@@ -421,6 +422,14 @@ query_frontend:
     # disable.
     # (default: 5)
     [max_batch_size: <int>]
+
+    # Enable multi-tenant queries.
+    # If enabled, queries can be federated across multiple tenants.
+    # The tenant IDs involved need to be specified separated by a '|'
+    # character in the 'X-Scope-OrgID' header. 
+    # note: this is no-op if cluster doesn't have `multitenancy_enabled: true`
+    # (default: true)
+    [multi_tenant_queries_enabled: <bool>]
 
     search:
 
@@ -921,6 +930,7 @@ storage:
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
+        # Deprecated. See [cache](#cache) section below.
         [cache: <string>]
 
         # Minimum compaction level of block to qualify for bloom filter caching. Default is 0 (disabled), meaning
@@ -958,6 +968,7 @@ storage:
             [read_buffer_count: <int>]
 
             # Granular cache control settings for parquet metadata objects
+            # Deprecated. See [cache](#cache) section below.
             cache_control:
 
                 # Specifies if footer should be cached
@@ -969,119 +980,19 @@ storage:
                 # Specifies if offset index should be cached
                 [offset_index: <bool> | default = false]
 
-        # Cortex Background cache configuration. Requires having a cache configured.
+
+        # Background cache configuration. Requires having a cache configured.
+        # Deprecated. See [cache](#cache) section below.
         background_cache:
 
-            # at what concurrency to write back to cache. Default is 10.
-            [writeback_goroutines: <int>]
-
-            # how many key batches to buffer for background write-back. Default is 10000.
-            [writeback_buffer: <int>]
-
         # Memcached caching configuration block
+        # Deprecated. See [cache](#cache) section below.
         memcached:
-
-            # hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
-            # Example: "host: memcached"
-            [host: <string>]
-
-            # Optional
-            # SRV service used to discover memcache servers. (default: memcached)
-            # Example: "service: memcached-client"
-            [service: <string>]
-
-            # Optional
-            # comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
-            # (default: "")
-            # Example: "addresses: memcached"
-            [addresses: <comma separated strings>]
-
-            # Optional
-            # Maximum time to wait before giving up on memcached requests.
-            # (default: 100ms)
-            [timeout: <duration>]
-
-            # Optional
-            # Maximum number of idle connections in pool.
-            # (default: 16)
-            [max_idle_conns: <int>]
-
-            # Optional
-            # period with which to poll DNS for memcache servers.
-            # (default: 1m)
-            [update_interval: <duration>]
-
-            # Optional
-            # use consistent hashing to distribute keys to memcache servers.
-            # (default: true)
-            [consistent_hash: <bool>]
-
-            # Optional
-            # trip circuit-breaker after this number of consecutive dial failures.
-            # (default: 10)
-            [circuit_breaker_consecutive_failures: 10]
-
-            # Optional
-            # duration circuit-breaker remains open after tripping.
-            # (default: 10s)
-            [circuit_breaker_timeout: 10s]
-
-            # Optional
-            # reset circuit-breaker counts after this long.
-            # (default: 10s)
-            [circuit_breaker_interval: 10s]
 
         # Redis configuration block
         # EXPERIMENTAL
+        # Deprecated. See [cache](#cache) section below.
         redis:
-
-            # redis endpoint to use when caching.
-            [endpoint: <string>]
-
-            # optional.
-            # maximum time to wait before giving up on redis requests. (default 100ms)
-            [timeout: 500ms]
-
-            # optional.
-            # redis Sentinel master name. (default "")
-            # Example: "master-name: redis-master"
-            [master-name: <string>]
-
-            # optional.
-            # database index. (default 0)
-            [db: <int>]
-
-            # optional.
-            # how long keys stay in the redis. (default 0)
-            [expiration: <duration>]
-
-            # optional.
-            # enable connecting to redis with TLS. (default false)
-            [tls-enabled: <bool>]
-
-            # optional.
-            # skip validating server certificate. (default false)
-            [tls-insecure-skip-verify: <bool>]
-
-            # optional.
-            # maximum number of connections in the pool. (default 0)
-            [pool-size: <int>]
-
-            # optional.
-            # password to use when connecting to redis. (default "")
-            [password: <string>]
-
-            # optional.
-            # close connections after remaining idle for this duration. (default 0s)
-            {idle-timeout: <duration>}
-
-            # optional.
-            # close connections older than this duration. (default 0s)
-            [max-connection-age: <duration>]
-
-            # optional.
-            # password to use when connecting to redis sentinel. (default "")
-            [sentinel_password: <string>]
 
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
@@ -1265,7 +1176,7 @@ overrides:
 
   # Global ingestion limits configurations
   defaults:
-    
+
     # Ingestion related overrides
     ingestion:
 
@@ -1293,11 +1204,11 @@ overrides:
       #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
       # This override limit is used by the ingester.
       [max_traces_per_user: <int> | default = 10000]
-      
+
       # Maximum number of active traces per user, across the cluster.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
-      
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
@@ -1317,7 +1228,7 @@ overrides:
       # Per-user max search duration. If this value is set to 0 (default), then max_duration
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
-    
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),
@@ -1326,7 +1237,7 @@ overrides:
       # Per-user compaction window. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
-      
+
     # Metrics-generator related overrides
     metrics_generator:
 
@@ -1367,10 +1278,10 @@ overrides:
       # This setting is useful if you wish to test how many active series a tenant will generate, without
       # actually writing these metrics.
       [disable_collection: <bool> | default = false]
-        
+
       # Per-user configuration of the trace-id label name. This value will be used as name for the label to store the
-      # trace ID of exemplars in generated metrics. If not set, the default value "trace_id" will be used.  
-      [trace_id_label_name: <string> | default = "trace_id"]  
+      # trace ID of exemplars in generated metrics. If not set, the default value "trace_id" will be used.
+      [trace_id_label_name: <string> | default = "trace_id"]
 
       # This option only allows spans with end time that occur within the configured duration to be
       # considered in metrics generation.
@@ -1383,10 +1294,10 @@ overrides:
         # The length of the queue and the amount of workers pulling from the queue can be configured.
         [queue_size: <int> | default = 100]
         [workers: <int> | default = 2]
-      
+
       # Per processor configuration
       processor:
-        
+
         # Configuration for the service-graphs processor
         service_graphs:
           [histogram_buckets: <list of float>]
@@ -1402,7 +1313,7 @@ overrides:
           [intrinsic_dimensions: <map string to bool>]
           [filter_policies: [
             [
-              include/exclude: 
+              include/exclude:
                 match_type: <string> # options: strict, regexp
                 attributes:
                   - key: <string>
@@ -1423,13 +1334,13 @@ overrides:
           [flush_check_period: <duration>]
           [trace_idle_period: <duration>]
           [complete_block_timeout: <duration>]
-      
+
     # Generic forwarding configuration
 
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
     forwarders: <list of string>
-      
+
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes.  A value of 0 disables the size
@@ -1571,4 +1482,162 @@ This value is available in the the [tempo-distributed](https://github.com/grafan
 ```yaml
 # -- If true, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs
 reportingEnabled: true
+```
+
+## Cache
+
+Use this block to configure caches available throughout the application. Multiple caches can be created and assigned roles
+which determine how they are used by Tempo.
+
+```yaml
+cache:
+    # Background cache configuration. Requires having a cache configured. These settings apply
+    # to all configured caches.
+    background:
+
+        # At what concurrency to write back to cache. Default is 10.
+        [writeback_goroutines: <int>]
+
+        # How many key batches to buffer for background write-back. Default is 10000.
+        [writeback_buffer: <int>]
+
+    caches:
+
+        # Roles determine how this cache is used in Tempo. Roles must be unique across all caches and
+        # every cache must have at least one role.
+        # Allowed values:
+        #   bloom              - Bloom filters for trace id lookup.
+        #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
+        #   parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
+        #   parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
+        #   parquet-page       - Parquet "pages". WARNING: This will attempt to cache most reads from parquet and, as a result, is very high volume.
+        #   frontend-search    - Frontend search job results.
+
+    -   roles:
+        - <role1>
+        - <role2>
+
+        # Memcached caching configuration block
+        memcached:
+
+            # Hostname for memcached service to use. If empty and if addresses is unset, no memcached will be used.
+            # Example: "host: memcached"
+            [host: <string>]
+
+            # Optional
+            # SRV service used to discover memcache servers. (default: memcached)
+            # Example: "service: memcached-client"
+            [service: <string>]
+
+            # Optional
+            # Comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
+            # (default: "")
+            # Example: "addresses: memcached"
+            [addresses: <comma separated strings>]
+
+            # Optional
+            # Maximum time to wait before giving up on memcached requests.
+            # (default: 100ms)
+            [timeout: <duration>]
+
+            # Optional
+            # Maximum number of idle connections in pool.
+            # (default: 16)
+            [max_idle_conns: <int>]
+
+            # Optional
+            # Period with which to poll DNS for memcache servers.
+            # (default: 1m)
+            [update_interval: <duration>]
+
+            # Optional
+            # Use consistent hashing to distribute keys to memcache servers.
+            # (default: true)
+            [consistent_hash: <bool>]
+
+            # Optional
+            # Trip circuit-breaker after this number of consecutive dial failures.
+            # (default: 10)
+            [circuit_breaker_consecutive_failures: 10]
+
+            # Optional
+            # Duration circuit-breaker remains open after tripping.
+            # (default: 10s)
+            [circuit_breaker_timeout: 10s]
+
+            # Optional
+            # Reset circuit-breaker counts after this long.
+            # (default: 10s)
+            [circuit_breaker_interval: 10s]
+
+        # Redis configuration block
+        # EXPERIMENTAL
+        redis:
+
+            # Redis endpoint to use when caching.
+            [endpoint: <string>]
+
+            # optional.
+            # Maximum time to wait before giving up on redis requests. (default 100ms)
+            [timeout: 500ms]
+
+            # optional.
+            # Redis Sentinel master name. (default "")
+            # Example: "master-name: redis-master"
+            [master-name: <string>]
+
+            # optional.
+            # Database index. (default 0)
+            [db: <int>]
+
+            # optional.
+            # How long keys stay in the redis. (default 0)
+            [expiration: <duration>]
+
+            # optional.
+            # Enable connecting to redis with TLS. (default false)
+            [tls-enabled: <bool>]
+
+            # optional.
+            # Skip validating server certificate. (default false)
+            [tls-insecure-skip-verify: <bool>]
+
+            # optional.
+            # Maximum number of connections in the pool. (default 0)
+            [pool-size: <int>]
+
+            # optional.
+            # Password to use when connecting to redis. (default "")
+            [password: <string>]
+
+            # optional.
+            # Close connections after remaining idle for this duration. (default 0s)
+            [idle-timeout: <duration>]
+
+            # optional.
+            # Close connections older than this duration. (default 0s)
+            [max-connection-age: <duration>]
+
+            # optional.
+            # Password to use when connecting to redis sentinel. (default "")
+            [sentinel_password: <string>]
+```
+
+Example config:
+
+```yaml
+cache:
+  background:
+    writeback_goroutines: 5
+  caches:
+  - roles:
+    - parquet-footer
+    - parquet-column-idx
+    - parquet-offset-idx
+    memcached:
+      host: memcached-instance
+  - roles:
+    - bloom
+    redis:
+      endpoint: redis-instance
 ```

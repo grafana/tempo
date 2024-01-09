@@ -229,7 +229,7 @@ func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 			},
 		},
-	}, "", log.NewNopLogger())
+	}, &frontendCache{}, "", log.NewNopLogger())
 
 	return handler
 }

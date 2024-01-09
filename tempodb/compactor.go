@@ -241,7 +241,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 	compactor := enc.NewCompactor(opts)
 
 	// Compact selected blocks into a larger one
-	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas)
+	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, blockMetas)
 	if err != nil {
 		return err
 	}
