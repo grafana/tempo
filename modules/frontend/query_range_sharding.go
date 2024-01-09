@@ -395,8 +395,10 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.QueryMode = "recent"
 
 	// No sharding on the generators (unecessary), but we do apply sampling
-	// rates.  In this case we always execute the first shard.
-	searchReq.ShardID = 1
+	// rates.  In this case we execute a single arbitrary shard. Choosing
+	// the last shard works. The first shard should be avoided because it is
+	// weighted slightly off due to int63/128 sharding boundaries.
+	searchReq.ShardID = uint32(1.0 / samplingRate)
 	searchReq.ShardCount = uint32(1.0 / samplingRate)
 
 	// Set final sampling rate after integer rounding
