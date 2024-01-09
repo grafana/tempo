@@ -446,6 +446,7 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 
 	req.Query = r.Form.Get("query")
+	req.QueryMode = r.Form.Get(QueryModeKey)
 
 	start, end, _ := bounds(r)
 	req.Start = uint64(start.UnixNano())
@@ -485,6 +486,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	q.Set(urlParamStep, time.Duration(searchReq.Step).String())
 	q.Set(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
 	q.Set(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
+	q.Set(QueryModeKey, searchReq.QueryMode)
 
 	if len(searchReq.Query) > 0 {
 		q.Set(urlParamQuery, searchReq.Query)

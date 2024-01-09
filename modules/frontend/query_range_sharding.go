@@ -343,6 +343,9 @@ func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tem
 			if samplingRate != 1.0 {
 				shardR.ShardID *= uint32(1.0 / samplingRate)
 				shardR.ShardCount *= uint32(1.0 / samplingRate)
+
+				// Set final sampling rate after integer rounding
+				samplingRate = float64(shards) / float64(shardR.ShardCount)
 			}
 
 			select {
@@ -389,11 +392,19 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 		return nil
 	}
 
-	// Shard 0 indicates generator request
-	searchReq.ShardID = 0
-	searchReq.ShardCount = 0
+	searchReq.QueryMode = "recent"
+
+	// No sharding on the generators (unecessary), but we do apply sampling
+	// rates.  In this case we always execute the first shard.
+	searchReq.ShardID = 1
+	searchReq.ShardCount = uint32(1.0 / samplingRate)
+
+	// Set final sampling rate after integer rounding
+	samplingRate = 1.0 / float64(searchReq.ShardCount)
+
 	return &queryRangeJob{
-		req: searchReq,
+		req:          searchReq,
+		samplingRate: samplingRate,
 	}
 }
 
