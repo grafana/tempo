@@ -104,7 +104,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 }
 
 // Write implements backend.Writer
-func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Write")
 	defer span.Finish()
@@ -156,7 +156,7 @@ func (rw *readerWriter) CloseAppend(_ context.Context, tracker backend.AppendTra
 	return w.Close()
 }
 
-func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ bool) error {
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
 	return readError(rw.bucket.Object(backend.ObjectFileName(keypath, name)).Delete(ctx))
 }
 
@@ -309,7 +309,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 }
 
 // Read implements backend.Reader
-func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
 	defer span.Finish()
@@ -324,7 +324,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange", opentracing.Tags{
 		"len":    len(buffer),

@@ -69,7 +69,7 @@ Jaegar client libraries have been deprecated. For more information, refer to the
 
 ## Grafana Blog
 
-The Grafana blot periodically features instrumentation posts.
+The Grafana blog periodically features instrumentation posts.
 
 - [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
 - [Java Spring Boot Auto-Instrumentation](/blog/2021/02/03/auto-instrumenting-a-java-spring-boot-application-for-traces-and-logs-using-opentelemetry-and-grafana-tempo/)

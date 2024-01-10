@@ -6,6 +6,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/tempodb"
 )
@@ -39,7 +40,7 @@ type store struct {
 }
 
 // NewStore creates a new Tempo Store using configuration supplied.
-func NewStore(cfg Config, logger log.Logger) (Store, error) {
+func NewStore(cfg Config, cacheProvider cache.Provider, logger log.Logger) (Store, error) {
 	statCache.Set(cfg.Trace.Cache)
 	statBackend.Set(cfg.Trace.Backend)
 	statWalEncoding.Set(cfg.Trace.WAL.Encoding.String())
@@ -47,7 +48,7 @@ func NewStore(cfg Config, logger log.Logger) (Store, error) {
 	statBlockEncoding.Set(cfg.Trace.Block.Encoding.String())
 	statBlockSearchEncoding.Set(cfg.Trace.Block.SearchEncoding.String())
 
-	r, w, c, err := tempodb.New(&cfg.Trace, logger)
+	r, w, c, err := tempodb.New(&cfg.Trace, cacheProvider, logger)
 	if err != nil {
 		return nil, err
 	}

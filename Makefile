@@ -11,7 +11,7 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.14.0
+DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.23.0
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.21.0
 DOCS_IMAGE ?= grafana/docs-base:latest
 
@@ -164,7 +164,7 @@ lint:
 
 .PHONY: docker-component # Not intended to be used directly
 docker-component: check-component exe
-	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
+	docker build -t grafana/$(COMPONENT) --load --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 
 .PHONY: docker-component-debug

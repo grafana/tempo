@@ -5,7 +5,6 @@ package pdatautil // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"encoding/binary"
-	"hash"
 	"math"
 	"sort"
 	"sync"
@@ -28,37 +27,39 @@ var (
 	valMapSuffix    = []byte{'\xfd'}
 	valSlicePrefix  = []byte{'\xfe'}
 	valSliceSuffix  = []byte{'\xff'}
+
+	emptyHash = [16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 )
 
 type hashWriter struct {
-	h       hash.Hash
-	strBuf  []byte
+	byteBuf []byte
 	keysBuf []string
-	sumHash []byte
-	numBuf  []byte
 }
 
 func newHashWriter() *hashWriter {
 	return &hashWriter{
-		h:       xxhash.New(),
-		strBuf:  make([]byte, 0, 128),
+		byteBuf: make([]byte, 0, 512),
 		keysBuf: make([]string, 0, 16),
-		sumHash: make([]byte, 0, 16),
-		numBuf:  make([]byte, 8),
 	}
 }
 
 var hashWriterPool = &sync.Pool{
-	New: func() interface{} { return newHashWriter() },
+	New: func() any { return newHashWriter() },
 }
 
 // MapHash return a hash for the provided map.
 // Maps with the same underlying key/value pairs in different order produce the same deterministic hash value.
 func MapHash(m pcommon.Map) [16]byte {
+	if m.Len() == 0 {
+		return emptyHash
+	}
+
 	hw := hashWriterPool.Get().(*hashWriter)
 	defer hashWriterPool.Put(hw)
-	hw.h.Reset()
+	hw.byteBuf = hw.byteBuf[:0]
+
 	hw.writeMapHash(m)
+
 	return hw.hashSum128()
 }
 
@@ -66,8 +67,10 @@ func MapHash(m pcommon.Map) [16]byte {
 func ValueHash(v pcommon.Value) [16]byte {
 	hw := hashWriterPool.Get().(*hashWriter)
 	defer hashWriterPool.Put(hw)
-	hw.h.Reset()
+	hw.byteBuf = hw.byteBuf[:0]
+
 	hw.writeValueHash(v)
+
 	return hw.hashSum128()
 }
 
@@ -90,10 +93,8 @@ func (hw *hashWriter) writeMapHash(m pcommon.Map) {
 	sort.Strings(workingKeySet)
 	for _, k := range workingKeySet {
 		v, _ := m.Get(k)
-		hw.strBuf = hw.strBuf[:0]
-		hw.strBuf = append(hw.strBuf, keyPrefix...)
-		hw.strBuf = append(hw.strBuf, k...)
-		hw.h.Write(hw.strBuf)
+		hw.byteBuf = append(hw.byteBuf, keyPrefix...)
+		hw.byteBuf = append(hw.byteBuf, k...)
 		hw.writeValueHash(v)
 	}
 
@@ -101,59 +102,54 @@ func (hw *hashWriter) writeMapHash(m pcommon.Map) {
 	hw.keysBuf = hw.keysBuf[:nextIndex]
 }
 
-func (hw *hashWriter) writeSliceHash(sl pcommon.Slice) {
-	for i := 0; i < sl.Len(); i++ {
-		hw.writeValueHash(sl.At(i))
-	}
-}
-
 func (hw *hashWriter) writeValueHash(v pcommon.Value) {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
-		hw.strBuf = hw.strBuf[:0]
-		hw.strBuf = append(hw.strBuf, valStrPrefix...)
-		hw.strBuf = append(hw.strBuf, v.Str()...)
-		hw.h.Write(hw.strBuf)
+		hw.byteBuf = append(hw.byteBuf, valStrPrefix...)
+		hw.byteBuf = append(hw.byteBuf, v.Str()...)
 	case pcommon.ValueTypeBool:
 		if v.Bool() {
-			hw.h.Write(valBoolTrue)
+			hw.byteBuf = append(hw.byteBuf, valBoolTrue...)
 		} else {
-			hw.h.Write(valBoolFalse)
+			hw.byteBuf = append(hw.byteBuf, valBoolFalse...)
 		}
 	case pcommon.ValueTypeInt:
-		hw.h.Write(valIntPrefix)
-		binary.LittleEndian.PutUint64(hw.numBuf, uint64(v.Int()))
-		hw.h.Write(hw.numBuf)
+		hw.byteBuf = append(hw.byteBuf, valIntPrefix...)
+		hw.byteBuf = binary.LittleEndian.AppendUint64(hw.byteBuf, uint64(v.Int()))
 	case pcommon.ValueTypeDouble:
-		hw.h.Write(valDoublePrefix)
-		binary.LittleEndian.PutUint64(hw.numBuf, math.Float64bits(v.Double()))
-		hw.h.Write(hw.numBuf)
+		hw.byteBuf = append(hw.byteBuf, valDoublePrefix...)
+		hw.byteBuf = binary.LittleEndian.AppendUint64(hw.byteBuf, math.Float64bits(v.Double()))
 	case pcommon.ValueTypeMap:
-		hw.h.Write(valMapPrefix)
+		hw.byteBuf = append(hw.byteBuf, valMapPrefix...)
 		hw.writeMapHash(v.Map())
-		hw.h.Write(valMapSuffix)
+		hw.byteBuf = append(hw.byteBuf, valMapSuffix...)
 	case pcommon.ValueTypeSlice:
-		hw.h.Write(valSlicePrefix)
-		hw.writeSliceHash(v.Slice())
-		hw.h.Write(valSliceSuffix)
+		sl := v.Slice()
+		hw.byteBuf = append(hw.byteBuf, valSlicePrefix...)
+		for i := 0; i < sl.Len(); i++ {
+			hw.writeValueHash(sl.At(i))
+		}
+		hw.byteBuf = append(hw.byteBuf, valSliceSuffix...)
 	case pcommon.ValueTypeBytes:
-		hw.h.Write(valBytesPrefix)
-		hw.h.Write(v.Bytes().AsRaw())
+		hw.byteBuf = append(hw.byteBuf, valBytesPrefix...)
+		hw.byteBuf = append(hw.byteBuf, v.Bytes().AsRaw()...)
 	case pcommon.ValueTypeEmpty:
-		hw.h.Write(valEmpty)
+		hw.byteBuf = append(hw.byteBuf, valEmpty...)
 	}
 }
 
 // hashSum128 returns a [16]byte hash sum.
 func (hw *hashWriter) hashSum128() [16]byte {
-	b := hw.sumHash[:0]
-	b = hw.h.Sum(b)
+	r := [16]byte{}
+	res := r[:]
+
+	h := xxhash.Sum64(hw.byteBuf)
+	res = binary.LittleEndian.AppendUint64(res[:0], h)
 
 	// Append an extra byte to generate another part of the hash sum
-	_, _ = hw.h.Write(extraByte)
-	b = hw.h.Sum(b)
+	hw.byteBuf = append(hw.byteBuf, extraByte...)
+	h = xxhash.Sum64(hw.byteBuf)
+	_ = binary.LittleEndian.AppendUint64(res[8:], h)
 
-	res := [16]byte{}
-	copy(res[:], b)
-	return res
+	return r
 }

@@ -27,6 +27,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorMaxActiveSeries:                                  c.MetricsGenerator.MaxActiveSeries,
 		MetricsGeneratorCollectionInterval:                               c.MetricsGenerator.CollectionInterval,
 		MetricsGeneratorDisableCollection:                                c.MetricsGenerator.DisableCollection,
+		MetricsGeneratorTraceIDLabelName:                                 c.MetricsGenerator.TraceIDLabelName,
 		MetricsGeneratorForwarderQueueSize:                               c.MetricsGenerator.Forwarder.QueueSize,
 		MetricsGeneratorForwarderWorkers:                                 c.MetricsGenerator.Forwarder.Workers,
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:           c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
@@ -48,7 +49,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:         c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
 		MetricsGeneratorIngestionSlack:                                   c.MetricsGenerator.IngestionSlack,
 
-		BlockRetention: c.Compaction.BlockRetention,
+		BlockRetention:   c.Compaction.BlockRetention,
+		CompactionWindow: c.Compaction.CompactionWindow,
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
@@ -81,6 +83,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorMaxActiveSeries                                  uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval                               time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
+	MetricsGeneratorTraceIDLabelName                                 string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                               int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                 int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets           []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
@@ -103,7 +106,8 @@ type LegacyOverrides struct {
 	MetricsGeneratorIngestionSlack                                   time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 
 	// Compactor enforced limits.
-	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
+	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
+	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
@@ -135,7 +139,8 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxSearchDuration:          l.MaxSearchDuration,
 		},
 		Compaction: CompactionOverrides{
-			BlockRetention: l.BlockRetention,
+			BlockRetention:   l.BlockRetention,
+			CompactionWindow: l.CompactionWindow,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
 			RingSize:           l.MetricsGeneratorRingSize,
@@ -143,6 +148,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxActiveSeries:    l.MetricsGeneratorMaxActiveSeries,
 			CollectionInterval: l.MetricsGeneratorCollectionInterval,
 			DisableCollection:  l.MetricsGeneratorDisableCollection,
+			TraceIDLabelName:   l.MetricsGeneratorTraceIDLabelName,
 			IngestionSlack:     l.MetricsGeneratorIngestionSlack,
 			Forwarder: ForwarderOverrides{
 				QueueSize: l.MetricsGeneratorForwarderQueueSize,

@@ -46,8 +46,9 @@ type mockJobSharder struct{}
 func (m *mockJobSharder) Owns(string) bool { return true }
 
 type mockOverrides struct {
-	blockRetention   time.Duration
-	maxBytesPerTrace int
+	blockRetention      time.Duration
+	maxBytesPerTrace    int
+	maxCompactionWindow time.Duration
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
@@ -56,6 +57,10 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 
 func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
 	return m.maxBytesPerTrace
+}
+
+func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
+	return m.maxCompactionWindow
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
@@ -93,7 +98,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -240,7 +245,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -384,7 +389,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -455,7 +460,7 @@ func TestCompactionMetrics(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -529,7 +534,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -602,7 +607,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			IngestionSlack: time.Since(time.Unix(0, 0)), // Let us use obvious start/end times below
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -732,7 +737,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
-	}, log.NewNopLogger())
+	}, nil, log.NewNopLogger())
 	require.NoError(b, err)
 
 	rw := c.(*readerWriter)

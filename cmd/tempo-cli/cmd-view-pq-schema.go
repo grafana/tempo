@@ -36,7 +36,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 	fmt.Printf("\n***************     block meta    *********************\n\n\n")
 	fmt.Printf("%+v\n", meta)
 
-	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
+	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
 	pf, err := parquet.OpenFile(rr, int64(meta.Size))
 	if err != nil {
 		return err
@@ -51,8 +51,12 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 			path, _ := getNodePathByIndex(pf.Root(), "", cc.Column())
 
 			var size int64
-			for pg := 0; pg < cc.OffsetIndex().NumPages(); pg++ {
-				size += cc.OffsetIndex().CompressedPageSize(pg)
+			idx, err := cc.OffsetIndex()
+			if err != nil {
+				return err
+			}
+			for pg := 0; pg < idx.NumPages(); pg++ {
+				size += idx.CompressedPageSize(pg)
 			}
 
 			columnSizes[path] = columnSizes[path] + size

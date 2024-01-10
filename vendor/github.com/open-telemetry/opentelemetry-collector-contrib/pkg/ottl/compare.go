@@ -1,21 +1,11 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package ottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 
 import (
 	"bytes"
+	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/exp/constraints"
@@ -146,6 +136,41 @@ func (p *Parser[K]) compareFloat64(a float64, b any, op compareOp) bool {
 	}
 }
 
+func (p *Parser[K]) compareDuration(a time.Duration, b any, op compareOp) bool {
+	switch v := b.(type) {
+	case time.Duration:
+		ansecs := a.Nanoseconds()
+		vnsecs := v.Nanoseconds()
+		return comparePrimitives(ansecs, vnsecs, op)
+	default:
+		return p.invalidComparison("cannot compare invalid duration", op)
+	}
+}
+
+func (p *Parser[K]) compareTime(a time.Time, b any, op compareOp) bool {
+	switch v := b.(type) {
+	case time.Time:
+		switch op {
+		case EQ:
+			return a.Equal(v)
+		case NE:
+			return !a.Equal(v)
+		case LT:
+			return a.Before(v)
+		case LTE:
+			return a.Before(v) || a.Equal(v)
+		case GTE:
+			return a.After(v) || a.Equal(v)
+		case GT:
+			return a.After(v)
+		default:
+			return p.invalidComparison("invalid comparison operator", op)
+		}
+	default:
+		return p.invalidComparison("time to non-time value", op)
+	}
+}
+
 // a and b are the return values from a Getter; we try to compare them
 // according to the given operator.
 func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
@@ -173,6 +198,10 @@ func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
 			return p.compare(b, nil, op)
 		}
 		return p.compareByte(v, b, op)
+	case time.Duration:
+		return p.compareDuration(v, b, op)
+	case time.Time:
+		return p.compareTime(v, b, op)
 	default:
 		// If we don't know what type it is, we can't do inequalities yet. So we can fall back to the old behavior where we just
 		// use Go's standard equality.

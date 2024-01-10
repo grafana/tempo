@@ -16,10 +16,11 @@ import (
 var statVersion = usagestats.NewString("frontend_version")
 
 type Config struct {
-	Config     v1.Config       `yaml:",inline"`
-	MaxRetries int             `yaml:"max_retries,omitempty"`
-	Search     SearchConfig    `yaml:"search"`
-	TraceByID  TraceByIDConfig `yaml:"trace_by_id"`
+	Config                    v1.Config       `yaml:",inline"`
+	MaxRetries                int             `yaml:"max_retries,omitempty"`
+	Search                    SearchConfig    `yaml:"search"`
+	TraceByID                 TraceByIDConfig `yaml:"trace_by_id"`
+	MultiTenantQueriesEnabled bool            `yaml:"multi_tenant_queries_enabled"`
 }
 
 type SearchConfig struct {
@@ -73,6 +74,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			HedgeRequestsUpTo: 2,
 		},
 	}
+
+	// enable multi tenant queries by default
+	cfg.MultiTenantQueriesEnabled = true
 }
 
 type CortexNoQuerierLimits struct{}

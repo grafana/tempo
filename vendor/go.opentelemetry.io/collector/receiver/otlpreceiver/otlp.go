@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -26,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace"
+	"go.opentelemetry.io/collector/receiver/receiverhelper"
 )
 
 // otlpReceiver is the type that exposes Trace and Metrics reception.
@@ -40,16 +40,16 @@ type otlpReceiver struct {
 	logsReceiver    *logs.Receiver
 	shutdownWG      sync.WaitGroup
 
-	obsrepGRPC *obsreport.Receiver
-	obsrepHTTP *obsreport.Receiver
+	obsrepGRPC *receiverhelper.ObsReport
+	obsrepHTTP *receiverhelper.ObsReport
 
-	settings receiver.CreateSettings
+	settings *receiver.CreateSettings
 }
 
 // newOtlpReceiver just creates the OpenTelemetry receiver services. It is the caller's
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
-func newOtlpReceiver(cfg *Config, set receiver.CreateSettings) (*otlpReceiver, error) {
+func newOtlpReceiver(cfg *Config, set *receiver.CreateSettings) (*otlpReceiver, error) {
 	r := &otlpReceiver{
 		cfg:      cfg,
 		settings: set,
@@ -59,18 +59,18 @@ func newOtlpReceiver(cfg *Config, set receiver.CreateSettings) (*otlpReceiver, e
 	}
 
 	var err error
-	r.obsrepGRPC, err = obsreport.NewReceiver(obsreport.ReceiverSettings{
+	r.obsrepGRPC, err = receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             set.ID,
 		Transport:              "grpc",
-		ReceiverCreateSettings: set,
+		ReceiverCreateSettings: *set,
 	})
 	if err != nil {
 		return nil, err
 	}
-	r.obsrepHTTP, err = obsreport.NewReceiver(obsreport.ReceiverSettings{
+	r.obsrepHTTP, err = receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             set.ID,
 		Transport:              "http",
-		ReceiverCreateSettings: set,
+		ReceiverCreateSettings: *set,
 	})
 	if err != nil {
 		return nil, err

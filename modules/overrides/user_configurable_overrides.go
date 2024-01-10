@@ -21,6 +21,7 @@ import (
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/util/listtomap"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -116,7 +117,7 @@ func (o *userConfigurableOverridesManager) running(ctx context.Context) error {
 
 		case <-ticker.C:
 			err := o.reloadAllTenantLimits(ctx)
-			if err != nil {
+			if err != nil && !errors.Is(err, context.Canceled) {
 				metricUserConfigurableOverridesReloadFailed.Inc()
 				level.Error(o.logger).Log("msg", "failed to refresh user-configurable config", "err", err)
 			}
@@ -202,10 +203,11 @@ func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID string) map[string]struct{} {
-	if processors, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors(); ok {
-		return processors.GetMap()
-	}
-	return o.Interface.MetricsGeneratorProcessors(userID)
+	// We merge settings from both layers meaning if a processor is enabled on any layer it will be always enabled (OR logic)
+	processorsUserConfigurable, _ := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors()
+	processorsRuntime := o.Interface.MetricsGeneratorProcessors(userID)
+
+	return listtomap.Merge(processorsUserConfigurable, processorsRuntime)
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {

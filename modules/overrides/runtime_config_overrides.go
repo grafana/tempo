@@ -261,6 +261,11 @@ func (o *runtimeConfigOverridesManager) MaxGlobalTracesPerUser(userID string) in
 	return o.getOverridesForUser(userID).Ingestion.MaxGlobalTracesPerUser
 }
 
+// MaxCompactionRange returns the maximum compaction window for this tenant.
+func (o *runtimeConfigOverridesManager) MaxCompactionRange(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).Compaction.CompactionWindow)
+}
+
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).Ingestion.RateLimitBytes)
@@ -328,6 +333,12 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorCollectionInterval(userI
 // MetricsGeneratorDisableCollection controls whether metrics are remote written for this tenant.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
+}
+
+// MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
+// "TraceID" is used if no value is provided.
+func (o *runtimeConfigOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
+	return o.getOverridesForUser(userID).MetricsGenerator.TraceIDLabelName
 }
 
 // MetricsGeneratorForwarderQueueSize is the size of the buffer of requests to send to the metrics-generator

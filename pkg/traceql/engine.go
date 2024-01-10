@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -138,8 +137,8 @@ func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	tag Attribute,
 	query string,
-	cb func(v Static) bool,
-	fetcher SpansetFetcher,
+	cb AutocompleteCallback,
+	fetcher AutocompleteFetcher,
 ) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.Finish()
@@ -150,108 +149,13 @@ func (e *Engine) ExecuteTagValues(
 	if err != nil {
 		return err
 	}
-	if err := rootExpr.validate(); err != nil {
-		return err
-	}
 
-	searchReq := &tempopb.SearchRequest{
-		Start: 0, // TODO: Should add Start and End
-		End:   math.MaxUint32,
-	}
-
-	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
-	// TODO: remove other conditions for the wantAttr we're searching for
-	// for _, cond := range fetchSpansRequest.Conditions {
-	// 	if cond.Attribute == wantAttr {
-	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
-	// 	}
-	// }
-	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
-		Attribute: tag,
-		Op:        OpNone,
-	})
+	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
 
 	span.SetTag("pipeline", rootExpr.Pipeline)
-	span.SetTag("fetchSpansRequest", fetchSpansRequest)
+	span.SetTag("autocompleteReq", autocompleteReq)
 
-	var collectAttributeValue func(s Span) bool
-	switch tag.Scope {
-	case AttributeScopeResource,
-		AttributeScopeSpan: // If tag is scoped, we can check the map directly
-		collectAttributeValue = func(s Span) bool {
-			if v, ok := s.Attributes()[tag]; ok {
-				return cb(v)
-			}
-			return false
-		}
-	case AttributeScopeNone:
-		// If tag is unscoped, it can either be an intrinsic (eg. `name`) or an unscoped attribute (eg. `.namespace`)
-		//
-		// If the tag is intrinsic Attribute.Intrinsic is set to the Intrinsic it corresponds,
-		// so we can check against `!= IntrinsicNone` and use tag directly.
-		//
-		// If the tag is unscoped, we need to check resource and span scoped manually by building a new Attribute with each scope.
-		collectAttributeValue = func(s Span) bool {
-			if tag.Intrinsic != IntrinsicNone { // it's intrinsic
-				if v, ok := s.Attributes()[tag]; ok {
-					return cb(v)
-				}
-			} else { // it's unscoped
-				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
-					scopedAttr := Attribute{Scope: scope, Parent: tag.Parent, Name: tag.Name}
-					if v, ok := s.Attributes()[scopedAttr]; ok {
-						return cb(v)
-					}
-				}
-			}
-
-			return false
-		}
-	default:
-		return fmt.Errorf("unknown attribute scope: %s", tag)
-	}
-
-	fetchSpansResponse, err := fetcher.Fetch(ctx, fetchSpansRequest)
-	if err != nil {
-		return err
-	}
-	iterator := fetchSpansResponse.Results
-	defer iterator.Close()
-
-	for {
-		spanset, err := iterator.Next(ctx)
-		if err != nil && !errors.Is(err, io.EOF) {
-			span.LogKV("msg", "iterator.Next", "err", err)
-			return err
-		}
-		if spanset == nil {
-			break
-		}
-		if len(spanset.Spans) == 0 {
-			continue
-		}
-
-		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{spanset})
-		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
-			return err
-		}
-
-		if len(evalSS) == 0 {
-			continue
-		}
-
-		for _, ss := range evalSS {
-			for _, s := range ss.Spans {
-				if collectAttributeValue(s) {
-					return nil // exit early if we've exceed max bytes
-				}
-			}
-		}
-
-	}
-
-	return nil
+	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
@@ -278,6 +182,43 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
+func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) AutocompleteRequest {
+	req := FetchSpansRequest{
+		Conditions:    nil,
+		AllConditions: true,
+	}
+
+	// TODO: This is a hack. If the pipeline is empty, startTime is added as a condition
+	//  and breaks optimizations in block_autocomplete.go.
+	//  We only want the attribute we're searching for in the conditions.
+	if pipeline.String() == "{ true }" {
+		return AutocompleteRequest{
+			Conditions: []Condition{{Attribute: tag, Op: OpNone}},
+			TagName:    tag,
+		}
+	}
+
+	pipeline.extractConditions(&req)
+
+	// TODO: remove other conditions for the wantAttr we're searching for
+	// for _, cond := range fetchSpansRequest.Conditions {
+	// 	if cond.Attribute == wantAttr {
+	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
+	// 	}
+	// }
+	req.Conditions = append(req.Conditions, Condition{
+		Attribute: tag,
+		Op:        OpNone,
+	})
+
+	autocompleteReq := AutocompleteRequest{
+		Conditions: req.Conditions,
+		TagName:    tag,
+	}
+
+	return autocompleteReq
+}
+
 func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
@@ -296,7 +237,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 			Attributes:        nil,
 		}
 
-		atts := span.Attributes()
+		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
 			tempopbSpan.Name = name.S

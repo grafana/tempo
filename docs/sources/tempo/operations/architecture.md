@@ -27,7 +27,7 @@ the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/rec
 
 ## Ingester
 
-The [Ingester]{{{< relref "../configuration#ingester" >}}} batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
+The [Ingester]({{< relref "../configuration#ingester" >}}) batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
 Blocks in the backend are generated in the following layout:
 
 ```

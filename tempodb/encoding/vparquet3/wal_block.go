@@ -678,6 +678,64 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}, nil
 }
 
+func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return fmt.Errorf("conditions invalid: %w", err)
+	}
+
+	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	if err != nil {
+		return err
+	}
+
+	if len(req.Conditions) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
+	}
+
+	blockFlushes := b.readFlushes()
+	for _, page := range blockFlushes {
+		file, err := page.file(ctx)
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+
+		pf := file.parquetFile
+
+		iter, err := autocompleteIter(ctx, req, pf, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+
+		for {
+			// Exhaust the iterator
+			res, err := iter.Next()
+			if err != nil {
+				iter.Close()
+				return fmt.Errorf("iterating spans in walBlock: %w", err)
+			}
+			if res == nil {
+				iter.Close()
+				break
+			}
+
+			for _, oe := range res.OtherEntries {
+				if oe.Key == req.TagName.String() {
+					v := oe.Value.(traceql.Static)
+					if cb(v) {
+						iter.Close()
+						return nil // We have enough values
+					}
+				}
+			}
+		}
+		iter.Close()
+	}
+
+	// combine iters?
+	return nil
+}
+
 func (b *walBlock) walPath() string {
 	filename := fmt.Sprintf("%s+%s+%s", b.meta.BlockID, b.meta.TenantID, VersionString)
 	return filepath.Join(b.path, filename)

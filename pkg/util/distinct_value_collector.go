@@ -1,6 +1,8 @@
 package util
 
-import "sync"
+import (
+	"sync"
+)
 
 type DistinctValueCollector[T comparable] struct {
 	values   map[T]struct{}

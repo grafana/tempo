@@ -16,7 +16,7 @@ services:
       - "9411:9411"   # zipkin
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+    image: ghcr.io/grafana/xk6-client-tracing:latest
     environment:
       - ENDPOINT=tempo:4317
     restart: always
@@ -35,13 +35,13 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:10.1.1
+    image: grafana/grafana:10.2.2
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor traceQLStreaming metricsSummary
     ports:
       - "3000:3000"

@@ -11,6 +11,12 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/services"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/sharedconfig"
@@ -18,11 +24,6 @@ import (
 	"github.com/grafana/tempo/pkg/util/listtomap"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -371,15 +372,24 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	// Set Forwarders in UserConfigOverrides limits
 	mgr.tenantLimits[tenantID] = &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
+		MetricsGenerator: &userconfigurableoverrides.LimitsMetricsGenerator{
+			Processors: map[string]struct{}{"local-blocks": {}},
+		},
 	}
 
-	// test all override methods
+	// Test all override methods
+
+	// Forwarders are set in user-configurable overrides and will override runtime overrides
+	assert.NotEqual(t, mgr.Forwarders(tenantID), baseMgr.Forwarders(tenantID))
+
+	// Processors will be the merged result between runtime and user-configurable overrides
+	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), map[string]struct{}{"local-blocks": {}, "service-graphs": {}, "span-metrics": {}})
+
+	// For the remaining settings runtime overrides will bubble up
 	assert.Equal(t, mgr.IngestionRateStrategy(), baseMgr.IngestionRateStrategy())
 	assert.Equal(t, mgr.MaxLocalTracesPerUser(tenantID), baseMgr.MaxLocalTracesPerUser(tenantID))
 	assert.Equal(t, mgr.MaxGlobalTracesPerUser(tenantID), baseMgr.MaxGlobalTracesPerUser(tenantID))
 	assert.Equal(t, mgr.MaxBytesPerTrace(tenantID), baseMgr.MaxBytesPerTrace(tenantID))
-	// Forwarders are set in userconfigurableoverrides so not same as runtime overrides
-	assert.NotEqual(t, mgr.Forwarders(tenantID), baseMgr.Forwarders(tenantID))
 	assert.Equal(t, mgr.Forwarders(tenantID), []string{"my-other-forwarder"})
 	assert.Equal(t, baseMgr.Forwarders(tenantID), []string{"fwd", "fwd-2"})
 
@@ -389,10 +399,10 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 	assert.Equal(t, mgr.IngestionBurstSizeBytes(tenantID), baseMgr.IngestionBurstSizeBytes(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorIngestionSlack(tenantID), baseMgr.MetricsGeneratorIngestionSlack(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorRingSize(tenantID), baseMgr.MetricsGeneratorRingSize(tenantID))
-	assert.Equal(t, mgr.MetricsGeneratorProcessors(tenantID), baseMgr.MetricsGeneratorProcessors(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorMaxActiveSeries(tenantID), baseMgr.MetricsGeneratorMaxActiveSeries(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorCollectionInterval(tenantID), baseMgr.MetricsGeneratorCollectionInterval(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorDisableCollection(tenantID), baseMgr.MetricsGeneratorDisableCollection(tenantID))
+	assert.Equal(t, mgr.MetricsGenerationTraceIDLabelName(tenantID), baseMgr.MetricsGenerationTraceIDLabelName(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorForwarderQueueSize(tenantID), baseMgr.MetricsGeneratorForwarderQueueSize(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorForwarderWorkers(tenantID), baseMgr.MetricsGeneratorForwarderWorkers(tenantID))
 	assert.Equal(t, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID), baseMgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenantID))

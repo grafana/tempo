@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -127,7 +128,7 @@ func TestAllInOne(t *testing.T) {
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
 			// find the trace with streaming. using the http server b/c that's what Grafana will do
-			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(3200))
+			grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
 			require.NoError(t, err)
 
 			util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
@@ -421,10 +422,10 @@ func makeThriftBatch() *thrift.Batch {
 }
 
 func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
-	return makeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "y")
+	return makeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "", "y")
 }
 
-func makeThriftBatchWithSpanCountAttributeAndName(n int, name, tagValue string) *thrift.Batch {
+func makeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceTag, spanTag string) *thrift.Batch {
 	var spans []*thrift.Span
 
 	traceIDLow := rand.Int63()
@@ -443,14 +444,26 @@ func makeThriftBatchWithSpanCountAttributeAndName(n int, name, tagValue string) 
 			Tags: []*thrift.Tag{
 				{
 					Key:  "x",
-					VStr: &tagValue,
+					VStr: &spanTag,
 				},
 			},
 			Logs: nil,
 		})
 	}
 
-	return &thrift.Batch{Spans: spans}
+	return &thrift.Batch{
+		Process: &thrift.Process{
+			ServiceName: "my-service",
+			Tags: []*thrift.Tag{
+				{
+					Key:   "xx",
+					VType: thrift.TagType_STRING,
+					VStr:  &resourceTag,
+				},
+			},
+		},
+		Spans: spans,
+	}
 }
 
 func callFlush(t *testing.T, ingester *e2e.HTTPService) {

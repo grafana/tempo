@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 
@@ -151,8 +150,8 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
-// writeError handles writing errors to the http.ResponseWriter. It uses weavework common
-// server.WriteError() to handle httpgrc errors. The handler handles all incoming HTTP requests
+// writeError handles writing errors to the http.ResponseWriter. It uses dskit's
+// httpgrpc.WriteError() to handle httpgrc errors. The handler handles all incoming HTTP requests
 // to the query frontend which then distributes them via httpgrpc to the queriers. As a result
 // httpgrpc errors can bubble up to here and should be translated to http errors. It returns
 // httpgrpc error.
@@ -164,7 +163,7 @@ func writeError(w http.ResponseWriter, err error) error {
 	} else if isRequestBodyTooLarge(err) {
 		err = errRequestEntityTooLarge
 	}
-	server.WriteError(w, err)
+	httpgrpc.WriteError(w, err)
 	return err
 }
 

@@ -218,7 +218,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	// Read the footer size out of the parquet footer
 	buf := make([]byte, 8)
-	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf, false)
+	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf, nil)
 	if err != nil {
 		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}

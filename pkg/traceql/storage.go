@@ -77,9 +77,12 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 }
 
 type Span interface {
-	// these are the actual fields used by the engine to evaluate queries
-	// if a Filter parameter is passed the spans returned will only have this field populated
-	Attributes() map[Attribute]Static
+	// AttributeFor returns the attribute for the given key. If the attribute is not found then
+	// the second return value will be false.
+	AttributeFor(Attribute) (Static, bool)
+	// AllAttributes returns a map of all attributes for this span. AllAttributes should be used sparingly
+	// and is expected to be significantly slower than AttributeFor.
+	AllAttributes() map[Attribute]Static
 
 	ID() []byte
 	StartTimeUnixNanos() uint64
@@ -158,6 +161,34 @@ type FetchSpansResponse struct {
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+}
+
+// AutocompleteCallback is called to collect unique tag values.
+// Returns true if it has exceeded the maximum number of results.
+type AutocompleteCallback func(static Static) bool
+
+type AutocompleteRequest struct {
+	Conditions []Condition
+	TagName    Attribute
+	// TODO: Add start and end time?
+}
+
+type AutocompleteFetcher interface {
+	Fetch(context.Context, AutocompleteRequest, AutocompleteCallback) error
+}
+
+type AutocompleteFetcherWrapper struct {
+	f func(context.Context, AutocompleteRequest, AutocompleteCallback) error
+}
+
+var _ AutocompleteFetcher = (*AutocompleteFetcherWrapper)(nil)
+
+func NewAutocompleteFetcherWrapper(f func(context.Context, AutocompleteRequest, AutocompleteCallback) error) AutocompleteFetcher {
+	return AutocompleteFetcherWrapper{f}
+}
+
+func (s AutocompleteFetcherWrapper) Fetch(ctx context.Context, request AutocompleteRequest, callback AutocompleteCallback) error {
+	return s.f(ctx, request, callback)
 }
 
 // MustExtractFetchSpansRequestWithMetadata parses the given traceql query and returns

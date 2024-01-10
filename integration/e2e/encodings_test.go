@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -106,7 +107,7 @@ func TestEncodings(t *testing.T) {
 			queryAndAssertTrace(t, apiClient, info)
 
 			// create grpc client used for streaming
-			grpcClient, err := integration.NewSearchGRPCClient(tempo.Endpoint(3200))
+			grpcClient, err := integration.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
 			require.NoError(t, err)
 
 			if enc.Version() == v2.VersionString {

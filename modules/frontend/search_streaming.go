@@ -96,14 +96,16 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 }
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, searchCache *frontendCache, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	searcher := streamingSearcher{
-		logger:      logger,
-		downstream:  downstream,
-		reader:      reader,
-		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
-		o:           o,
-		cfg:         &cfg,
+		logger:        logger,
+		downstream:    downstream,
+		reader:        reader,
+		postSLOHook:   searchSLOPostHook(cfg.Search.SLO),
+		o:             o,
+		searchCache:   searchCache,
+		cfg:           &cfg,
+		preMiddleware: newMultiTenantUnsupportedMiddleware(cfg, logger),
 	}
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
@@ -129,14 +131,16 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 	}
 }
 
-func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) http.Handler {
+func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, searchCache *frontendCache, apiPrefix string, logger log.Logger) http.Handler {
 	searcher := streamingSearcher{
-		logger:      logger,
-		downstream:  downstream,
-		reader:      reader,
-		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
-		o:           o,
-		cfg:         &cfg,
+		logger:        logger,
+		downstream:    downstream,
+		reader:        reader,
+		postSLOHook:   searchSLOPostHook(cfg.Search.SLO),
+		o:             o,
+		searchCache:   searchCache,
+		cfg:           &cfg,
+		preMiddleware: newMultiTenantUnsupportedMiddleware(cfg, logger),
 	}
 
 	// since this is a backend DB we allow websockets to originate from anywhere
@@ -226,12 +230,14 @@ func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream h
 }
 
 type streamingSearcher struct {
-	logger      log.Logger
-	downstream  http.RoundTripper
-	reader      tempodb.Reader
-	postSLOHook handlerPostHook
-	o           overrides.Interface
-	cfg         *Config
+	logger        log.Logger
+	downstream    http.RoundTripper
+	reader        tempodb.Reader
+	postSLOHook   handlerPostHook
+	o             overrides.Interface
+	searchCache   *frontendCache
+	cfg           *Config
+	preMiddleware Middleware
 }
 
 func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error {
@@ -254,7 +260,8 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 		return p
 	}
 	// build roundtripper
-	rt := NewRoundTripper(s.downstream, newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, fn, s.logger))
+	ss := newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, fn, s.searchCache, s.logger)
+	rt := NewRoundTripper(s.downstream, s.preMiddleware, ss)
 
 	type roundTripResult struct {
 		resp *http.Response

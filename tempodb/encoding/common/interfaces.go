@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"time"
 
 	"github.com/go-kit/log"
 
@@ -27,12 +26,7 @@ type Searcher interface {
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-}
-
-type CacheControl struct {
-	Footer      bool
-	ColumnIndex bool
-	OffsetIndex bool
+	FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, SearchOptions) error
 }
 
 type SearchOptions struct {
@@ -43,7 +37,6 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
-	CacheControl       CacheControl
 }
 
 // DefaultSearchOptions() is used in a lot of places such as local ingester searches. It is important
@@ -69,7 +62,7 @@ func DefaultSearchOptionsWithMaxBytes(maxBytes int) SearchOptions {
 }
 
 type Compactor interface {
-	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
+	Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
 }
 
 type CompactionOptions struct {

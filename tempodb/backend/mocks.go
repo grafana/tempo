@@ -27,7 +27,7 @@ type MockRawReader struct {
 	ListBlocksFn func(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error)
 	R            []byte // read
 	Range        []byte // ReadRange
-	ReadFn       func(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
+	ReadFn       func(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
 
 	BlockIDs          []uuid.UUID
 	CompactedBlockIDs []uuid.UUID
@@ -50,15 +50,15 @@ func (m *MockRawReader) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	return m.BlockIDs, m.CompactedBlockIDs, nil
 }
 
-func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, shouldCache bool) (io.ReadCloser, int64, error) {
+func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error) {
 	if m.ReadFn != nil {
-		return m.ReadFn(ctx, name, keypath, shouldCache)
+		return m.ReadFn(ctx, name, keypath, cacheInfo)
 	}
 
 	return io.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
 }
 
-func (m *MockRawReader) ReadRange(_ context.Context, _ string, _ KeyPath, _ uint64, buffer []byte, _ bool) error {
+func (m *MockRawReader) ReadRange(_ context.Context, _ string, _ KeyPath, _ uint64, buffer []byte, _ *CacheInfo) error {
 	copy(buffer, m.Range)
 
 	return nil
@@ -75,7 +75,7 @@ type MockRawWriter struct {
 	err               error
 }
 
-func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ bool) error {
+func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ *CacheInfo) error {
 	var err error
 	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
 	return err
@@ -91,7 +91,7 @@ func (m *MockRawWriter) CloseAppend(context.Context, AppendTracker) error {
 	return nil
 }
 
-func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath, _ bool) error {
+func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath, _ *CacheInfo) error {
 	if m.deleteCalls == nil {
 		m.deleteCalls = make(map[string]map[string]int)
 	}
@@ -187,7 +187,7 @@ func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID 
 	return m.M, nil
 }
 
-func (m *MockReader) Read(_ context.Context, name string, blockID uuid.UUID, tenantID string, _ bool) ([]byte, error) {
+func (m *MockReader) Read(_ context.Context, name string, blockID uuid.UUID, tenantID string, _ *CacheInfo) ([]byte, error) {
 	if m.ReadFn != nil {
 		return m.ReadFn(name, blockID, tenantID)
 	}
@@ -199,7 +199,7 @@ func (m *MockReader) StreamReader(context.Context, string, uuid.UUID, string) (i
 	panic("StreamReader is not yet supported for mock reader")
 }
 
-func (m *MockReader) ReadRange(_ context.Context, _ string, _ uuid.UUID, _ string, _ uint64, buffer []byte, _ bool) error {
+func (m *MockReader) ReadRange(_ context.Context, _ string, _ uuid.UUID, _ string, _ uint64, buffer []byte, _ *CacheInfo) error {
 	copy(buffer, m.Range)
 
 	return nil
@@ -222,7 +222,7 @@ type MockWriter struct {
 	IndexCompactedMeta map[string][]*CompactedBlockMeta
 }
 
-func (m *MockWriter) Write(context.Context, string, uuid.UUID, string, []byte, bool) error {
+func (m *MockWriter) Write(context.Context, string, uuid.UUID, string, []byte, *CacheInfo) error {
 	return nil
 }
 

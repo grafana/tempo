@@ -18,7 +18,7 @@ type contextFieldSet struct {
 
 // Context for a single parse.
 type parseContext struct {
-	*lexer.PeekingLexer
+	lexer.PeekingLexer
 	depth             int
 	trace             io.Writer
 	deepestError      error
@@ -29,9 +29,9 @@ type parseContext struct {
 	allowTrailing     bool
 }
 
-func newParseContext(lex *lexer.PeekingLexer, lookahead int, caseInsensitive map[lexer.TokenType]bool) *parseContext {
-	return &parseContext{
-		PeekingLexer:    lex,
+func newParseContext(lex *lexer.PeekingLexer, lookahead int, caseInsensitive map[lexer.TokenType]bool) parseContext {
+	return parseContext{
+		PeekingLexer:    *lex,
 		caseInsensitive: caseInsensitive,
 		lookahead:       lookahead,
 	}
@@ -78,7 +78,6 @@ func (p *parseContext) Branch() *parseContext {
 	branch := &parseContext{}
 	*branch = *p
 	branch.apply = nil
-	branch.PeekingLexer = p.PeekingLexer.Clone()
 	return branch
 }
 
@@ -91,11 +90,14 @@ func (p *parseContext) MaybeUpdateError(err error) {
 
 // Stop returns true if parsing should terminate after the given "branch" failed to match.
 //
-// Additionally, "err" should be the branch error, if any. This will be tracked to
-// aid in error reporting under the assumption that the deepest occurring error is more
-// useful than errors further up.
+// Additionally, track the deepest error in the branch - the deeper the error, the more useful it usually is.
+// It could already be the deepest error in the branch (only if deeper than current parent context deepest),
+// or it could be "err", the latest error on the branch (even if same depth; the lexer holds the position).
 func (p *parseContext) Stop(err error, branch *parseContext) bool {
-	if branch.PeekingLexer.Cursor() >= p.deepestErrorDepth {
+	if branch.deepestErrorDepth > p.deepestErrorDepth {
+		p.deepestError = branch.deepestError
+		p.deepestErrorDepth = branch.deepestErrorDepth
+	} else if branch.PeekingLexer.Cursor() >= p.deepestErrorDepth {
 		p.deepestError = err
 		p.deepestErrorDepth = maxInt(branch.PeekingLexer.Cursor(), branch.deepestErrorDepth)
 	}

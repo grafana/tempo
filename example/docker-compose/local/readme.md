@@ -46,3 +46,12 @@ docker logs local_tempo_1 -f
 ```console
 docker-compose down -v
 ```
+
+## search streaming over http
+
+- need to set `traceQLStreaming` feature flag in Grafana
+- need to enable `stream_over_http_enabled` in tempo by setting `stream_over_http_enabled: true` in the config file.
+
+you can use Grafana or tempo-cli to make a query.
+
+tempo-cli: `$ tempo-cli query api search "0.0.0.0:3200" --use-grpc "{}" "2023-12-05T08:11:18Z" "2023-12-05T08:12:18Z" --org-id="test"`

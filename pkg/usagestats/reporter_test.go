@@ -81,7 +81,7 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 	// Ensure that leader election succeeds even when the seed file has been
 	// corrupted.  This means that we don't need to extend the interface of the
 	// backend in order to delete a corrupted seed file.
-	err = objectClient.Write(context.Background(), backend.ClusterSeedFileName, []string{}, bytes.NewReader([]byte("{")), -1, false)
+	err = objectClient.Write(context.Background(), backend.ClusterSeedFileName, []string{}, bytes.NewReader([]byte("{")), -1, nil)
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {

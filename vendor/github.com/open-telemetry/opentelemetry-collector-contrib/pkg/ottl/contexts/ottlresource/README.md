@@ -10,9 +10,9 @@ The following paths are supported.
 | path                     | field accessed                                                                                                                                     | type                                                                    |
 |--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | cache                    | the value of the current transform context's temporary cache. cache can be used as a temporary placeholder for data during complex transformations | pcommon.Map                                                             |
-| cache\[""\]              | the value of an item in cache                                                                                                                      | string, bool, int64, float64, pcommon.Map, pcommon.Slice, []byte or nil |
+| cache\[""\]              | the value of an item in cache. Supports multiple indexes to access nested fields.                                                                  | string, bool, int64, float64, pcommon.Map, pcommon.Slice, []byte or nil |
 | attributes               | attributes of the resource being processed                                                                                                         | pcommon.Map                                                             |
-| attributes\[""\]         | the value of the attribute of the resource being processed                                                                                         | string, bool, int64, float64, pcommon.Map, pcommon.Slice, []byte or nil |
+| attributes\[""\]         | the value of the attribute of the resource being processed. Supports multiple indexes to access nested fields.                                     | string, bool, int64, float64, pcommon.Map, pcommon.Slice, []byte or nil |
 | dropped_attributes_count | number of dropped attributes of the resource being processed                                                                                       | int64                                                                   |
 
 ## Enums

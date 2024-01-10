@@ -5,20 +5,104 @@
 package httpgrpc
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/go-kit/log/level"
-	"google.golang.org/grpc/metadata"
-	grpcstatus "google.golang.org/grpc/status"
-
 	spb "github.com/gogo/googleapis/google/rpc"
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
+	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/dskit/grpcutil"
 	"github.com/grafana/dskit/log"
 )
+
+const (
+	MetadataMethod = "httpgrpc-method"
+	MetadataURL    = "httpgrpc-url"
+)
+
+// AppendRequestMetadataToContext appends metadata of HTTPRequest into gRPC metadata.
+func AppendRequestMetadataToContext(ctx context.Context, req *HTTPRequest) context.Context {
+	return metadata.AppendToOutgoingContext(ctx,
+		MetadataMethod, req.Method,
+		MetadataURL, req.Url)
+}
+
+type nopCloser struct {
+	*bytes.Buffer
+}
+
+func (nopCloser) Close() error { return nil }
+
+// BytesBuffer returns the underlaying `bytes.buffer` used to build this io.ReadCloser.
+func (n nopCloser) BytesBuffer() *bytes.Buffer { return n.Buffer }
+
+// FromHTTPRequest converts an ordinary http.Request into an httpgrpc.HTTPRequest
+func FromHTTPRequest(r *http.Request) (*HTTPRequest, error) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	return &HTTPRequest{
+		Method:  r.Method,
+		Url:     r.RequestURI,
+		Body:    body,
+		Headers: FromHeader(r.Header),
+	}, nil
+}
+
+// ToHTTPRequest converts httpgrpc.HTTPRequest to http.Request.
+func ToHTTPRequest(ctx context.Context, r *HTTPRequest) (*http.Request, error) {
+	req, err := http.NewRequest(r.Method, r.Url, nopCloser{Buffer: bytes.NewBuffer(r.Body)})
+	if err != nil {
+		return nil, err
+	}
+	ToHeader(r.Headers, req.Header)
+	req = req.WithContext(ctx)
+	req.RequestURI = r.Url
+	req.ContentLength = int64(len(r.Body))
+	return req, nil
+}
+
+// WriteResponse converts an httpgrpc response to an HTTP one
+func WriteResponse(w http.ResponseWriter, resp *HTTPResponse) error {
+	ToHeader(resp.Headers, w.Header())
+	w.WriteHeader(int(resp.Code))
+	_, err := w.Write(resp.Body)
+	return err
+}
+
+// WriteError converts an httpgrpc error to an HTTP one
+func WriteError(w http.ResponseWriter, err error) {
+	resp, ok := HTTPResponseFromError(err)
+	if ok {
+		_ = WriteResponse(w, resp)
+	} else {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func ToHeader(hs []*Header, header http.Header) {
+	for _, h := range hs {
+		header[h.Key] = h.Values
+	}
+}
+
+func FromHeader(hs http.Header) []*Header {
+	result := make([]*Header, 0, len(hs))
+	for k, vs := range hs {
+		result = append(result, &Header{
+			Key:    k,
+			Values: vs,
+		})
+	}
+	return result
+}
 
 // Errorf returns a HTTP gRPC error than is correctly forwarded over
 // gRPC, and can eventually be converted back to a HTTP response with
@@ -46,7 +130,7 @@ func ErrorFromHTTPResponse(resp *HTTPResponse) error {
 
 // HTTPResponseFromError converts a grpc error into an HTTP response
 func HTTPResponseFromError(err error) (*HTTPResponse, bool) {
-	s, ok := statusFromError(err)
+	s, ok := grpcutil.ErrorToStatus(err)
 	if !ok {
 		return nil, false
 	}
@@ -63,39 +147,4 @@ func HTTPResponseFromError(err error) (*HTTPResponse, bool) {
 	}
 
 	return &resp, true
-}
-
-// statusFromError tries to cast the given error into status.Status.
-// If the given error, or any error from its tree are a status.Status,
-// that status.Status and the outcome true are returned.
-// Otherwise, nil and the outcome false are returned.
-// This implementation differs from status.FromError() because the
-// latter checks only if the given error can be cast to status.Status,
-// and doesn't check other errors in the given error's tree.
-func statusFromError(err error) (*status.Status, bool) {
-	if err == nil {
-		return nil, false
-	}
-	type grpcStatus interface{ GRPCStatus() *grpcstatus.Status }
-	var gs grpcStatus
-	if errors.As(err, &gs) {
-		st := gs.GRPCStatus()
-		if st == nil {
-			return nil, false
-		}
-		return status.FromGRPCStatus(st), true
-	}
-	return nil, false
-}
-
-const (
-	MetadataMethod = "httpgrpc-method"
-	MetadataURL    = "httpgrpc-url"
-)
-
-// AppendRequestMetadataToContext appends metadata of HTTPRequest into gRPC metadata.
-func AppendRequestMetadataToContext(ctx context.Context, req *HTTPRequest) context.Context {
-	return metadata.AppendToOutgoingContext(ctx,
-		MetadataMethod, req.Method,
-		MetadataURL, req.Url)
 }

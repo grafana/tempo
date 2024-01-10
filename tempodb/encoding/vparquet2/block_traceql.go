@@ -37,8 +37,34 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
-func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
+func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	return s.attributes
+}
+
+func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
+	atts := s.attributes
+	static, ok := atts[a]
+	if ok {
+		return static, ok
+	}
+
+	// if the requested attribute has a scope none then we will check first for span attributes matching
+	// then any attributes matching. we don't need to both if this is an intrinsic b/c those will always
+	// be caught above if they exist
+	if a.Scope == traceql.AttributeScopeNone && a.Intrinsic == traceql.IntrinsicNone {
+		for attribute, static := range atts {
+			if a.Name == attribute.Name && attribute.Scope == traceql.AttributeScopeSpan {
+				return static, true
+			}
+		}
+		for attribute, static := range atts {
+			if a.Name == attribute.Name {
+				return static, true
+			}
+		}
+	}
+
+	return traceql.NewStaticNil(), false
 }
 
 func (s *span) ID() []byte {
@@ -1137,7 +1163,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol)
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -1233,7 +1259,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	// and all other resource conditions are optional. Whatever matches
 	// is returned.
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
-		required, iters, batchCol), nil
+		required, iters, batchCol)
 }
 
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
@@ -1613,7 +1639,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
-			&attributeCollector{}), nil
+			&attributeCollector{})
 	}
 
 	return nil, nil

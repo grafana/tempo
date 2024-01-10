@@ -45,12 +45,17 @@ func (m *mockSpan) WithErr() *mockSpan {
 	return m
 }
 
-func (m *mockSpan) Attributes() map[traceql.Attribute]traceql.Static { return m.attrs }
-func (m *mockSpan) ID() []byte                                       { return nil }
-func (m *mockSpan) StartTimeUnixNanos() uint64                       { return m.start }
-func (m *mockSpan) DurationNanos() uint64                            { return m.duration }
+func (m *mockSpan) AllAttributes() map[traceql.Attribute]traceql.Static { return m.attrs }
+func (m *mockSpan) ID() []byte                                          { return nil }
+func (m *mockSpan) StartTimeUnixNanos() uint64                          { return m.start }
+func (m *mockSpan) DurationNanos() uint64                               { return m.duration }
 func (m *mockSpan) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
+}
+
+func (m *mockSpan) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
+	s, ok := m.attrs[a]
+	return s, ok
 }
 
 func (m *mockSpan) SiblingOf([]traceql.Span, []traceql.Span, bool, []traceql.Span) []traceql.Span {

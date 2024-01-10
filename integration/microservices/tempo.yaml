@@ -41,3 +41,4 @@ storage:
         queue_depth: 2000
     wal:
         path: /var/tempo/wal
+
