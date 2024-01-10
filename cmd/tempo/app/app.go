@@ -519,7 +519,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 }
 
 func (t *App) buildinfoHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(build.GetVersion())
 
@@ -529,5 +529,13 @@ func (t *App) buildinfoHandler() http.HandlerFunc {
 		} else {
 			w.WriteHeader(http.StatusOK)
 		}
+	}
+}
+
+func (t *App) twoHundredHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, "{}")
+		w.WriteHeader(http.StatusOK)
 	}
 }

@@ -399,6 +399,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
 
+	// prometheus datasource health check
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromStatusBuildInfo), base.Wrap(t.buildinfoHandler()))
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromQuery), base.Wrap(t.twoHundredHandler()))
+
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	t.store.EnablePolling(context.Background(), nil)
 
