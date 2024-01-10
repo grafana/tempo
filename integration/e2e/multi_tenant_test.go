@@ -174,7 +174,7 @@ func TestMultiTenantSearch(t *testing.T) {
 					require.NoError(t, err)
 					// we should have 8 requests for each tenant
 					err = tempo.WaitSumMetricsWithOptions(e2e.Equals(8),
-						[]string{"tempo_tenant_federation_success_total"},
+						[]string{"tempo_query_frontend_multitenant_success_total"},
 						e2e.WithLabelMatchers(matcher),
 					)
 					require.NoError(t, err)
