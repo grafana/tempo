@@ -16,8 +16,6 @@ import (
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/spanprofiler"
 	"github.com/grafana/dskit/tracing"
-	otelpyroscope "github.com/grafana/otel-profiling-go"
-	"github.com/opentracing/opentracing-go"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
@@ -228,7 +226,7 @@ func installOpenTracingTracer(config *app.Config) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("error initialising tracer: %w", err)
 	}
-	opentracing.SetGlobalTracer(spanprofiler.NewTracer(opentracing.GlobalTracer()))
+	ot.SetGlobalTracer(spanprofiler.NewTracer(ot.GlobalTracer()))
 
 	return func() {
 		if err := trace.Close(); err != nil {
@@ -264,7 +262,6 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithResource(resources),
 	)
-	otel.SetTracerProvider(otelpyroscope.NewTracerProvider(tp))
 
 	shutdown := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -288,7 +285,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	bridgeTracer.SetWarningHandler(func(msg string) {
 		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
 	})
-	ot.SetGlobalTracer(bridgeTracer)
+	ot.SetGlobalTracer(spanprofiler.NewTracer(bridgeTracer))
 
 	// Install the OpenCensus bridge
 	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))

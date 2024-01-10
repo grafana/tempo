@@ -539,9 +539,6 @@ github.com/grafana/e2e/images
 # github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
 ## explicit; go 1.18
 github.com/grafana/gomemcache/memcache
-# github.com/grafana/otel-profiling-go v0.5.1
-## explicit; go 1.16
-github.com/grafana/otel-profiling-go
 # github.com/grafana/pyroscope-go/godeltaprof v0.1.6
 ## explicit; go 1.16
 github.com/grafana/pyroscope-go/godeltaprof
