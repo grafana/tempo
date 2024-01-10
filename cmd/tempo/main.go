@@ -262,6 +262,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithResource(resources),
 	)
+	otel.SetTracerProvider(tp)
 
 	shutdown := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
