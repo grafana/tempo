@@ -14,7 +14,10 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
+	"github.com/grafana/dskit/spanprofiler"
 	"github.com/grafana/dskit/tracing"
+	otelpyroscope "github.com/grafana/otel-profiling-go"
+	"github.com/opentracing/opentracing-go"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
@@ -225,6 +228,8 @@ func installOpenTracingTracer(config *app.Config) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("error initialising tracer: %w", err)
 	}
+	opentracing.SetGlobalTracer(spanprofiler.NewTracer(opentracing.GlobalTracer()))
+
 	return func() {
 		if err := trace.Close(); err != nil {
 			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
@@ -259,7 +264,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithResource(resources),
 	)
-	otel.SetTracerProvider(tp)
+	otel.SetTracerProvider(otelpyroscope.NewTracerProvider(tp))
 
 	shutdown := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
