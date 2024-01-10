@@ -28,7 +28,7 @@ We'll use a [Grafana Agent Helm chart](/docs/agent/latest/flow/setup/install/kub
 
 To do this, you need to create a configuration that can be used by the Agent to receive and export traces in OTLP protobuf format.
 
-Create a new `values.yaml` file which we'll use as part of the Agent install.
+1. Create a new `values.yaml` file which we'll use as part of the Agent install.
 
 1. Create a new `values.yaml` file which we'll use as part of the Agent install.
 1. Edit the `values.yaml` file and add the following configuration to it:
