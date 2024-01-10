@@ -44,7 +44,7 @@ To follow this guide, you need:
 
 1. Start the services defined in the docker-compose file:
    ```bash
-   docker compose up -d
+   docker-compose up -d
    ```
 
 1. Verify that the services are running using `docker compose ps`. You should see something like:
