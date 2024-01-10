@@ -358,6 +358,8 @@ func createDistinctAttributeIterator(
 			}
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(boolPath, pred, selectAs("bool", cond.Attribute))
+		default:
+			continue
 		}
 
 		iters = append(iters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, nil))
@@ -378,7 +380,6 @@ func createDistinctAttributeIterator(
 	}
 
 	if len(valueIters) > 0 || len(iters) > 0 {
-
 		if len(valueIters) > 0 {
 			tagIter, err := parquetquery.NewLeftJoinIterator(
 				definitionLevel,
