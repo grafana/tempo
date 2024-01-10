@@ -154,3 +154,88 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 		})
 	}
 }
+
+func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
+	tc := map[string]struct {
+		q           string
+		shardID     uint32
+		shardCount  uint32
+		dedupe      bool
+		expectedReq FetchSpansRequest
+	}{
+		"minimal": {
+			q: "{} | rate()",
+			expectedReq: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{
+						// In this case start time is in the first pass
+						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+					},
+				},
+			},
+		},
+		"dedupe": {
+			q:      "{} | rate()",
+			dedupe: true,
+			expectedReq: FetchSpansRequest{
+				AllConditions: true,
+				Conditions: []Condition{
+					{
+						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+					},
+					{
+						Attribute: NewIntrinsic(IntrinsicTraceID), // Required for dedupe
+					},
+				},
+			},
+		},
+		"complex": {
+			q:          "{duration > 10s} | rate() by (resource.service.name)",
+			shardID:    123,
+			shardCount: 456,
+			expectedReq: FetchSpansRequest{
+				AllConditions: true,
+				ShardID:       123,
+				ShardCount:    456,
+				Conditions: []Condition{
+					{
+						Attribute: NewIntrinsic(IntrinsicDuration),
+						Op:        OpGreater,
+						Operands:  Operands{NewStaticDuration(10 * time.Second)},
+					},
+					{
+						Attribute: NewIntrinsic(IntrinsicTraceID), // Required for sharding
+					},
+					{
+						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+					},
+				},
+				SecondPassConditions: []Condition{
+					{
+						// Group-by attributes (non-intrinsic) must be in the second pass
+						Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name"),
+					},
+				},
+			},
+		},
+	}
+
+	for n, tc := range tc {
+		t.Run(n, func(t *testing.T) {
+			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+				Query:      tc.q,
+				ShardID:    tc.shardID,
+				ShardCount: tc.shardCount,
+				Start:      1,
+				End:        2,
+				Step:       3,
+			}, tc.dedupe)
+			require.NoError(t, err)
+
+			// Nil out func to Equal works
+			eval.storageReq.SecondPass = nil
+			require.Equal(t, tc.expectedReq, *eval.storageReq)
+		})
+	}
+}
