@@ -127,7 +127,12 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 	if meta.CompactionLevel < minCompactionLvl {
 		return nil, nil
 	}
-	if meta.StartTime.After(maxStartTime) || meta.StartTime.Before(minStartTime) {
+	if !maxStartTime.IsZero() && meta.StartTime.After(maxStartTime) {
+		// Block is newer than maxStartTime
+		return nil, nil
+	}
+	if !minStartTime.IsZero() && meta.StartTime.Before(minStartTime) {
+		// Block is older than minStartTime
 		return nil, nil
 	}
 
