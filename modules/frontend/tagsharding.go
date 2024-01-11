@@ -145,6 +145,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return s.httpErrorResponse(err), nil
 	}
 
+	// TODO: Need to review this and only applies to tag values and no tag names, also consolidate the logic in one single palce
 	handler := newTagResultCollector(requestCtx, s.tagShardHandlerFactory, s.overrides.MaxBytesPerTagValuesQuery(tenantID))
 
 	searchReq, err := s.parseRequest(r)
