@@ -261,11 +261,6 @@ message KeyValue {
   TraceQLStatic value = 2;
 }
 
-message RawExemplar {
-  bytes traceID = 1; // traceID
-  uint64 val = 2; // duration ns
-}
-
 message SpanMetrics {
   repeated RawHistogram latency_histogram = 1;
   repeated KeyValue series = 2;
