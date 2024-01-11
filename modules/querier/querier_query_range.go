@@ -20,7 +20,7 @@ import (
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	if req.Of == 0 {
+	if req.ShardCount == 0 {
 		return q.queryRangeRecent(ctx, req)
 	}
 

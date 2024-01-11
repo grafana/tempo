@@ -292,8 +292,8 @@ func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq *tem
 			shardR := *searchReq
 			shardR.Start = thisStart
 			shardR.End = thisEnd
-			shardR.Shard = i
-			shardR.Of = shards
+			shardR.ShardID = i
+			shardR.ShardCount = shards
 
 			select {
 			case reqCh <- &queryRangeJob{req: shardR}:
@@ -340,8 +340,8 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	}
 
 	// Shard 0 indicates generator request
-	searchReq.Shard = 0
-	searchReq.Of = 0
+	searchReq.ShardID = 0
+	searchReq.ShardCount = 0
 	return &queryRangeJob{
 		req: searchReq,
 	}

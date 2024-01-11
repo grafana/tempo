@@ -178,7 +178,16 @@ message Trace {
 }
 
 // Write
-message PushResponse {}
+message PushResponse {
+  repeated PushErrorReason errorsByTrace = 1;
+}
+
+enum PushErrorReason {
+  NO_ERROR = 0;
+  MAX_LIVE_TRACES = 1;
+  TRACE_TOO_LARGE = 2;
+  UNKNOWN_ERROR = 3;
+}
 
 // PushBytesRequest pushes slices of traces, ids and searchdata. Traces are
 // encoded using the
@@ -311,8 +320,8 @@ message QueryRangeRequest {
   uint64 start = 2;
   uint64 end = 3;
   uint64 step = 4;
-  uint32 shard = 5;
-  uint32 of = 6;
+  uint32 shardID = 5;
+  uint32 shardCount = 6;
 }
 
 message QueryRangeResponse {

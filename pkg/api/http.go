@@ -38,7 +38,7 @@ const (
 	urlParamSpansPerSpanSet = "spss"
 	urlParamStep            = "step"
 	urlParamShard           = "shard"
-	urlParamOf              = "of"
+	urlParamShardCount      = "shardCount"
 	urlParamSince           = "since"
 
 	// backend search (querier/serverless)
@@ -458,11 +458,11 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		req.Step = uint64(step)
 	}
 
-	if of, err := strconv.Atoi(r.Form.Get(urlParamOf)); err == nil {
-		req.Of = uint32(of)
+	if of, err := strconv.Atoi(r.Form.Get(urlParamShardCount)); err == nil {
+		req.ShardCount = uint32(of)
 	}
 	if shard, err := strconv.Atoi(r.Form.Get(urlParamShard)); err == nil {
-		req.Shard = uint32(shard)
+		req.ShardID = uint32(shard)
 	}
 
 	return req, nil
@@ -483,8 +483,8 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	q.Set(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
 	q.Set(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
 	q.Set(urlParamStep, time.Duration(searchReq.Step).String())
-	q.Set(urlParamShard, strconv.FormatUint(uint64(searchReq.Shard), 10))
-	q.Set(urlParamOf, strconv.FormatUint(uint64(searchReq.Of), 10))
+	q.Set(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
+	q.Set(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
 
 	if len(searchReq.Query) > 0 {
 		q.Set(urlParamQuery, searchReq.Query)

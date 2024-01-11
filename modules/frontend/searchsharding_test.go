@@ -552,6 +552,13 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			expectedStatus: 500,
 		},
 		{
+			name:           "200+429",
+			status1:        200,
+			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+			status2:        429,
+			expectedStatus: 429,
+		},
+		{
 			name:           "500+404",
 			status1:        500,
 			status2:        404,

@@ -58,10 +58,12 @@ traces:
       tail_sampling:
         policies:
           # sample traces that have a total duration longer than 100ms
-          - latency:
+          - type: latency
+            latency:
               threshold_ms: 100
           # sample traces that contain at least one span with status code ERROR
-          - status_code:
+          - type: status_code
+            status_code:
               status_codes:
                 - "ERROR"
       load_balancing:

@@ -357,8 +357,8 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	span.SetTag("query", req.Query)
-	span.SetTag("shard", req.Shard)
-	span.SetTag("of", req.Of)
+	span.SetTag("shard", req.ShardID)
+	span.SetTag("shardCount", req.ShardCount)
 	span.SetTag("step", time.Duration(req.Step))
 	span.SetTag("interval", time.Unix(0, int64(req.End)).Sub(time.Unix(0, int64(req.Start))))
 

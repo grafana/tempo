@@ -17,7 +17,7 @@ Tempo requires the following configuration to authenticate to and access Azure b
       - For a user-assigned managed identity, you'll need to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
   - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label.
 
-## Sample configuration
+## Sample configuration (for Tempo Monolithic Mode)
 
 This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
 
@@ -39,6 +39,76 @@ tempo:
         secretKeyRef:
           name: secret-name
           key: STORAGE_ACCOUNT_ACCESS_KEY
+```
+
+## Sample configuration (for Tempo Distributed Mode)
+
+In Distributed mode the `trace` configuration needs to be applied against the `storage` object, which resides at the root of the Values object. Additionally, the `extraArgs` and `extraEnv` configuration need to be applied to each of the following services:
+ - distributor
+ - compactor
+ - ingester
+ - querier
+ - queryFrontend
+
+```
+storage:
+  trace:
+    backend: azure
+    azure:
+      container_name: tempo-traces
+      storage_account_name: stgappgeneraluks
+      storage_account_key: ${STORAGE_ACCOUNT_ACCESS_KEY}
+
+
+distributor:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+compactor:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+ingester:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+querier:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
+
+queryFrontend:
+  extraArgs:
+  - "-config.expand-env=true"
+  extraEnv:
+  - name: STORAGE_ACCOUNT_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: tempo-traces-stg-key
+        key: tempo-traces-key
 ```
 
 ## Azure blocklist polling

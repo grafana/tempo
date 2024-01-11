@@ -55,8 +55,8 @@ type FetchSpansRequest struct {
 	Conditions         []Condition
 
 	// mdisibio - Better to push trace by ID filtering into Conditions with a new between op?
-	Shard int
-	Of    int
+	ShardID    uint32
+	ShardCount uint32
 
 	// Hints
 

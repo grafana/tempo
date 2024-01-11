@@ -365,12 +365,12 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans:     dedupeSpans,
 	}
 
-	if req.Of > 1 {
+	if req.ShardCount > 1 {
 		// Trace id sharding
 		// Select traceID if not already present.  It must be in the first pass
 		// so that we only evalulate our traces.
-		storageReq.Shard = int(req.Shard)
-		storageReq.Of = int(req.Of)
+		storageReq.ShardID = req.ShardID
+		storageReq.ShardCount = req.ShardCount
 		traceID := NewIntrinsic(IntrinsicTraceID)
 		if !storageReq.HasAttribute(traceID) {
 			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: traceID})
