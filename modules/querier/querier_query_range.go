@@ -60,6 +60,9 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 }
 
 func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -83,11 +86,16 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 	jobErr := atomic.Error{}
 
 	for _, m := range withinTimeRange {
+		// If a job errored then quit immediately.
+		if err := jobErr.Load(); err != nil {
+			return nil, err
+		}
+
 		wg.Add(1)
 		go func(m *backend.BlockMeta) {
 			defer wg.Done()
 
-			span, ctx2 := opentracing.StartSpanFromContext(ctx, "querier.queryBackEnd.Block", opentracing.Tags{
+			span, ctx := opentracing.StartSpanFromContext(ctx, "querier.queryBackEnd.Block", opentracing.Tags{
 				"block":     m.BlockID.String(),
 				"blockSize": m.Size,
 			})
@@ -98,7 +106,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 			})
 
 			// TODO handle error
-			err := eval.Do(ctx2, f)
+			err := eval.Do(ctx, f)
 			if err != nil {
 				jobErr.Store(err)
 			}

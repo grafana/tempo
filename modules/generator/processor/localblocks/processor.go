@@ -390,6 +390,9 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 
 // QueryRange returns metrics.
 func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (traceql.SeriesSet, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	p.blocksMtx.RLock()
 	defer p.blocksMtx.RUnlock()
 
@@ -421,6 +424,10 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	)
 
 	for _, b := range blocks {
+		// If a job errored then quit immediately.
+		if err := jobErr.Load(); err != nil {
+			return nil, err
+		}
 
 		start := uint64(b.BlockMeta().StartTime.UnixNano())
 		end := uint64(b.BlockMeta().EndTime.UnixNano())
@@ -433,7 +440,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		go func(b common.BackendBlock) {
 			defer wg.Done()
 
-			span, ctx2 := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.Block", opentracing.Tags{
+			span, ctx := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.Block", opentracing.Tags{
 				"block":     b.BlockMeta().BlockID,
 				"blockSize": b.BlockMeta().Size,
 			})
@@ -444,7 +451,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 				return b.Fetch(ctx, req, common.DefaultSearchOptions())
 			})
 
-			err := eval.Do(ctx2, f)
+			err := eval.Do(ctx, f)
 			if err != nil {
 				jobErr.Store(err)
 			}
