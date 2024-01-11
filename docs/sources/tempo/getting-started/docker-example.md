@@ -67,6 +67,6 @@ To follow this guide, you need:
 
 1. To stop the services:
     ```
-    docker-compose down -v
+    docker compose down -v
     ```
     
