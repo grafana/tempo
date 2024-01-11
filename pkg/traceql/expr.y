@@ -13,7 +13,7 @@ import (
     groupOperation GroupOperation
     coalesceOperation CoalesceOperation
     selectOperation SelectOperation
-    selectArgs []FieldExpression
+    attributeList []Attribute
 
     spansetExpression SpansetExpression
     spansetPipelineExpression SpansetExpression
@@ -29,6 +29,7 @@ import (
     wrappedScalarPipeline Pipeline
     scalarPipeline Pipeline
     aggregate Aggregate
+    metricsAggregation *MetricsAggregate
 
     fieldExpression FieldExpression
     static Static
@@ -46,7 +47,7 @@ import (
 %type <groupOperation> groupOperation
 %type <coalesceOperation> coalesceOperation
 %type <selectOperation> selectOperation
-%type <selectArgs> selectArgs
+%type <attributeList> attributeList
 
 %type <spansetExpression> spansetExpression
 %type <spansetPipelineExpression> spansetPipelineExpression
@@ -55,6 +56,7 @@ import (
 %type <spansetFilter> spansetFilter
 %type <scalarFilter> scalarFilter
 %type <scalarFilterOperation> scalarFilterOperation
+%type <metricsAggregation> metricsAggregation
 
 %type <scalarPipelineExpressionFilter> scalarPipelineExpressionFilter
 %type <scalarPipelineExpression> scalarPipelineExpression
@@ -80,6 +82,7 @@ import (
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
+                        RATE COUNT_OVER_TIME
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
@@ -97,7 +100,8 @@ import (
 root:
     spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) }
   | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
-  | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) }
+  | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) } 
+  | spansetPipeline PIPE metricsAggregation     { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
   ;
 
 // **********************
@@ -144,12 +148,14 @@ coalesceOperation:
   ;
 
 selectOperation:
-    SELECT OPEN_PARENS selectArgs CLOSE_PARENS { $$ = newSelectOperation($3) }
+    SELECT OPEN_PARENS attributeList CLOSE_PARENS { $$ = newSelectOperation($3) }
   ;
 
-selectArgs:
-    fieldExpression                  { $$ = []FieldExpression{$1} }
-  | selectArgs COMMA fieldExpression { $$ = append($1, $3) }
+attributeList:
+    intrinsicField                  { $$ = []Attribute{$1} }
+  | attributeField                  { $$ = []Attribute{$1} }
+  | attributeList COMMA intrinsicField { $$ = append($1, $3) }
+  | attributeList COMMA attributeField { $$ = append($1, $3) }
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -239,6 +245,16 @@ aggregate:
   | MIN OPEN_PARENS fieldExpression CLOSE_PARENS  { $$ = newAggregate(aggregateMin, $3) }
   | AVG OPEN_PARENS fieldExpression CLOSE_PARENS  { $$ = newAggregate(aggregateAvg, $3) }
   | SUM OPEN_PARENS fieldExpression CLOSE_PARENS  { $$ = newAggregate(aggregateSum, $3) }
+  ;
+
+// **********************
+// Metrics
+// **********************
+metricsAggregation:
+      RATE            OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
+    | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
   ;
 
 // **********************

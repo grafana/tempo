@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [FEATURE] TraceQL metrics queries [#3227](https://github.com/grafana/tempo/pull/3227) (@mdisibio @zalegrala)
 * [FEATURE] Add support for multi-tenant queries. [#3087](https://github.com/grafana/tempo/pull/3087) (@electron0zero)
 * [BUGFIX] Change exit code if config is successfully verified [#3174](https://github.com/grafana/tempo/pull/3174) (@am3o @agrib-01)
 * [BUGFIX] The tempo-cli analyse blocks command no longer fails on compacted blocks [#3183](https://github.com/grafana/tempo/pull/3183) (@stoewer)

@@ -78,6 +78,8 @@ var tokens = map[string]int{
 	"by":              BY,
 	"coalesce":        COALESCE,
 	"select":          SELECT,
+	"rate":            RATE,
+	"count_over_time": COUNT_OVER_TIME,
 }
 
 type lexer struct {
