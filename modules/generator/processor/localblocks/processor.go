@@ -416,7 +416,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	}
 
 	var (
-		wg     = boundedwaitgroup.New(10)
+		wg     = boundedwaitgroup.New(p.Cfg.ConcurrentBlocks)
 		jobErr = atomic.Error{}
 	)
 
