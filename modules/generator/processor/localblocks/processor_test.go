@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -13,7 +15,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/stretchr/testify/require"
 )
 
 type mockOverrides struct{}
@@ -38,6 +39,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 			FlushCheckPeriod:     10 * time.Millisecond,
 			TraceIdlePeriod:      time.Second,
 			CompleteBlockTimeout: time.Minute,
+			ConcurrentBlocks:     10,
 			Block: &common.BlockConfig{
 				BloomShardSizeBytes: 100_000,
 				BloomFP:             0.05,
