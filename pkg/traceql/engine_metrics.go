@@ -435,6 +435,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	// TODO - Is there any case where eval() needs to be called but AllConditions=true?
 	if !storageReq.AllConditions || len(storageReq.SecondPassConditions) > 0 {
 		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
+			// The traceql engine isn't thread-safe.
+			// But parallelization is required for good metrics performance.
+			// So we do external locking here.
+			me.mtx.Lock()
+			defer me.mtx.Unlock()
 			return eval([]*Spanset{s})
 		}
 	}
@@ -488,6 +493,8 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
 			break
 		}
 
+		e.mtx.Lock()
+
 		for _, s := range ss.Spans {
 			if e.checkTime {
 				st := s.StartTimeUnixNanos()
@@ -496,18 +503,16 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
 				}
 			}
 
-			e.mtx.Lock()
 			if e.dedupeSpans && e.deduper.Skip(ss.TraceID, s.StartTimeUnixNanos()) {
 				e.deduped++
-				e.mtx.Unlock()
 				continue
 			}
 
 			e.count++
 			e.metricsPipeline.observe(s)
-			e.mtx.Unlock()
-		}
 
+		}
+		e.mtx.Unlock()
 		ss.Release()
 	}
 
