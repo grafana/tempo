@@ -248,6 +248,14 @@ func TestFetchTagValues(t *testing.T) {
 			query:          `{ .namespace="namespace"}`,
 			expectedValues: []tempopb.TagValue{intTagValue(123), intTagValue(1234), stringTagValue("myservice"), stringTagValue("service2"), stringTagValue("spanservicename"), stringTagValue("spanservicename2")},
 		},
+		{
+			name:  "query with wrong op types - conditions are ignored",
+			tag:   "status",
+			query: `{resource.service.name="myservice" && span.http.status_code=server && resource.namespace=server}`,
+			expectedValues: []tempopb.TagValue{
+				{Type: "keyword", Value: "error"},
+			},
+		},
 	}
 
 	ctx := context.TODO()
