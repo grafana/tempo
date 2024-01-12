@@ -748,10 +748,9 @@ var (
 )
 
 type MetricsAggregate struct {
-	op    MetricsAggregateOp
-	by    []Attribute
-	agg   SpanAggregator
-	hints *Hints
+	op  MetricsAggregateOp
+	by  []Attribute
+	agg SpanAggregator
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {

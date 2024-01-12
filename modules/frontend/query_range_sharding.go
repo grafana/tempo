@@ -130,10 +130,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqCh <- generatorReq
 	}
 
-	totalBlocks, totalBlockBytes, err := s.backendRequests(tenantID, queryRangeReq, now, samplingRate, reqCh, stopCh)
-	if err != nil {
-		return nil, err
-	}
+	totalBlocks, totalBlockBytes := s.backendRequests(tenantID, queryRangeReq, now, samplingRate, reqCh, stopCh)
 
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
 	c := traceql.QueryRangeCombiner{}
@@ -267,7 +264,8 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, samplingRate float64, reqCh chan *queryRangeJob, stopCh <-chan struct{}) (totalBlocks, totalBlockBytes int, err error) { // request without start or end, search only in generator
+func (s *queryRangeSharder) backendRequests(tenantID string, searchReq *tempopb.QueryRangeRequest, now time.Time, samplingRate float64, reqCh chan *queryRangeJob, stopCh <-chan struct{}) (totalBlocks, totalBlockBytes int) {
+	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
 		return
@@ -395,7 +393,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 
 	searchReq.QueryMode = querier.QueryModeRecent
 
-	// No sharding on the generators (unecessary), but we do apply sampling
+	// No sharding on the generators (unnecessary), but we do apply sampling
 	// rates.  In this case we execute a single arbitrary shard. Choosing
 	// the last shard works. The first shard should be avoided because it is
 	// weighted slightly off due to int63/128 sharding boundaries.
