@@ -30,7 +30,7 @@ type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.Streami
 type QueryFrontend struct {
 	log.Logger
 	TraceByIDHandler, SearchHandler, SearchTagsHandler, SearchTagsValuesHandler, SpanMetricsSummaryHandler, SearchWSHandler,
-	SearchTagsV2Handler, SearchTagsValuesV2Handler http.Handler
+	SearchTagsV2Handler, SearchTagsValuesV2Handler, QueryRangeHandler http.Handler
 	cacheProvider   cache.Provider
 	streamingSearch streamingSearchHandler
 	logger          log.Logger

@@ -77,11 +77,11 @@ func TestFrontendRoundTripsTagSearch(t *testing.T) {
 
 	// search will fail with `no org id` error
 	resSearch := httptest.NewRecorder()
-	f.SearchTagValuesHandler.ServeHTTP(resSearch, req)
+	f.SearchTagsValuesHandler.ServeHTTP(resSearch, req)
 	assert.Equal(t, resSearch.Body.String(), "no org id")
 
 	resSearch1 := httptest.NewRecorder()
-	f.SearchTagValuesV2Handler.ServeHTTP(resSearch1, req)
+	f.SearchTagsValuesV2Handler.ServeHTTP(resSearch1, req)
 	assert.Equal(t, resSearch1.Body.String(), "no org id")
 
 	resSearch2 := httptest.NewRecorder()
