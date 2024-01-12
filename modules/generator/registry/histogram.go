@@ -8,7 +8,10 @@ import (
 	"sync"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/exemplar"
+	prom_histogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
@@ -43,6 +46,9 @@ type histogramSeries struct {
 	exemplars      []*atomic.String
 	exemplarValues []*atomic.Float64
 	lastUpdated    *atomic.Int64
+
+	// Native histogram
+	nativeHistogram prometheus.Histogram
 }
 
 var (
@@ -123,6 +129,12 @@ func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, t
 		buckets:     nil,
 		exemplars:   nil,
 		lastUpdated: atomic.NewInt64(0),
+		nativeHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    h.metricName,
+			NativeHistogramBucketFactor: 1.1,
+			NativeHistogramMaxBucketNumber: 100,
+			NativeHistogramMinResetDuration: 1*time.Hour,
+		}),
 	}
 	for i := 0; i < len(h.buckets); i++ {
 		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
@@ -148,6 +160,11 @@ func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID stri
 	bucket := sort.SearchFloat64s(h.buckets, value)
 	s.exemplars[bucket].Store(traceID)
 	s.exemplarValues[bucket].Store(value)
+
+	// update native histogram
+	for i := int64(0); i < int64(multiplier); i++ {
+		s.nativeHistogram.Observe(value)
+	}
 
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
@@ -223,6 +240,48 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 		}
 
 		lb.Del(labels.BucketLabel)
+
+		// Append native histogram
+		encodedMetric := &dto.Metric{}
+		// Encode to protobuf representation
+		err = s.nativeHistogram.Write(encodedMetric)
+		if err != nil {
+			return activeSeries, err
+		}
+		encodedHistogram := encodedMetric.GetHistogram()
+		// Decode to Prometheus representation
+		h := prom_histogram.Histogram{
+			Schema: encodedHistogram.GetSchema(),
+			Count:  encodedHistogram.GetSampleCount(),
+			Sum:    encodedHistogram.GetSampleSum(),
+			ZeroThreshold: encodedHistogram.GetZeroThreshold(),
+			ZeroCount: encodedHistogram.GetZeroCount(),
+		}
+		if len(encodedHistogram.PositiveSpan) > 0 {
+			h.PositiveSpans = make([]prom_histogram.Span, len(encodedHistogram.PositiveSpan))
+			for i, span := range encodedHistogram.PositiveSpan {
+				h.PositiveSpans[i] = prom_histogram.Span{
+					Offset: span.GetOffset(),
+					Length: span.GetLength(),
+				}
+			}
+		}
+		h.PositiveBuckets = encodedHistogram.PositiveDelta
+		if len(encodedHistogram.NegativeSpan) > 0 {
+			h.NegativeSpans = make([]prom_histogram.Span, len(encodedHistogram.NegativeSpan))
+			for i, span := range encodedHistogram.NegativeSpan {
+				h.NegativeSpans[i] = prom_histogram.Span{
+					Offset: span.GetOffset(),
+					Length: span.GetLength(),
+				}
+			}
+		}
+		h.NegativeBuckets = encodedHistogram.NegativeDelta
+
+		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &h, nil)
+		if err != nil {
+			return activeSeries, err
+		}
 	}
 
 	return
