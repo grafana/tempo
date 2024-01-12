@@ -686,6 +686,10 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            V
 
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetIterator, error) {
+	if req.ShardCount > 0 {
+		return nil, errors.New("traceql sharding not supported")
+	}
+
 	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, pf, opts)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
