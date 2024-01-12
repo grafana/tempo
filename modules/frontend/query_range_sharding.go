@@ -141,7 +141,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	startedReqs := 0
 	for job := range reqCh {
 		if job.err != nil {
-			err = fmt.Errorf("unexpected err building reqs: %w", job.err)
+			jobErr.Store(fmt.Errorf("unexpected err building reqs: %w", job.err))
 			break
 		}
 
@@ -226,10 +226,6 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("totalJobs", res.Metrics.TotalJobs)
 	span.SetTag("finishedJobs", res.Metrics.CompletedJobs)
 	span.SetTag("requestThroughput", throughput)
-
-	if err != nil {
-		return s.respErrHandler(isProm, err)
-	}
 
 	if jErr := jobErr.Load(); jErr != nil {
 		return s.respErrHandler(isProm, jErr)
