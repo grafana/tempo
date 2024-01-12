@@ -35,6 +35,7 @@ type typedExpression interface {
 type RootExpr struct {
 	Pipeline        Pipeline
 	MetricsPipeline metricsFirstStageElement
+	Hints           *Hints
 }
 
 func newRootExpr(e pipelineElement) *RootExpr {
@@ -58,6 +59,11 @@ func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *Root
 		Pipeline:        p,
 		MetricsPipeline: m,
 	}
+}
+
+func (r *RootExpr) withHints(h *Hints) *RootExpr {
+	r.Hints = h
+	return r
 }
 
 // **********************

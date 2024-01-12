@@ -20,7 +20,7 @@ import (
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	if req.ShardCount == 0 {
+	if req.QueryMode == QueryModeRecent {
 		return q.queryRangeRecent(ctx, req)
 	}
 
@@ -49,14 +49,10 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 
 	c := traceql.QueryRangeCombiner{}
 	for _, result := range lookupResults {
-		c.Combine(result.response.(*tempopb.QueryRangeResponse).Series)
+		c.Combine(result.response.(*tempopb.QueryRangeResponse))
 	}
 
-	resp := &tempopb.QueryRangeResponse{
-		Series: c.Results(),
-	}
-
-	return resp, nil
+	return c.Response(), nil
 }
 
 func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {

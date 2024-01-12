@@ -17,7 +17,7 @@ func TestPipelineErrors(t *testing.T) {
 		{in: "{ .a } | { .b", err: newParseError("syntax error: unexpected $end", 1, 14)},
 		{in: "{ .a | .b }", err: newParseError("syntax error: unexpected |", 1, 6)},
 		{in: "({ .a } | { .b }", err: newParseError("syntax error: unexpected $end, expecting ) or |", 1, 17)},
-		{in: "({ .a } | { .b }) + ({ .a } | { .b })", err: newParseError("syntax error: unexpected +", 1, 19)},
+		{in: "({ .a } | { .b }) + ({ .a } | { .b })", err: newParseError("syntax error: unexpected +, expecting with", 1, 19)},
 	}
 
 	for _, tc := range tests {
@@ -390,7 +390,7 @@ func TestGroupCoalesceErrors(t *testing.T) {
 		in  string
 		err error
 	}{
-		{in: "by(.a) && { .b }", err: newParseError("syntax error: unexpected &&", 0, 8)},
+		{in: "by(.a) && { .b }", err: newParseError("syntax error: unexpected &&, expecting with", 0, 8)},
 		{in: "by()", err: newParseError("syntax error: unexpected )", 1, 4)},
 		{in: "coalesce()", err: newParseError("syntax error: unexpected coalesce", 1, 1)},
 	}
@@ -428,7 +428,7 @@ func TestSelectErrors(t *testing.T) {
 		in  string
 		err error
 	}{
-		{in: "select(.a) && { .b }", err: newParseError("syntax error: unexpected &&", 0, 12)},
+		{in: "select(.a) && { .b }", err: newParseError("syntax error: unexpected &&, expecting with", 0, 12)},
 		{in: "select()", err: newParseError("syntax error: unexpected )", 1, 8)},
 	}
 
@@ -565,7 +565,7 @@ func TestScalarExpressionErrors(t *testing.T) {
 		in  string
 		err error
 	}{
-		{in: "(avg(.foo) > count()) + sum(.bar)", err: newParseError("syntax error: unexpected +", 1, 23)},
+		{in: "(avg(.foo) > count()) + sum(.bar)", err: newParseError("syntax error: unexpected +, expecting with", 1, 23)},
 		{in: "count(", err: newParseError("syntax error: unexpected $end, expecting )", 1, 7)},
 		{in: "count(avg)", err: newParseError("syntax error: unexpected avg, expecting )", 1, 7)},
 		{in: "count(.thing)", err: newParseError("syntax error: unexpected ., expecting )", 1, 7)},
@@ -1125,6 +1125,41 @@ func TestEmptyQuery(t *testing.T) {
 			actual, err := Parse(tc.in)
 			require.NoError(t, err, tc.in)
 			require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(NewStaticBool(true)))), actual, tc.in)
+		})
+	}
+}
+
+func TestHints(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `{ } | rate() with(foo="bar")`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+		{
+			in: `{ } | rate() with(foo=0.5)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticFloat(0.5)),
+			})),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
 		})
 	}
 }
