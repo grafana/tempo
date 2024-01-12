@@ -20,7 +20,7 @@ import (
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	if req.QueryMode == "recent" {
+	if req.QueryMode == QueryModeRecent {
 		return q.queryRangeRecent(ctx, req)
 	}
 

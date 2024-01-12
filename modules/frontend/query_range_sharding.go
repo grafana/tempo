@@ -21,6 +21,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -392,7 +393,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 		return nil
 	}
 
-	searchReq.QueryMode = "recent"
+	searchReq.QueryMode = querier.QueryModeRecent
 
 	// No sharding on the generators (unecessary), but we do apply sampling
 	// rates.  In this case we execute a single arbitrary shard. Choosing
