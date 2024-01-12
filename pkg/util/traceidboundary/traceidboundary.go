@@ -20,19 +20,19 @@ type Boundary struct {
 //   - Technically 8-byte IDs are only 63 bits, so we account for this//
 //   - The boundaries are inclusive/exclusive: [min, max), except the max of the last shard
 //     is the valid ID FFFFF... and inclusive/inclusive.
-func Pairs(shard, of int) (boundaries []Boundary, upperInclusive bool) {
+func Pairs(shard, of uint32) (boundaries []Boundary, upperInclusive bool) {
 	// First pair is 63-bit IDs left-padded with zeroes to make 16-byte divisions
 	// that matches the 16-byte layout in the block.
 	// To create 63-bit boundaries we create twice as many as needed,
 	// then only use the first half.  i.e. shaving off the top-most bit.
-	int63bounds := blockboundary.CreateBlockBoundaries(of * 2)
+	int63bounds := blockboundary.CreateBlockBoundaries(int(of * 2))
 	boundaries = append(boundaries, Boundary{
 		Min: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, int63bounds[shard-1][0:8]...),
 		Max: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, int63bounds[shard][0:8]...),
 	})
 
 	// Second pair is normal full precision 16-byte IDs.
-	int128bounds := blockboundary.CreateBlockBoundaries(of)
+	int128bounds := blockboundary.CreateBlockBoundaries(int(of))
 
 	// However there is one caveat - We adjust the very first boundary to ensure it doesn't
 	// overlap with the 63-bit precision ones. I.e. a minimum of 0x0000.... would
@@ -52,7 +52,7 @@ func Pairs(shard, of int) (boundaries []Boundary, upperInclusive bool) {
 }
 
 // Funcs returns helper functions that match trace IDs in the given shard.
-func Funcs(shard, of int) (testSingle func([]byte) bool, testRange func([]byte, []byte) bool) {
+func Funcs(shard, of uint32) (testSingle func([]byte) bool, testRange func([]byte, []byte) bool) {
 	pairs, upperInclusive := Pairs(shard, of)
 
 	upper := -1
