@@ -10,14 +10,17 @@ type Boundary struct {
 	Min, Max []byte
 }
 
-// Pairs returns the boundarieshelper functions that match trace IDs in
-// that shard.  Internally this is similar to how queriers divide the block ID-space, but
-// here it's trace IDs instead.  The inputs are 1-based because it seems more readable: shard 1 of 10.
+// Pairs returns the boundaries that match trace IDs in that shard.  Internally this is
+// similar to how queriers divide the block ID-space, but here it's trace IDs instead.
+// The inputs are 1-based because it seems more readable: shard 1 of 10.  Most boundaries
+// are [,) lower inclusive, upper exclusive. However the last boundary that ends in the
+// max value 0xFFFF... is [,] inclusive/inclusive and indicated when the return value
+// upperInclusive is set.
 // Of course there are some caveats:
 //   - Trace IDs can be 16 or 8 bytes.  If we naively sharded only in 16-byte space it would
 //     be unbalanced because all 8-byte IDs would land in the first shard. Therefore we
 //     divide in both 16- and 8-byte spaces and a single shard covers a range in each.
-//   - Technically 8-byte IDs are only 63 bits, so we account for this//
+//   - Technically 8-byte IDs are only 63 bits, so we account for this
 //   - The boundaries are inclusive/exclusive: [min, max), except the max of the last shard
 //     is the valid ID FFFFF... and inclusive/inclusive.
 func Pairs(shard, of uint32) (boundaries []Boundary, upperInclusive bool) {
@@ -26,6 +29,10 @@ func Pairs(shard, of uint32) (boundaries []Boundary, upperInclusive bool) {
 	// To create 63-bit boundaries we create twice as many as needed,
 	// then only use the first half.  i.e. shaving off the top-most bit.
 	int63bounds := blockboundary.CreateBlockBoundaries(int(of * 2))
+
+	// Adjust last boundary to be inclusive so it matches the other pair.
+	int63bounds[of] = []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
 	boundaries = append(boundaries, Boundary{
 		Min: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, int63bounds[shard-1][0:8]...),
 		Max: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, int63bounds[shard][0:8]...),
