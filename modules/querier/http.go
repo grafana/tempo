@@ -330,8 +330,13 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		errHandler(ctx, span, err)
-		m := jsonpb.Marshaler{}
 
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		m := jsonpb.Marshaler{}
 		jsBytes, funcErr := m.MarshalToString(resp)
 		if funcErr != nil {
 			errHandler(ctx, span, funcErr)
