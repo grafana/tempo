@@ -62,6 +62,18 @@ func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 	return 0
 }
 
+// EqualRowNumber compares the sequences of row numbers in a and b
+// for partial equality. A little faster than CompareRowNumbers(d,a,b)==0
+// NOTE - Unrolling this loop is slower because then it can't be inlined.
+func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
+	for i := 0; i <= upToDefinitionLevel; i++ {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
 	n := EmptyRowNumber()
 	for i := 0; i <= definitionLevelToKeep; i++ {
@@ -514,6 +526,8 @@ type SyncIterator struct {
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
+
+	cloneHash map[string]pq.Value
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -548,6 +562,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMax:     rgsMax,
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
+		cloneHash:  make(map[string]pq.Value),
 	}
 }
 
@@ -719,6 +734,10 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 // as its balance point. if the number of Next()s to skip is less than the magicThreshold, it will not reslice
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	rowSkipRelative := int(to[0] - c.curr[0])
+	if rowSkipRelative == 0 {
+		return
+	}
+
 	const magicThreshold = 1000
 	shouldSkip := false
 
@@ -911,13 +930,36 @@ func (c *SyncIterator) closeCurrRowGroup() {
 	c.currRowGroupMax = EmptyRowNumber()
 	c.currChunk = nil
 	c.setPage(nil)
+
+	// Reset clone cache
+	c.cloneHash = make(map[string]pq.Value, len(c.cloneHash))
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v.Clone())
+		// sigh...
+		switch v.Kind() {
+		case pq.ByteArray, pq.FixedLenByteArray:
+			// Strings are pointers to the underlying i/o buffers
+			// so they must be disconnected before they can be safely
+			// passed to the callers.
+			// Keep a cache of previous clones.
+			b := v.ByteArray()
+			clone, ok := c.cloneHash[string(b)]
+
+			if !ok {
+				clone = v.Clone()
+				c.cloneHash[string(b)] = clone
+			}
+
+			r.AppendValue(c.selectAs, clone)
+
+		default:
+			// No need to clone for other types
+			r.AppendValue(c.selectAs, *v)
+		}
 	}
 	return r
 }
@@ -1395,7 +1437,7 @@ func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
-		for j.peeks[i] != nil && CompareRowNumbers(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) == 0 {
+		for j.peeks[i] != nil && EqualRowNumber(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) {
 
 			result.Append(j.peeks[i])
 
@@ -1586,7 +1628,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
 		for i := range iters {
 			// Collect matches
-			for peeks[i] != nil && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) == 0 {
+			for peeks[i] != nil && EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber) {
 				result.Append(peeks[i])
 				ReleaseResult(peeks[i])
 				peeks[i], err = iters[i].Next()
@@ -1747,7 +1789,7 @@ func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorR
 	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
-		for u.peeks[iterNum] != nil && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) == 0 {
+		for u.peeks[iterNum] != nil && EqualRowNumber(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) {
 
 			result.Append(u.peeks[iterNum])
 
