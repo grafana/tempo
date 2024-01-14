@@ -11,6 +11,7 @@
 * [CHANGE] Make vParquet3 the default block encoding [#2526](https://github.com/grafana/tempo/pull/3134) (@stoewer)
 * [CHANGE] Set `autocomplete_filtering_enabled` to `true` by default [#3178](https://github.com/grafana/tempo/pull/3178) (@mapno)
 * [CHANGE] Major cache refactor to allow multiple role based caches to be configured [#3166](https://github.com/grafana/tempo/pull/3166).
+* [CHANGE] Profiling: import godeltaprof/http/pprof [#3292](https://github.com/grafana/tempo/pull/3292). (@korniltsev)
   **BREAKING CHANGE** Deprecate the following fields. These have all been migrated to a top level "cache:" field.
   ```
   storage:
