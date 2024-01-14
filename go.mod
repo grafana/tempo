@@ -35,7 +35,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.2.4
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.17.2
+	github.com/klauspost/compress v1.17.3
 	github.com/minio/minio-go/v7 v7.0.63
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/olekukonko/tablewriter v0.0.5
@@ -106,6 +106,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.6
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.89.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.89.0

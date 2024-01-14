@@ -537,6 +537,11 @@ github.com/grafana/e2e/images
 # github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
 ## explicit; go 1.18
 github.com/grafana/gomemcache/memcache
+# github.com/grafana/pyroscope-go/godeltaprof v0.1.6
+## explicit; go 1.16
+github.com/grafana/pyroscope-go/godeltaprof
+github.com/grafana/pyroscope-go/godeltaprof/http/pprof
+github.com/grafana/pyroscope-go/godeltaprof/internal/pprof
 # github.com/grafana/regexp v0.0.0-20221123153739-15dc172cd2db
 ## explicit; go 1.17
 github.com/grafana/regexp
@@ -750,8 +755,8 @@ github.com/jsternberg/zap-logfmt
 # github.com/julienschmidt/httprouter v1.3.0
 ## explicit; go 1.7
 github.com/julienschmidt/httprouter
-# github.com/klauspost/compress v1.17.2
-## explicit; go 1.18
+# github.com/klauspost/compress v1.17.3
+## explicit; go 1.19
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
 github.com/klauspost/compress/fse
