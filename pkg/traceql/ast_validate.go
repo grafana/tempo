@@ -19,7 +19,16 @@ func (e *unsupportedError) Error() string {
 }
 
 func (r RootExpr) validate() error {
-	return r.Pipeline.validate()
+	err := r.Pipeline.validate()
+	if err != nil {
+		return err
+	}
+
+	if r.MetricsPipeline != nil {
+		return r.MetricsPipeline.validate()
+	}
+
+	return nil
 }
 
 func (p Pipeline) validate() error {
@@ -46,7 +55,7 @@ func (o CoalesceOperation) validate() error {
 }
 
 func (o SelectOperation) validate() error {
-	for _, e := range o.exprs {
+	for _, e := range o.attrs {
 		if err := e.validate(); err != nil {
 			return err
 		}

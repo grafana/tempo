@@ -157,6 +157,7 @@ parse_fails:
   # select
   - 'select(.a'
   - 'select()'
+  - 'select(1 + "string")'        # Don't support arbitrary field expressions  
   # pipelines
   - 'coalesce() | { true }'       # pipelines can't start with coalesce
   - 'count() > 3 && { true }'     # scalar filters have to be in pipeline
@@ -230,8 +231,6 @@ validate_fails:
   - 'min(1) = max(2) + 3'
   - 'min(1.1 - 3) > 1'
   - 'max(1h + 2h) > 1'
-  # select
-  - 'select(1 + "string")'
   # by - will *not* be valid when supported - group expressions must reference the span
   - '{ true } | by(1)'
   - '{ true } | by("foo")'

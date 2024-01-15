@@ -100,11 +100,11 @@ The easiest way to get the trace is to execute a simple curl command to Tempo.  
 
 1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
 
-```bash
-curl http://localhost:3200/api/traces/5b8efff798038103d269b633813fc700
+	```bash
+	curl http://localhost:3200/api/traces/5b8efff798038103d269b633813fc700
 
-{"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]},"scopeSpans":[{"scope":{"name":"my.library","version":"1.0.0"},"spans":[{"traceId":"W47/95gDgQPSabYzgT/HAA==","spanId":"7uGbfsPBsQA=","name":"I am a span!","kind":"SPAN_KIND_SERVER","startTimeUnixNano":"1689969302000000000","endTimeUnixNano":"1689970000000000000","attributes":[{"key":"my.span.attr","value":{"stringValue":"some value"}}],"status":{}}]}]}]}
-```
+	{"batches":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"my.service"}}]},"scopeSpans":[{"scope":{"name":"my.library","version":"1.0.0"},"spans":[{"traceId":"W47/95gDgQPSabYzgT/HAA==","spanId":"7uGbfsPBsQA=","name":"I am a span!","kind":"SPAN_KIND_SERVER","startTimeUnixNano":"1689969302000000000","endTimeUnixNano":"1689970000000000000","attributes":[{"key":"my.span.attr","value":{"stringValue":"some value"}}],"status":{}}]}]}]}
+	```
 
 1. Copy and paste the updated `curl` command into a terminal window.
 

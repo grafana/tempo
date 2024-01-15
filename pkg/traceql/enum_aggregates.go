@@ -28,3 +28,21 @@ func (a AggregateOp) String() string {
 
 	return fmt.Sprintf("aggregate(%d)", a)
 }
+
+type MetricsAggregateOp int
+
+const (
+	metricsAggregateRate MetricsAggregateOp = iota
+	metricsAggregateCountOverTime
+)
+
+func (a MetricsAggregateOp) String() string {
+	switch a {
+	case metricsAggregateRate:
+		return "rate"
+	case metricsAggregateCountOverTime:
+		return "count_over_time"
+	}
+
+	return fmt.Sprintf("aggregate(%d)", a)
+}
