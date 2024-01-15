@@ -263,7 +263,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	if overallResponse.marshallErr != nil {
-		return nil, err
+		return nil, overallResponse.marshallErr
 	}
 
 	resp := &http.Response{
