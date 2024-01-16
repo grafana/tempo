@@ -360,7 +360,7 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 
 ### Search tag values
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search, if start or end are not specified it will only
+Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only
 fetch blocks that wasn't flushed to backend.
 
 This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
