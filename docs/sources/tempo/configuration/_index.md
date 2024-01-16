@@ -1334,6 +1334,7 @@ overrides:
           [flush_check_period: <duration>]
           [trace_idle_period: <duration>]
           [complete_block_timeout: <duration>]
+          [concurrent_blocks: <duration>]
 
     # Generic forwarding configuration
 
