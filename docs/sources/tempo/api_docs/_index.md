@@ -291,12 +291,12 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 
 Parameters:
 - `scope = (resource|span|intrinsic)`
-  Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
+  Optional. Specifies the scope of the tags. If not specified, it means all scopes.
   Default = `all`
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which tags should be returned.
+  Optional.  Along with `end`, defines a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
-  Optional.  Along with `start` define a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+  Optional.  Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
 
 
 ### Search tags V2
