@@ -433,7 +433,7 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
   ]
 }
 ```
-This endpoint can also receive `start` and `end` optional parameters, these parameters will define the time range from which the tags will be fetched
+This endpoint can also receive `start` and `end` optional parameters. These parameters will define the time range from which the tags will be fetched
 
 #### Filtered tag values
 
