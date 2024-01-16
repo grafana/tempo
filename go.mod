@@ -26,7 +26,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.4.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20231120170505-765e343eda4f
+	github.com/grafana/dskit v0.0.0-20240116202611-824e75a28ee8
 	github.com/grafana/e2e v0.1.1
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.5.0
@@ -343,5 +343,3 @@ replace (
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
 
 replace golang.org/x/net => golang.org/x/net v0.17.0
-
-replace github.com/grafana/dskit => ../dskit

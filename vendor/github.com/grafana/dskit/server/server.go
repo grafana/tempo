@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
-	"github.com/soheilhy/cmux"
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -114,7 +113,6 @@ type Config struct {
 	HTTPMiddleware                []middleware.Interface         `yaml:"-"`
 	Router                        *mux.Router                    `yaml:"-"`
 	DoNotAddDefaultHTTPMiddleware bool                           `yaml:"-"`
-	RouteHTTPToGRPC               bool                           `yaml:"-"`
 
 	GRPCServerMaxRecvMsgSize           int           `yaml:"grpc_server_max_recv_msg_size"`
 	GRPCServerMaxSendMsgSize           int           `yaml:"grpc_server_max_send_msg_size"`
@@ -220,13 +218,6 @@ type Server struct {
 	grpcListener net.Listener
 	httpListener net.Listener
 
-	// These fields are used to support grpc over the http server
-	//  if RouteHTTPToGRPC is set. the fields are kept here
-	//  so they can be initialized in New() and started in Run()
-	grpchttpmux        cmux.CMux
-	grpcOnHTTPListener net.Listener
-	GRPCOnHTTPServer   *grpc.Server
-
 	HTTP       *mux.Router
 	HTTPServer *http.Server
 	GRPC       *grpc.Server
@@ -276,15 +267,6 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	metrics.TCPConnectionsLimit.WithLabelValues("http").Set(float64(cfg.HTTPConnLimit))
 	if cfg.HTTPConnLimit > 0 {
 		httpListener = netutil.LimitListener(httpListener, cfg.HTTPConnLimit)
-	}
-
-	var grpcOnHTTPListener net.Listener
-	var grpchttpmux cmux.CMux
-	if cfg.RouteHTTPToGRPC {
-		grpchttpmux = cmux.New(httpListener)
-
-		httpListener = grpchttpmux.Match(cmux.HTTP1Fast("PATCH"))
-		grpcOnHTTPListener = grpchttpmux.Match(cmux.HTTP2())
 	}
 
 	network = cfg.GRPCListenNetwork
@@ -437,7 +419,6 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(grpcCreds))
 	}
 	grpcServer := grpc.NewServer(grpcOptions...)
-	grpcOnHTTPServer := grpc.NewServer(grpcOptions...)
 
 	httpMiddleware, err := BuildHTTPMiddleware(cfg, router, metrics, logger)
 	if err != nil {
@@ -461,20 +442,17 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	}
 
 	return &Server{
-		cfg:                cfg,
-		httpListener:       httpListener,
-		grpcListener:       grpcListener,
-		grpcOnHTTPListener: grpcOnHTTPListener,
-		handler:            handler,
-		grpchttpmux:        grpchttpmux,
+		cfg:          cfg,
+		httpListener: httpListener,
+		grpcListener: grpcListener,
+		handler:      handler,
 
-		HTTP:             router,
-		HTTPServer:       httpServer,
-		GRPC:             grpcServer,
-		GRPCOnHTTPServer: grpcOnHTTPServer,
-		Log:              logger,
-		Registerer:       cfg.registererOrDefault(),
-		Gatherer:         gatherer,
+		HTTP:       router,
+		HTTPServer: httpServer,
+		GRPC:       grpcServer,
+		Log:        logger,
+		Registerer: cfg.registererOrDefault(),
+		Gatherer:   gatherer,
 	}, nil
 }
 
@@ -571,18 +549,6 @@ func (s *Server) Run() error {
 		err := s.GRPC.Serve(s.grpcListener)
 		handleGRPCError(err, errChan)
 	}()
-
-	// grpchttpmux will only be set if grpchttpmux RouteHTTPToGRPC is set
-	if s.grpchttpmux != nil {
-		go func() {
-			err := s.grpchttpmux.Serve()
-			handleGRPCError(err, errChan)
-		}()
-		go func() {
-			err := s.GRPCOnHTTPServer.Serve(s.grpcOnHTTPListener)
-			handleGRPCError(err, errChan)
-		}()
-	}
 
 	return <-errChan
 }
