@@ -370,8 +370,9 @@ func (t *App) statusHandler() http.HandlerFunc {
 			msg.WriteString("GET /status/" + endpoint + "\n")
 
 			switch endpoint {
-			// TODO should we change this endpoint to /status/overrides?
 			case "runtime_config":
+				fallthrough
+			case "overrides":
 				err := t.writeRuntimeConfig(&msg, r)
 				if err != nil {
 					errs = append(errs, err)
