@@ -5,11 +5,21 @@ import (
 	"math"
 	"regexp"
 	"time"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type Element interface {
 	fmt.Stringer
 	validate() error
+}
+
+type metricsFirstStageElement interface {
+	Element
+	extractConditions(request *FetchSpansRequest)
+	init(*tempopb.QueryRangeRequest)
+	observe(Span) // TODO - batching?
+	result() SeriesSet
 }
 
 type pipelineElement interface {
@@ -23,7 +33,9 @@ type typedExpression interface {
 }
 
 type RootExpr struct {
-	Pipeline Pipeline
+	Pipeline        Pipeline
+	MetricsPipeline metricsFirstStageElement
+	Hints           *Hints
 }
 
 func newRootExpr(e pipelineElement) *RootExpr {
@@ -35,6 +47,23 @@ func newRootExpr(e pipelineElement) *RootExpr {
 	return &RootExpr{
 		Pipeline: p,
 	}
+}
+
+func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *RootExpr {
+	p, ok := e.(Pipeline)
+	if !ok {
+		p = newPipeline(e)
+	}
+
+	return &RootExpr{
+		Pipeline:        p,
+		MetricsPipeline: m,
+	}
+}
+
+func (r *RootExpr) withHints(h *Hints) *RootExpr {
+	r.Hints = h
+	return r
 }
 
 // **********************
@@ -130,12 +159,12 @@ func (o CoalesceOperation) extractConditions(*FetchSpansRequest) {
 }
 
 type SelectOperation struct {
-	exprs []FieldExpression
+	attrs []Attribute
 }
 
-func newSelectOperation(exprs []FieldExpression) SelectOperation {
+func newSelectOperation(exprs []Attribute) SelectOperation {
 	return SelectOperation{
-		exprs: exprs,
+		attrs: exprs,
 	}
 }
 
@@ -268,7 +297,6 @@ func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
 	Expression          FieldExpression
-	outputBuffer        []*Spanset
 	matchingSpansBuffer []Span
 }
 
@@ -282,7 +310,7 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	f.outputBuffer = f.outputBuffer[:0]
+	var outputBuffer []*Spanset
 
 	for _, ss := range input {
 		if len(ss.Spans) == 0 {
@@ -315,16 +343,16 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 		if len(f.matchingSpansBuffer) == len(ss.Spans) {
 			// All matched, so we return the input as-is
 			// and preserve the local buffer.
-			f.outputBuffer = append(f.outputBuffer, ss)
+			outputBuffer = append(outputBuffer, ss)
 			continue
 		}
 
 		matchingSpanset := ss.clone()
 		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
-		f.outputBuffer = append(f.outputBuffer, matchingSpanset)
+		outputBuffer = append(outputBuffer, matchingSpanset)
 	}
 
-	return f.outputBuffer, nil
+	return outputBuffer, nil
 }
 
 type ScalarFilter struct {
@@ -718,3 +746,70 @@ var (
 	_ pipelineElement = (*ScalarFilter)(nil)
 	_ pipelineElement = (*GroupOperation)(nil)
 )
+
+type MetricsAggregate struct {
+	op  MetricsAggregateOp
+	by  []Attribute
+	agg SpanAggregator
+}
+
+func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
+	return &MetricsAggregate{
+		op: agg,
+		by: by,
+	}
+}
+
+func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
+	switch a.op {
+	case metricsAggregateRate, metricsAggregateCountOverTime:
+		// No extra conditions, start time is already enough
+	}
+
+	selectR := &FetchSpansRequest{}
+	// copy any conditions to the normal request's SecondPassConditions
+	for _, b := range a.by {
+		b.extractConditions(selectR)
+	}
+	request.SecondPassConditions = append(request.SecondPassConditions, selectR.Conditions...)
+}
+
+func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest) {
+	var innerAgg func() VectorAggregator
+
+	switch a.op {
+	case metricsAggregateCountOverTime:
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+	case metricsAggregateRate:
+		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+	}
+
+	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
+		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
+	}, a.by)
+}
+
+func (a *MetricsAggregate) observe(span Span) {
+	a.agg.Observe(span)
+}
+
+func (a *MetricsAggregate) result() SeriesSet {
+	return a.agg.Series()
+}
+
+func (a *MetricsAggregate) validate() error {
+	switch a.op {
+	case metricsAggregateCountOverTime:
+	case metricsAggregateRate:
+	default:
+		return newUnsupportedError(fmt.Sprintf("metrics aggregate operation (%v)", a.op))
+	}
+
+	if len(a.by) > maxGroupBys {
+		return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
+	}
+
+	return nil
+}
+
+var _ metricsFirstStageElement = (*MetricsAggregate)(nil)

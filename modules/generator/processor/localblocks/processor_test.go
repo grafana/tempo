@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -13,7 +15,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/stretchr/testify/require"
 )
 
 type mockOverrides struct{}
@@ -38,6 +39,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 			FlushCheckPeriod:     10 * time.Millisecond,
 			TraceIdlePeriod:      time.Second,
 			CompleteBlockTimeout: time.Minute,
+			ConcurrentBlocks:     10,
 			Block: &common.BlockConfig{
 				BloomShardSizeBytes: 100_000,
 				BloomFP:             0.05,
@@ -122,8 +124,18 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	go concurrent(func() {
+		_, err := p.QueryRange(ctx, &tempopb.QueryRangeRequest{
+			Query: "{} | rate() by (resource.service.name)",
+			Start: uint64(time.Now().Add(-5 * time.Minute).UnixNano()),
+			End:   uint64(time.Now().UnixNano()),
+			Step:  uint64(30 * time.Second),
+		})
+		require.NoError(t, err)
+	})
+
 	// Run for a bit
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	// Cleanup
 	close(end)

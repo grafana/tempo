@@ -358,6 +358,12 @@ func createDistinctAttributeIterator(
 			}
 			keyIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), selectAs("key", cond.Attribute))
 			valIter = makeIter(boolPath, pred, selectAs("bool", cond.Attribute))
+		default:
+			// Generic attributes don't support special types (e.g. duration, status, kind)
+			// If we get here, it means we're trying to search for a special type in a generic attribute
+			// e.g. { span.foo = 1s }
+			// This is not supported. Condition will be ignored.
+			continue
 		}
 
 		iters = append(iters, parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{keyIter, valIter}, nil))
@@ -378,7 +384,6 @@ func createDistinctAttributeIterator(
 	}
 
 	if len(valueIters) > 0 || len(iters) > 0 {
-
 		if len(valueIters) > 0 {
 			tagIter, err := parquetquery.NewLeftJoinIterator(
 				definitionLevel,

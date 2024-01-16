@@ -460,7 +460,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.s.asAnyValue())
+			assert.Equal(t, tc.expected, tc.s.AsAnyValue())
 		})
 	}
 }
