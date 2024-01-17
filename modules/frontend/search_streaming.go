@@ -95,28 +95,86 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 	return p.progress.result()
 }
 
+type multiProgress struct {
+	mu       sync.Mutex
+	progress []*atomic.Pointer[*diffSearchProgress]
+}
+
+func newMultiProgress() *multiProgress {
+	return &multiProgress{
+		progress: make([]*atomic.Pointer[*diffSearchProgress], 0),
+	}
+}
+
+func (mp *multiProgress) Add(p *atomic.Pointer[*diffSearchProgress]) {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	mp.progress = append(mp.progress, p)
+}
+
+// Snapshot returns a safe copy of progress list. Use this function to get a copy of progress list
+// and use it to do further processing on the progress objects.
+func (mp *multiProgress) Snapshot() []*atomic.Pointer[*diffSearchProgress] {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	copyList := make([]*atomic.Pointer[*diffSearchProgress], len(mp.progress))
+	copy(copyList, mp.progress)
+	return copyList
+}
+
+func (mp *multiProgress) finalResults(ctx context.Context) *shardedSearchResults {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	if len(mp.progress) == 1 {
+		// single tenant query, only one progress object.
+		p := *mp.progress[0].Load()
+		return p.finalResult()
+	}
+
+	// multi-tenant query, merge result from all progress objects.
+	// note: newSearchProgress is used to combine results from multiple progress objects, don't use it for anything else.
+	comb := newSearchProgress(ctx, 0, 0, 0, 0)
+	for _, progress := range mp.progress {
+		// FIXME: add a null check here??
+		p := *progress.Load()
+		r := p.finalResult()
+		comb.addResponse(r.response)
+		if r.err != nil || r.statusCode != http.StatusOK {
+			comb.setError(r.err)
+			comb.setStatus(r.statusCode, r.statusMsg)
+		}
+	}
+	return comb.result()
+}
+
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, searchCache *frontendCache, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	searcher := streamingSearcher{
-		logger:        logger,
-		downstream:    downstream,
-		reader:        reader,
-		postSLOHook:   searchSLOPostHook(cfg.Search.SLO),
-		o:             o,
-		searchCache:   searchCache,
-		cfg:           &cfg,
-		preMiddleware: newMultiTenantMiddleware(cfg, combiner.NewSearch, logger),
+		logger:      logger,
+		downstream:  downstream,
+		reader:      reader,
+		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
+		o:           o,
+		searchCache: searchCache,
+		cfg:         &cfg,
+		// pass NoOp combiner because we combine results ourselves, and don't use
+		// combined results from middleware
+		preMiddleware: newMultiTenantMiddleware(cfg, combiner.NewNoOp, logger),
 	}
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		// tenant, ctx, err := user.ExtractFromGRPCRequest(srv.Context())
-		// if err != nil {
-		// 	level.Error(logger).Log("msg", "search streaming: extract org id failed", "err", err)
-		// 	return fmt.Errorf("extract org id failed: %w", err)
-		// }
-		//
-		// level.Debug(logger).Log("msg", "in search streaming", "tenant", tenant)
+		// FIXME: do we need this?? check if we need this?? this was commented out before?
+		tenant, _, err := user.ExtractFromGRPCRequest(srv.Context())
+		if err != nil {
+			level.Error(logger).Log("msg", "search streaming: extract org id failed", "err", err)
+			return fmt.Errorf("extract org id failed: %w", err)
+		}
+
+		level.Debug(logger).Log("msg", "in search streaming", "tenant", tenant)
 
 		httpReq, err := api.BuildSearchRequest(&http.Request{
 			URL: &url.URL{
@@ -131,7 +189,6 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 			return fmt.Errorf("build search request failed: %w", err)
 		}
 
-		// we inject context here?? why??
 		httpReq = httpReq.WithContext(srv.Context())
 
 		return searcher.handle(httpReq, func(resp *tempopb.SearchResponse) error {
@@ -151,11 +208,13 @@ type streamingSearcher struct {
 	preMiddleware Middleware
 }
 
+// FIXME: test multi-tenant handling here?? and ensure that forwardResults is called multiple times?? to check that we actually stream results??
 // multi-tenant support in handle func, and that will make the streaming for multi-tenant search work??
+// forwardResults func will push results back to the streaming client
 func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error {
 	ctx := r.Context()
 
-	// SLOS - start timer and prep context
+	// SLOs - start timer and prep context
 	start := time.Now()
 	tenant, _ := user.ExtractOrgID(ctx)
 	ctx = searchSLOPreHook(ctx)
@@ -165,28 +224,19 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 		return errors.New("request must contain a start/end date for streaming search")
 	}
 
-	progress := atomic.NewPointer[*diffSearchProgress](nil)
-	fn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
-		// FIXME: we need to use a single diff searcher across all tenants??
-		//  or maybe a searcher that sums up things across multi-tenants??
+	mProgress := newMultiProgress()
+	// create diffSearchProgress for each tenant, and keep a reference to
+	// stream results back to the client.
+	progressFactoryFn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
+		progress := atomic.NewPointer[*diffSearchProgress](nil)
 		p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
 		progress.Store(&p)
+		mProgress.Add(progress)
 		return p
 	}
 
-	// TODO: we passed multi-tenant middleware as downstream, and it is pre-fixed before our
-	// search sharding middleware?? and it works because we run this before we do search sharding??
-	// order of ops:
-	// - newMultiTenantMiddleware
-	// - newSearchSharder
-	// - s.downstream
-
-	// build roundtripper
-	ss := newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, fn, s.searchCache, s.logger)
-
-	// preMiddleware will make multiple calls to newSearchSharder in case of multi-tenant search
-	// and it will end up creating it's own newDiffSearchProgress for each tenant?
-	// we need to make fn add up the values instead of giving new values each time?
+	// build search roundtripper
+	ss := newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, progressFactoryFn, s.searchCache, s.logger)
 	rt := NewRoundTripper(s.downstream, s.preMiddleware, ss)
 
 	type roundTripResult struct {
@@ -197,6 +247,7 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 
 	// initiate http pipeline
 	go func() {
+		// blocking, and query is done when this returns.
 		resp, err := rt.RoundTrip(r)
 		resultChan <- roundTripResult{resp, err}
 		close(resultChan)
@@ -213,22 +264,26 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 			return ctx.Err()
 		// stream results as they come in
 		case <-time.After(500 * time.Millisecond):
-			p := progress.Load()
-			if p == nil {
-				continue
-			}
+			snap := mProgress.Snapshot() // safe copy of progress list
+			for _, progress := range snap {
+				p := progress.Load()
+				if p == nil {
+					continue
+				}
 
-			result := (*p).result()
-			if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
-				continue
-			}
+				result := (*p).result()
+				if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
+					continue
+				}
 
-			err := forwardResults(result.response)
-			if err != nil {
-				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
-				return fmt.Errorf("search streaming send failed: %w", err)
+				// send response to client
+				err := forwardResults(result.response)
+				if err != nil {
+					level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
+					return fmt.Errorf("search streaming send failed: %w", err)
+				}
 			}
-		// final result is available
+		// final result is available, request is done
 		case roundTripRes := <-resultChan:
 			// check for errors in the http response
 			if roundTripRes.err != nil {
@@ -241,9 +296,9 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 				return fmt.Errorf("http error: %d msg: %s", roundTripRes.resp.StatusCode, string(b))
 			}
 
-			// overall pipeline returned successfully, now grab the final results and send them
-			p := *progress.Load()
-			result := p.finalResult()
+			// overall pipeline returned successfully, send final results to client.
+			result := mProgress.finalResults(ctx)
+
 			if result.err != nil || result.statusCode != http.StatusOK {
 				level.Error(s.logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 				return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
