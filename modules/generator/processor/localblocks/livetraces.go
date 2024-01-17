@@ -39,12 +39,7 @@ func (l *liveTraces) Len() uint64 {
 	return uint64(len(l.traces))
 }
 
-func (l *liveTraces) Push(batch *v1.ResourceSpans, max uint64) error {
-	if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
-		return nil
-	}
-
-	traceID := batch.ScopeSpans[0].Spans[0].TraceId
+func (l *liveTraces) Push(traceID []byte, batches []*v1.ResourceSpans, maxTraces uint64) bool {
 	token := l.token(traceID)
 
 	tr := l.traces[token]
@@ -52,8 +47,8 @@ func (l *liveTraces) Push(batch *v1.ResourceSpans, max uint64) error {
 
 		// Before adding this check against max
 		// Zero means no limit
-		if max > 0 && uint64(len(l.traces)) >= max {
-			return errMaxExceeded
+		if maxTraces > 0 && uint64(len(l.traces)) >= maxTraces {
+			return false
 		}
 
 		tr = &liveTrace{
@@ -62,9 +57,9 @@ func (l *liveTraces) Push(batch *v1.ResourceSpans, max uint64) error {
 		l.traces[token] = tr
 	}
 
-	tr.Batches = append(tr.Batches, batch)
+	tr.Batches = append(tr.Batches, batches...)
 	tr.timestamp = time.Now()
-	return nil
+	return true
 }
 
 func (l *liveTraces) CutIdle(idleSince time.Time) []*liveTrace {

@@ -32,6 +32,7 @@ const timeBuffer = 5 * time.Minute
 // ProcessorOverrides is just the set of overrides needed here.
 type ProcessorOverrides interface {
 	DedicatedColumns(string) backend.DedicatedColumns
+	MaxBytesPerTrace(string) int
 }
 
 type Processor struct {
@@ -53,6 +54,7 @@ type Processor struct {
 
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
+	traceSizes    *traceSizes
 }
 
 var _ gen.Processor = (*Processor)(nil)
@@ -79,6 +81,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) 
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
 		liveTraces:     newLiveTraces(),
+		traceSizes:     newTraceSizes(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
@@ -103,21 +106,37 @@ func (*Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
+	// All requests contain only a single trace so this is sufficient.
+	if len(req.Batches) == 0 || len(req.Batches[0].ScopeSpans) == 0 || len(req.Batches[0].ScopeSpans[0].Spans) == 0 {
+		return
+	}
+	traceID := req.Batches[0].ScopeSpans[0].Spans[0].TraceId
+
+	// Metric total spans regardless of outcome
+	numSpans := 0
+	for _, batch := range req.Batches {
+		for _, ss := range batch.ScopeSpans {
+			numSpans += len(ss.Spans)
+		}
+	}
+	metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
+
+	// Check max trace size
+	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
+	if maxSz > 0 && !p.traceSizes.Allow(traceID, req.Size(), maxSz) {
+		metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
+		return
+	}
+
+	// Live traces
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
 	before := p.liveTraces.Len()
-
-	for _, batch := range req.Batches {
-		err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
-		if errors.Is(err, errMaxExceeded) {
-			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
-		}
-		for _, ss := range batch.ScopeSpans {
-			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(len(ss.Spans)))
-		}
+	if !p.liveTraces.Push(traceID, req.Batches, p.Cfg.MaxLiveTraces) {
+		metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+		return
 	}
-
 	after := p.liveTraces.Len()
 
 	// Number of new traces is the delta
@@ -598,6 +617,9 @@ func (p *Processor) cutBlocks(immediate bool) error {
 	if !immediate && time.Since(p.lastCutTime) < p.Cfg.MaxBlockDuration && p.headBlock.DataLength() < p.Cfg.MaxBlockBytes {
 		return nil
 	}
+
+	// Clear historical trace sizes for traces that weren't seen in this block.
+	p.traceSizes.ClearIdle(p.lastCutTime)
 
 	// Final flush
 	err := p.headBlock.Flush()
