@@ -92,7 +92,6 @@ func SetupCertificates(t *testing.T) KeyMaterial {
 		require.NoError(t, err)
 		_, err = io.Copy(dst, src2)
 		require.NoError(t, err)
-
 	}()
 
 	client1CertFile := filepath.Join(testCADir, "client-1.crt")
@@ -179,7 +178,7 @@ func (ca *ca) writeCACertificate(path string) error {
 		return err
 	}
 
-	return writeExclusivePEMFile(path, "CERTIFICATE", 0644, derBytes)
+	return writeExclusivePEMFile(path, "CERTIFICATE", 0o644, derBytes)
 }
 
 func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyPath string) error {
@@ -193,7 +192,7 @@ func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyP
 		return err
 	}
 
-	if err := writeExclusivePEMFile(keyPath, "PRIVATE KEY", 0600, keyBytes); err != nil {
+	if err := writeExclusivePEMFile(keyPath, "PRIVATE KEY", 0o600, keyBytes); err != nil {
 		return err
 	}
 
@@ -209,5 +208,5 @@ func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyP
 		return err
 	}
 
-	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0644, derBytes)
+	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0o644, derBytes)
 }
