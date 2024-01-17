@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 )
@@ -80,9 +81,9 @@ func WithTimeout(timeoutSettings TimeoutSettings) Option {
 	}
 }
 
-// WithRetry overrides the default RetrySettings for an exporter.
-// The default RetrySettings is to disable retries.
-func WithRetry(config RetrySettings) Option {
+// WithRetry overrides the default configretry.BackOffConfig for an exporter.
+// The default configretry.BackOffConfig is to disable retries.
+func WithRetry(config configretry.BackOffConfig) Option {
 	return func(o *baseExporter) {
 		if !config.Enabled {
 			o.retrySender = &errorLoggingRequestSender{
@@ -91,7 +92,7 @@ func WithRetry(config RetrySettings) Option {
 			}
 			return
 		}
-		o.retrySender = newRetrySender(config, o.set, o.onTemporaryFailure)
+		o.retrySender = newRetrySender(config, o.set)
 	}
 }
 
@@ -110,9 +111,7 @@ func WithQueue(config QueueSettings) Option {
 			}
 			return
 		}
-		qs := newQueueSender(config, o.set, o.signal, o.marshaler, o.unmarshaler)
-		o.queueSender = qs
-		o.setOnTemporaryFailure(qs.onTemporaryFailure)
+		o.queueSender = newQueueSender(config, o.set, o.signal, o.marshaler, o.unmarshaler)
 	}
 }
 
@@ -145,9 +144,6 @@ type baseExporter struct {
 	obsrepSender  requestSender
 	retrySender   requestSender
 	timeoutSender *timeoutSender // timeoutSender is always initialized.
-
-	// onTemporaryFailure is a function that is called when the retrySender is unable to send data to the next consumer.
-	onTemporaryFailure onRequestHandlingFinishedFunc
 
 	consumerOptions []consumer.Option
 }
@@ -208,17 +204,10 @@ func (be *baseExporter) Start(ctx context.Context, host component.Host) error {
 
 func (be *baseExporter) Shutdown(ctx context.Context) error {
 	return multierr.Combine(
-		// First shutdown the retry sender, so it can push any pending requests to back the queue.
+		// First shutdown the retry sender, so the queue sender can flush the queue without retries.
 		be.retrySender.Shutdown(ctx),
 		// Then shutdown the queue sender.
 		be.queueSender.Shutdown(ctx),
 		// Last shutdown the wrapped exporter itself.
 		be.ShutdownFunc.Shutdown(ctx))
-}
-
-func (be *baseExporter) setOnTemporaryFailure(onTemporaryFailure onRequestHandlingFinishedFunc) {
-	be.onTemporaryFailure = onTemporaryFailure
-	if rs, ok := be.retrySender.(*retrySender); ok {
-		rs.onTemporaryFailure = onTemporaryFailure
-	}
 }
