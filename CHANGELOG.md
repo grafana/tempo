@@ -38,6 +38,7 @@
 * [BUGFIX] Sanitize name in mapped dimensions in span-metrics processor [#3171](https://github.com/grafana/tempo/pull/3171) (@mapno)
 * [BUGFIX] Fixed an issue where cached footers were requested then ignored. [#3196](https://github.com/grafana/tempo/pull/3196) (@joe-elliott)
 * [BUGFIX] Fix panic in autocomplete when query condition had wrong type [#3277](https://github.com/grafana/tempo/pull/3277) (@mapno)
+* [BUGFIX] Fix TLS when GRPC is enabled on HTTP [#3300](https://github.com/grafana/tempo/pull/3300) (@joe-elliott)
 
 ## v2.3.1 / 2023-11-28
 
