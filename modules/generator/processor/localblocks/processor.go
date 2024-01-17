@@ -34,6 +34,7 @@ const timeBuffer = 5 * time.Minute
 // ProcessorOverrides is just the set of overrides needed here.
 type ProcessorOverrides interface {
 	DedicatedColumns(string) backend.DedicatedColumns
+	MaxBytesPerTrace(string) int
 }
 
 type Processor struct {
@@ -55,6 +56,7 @@ type Processor struct {
 
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
+	traceSizes    *traceSizes
 }
 
 var _ gen.Processor = (*Processor)(nil)
@@ -81,6 +83,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) 
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
 		liveTraces:     newLiveTraces(),
+		traceSizes:     newTraceSizes(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
@@ -108,30 +111,43 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
-	var count int
 	before := p.liveTraces.Len()
 
-	// A quick way to reduce the number of spans we have to process
+	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
+
+	batches := req.Batches
 	if p.Cfg.FilterServerSpans {
-		for _, batch := range req.Batches {
-			if batch, count = filterBatch(batch); batch != nil {
-				err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
-				if errors.Is(err, errMaxExceeded) {
-					metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
-				}
-				metricTotalSpans.WithLabelValues(p.tenant).Add(float64(count))
-			}
+		batches = filterBatches(batches)
+	}
+
+	for _, batch := range batches {
+
+		// Spans in the batch are for the same trace.
+		// We use the first one.
+		if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
+			return
 		}
-	} else {
-		for _, batch := range req.Batches {
-			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
-			if errors.Is(err, errMaxExceeded) {
-				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
-			}
-			for _, ss := range batch.ScopeSpans {
-				metricTotalSpans.WithLabelValues(p.tenant).Add(float64(len(ss.Spans)))
-			}
+		traceID := batch.ScopeSpans[0].Spans[0].TraceId
+
+		// Metric total spans regardless of outcome
+		numSpans := 0
+		for _, ss := range batch.ScopeSpans {
+			numSpans += len(ss.Spans)
 		}
+		metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
+
+		// Check max trace size
+		if maxSz > 0 && !p.traceSizes.Allow(traceID, batch.Size(), maxSz) {
+			metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
+			continue
+		}
+
+		// Live traces
+		if !p.liveTraces.Push(traceID, batch, p.Cfg.MaxLiveTraces) {
+			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+			continue
+		}
+
 	}
 
 	after := p.liveTraces.Len()
@@ -615,6 +631,9 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return nil
 	}
 
+	// Clear historical trace sizes for traces that weren't seen in this block.
+	p.traceSizes.ClearIdle(p.lastCutTime)
+
 	// Final flush
 	err := p.headBlock.Flush()
 	if err != nil {
@@ -741,36 +760,38 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 	return r
 }
 
-// filterBatch to only root spans or kind==server. Does not modify the input
+// filterBatches to only root spans or kind==server. Does not modify the input
 // but returns a new struct referencing the same input pointers. Returns nil
 // if there were no matching spans.
-func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
-	var keep int
-	var keepSS []*v1.ScopeSpans
-	for _, ss := range batch.ScopeSpans {
+func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
+	keep := make([]*v1.ResourceSpans, 0, len(batches))
 
-		var keepSpans []*v1.Span
-		for _, s := range ss.Spans {
-			if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
-				keepSpans = append(keepSpans, s)
+	for _, batch := range batches {
+		var keepSS []*v1.ScopeSpans
+		for _, ss := range batch.ScopeSpans {
+
+			var keepSpans []*v1.Span
+			for _, s := range ss.Spans {
+				if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
+					keepSpans = append(keepSpans, s)
+				}
+			}
+
+			if len(keepSpans) > 0 {
+				keepSS = append(keepSS, &v1.ScopeSpans{
+					Scope: ss.Scope,
+					Spans: keepSpans,
+				})
 			}
 		}
 
-		if len(keepSpans) > 0 {
-			keepSS = append(keepSS, &v1.ScopeSpans{
-				Scope: ss.Scope,
-				Spans: keepSpans,
+		if len(keepSS) > 0 {
+			keep = append(keep, &v1.ResourceSpans{
+				Resource:   batch.Resource,
+				ScopeSpans: keepSS,
 			})
-			keep += len(keepSpans)
 		}
 	}
 
-	if len(keepSS) > 0 {
-		return &v1.ResourceSpans{
-			Resource:   batch.Resource,
-			ScopeSpans: keepSS,
-		}, keep
-	}
-
-	return nil, 0
+	return keep
 }
