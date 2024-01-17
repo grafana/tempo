@@ -56,17 +56,21 @@ func (f *SpanFilter) ApplyFilterPolicy(rs *v1.Resource, span *tracev1.Span) bool
 		return true
 	}
 
+	var policyMatch int
+
 	for _, policy := range f.filterPolicies {
 		if policy.Include != nil && !policy.Include.Match(rs, span) {
-			return false
+			continue
 		}
 
 		if policy.Exclude != nil && policy.Exclude.Match(rs, span) {
-			return false
+			continue
 		}
+
+		policyMatch++
 	}
 
-	return true
+	return policyMatch > 0
 }
 
 func getSplitPolicy(policy *config.PolicyMatch) (*splitPolicy, error) {

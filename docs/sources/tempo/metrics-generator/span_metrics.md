@@ -125,9 +125,12 @@ func (ds RatioBasedSampler) Description() string {
 
 ### Filtering
 
-In some cases, you may want to reduce the number of metrics produced by the `spanmetrics` processor.
-You can configure the processor to use an `include` filter to match criteria that must be present in the span in order to be included.
-Following the include filter, you can use an `exclude` filter to reject portions of what was previously included by the filter policy.
+In some cases, you may want to reduce the number of metrics that are produced
+from the `spanmetrics` processor by using a filter. With a filter you can
+configure the processor to use an `include` statement to match criteria that
+must be present in the span in order to be included in the metrics. Following
+the include filter, you can use an `exclude` filter to reject portions of what
+was previously included by the filter policy.
 
 Currently, only filtering by resource and span attributes with the following value types is supported.
 
@@ -198,7 +201,7 @@ metrics_generator:
             attributes:
               - key: resource.location
                 value: eu-.*
-        - exclude:
+          exclude:
             match_type: regex
             attributes:
               - key: resource.tier
@@ -207,6 +210,49 @@ metrics_generator:
 
 In the above, we first include all spans which have a `resource.location` that begins with `eu-` with the `include` statement, and then exclude those with begin with `dev-`.
 In this way, a flexible approach to filtering can be achieved to ensure that only metrics which are important are generated.
+
+Additionally, when multiple filter policies are are used, any policy that is
+matched will result in the span being included in the metric export.
+
+```yaml
+---
+metrics_generator:
+  processor:
+    span_metrics:
+      filter_policies:
+        - include:
+            match_type: regex
+            attributes:
+              - key: resource.location
+                value: eu-.*
+          exclude:
+            match_type: regex
+            attributes:
+              - key: resource.tier
+                value: dev-.*
+        - include:
+            match_type: regex
+            attributes:
+              - key: resource.location
+                value: sa-.*
+              - key: resource.platform
+                value: k8s-.*
+          exclude:
+            match_type: regex
+            attributes:
+              - key: resource.tier
+                value: dev-.*
+```
+
+In this example, spans that match a location beginning with `eu-` or `sa-` will
+be included so long as they are not a `resource.tier` beginning with `dev-`.
+This example could also be written with a single regex expression, except that
+in the second policy we have an additional constraint to match against.  If
+either the `resource.location` or the `resource.platform` is not matched in the
+second policy, then the span is not included.
+
+This is to say, within a single filter policy, the conditions are using `AND`
+logic, but multiple polices will use `OR` logic.
 
 ## Example
 
