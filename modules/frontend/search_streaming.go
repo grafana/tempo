@@ -219,11 +219,11 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 	// create diffSearchProgress for each tenant, and keep a reference to
 	// stream results back to the client.
 	progressFactoryFn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
-		progress := atomic.NewPointer[*diffSearchProgress](nil)
-		p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
-		progress.Store(&p)
-		mProgress.Add(progress)
-		return p
+		ap := atomic.NewPointer[*diffSearchProgress](nil)
+		diffProgress := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
+		ap.Store(&diffProgress)
+		mProgress.Add(ap)
+		return diffProgress
 	}
 
 	// build search roundtripper
@@ -268,6 +268,13 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 				}
 
 				// send response to client
+				// FIXME: this will ping pong between each tenant's metrics and client will not get accurate metrics
+				// -- metrics when results are streaming back in??
+				// {"metrics":{"inspectedBytes":452084,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":535418}}
+				// {"metrics":{"inspectedBytes":452945,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":506656}}
+				// {"metrics":{"inspectedBytes":452084,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":535418}}
+				// {"metrics":{"inspectedBytes":452945,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":506656}}
+				// FIXME: need to merge metrics from all tenants and modify response with merged metrics.
 				err := forwardResults(result.response)
 				if err != nil {
 					level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
@@ -294,6 +301,7 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 				level.Error(s.logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 				return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
 			}
+			// TODO: metrics are accurate in final result because we merge results and metrics?? "metrics":{"inspectedBytes":905029,"completedJobs":2}
 			err := forwardResults(result.response)
 			if err != nil {
 				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
