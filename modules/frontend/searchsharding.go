@@ -189,26 +189,26 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// if not found send it down the pipeline
 			if !foundInCache {
-				resp, err := s.next.RoundTrip(innerR)
-				if err != nil {
+				resp, rtErr := s.next.RoundTrip(innerR)
+				if rtErr != nil {
 					// context cancelled error happens when we exit early.
 					// bail, and don't log and don't set this error.
-					if errors.Is(err, context.Canceled) {
-						_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", err)
+					if errors.Is(rtErr, context.Canceled) {
+						_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", rtErr)
 						return
 					}
 
-					_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-					progress.setError(err)
+					_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", rtErr)
+					progress.setError(rtErr)
 					return
 				}
 
 				// if the status code is anything but happy, save the error and pass it down the line
 				if resp.StatusCode != http.StatusOK {
 					statusCode := resp.StatusCode
-					bytesMsg, err := io.ReadAll(resp.Body)
-					if err != nil {
-						_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
+					bytesMsg, ioErr := io.ReadAll(resp.Body)
+					if ioErr != nil {
+						_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", ioErr)
 					}
 					statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
 					progress.setStatus(statusCode, statusMsg)
@@ -216,16 +216,16 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 
 				// successful query, read the body
-				bodyBuffer, err := io.ReadAll(resp.Body)
-				if err != nil {
-					_ = level.Error(s.logger).Log("msg", "error reading response body buffer", "url", innerR.RequestURI, "err", err)
-					progress.setError(err)
+				bodyBuffer, rtErr := io.ReadAll(resp.Body)
+				if rtErr != nil {
+					_ = level.Error(s.logger).Log("msg", "error reading response body buffer", "url", innerR.RequestURI, "err", rtErr)
+					progress.setError(rtErr)
 					return
 				}
-				err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bodyBuffer), searchResp)
-				if err != nil {
-					_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-					progress.setError(err)
+				rtErr = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bodyBuffer), searchResp)
+				if rtErr != nil {
+					_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", rtErr)
+					progress.setError(rtErr)
 					return
 				}
 
