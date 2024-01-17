@@ -12,10 +12,14 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/atomic"
+
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -23,8 +27,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/atomic"
 )
 
 const timeBuffer = 5 * time.Minute
@@ -113,7 +115,12 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 
 	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
 
-	for _, batch := range req.Batches {
+	batches := req.Batches
+	if p.Cfg.FilterServerSpans {
+		batches = filterBatches(batches)
+	}
+
+	for _, batch := range batches {
 
 		// Spans in the batch are for the same trace.
 		// We use the first one.
@@ -751,4 +758,40 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 		}
 	}
 	return r
+}
+
+// filterBatches to only root spans or kind==server. Does not modify the input
+// but returns a new struct referencing the same input pointers. Returns nil
+// if there were no matching spans.
+func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
+	keep := make([]*v1.ResourceSpans, 0, len(batches))
+
+	for _, batch := range batches {
+		var keepSS []*v1.ScopeSpans
+		for _, ss := range batch.ScopeSpans {
+
+			var keepSpans []*v1.Span
+			for _, s := range ss.Spans {
+				if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
+					keepSpans = append(keepSpans, s)
+				}
+			}
+
+			if len(keepSpans) > 0 {
+				keepSS = append(keepSS, &v1.ScopeSpans{
+					Scope: ss.Scope,
+					Spans: keepSpans,
+				})
+			}
+		}
+
+		if len(keepSS) > 0 {
+			keep = append(keep, &v1.ResourceSpans{
+				Resource:   batch.Resource,
+				ScopeSpans: keepSS,
+			})
+		}
+	}
+
+	return keep
 }
