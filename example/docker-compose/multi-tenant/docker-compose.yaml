@@ -1,0 +1,48 @@
+version: "3"
+services:
+  tempo:
+    image: grafana/tempo:latest
+    environment:
+      - GRPC_TRACE=api
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - ./tempo-data:/tmp/tempo
+    ports:
+      - "14268:14268"  # jaeger ingest
+      - "3200:3200"   # tempo
+      - "9095:9095" # tempo grpc
+      - "4317:4317"  # otlp grpc
+      - "4318:4318"  # otlp http
+      - "9411:9411"   # zipkin
+
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:latest
+    environment:
+      - ENDPOINT=tempo:4317
+      - TEMPO_X_SCOPE_ORGID=test
+    restart: always
+    depends_on:
+      - tempo
+
+  k6-tracing-2:
+    image: ghcr.io/grafana/xk6-client-tracing:latest
+    environment:
+      - ENDPOINT=tempo:4317
+      - TEMPO_X_SCOPE_ORGID=test2
+    restart: always
+    depends_on:
+      - tempo
+
+  grafana:
+    image: grafana/grafana:main
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_DEFAULT_APP_MODE=development
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor traceQLStreaming metricsSummary
+    ports:
+      - "3000:3000"
