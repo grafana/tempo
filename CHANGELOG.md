@@ -12,6 +12,7 @@
 * [CHANGE] Make vParquet3 the default block encoding [#2526](https://github.com/grafana/tempo/pull/3134) (@stoewer)
 * [CHANGE] Set `autocomplete_filtering_enabled` to `true` by default [#3178](https://github.com/grafana/tempo/pull/3178) (@mapno)
 * [CHANGE] Update Alpine image version to 3.19 [#3289](https://github.com/grafana/tempo/pull/3289) (@zalegrala)
+* [CHANGE] Introduce localblocks process config option to select only server spans 3303https://github.com/grafana/tempo/pull/3303 (@zalegrala)
 * [CHANGE] Major cache refactor to allow multiple role based caches to be configured [#3166](https://github.com/grafana/tempo/pull/3166).
   **BREAKING CHANGE** Deprecate the following fields. These have all been migrated to a top level "cache:" field.
   ```
