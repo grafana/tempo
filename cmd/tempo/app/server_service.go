@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -24,18 +23,15 @@ type TempoServer interface {
 	HTTP() *mux.Router
 	GRPC() *grpc.Server
 	Log() log.Logger
-	EnableHTTP2()
 
 	StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error)
 }
 
+// todo: evaluate whether the internal server should be included as part of this
 type tempoServer struct {
 	mux *mux.Router // all tempo http routes are added here
 
 	externalServer *server.Server // the standard server that all HTTP/GRPC requests are served on
-	// jpe: put internal server here as well?
-
-	enableHTTP2 sync.Once
 }
 
 func newTempoServer() *tempoServer {
@@ -57,12 +53,6 @@ func (s *tempoServer) Log() log.Logger {
 	return s.externalServer.Log
 }
 
-func (s *tempoServer) EnableHTTP2() {
-	s.enableHTTP2.Do(func() {
-		s.externalServer.HTTPServer.Handler = h2c.NewHandler(s.externalServer.HTTPServer.Handler, &http2.Server{})
-	})
-}
-
 func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error) {
 	var err error
 
@@ -72,7 +62,7 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 	cfg.Router = s.mux
 	if supportGRPCOnHTTP {
 		cfg.Router = nil
-		cfg.DoNotAddDefaultHTTPMiddleware = true // we don't want instrumentation on the "root" router, we want it on our mux
+		cfg.DoNotAddDefaultHTTPMiddleware = true // we don't want instrumentation on the "root" router, we want it on our mux. it will be added below.
 	}
 
 	DisableSignalHandling(&cfg)
@@ -83,17 +73,8 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 
 	// now that we have created the server and service let's setup our grpc/http router if necessary
 	if supportGRPCOnHTTP {
-		s.EnableHTTP2()
-		// jpe - this works as well
-		// s.externalServer.HTTP.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// 	// route to GRPC server if it's a GRPC request
-		// 	if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") { // jpe - both? i don't think grafana sends the content-type header
-		// 		s.externalServer.GRPC.ServeHTTP(w, req)
-		// 		return
-		// 	}
-
-		// 	w.WriteHeader(http.StatusNotFound)
-		// })
+		// for grpc to work we must enable h2c on the external server
+		s.externalServer.HTTPServer.Handler = h2c.NewHandler(s.externalServer.HTTPServer.Handler, &http2.Server{})
 
 		// recreate dskit instrumentation here
 		cfg.DoNotAddDefaultHTTPMiddleware = false
@@ -104,7 +85,7 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 		router := middleware.Merge(httpMiddleware...).Wrap(s.mux)
 		s.externalServer.HTTP.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			// route to GRPC server if it's a GRPC request
-			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") { // jpe - both? i don't think grafana sends the content-type header
+			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") {
 				s.externalServer.GRPC.ServeHTTP(w, req)
 				return
 			}

@@ -349,15 +349,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	}
 	t.frontend = v1
 
-	// jpe - add stream over http support here
-	//     - update docs to reflect new defaults
-	//     - remove stream_over_http_enabled config in integration tests
-	//     - review impact on GET
-	//     - remove support from dskit
-	//     - restore default = false
-	//     - remove ws support
-	//     - review dskit server settings, do i need to copy any to the router?
-
 	// create query frontend
 	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.Overrides, t.store, t.cacheProvider, t.cfg.HTTPAPIPrefix, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
