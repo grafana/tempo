@@ -351,3 +351,133 @@ func TestDiffSearchProgress(t *testing.T) {
 		},
 	}, diffProgress.result().response)
 }
+
+func TestMultiProgress(t *testing.T) {
+	mp := newMultiProgress()
+	ctx := context.Background()
+
+	diffProgress := newDiffSearchProgress(ctx, 0, 0, 0, 0)
+	p1 := atomic.NewPointer[*diffSearchProgress](nil)
+	p1.Store(&diffProgress)
+	mp.Add(p1)
+
+	// first request should be empty
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces:  []*tempopb.TraceSearchMetadata{},
+		Metrics: &tempopb.SearchMetrics{},
+	}, mp.finalResults(ctx).response)
+
+	diffProgress.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	// now we should get the same metadata as above
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, mp.finalResults(ctx).response)
+
+	// metrics, but the trace hasn't change
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, mp.finalResults(ctx).response)
+
+	// now let's add another diffProgress
+	diffProgress2 := newDiffSearchProgress(ctx, 0, 0, 0, 0)
+	p2 := atomic.NewPointer[*diffSearchProgress](nil)
+	p2.Store(&diffProgress2)
+	mp.Add(p2)
+
+	// second diffProgress is empty, so results should be same
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   2, // one for each diffProgress
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, mp.finalResults(ctx).response)
+
+	// add some results to the second diffProgress
+	diffProgress2.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "8756",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 1, // forces order
+			},
+			{
+				TraceID:           "1245",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 2,
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	// merged results from both diffProgress
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+			{
+				TraceID:           "1245",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 2,
+			},
+			{
+				TraceID:           "8756",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 1, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   2,
+			InspectedTraces: 2,
+			InspectedBytes:  4,
+		},
+	}, mp.finalResults(ctx).response)
+}
