@@ -21,6 +21,13 @@ func (ts ByAddr) Len() int           { return len(ts) }
 func (ts ByAddr) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
 func (ts ByAddr) Less(i, j int) bool { return ts[i].Addr < ts[j].Addr }
 
+// ByID is a sortable list of InstanceDesc.
+type ByID []InstanceDesc
+
+func (ts ByID) Len() int           { return len(ts) }
+func (ts ByID) Swap(i, j int)      { ts[i], ts[j] = ts[j], ts[i] }
+func (ts ByID) Less(i, j int) bool { return ts[i].Id < ts[j].Id }
+
 // ProtoDescFactory makes new Descs
 func ProtoDescFactory() proto.Message {
 	return NewDesc()

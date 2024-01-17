@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/grafana/pyroscope-go/godeltaprof/http/pprof" // anonymous import to get godelatprof handlers registered
+
 	gokit_log "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
@@ -26,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/exporter-toolkit/web"
-	"github.com/soheilhy/cmux"
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -92,10 +93,11 @@ type Config struct {
 	HTTPTLSConfig TLSConfig `yaml:"http_tls_config"`
 	GRPCTLSConfig TLSConfig `yaml:"grpc_tls_config"`
 
-	RegisterInstrumentation               bool `yaml:"register_instrumentation"`
-	ReportGRPCCodesInInstrumentationLabel bool `yaml:"report_grpc_codes_in_instrumentation_label_enabled"`
-	ExcludeRequestInLog                   bool `yaml:"-"`
-	DisableRequestSuccessLog              bool `yaml:"-"`
+	RegisterInstrumentation                  bool `yaml:"register_instrumentation"`
+	ReportGRPCCodesInInstrumentationLabel    bool `yaml:"report_grpc_codes_in_instrumentation_label_enabled"`
+	ReportHTTP4XXCodesInInstrumentationLabel bool `yaml:"-"`
+	ExcludeRequestInLog                      bool `yaml:"-"`
+	DisableRequestSuccessLog                 bool `yaml:"-"`
 
 	ServerGracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout"`
 	HTTPServerReadTimeout         time.Duration `yaml:"http_server_read_timeout"`
@@ -111,7 +113,6 @@ type Config struct {
 	HTTPMiddleware                []middleware.Interface         `yaml:"-"`
 	Router                        *mux.Router                    `yaml:"-"`
 	DoNotAddDefaultHTTPMiddleware bool                           `yaml:"-"`
-	RouteHTTPToGRPC               bool                           `yaml:"-"`
 
 	GRPCServerMaxRecvMsgSize           int           `yaml:"grpc_server_max_recv_msg_size"`
 	GRPCServerMaxSendMsgSize           int           `yaml:"grpc_server_max_send_msg_size"`
@@ -217,13 +218,6 @@ type Server struct {
 	grpcListener net.Listener
 	httpListener net.Listener
 
-	// These fields are used to support grpc over the http server
-	//  if RouteHTTPToGRPC is set. the fields are kept here
-	//  so they can be initialized in New() and started in Run()
-	grpchttpmux        cmux.CMux
-	grpcOnHTTPListener net.Listener
-	GRPCOnHTTPServer   *grpc.Server
-
 	HTTP       *mux.Router
 	HTTPServer *http.Server
 	GRPC       *grpc.Server
@@ -273,15 +267,6 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	metrics.TCPConnectionsLimit.WithLabelValues("http").Set(float64(cfg.HTTPConnLimit))
 	if cfg.HTTPConnLimit > 0 {
 		httpListener = netutil.LimitListener(httpListener, cfg.HTTPConnLimit)
-	}
-
-	var grpcOnHTTPListener net.Listener
-	var grpchttpmux cmux.CMux
-	if cfg.RouteHTTPToGRPC {
-		grpchttpmux = cmux.New(httpListener)
-
-		httpListener = grpchttpmux.Match(cmux.HTTP1Fast("PATCH"))
-		grpcOnHTTPListener = grpchttpmux.Match(cmux.HTTP2())
 	}
 
 	network = cfg.GRPCListenNetwork
@@ -350,6 +335,22 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 
 	level.Info(logger).Log("msg", "server listening on addresses", "http", httpListener.Addr(), "grpc", grpcListener.Addr())
 
+	// Setup HTTP server
+	var router *mux.Router
+	if cfg.Router != nil {
+		router = cfg.Router
+	} else {
+		router = mux.NewRouter()
+	}
+	if cfg.PathPrefix != "" {
+		// Expect metrics and pprof handlers to be prefixed with server's path prefix.
+		// e.g. /loki/metrics or /loki/debug/pprof
+		router = router.PathPrefix(cfg.PathPrefix).Subrouter()
+	}
+	if cfg.RegisterInstrumentation {
+		RegisterInstrumentationWithGatherer(router, gatherer)
+	}
+
 	// Setup gRPC server
 	serverLog := middleware.GRPCServerLog{
 		Log:                      logger,
@@ -363,6 +364,7 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 	grpcMiddleware := []grpc.UnaryServerInterceptor{
 		serverLog.UnaryServerInterceptor,
 		otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer()),
+		middleware.HTTPGRPCTracingInterceptor(router), // This must appear after the OpenTracingServerInterceptor.
 		middleware.UnaryServerInstrumentInterceptor(metrics.RequestDuration, reportGRPCStatusesOptions...),
 	}
 	grpcMiddleware = append(grpcMiddleware, cfg.GRPCMiddleware...)
@@ -417,27 +419,60 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(grpcCreds))
 	}
 	grpcServer := grpc.NewServer(grpcOptions...)
-	grpcOnHTTPServer := grpc.NewServer(grpcOptions...)
 
-	// Setup HTTP server
-	var router *mux.Router
-	if cfg.Router != nil {
-		router = cfg.Router
-	} else {
-		router = mux.NewRouter()
-	}
-	if cfg.PathPrefix != "" {
-		// Expect metrics and pprof handlers to be prefixed with server's path prefix.
-		// e.g. /loki/metrics or /loki/debug/pprof
-		router = router.PathPrefix(cfg.PathPrefix).Subrouter()
-	}
-	if cfg.RegisterInstrumentation {
-		RegisterInstrumentationWithGatherer(router, gatherer)
+	httpMiddleware, err := BuildHTTPMiddleware(cfg, router, metrics, logger)
+	if err != nil {
+		return nil, fmt.Errorf("error building http middleware: %w", err)
 	}
 
+	httpServer := &http.Server{
+		ReadTimeout:       cfg.HTTPServerReadTimeout,
+		ReadHeaderTimeout: cfg.HTTPServerReadHeaderTimeout,
+		WriteTimeout:      cfg.HTTPServerWriteTimeout,
+		IdleTimeout:       cfg.HTTPServerIdleTimeout,
+		Handler:           middleware.Merge(httpMiddleware...).Wrap(router),
+	}
+	if httpTLSConfig != nil {
+		httpServer.TLSConfig = httpTLSConfig
+	}
+
+	handler := cfg.SignalHandler
+	if handler == nil {
+		handler = signals.NewHandler(logger)
+	}
+
+	return &Server{
+		cfg:          cfg,
+		httpListener: httpListener,
+		grpcListener: grpcListener,
+		handler:      handler,
+
+		HTTP:       router,
+		HTTPServer: httpServer,
+		GRPC:       grpcServer,
+		Log:        logger,
+		Registerer: cfg.registererOrDefault(),
+		Gatherer:   gatherer,
+	}, nil
+}
+
+// RegisterInstrumentation on the given router.
+func RegisterInstrumentation(router *mux.Router) {
+	RegisterInstrumentationWithGatherer(router, prometheus.DefaultGatherer)
+}
+
+// RegisterInstrumentationWithGatherer on the given router.
+func RegisterInstrumentationWithGatherer(router *mux.Router, gatherer prometheus.Gatherer) {
+	router.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	}))
+	router.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
+}
+
+func BuildHTTPMiddleware(cfg Config, router *mux.Router, metrics *Metrics, logger gokit_log.Logger) ([]middleware.Interface, error) {
 	sourceIPs, err := middleware.NewSourceIPs(cfg.LogSourceIPsHeader, cfg.LogSourceIPsRegex)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up source IP extraction: %v", err)
+		return nil, fmt.Errorf("error setting up source IP extraction: %w", err)
 	}
 	logSourceIPs := sourceIPs
 	if !cfg.LogSourceIPs {
@@ -470,51 +505,7 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		httpMiddleware = append(defaultHTTPMiddleware, cfg.HTTPMiddleware...)
 	}
 
-	httpServer := &http.Server{
-		ReadTimeout:       cfg.HTTPServerReadTimeout,
-		ReadHeaderTimeout: cfg.HTTPServerReadHeaderTimeout,
-		WriteTimeout:      cfg.HTTPServerWriteTimeout,
-		IdleTimeout:       cfg.HTTPServerIdleTimeout,
-		Handler:           middleware.Merge(httpMiddleware...).Wrap(router),
-	}
-	if httpTLSConfig != nil {
-		httpServer.TLSConfig = httpTLSConfig
-	}
-
-	handler := cfg.SignalHandler
-	if handler == nil {
-		handler = signals.NewHandler(logger)
-	}
-
-	return &Server{
-		cfg:                cfg,
-		httpListener:       httpListener,
-		grpcListener:       grpcListener,
-		grpcOnHTTPListener: grpcOnHTTPListener,
-		handler:            handler,
-		grpchttpmux:        grpchttpmux,
-
-		HTTP:             router,
-		HTTPServer:       httpServer,
-		GRPC:             grpcServer,
-		GRPCOnHTTPServer: grpcOnHTTPServer,
-		Log:              logger,
-		Registerer:       cfg.registererOrDefault(),
-		Gatherer:         gatherer,
-	}, nil
-}
-
-// RegisterInstrumentation on the given router.
-func RegisterInstrumentation(router *mux.Router) {
-	RegisterInstrumentationWithGatherer(router, prometheus.DefaultGatherer)
-}
-
-// RegisterInstrumentationWithGatherer on the given router.
-func RegisterInstrumentationWithGatherer(router *mux.Router, gatherer prometheus.Gatherer) {
-	router.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
-		EnableOpenMetrics: true,
-	}))
-	router.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
+	return httpMiddleware, nil
 }
 
 // Run the server; blocks until SIGTERM (if signal handling is enabled), an error is received, or Stop() is called.
@@ -547,26 +538,17 @@ func (s *Server) Run() error {
 		}
 	}()
 
-	// Setup gRPC server
-	// for HTTP over gRPC, ensure we don't double-count the middleware
-	httpgrpc.RegisterHTTPServer(s.GRPC, httpgrpc_server.NewServer(s.HTTP))
+	serverOptions := make([]httpgrpc_server.Option, 0, 1)
+	if s.cfg.ReportHTTP4XXCodesInInstrumentationLabel {
+		serverOptions = append(serverOptions, httpgrpc_server.WithReturn4XXErrors)
+	}
+	// Setup gRPC server for HTTP over gRPC, ensure we don't double-count the middleware
+	httpgrpc.RegisterHTTPServer(s.GRPC, httpgrpc_server.NewServer(s.HTTP, serverOptions...))
 
 	go func() {
 		err := s.GRPC.Serve(s.grpcListener)
 		handleGRPCError(err, errChan)
 	}()
-
-	// grpchttpmux will only be set if grpchttpmux RouteHTTPToGRPC is set
-	if s.grpchttpmux != nil {
-		go func() {
-			err := s.grpchttpmux.Serve()
-			handleGRPCError(err, errChan)
-		}()
-		go func() {
-			err := s.GRPCOnHTTPServer.Serve(s.grpcOnHTTPListener)
-			handleGRPCError(err, errChan)
-		}()
-	}
 
 	return <-errChan
 }
