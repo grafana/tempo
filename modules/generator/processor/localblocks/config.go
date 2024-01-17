@@ -40,4 +40,5 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxBlockBytes = 500_000_000
 	cfg.CompleteBlockTimeout = time.Hour
 	cfg.ConcurrentBlocks = 10
+	cfg.FilterServerSpans = true
 }
