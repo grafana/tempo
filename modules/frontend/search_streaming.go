@@ -167,15 +167,6 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-		// FIXME: do we need this?? check if we need this?? this was commented out before?
-		tenant, _, err := user.ExtractFromGRPCRequest(srv.Context())
-		if err != nil {
-			level.Error(logger).Log("msg", "search streaming: extract org id failed", "err", err)
-			return fmt.Errorf("extract org id failed: %w", err)
-		}
-
-		level.Debug(logger).Log("msg", "in search streaming", "tenant", tenant)
-
 		httpReq, err := api.BuildSearchRequest(&http.Request{
 			URL: &url.URL{
 				Path: downstreamPath,
