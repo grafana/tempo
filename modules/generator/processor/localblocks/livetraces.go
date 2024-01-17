@@ -1,15 +1,12 @@
 package localblocks
 
 import (
-	"errors"
 	"hash"
 	"hash/fnv"
 	"time"
 
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
-
-var errMaxExceeded = errors.New("asdf")
 
 type liveTrace struct {
 	id        []byte
