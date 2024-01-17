@@ -35,7 +35,6 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_runtimeConfigOverr
 	overrides = runtimeOverridesManager.GetRuntimeOverridesFor("foo")
 	assert.NotNil(t, overrides)
 	assert.Equal(t, 15*time.Second, overrides.MetricsGenerator.CollectionInterval)
-
 }
 
 func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_userConfigurableOverridesManager(t *testing.T) {
