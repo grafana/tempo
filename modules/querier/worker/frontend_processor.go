@@ -14,6 +14,8 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/httpgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 )
@@ -66,8 +68,10 @@ func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, c
 		}
 
 		if err := fp.process(c); err != nil {
-			level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
-			backoff.Wait()
+			if status.Code(err) != codes.Canceled {
+				level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
+				backoff.Wait()
+			}
 			continue
 		}
 
