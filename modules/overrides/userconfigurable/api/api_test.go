@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +29,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		Local:   &local.Config{Path: t.TempDir()},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	validator := &mockValidator{}
@@ -176,7 +177,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			o, err := overrides.NewOverrides(overrides.Config{})
+			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 			assert.NoError(t, err)
 
 			overridesAPI, err := New(&client.Config{
@@ -211,7 +212,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	overridesAPI, err := New(&client.Config{
@@ -252,7 +253,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	overridesAPI, err := New(&client.Config{

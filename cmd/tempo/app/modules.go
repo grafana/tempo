@@ -185,7 +185,7 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	o, err := overrides.NewOverrides(t.cfg.Overrides)
+	o, err := overrides.NewOverrides(t.cfg.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides: %w", err)
 	}

@@ -99,7 +99,7 @@ type runtimeConfigOverridesManager struct {
 
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
-func newRuntimeConfigOverrides(cfg Config) (Service, error) {
+func newRuntimeConfigOverrides(cfg Config, registerer prometheus.Registerer) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -109,7 +109,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides(cfg.ConfigType),
 		}
-		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
 		}
