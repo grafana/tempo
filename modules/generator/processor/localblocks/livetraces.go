@@ -22,7 +22,7 @@ type liveTraces struct {
 func newLiveTraces() *liveTraces {
 	return &liveTraces{
 		hash:   fnv.New64(),
-		traces: map[uint64]*liveTrace{},
+		traces: make(map[uint64]*liveTrace),
 	}
 }
 
@@ -36,7 +36,7 @@ func (l *liveTraces) Len() uint64 {
 	return uint64(len(l.traces))
 }
 
-func (l *liveTraces) Push(traceID []byte, batches []*v1.ResourceSpans, maxTraces uint64) bool {
+func (l *liveTraces) Push(traceID []byte, batch *v1.ResourceSpans, max uint64) bool {
 	token := l.token(traceID)
 
 	tr := l.traces[token]
@@ -44,7 +44,7 @@ func (l *liveTraces) Push(traceID []byte, batches []*v1.ResourceSpans, maxTraces
 
 		// Before adding this check against max
 		// Zero means no limit
-		if maxTraces > 0 && uint64(len(l.traces)) >= maxTraces {
+		if max > 0 && uint64(len(l.traces)) >= max {
 			return false
 		}
 
@@ -54,7 +54,7 @@ func (l *liveTraces) Push(traceID []byte, batches []*v1.ResourceSpans, maxTraces
 		l.traces[token] = tr
 	}
 
-	tr.Batches = append(tr.Batches, batches...)
+	tr.Batches = append(tr.Batches, batch)
 	tr.timestamp = time.Now()
 	return true
 }

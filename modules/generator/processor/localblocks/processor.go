@@ -106,37 +106,43 @@ func (*Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
-	// All requests contain only a single trace so this is sufficient.
-	if len(req.Batches) == 0 || len(req.Batches[0].ScopeSpans) == 0 || len(req.Batches[0].ScopeSpans[0].Spans) == 0 {
-		return
-	}
-	traceID := req.Batches[0].ScopeSpans[0].Spans[0].TraceId
-
-	// Metric total spans regardless of outcome
-	numSpans := 0
-	for _, batch := range req.Batches {
-		for _, ss := range batch.ScopeSpans {
-			numSpans += len(ss.Spans)
-		}
-	}
-	metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
-
-	// Check max trace size
-	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
-	if maxSz > 0 && !p.traceSizes.Allow(traceID, req.Size(), maxSz) {
-		metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
-		return
-	}
-
-	// Live traces
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
 	before := p.liveTraces.Len()
-	if !p.liveTraces.Push(traceID, req.Batches, p.Cfg.MaxLiveTraces) {
-		metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
-		return
+
+	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
+
+	for _, batch := range req.Batches {
+
+		// Spans in the batch are for the same trace.
+		// We use the first one.
+		if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
+			return
+		}
+		traceID := batch.ScopeSpans[0].Spans[0].TraceId
+
+		// Metric total spans regardless of outcome
+		numSpans := 0
+		for _, ss := range batch.ScopeSpans {
+			numSpans += len(ss.Spans)
+		}
+		metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
+
+		// Check max trace size
+		if maxSz > 0 && !p.traceSizes.Allow(traceID, batch.Size(), maxSz) {
+			metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
+			continue
+		}
+
+		// Live traces
+		if !p.liveTraces.Push(traceID, batch, p.Cfg.MaxLiveTraces) {
+			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+			continue
+		}
+
 	}
+
 	after := p.liveTraces.Len()
 
 	// Number of new traces is the delta

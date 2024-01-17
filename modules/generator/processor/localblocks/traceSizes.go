@@ -21,7 +21,7 @@ type traceSize struct {
 func newTraceSizes() *traceSizes {
 	return &traceSizes{
 		hash:  fnv.New64(),
-		sizes: map[uint64]*traceSize{},
+		sizes: make(map[uint64]*traceSize),
 	}
 }
 
