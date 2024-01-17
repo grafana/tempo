@@ -23,6 +23,7 @@ type Config struct {
 	CompleteBlockTimeout time.Duration         `yaml:"complete_block_timeout"`
 	MaxLiveTraces        uint64                `yaml:"max_live_traces"`
 	ConcurrentBlocks     uint                  `yaml:"concurrent_blocks"`
+	FilterServerSpans    bool                  `yaml:"filter_server_spans"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
