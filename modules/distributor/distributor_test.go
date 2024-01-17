@@ -1506,3 +1506,7 @@ func (r mockRing) CleanupShuffleShardCache(string) {
 func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 	return ring.ACTIVE, nil
 }
+
+func (r mockRing) GetTokenRangesForInstance(instanceID string) (ring.TokenRanges, error) {
+	return nil, nil
+}
