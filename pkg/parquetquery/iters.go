@@ -526,8 +526,6 @@ type SyncIterator struct {
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
-
-	cloneHash map[string]pq.Value
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -562,7 +560,6 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMax:     rgsMax,
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
-		cloneHash:  make(map[string]pq.Value),
 	}
 }
 
@@ -930,36 +927,13 @@ func (c *SyncIterator) closeCurrRowGroup() {
 	c.currRowGroupMax = EmptyRowNumber()
 	c.currChunk = nil
 	c.setPage(nil)
-
-	// Reset clone cache
-	c.cloneHash = make(map[string]pq.Value, len(c.cloneHash))
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		// sigh...
-		switch v.Kind() {
-		case pq.ByteArray, pq.FixedLenByteArray:
-			// Strings are pointers to the underlying i/o buffers
-			// so they must be disconnected before they can be safely
-			// passed to the callers.
-			// Keep a cache of previous clones.
-			b := v.ByteArray()
-			clone, ok := c.cloneHash[string(b)]
-
-			if !ok {
-				clone = v.Clone()
-				c.cloneHash[string(b)] = clone
-			}
-
-			r.AppendValue(c.selectAs, clone)
-
-		default:
-			// No need to clone for other types
-			r.AppendValue(c.selectAs, *v)
-		}
+		r.AppendValue(c.selectAs, v.Clone())
 	}
 	return r
 }
