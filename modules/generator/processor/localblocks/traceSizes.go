@@ -31,9 +31,9 @@ func (s *traceSizes) token(traceID []byte) uint64 {
 	return s.hash.Sum64()
 }
 
-// Allow returns true if the total previously received plus incoming sizes are less than
-// or equal to the max.  The incoming data size is added to the historical total even
-// if not allowed, so that when the max limit changes it still evalulates as expected.
+// Allow returns true if the historical total plus incoming size is less than
+// or equal to the max.  The historical total is kept alive and incremented even
+// if not allowed, so that long-running traces are cutoff as expected.
 func (s *traceSizes) Allow(traceID []byte, sz, max int) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -46,6 +46,7 @@ func (s *traceSizes) Allow(traceID []byte, sz, max int) bool {
 		}
 		s.sizes[token] = tr
 	}
+
 	tr.timestamp = time.Now()
 	tr.size += sz
 
