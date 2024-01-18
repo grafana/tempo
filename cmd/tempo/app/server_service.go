@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -23,6 +24,7 @@ type TempoServer interface {
 	HTTP() *mux.Router
 	GRPC() *grpc.Server
 	Log() log.Logger
+	EnableHTTP2()
 
 	StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error)
 }
@@ -31,7 +33,8 @@ type TempoServer interface {
 type tempoServer struct {
 	mux *mux.Router // all tempo http routes are added here
 
-	externalServer *server.Server // the standard server that all HTTP/GRPC requests are served on
+	externalServer  *server.Server // the standard server that all HTTP/GRPC requests are served on
+	enableHTTP2Once sync.Once
 }
 
 func newTempoServer() *tempoServer {
@@ -51,6 +54,12 @@ func (s *tempoServer) GRPC() *grpc.Server {
 
 func (s *tempoServer) Log() log.Logger {
 	return s.externalServer.Log
+}
+
+func (s *tempoServer) EnableHTTP2() {
+	s.enableHTTP2Once.Do(func() {
+		s.externalServer.HTTPServer.Handler = h2c.NewHandler(s.externalServer.HTTPServer.Handler, &http2.Server{})
+	})
 }
 
 func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error) {
@@ -74,7 +83,7 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 	// now that we have created the server and service let's setup our grpc/http router if necessary
 	if supportGRPCOnHTTP {
 		// for grpc to work we must enable h2c on the external server
-		s.externalServer.HTTPServer.Handler = h2c.NewHandler(s.externalServer.HTTPServer.Handler, &http2.Server{})
+		s.EnableHTTP2()
 
 		// recreate dskit instrumentation here
 		cfg.DoNotAddDefaultHTTPMiddleware = false
