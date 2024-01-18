@@ -13,9 +13,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
-	"github.com/gorilla/websocket"
+	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"go.uber.org/atomic"
 
 	"github.com/grafana/dskit/user"
@@ -129,104 +127,6 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 			return srv.Send(resp)
 		})
 	}
-}
-
-func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, searchCache *frontendCache, apiPrefix string, logger log.Logger) http.Handler {
-	searcher := streamingSearcher{
-		logger:        logger,
-		downstream:    downstream,
-		reader:        reader,
-		postSLOHook:   searchSLOPostHook(cfg.Search.SLO),
-		o:             o,
-		searchCache:   searchCache,
-		cfg:           &cfg,
-		preMiddleware: newMultiTenantUnsupportedMiddleware(cfg, logger),
-	}
-
-	// since this is a backend DB we allow websockets to originate from anywhere
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
-	downstreamPath := path.Join(apiPrefix, api.PathSearch)
-	fnHandler := func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithCancel(r.Context())
-		defer cancel()
-		r = r.WithContext(ctx)
-
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			level.Error(logger).Log("msg", "error in upgrading websocket", "err", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// flag to track if we closed the connection. we use this to ignore errors from read
-		// if we have closed the connection purposefully then read errors are ignorable
-		connClosedByUs := &atomic.Bool{}
-
-		// defer closing of the websocket
-		defer func() {
-			connClosedByUs.Store(true)
-			if err := conn.Close(); err != nil {
-				level.Error(logger).Log("msg", "error closing websocket", "err", err)
-			}
-		}()
-
-		// watch for graceful closure from client
-		go func() {
-			// cancel the context when we exit to cancel downstream requests
-			defer cancel()
-			for {
-				// generally websockets allow bi-directional communication. however, in tempo, we have decided to only accept and service
-				// a single query per websocket. this code drops all messages from the client except for graceful closures.
-				// Both graceful closures and unexpected closures are signaled through the error return of the conn.ReadMessage() method.
-				// In both cases we cancel the context to signal to the downstream request to stop.
-				_, _, err := conn.ReadMessage()
-				if connClosedByUs.Load() {
-					return // we closed the connection, ignore errors
-				}
-				if err != nil {
-					var closeErr *websocket.CloseError
-					if errors.As(err, &closeErr) {
-						if closeErr.Code == websocket.CloseNormalClosure {
-							return // graceful closure. exit silently
-						}
-					}
-
-					// on an unexpected closure, the error "use of closed network connection" will be logged
-					level.Error(logger).Log("msg", "unexpected error from client", "err", err)
-					return
-				}
-			}
-		}()
-
-		// set the path correctly, RequestUri is used by the httpgrpc bridge
-		r.URL.Path = downstreamPath
-		r.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
-
-		jsonMarshaler := &jsonpb.Marshaler{}
-		err = searcher.handle(r, func(resp *tempopb.SearchResponse) error {
-			msg, err := jsonMarshaler.MarshalToString(resp)
-			if err != nil {
-				return err
-			}
-
-			return conn.WriteMessage(websocket.TextMessage, []byte(msg))
-		})
-
-		// send a close msg to the client now that we are done
-		if err != nil {
-			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()))
-		} else {
-			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "query complete"))
-		}
-		if err != nil {
-			level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
-		}
-	}
-
-	return http.HandlerFunc(fnHandler)
 }
 
 type streamingSearcher struct {

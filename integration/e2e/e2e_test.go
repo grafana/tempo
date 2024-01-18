@@ -134,10 +134,6 @@ func TestAllInOne(t *testing.T) {
 			require.NoError(t, err)
 
 			util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-
-			// test websockets
-			wsClient := httpclient.New("ws://"+tempo.Endpoint(3200), "")
-			util.SearchWSStreamAndAssertTrace(t, wsClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 		})
 	}
 }

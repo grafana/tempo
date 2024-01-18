@@ -29,6 +29,7 @@ import (
 	tnoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/grafana/tempo/pkg/httpclient"
@@ -64,6 +65,10 @@ func buildArgsWithExtra(args, extraArgs []string) []string {
 }
 
 func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
+	return NewTempoAllInOneWithReadinessProbe(e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299), extraArgs...)
+}
+
+func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
 	args = buildArgsWithExtra(args, extraArgs)
 
@@ -71,8 +76,9 @@ func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 		"tempo",
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
-		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		rp,
 		3200,  // http all things
+		3201,  // http all things
 		9095,  // grpc tempo
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
@@ -313,7 +319,11 @@ func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 }
 
 func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
-	clientConn, err := grpc.DialContext(ctx, endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	return NewSearchGRPCClientWithCredentials(ctx, endpoint, insecure.NewCredentials())
+}
+
+func NewSearchGRPCClientWithCredentials(ctx context.Context, endpoint string, creds credentials.TransportCredentials) (tempopb.StreamingQuerierClient, error) {
+	clientConn, err := grpc.DialContext(ctx, endpoint, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
@@ -385,23 +395,6 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 		require.NoError(t, err)
 	}
 	require.True(t, found)
-}
-
-func SearchWSStreamAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	attr := tempoUtil.RandomAttrFromTrace(expected)
-	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
-
-	resp, err := client.SearchWithWebsocket(&tempopb.SearchRequest{
-		Query: query,
-		Start: uint32(start),
-		End:   uint32(end),
-	}, func(sr *tempopb.SearchResponse) {})
-
-	require.NoError(t, err)
-	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers

@@ -25,6 +25,10 @@ func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return nil
 }
 
+func (m *mockOverrides) MaxBytesPerTrace(string) int {
+	return 0
+}
+
 func TestProcessorDoesNotRace(t *testing.T) {
 	wal, err := wal.New(&wal.Config{
 		Filepath: t.TempDir(),
