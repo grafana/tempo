@@ -59,10 +59,7 @@ You can use Grafana or tempo-cli to make a query.
 **grpc streaming query using tempo-cli**
 - `$ tempo-cli query api search "0.0.0.0:3200" --use-grpc --limit 10000 "{}" "2023-12-05T08:11:18Z" "2023-12-05T08:12:18Z" --org-id="test"`
 
-**websocket streaming query using tempo-cli**
-- `$ tempo-cli query api search "0.0.0.0:3200" --use-ws --limit 10000 "{}" "2023-12-05T08:11:18Z" "2023-12-05T08:12:18Z" --org-id="test"`
-
 **multi-tenant streaming queries using tempo-cli**
-- Just pass multiple tenant ids with `|` like this `--org-id="test|test2"`
+- pass multiple tenant ids with `|` like this `--org-id="test|test2"`
 
 example: `$ ./bin/linux/tempo-cli-amd64 query api search "0.0.0.0:3200" --use-grpc --limit 10000 "{ true } >> { true }" "2024-01-15T11:00:00Z" "2024-01-19T12:30:00Z" --org-id="test|test2"`
