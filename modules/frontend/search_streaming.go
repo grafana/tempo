@@ -13,10 +13,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	//nolint:all //deprecated
+	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/tempo/modules/frontend/combiner"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
@@ -184,8 +182,8 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 		o:           o,
 		searchCache: searchCache,
 		cfg:         &cfg,
-		// pass NoOp combiner because we combine results ourselves, and don't use
-		// combined results from middleware
+		// pass NoOp combiner because we combine results ourselves.
+		// we don't use combiner's combined result for streaming search.
 		preMiddleware: newMultiTenantMiddleware(cfg, combiner.NewNoOp, logger),
 	}
 
@@ -257,7 +255,7 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 
 	// initiate http pipeline
 	go func() {
-		// blocking, and query is done when this returns.
+		// query is finished when RoundTrip returns.
 		resp, err := rt.RoundTrip(r)
 		resultChan <- roundTripResult{resp, err}
 		close(resultChan)
@@ -281,7 +279,7 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 				return fmt.Errorf("search streaming send failed: %w", err)
 			}
 
-		// final result is available, request is done
+		// final result is available, pipeline is done
 		case roundTripRes := <-resultChan:
 			// check for errors in the http response
 			if roundTripRes.err != nil {
