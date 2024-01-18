@@ -35,7 +35,7 @@ type diffSearchProgress struct {
 	mtx        sync.Mutex
 }
 
-func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) *diffSearchProgress {
+func newDiffSearchProgress(ctx context.Context, limit int, totalJobs, totalBlocks uint32, totalBlockBytes uint64) *diffSearchProgress {
 	return &diffSearchProgress{
 		seenTraces: map[string]struct{}{},
 		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
@@ -89,6 +89,10 @@ func (p *diffSearchProgress) result() *shardedSearchResults {
 	return res
 }
 
+func (p *diffSearchProgress) metrics() *tempopb.SearchMetrics {
+	return p.progress.metrics()
+}
+
 // finalResult gives the user the ability to pull all results w/o filtering
 // to ensure that all results are sent to the caller
 func (p *diffSearchProgress) finalResult() *shardedSearchResults {
@@ -96,52 +100,72 @@ func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 }
 
 type multiProgress struct {
-	mu       sync.Mutex
-	progress []*atomic.Pointer[*diffSearchProgress]
+	mu              sync.Mutex
+	progress        []*diffSearchProgress
+	combinedMetrics *tempopb.SearchMetrics
 }
 
 func newMultiProgress() *multiProgress {
 	return &multiProgress{
-		progress: make([]*atomic.Pointer[*diffSearchProgress], 0),
+		progress:        make([]*diffSearchProgress, 0),
+		combinedMetrics: &tempopb.SearchMetrics{},
 	}
 }
 
-func (mp *multiProgress) Add(p *atomic.Pointer[*diffSearchProgress]) {
+func (mp *multiProgress) Add(p *diffSearchProgress) {
 	mp.mu.Lock()
 	defer mp.mu.Unlock()
 
 	mp.progress = append(mp.progress, p)
+
+	// combine metrics
+	m := *p.metrics()
+	// only set the metrics we set in progress constructor, other metrics are set by the sharder
+	mp.combinedMetrics.TotalBlocks += m.TotalBlocks
+	mp.combinedMetrics.TotalBlockBytes += m.TotalBlockBytes
+	mp.combinedMetrics.TotalJobs += m.TotalJobs
 }
 
-// Snapshot returns a safe copy of progress list. Use this function to get a copy of progress list
-// and use it to do further processing on the progress objects.
-func (mp *multiProgress) Snapshot() []*atomic.Pointer[*diffSearchProgress] {
+// results will calls result on underlying progress objects and combines them into a single result.
+func (mp *multiProgress) results(ctx context.Context) *shardedSearchResults {
 	mp.mu.Lock()
 	defer mp.mu.Unlock()
 
-	copyList := make([]*atomic.Pointer[*diffSearchProgress], len(mp.progress))
-	copy(copyList, mp.progress)
-	return copyList
+	if len(mp.progress) == 1 {
+		// single tenant query, only one progress object.
+		return mp.progress[0].result()
+	}
+
+	comb := newSearchProgress(ctx, 0, mp.combinedMetrics.TotalJobs, mp.combinedMetrics.TotalBlocks, mp.combinedMetrics.TotalBlockBytes)
+	for _, progress := range mp.progress {
+		r := *progress.result() // only get new results from each progress object
+		comb.addResponse(r.response)
+		// set the error and status code, if any
+		if r.err != nil || r.statusCode != http.StatusOK {
+			comb.setError(r.err)
+			comb.setStatus(r.statusCode, r.statusMsg)
+		}
+	}
+
+	return comb.result()
 }
 
+// finalResults will call finalResult on underlying progress objects and combines them into a single result.
 func (mp *multiProgress) finalResults(ctx context.Context) *shardedSearchResults {
 	mp.mu.Lock()
 	defer mp.mu.Unlock()
 
 	if len(mp.progress) == 1 {
 		// single tenant query, only one progress object.
-		p := *mp.progress[0].Load()
-		return p.finalResult()
+		return mp.progress[0].finalResult()
 	}
 
-	// multi-tenant query, merge result from all progress objects.
-	// note: newSearchProgress is used to combine results from multiple progress objects, don't use it for anything else.
-	comb := newSearchProgress(ctx, 0, 0, 0, 0)
+	// init the progress object with combinedMetrics to report accurate metrics
+	comb := newSearchProgress(ctx, 0, mp.combinedMetrics.TotalJobs, mp.combinedMetrics.TotalBlocks, mp.combinedMetrics.TotalBlockBytes)
 	for _, progress := range mp.progress {
-		// FIXME: add a null check here??
-		p := *progress.Load()
-		r := p.finalResult()
+		r := *progress.finalResult()
 		comb.addResponse(r.response)
+		// set the error and status code, if any
 		if r.err != nil || r.statusCode != http.StatusOK {
 			comb.setError(r.err)
 			comb.setStatus(r.statusCode, r.statusMsg)
@@ -199,9 +223,6 @@ type streamingSearcher struct {
 	preMiddleware Middleware
 }
 
-// FIXME: test multi-tenant handling here?? and ensure that forwardResults is called multiple times?? to check that we actually stream results??
-// multi-tenant support in handle func, and that will make the streaming for multi-tenant search work??
-// forwardResults func will push results back to the streaming client
 func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error {
 	ctx := r.Context()
 
@@ -218,11 +239,9 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 	mProgress := newMultiProgress()
 	// create diffSearchProgress for each tenant, and keep a reference to
 	// stream results back to the client.
-	progressFactoryFn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
-		ap := atomic.NewPointer[*diffSearchProgress](nil)
+	progressFactoryFn := func(ctx context.Context, limit int, totalJobs, totalBlocks uint32, totalBlockBytes uint64) shardedSearchProgress {
 		diffProgress := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
-		ap.Store(&diffProgress)
-		mProgress.Add(ap)
+		mProgress.Add(diffProgress)
 		return diffProgress
 	}
 
@@ -255,32 +274,13 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 			return ctx.Err()
 		// stream results as they come in
 		case <-time.After(500 * time.Millisecond):
-			snap := mProgress.Snapshot() // safe copy of progress list
-			for _, progress := range snap {
-				p := progress.Load()
-				if p == nil {
-					continue
-				}
-
-				result := (*p).result()
-				if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
-					continue
-				}
-
-				// send response to client
-				// FIXME: this will ping pong between each tenant's metrics and client will not get accurate metrics
-				// -- metrics when results are streaming back in??
-				// {"metrics":{"inspectedBytes":452084,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":535418}}
-				// {"metrics":{"inspectedBytes":452945,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":506656}}
-				// {"metrics":{"inspectedBytes":452084,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":535418}}
-				// {"metrics":{"inspectedBytes":452945,"totalBlocks":1,"completedJobs":2,"totalJobs":2,"totalBlockBytes":506656}}
-				// FIXME: need to merge metrics from all tenants and modify response with merged metrics.
-				err := forwardResults(result.response)
-				if err != nil {
-					level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
-					return fmt.Errorf("search streaming send failed: %w", err)
-				}
+			res := mProgress.results(ctx)
+			err := forwardResults(res.response)
+			if err != nil {
+				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
+				return fmt.Errorf("search streaming send failed: %w", err)
 			}
+
 		// final result is available, request is done
 		case roundTripRes := <-resultChan:
 			// check for errors in the http response
@@ -301,7 +301,6 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 				level.Error(s.logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 				return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
 			}
-			// TODO: metrics are accurate in final result because we merge results and metrics?? "metrics":{"inspectedBytes":905029,"completedJobs":2}
 			err := forwardResults(result.response)
 			if err != nil {
 				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)

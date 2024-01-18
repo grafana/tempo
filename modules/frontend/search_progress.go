@@ -13,7 +13,7 @@ import (
 
 // searchProgressFactory is used to provide a way to construct a shardedSearchProgress to the searchSharder. It exists
 // so that streaming search can inject and track it's own special progress object
-type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress
+type searchProgressFactory func(ctx context.Context, limit int, totalJobs, totalBlocks uint32, totalBlockBytes uint64) shardedSearchProgress
 
 // shardedSearchProgress is an interface that allows us to get progress
 // events from the search sharding handler.
@@ -23,6 +23,7 @@ type shardedSearchProgress interface {
 	addResponse(res *tempopb.SearchResponse)
 	shouldQuit() bool
 	result() *shardedSearchResults
+	metrics() *tempopb.SearchMetrics
 }
 
 // shardedSearchResults is the overall response from the shardedSearchProgress
@@ -52,16 +53,16 @@ type searchProgress struct {
 	mtx   sync.Mutex
 }
 
-func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
+func newSearchProgress(ctx context.Context, limit int, totalJobs, totalBlocks uint32, totalBlockBytes uint64) shardedSearchProgress {
 	return &searchProgress{
 		ctx:              ctx,
 		statusCode:       http.StatusOK,
 		limit:            limit,
 		finishedRequests: 0,
 		resultsMetrics: &tempopb.SearchMetrics{
-			TotalBlocks:     uint32(totalBlocks),
+			TotalBlocks:     totalBlocks,
 			TotalBlockBytes: totalBlockBytes,
-			TotalJobs:       uint32(totalJobs),
+			TotalJobs:       totalJobs,
 		},
 		resultsCombiner: traceql.NewMetadataCombiner(),
 	}
@@ -90,10 +91,17 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 		r.resultsCombiner.AddMetadata(t)
 	}
 
-	// purposefully ignoring TotalBlocks as that value is set by the sharder
+	// don't set TotalBlocks, TotalBlockBytes, TotalJobs, they are set in constructor.
 	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
-	r.resultsMetrics.CompletedJobs++
+
+	// if not set in response, count it as one job completed.
+	if res.Metrics.CompletedJobs == 0 {
+		r.resultsMetrics.CompletedJobs++
+	} else {
+		// if set in response, we merge it like other metrics
+		r.resultsMetrics.CompletedJobs += res.Metrics.CompletedJobs
+	}
 
 	// count this request as finished
 	r.finishedRequests++
@@ -183,6 +191,13 @@ func (r *searchProgress) result() *shardedSearchResults {
 	res.response = searchRes
 
 	return res
+}
+
+func (r *searchProgress) metrics() *tempopb.SearchMetrics {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	return r.resultsMetrics
 }
 
 func copySpanset(ss *tempopb.SpanSet) *tempopb.SpanSet {
