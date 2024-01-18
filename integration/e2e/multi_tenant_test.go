@@ -220,24 +220,9 @@ func TestMultiTenantSearch(t *testing.T) {
 				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
 			})
 			require.NoError(t, err)
-			// actual error comes in resp, need to call Recv to get it.
+			// actual error comes in response, need to call Recv to get it.
 			_, grpcErr := grpcResp.Recv()
-			// fmt.Printf("==== grpcResp.Recv() grpcErr: %s\n", grpcErr)
-			// fmt.Printf("==== grpcResp.Recv() grpcSearchResp: %s\n", grpcSearchResp)
-
-			// drain the stream until everything is returned
-			// for {
-			// 	_, grpcErr = grpcResp.Recv()
-			// 	if errors.Is(err, io.EOF) {
-			// 		break
-			// 	}
-			// 	require.NoError(t, err)
-			// }
-
-			// find the trace with streaming. using the http server b/c that's what Grafana will do
-			// FIXME: info is for the last tenant so it's gonna fail, assert streaming in it's own test?? and only check for no error here
-			// rpc error: code = Unknown desc = no org id
-			// util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+			assertRequestCountMetric(t, tempo, "/tempopb.StreamingQuerier/Search", 1)
 
 			if tc.tenantSize > 1 {
 				// error for multi-tenant request for unsupported endpoints
