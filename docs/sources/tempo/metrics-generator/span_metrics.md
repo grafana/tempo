@@ -153,6 +153,39 @@ The following intrinsic kinds are available for filtering.
 - `SPAN_KIND_PRODUCER`
 - `SPAN_KIND_CONSUMER`
 
+
+#### Filter policies
+
+Each filter policy is evaluated in order for every span to determine if the
+span should be included for metrics.  Both `include` and `exclude` policies are
+used to *reject* spans from the metrics.  With no filter polices applied, all
+spans are included.
+
+{{% admonition type="note" %}}
+An exclude match will take precedence over an include match within the *same*
+policy, but not later polices.
+{{% /admonition %}}
+
+{{% admonition type="note" %}}
+A matching exclude of one policy will be ignored if a later policy `include`
+matches, and that same policy does not also have a matching `exclude` for the
+span.
+{{% /admonition %}}
+
+In this way, an `include` is applied first, and then spans which also match the
+`exclude` for that same policy are marked be skipped.  Further policies are
+still evaluated to allow multiple policies to operate on the same attributes in
+case an earlier policy does not match.
+
+{{% admonition type="note" %}}
+If a global rejection of a particular match is desired, then an exclude policy
+must be applied to each filter policy. 
+{{% /admonition %}}
+
+Let's review some examples.
+
+#### Span matching
+
 Intrinsic keys can be acted on directly when implementing a filter policy. For example:
 
 ```yaml
@@ -168,11 +201,17 @@ metrics_generator:
                 value: SPAN_KIND_SERVER
 ```
 
-In this example, spans which are of `kind` "server" are included for metrics export.
+In this example, only spans which are of `kind` "server" are included for
+metrics export.
 
-When selecting spans based on non-intrinsic attributes, it is required to specify the scope of the attribute, similar to how it is specified in TraceQL.
-For example, if the `resource` contains a `location` attribute which is to be used in a filter policy, then the reference needs to be specified as `resource.location`.
-This requires users to know and specify which scope an attribute is to be found and avoids the ambiguity of conflicting values at differing scopes. The following may help illustrate.
+When selecting spans based on non-intrinsic attributes, it is required to
+specify the scope of the attribute, similar to how it is specified in TraceQL.
+
+For example, if the `resource` contains a `location` attribute which is to be
+used in a filter policy, then the reference needs to be specified as
+`resource.location`. This requires users to know and specify which scope an
+attribute is to be found and avoids the ambiguity of conflicting values at
+differing scopes. The following may help illustrate.
 
 ```yaml
 ---
@@ -208,8 +247,10 @@ metrics_generator:
                 value: dev-.*
 ```
 
-In the above, we first include all spans which have a `resource.location` that begins with `eu-` with the `include` statement, and then exclude those with begin with `dev-`.
-In this way, a flexible approach to filtering can be achieved to ensure that only metrics which are important are generated.
+In the above, we first include all spans which have a `resource.location` that
+begins with `eu-` with the `include` statement, and then `exclude` those with
+begin with `dev-`. In this way, a flexible approach to filtering can be
+achieved to store only those metrics which are important.
 
 Additionally, when multiple filter policies are are used, any policy that is
 matched will result in the span being included in the metric export.
@@ -226,10 +267,10 @@ metrics_generator:
               - key: resource.location
                 value: eu-.*
           exclude:
-            match_type: regex
+            match_type: strict
             attributes:
               - key: resource.tier
-                value: dev-.*
+                value: research
         - include:
             match_type: regex
             attributes:
@@ -241,18 +282,17 @@ metrics_generator:
             match_type: regex
             attributes:
               - key: resource.tier
-                value: dev-.*
+                value: research
 ```
 
 In this example, spans that match a location beginning with `eu-` or `sa-` will
-be included so long as they are not a `resource.tier` beginning with `dev-`.
-This example could also be written with a single regex expression, except that
-in the second policy we have an additional constraint to match against.  If
-either the `resource.location` or the `resource.platform` is not matched in the
-second policy, then the span is not included.
+be included, but in both cases we also exclude spans which match
+`{resource.tier="research"}`.
 
-This is to say, within a single filter policy, the conditions are using `AND`
-logic, but multiple polices will use `OR` logic.
+This example could also be written with a single regex expression, except that
+in the second policy we have an additional constraint to match against for
+`k8s-.*`.  If either the `resource.location` or the `resource.platform` is not
+matched in the second policy, then the span is not included.
 
 ## Example
 
