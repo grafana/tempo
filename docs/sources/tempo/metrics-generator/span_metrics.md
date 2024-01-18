@@ -126,7 +126,7 @@ func (ds RatioBasedSampler) Description() string {
 ### Filtering
 
 In some cases, you may want to reduce the number of metrics that are produced
-from the `spanmetrics` processor by using a filter. With a filter you can
+from the `spanmetrics` processor by using a filter. With a filter, you can
 configure the processor to use an `include` statement to match criteria that
 must be present in the span in order to be included in the metrics. Following
 the include filter, you can use an `exclude` filter to reject portions of what
