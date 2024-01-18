@@ -25,10 +25,9 @@ leverages all the data that is processed in the pipeline.
 
 ## Agent modes
 
-Grafana Agent is available in three different variants:
+Grafana Agent is available in two different variants:
 
 * [Static mode](/docs/agent/latest/static): The original Grafana Agent.
-* [Static mode Kubernetes operator](/docs/agent/latest/operator): The Kubernetes operator for Static mode.
 * [Flow mode](/docs/agent/latest/flow): The new, component-based Grafana Agent.
 
 Grafana Agent Flow configuration files are [written in River](/docs/agent/latest/flow/config-language/). Static configuraiton files are [written in YAML](/docs/agent/latest/static/configuration/).
