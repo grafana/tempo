@@ -45,9 +45,9 @@ func (m *mockStreamingServer) SendMsg(interface{}) error    { return nil }
 func (m *mockStreamingServer) RecvMsg(interface{}) error    { return nil }
 func (m *mockStreamingServer) SetTrailer(metadata.MD)       {}
 
-func newMockStreamingServer(orgId string, cb func(int, *tempopb.SearchResponse)) *mockStreamingServer {
+func newMockStreamingServer(orgID string, cb func(int, *tempopb.SearchResponse)) *mockStreamingServer {
 	return &mockStreamingServer{
-		ctx: user.InjectOrgID(context.Background(), orgId),
+		ctx: user.InjectOrgID(context.Background(), orgID),
 		cb:  cb,
 	}
 }
