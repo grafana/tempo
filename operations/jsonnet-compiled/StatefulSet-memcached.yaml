@@ -27,7 +27,7 @@ spec:
         - -I 5m
         - -c 4096
         - -v
-        image: memcached:1.6.17-alpine
+        image: memcached:1.6.23-alpine
         imagePullPolicy: IfNotPresent
         name: memcached
         ports:
