@@ -167,3 +167,17 @@ func (s *SpanLogger) getLogger() log.Logger {
 	}
 	return logger
 }
+
+// SetSpanAndLogTag sets a tag on the span used by this SpanLogger, and appends a key/value pair to the logger used for
+// future log lines emitted by this SpanLogger.
+//
+// It is not safe to call this method from multiple goroutines simultaneously.
+// It is safe to call this method at the same time as calling other SpanLogger methods, however, this may produce
+// inconsistent results (eg. some log lines may be emitted with the provided key/value pair, and others may not).
+func (s *SpanLogger) SetSpanAndLogTag(key string, value interface{}) {
+	s.Span.SetTag(key, value)
+
+	logger := s.getLogger()
+	wrappedLogger := log.With(logger, key, value)
+	s.logger.Store(&wrappedLogger)
+}

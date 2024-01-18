@@ -1335,6 +1335,7 @@ overrides:
           [trace_idle_period: <duration>]
           [complete_block_timeout: <duration>]
           [concurrent_blocks: <duration>]
+          [filter_server_spans: <bool>]
 
     # Generic forwarding configuration
 

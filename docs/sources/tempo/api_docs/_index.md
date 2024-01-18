@@ -588,10 +588,6 @@ The query-frontend component implements the streaming querier interface defined 
 By default, this service is only offered over the GRPC port.
 You can use streaming service over the HTTP port as well (which Grafana expects).
 
-{{% admonition type="note" %}}
-Enabling this setting is incompatible with TLS.
-{{% /admonition %}}
-
 To enable the streaming service over the HTTP port for use with Grafana, set the following:
 
 ```
