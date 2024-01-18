@@ -253,7 +253,7 @@ begin with `dev-`. In this way, a flexible approach to filtering can be
 achieved to store only those metrics which are important.
 
 Additionally, when multiple filter policies are are used, any policy that is
-matched will result in the span being included in the metric export.
+matched results in the span being included in the metric export.
 
 ```yaml
 ---
