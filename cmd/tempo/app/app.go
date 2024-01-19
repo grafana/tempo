@@ -66,7 +66,7 @@ var (
 type App struct {
 	cfg Config
 
-	server         TempoServer
+	Server         TempoServer
 	InternalServer *server.Server
 
 	readRings     map[string]*ring.Ring
@@ -95,7 +95,7 @@ func New(cfg Config) (*App, error) {
 	app := &App{
 		cfg:       cfg,
 		readRings: map[string]*ring.Ring{},
-		server:    newTempoServer(),
+		Server:    newTempoServer(),
 	}
 
 	usagestats.Edition("oss")
@@ -194,13 +194,13 @@ func (t *App) Run() error {
 		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm))
 	}
 
-	t.server.HTTP().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
+	t.Server.HTTP().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
 
-	t.server.HTTP().Path("/ready").Handler(t.readyHandler(sm))
-	t.server.HTTP().Path("/status").Handler(t.statusHandler()).Methods("GET")
-	t.server.HTTP().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	t.server.HTTP.Path("/status/overrides/{tenant}").Handler(t.tenantOverridesHandler()).Methods("GET")
-	grpc_health_v1.RegisterHealthServer(t.server.GRPC(), grpcutil.NewHealthCheck(sm))
+	t.Server.HTTP().Path("/ready").Handler(t.readyHandler(sm))
+	t.Server.HTTP().Path("/status").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTP().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTP().Path("/status/overrides/{tenant}").Handler(t.tenantOverridesHandler()).Methods("GET")
+	grpc_health_v1.RegisterHealthServer(t.Server.GRPC(), grpcutil.NewHealthCheck(sm))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
@@ -229,7 +229,7 @@ func (t *App) Run() error {
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
 	// Setup signal handler. If signal arrives, we stop the manager, which stops all the services.
-	handler := signals.NewHandler(t.server.Log())
+	handler := signals.NewHandler(t.Server.Log())
 	go func() {
 		handler.Loop()
 		sm.StopAsync()
@@ -477,7 +477,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	endpoints := []endpoint{}
 
-	err := t.server.HTTP().Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	err := t.Server.HTTP().Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		e := endpoint{}
 
 		pathTemplate, err := route.GetPathTemplate()

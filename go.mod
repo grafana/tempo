@@ -104,7 +104,6 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/googleapis/gax-go/v2 v2.12.0
-	github.com/gorilla/websocket v1.5.0
 	github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.89.0
