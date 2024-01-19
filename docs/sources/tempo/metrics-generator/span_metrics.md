@@ -290,7 +290,7 @@ included, but both cases also exclude spans which match
 `{resource.tier="research"}`.
 
 This example could also be written with a single regex expression, except that
-in the second policy we have an additional constraint to match against for
+in the second policy has an additional constraint to match against for
 `k8s-.*`.  If either the `resource.location` or the `resource.platform` is not
 matched in the second policy, then the span is not included.
 
