@@ -365,10 +365,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans:     dedupeSpans,
 	}
 
-	if req.ShardCount > 1 {
-		// Trace id sharding
-		// Select traceID if not already present.  It must be in the first pass
-		// so that we only evalulate our traces.
+	// TraceID (not always required)
+	if req.ShardCount > 1 || dedupeSpans {
+		// For sharding it must be in the first pass so that we only evalulate our traces.
 		storageReq.ShardID = req.ShardID
 		storageReq.ShardCount = req.ShardCount
 		traceID := NewIntrinsic(IntrinsicTraceID)
@@ -377,16 +376,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		}
 	}
 
-	// Sharding algorithm
-	// In order to scale out queries like {A} >> {B} | rate()  we need specific
-	// rules about the data is divided across time boundary shards.  These
-	// spans can cross hours or days and the simple idea to just check span
-	// start time won't work.
-	// Therefore results are matched with the following rules:
-	// (1) Evalulate the query for any overlapping trace
-	// (2) For any matching spans: only include the ones that started in this time frame.
-	// This will increase redundant trace evalulation, but it ensures that matching spans are
-	// guaranteed to be found and included in the metrcs.
+	// Span start time (always required)
 	startTime := NewIntrinsic(IntrinsicSpanStartTime)
 	if !storageReq.HasAttribute(startTime) {
 		if storageReq.AllConditions {
@@ -401,39 +391,24 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		}
 	}
 
-	// Special optimization for queries like {} | rate() by (rootName)
-	// If first pass is only StartTime, then move any intrinsics to the first
-	// pass and try to avoid a second pass.  It's ok and beneficial to move
-	// intrinsics because they exist for every span and are never nil.
-	// But we can't move attributes because that changes the handling of nils.
-	// Moving attributes to the first pass is like asserting non-nil on them.
-	// TODO
-
-	if dedupeSpans {
-		// We dedupe based on trace ID and start time.  Obviously this doesn't
-		// work if 2 spans have the same start time, but this doesn't impose any
-		// more data on the query when sharding is already present above (most cases)
-		traceID := NewIntrinsic(IntrinsicTraceID)
-		if !storageReq.HasAttribute(traceID) {
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: traceID})
-		}
-	}
-
-	// (1) any overlapping trace
-	// TODO - Make this dynamic since it can be faster to skip
-	// the trace-level timestamp check when all or most of the traces
-	// overlap the window.
+	// Timestamp filtering
+	// (1) Include any overlapping trace
+	//     TODO - It can be faster to skip the trace-level timestamp check
+	//     when all or most of the traces overlap the window.
+	//     Maybe it can be dynamic.
 	// storageReq.StartTimeUnixNanos = req.Start
 	// storageReq.EndTimeUnixNanos = req.End // Should this be exclusive?
 	// (2) Only include spans that started in this time frame.
-	//     This is checked inside the evaluator
+	//     This is checked outside the fetch layer in the evaluator. Timestamp
+	//     is only checked on the spans that are the final results.
 	me.checkTime = true
 	me.start = req.Start
 	me.end = req.End
 
-	// Avoid a second pass when not needed for much better performance.
-	// TODO - Is there any case where eval() needs to be called but AllConditions=true?
-	if !storageReq.AllConditions || len(storageReq.SecondPassConditions) > 0 {
+	optimize(storageReq)
+
+	// Setup second pass callback.  Only as needed.
+	if len(storageReq.SecondPassConditions) > 0 {
 		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 			// The traceql engine isn't thread-safe.
 			// But parallelization is required for good metrics performance.
@@ -445,6 +420,37 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	}
 
 	return me, nil
+}
+
+// optimize numerous things within the request that is specific to metrics.
+func optimize(req *FetchSpansRequest) {
+	// Special optimization for queries like {} | rate() by (rootName)
+	// When the second pass consists only of intrinsics, then it's possible to
+	// move them to the first pass and increase performance. It avoids the second pass/bridge
+	// layer and doesn't alter the correctness of the query.
+	// This can't be done for plain attributes or in all cases.
+	if req.AllConditions && len(req.SecondPassConditions) > 0 {
+		secondLayerAlwaysPresent := true
+		for _, cond := range req.SecondPassConditions {
+			if cond.Attribute.Intrinsic != IntrinsicNone {
+				continue
+			}
+
+			// This is a very special case. resource.service.name is also always present
+			// (required by spec) so it can be moved too.
+			if cond.Attribute.Scope == AttributeScopeResource && cond.Attribute.Name == "service.name" {
+				continue
+			}
+
+			secondLayerAlwaysPresent = false
+		}
+
+		if secondLayerAlwaysPresent {
+			// Move all to first pass
+			req.Conditions = append(req.Conditions, req.SecondPassConditions...)
+			req.SecondPassConditions = nil
+		}
+	}
 }
 
 func lookup(needles []Attribute, haystack Span) Static {
