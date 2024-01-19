@@ -23,7 +23,7 @@ type shardedSearchProgress interface {
 	addResponse(res *tempopb.SearchResponse)
 	shouldQuit() bool
 	result() *shardedSearchResults
-	metrics() *tempopb.SearchMetrics
+	metrics() tempopb.SearchMetrics
 }
 
 // shardedSearchResults is the overall response from the shardedSearchProgress
@@ -193,11 +193,21 @@ func (r *searchProgress) result() *shardedSearchResults {
 	return res
 }
 
-func (r *searchProgress) metrics() *tempopb.SearchMetrics {
+// metrics return a copy of resultsMetrics, copy can be costly so only recommended for infrequent access
+func (r *searchProgress) metrics() tempopb.SearchMetrics {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	return r.resultsMetrics
+	// return a copy of metrics, instead of a copy.
+	metricsCopy := tempopb.SearchMetrics{
+		InspectedTraces: r.resultsMetrics.InspectedTraces,
+		InspectedBytes:  r.resultsMetrics.InspectedBytes,
+		TotalBlocks:     r.resultsMetrics.TotalBlocks,
+		CompletedJobs:   r.resultsMetrics.CompletedJobs,
+		TotalJobs:       r.resultsMetrics.TotalJobs,
+		TotalBlockBytes: r.resultsMetrics.TotalBlockBytes,
+	}
+	return metricsCopy
 }
 
 func copySpanset(ss *tempopb.SpanSet) *tempopb.SpanSet {

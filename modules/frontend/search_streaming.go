@@ -87,7 +87,7 @@ func (p *diffSearchProgress) result() *shardedSearchResults {
 	return res
 }
 
-func (p *diffSearchProgress) metrics() *tempopb.SearchMetrics {
+func (p *diffSearchProgress) metrics() tempopb.SearchMetrics {
 	return p.progress.metrics()
 }
 
@@ -117,7 +117,7 @@ func (mp *multiProgress) Add(p *diffSearchProgress) {
 	mp.progress = append(mp.progress, p)
 
 	// combine metrics
-	m := *p.metrics()
+	m := p.metrics()
 	// only set the metrics we set in progress constructor, other metrics are set by the sharder
 	mp.combinedMetrics.TotalBlocks += m.TotalBlocks
 	mp.combinedMetrics.TotalBlockBytes += m.TotalBlockBytes
@@ -136,7 +136,7 @@ func (mp *multiProgress) results(ctx context.Context) *shardedSearchResults {
 
 	comb := newSearchProgress(ctx, 0, mp.combinedMetrics.TotalJobs, mp.combinedMetrics.TotalBlocks, mp.combinedMetrics.TotalBlockBytes)
 	for _, progress := range mp.progress {
-		r := *progress.result() // only get new results from each progress object
+		r := progress.result() // only get new results from each progress object
 		comb.addResponse(r.response)
 		// set the error and status code, if any
 		if r.err != nil || r.statusCode != http.StatusOK {
@@ -161,7 +161,7 @@ func (mp *multiProgress) finalResults(ctx context.Context) *shardedSearchResults
 	// init the progress object with combinedMetrics to report accurate metrics
 	comb := newSearchProgress(ctx, 0, mp.combinedMetrics.TotalJobs, mp.combinedMetrics.TotalBlocks, mp.combinedMetrics.TotalBlockBytes)
 	for _, progress := range mp.progress {
-		r := *progress.finalResult()
+		r := progress.finalResult()
 		comb.addResponse(r.response)
 		// set the error and status code, if any
 		if r.err != nil || r.statusCode != http.StatusOK {
