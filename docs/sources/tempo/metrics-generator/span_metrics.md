@@ -156,10 +156,10 @@ The following intrinsic kinds are available for filtering.
 
 #### Filter policies
 
-Each filter policy is evaluated in order for every span to determine if the
-span should be included for metrics.  Both `include` and `exclude` policies are
-used to *reject* spans from the metrics.  With no filter polices applied, all
-spans are included.
+Each filter policy is evaluated for every span until an `include` policy is
+matched without a corresponding `exclude` policy match within the same filter.
+Both `include` and `exclude` policies are used to *reject* spans from the
+metrics.  With no filter polices applied, all spans are included.
 
 {{% admonition type="note" %}}
 An exclude match takes precedence over an include match within the *same*
