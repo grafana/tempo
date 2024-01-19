@@ -18,6 +18,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// jpe - remove
+
 const (
 	statusCodeLabel = "status_code"
 	tenantLabel     = "tenant"

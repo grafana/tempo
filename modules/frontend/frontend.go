@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
@@ -55,7 +56,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
-	retryWare := newRetryWare(cfg.MaxRetries, registerer)
+	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
 
 	// cache
 	searchCache := newFrontendCache(cacheProvider, cache.RoleFrontendSearch, logger)
@@ -132,7 +133,7 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 		// - the RetryWare retries requests that have failed (error or http status 500)
 		rt := NewRoundTripper(
 			next,
-			newDeduper(logger),
+			newDeduper(logger), // jpe - move to combiner?
 			newTraceByIDSharder(&cfg.TraceByID, o, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)

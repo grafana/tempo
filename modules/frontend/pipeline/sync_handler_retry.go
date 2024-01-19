@@ -1,4 +1,4 @@
-package frontend
+package pipeline
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-func newRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
+func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_retries",

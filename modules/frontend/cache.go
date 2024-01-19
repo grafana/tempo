@@ -46,7 +46,7 @@ func (c *frontendCache) store(ctx context.Context, key string, buffer []byte) {
 }
 
 // fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetch(key string, pb proto.Message) bool {
+func (c *frontendCache) fetch(key string, pb proto.Message) bool { // jpe do we need this anymore?
 	if c.c == nil {
 		return false
 	}
@@ -66,4 +66,22 @@ func (c *frontendCache) fetch(key string, pb proto.Message) bool {
 	}
 
 	return true
+}
+
+// fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
+func (c *frontendCache) fetchBytes(key string) []byte {
+	if c.c == nil {
+		return nil
+	}
+
+	if len(key) == 0 {
+		return nil
+	}
+
+	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
+	if len(bufs) != 1 {
+		return nil
+	}
+
+	return bufs[0]
 }
