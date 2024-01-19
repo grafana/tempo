@@ -247,10 +247,10 @@ metrics_generator:
                 value: dev-.*
 ```
 
-In the above, we first include all spans which have a `resource.location` that
+The above example first includes all spans which have a `resource.location` that
 begins with `eu-` with the `include` statement, and then `exclude` those with
-begin with `dev-`. In this way, a flexible approach to filtering can be
-achieved to store only those metrics which are important.
+begin with `dev-`. In this way, you can create a flexible approach to filtering to store 
+only those metrics which are important.
 
 Additionally, when multiple filter policies are are used, any policy that is
 matched results in the span being included in the metric export.
