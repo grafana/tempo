@@ -14,6 +14,74 @@
 * [CHANGE] Update Alpine image version to 3.19 [#3289](https://github.com/grafana/tempo/pull/3289) (@zalegrala)
 * [CHANGE] Introduce localblocks process config option to select only server spans 3303https://github.com/grafana/tempo/pull/3303 (@zalegrala)
 * [CHANGE] Localblocks processor honor tenant max trace size limit [3305](https://github.com/grafana/tempo/pull/3305) (@mdisibio)
+* [CHANGE] Continue evaluating spanmetrics filter policies even if not matched in one policy [#3308](https://github.com/grafana/tempo/pull/3308) (@zalegrala)
+  **BREAKING CHANGE** Exclude policies are no longer global
+
+  The documentation currently suggests the following policy to include and
+  exclude using two filter policies.
+
+  ```
+    metrics_generator:
+      processor:
+        span_metrics:
+          filter_policies:
+            - include:
+                match_type: regex
+                attributes:
+                  - key: resource.location
+                    value: eu-.*
+            - exclude:
+                match_type: regex
+                attributes:
+                  - key: resource.tier
+                    value: dev-.*
+  ```
+
+  Currently, at the first non-matching filter, the span is dropped.  The
+  breaking change here is that when an include is not matched, we continue
+  evaluating additional policies for possible matches.  In the above scenario,
+  each exclude must now be paired with the include that it wishes to further
+  filter.  The above can be re-written with the include and exclude in the same
+  policy filter.
+
+  ```
+    metrics_generator:
+      processor:
+        span_metrics:
+          filter_policies:
+            - include:
+                match_type: regex
+                attributes:
+                  - key: resource.location
+                    value: eu-.*
+              exclude:
+                match_type: regex
+                attributes:
+                  - key: resource.tier
+                    value: dev-.*
+  ```
+
+  Users are now able to write an additional filter policy that matches on the
+  same attribute (`resource.location`), where previously the first non-match
+  was used as a reason not to include the span.
+
+  ```
+    metrics_generator:
+      processor:
+        span_metrics:
+          filter_policies:
+            - include:
+                match_type: regex
+                attributes:
+                  - key: resource.location
+                    value: eu-.*
+            - include:
+                match_type: static
+                attributes:
+                  - key: resource.location
+                    value: moon
+  ```
+
 * [CHANGE] Major cache refactor to allow multiple role based caches to be configured [#3166](https://github.com/grafana/tempo/pull/3166).
   **BREAKING CHANGE** Deprecate the following fields. These have all been migrated to a top level "cache:" field.
   ```

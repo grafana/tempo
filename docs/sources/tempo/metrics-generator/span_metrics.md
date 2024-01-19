@@ -125,9 +125,12 @@ func (ds RatioBasedSampler) Description() string {
 
 ### Filtering
 
-In some cases, you may want to reduce the number of metrics produced by the `spanmetrics` processor.
-You can configure the processor to use an `include` filter to match criteria that must be present in the span in order to be included.
-Following the include filter, you can use an `exclude` filter to reject portions of what was previously included by the filter policy.
+In some cases, you may want to use a filter to reduce the number of metrics that are produced
+from the `spanmetrics` processor. With a filter, you can
+configure the processor to use an `include` statement to match criteria that
+must be present in the span in order to be included in the metrics. Following
+the include filter, you can use an `exclude` filter to reject portions of what
+was previously included by the filter policy.
 
 Currently, only filtering by resource and span attributes with the following value types is supported.
 
@@ -150,6 +153,39 @@ The following intrinsic kinds are available for filtering.
 - `SPAN_KIND_PRODUCER`
 - `SPAN_KIND_CONSUMER`
 
+
+#### Filter policies
+
+Each filter policy is evaluated for every span until an `include` policy is
+matched without a corresponding `exclude` policy match within the same filter.
+Both `include` and `exclude` policies are used to *reject* spans from the
+metrics.  With no filter polices applied, all spans are included.
+
+{{% admonition type="note" %}}
+An exclude match takes precedence over an include match within the *same*
+policy, but not later polices.
+{{% /admonition %}}
+
+{{% admonition type="note" %}}
+A matching exclude of one policy is ignored if a later policy `include`
+matches, and that same policy does not also have a matching `exclude` for the
+span.
+{{% /admonition %}}
+
+In this way, an `include` is applied first, and then spans which also match the
+`exclude` for that same policy are marked be skipped.  Further policies are
+still evaluated to allow multiple policies to operate on the same attributes in
+case an earlier policy does not match.
+
+{{% admonition type="note" %}}
+If a global rejection of a particular match is desired, then an exclude policy
+must be applied to each filter policy. 
+{{% /admonition %}}
+
+Let's review some examples.
+
+#### Span matching
+
 Intrinsic keys can be acted on directly when implementing a filter policy. For example:
 
 ```yaml
@@ -165,11 +201,17 @@ metrics_generator:
                 value: SPAN_KIND_SERVER
 ```
 
-In this example, spans which are of `kind` "server" are included for metrics export.
+In this example, only spans which are of `kind` "server" are included for
+metrics export.
 
-When selecting spans based on non-intrinsic attributes, it is required to specify the scope of the attribute, similar to how it is specified in TraceQL.
-For example, if the `resource` contains a `location` attribute which is to be used in a filter policy, then the reference needs to be specified as `resource.location`.
-This requires users to know and specify which scope an attribute is to be found and avoids the ambiguity of conflicting values at differing scopes. The following may help illustrate.
+When selecting spans based on non-intrinsic attributes, it is required to
+specify the scope of the attribute, similar to how it is specified in TraceQL.
+
+For example, if the `resource` contains a `location` attribute which is to be
+used in a filter policy, then the reference needs to be specified as
+`resource.location`. This requires users to know and specify which scope an
+attribute is to be found and avoids the ambiguity of conflicting values at
+differing scopes. The following may help illustrate.
 
 ```yaml
 ---
@@ -198,15 +240,59 @@ metrics_generator:
             attributes:
               - key: resource.location
                 value: eu-.*
-        - exclude:
+          exclude:
             match_type: regex
             attributes:
               - key: resource.tier
                 value: dev-.*
 ```
 
-In the above, we first include all spans which have a `resource.location` that begins with `eu-` with the `include` statement, and then exclude those with begin with `dev-`.
-In this way, a flexible approach to filtering can be achieved to ensure that only metrics which are important are generated.
+The above example first includes all spans which have a `resource.location` that
+begins with `eu-` with the `include` statement, and then `exclude` those with
+begin with `dev-`. In this way, you can create a flexible approach to filtering to store 
+only those metrics which are important.
+
+Additionally, when multiple filter policies are are used, any policy that is
+matched results in the span being included in the metric export.
+
+```yaml
+---
+metrics_generator:
+  processor:
+    span_metrics:
+      filter_policies:
+        - include:
+            match_type: regex
+            attributes:
+              - key: resource.location
+                value: eu-.*
+          exclude:
+            match_type: strict
+            attributes:
+              - key: resource.tier
+                value: research
+        - include:
+            match_type: regex
+            attributes:
+              - key: resource.location
+                value: sa-.*
+              - key: resource.platform
+                value: k8s-.*
+          exclude:
+            match_type: regex
+            attributes:
+              - key: resource.tier
+                value: research
+```
+
+In this example, spans that match a location beginning with `eu-` or `sa-` are 
+included, but both cases also exclude spans which match
+`{resource.tier="research"}`.
+
+This example could also be written with a single regex expression, except that
+in the second policy has an additional constraint to match against for
+`k8s-.*`.  If either the `resource.location` or the `resource.platform` is not
+matched in the second policy, then the span is not included.
 
 ## Example
 

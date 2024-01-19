@@ -6,12 +6,13 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSpanFilter_NewSpanFilter(t *testing.T) {
@@ -459,6 +460,322 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 					Code: tracev1.Status_STATUS_CODE_OK,
 				},
 				Name: "test",
+			},
+		},
+		{
+			name:   "multiple includes with only one matching",
+			err:    nil,
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(test|test2)",
+							},
+						},
+					},
+				},
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(untest|untest2)",
+							},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{
+						Key: "name",
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
+								StringValue: "untest",
+							},
+						},
+					},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
+				},
+				Name: "test",
+			},
+		},
+		{
+			name:   "multiple excludes with only one matching",
+			err:    nil,
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(test|test2)",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "asd",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(tset|tset2)",
+							},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{
+						Key: "name",
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
+								StringValue: "untest",
+							},
+						},
+					},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
+				},
+				Name: "tset2",
+			},
+		},
+		{
+			name:   "multiple excludes with none matching",
+			err:    nil,
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(test|test2)",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "asd",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(tset|tset2)",
+							},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*commonv1.KeyValue{
+					{
+						Key: "name",
+						Value: &commonv1.AnyValue{
+							Value: &commonv1.AnyValue_StringValue{
+								StringValue: "untest",
+							},
+						},
+					},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
+				},
+				Name: "blarg",
+			},
+		},
+		{
+			name:   "one matching include, but excluded for name",
+			err:    nil,
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(test|test2)",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "asd",
+							},
+						},
+					},
+				},
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_SERVER",
+							},
+						},
+					},
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(tset|tset2)",
+							},
+						},
+					},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
+				},
+				Name: "tset2",
+			},
+		},
+		{
+			name:   "one matching include",
+			err:    nil,
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(test|test2)",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "asd",
+							},
+						},
+					},
+				},
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_SERVER",
+							},
+						},
+					},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_SERVER,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
+				},
+				Name: "tset2",
+			},
+		},
+		{
+			name:   "none matching",
+			err:    nil,
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "(test|test2)",
+							},
+						},
+					},
+				},
+				{
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "name",
+								Value: "asd",
+							},
+						},
+					},
+				},
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_SERVER",
+							},
+						},
+					},
+				},
+			},
+			span: &tracev1.Span{
+				Kind: tracev1.Span_SPAN_KIND_CLIENT,
+				Status: &tracev1.Status{
+					Code: tracev1.Status_STATUS_CODE_OK,
+				},
+				Name: "tset2",
 			},
 		},
 	}
