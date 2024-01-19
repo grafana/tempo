@@ -10,6 +10,6 @@ weight: 20
 This page provides some general best practices for tracing.
 
 [//]: # 'Shared content for best practices for traces'
-[//]: # 'This content is located in /tempo/docs/sources/shared/best-practices.md'
+[//]: # 'This content is located in /tempo/docs/sources/shared/best-practices-traces.md'
 
 {{< docs/shared source="tempo" lookup="best-practices-traces.md" version="latest" >}}
