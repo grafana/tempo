@@ -1,7 +1,7 @@
 ---
 headless: true
-labels:
 description: Shared file for tracing best practices.
+labels:
   products:
     - enterprise
     - oss
