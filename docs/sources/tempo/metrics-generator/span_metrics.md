@@ -285,8 +285,8 @@ metrics_generator:
                 value: research
 ```
 
-In this example, spans that match a location beginning with `eu-` or `sa-` will
-be included, but in both cases we also exclude spans which match
+In this example, spans that match a location beginning with `eu-` or `sa-` are 
+included, but both cases also exclude spans which match
 `{resource.tier="research"}`.
 
 This example could also be written with a single regex expression, except that
