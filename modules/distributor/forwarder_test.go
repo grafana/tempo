@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +31,7 @@ func TestForwarder(t *testing.T) {
 	keys, rebatchedTraces, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10)
 	require.NoError(t, err)
 
-	o, err := overrides.NewOverrides(oCfg)
+	o, err := overrides.NewOverrides(oCfg, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
@@ -71,7 +72,7 @@ func TestForwarder_shutdown(t *testing.T) {
 	keys, rebatchedTraces, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10)
 	require.NoError(t, err)
 
-	o, err := overrides.NewOverrides(oCfg)
+	o, err := overrides.NewOverrides(oCfg, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	signalCh := make(chan struct{})

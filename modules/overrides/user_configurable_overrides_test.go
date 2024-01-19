@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	tempo_api "github.com/grafana/tempo/pkg/api"
@@ -38,7 +37,8 @@ func TestUserConfigOverridesManager(t *testing.T) {
 		},
 		Forwarders: []string{"my-forwarder"},
 	}
-	_, mgr := localUserConfigOverrides(t, defaultLimits, "")
+	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
 
 	// Verify default limits are returned
 	assert.Equal(t, 1024, mgr.MaxBytesPerTrace(tenant1))
@@ -76,7 +76,8 @@ func TestUserConfigOverridesManager(t *testing.T) {
 
 func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	defaultLimits := Overrides{}
-	_, mgr := localUserConfigOverrides(t, defaultLimits, "")
+	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
 
 	assert.Empty(t, mgr.Forwarders(tenant1))
 	assert.Empty(t, mgr.MetricsGeneratorProcessors(tenant1))
@@ -166,7 +167,8 @@ func TestUserConfigOverridesManager_populateFromBackend(t *testing.T) {
 	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
 	}
-	tempDir, mgr := localUserConfigOverrides(t, defaultLimits, "")
+	tempDir, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
 
 	assert.Equal(t, mgr.Forwarders(tenant1), []string{"my-forwarder"})
 
@@ -187,7 +189,8 @@ func TestUserConfigOverridesManager_deletedFromBackend(t *testing.T) {
 	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
 	}
-	tempDir, mgr := localUserConfigOverrides(t, defaultLimits, "")
+	tempDir, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
 
 	limits := &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
@@ -213,7 +216,8 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 	defaultLimits := Overrides{
 		Forwarders: []string{"my-forwarder"},
 	}
-	_, mgr := localUserConfigOverrides(t, defaultLimits, "")
+	_, mgr, cleanup := localUserConfigOverrides(t, defaultLimits, nil)
+	defer cleanup()
 
 	limits := &userconfigurableoverrides.Limits{
 		Forwarders: &[]string{"my-other-forwarder"},
@@ -235,7 +239,8 @@ func TestUserConfigOverridesManager_backendUnavailable(t *testing.T) {
 
 func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	bl := Overrides{Forwarders: []string{"my-forwarder"}}
-	_, configurableOverrides := localUserConfigOverrides(t, bl, "")
+	_, configurableOverrides, cleanup := localUserConfigOverrides(t, bl, nil)
+	defer cleanup()
 
 	// set user config limits
 	configurableOverrides.tenantLimits["test"] = &userconfigurableoverrides.Limits{
@@ -270,7 +275,7 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	}
 }
 
-func localUserConfigOverrides(t *testing.T, baseLimits Overrides, PerTenantOverrideFile string) (string, *userConfigurableOverridesManager) {
+func localUserConfigOverrides(t *testing.T, baseLimits Overrides, perTenantOverrides []byte) (string, *userConfigurableOverridesManager, func()) {
 	path := t.TempDir()
 
 	cfg := &UserConfigurableOverridesConfig{
@@ -283,12 +288,20 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides, PerTenantOverr
 	}
 
 	baseCfg := Config{
-		Defaults:                baseLimits,
-		PerTenantOverrideConfig: PerTenantOverrideFile,
-		PerTenantOverridePeriod: model.Duration(time.Millisecond),
+		Defaults: baseLimits,
 	}
 
-	baseOverrides, err := NewOverrides(baseCfg)
+	if perTenantOverrides != nil {
+		overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+
+		err := os.WriteFile(overridesFile, perTenantOverrides, os.ModePerm)
+		require.NoError(t, err)
+
+		baseCfg.PerTenantOverrideConfig = overridesFile
+		baseCfg.PerTenantOverridePeriod = model.Duration(time.Hour)
+	}
+
+	baseOverrides, err := NewOverrides(baseCfg, prometheus.NewRegistry())
 	assert.NoError(t, err)
 
 	// have to overwrite the registry or test panics with multiple metric reg
@@ -300,7 +313,10 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides, PerTenantOverr
 	err = services.StartAndAwaitRunning(context.TODO(), configurableOverrides)
 	require.NoError(t, err)
 
-	return path, configurableOverrides
+	return path, configurableOverrides, func() {
+		err := services.StopAndAwaitTerminated(context.TODO(), configurableOverrides)
+		require.NoError(t, err)
+	}
 }
 
 func writeUserConfigurableOverridesToDisk(t *testing.T, dir string, tenant string, limits *userconfigurableoverrides.Limits) {
@@ -359,13 +375,9 @@ func TestUserConfigOverridesManager_MergeRuntimeConfig(t *testing.T) {
 
 	// setup per tenant runtime override for tenant "test"
 	pto := perTenantRuntimeOverrides(tenantID)
-	buff, err := yaml.Marshal(pto)
-	require.NoError(t, err)
-	overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
-	err = os.WriteFile(overridesFile, buff, os.ModePerm)
-	require.NoError(t, err)
 
-	_, mgr := localUserConfigOverrides(t, Overrides{}, overridesFile)
+	_, mgr, cleanup := localUserConfigOverrides(t, Overrides{}, toYamlBytes(t, pto))
+	defer cleanup()
 	// mgr.Interface will call baseOverrides manager, which is runtime config overrides.
 	baseMgr := mgr.Interface
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/atomic"
@@ -391,7 +392,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 				MaxBytesPerTagValuesQuery: 10,
 			},
 		},
-	})
+	}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -422,7 +423,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 				MaxBlocksPerTagValuesQuery: 1,
 			},
 		},
-	})
+	}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -457,7 +458,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.Equal(t, 100, len(respV2.TagValues))
 
 	// Now test with unlimited blocks
-	limits, err = overrides.NewOverrides(overrides.Config{})
+	limits, err = overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
 	i.limiter = NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -512,9 +513,9 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes, kv)
 		trace.SortTrace(testTrace)
 
-		//// Print trace as json string
-		//buf := &bytes.Buffer{}
-		//require.NoError(t, (&jsonpb.Marshaler{}).Marshal(buf, testTrace))
+		// // Print trace as json string
+		// buf := &bytes.Buffer{}
+		// require.NoError(t, (&jsonpb.Marshaler{}).Marshal(buf, testTrace))
 
 		traceBytes, err := dec.PrepareForWrite(testTrace, uint32(now.Unix()), uint32(now.Unix()))
 		require.NoError(t, err)

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +24,7 @@ func TestCombineLimitsNotHit(t *testing.T) {
 				MaxBytesPerTrace: math.MaxInt,
 			},
 		},
-	})
+	}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -57,7 +58,7 @@ func TestCombineLimitsHit(t *testing.T) {
 				MaxBytesPerTrace: 1,
 			},
 		},
-	})
+	}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -91,7 +92,7 @@ func TestCombineDoesntEnforceZero(t *testing.T) {
 				MaxBytesPerTrace: math.MaxInt,
 			},
 		},
-	})
+	}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -146,7 +147,7 @@ func TestDedicatedColumns(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{overrides: o}
