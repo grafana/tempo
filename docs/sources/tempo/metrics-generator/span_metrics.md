@@ -162,12 +162,12 @@ used to *reject* spans from the metrics.  With no filter polices applied, all
 spans are included.
 
 {{% admonition type="note" %}}
-An exclude match will take precedence over an include match within the *same*
+An exclude match takes precedence over an include match within the *same*
 policy, but not later polices.
 {{% /admonition %}}
 
 {{% admonition type="note" %}}
-A matching exclude of one policy will be ignored if a later policy `include`
+A matching exclude of one policy is ignored if a later policy `include`
 matches, and that same policy does not also have a matching `exclude` for the
 span.
 {{% /admonition %}}
