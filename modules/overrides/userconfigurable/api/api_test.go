@@ -300,7 +300,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 		defaultOverrides                    overrides.Overrides
 		userConfigOverrides                 *client.Limits
 		request                             *client.Limits
-		skipConflictingOverridesCheck       bool
+		skipConflictingOverridesCheck       string
 		expStatusCode                       int
 		expResp                             string
 	}{
@@ -377,7 +377,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
 				},
 			},
-			skipConflictingOverridesCheck: true,
+			skipConflictingOverridesCheck: "true",
 			expStatusCode:                 200,
 			expResp:                       "",
 		},
@@ -403,6 +403,25 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			expStatusCode: 200,
 			expResp:       "",
 		},
+		{
+			name:                                "Invalid skip check parameter",
+			checkForConflictingRuntimeOverrides: true,
+			defaultOverrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: 15 * time.Second,
+				},
+			},
+			userConfigOverrides: nil,
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			skipConflictingOverridesCheck: "yes",
+			expStatusCode:                 400,
+			expResp:                       "could not parse skip-conflicting-overrides-check, must be a boolean value\n",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -420,7 +439,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 				},
 				ConfigType: "",
 			}
-			o, err := overrides.NewOverrides(cfg)
+			o, err := overrides.NewOverrides(cfg, prometheus.DefaultRegisterer)
 			assert.NoError(t, err)
 
 			overridesAPI, err := New(&cfg.UserConfigurableOverridesConfig.API, &cfg.UserConfigurableOverridesConfig.Client, o, &mockValidator{})
@@ -438,8 +457,8 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			assert.NoError(t, err)
 
 			path := "/"
-			if tc.skipConflictingOverridesCheck {
-				path = fmt.Sprintf("%s?%s=true", path, queryParamSkipConflictingOverridesCheck)
+			if tc.skipConflictingOverridesCheck != "" {
+				path = fmt.Sprintf("%s?%s=%s", path, queryParamSkipConflictingOverridesCheck, tc.skipConflictingOverridesCheck)
 			}
 			r := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(json))
 			r.Header.Set(headerIfMatch, string(version))

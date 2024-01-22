@@ -25,7 +25,8 @@ const (
 	headerEtag    = "ETag"
 	headerIfMatch = "If-Match"
 
-	errNoIfMatchHeader = "must specify If-Match header"
+	errNoIfMatchHeader                                     = "must specify If-Match header"
+	errCouldNotParseSkipConflictingOverridesCheckParameter = "could not parse skip-conflicting-overrides-check, must be a boolean value"
 
 	queryParamScope       = "scope"
 	queryParamScopeAPI    = "api"
@@ -87,7 +88,11 @@ func (a *UserConfigOverridesAPI) PostHandler(w http.ResponseWriter, r *http.Requ
 
 	skipConflictingOverridesCheck := false
 	if value, ok := r.URL.Query()[queryParamSkipConflictingOverridesCheck]; ok && len(value) > 0 {
-		skipConflictingOverridesCheck, _ = strconv.ParseBool(value[0])
+		skipConflictingOverridesCheck, err = strconv.ParseBool(value[0])
+		if err != nil {
+			http.Error(w, errCouldNotParseSkipConflictingOverridesCheckParameter, http.StatusBadRequest)
+			return
+		}
 	}
 
 	limits, err := a.parseLimits(r.Body)
@@ -123,7 +128,11 @@ func (a *UserConfigOverridesAPI) PatchHandler(w http.ResponseWriter, r *http.Req
 
 	skipConflictingOverridesCheck := false
 	if value, ok := r.URL.Query()[queryParamSkipConflictingOverridesCheck]; ok && len(value) > 0 {
-		skipConflictingOverridesCheck, _ = strconv.ParseBool(value[0])
+		skipConflictingOverridesCheck, err = strconv.ParseBool(value[0])
+		if err != nil {
+			http.Error(w, errCouldNotParseSkipConflictingOverridesCheckParameter, http.StatusBadRequest)
+			return
+		}
 	}
 
 	patchedLimits, version, err := a.update(ctx, userID, patch, skipConflictingOverridesCheck)
