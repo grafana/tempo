@@ -365,6 +365,8 @@ func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
+// SearchStreamAndAssertTrace will search and assert that the trace is present in the streamed results.
+// nolint: revive
 func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
