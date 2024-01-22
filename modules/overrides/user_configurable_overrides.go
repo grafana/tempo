@@ -325,6 +325,26 @@ func (o *userConfigurableOverridesManager) WriteStatusRuntimeConfig(w io.Writer,
 	return nil
 }
 
+type statusTenantOverrides struct {
+	UserConfigurableLimits *userconfigurableoverrides.Limits `yaml:"user_configurable_limits"`
+	RuntimeOverrides       *Overrides                        `yaml:"runtime_overrides"`
+}
+
+func (o *userConfigurableOverridesManager) WriteTenantOverrides(w io.Writer, _ *http.Request, userID string) error {
+	overrides := statusTenantOverrides{
+		UserConfigurableLimits: o.getTenantLimits(userID),
+		RuntimeOverrides:       o.GetRuntimeOverridesFor(userID),
+	}
+
+	out, err := yaml.Marshal(overrides)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	return err
+}
+
 func (o *userConfigurableOverridesManager) Describe(ch chan<- *prometheus.Desc) {
 	// TODO for now just pass along to the underlying overrides, in the future we should export
 	//  the user-config overrides as well

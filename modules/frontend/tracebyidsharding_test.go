@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -120,6 +121,13 @@ func TestShardingWareDoRequest(t *testing.T) {
 			expectedStatus: 500,
 		},
 		{
+			name:           "200+429",
+			status1:        200,
+			trace1:         trace1,
+			status2:        429,
+			expectedStatus: 429,
+		},
+		{
 			name:           "503+200",
 			status1:        503,
 			status2:        200,
@@ -181,7 +189,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 		},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	for _, tc := range tests {
@@ -265,7 +273,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 func TestConcurrentShards(t *testing.T) {
 	concurrency := 2
 
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder := newTraceByIDSharder(&TraceByIDConfig{

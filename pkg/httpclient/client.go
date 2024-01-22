@@ -2,27 +2,20 @@ package httpclient
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
-	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/gzhttp"
 
-	"github.com/grafana/dskit/user"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/api"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 
@@ -229,83 +222,6 @@ func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*
 	}
 
 	return m, nil
-}
-
-func (c *Client) SearchWithWebsocket(req *tempopb.SearchRequest, f func(*tempopb.SearchResponse)) (*tempopb.SearchResponse, error) {
-	httpReq, err := http.NewRequest("GET", c.BaseURL+api.PathWSSearch, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// swap out scheme for ws
-	httpReq, err = api.BuildSearchRequest(httpReq, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// always org id
-	httpReq.Header = http.Header{}
-	err = user.InjectOrgIDIntoHTTPRequest(user.InjectOrgID(context.Background(), c.OrgID), httpReq)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, resp, err := websocket.DefaultDialer.Dial(httpReq.URL.String(), httpReq.Header)
-	if err != nil {
-		return nil, fmt.Errorf("ws dial failed: %w, resp: %v", err, resp)
-	}
-	defer conn.Close()
-
-	var finalResponse *tempopb.SearchResponse
-	var finalErr error
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				var closeErr *websocket.CloseError
-				if errors.As(err, &closeErr) {
-					if closeErr.Code == websocket.CloseNormalClosure {
-						break
-					}
-				}
-				finalErr = err
-				break
-			}
-			resp := &tempopb.SearchResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(message), resp)
-			if err != nil {
-				finalErr = err
-				break
-			}
-			f(resp)
-			finalResponse = resp
-		}
-	}()
-
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	for {
-		select {
-		case <-done:
-			return finalResponse, finalErr
-		case <-interrupt:
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				return nil, err
-			}
-
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return finalResponse, finalErr
-		}
-	}
 }
 
 func (c *Client) MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,6 +14,9 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/common/model"
+
+	"github.com/grafana/dskit/httpgrpc"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -32,6 +36,10 @@ const (
 	urlParamStart           = "start"
 	urlParamEnd             = "end"
 	urlParamSpansPerSpanSet = "spss"
+	urlParamStep            = "step"
+	urlParamShard           = "shard"
+	urlParamShardCount      = "shardCount"
+	urlParamSince           = "since"
 
 	// backend search (querier/serverless)
 	urlParamStartPage        = "startPage"
@@ -54,6 +62,7 @@ const (
 
 	// generator summary
 	urlParamGroupBy = "groupBy"
+	// urlParamMetric  = "metric"
 
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
@@ -65,7 +74,6 @@ const (
 
 	PathTraces             = "/api/traces/{traceID}"
 	PathSearch             = "/api/search"
-	PathWSSearch           = "/api/search-ws"
 	PathSearchTags         = "/api/search/tags"
 	PathSearchTagValues    = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho               = "/api/echo"
@@ -73,6 +81,9 @@ const (
 	PathUsageStats         = "/status/usage-stats"
 	PathSpanMetrics        = "/api/metrics"
 	PathSpanMetricsSummary = "/api/metrics/summary"
+	PathMetricsQueryRange  = "/api/metrics/query_range"
+
+	PathPromQueryRange = "/prom/api/v1/query_range"
 
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
@@ -89,6 +100,7 @@ const (
 
 	defaultLimit           = 20
 	defaultSpansPerSpanSet = 3
+	defaultSince           = 1 * time.Hour
 )
 
 func ParseTraceID(r *http.Request) ([]byte, error) {
@@ -423,6 +435,161 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 	}
 
 	return req, nil
+}
+
+func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error) {
+	req := &tempopb.QueryRangeRequest{}
+
+	if err := r.ParseForm(); err != nil {
+		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
+	}
+
+	req.Query = r.Form.Get("query")
+	req.QueryMode = r.Form.Get(QueryModeKey)
+
+	start, end, _ := bounds(r)
+	req.Start = uint64(start.UnixNano())
+	req.End = uint64(end.UnixNano())
+
+	step, err := step(r, start, end)
+	if err != nil {
+		req.Step = traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))
+	} else {
+		req.Step = uint64(step)
+	}
+
+	if of, err := strconv.Atoi(r.Form.Get(urlParamShardCount)); err == nil {
+		req.ShardCount = uint32(of)
+	}
+	if shard, err := strconv.Atoi(r.Form.Get(urlParamShard)); err == nil {
+		req.ShardID = uint32(shard)
+	}
+
+	return req, nil
+}
+
+func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequest) *http.Request {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+
+	if searchReq == nil {
+		return req
+	}
+
+	q := req.URL.Query()
+	q.Set(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	q.Set(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	q.Set(urlParamStep, time.Duration(searchReq.Step).String())
+	q.Set(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
+	q.Set(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
+	q.Set(QueryModeKey, searchReq.QueryMode)
+
+	if len(searchReq.Query) > 0 {
+		q.Set(urlParamQuery, searchReq.Query)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	return req
+}
+
+func bounds(r *http.Request) (time.Time, time.Time, error) {
+	var (
+		now   = time.Now()
+		start = r.Form.Get(urlParamStart)
+		end   = r.Form.Get(urlParamEnd)
+		since = r.Form.Get(urlParamSince)
+	)
+
+	return determineBounds(now, start, end, since)
+}
+
+func determineBounds(now time.Time, startString, endString, sinceString string) (time.Time, time.Time, error) {
+	since := defaultSince
+	if sinceString != "" {
+		d, err := model.ParseDuration(sinceString)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'since' parameter: %w", err)
+		}
+		since = time.Duration(d)
+	}
+
+	end, err := parseTimestamp(endString, now)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'end' parameter: %w", err)
+	}
+
+	// endOrNow is used to apply a default for the start time or an offset if 'since' is provided.
+	// we want to use the 'end' time so long as it's not in the future as this should provide
+	// a more intuitive experience when end time is in the future.
+	endOrNow := end
+	if end.After(now) {
+		endOrNow = now
+	}
+
+	start, err := parseTimestamp(startString, endOrNow.Add(-since))
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not parse 'start' parameter: %w", err)
+	}
+
+	return start, end, nil
+}
+
+// parseTimestamp parses a ns unix timestamp from a string
+// if the value is empty it returns a default value passed as second parameter
+func parseTimestamp(value string, def time.Time) (time.Time, error) {
+	if value == "" {
+		return def, nil
+	}
+
+	if strings.Contains(value, ".") {
+		if t, err := strconv.ParseFloat(value, 64); err == nil {
+			s, ns := math.Modf(t)
+			ns = math.Round(ns*1000) / 1000
+			return time.Unix(int64(s), int64(ns*float64(time.Second))), nil
+		}
+	}
+	nanos, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		if ts, err := time.Parse(time.RFC3339Nano, value); err == nil {
+			return ts, nil
+		}
+		return time.Time{}, err
+	}
+	if len(value) <= 10 {
+		return time.Unix(nanos, 0), nil
+	}
+	return time.Unix(0, nanos), nil
+}
+
+func step(r *http.Request, start, end time.Time) (time.Duration, error) {
+	value := r.Form.Get(urlParamStep)
+	if value == "" {
+		return time.Duration(defaultQueryRangeStep(start, end)) * time.Second, nil
+	}
+	return parseSecondsOrDuration(value)
+}
+
+// defaultQueryRangeStep returns the default step used in the query range API,
+// which is dynamically calculated based on the time range
+func defaultQueryRangeStep(start time.Time, end time.Time) int {
+	return int(math.Max(math.Floor(end.Sub(start).Seconds()/250), 1))
+}
+
+func parseSecondsOrDuration(value string) (time.Duration, error) {
+	if d, err := strconv.ParseFloat(value, 64); err == nil {
+		ts := d * float64(time.Second)
+		if ts > float64(math.MaxInt64) || ts < float64(math.MinInt64) {
+			return 0, fmt.Errorf("cannot parse %q to a valid duration. It overflows int64", value)
+		}
+		return time.Duration(ts), nil
+	}
+	if d, err := model.ParseDuration(value); err == nil {
+		return time.Duration(d), nil
+	}
+	return 0, fmt.Errorf("cannot parse %q to a valid duration", value)
 }
 
 // BuildSearchRequest takes a tempopb.SearchRequest and populates the passed http.Request

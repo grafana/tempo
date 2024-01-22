@@ -1,31 +1,34 @@
-syntax="proto3";
+syntax = "proto3";
 
 package tempopb;
 
-import "trace/v1/trace.proto";
 import "common/v1/common.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "trace/v1/trace.proto";
 
 service Pusher {
-  // different versions of PushBytes expect the trace data to be pushed in different formats
-  rpc PushBytes(PushBytesRequest) returns (PushResponse) {};   // ./pkg/model/v1
-  rpc PushBytesV2(PushBytesRequest) returns (PushResponse) {}; // ./pkg/model/v2
+  // different versions of PushBytes expect the trace data to be pushed in
+  // different formats
+  rpc PushBytes(PushBytesRequest) returns (PushResponse) {}
+  rpc PushBytesV2(PushBytesRequest) returns (PushResponse) {}
 }
 
 service MetricsGenerator {
-  rpc PushSpans(PushSpansRequest) returns (PushResponse) {};
-  rpc GetMetrics(SpanMetricsRequest) returns (SpanMetricsResponse) {};
+  rpc PushSpans(PushSpansRequest) returns (PushResponse) {}
+  rpc GetMetrics(SpanMetricsRequest) returns (SpanMetricsResponse) {}
+  rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 
 service Querier {
-  rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
-  rpc SearchRecent(SearchRequest) returns (SearchResponse) {};
-  rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {};
-  rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {};
-  rpc SearchTagsV2(SearchTagsRequest) returns (SearchTagsV2Response) {};
-  rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {};
-  rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {};
-  // rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {};
+  rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {}
+  rpc SearchRecent(SearchRequest) returns (SearchResponse) {}
+  rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {}
+  rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {}
+  rpc SearchTagsV2(SearchTagsRequest) returns (SearchTagsV2Response) {}
+  rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {}
+  rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {}
+  // rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns
+  // (SpanMetricsSummaryResponse) {};
 }
 
 service StreamingQuerier {
@@ -34,6 +37,7 @@ service StreamingQuerier {
 
 service Metrics {
   rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {}
+  rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 
 // Read
@@ -49,8 +53,7 @@ message TraceByIDResponse {
   TraceByIDMetrics metrics = 2;
 }
 
-message TraceByIDMetrics {
-}
+message TraceByIDMetrics {}
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
 message SearchRequest {
@@ -66,8 +69,8 @@ message SearchRequest {
   uint32 SpansPerSpanSet = 9;
 }
 
-// SearchBlockRequest takes SearchRequest parameters as well as all information necessary
-// to search a block in the backend.
+// SearchBlockRequest takes SearchRequest parameters as well as all information
+// necessary to search a block in the backend.
 message SearchBlockRequest {
   SearchRequest searchReq = 1;
   string blockID = 2;
@@ -176,17 +179,35 @@ message Trace {
 
 // Write
 message PushResponse {
+  repeated PushErrorReason errorsByTrace = 1;
 }
 
-// PushBytesRequest pushes slices of traces, ids and searchdata. Traces are encoded using the
+enum PushErrorReason {
+  NO_ERROR = 0;
+  MAX_LIVE_TRACES = 1;
+  TRACE_TOO_LARGE = 2;
+  UNKNOWN_ERROR = 3;
+}
+
+// PushBytesRequest pushes slices of traces, ids and searchdata. Traces are
+// encoded using the
 //  current BatchDecoder in ./pkg/model
 message PushBytesRequest {
   // pre-marshalled Traces. length must match ids
-  repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  repeated bytes traces = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "PreallocBytes"
+  ];
   // trace ids. length must match traces
-  repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  repeated bytes ids = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "PreallocBytes"
+  ];
   // search data, length must match traces
-  repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+  repeated bytes searchData = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "PreallocBytes"
+  ];
 }
 
 message PushSpansRequest {
@@ -199,9 +220,10 @@ message TraceBytes {
   repeated bytes traces = 1;
 }
 
-// this message exists for marshalling/unmarshalling convenience to/from parquet. in parquet we proto encode
-// links to a column. unfortunately you can't encode a slice directly so we use this wrapper to generate 
-// the required marshalling/unmarshalling functions.
+// this message exists for marshalling/unmarshalling convenience to/from
+// parquet. in parquet we proto encode links to a column. unfortunately you
+// can't encode a slice directly so we use this wrapper to generate the required
+// marshalling/unmarshalling functions.
 message LinkSlice {
   repeated tempopb.trace.v1.Span.Link links = 1;
 }
@@ -268,4 +290,56 @@ message TraceQLStatic {
   uint64 d = 6;
   int32 status = 7;
   int32 kind = 8;
+}
+
+message SpanMetricsData {
+  string resultType = 1;
+  repeated SpanMetricsResult result = 2;
+}
+
+message SpanMetricsResult {
+  string labelName = 1; // if these are empty it is the primary trend
+  string labelValue = 2;
+  repeated SpanMetricsResultPoint ts = 3;
+}
+
+message SpanMetricsResultPoint {
+  uint32 time = 1;
+  double val = 2;
+  bytes exemplarTraceID = 3;
+  uint64 exemplarDuration = 4;
+}
+
+message QueryRangeRequest {
+  string query = 1;
+  uint64 start = 2;
+  uint64 end = 3;
+  uint64 step = 4;
+  uint32 shardID = 5;
+  uint32 shardCount = 6;
+  string queryMode = 7;
+}
+
+message QueryRangeResponse {
+  repeated TimeSeries series = 1;
+  SearchMetrics metrics = 2;
+}
+
+message Sample {
+  // Fields order MUST match promql.FPoint so that we can cast types between them.
+  int64 timestamp_ms = 2;
+  double value = 1;
+}
+
+// https : // github.com/grafana/mimir/blob/main/pkg/mimirpb/mimir.proto#L53
+message TimeSeries {
+  // repeated LabelPair labels = 1 [(gogoproto.nullable) = false,
+  // (gogoproto.customtype) = "LabelAdapter"];
+  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  // Sorted by time, oldest sample first.
+  repeated Sample samples = 2 [(gogoproto.nullable) = false];
+  // repeated Exemplar exemplars = 3 [ (gogoproto.nullable) = false ];
+  // repeated Histogram histograms = 4 [ (gogoproto.nullable) = false ];
+  // TODO: review the LabelAdapter and migrate the use of this string
+  string prom_labels = 3;
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -28,7 +27,6 @@ type querySearchCmd struct {
 
 	OrgID      string `help:"optional orgID"`
 	UseGRPC    bool   `help:"stream search results over GRPC"`
-	UseWS      bool   `help:"stream search results over websocket"`
 	SPSS       int    `help:"spans per spanset" default:"0"`
 	Limit      int    `help:"limit number of results" default:"0"`
 	PathPrefix string `help:"string to prefix all http paths with"`
@@ -57,8 +55,6 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 
 	if cmd.UseGRPC {
 		return cmd.searchGRPC(req)
-	} else if cmd.UseWS {
-		return cmd.searchWS(req)
 	}
 
 	return cmd.searchHTTP(req)
@@ -98,24 +94,6 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 			return err
 		}
 	}
-}
-
-func (cmd *querySearchCmd) searchWS(req *tempopb.SearchRequest) error {
-	client := httpclient.New("ws://"+path.Join(cmd.HostPort, cmd.PathPrefix), cmd.OrgID)
-
-	resp, err := client.SearchWithWebsocket(req, func(resp *tempopb.SearchResponse) {
-		fmt.Println("--- streaming response ---")
-		err := printAsJSON(resp)
-		if err != nil {
-			panic(err)
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("--- final response ---")
-	return printAsJSON(resp)
 }
 
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {

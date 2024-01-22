@@ -489,12 +489,10 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/gorilla/websocket v1.5.0
-## explicit; go 1.12
-github.com/gorilla/websocket
-# github.com/grafana/dskit v0.0.0-20231120170505-765e343eda4f
+# github.com/grafana/dskit v0.0.0-20240116202611-824e75a28ee8
 ## explicit; go 1.20
 github.com/grafana/dskit/backoff
+github.com/grafana/dskit/cancellation
 github.com/grafana/dskit/concurrency
 github.com/grafana/dskit/crypto/tls
 github.com/grafana/dskit/dns
@@ -541,6 +539,11 @@ github.com/grafana/e2e/images
 # github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
 ## explicit; go 1.18
 github.com/grafana/gomemcache/memcache
+# github.com/grafana/pyroscope-go/godeltaprof v0.1.6
+## explicit; go 1.16
+github.com/grafana/pyroscope-go/godeltaprof
+github.com/grafana/pyroscope-go/godeltaprof/http/pprof
+github.com/grafana/pyroscope-go/godeltaprof/internal/pprof
 # github.com/grafana/regexp v0.0.0-20221123153739-15dc172cd2db
 ## explicit; go 1.17
 github.com/grafana/regexp
@@ -754,8 +757,8 @@ github.com/jsternberg/zap-logfmt
 # github.com/julienschmidt/httprouter v1.3.0
 ## explicit; go 1.7
 github.com/julienschmidt/httprouter
-# github.com/klauspost/compress v1.17.2
-## explicit; go 1.18
+# github.com/klauspost/compress v1.17.3
+## explicit; go 1.19
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
 github.com/klauspost/compress/fse
@@ -798,8 +801,8 @@ github.com/mailru/easyjson/jwriter
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
 github.com/mattn/go-colorable
-# github.com/mattn/go-ieproxy v0.0.9
-## explicit; go 1.14
+# github.com/mattn/go-ieproxy v0.0.11
+## explicit; go 1.17
 github.com/mattn/go-ieproxy
 # github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
@@ -1638,6 +1641,7 @@ golang.org/x/net/context
 golang.org/x/net/http/httpguts
 golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
+golang.org/x/net/http2/h2c
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/iana

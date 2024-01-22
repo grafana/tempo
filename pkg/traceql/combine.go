@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"golang.org/x/exp/maps"
 )
 
 type MetadataCombiner struct {
@@ -118,4 +119,64 @@ func spansetID(ss *tempopb.SpanSet) string {
 	}
 
 	return id
+}
+
+type QueryRangeCombiner struct {
+	ts      map[string]*tempopb.TimeSeries
+	metrics *tempopb.SearchMetrics
+}
+
+func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
+	if resp == nil || len(resp.Series) == 0 {
+		return
+	}
+
+	if q.ts == nil {
+		q.ts = make(map[string]*tempopb.TimeSeries, len(resp.Series))
+	}
+
+	for _, series := range resp.Series {
+
+		existing, ok := q.ts[series.PromLabels]
+		if !ok {
+			q.ts[series.PromLabels] = series
+			continue
+		}
+
+		q.combine(series, existing)
+	}
+
+	if q.metrics == nil {
+		q.metrics = &tempopb.SearchMetrics{}
+	}
+
+	if resp.Metrics != nil {
+		q.metrics.TotalBlocks += resp.Metrics.TotalBlocks
+		q.metrics.TotalBlockBytes += resp.Metrics.TotalBlockBytes
+		q.metrics.InspectedBytes += resp.Metrics.InspectedBytes
+	}
+}
+
+func (QueryRangeCombiner) combine(in *tempopb.TimeSeries, out *tempopb.TimeSeries) {
+outer:
+	for _, sample := range in.Samples {
+		for i, existing := range out.Samples {
+			if sample.TimestampMs == existing.TimestampMs {
+				out.Samples[i].Value += sample.Value
+				continue outer
+			}
+		}
+
+		out.Samples = append(out.Samples, sample)
+	}
+}
+
+func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
+	if q.metrics == nil {
+		q.metrics = &tempopb.SearchMetrics{}
+	}
+	return &tempopb.QueryRangeResponse{
+		Series:  maps.Values(q.ts),
+		Metrics: q.metrics,
+	}
 }

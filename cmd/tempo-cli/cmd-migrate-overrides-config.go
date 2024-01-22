@@ -10,11 +10,11 @@ import (
 	"os"
 
 	"github.com/grafana/dskit/services"
-
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/prometheus/client_golang/prometheus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	"gopkg.in/yaml.v2"
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 type migrateOverridesConfigCmd struct {
@@ -39,7 +39,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed to parse configFile %s: %w", cmd.ConfigFile, err)
 	}
 
-	o, err := overrides.NewOverrides(cfg.Overrides)
+	o, err := overrides.NewOverrides(cfg.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return fmt.Errorf("failed to load overrides module: %w", err)
 	}

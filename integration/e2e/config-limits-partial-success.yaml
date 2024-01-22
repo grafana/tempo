@@ -1,0 +1,35 @@
+target: all
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+
+overrides:
+  max_bytes_per_trace: 600
+  max_traces_per_user: 6
+  ingestion_rate_limit_bytes: 6000
+  ingestion_burst_size_bytes: 6000
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 3600s
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    pool:
+      max_workers: 10
+      queue_depth: 100

@@ -13,12 +13,14 @@ import (
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type mockStreamingServer struct {
@@ -209,7 +211,7 @@ func TestStreamingSearchHandlerFailsDueToError(t *testing.T) {
 func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 	t.Helper()
 
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	handler := newSearchStreamingGRPCHandler(Config{

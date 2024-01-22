@@ -174,7 +174,7 @@ func TestMultiTenantSearch(t *testing.T) {
 					require.NoError(t, err)
 					// we should have 8 requests for each tenant
 					err = tempo.WaitSumMetricsWithOptions(e2e.Equals(8),
-						[]string{"tempo_tenant_federation_success_total"},
+						[]string{"tempo_query_frontend_multitenant_success_total"},
 						e2e.WithLabelMatchers(matcher),
 					)
 					require.NoError(t, err)
@@ -209,12 +209,6 @@ func TestMultiTenantSearch(t *testing.T) {
 			now := time.Now()
 			_, msErr := apiClient.MetricsSummary("{}", "name", 0, 0)
 
-			// test websockets search
-			wsClient := httpclient.New("ws://"+tempo.Endpoint(3200), tc.tenant)
-			_, wsErr := wsClient.SearchWithWebsocket(&tempopb.SearchRequest{
-				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
-			}, func(sr *tempopb.SearchResponse) {})
-
 			// test streaming search over grpc
 			grpcCtx := user.InjectOrgID(context.Background(), tc.tenant)
 			grpcCtx, err = user.InjectIntoGRPCRequest(grpcCtx)
@@ -232,11 +226,9 @@ func TestMultiTenantSearch(t *testing.T) {
 			if tc.tenantSize > 1 {
 				// we expect error in case of multi-tenant request for unsupported endpoints
 				require.Error(t, msErr)
-				require.Error(t, wsErr)
 				require.Error(t, grpcErr)
 			} else {
 				require.NoError(t, msErr)
-				require.NoError(t, wsErr)
 				require.NoError(t, grpcErr)
 			}
 		})
