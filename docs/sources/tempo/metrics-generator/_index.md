@@ -27,6 +27,7 @@ Every processor derives different metrics. Currently, the following processors a
 
 - Service graphs
 - Span metrics
+- Local blocks
 
 <p align="center"><img src="server-side-metrics-arch-overview.png" alt="Service metrics architecture"></p>
 
@@ -49,6 +50,12 @@ Dimensions can be the service name, the operation, the span kind, the status cod
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
 To learn more about this processor, read the [documentation]({{< relref "./span_metrics" >}}).
+
+## Local blocks
+
+The local blocks processor is used to store spans for a set period of time and
+allow for more complex APIs to perform calculations on the data.  This must be
+enabled for certain metrics APIs to be function.
 
 ## Remote writing metrics
 
