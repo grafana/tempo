@@ -365,14 +365,14 @@ func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
+func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
 
-	resp, err := client.Search(context.Background(), &tempopb.SearchRequest{
+	resp, err := client.Search(ctx, &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(start),
 		End:   uint32(end),

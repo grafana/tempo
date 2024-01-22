@@ -121,7 +121,7 @@ func TestEncodings(t *testing.T) {
 				// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 				integration.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 				// find the trace with streaming. using the http server b/c that's what Grafana will do
-				integration.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+				integration.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 			}
 		})
 	}

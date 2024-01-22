@@ -82,5 +82,5 @@ func TestHTTPS(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix())
+	util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-time.Hour).Unix(), now.Add(time.Hour).Unix())
 }
