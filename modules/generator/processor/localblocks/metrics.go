@@ -10,6 +10,7 @@ const (
 	subsystem = "metrics_generator_processor_local_blocks"
 
 	reasonLiveTracesExceeded = "live_traces_exceeded"
+	reasonTraceSizeExceeded  = "trace_too_large"
 )
 
 var (
@@ -25,6 +26,12 @@ var (
 		Name:      "spans_total",
 		Help:      "Total number of spans after filtering",
 	}, []string{"tenant"})
+	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "spans_dropped_total",
+		Help:      "Number of spans dropped",
+	}, []string{"tenant", "reason"})
 	metricLiveTraces = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
