@@ -12,10 +12,14 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/atomic"
+
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -23,8 +27,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/atomic"
 )
 
 const timeBuffer = 5 * time.Minute
@@ -106,15 +108,29 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
+	var count int
 	before := p.liveTraces.Len()
 
-	for _, batch := range req.Batches {
-		err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
-		if errors.Is(err, errMaxExceeded) {
-			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+	// A quick way to reduce the number of spans we have to process
+	if p.Cfg.FilterServerSpans {
+		for _, batch := range req.Batches {
+			if batch, count = filterBatch(batch); batch != nil {
+				err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
+				if errors.Is(err, errMaxExceeded) {
+					metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+				}
+				metricTotalSpans.WithLabelValues(p.tenant).Add(float64(count))
+			}
 		}
-		for _, ss := range batch.ScopeSpans {
-			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(len(ss.Spans)))
+	} else {
+		for _, batch := range req.Batches {
+			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
+			if errors.Is(err, errMaxExceeded) {
+				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+			}
+			for _, ss := range batch.ScopeSpans {
+				metricTotalSpans.WithLabelValues(p.tenant).Add(float64(len(ss.Spans)))
+			}
 		}
 	}
 
@@ -723,4 +739,38 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 		}
 	}
 	return r
+}
+
+// filterBatch to only root spans or kind==server. Does not modify the input
+// but returns a new struct referencing the same input pointers. Returns nil
+// if there were no matching spans.
+func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
+	var keep int
+	var keepSS []*v1.ScopeSpans
+	for _, ss := range batch.ScopeSpans {
+
+		var keepSpans []*v1.Span
+		for _, s := range ss.Spans {
+			if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
+				keepSpans = append(keepSpans, s)
+			}
+		}
+
+		if len(keepSpans) > 0 {
+			keepSS = append(keepSS, &v1.ScopeSpans{
+				Scope: ss.Scope,
+				Spans: keepSpans,
+			})
+			keep += len(keepSpans)
+		}
+	}
+
+	if len(keepSS) > 0 {
+		return &v1.ResourceSpans{
+			Resource:   batch.Resource,
+			ScopeSpans: keepSS,
+		}, keep
+	}
+
+	return nil, 0
 }
