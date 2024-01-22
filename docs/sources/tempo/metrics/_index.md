@@ -56,23 +56,23 @@ here will depend on the environment.
 For example, in a cloud environment, smaller jobs with more concurrency may be
 desired due to the nature of scale on the backend.
 
-    ```yaml
-    query_frontend:
-        metrics:
-            concurrent_jobs: 1000
-            target_bytes_per_job: 2.25e+08 # 250MB
-            interval: 30m0s
-    ```
+```yaml
+query_frontend:
+    metrics:
+        concurrent_jobs: 1000
+        target_bytes_per_job: 2.25e+08 # 250MB
+        interval: 30m0s
+```
 
 For an on-prem backend, it may be improve query times to lower the concurrency,
 while increasing the job size.
 
-    ```yaml
-    query_frontend:
-        metrics:
-            concurrent_jobs: 8
-            target_bytes_per_job: 1.25e+09 # 1.25GB
-    ```
+```yaml
+query_frontend:
+    metrics:
+        concurrent_jobs: 8
+        target_bytes_per_job: 1.25e+09 # 1.25GB
+```
 
 ## Visualize traces with TraceQL
 
