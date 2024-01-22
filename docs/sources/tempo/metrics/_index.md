@@ -60,7 +60,7 @@ desired due to the nature of scale on the backend.
 query_frontend:
     metrics:
         concurrent_jobs: 1000
-        target_bytes_per_job: 2.25e+08 # 250MB
+        target_bytes_per_job: 2.25e+08 # ~225MB
         interval: 30m0s
 ```
 
@@ -71,7 +71,7 @@ while increasing the job size.
 query_frontend:
     metrics:
         concurrent_jobs: 8
-        target_bytes_per_job: 1.25e+09 # 1.25GB
+        target_bytes_per_job: 1.25e+09 # ~1.25GB
 ```
 
 ## Visualize traces with TraceQL
