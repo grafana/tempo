@@ -55,6 +55,10 @@ func (cfg *UserConfigurableOverridesConfig) RegisterFlagsAndApplyDefaults(f *fla
 	cfg.PollInterval = time.Minute
 
 	cfg.Client.RegisterFlagsAndApplyDefaults(f)
+	cfg.API.RegisterFlagsAndApplyDefaults(f)
+}
+
+func (c UserConfigurableOverridesAPIConfig) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 }
 
 type tenantLimits map[string]*userconfigurableoverrides.Limits
