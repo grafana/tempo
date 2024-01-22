@@ -751,7 +751,7 @@ func parquetToLinks(parquetLinks []Link) []*v1_trace.Span_Link {
 	return protoLinks
 }
 
-func parquetToProtoEvents(parquetEvents []Event, span Span) []*v1_trace.Span_Event {
+func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64) []*v1_trace.Span_Event {
 	var protoEvents []*v1_trace.Span_Event
 
 	if len(parquetEvents) > 0 {
@@ -760,7 +760,7 @@ func parquetToProtoEvents(parquetEvents []Event, span Span) []*v1_trace.Span_Eve
 		for _, e := range parquetEvents {
 
 			protoEvent := &v1_trace.Span_Event{
-				TimeUnixNano:           e.TimeSinceStartNano + span.StartTimeUnixNano,
+				TimeUnixNano:           e.TimeSinceStartNano + spanStartTimeNano,
 				Name:                   e.Name,
 				Attributes:             nil,
 				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
@@ -869,7 +869,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 					},
 					Attributes:             spanAttr,
 					DroppedAttributesCount: uint32(span.DroppedAttributesCount),
-					Events:                 parquetToProtoEvents(span.Events, span),
+					Events:                 parquetToProtoEvents(span.Events, span.StartTimeUnixNano),
 					DroppedEventsCount:     uint32(span.DroppedEventsCount),
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 				}
