@@ -53,8 +53,8 @@ To learn more about this processor, read the [documentation]({{< relref "./span_
 
 ## Local blocks
 
-The local blocks processor is used to store spans for a set period of time and
-allow for more complex APIs to perform calculations on the data.  This must be
+The local blocks processor stores spans for a set period of time and
+enables more complex APIs to perform calculations on the data. The processor must be
 enabled for certain metrics APIs to function.
 
 ## Remote writing metrics
