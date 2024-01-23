@@ -215,8 +215,14 @@ func (s *Span) IsRoot() bool {
 }
 
 type InstrumentationScope struct {
-	Name    string `parquet:",snappy,dict"`
-	Version string `parquet:",snappy,dict"`
+	Name                   string      `parquet:",snappy,dict"`
+	Version                string      `parquet:",snappy,dict"`
+	Attrs                  []Attribute `parquet:",list"`
+	DroppedAttributesCount int32       `parquet:",snappy"`
+}
+
+func (is *InstrumentationScope) addDroppedAttr(n int32) {
+	is.DroppedAttributesCount += n
 }
 
 type ScopeSpans struct {
@@ -456,15 +462,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 		ob.ScopeSpans = extendReuseSlice(len(b.ScopeSpans), ob.ScopeSpans)
 		for iils, ils := range b.ScopeSpans {
 			oils := &ob.ScopeSpans[iils]
-			if ils.Scope != nil {
-				oils.Scope = InstrumentationScope{
-					Name:    ils.Scope.Name,
-					Version: ils.Scope.Version,
-				}
-			} else {
-				oils.Scope.Name = ""
-				oils.Scope.Version = ""
-			}
+			instrumentScopeToParquet(ils.Scope, &oils.Scope)
 
 			oils.Spans = extendReuseSlice(len(ils.Spans), oils.Spans)
 			for is, s := range ils.Spans {
@@ -601,6 +599,20 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	return ot, assignNestedSetModelBounds(ot)
 }
 
+func instrumentScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {
+	if s == nil {
+		ss.Name = ""
+		ss.Version = ""
+	} else {
+		ss.Name = s.Name
+		ss.Version = s.Version
+	}
+
+	// TODO: handle attributes correctly once they are added to the proto
+	ss.Attrs = ss.Attrs[:0]
+	ss.DroppedAttributesCount = 0
+}
+
 func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
 	ee.Name = e.Name
 	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
@@ -726,6 +738,15 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 	return protoAttrs
 }
 
+func parquetToProtoInstrumentationScope(parquetScope *InstrumentationScope) *v1.InstrumentationScope {
+	scope := v1.InstrumentationScope{
+		Name:    parquetScope.Name,
+		Version: parquetScope.Version,
+	}
+	// TODO: handle attributes correctly once they are added to the proto
+	return &scope
+}
+
 func parquetToLinks(parquetLinks []Link) []*v1_trace.Span_Link {
 	var protoLinks []*v1_trace.Span_Link
 
@@ -842,16 +863,13 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 
 		protoBatch.ScopeSpans = make([]*v1_trace.ScopeSpans, 0, len(rs.ScopeSpans))
 
-		for _, span := range rs.ScopeSpans {
+		for _, scopeSpan := range rs.ScopeSpans {
 			protoSS := &v1_trace.ScopeSpans{
-				Scope: &v1.InstrumentationScope{
-					Name:    span.Scope.Name,
-					Version: span.Scope.Version,
-				},
+				Scope: parquetToProtoInstrumentationScope(&scopeSpan.Scope),
 			}
 
-			protoSS.Spans = make([]*v1_trace.Span, 0, len(span.Spans))
-			for _, span := range span.Spans {
+			protoSS.Spans = make([]*v1_trace.Span, 0, len(scopeSpan.Spans))
+			for _, span := range scopeSpan.Spans {
 
 				spanAttr := parquetToProtoAttrs(span.Attrs, &span, includeDroppedAttr)
 				protoSpan := &v1_trace.Span{
