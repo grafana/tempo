@@ -12,8 +12,9 @@ keywords:
 
 # Prometheus compatibility
 
-An experimental Prometheus-compatible API has been added to Tempo to provide a
-way to visualize metrics out of traces using TraceQL.
+{{< docs/experimental product="Prometheus-compatible API"  >}}
+
+This experimental Prometheus-compatible API provides a way to visualize metrics out of traces using TraceQL.
 
 This is marked as **experimental** because we expect native support in Grafana
 in the future, which likely will use an internal API, deprecating the need for
