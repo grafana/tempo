@@ -462,7 +462,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 		ob.ScopeSpans = extendReuseSlice(len(b.ScopeSpans), ob.ScopeSpans)
 		for iils, ils := range b.ScopeSpans {
 			oils := &ob.ScopeSpans[iils]
-			instrumentScopeToParquet(ils.Scope, &oils.Scope)
+			instrumentationScopeToParquet(ils.Scope, &oils.Scope)
 
 			oils.Spans = extendReuseSlice(len(ils.Spans), oils.Spans)
 			for is, s := range ils.Spans {
@@ -599,7 +599,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	return ot, assignNestedSetModelBounds(ot)
 }
 
-func instrumentScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {
+func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {
 	if s == nil {
 		ss.Name = ""
 		ss.Version = ""
@@ -747,7 +747,7 @@ func parquetToProtoInstrumentationScope(parquetScope *InstrumentationScope) *v1.
 	return &scope
 }
 
-func parquetToLinks(parquetLinks []Link) []*v1_trace.Span_Link {
+func parquetToProtoLinks(parquetLinks []Link) []*v1_trace.Span_Link {
 	var protoLinks []*v1_trace.Span_Link
 
 	if len(parquetLinks) > 0 {
@@ -892,7 +892,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 				}
 
-				protoSpan.Links = parquetToLinks(span.Links)
+				protoSpan.Links = parquetToProtoLinks(span.Links)
 
 				// dynamically assigned dedicated resource attribute columns
 				dedicatedSpanAttributes.forEach(func(attr string, col dedicatedColumn) {
