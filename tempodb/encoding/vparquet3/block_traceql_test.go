@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
@@ -390,27 +389,16 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
-	links := tempopb.LinkSlice{
-		Links: []*v1.Span_Link{
-			{
-				TraceId:                []byte{0x01},
-				SpanId:                 []byte{0x02},
-				TraceState:             "state",
-				DroppedAttributesCount: 3,
-				Attributes: []*v1_common.KeyValue{
-					{
-						Key:   "key",
-						Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value"}},
-					},
-				},
+	links := []Link{
+		{
+			TraceID:                []byte{0x01},
+			SpanID:                 []byte{0x02},
+			TraceState:             "state",
+			DroppedAttributesCount: 3,
+			Attrs: []Attribute{
+				attr("link-attr-key-1", "link-value-1"),
 			},
 		},
-	}
-
-	linkBytes := make([]byte, links.Size())
-	_, err := links.MarshalTo(linkBytes)
-	if err != nil {
-		panic("failed to marshal links")
 	}
 
 	mixedArrayAttrValue := "{\"arrayValue\":{\"values\":[{\"stringValue\":\"value-one\"},{\"intValue\":\"100\"}]}}"
@@ -498,13 +486,17 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
 								},
 								Events: []Event{
-									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
-										{Key: "foo", Value: []byte("fake proto encoded data. i hope this never matters")},
-										{Key: "bar", Value: []byte("fake proto encoded data. i hope this never matters")},
-									}},
-									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
+									{
+										TimeSinceStartNano: 1,
+										Name:               "e1",
+										Attrs: []Attribute{
+											attr("event-attr-key-1", "event-value-1"),
+											attr("event-attr-key-2", "event-value-2"),
+										},
+									},
+									{TimeSinceStartNano: 2, Name: "e2", Attrs: []Attribute{}},
 								},
-								Links: linkBytes,
+								Links: links,
 								DedicatedAttributes: DedicatedAttributes{
 									String01: ptr("dedicated-span-attr-value-1"),
 									String02: ptr("dedicated-span-attr-value-2"),
