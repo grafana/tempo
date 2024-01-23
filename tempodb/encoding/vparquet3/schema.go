@@ -154,7 +154,7 @@ type Event struct {
 	TimeSinceStartNano     uint64      `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dic"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
 func (e *Event) addDroppedAttr(n int32) {
@@ -166,7 +166,7 @@ type Link struct {
 	SpanID                 []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
 func (l *Link) addDroppedAttr(n int32) {
@@ -191,7 +191,7 @@ type Span struct {
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 	Events                 []Event     `parquet:",list"`
 	DroppedEventsCount     int32       `parquet:",snappy"`
 	Links                  []Link      `parquet:",list"`
@@ -218,7 +218,7 @@ type InstrumentationScope struct {
 	Name                   string      `parquet:",snappy,dict"`
 	Version                string      `parquet:",snappy,dict"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
 func (is *InstrumentationScope) addDroppedAttr(n int32) {
@@ -232,7 +232,7 @@ type ScopeSpans struct {
 
 type Resource struct {
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 
 	// Static dedicated attribute columns
 	ServiceName      string  `parquet:",snappy,dict"`
