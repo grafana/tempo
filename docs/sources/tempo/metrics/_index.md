@@ -16,8 +16,7 @@ keywords:
 
 This experimental Prometheus-compatible API provides a way to visualize metrics out of traces using TraceQL.
 
-This is marked as **experimental** because we expect native support in Grafana
-in the future, which likely will use an internal API, deprecating the need for
+The API will have native support in a future Grafana release, possibly using an internal API, deprecating the need for
 this compatibility layer.
 
 ## Configure a Grafana datasource
