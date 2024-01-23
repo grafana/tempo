@@ -162,7 +162,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "Poller.Do")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Poller.Do")
 	defer span.Finish()
 
 	tenants, err := p.reader.Tenants(ctx)
@@ -219,6 +219,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		select {
 		case <-ctx.Done():
 			if errors.Is(ctx.Err(), context.Canceled) {
+				// TODO: perhaps we should return the partial results here?  The caller doesn't know what do do with nil error and nil results.
 				return nil, nil, nil
 			}
 

@@ -127,6 +127,8 @@ func TestPollerOwnership(t *testing.T) {
 				TenantPollConcurrency: 3,
 			}, OwnsEverythingSharder, r, cc, w, logger, l)
 
+			blocklistPoller.Start(context.Background())
+
 			// Use the block boundaries in the GCS and S3 implementation
 			bb := blockboundary.CreateBlockBoundaries(concurrency)
 			// Pick a boundary to use for this test
