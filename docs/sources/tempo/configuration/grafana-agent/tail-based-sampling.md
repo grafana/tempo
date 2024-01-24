@@ -83,36 +83,40 @@ otelcol.exporter.otlp "tempo" {
     }
 }
 
-// The Tail Sampling processor will use a set of policies to determine which received traces to keep
-// and send to Tempo.
+// The Tail Sampling processor will use a set of policies to determine which received
+// traces to keep and send to Tempo.
 otelcol.processor.tail_sampling "policies" {
-    // Total wait time from the start of a trace before making a sampling decision. Note that smaller time
-    // periods can potentially cause a decision to be made before the end of a trace has occurred.
+    // Total wait time from the start of a trace before making a sampling decision.
+    // Note that smaller time periods can potentially cause a decision to be made
+    // before the end of a trace has occurred.
     decision_wait = "30s"
 
-    // The following policies follow a logical OR pattern, meaning that if any of the policies match,
-    // the trace will be kept. For logical AND, you can use the `and` policy. Every span of a trace is
-    // examined by each policy in turn. A match will cause a short-circuit.
+    // The following policies follow a logical OR pattern, meaning that if any of the
+    // policies match, the trace will be kept. For logical AND, you can use the `and`
+    // policy. Every span of a trace is examined by each policy in turn. A match will
+    // cause a short-circuit.
 
     // This policy defines that traces that contain errors should be kept.
     policy {
         // The name of the policy can be used for logging purposes.
         name = "sample-erroring-traces"
-        // The type must match the type of policy to be used, in this case examing the status code
-        // of every span in the trace.
+        // The type must match the type of policy to be used, in this case examining
+        // the status code of every span in the trace.
         type = "status_code"
-        // This block determines the error codes that should match in order to keep the trace,
-        // in this case the OpenTelemetry 'ERROR' code.
+        // This block determines the error codes that should match in order to keep
+        // the trace, in this case the OpenTelemetry 'ERROR' code.
         status_code {
             status_codes = [ "ERROR" ]
         }
     }
 
-    // This policy defines that only traces that are longer than 200ms in total should be kept.
+    // This policy defines that only traces that are longer than 200ms in total
+    // should be kept.
     policy {
         // The name of the policy can be used for logging purposes.
         name = "sample-long-traces"
-        // The type must match the policy to be used, in this case the total latency of the trace.
+        // The type must match the policy to be used, in this case the total latency
+        // of the trace.
         type = "latency"
         // This block determines the total length of the trace in milliseconds.
         latency {
@@ -120,8 +124,8 @@ otelcol.processor.tail_sampling "policies" {
         }
     }
 
-    // The output block forwards the kept traces onto the batch processor, which will marshall them
-    // for exporting to Tempo.
+    // The output block forwards the kept traces onto the batch processor, which
+    // will marshall them for exporting to Tempo.
     output {
         traces = [otelcol.exporter.otlp.tempo.input]
     }
