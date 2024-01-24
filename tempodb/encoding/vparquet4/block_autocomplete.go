@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import (
 	"context"
@@ -139,7 +139,7 @@ func createDistinctSpanIterator(
 
 	// TODO: Potentially problematic when wanted attribute is also part of a condition
 	//     e.g. { span.foo =~ ".*" && span.foo = }
-	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
 		} else {
@@ -439,7 +439,7 @@ func createDistinctResourceIterator(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
 		} else {

@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import "github.com/grafana/tempo/pkg/traceql"
 
@@ -42,7 +42,7 @@ func coalesceConditions(f *traceql.FetchSpansRequest) {
 // therefore! we will only coalesce conditions in the following cases:
 //   - they are exactly the same
 //   - they will pull every span anyway. example: { span.foo = "bar" } >> { span.foo != "bar" }
-func coalesce(c1 traceql.Condition, c2 traceql.Condition) (traceql.Condition, bool) {
+func coalesce(c1, c2 traceql.Condition) (traceql.Condition, bool) {
 	// if the conditions are exactly the same then we can just return one of them
 	if c1.Attribute == c2.Attribute &&
 		c1.Op == c2.Op &&
@@ -67,7 +67,7 @@ func coalesce(c1 traceql.Condition, c2 traceql.Condition) (traceql.Condition, bo
 	return traceql.Condition{}, false
 }
 
-func operandsEqual(c1 traceql.Condition, c2 traceql.Condition) bool {
+func operandsEqual(c1, c2 traceql.Condition) bool {
 	if len(c1.Operands) != len(c2.Operands) {
 		return false
 	}
