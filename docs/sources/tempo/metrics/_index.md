@@ -64,7 +64,7 @@ query_frontend:
         interval: 30m0s
 ```
 
-For an on-prem backend, it may be improve query times to lower the concurrency,
+For an on-prem backend, you can improve query times by lowering the concurrency,
 while increasing the job size.
 
 ```yaml
