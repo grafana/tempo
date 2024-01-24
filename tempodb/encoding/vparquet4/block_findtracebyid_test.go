@@ -56,7 +56,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 								{
 									Name: "hello",
 									Attrs: []Attribute{
-										{Key: "foo", Value: &bar},
+										attr("foo", bar),
 									},
 									SpanID:       []byte{},
 									ParentSpanID: []byte{},
@@ -95,7 +95,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
-		wantProto := parquetTraceToTempopbTrace(meta, tr)
+		wantProto := parquetTraceToTempopbTrace(meta, tr, false)
 
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
