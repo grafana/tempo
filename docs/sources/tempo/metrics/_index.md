@@ -82,9 +82,9 @@ Next, use Grafana `explore` to query the data source.
 Even though we are using a Prometheus data source, we are not using PromQL. Grafana will have no way to parse, validate or provide completion options for the query.
 {{% /admonition %}}
 
-Adjust the query "type" so that only "range" is selected.
+Adjust the query `type` so only `range` is selected.
 
-Here is an example query.
+Here is an example query:
 
 ```
 {status=error} | count_over_time() by (resource.service.name)
