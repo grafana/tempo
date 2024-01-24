@@ -32,7 +32,7 @@ parameter to `http://<HOST>:<PORT>/prom`.  For example:
 
 <p align="center"><img src="datasource.png" alt="Metrics visualization in Grafana "></p>
 
-The datasource test will fail with a `404` status code, but this is accepted
+The data source test will fail with a `404` status code, but this is accepted
 for the experimental feature.
 
 ### Query timeouts
