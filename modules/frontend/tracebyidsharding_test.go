@@ -39,7 +39,7 @@ func TestBuildShardedRequests(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(req)
+	shardedReqs, err := sharder.buildShardedRequests(ctx, req)
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
@@ -126,6 +126,20 @@ func TestShardingWareDoRequest(t *testing.T) {
 			trace1:         trace1,
 			status2:        429,
 			expectedStatus: 429,
+		},
+		{
+			name:           "200+408",
+			status1:        200,
+			trace1:         trace1,
+			status2:        408,
+			expectedStatus: 408,
+		},
+		{
+			name:           "200+499",
+			status1:        200,
+			trace1:         trace1,
+			status2:        499,
+			expectedStatus: 499,
 		},
 		{
 			name:           "503+200",
