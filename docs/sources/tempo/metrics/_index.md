@@ -41,7 +41,7 @@ Because of the expensive nature, these queries can take a long time to run in di
 As such, consider increasing the timeouts in various places of
 the system to allow enough time for the data to be returned.
 
-Three areas to consider when raising timeouts.
+Consider these areas when raising timeouts: 
 
   - Any proxy in front of Grafana
   - Grafana data source for Prometheus pointing at Tempo
