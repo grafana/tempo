@@ -30,7 +30,7 @@ parameter to `http://<HOST>:<PORT>/prom`.  For example:
     http://query-frontend.trace.svc.cluster.local:3200/prom
     ```
 
-<p align="center"><img src="datasource.png" alt="Metrics visualization in Grafana "></p>
+![Caption](/media/docs/tempo/metrics-data-source.png)
 
 The data source test will fail with a `404` status code, but this is accepted
 for the experimental feature.
@@ -102,3 +102,4 @@ introduced with this API.  There is also a `rate()` function.
 Finally, the `by (resource.service.name)` groups the results into each series.
 
 <p align="center"><img src="explore.png" alt="Metrics visualization in Grafana "></p>
+![Caption](/media/docs/tempo/metrics-explore-sample.png)
