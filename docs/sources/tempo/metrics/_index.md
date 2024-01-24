@@ -76,7 +76,7 @@ query_frontend:
 
 ## Visualize traces with TraceQL
 
-Next use Grafana `explore` to query the data source.
+Next, use Grafana `explore` to query the data source.
 
 {{% admonition type="note" %}}
 Even though we are using a Prometheus data source, we are not using PromQL. Grafana will have no way to parse, validate or provide completion options for the query.
