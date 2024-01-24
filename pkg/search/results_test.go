@@ -25,7 +25,7 @@ func TestResultsDoesNotRace(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			sr := NewResults()
+			sr := NewResults(1)
 			defer sr.Close()
 
 			workers := 10

@@ -27,9 +27,9 @@ type Results struct {
 	blocksInspected atomic.Uint32
 }
 
-func NewResults() *Results {
+func NewResults(maxResults int) *Results {
 	return &Results{
-		resultsCh: make(chan *tempopb.TraceSearchMetadata),
+		resultsCh: make(chan *tempopb.TraceSearchMetadata, maxResults),
 		doneCh:    make(chan struct{}),
 	}
 }

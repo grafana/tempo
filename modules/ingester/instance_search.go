@@ -40,7 +40,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	span.LogFields(ot_log.String("SearchRequest", req.String()))
 
-	sr := search.NewResults()
+	sr := search.NewResults(maxResults)
 	defer sr.Close() // signal all running workers to quit
 
 	// Lock headblock separately from other blocks and release it as soon as this
@@ -107,6 +107,13 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 		return
 	}
 
+	if sr.Quit() {
+		if cleanup != nil {
+			cleanup()
+		}
+		return
+	}
+
 	blockID := meta.BlockID
 
 	sr.StartWorker()
@@ -147,7 +154,9 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 		}
 
 		for _, t := range resp.Traces {
-			sr.AddResult(ctx, t)
+			if sr.AddResult(ctx, t) {
+				break
+			}
 		}
 		sr.AddBlockInspected()
 
