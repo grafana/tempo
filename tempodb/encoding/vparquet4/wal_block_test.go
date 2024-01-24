@@ -36,7 +36,7 @@ func TestFullFilename(t *testing.T) {
 				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString, backend.EncNone, ""),
 				path: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+vParquet3",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+vParquet4",
 		},
 		{
 			name: "no path",
@@ -44,7 +44,7 @@ func TestFullFilename(t *testing.T) {
 				meta: backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), VersionString, backend.EncNone, ""),
 				path: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000+foo+vParquet3",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+vParquet4",
 		},
 	}
 
@@ -141,14 +141,14 @@ func TestParseFilename(t *testing.T) {
 	}{
 		{
 			name:            "happy path",
-			filename:        "123e4567-e89b-12d3-a456-426614174000+tenant+vParquet3",
+			filename:        "123e4567-e89b-12d3-a456-426614174000+tenant+vParquet4",
 			expectUUID:      uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:    "tenant",
-			expectedVersion: "vParquet3",
+			expectedVersion: "vParquet4",
 		},
 		{
 			name:        "path fails",
-			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000+tenant+vParquet3",
+			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000+tenant+vParquet4",
 			expectError: true,
 		},
 		{
@@ -168,7 +168,7 @@ func TestParseFilename(t *testing.T) {
 		},
 		{
 			name:        "no tenant",
-			filename:    "123e4567-e89b-12d3-a456-426614174000++vParquet3",
+			filename:    "123e4567-e89b-12d3-a456-426614174000++vParquet4",
 			expectError: true,
 		},
 		{
@@ -330,7 +330,7 @@ func BenchmarkWalTraceQL(b *testing.B) {
 		"{ resource.foo = `bar` }",
 	}
 
-	w, warn, err := openWALBlock("15eec7d7-4b9f-4cf7-948d-fb9765ecd9a8+1+vParquet3", "/Users/marty/src/tmp/wal/", 0, 0)
+	w, warn, err := openWALBlock("15eec7d7-4b9f-4cf7-948d-fb9765ecd9a8+1+vParquet4", "/Users/marty/src/tmp/wal/", 0, 0)
 	require.NoError(b, err)
 	require.NoError(b, warn)
 
@@ -363,7 +363,7 @@ func BenchmarkWalSearchTagValues(b *testing.B) {
 		"celery.task_name",
 	}
 
-	w, warn, err := openWALBlock("15eec7d7-4b9f-4cf7-948d-fb9765ecd9a8+1+vParquet3", "/Users/marty/src/tmp/wal/", 0, 0)
+	w, warn, err := openWALBlock("15eec7d7-4b9f-4cf7-948d-fb9765ecd9a8+1+vParquet4", "/Users/marty/src/tmp/wal/", 0, 0)
 	require.NoError(b, err)
 	require.NoError(b, warn)
 
