@@ -18,8 +18,6 @@ type Service interface {
 	Interface
 }
 
-type Level string
-
 type Interface interface {
 	prometheus.Collector
 

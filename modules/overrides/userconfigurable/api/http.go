@@ -181,7 +181,7 @@ func writeError(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if ok := errors.Is(err, errConflictingRuntimeOverrides); ok {
+	if errors.Is(err, errConflictingRuntimeOverrides) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
