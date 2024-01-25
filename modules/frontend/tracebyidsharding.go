@@ -94,9 +94,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	for _, req := range reqs {
 		wg.Add(1)
 		go func(innerR *http.Request) {
-			defer func() {
-				wg.Done()
-			}()
+			defer wg.Done()
 
 			resp, rtErr := s.next.RoundTrip(innerR)
 
