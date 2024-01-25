@@ -68,7 +68,7 @@ func (o *userConfigurableOverridesManager) TenantStatusHandler(w http.ResponseWr
 	if overrides != nil {
 		marshalledOverrides, err := yaml.Marshal(overrides)
 		if err != nil {
-			util.WriteTextResponse(w, fmt.Sprintf("Marshalling runtime overrides failed: %w", err))
+			util.WriteTextResponse(w, fmt.Sprintf("Marshalling runtime overrides failed: %s", err))
 		}
 		userConfigurableOverrides = string(marshalledOverrides)
 	} else {
