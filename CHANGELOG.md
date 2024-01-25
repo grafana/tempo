@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [FEATURE] Add support for multi-tenant queries in streaming search [#3262](https://github.com/grafana/tempo/pull/3262) (@electron0zero)
 * [FEATURE] TraceQL metrics queries [#3227](https://github.com/grafana/tempo/pull/3227) [#3252](https://github.com/grafana/tempo/pull/3252) [#3258](https://github.com/grafana/tempo/pull/3258) (@mdisibio @zalegrala)
 * [FEATURE] Add support for multi-tenant queries. [#3087](https://github.com/grafana/tempo/pull/3087) (@electron0zero)
 * [BUGFIX] Fix parsing of span.resource.xyz attributes in TraceQL. [#3284](https://github.com/grafana/tempo/pull/3284) (@mghildiy)
