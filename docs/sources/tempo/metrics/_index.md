@@ -14,7 +14,7 @@ keywords:
 
 {{< docs/experimental product="Prometheus-compatible API"  >}}
 
-This experimental Prometheus-compatible API provides a way to visualize metrics out of traces using TraceQL.
+This experimental Prometheus-compatible API provides a way to visualize metrics out of traces using TraceQL.  Additionally, the only implemented endpoint is `/query_range`, to allow a Prometheus data source in Grafana to be used.
 
 The API will have native support in a future Grafana release, possibly using an internal API, deprecating the need for
 this compatibility layer.
