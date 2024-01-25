@@ -70,6 +70,6 @@ Using Trace to profiles, you can use Grafana’s ability to correlate different 
 Trace to profiles lets you link your [Grafana Pyroscope](/docs/pyroscope/) data source to tracing data in Grafana or Grafana Cloud.
 When configured, this connection lets you run queries from a trace span into the profile data.
 
-For more information, refer to the [Traces to profiles documentation](docs/grafana/latest/datasources/tempo/configure-tempo-data-source#trace-to-profiles) and the [Grafana Pyroscope data source documentation](/docs/grafana/latest/datasources/grafana-pyroscope/).
+For more information, refer to the [Traces to profiles documentation](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source#trace-to-profiles) and the [Grafana Pyroscope data source documentation](https://docs/grafana/<GRAFANA_VERSION>/datasources/grafana-pyroscope/).
 
 {{< youtube id="AG8VzfFMLxo" >}}
