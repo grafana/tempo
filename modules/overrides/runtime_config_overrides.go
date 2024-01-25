@@ -241,20 +241,21 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	return nil
 }
 
-func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
-	return o.getOverridesForUser(userID)
-}
-
-func (o *runtimeConfigOverridesManager) WriteTenantOverrides(w io.Writer, _ *http.Request, userID string) error {
-	overrides := o.getOverridesForUser(userID)
-
-	out, err := yaml.Marshal(overrides)
-	if err != nil {
-		return err
+func (o *runtimeConfigOverridesManager) GetTenantIDs() []string {
+	tenantOverrides := o.tenantOverrides()
+	if tenantOverrides == nil {
+		return nil
 	}
 
-	_, err = w.Write(out)
-	return err
+	var ids []string
+	for tenant := range tenantOverrides.TenantLimits {
+		ids = append(ids, tenant)
+	}
+	return ids
+}
+
+func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
+	return o.getOverridesForUser(userID)
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied

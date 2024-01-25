@@ -70,6 +70,7 @@ type userConfigurableOverridesManager struct {
 }
 
 var _ Service = (*userConfigurableOverridesManager)(nil)
+var _ Interface = (*userConfigurableOverridesManager)(nil)
 
 // newUserConfigOverrides wraps the given overrides with user-configurable overrides.
 func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides Service) (*userConfigurableOverridesManager, error) {
@@ -195,6 +196,14 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 	}
 }
 
+func (o *userConfigurableOverridesManager) GetTenantIDs() []string {
+	var ids []string
+	for tenant := range o.getAllTenantLimits() {
+		ids = append(ids, tenant)
+	}
+	return ids
+}
+
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 	if forwarders, ok := o.getTenantLimits(userID).GetForwarders(); ok {
 		return forwarders
@@ -314,26 +323,6 @@ func (o *userConfigurableOverridesManager) WriteStatusRuntimeConfig(w io.Writer,
 	}
 
 	return nil
-}
-
-type statusTenantOverrides struct {
-	UserConfigurableLimits *userconfigurableoverrides.Limits `yaml:"user_configurable_limits"`
-	RuntimeOverrides       *Overrides                        `yaml:"runtime_overrides"`
-}
-
-func (o *userConfigurableOverridesManager) WriteTenantOverrides(w io.Writer, _ *http.Request, userID string) error {
-	overrides := statusTenantOverrides{
-		UserConfigurableLimits: o.getTenantLimits(userID),
-		RuntimeOverrides:       o.GetRuntimeOverridesFor(userID),
-	}
-
-	out, err := yaml.Marshal(overrides)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(out)
-	return err
 }
 
 func (o *userConfigurableOverridesManager) Describe(ch chan<- *prometheus.Desc) {

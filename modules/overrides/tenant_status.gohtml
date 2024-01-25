@@ -1,0 +1,17 @@
+{{- /*gotype: github.com/grafana/mimir/pkg/storegateway.tenantsPageContents*/ -}}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Overrides: tenant</title>
+</head>
+<body>
+<h1>Overrides: tenant</h1>
+<p>Current time: {{ .Now }}</p>
+<p>Showing overrides for tenant: <strong>{{ .Tenant }}</strong></p>
+<h3>User-configurable overrides</h3>
+<pre><code>{{ .UserConfigurableOverrides }}</code></pre>
+<h3>Runtime overrides</h3>
+<pre><code>{{ .RuntimeOverrides }}</code></pre>
+</body>
+</html>
