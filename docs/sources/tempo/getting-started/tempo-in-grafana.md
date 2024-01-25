@@ -62,3 +62,14 @@ The JSON data can be downloaded via the Tempo API or the [Inspector panel](/docs
 {{% admonition type="note" %}}
 To perform this action on Grafana 10.1 or later, select a Tempo data source, select **Explore** from the main menu, and then select **Import trace**.
 {{% /admonition %}}
+
+## Link tracing data with profiles
+
+Using Trace to profiles, you can use Grafana’s ability to correlate different signals by adding the functionality to link between traces and profiles.
+
+Trace to profiles lets you link your [Grafana Pyroscope](https://grafana.com/docs/pyroscope/latest/) data source to tracing data in Grafana or Grafana Cloud.
+When configured, this connection lets you run queries from a trace span into the profile data.
+
+For more information, refer to the [Traces to profiles documentation](https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/#trace-to-profiles) and the [Grafana Pyroscope data source documentation](https://grafana.com/docs/grafana/latest/datasources/grafana-pyroscope/).
+
+{{< youtube id="AG8VzfFMLxo" >}}
