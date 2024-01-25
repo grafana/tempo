@@ -79,7 +79,7 @@ query_frontend:
 Next, use Grafana `explore` to query the data source.
 
 {{% admonition type="note" %}}
-Even though we are using a Prometheus data source, we are not using PromQL. Grafana will have no way to parse, validate or provide completion options for the query.
+Even though you are using a Prometheus data source, queries don't use PromQL. Grafana will have no way to parse, validate or provide completion options for the query.
 {{% /admonition %}}
 
 Adjust the query `type` so only `range` is selected.
