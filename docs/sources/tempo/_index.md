@@ -5,6 +5,7 @@ aliases:
   - /docs/tempo/
 cascade:
   GRAFANA_VERSION: next
+  TEMPO_VERSION: latest
 ---
 
 # Tempo documentation
