@@ -9,7 +9,13 @@ aliases:
 
 # Configure Tempo
 
-This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
+This document explains the configuration options for Tempo as well as the details of what they impact.
+
+{{% admonition type="tip" %}}
+Instructions for configuring Tempo data sources are available in the [Grafana Cloud](/docs/grafana-cloud/send-data/traces/) and [Grafana](/docs/grafana/latest/datasources/tempo/) documentation.
+{{% /admonition %}}
+
+The Tempo configuration options include:
 
 - [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
@@ -426,7 +432,7 @@ query_frontend:
     # Enable multi-tenant queries.
     # If enabled, queries can be federated across multiple tenants.
     # The tenant IDs involved need to be specified separated by a '|'
-    # character in the 'X-Scope-OrgID' header. 
+    # character in the 'X-Scope-OrgID' header.
     # note: this is no-op if cluster doesn't have `multitenancy_enabled: true`
     # (default: true)
     [multi_tenant_queries_enabled: <bool>]
