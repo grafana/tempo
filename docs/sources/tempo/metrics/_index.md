@@ -96,7 +96,7 @@ This query has several parts to consider.
 
 First, the query begins with the TraceQL `{status=error}`, to find spans who's `status` has been set to `error`.
 
-Next the `| count_over_time()` passes the spans matched to a new function,
+Next, the `| count_over_time()` passes the spans matched to a new function,
 introduced with this API.  There is also a `rate()` function.
 
 Finally, the `by (resource.service.name)` groups the results into each series.
