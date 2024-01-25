@@ -22,7 +22,7 @@ this compatibility layer.
 ## Configure a Grafana datasource
 
 Once the `local-blocks` processor is enabled in your `metrics-generator`
-configuration, a new Prometheus data source can be added in Grafana to use the
+configuration, you can add a new Prometheus data source in Grafana to use the
 `query-frontend` at the `/prom` endpoint for this.  Set the data source URL
 parameter to `http://<HOST>:<PORT>/prom`.  For example:
 
