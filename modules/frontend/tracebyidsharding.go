@@ -95,9 +95,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		wg.Add(1)
 		go func(innerR *http.Request) {
 			defer func() {
-				if shouldQuit(innerR.Context(), statusCode, overallError) {
-					subCancel()
-				}
 				wg.Done()
 			}()
 
@@ -109,13 +106,16 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				overallError = rtErr
 			}
 
+			// Check the context of the worker request
 			if shouldQuit(innerR.Context(), statusCode, overallError) {
 				return
 			}
 
-			// if the status code is anything but happy, save the error and pass it down the line
+			// if the status code is anything but happy, save the error and pass it
+			// down the line
 			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-				// TODO: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
+				defer subCancel()
+
 				statusCode = resp.StatusCode
 				bytesMsg, readErr := io.ReadAll(resp.Body)
 				if readErr != nil {
@@ -245,6 +245,7 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if err != nil {
 		return true
 	}
+
 	if ctx.Err() != nil {
 		return true
 	}
