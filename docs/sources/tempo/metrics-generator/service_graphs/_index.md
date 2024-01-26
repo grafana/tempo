@@ -41,7 +41,7 @@ When either of these conditions are reached, the request is recorded and removed
 Each emitted metrics series have the `client` and `server` label corresponding with the service doing the request and the service receiving the request.
 
 ```
-  tempo_service_graph_request_total{client="app", server="db", connection_type="database"} 20
+  traces_service_graph_request_total{client="app", server="db", connection_type="database"} 20
 ```
 
 ### Virtual nodes

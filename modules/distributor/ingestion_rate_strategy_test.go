@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/grafana/dskit/limiter"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			// Init limits overrides
 			o, err := overrides.NewOverrides(overrides.Config{
 				Defaults: testData.limits,
-			})
+			}, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 
 			// Instance the strategy

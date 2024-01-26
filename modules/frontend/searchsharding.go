@@ -151,7 +151,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-	progress := s.progress(ctx, int(searchReq.Limit), totalJobs, totalBlocks, totalBlockBytes)
+	progress := s.progress(ctx, int(searchReq.Limit), uint32(totalJobs), uint32(totalBlocks), totalBlockBytes)
 
 	startedReqs := 0
 	for req := range reqCh {

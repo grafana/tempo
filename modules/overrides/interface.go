@@ -21,6 +21,10 @@ type Service interface {
 type Interface interface {
 	prometheus.Collector
 
+	// GetRuntimeOverridesFor returns the runtime overrides set for the given user excluding
+	// overrides from the user-configurable overrides, if enabled.
+	GetRuntimeOverridesFor(userID string) *Overrides
+
 	// Config
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
@@ -62,6 +66,7 @@ type Interface interface {
 	MaxSearchDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
 
-	// API
+	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
+	WriteTenantOverrides(w io.Writer, r *http.Request, tenant string) error
 }

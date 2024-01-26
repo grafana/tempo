@@ -14,6 +14,9 @@ For more information about traces, refer to [What are traces?]({{< relref "../tr
 
 Grafana Tempo is an open-source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
 
+<!-- how to get started with distributed tracing -->
+{{< youtube id="zDrA7Ly3ovU" >}}
+
 To build a tracing pipeline, you need four major components:
 client instrumentation, pipeline, backend, and visualization.
 
