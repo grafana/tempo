@@ -65,7 +65,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
 func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	iter, err := createDistinctIterator(ctx, nil, req.Conditions, req.TagName, pf, opts, dc)
+	iter, err := createDistinctIterator(ctx, req.Conditions, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -75,7 +75,6 @@ func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *
 
 func createDistinctIterator(
 	ctx context.Context,
-	primaryIter parquetquery.Iterator, // jpe - remove me
 	conds []traceql.Condition,
 	tag traceql.Attribute,
 	pf *parquet.File,
@@ -97,7 +96,7 @@ func createDistinctIterator(
 	var currentIter parquetquery.Iterator
 
 	if len(spanConditions) > 0 {
-		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, currentIter, spanConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
