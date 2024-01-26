@@ -205,14 +205,19 @@ func TestSearchTags(t *testing.T) {
 
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
-	callSearchTagAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
 	callFlush(t, tempo)
 	time.Sleep(time.Second * 30)
 	callFlush(t, tempo)
 
-	callSearchTagAndAssert(t, tempo, searchTagsResponse{}, 0, 0)
+	// test metrics
+	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
+
 	// Assert no more on the ingester
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{}, 0, 0)
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
@@ -220,7 +225,7 @@ func TestSearchTags(t *testing.T) {
 	now := time.Now()
 	start := now.Add(-2 * time.Hour)
 	end := now.Add(2 * time.Hour)
-	callSearchTagAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, start.Unix(), end.Unix())
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, start.Unix(), end.Unix())
 }
 
 func TestSearchTagValues(t *testing.T) {
@@ -251,8 +256,8 @@ func TestSearchTagValues(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
 	// Assert no more on the ingester
+	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backen
@@ -297,7 +302,7 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	require.Equal(t, expected, response)
 }
 
-func callSearchTagAndAssert(t *testing.T, svc *e2e.HTTPService, expected searchTagsResponse, start, end int64) {
+func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected searchTagsResponse, start, end int64) {
 	urlPath := "/api/search/tags"
 	// search for tag values
 	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(3200)+urlPath, nil)
