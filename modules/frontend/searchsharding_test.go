@@ -996,10 +996,21 @@ func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody s
 }
 
 func TestAdjustLimit(t *testing.T) {
-	assert.Equal(t, uint32(10), adjustLimit(0, 10, 0))
-	assert.Equal(t, uint32(3), adjustLimit(3, 10, 0))
-	assert.Equal(t, uint32(3), adjustLimit(3, 10, 20))
-	assert.Equal(t, uint32(20), adjustLimit(25, 10, 20))
+	l, err := adjustLimit(0, 10, 0)
+	require.Equal(t, uint32(10), l)
+	require.NoError(t, err)
+
+	l, err = adjustLimit(3, 10, 0)
+	require.Equal(t, uint32(3), l)
+	require.NoError(t, err)
+
+	l, err = adjustLimit(3, 10, 20)
+	require.Equal(t, uint32(3), l)
+	require.NoError(t, err)
+
+	l, err = adjustLimit(25, 10, 20)
+	require.Equal(t, uint32(0), l)
+	require.EqualError(t, err, "limit 25 exceeds max limit 20")
 }
 
 func TestMaxDuration(t *testing.T) {
