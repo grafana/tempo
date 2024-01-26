@@ -8,9 +8,9 @@ import (
 )
 
 type Limits struct {
-	Forwarders *[]string `json:"forwarders,omitempty"`
+	Forwarders *[]string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
 
-	MetricsGenerator *LimitsMetricsGenerator `json:"metrics_generator,omitempty"`
+	MetricsGenerator LimitsMetricsGenerator `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
 }
 
 func (l *Limits) GetForwarders() ([]string, bool) {
@@ -22,17 +22,17 @@ func (l *Limits) GetForwarders() ([]string, bool) {
 
 func (l *Limits) GetMetricsGenerator() *LimitsMetricsGenerator {
 	if l != nil {
-		return l.MetricsGenerator
+		return &l.MetricsGenerator
 	}
 	return nil
 }
 
 type LimitsMetricsGenerator struct {
-	Processors         listtomap.ListToMap `json:"processors,omitempty"`
-	DisableCollection  *bool               `json:"disable_collection,omitempty"`
-	CollectionInterval *Duration           `json:"collection_interval,omitempty"`
+	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
+	DisableCollection  *bool               `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	CollectionInterval *Duration           `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 
-	Processor *LimitsMetricsGeneratorProcessor `json:"processor,omitempty"`
+	Processor LimitsMetricsGeneratorProcessor `yaml:"processor,omitempty" json:"processor,omitempty"`
 }
 
 func (l *LimitsMetricsGenerator) GetProcessors() (listtomap.ListToMap, bool) {
@@ -51,7 +51,7 @@ func (l *LimitsMetricsGenerator) GetDisableCollection() (bool, bool) {
 
 func (l *LimitsMetricsGenerator) GetProcessor() *LimitsMetricsGeneratorProcessor {
 	if l != nil {
-		return l.Processor
+		return &l.Processor
 	}
 	return nil
 }
@@ -64,29 +64,29 @@ func (l *LimitsMetricsGenerator) GetCollectionInterval() (time.Duration, bool) {
 }
 
 type LimitsMetricsGeneratorProcessor struct {
-	ServiceGraphs *LimitsMetricsGeneratorProcessorServiceGraphs `json:"service_graphs,omitempty"`
-	SpanMetrics   *LimitsMetricsGeneratorProcessorSpanMetrics   `json:"span_metrics,omitempty"`
+	ServiceGraphs LimitsMetricsGeneratorProcessorServiceGraphs `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
+	SpanMetrics   LimitsMetricsGeneratorProcessorSpanMetrics   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessor) GetServiceGraphs() *LimitsMetricsGeneratorProcessorServiceGraphs {
 	if l != nil {
-		return l.ServiceGraphs
+		return &l.ServiceGraphs
 	}
 	return nil
 }
 
 func (l *LimitsMetricsGeneratorProcessor) GetSpanMetrics() *LimitsMetricsGeneratorProcessorSpanMetrics {
 	if l != nil {
-		return l.SpanMetrics
+		return &l.SpanMetrics
 	}
 	return nil
 }
 
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {
-	Dimensions               *[]string  `json:"dimensions,omitempty"`
-	EnableClientServerPrefix *bool      `json:"enable_client_server_prefix,omitempty"`
-	PeerAttributes           *[]string  `json:"peer_attributes,omitempty"`
-	HistogramBuckets         *[]float64 `json:"histogram_buckets,omitempty"`
+	Dimensions               *[]string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	EnableClientServerPrefix *bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
+	PeerAttributes           *[]string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
+	HistogramBuckets         *[]float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetDimensions() ([]string, bool) {
@@ -118,11 +118,11 @@ func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetHistogramBuckets() ([]
 }
 
 type LimitsMetricsGeneratorProcessorSpanMetrics struct {
-	Dimensions                   *[]string                    `json:"dimensions,omitempty"`
-	EnableTargetInfo             *bool                        `json:"enable_target_info,omitempty"`
-	FilterPolicies               *[]filterconfig.FilterPolicy `json:"filter_policies,omitempty"`
-	HistogramBuckets             *[]float64                   `json:"histogram_buckets,omitempty"`
-	TargetInfoExcludedDimensions *[]string                    `json:"target_info_excluded_dimensions,omitempty"`
+	Dimensions                   *[]string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	EnableTargetInfo             *bool                        `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
+	FilterPolicies               *[]filterconfig.FilterPolicy `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
+	HistogramBuckets             *[]float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	TargetInfoExcludedDimensions *[]string                    `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensions() ([]string, bool) {
