@@ -90,11 +90,6 @@ type responseFromGenerators struct {
 	response interface{}
 }
 
-type responseTagsValues struct {
-	tagValues   *tempopb.SearchTagValuesResponse
-	tagValuesV2 *tempopb.SearchTagValuesV2Response
-}
-
 // New makes a new Querier.
 func New(
 	cfg Config,
@@ -474,27 +469,19 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 }
 
 func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
-	return q.internalTagSearchBlock(ctx, req)
+	return q.internalTagsSearchBlock(ctx, req)
 }
 
 func (q *Querier) SearchTagValuesBlocks(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
-	resp, err := q.internalTagValuesSearchBlock(ctx, req, false)
-	if err != nil {
-		return nil, err
-	}
-	return resp.tagValues, nil
+	return q.internalTagValuesSearchBlock(ctx, req)
 }
 
 func (q *Querier) SearchTagsBlocksV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
-	return q.internalTagSearchBlockV2(ctx, req)
+	return q.internalTagsSearchBlockV2(ctx, req)
 }
 
 func (q *Querier) SearchTagValuesBlocksV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
-	resp, err := q.internalTagValuesSearchBlock(ctx, req, true)
-	if err != nil {
-		return nil, err
-	}
-	return resp.tagValuesV2, nil
+	return q.internalTagValuesSearchBlockV2(ctx, req)
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
@@ -828,7 +815,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
-func (q *Querier) internalTagSearchBlock(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
+func (q *Querier) internalTagsSearchBlock(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
 	// check if it's the special intrinsic scope
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
 		return &tempopb.SearchTagsResponse{
@@ -876,7 +863,7 @@ func (q *Querier) internalTagSearchBlock(ctx context.Context, req *tempopb.Searc
 	return q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 }
 
-func (q *Querier) internalTagSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
+func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
 	scopes := []string{req.SearchReq.Scope}
 
 	if req.SearchReq.Scope == "" {
@@ -928,25 +915,25 @@ func (q *Querier) internalTagSearchBlockV2(ctx context.Context, req *tempopb.Sea
 	return resp, err
 }
 
-func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest, v2 bool) (*responseTagsValues, error) {
+func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
+		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
 	blockID, err := uuid.Parse(req.BlockID)
 	if err != nil {
-		return nil, err
+		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
 	enc, err := backend.ParseEncoding(req.Encoding)
 	if err != nil {
-		return nil, err
+		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
 	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
 	if err != nil {
-		return nil, err
+		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
 	meta := &backend.BlockMeta{
@@ -966,24 +953,75 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	if !v2 {
-		tags, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
-		if err != nil {
-			return nil, err
-		}
-		return &responseTagsValues{
-			tagValues: &tempopb.SearchTagValuesResponse{
-				TagValues: tags,
-			},
-		}, nil
+	values, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
+	if err != nil {
+		return &tempopb.SearchTagValuesResponse{}, err
 	}
-	resp, err := q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, q.cfg.AutocompleteFilteringEnabled, opts)
+
+	return &tempopb.SearchTagValuesResponse{
+		TagValues: values,
+	}, nil
+}
+
+func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
+	}
+
+	blockID, err := uuid.Parse(req.BlockID)
+	if err != nil {
+		return &tempopb.SearchTagValuesV2Response{}, err
+	}
+
+	enc, err := backend.ParseEncoding(req.Encoding)
+	if err != nil {
+		return &tempopb.SearchTagValuesV2Response{}, err
+	}
+
+	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
+	if err != nil {
+		return &tempopb.SearchTagValuesV2Response{}, err
+	}
+
+	meta := &backend.BlockMeta{
+		Version:          req.Version,
+		TenantID:         tenantID,
+		Encoding:         enc,
+		Size:             req.Size_,
+		IndexPageSize:    req.IndexPageSize,
+		TotalRecords:     req.TotalRecords,
+		BlockID:          blockID,
+		DataEncoding:     req.DataEncoding,
+		FooterSize:       req.FooterSize,
+		DedicatedColumns: dc,
+	}
+
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
+
+	query := traceql.ExtractMatchers(req.SearchReq.Query)
+	if !q.cfg.AutocompleteFilteringEnabled || traceql.IsEmptyQuery(query) {
+		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, common.DefaultSearchOptions())
+	}
+
+	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)
 	if err != nil {
 		return nil, err
 	}
-	return &responseTagsValues{
-		tagValuesV2: resp,
-	}, nil
+
+	fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
+	})
+
+	valueCollector := util.NewDistinctValueCollector(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+	if err != nil {
+		return nil, err
+	}
+
+	return valuesToV2Response(valueCollector), nil
 }
 
 func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {

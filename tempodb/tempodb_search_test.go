@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
@@ -1504,4 +1506,127 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	require.Equal(t, 1, res.Series[two].Count())
 	require.Equal(t, uint64(1), res.Series[one].Percentile(1.0)) // The only span was 1ns
 	require.Equal(t, uint64(2), res.Series[two].Percentile(1.0)) // The only span was 2ns
+}
+
+func TestSearchForTagsAndTagValues(t *testing.T) {
+	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
+
+	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	r.EnablePolling(context.Background(), &mockJobSharder{})
+
+	blockID := uuid.New()
+
+	wal := w.WAL()
+
+	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	// write
+	reqs := make([]*tempopb.Trace, 2)
+	ids := make([]common.ID, 2)
+	ids[0] = test.ValidTraceID(nil)
+	reqs[0] = test.MakeTraceWithTags(ids[0], "test-service", 2)
+	writeTraceToWal(t, head, dec, ids[0], reqs[0], 0, 0)
+
+	ids[1] = test.ValidTraceID(nil)
+	reqs[1] = test.MakeTraceWithTags(ids[0], "test-service-2", 3)
+	writeTraceToWal(t, head, dec, ids[1], reqs[1], 0, 0)
+
+	block, err := w.CompleteBlock(context.Background(), head)
+	require.NoError(t, err)
+
+	tags, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
+	require.NoError(t, err)
+	expectedTags := []string{"stringTag", "intTag", "service.name", "other"}
+	sort.Strings(expectedTags)
+	sort.Strings(tags.TagNames)
+	assert.Equal(t, expectedTags, tags.TagNames)
+
+	values, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	expectedTagsValues := []string{"test-service", "test-service-2"}
+	sort.Strings(expectedTagsValues)
+	sort.Strings(values)
+	assert.Equal(t, expectedTagsValues, values)
+
+	values, err = r.SearchTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	expectedTagsValues = []string{"2", "3"}
+	sort.Strings(expectedTagsValues)
+	sort.Strings(values)
+	assert.Equal(t, expectedTagsValues, values)
+
+	tagValues, err := r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
+		TagName: ".service.name",
+	}, common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	expected := []*tempopb.TagValue{
+		{
+			Type:  "string",
+			Value: "test-service",
+		},
+		{
+			Type:  "string",
+			Value: "test-service-2",
+		},
+	}
+
+	sort.SliceStable(expected, func(i, j int) bool {
+		return expected[i].Value < expected[j].Value
+	})
+	sort.SliceStable(tagValues.TagValues, func(i, j int) bool {
+		return tagValues.TagValues[i].Value < tagValues.TagValues[j].Value
+	})
+
+	assert.Equal(t, expected, tagValues.TagValues)
+
+	tagValues, err = r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
+		TagName: "span.intTag",
+	}, common.DefaultSearchOptions())
+	require.NoError(t, err)
+
+	expected = []*tempopb.TagValue{
+		{
+			Type:  "int",
+			Value: "2",
+		},
+		{
+			Type:  "int",
+			Value: "3",
+		},
+	}
+	sort.SliceStable(expected, func(i, j int) bool {
+		return expected[i].Value < expected[j].Value
+	})
+
+	sort.SliceStable(tagValues.TagValues, func(i, j int) bool {
+		return tagValues.TagValues[i].Value < tagValues.TagValues[j].Value
+	})
+	assert.Equal(t, expected, tagValues.TagValues)
+
+	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](0, func(value tempopb.TagValue) int { return 0 })
+	f := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, common.DefaultSearchOptions())
+	})
+
+	tag, err := traceql.ParseIdentifier("span.intTag")
+	require.NoError(t, err)
+
+	err = traceql.NewEngine().ExecuteTagValues(context.Background(), tag, `{resource.service.name="test-service-2"}`, traceql.MakeCollectTagValueFunc(valueCollector.Collect), f)
+	require.NoError(t, err)
+
+	actual := valueCollector.Values()
+	assert.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
 }
