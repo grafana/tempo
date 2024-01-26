@@ -452,7 +452,7 @@ query_frontend:
         [default_result_limit: <int>]
 
         # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter
-        # exceeds the value configured here it will be set to the value configured here.
+        # exceeds the value configured here the frontend will return a 400.
         # The default value of 0 disables this limit.
         # (default: 0)
         [max_result_limit: <int>]
