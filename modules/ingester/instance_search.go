@@ -166,6 +166,9 @@ func (i *instance) searchBlock(ctx context.Context, req *tempopb.SearchRequest, 
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags")
+	defer span.Finish()
+
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
@@ -187,7 +190,10 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
-	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+	search := func(ctx context.Context, s common.Searcher, dv *util.DistinctStringCollector, spanName string) error {
+		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)
+		defer span.Finish()
+
 		if s == nil {
 			return nil
 		}
@@ -203,7 +209,8 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 	}
 
 	i.headBlockMtx.RLock()
-	err = search(i.headBlock, distinctValues)
+	span.LogFields(ot_log.String("msg", "acquired headblock mtx"))
+	err = search(ctx, i.headBlock, distinctValues, "headBlock")
 	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
@@ -211,14 +218,15 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
+	span.LogFields(ot_log.String("msg", "acquired blocks mtx"))
 
 	for _, b := range i.completingBlocks {
-		if err = search(b, distinctValues); err != nil {
+		if err = search(ctx, b, distinctValues, "completingBlock"); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 	for _, b := range i.completeBlocks {
-		if err = search(b, distinctValues); err != nil {
+		if err = search(ctx, b, distinctValues, "completeBlock"); err != nil {
 			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
@@ -234,6 +242,9 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 
 // SearchTagsV2 calls SearchTags for each scope and returns the results.
 func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagsV2")
+	defer span.Finish()
+
 	scopes := []string{scope}
 	if scope == "" {
 		// start with intrinsic scope and all traceql attribute scopes
@@ -355,6 +366,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return nil, err
 	}
 
+	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2")
+	defer span.Finish()
+
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
@@ -375,11 +389,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	query := extractMatchers(req.Query)
 
-	var searchBlock func(common.Searcher) error
+	var searchBlock func(context.Context, common.Searcher) error
 	if !i.autocompleteFilteringEnabled || isEmptyQuery(query) {
 		// If filtering is disabled or query is empty,
 		// we can use the more efficient SearchTagValuesV2 method.
-		searchBlock = func(s common.Searcher) error {
+		searchBlock = func(ctx context.Context, s common.Searcher) error {
 			if anyErr.Load() != nil {
 				return nil // Early exit if any error has occurred
 			}
@@ -391,7 +405,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 		}
 	} else {
-		searchBlock = func(s common.Searcher) error {
+		searchBlock = func(ctx context.Context, s common.Searcher) error {
 			if anyErr.Load() != nil {
 				return nil // Early exit if any error has occurred
 			}
@@ -415,12 +429,15 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
+	span.LogFields(ot_log.String("msg", "acquired headblock mtx"))
 	if i.headBlock != nil {
 		wg.Add(1)
 		go func() {
+			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.headBlock")
+			defer span.Finish()
 			defer i.headBlockMtx.RUnlock()
 			defer wg.Done()
-			if err := searchBlock(i.headBlock); err != nil {
+			if err := searchBlock(ctx, i.headBlock); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
 			}
 		}()
@@ -428,13 +445,16 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
+	span.LogFields(ot_log.String("msg", "acquired blocks mtx"))
 
 	// completed blocks
 	for _, b := range i.completeBlocks {
 		wg.Add(1)
 		go func(b *localBlock) {
+			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.completedBlock")
+			defer span.Finish()
 			defer wg.Done()
-			if err := searchBlock(b); err != nil {
+			if err := searchBlock(ctx, b); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
@@ -444,8 +464,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	for _, b := range i.completingBlocks {
 		wg.Add(1)
 		go func(b common.WALBlock) {
+			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.headBlock")
+			defer span.Finish()
 			defer wg.Done()
-			if err := searchBlock(b); err != nil {
+			if err := searchBlock(ctx, b); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
