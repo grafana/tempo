@@ -27,35 +27,16 @@ type tagResultsHandler interface {
 	marshalResult() (string, error)
 }
 
-type (
-	tagResultHandlerFactory func(limit int) tagResultsHandler
-	parseRequestFunction    func(r *http.Request) (tagSearchReq, error)
-	tagSearchReq            interface {
-		start() uint32
-		end() uint32
-		newWithRange(start, end uint32) tagSearchReq
-		buildSearchTagRequest(subR *http.Request) (*http.Request, error)
-		buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
-	}
-)
+type tagResultHandlerFactory func(limit int) tagResultsHandler
 
-type tagResultCollector struct {
-	delegate   tagResultsHandler
-	mtx        sync.Mutex
-	err        error
-	statusCode int
-	statusMsg  string
-	ctx        context.Context
-}
+type parseRequestFunction func(r *http.Request) (tagSearchReq, error)
 
-type searchTagSharder struct {
-	next                   http.RoundTripper
-	reader                 tempodb.Reader
-	overrides              overrides.Interface
-	tagShardHandlerFactory tagResultHandlerFactory
-	cfg                    SearchSharderConfig
-	logger                 log.Logger
-	parseRequest           parseRequestFunction
+type tagSearchReq interface {
+	start() uint32
+	end() uint32
+	newWithRange(start, end uint32) tagSearchReq
+	buildSearchTagRequest(subR *http.Request) (*http.Request, error)
+	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
 }
 
 type tagResults struct {
@@ -64,6 +45,15 @@ type tagResults struct {
 	statusMsg   string
 	err         error
 	marshallErr error
+}
+
+type tagResultCollector struct {
+	delegate   tagResultsHandler
+	mtx        sync.Mutex
+	err        error
+	statusCode int
+	statusMsg  string
+	ctx        context.Context
 }
 
 func (r *tagResultCollector) shouldQuit() bool {
@@ -127,11 +117,21 @@ func newTagResultCollector(ctx context.Context, factory tagResultHandlerFactory,
 	}
 }
 
-func (s searchTagSharder) httpErrorResponse(err error) *http.Response {
+func httpErrorResponse(err error) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
 	}
+}
+
+type searchTagSharder struct {
+	next                   http.RoundTripper
+	reader                 tempodb.Reader
+	overrides              overrides.Interface
+	tagShardHandlerFactory tagResultHandlerFactory
+	cfg                    SearchSharderConfig
+	logger                 log.Logger
+	parseRequest           parseRequestFunction
 }
 
 // RoundTrip implements http.RoundTripper
@@ -142,7 +142,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	tenantID, err := user.ExtractOrgID(requestCtx)
 	if err != nil {
-		return s.httpErrorResponse(err), nil
+		return httpErrorResponse(err), nil
 	}
 
 	// TODO: Need to review this and only applies to tag values and no tag names, also consolidate the logic in one single place
@@ -150,7 +150,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	searchReq, err := s.parseRequest(r)
 	if err != nil {
-		return s.httpErrorResponse(err), nil
+		return httpErrorResponse(err), nil
 	}
 	span, ctx := opentracing.StartSpanFromContext(requestCtx, "frontend.ShardSearch")
 	defer span.Finish()
@@ -162,7 +162,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(searchReq.end()-searchReq.start())*time.Second > maxDuration {
-		return s.httpErrorResponse(fmt.Errorf("range specified by start and end exceeds %s."+
+		return httpErrorResponse(fmt.Errorf("range specified by start and end exceeds %s."+
 			" received start=%d end=%d", maxDuration, searchReq.start(), searchReq.end())), nil
 	}
 

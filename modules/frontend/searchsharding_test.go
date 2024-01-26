@@ -19,6 +19,7 @@ import (
 	"github.com/golang/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+var _ tempodb.Reader = (*mockReader)(nil)
+
 // implements tempodb.Reader interface
 type mockReader struct {
 	metas []*backend.BlockMeta
@@ -54,8 +57,12 @@ func (m *mockReader) SearchTagsV2(context.Context, *backend.BlockMeta, []string,
 	return nil, nil
 }
 
-func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, bool, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesRequest, common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
 	return nil, nil
+}
+
+func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+	return nil
 }
 
 func (m *mockReader) Find(context.Context, string, common.ID, string, string, int64, int64, common.SearchOptions) ([]*tempopb.Trace, []error, error) {
