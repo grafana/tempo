@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"go.uber.org/atomic"
 
@@ -438,7 +439,7 @@ func TestTagsSearchSharderRoundTrip(t *testing.T) {
 				}, nil
 			})
 
-			o, err := overrides.NewOverrides(overrides.Config{})
+			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
 			require.NoError(t, err)
 
 			sharder := newTagsSharding(&mockReader{
@@ -544,7 +545,7 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 		return httptest.NewRecorder().Result(), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder := newTagsSharding(&mockReader{
@@ -618,7 +619,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder := newTagsSharding(&mockReader{}, o, SearchSharderConfig{
@@ -652,7 +653,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 				MaxSearchDuration: model.Duration(time.Minute),
 			},
 		},
-	})
+	}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder = newTagsSharding(&mockReader{}, o, SearchSharderConfig{
