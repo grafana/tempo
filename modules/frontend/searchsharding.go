@@ -102,7 +102,13 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// adjust limit based on config
-	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
+	searchReq.Limit, err = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
+	if err != nil {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
+	}
 
 	requestCtx := r.Context()
 	tenantID, err := user.ExtractOrgID(requestCtx)
@@ -567,16 +573,16 @@ func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Req
 }
 
 // adjusts the limit based on provided config
-func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
+func adjustLimit(limit, defaultLimit, maxLimit uint32) (uint32, error) {
 	if limit == 0 {
-		return defaultLimit
+		return defaultLimit, nil
 	}
 
 	if maxLimit != 0 && limit > maxLimit {
-		return maxLimit
+		return 0, fmt.Errorf("limit %d exceeds max limit %d", limit, maxLimit)
 	}
 
-	return limit
+	return limit, nil
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
