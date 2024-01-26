@@ -916,10 +916,9 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 }
 
 // autoComplete!
-func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
+func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
-	const intrinsicName = "name"
 
 	tcs := []struct {
 		name     string
