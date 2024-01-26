@@ -987,6 +987,14 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 				{Type: "string", Value: "RootService"},
 			},
 		},
+		{
+			name:  "span filtered by unscoped",
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "span-dedicated.01"),
+			query: "{ .service.name = `RootService` }",
+			expected: []tempopb.TagValue{
+				{Type: "string", Value: "span-1b"},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
