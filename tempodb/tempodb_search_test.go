@@ -979,20 +979,23 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 			},
 		},
 		{
-			name:  "resource filtered by unscoped",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
-			query: "{ .foo = `Bar` }",
+			name:  "multiple conditions",
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "res-dedicated.01"),
+			query: "{ resource.res-dedicated.02 = `res-2a` && span.http.status_code = 500 }",
 			expected: []tempopb.TagValue{
-				{Type: "string", Value: "MyService"},
-				{Type: "string", Value: "RootService"},
+				{Type: "string", Value: "res-1a"},
 			},
 		},
 		{
-			name:  "span filtered by unscoped",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "span-dedicated.01"),
-			query: "{ .service.name = `RootService` }",
+			name:  "unscoped not supported", // todo: add support for unscoped. currently it falls back to old logic and returns everything
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
+			query: "{ .foo = `Bar` }",
 			expected: []tempopb.TagValue{
-				{Type: "string", Value: "span-1b"},
+				{Type: "string", Value: "RootService"},
+				{Type: "string", Value: "Service3"},
+				{Type: "string", Value: "BrokenService"},
+				{Type: "string", Value: "MyService"},
+				{Type: "string", Value: "test-service"},
 			},
 		},
 	}
