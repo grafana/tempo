@@ -152,7 +152,7 @@ type DedicatedAttributes struct {
 
 type Event struct {
 	TimeSinceStartNano     uint64      `parquet:",delta"`
-	Name                   string      `parquet:",snappy,dic"`
+	Name                   string      `parquet:",snappy,dict"`
 	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
