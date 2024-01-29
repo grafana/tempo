@@ -544,7 +544,13 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 func (rw *readerWriter) pollBlocklist() {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
 	if err != nil {
-		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
+		switch {
+		case errors.Is(err, context.Canceled):
+		case errors.Is(err, context.DeadlineExceeded):
+		default:
+			level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
+		}
+
 		return
 	}
 

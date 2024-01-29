@@ -71,6 +71,11 @@ var (
 		Name:      "blocklist_tenant_index_age_seconds",
 		Help:      "Age in seconds of the last pulled tenant index.",
 	}, []string{"tenant"})
+	metricTenantQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "poller_tenant_queue_length",
+		Help:      "The total number of tenants pending in the queue.",
+	})
 )
 
 // Config is used to configure the poller
@@ -100,12 +105,6 @@ func (ownsNothingSharder) Owns(_ string) bool {
 }
 
 const jobPrefix = "build-tenant-index-"
-
-var metricTenantQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-	Namespace: "tempo",
-	Name:      "poller_tenant_queue_length",
-	Help:      "The total number of tenants pending in the queue.",
-})
 
 // Poller retrieves the blocklist
 type Poller struct {
@@ -142,8 +141,8 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 		tenantQueues:  flushqueues.New(int(cfg.TenantPollConcurrency), metricTenantQueueLength),
 		tenantsPolled: make(map[string]time.Time, 1000),
 
-		perTenantChan:          make(chan *PerTenant, 1000),
-		perTenantCompactedChan: make(chan *PerTenantCompacted, 1000),
+		perTenantChan:          make(chan *PerTenant),
+		perTenantCompactedChan: make(chan *PerTenantCompacted),
 		perTenantErrChan:       make(chan error, 1000),
 
 		blocklist: blocklist,
@@ -218,11 +217,6 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			if errors.Is(ctx.Err(), context.Canceled) {
-				// TODO: perhaps we should return the partial results here?  The caller doesn't know what do do with nil error and nil results.
-				return nil, nil, nil
-			}
-
 			return nil, nil, ctx.Err()
 		case <-ticker.C:
 			if p.tenantQueues.IsEmpty() {
