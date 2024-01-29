@@ -128,20 +128,6 @@ func TestShardingWareDoRequest(t *testing.T) {
 			expectedStatus: 429,
 		},
 		{
-			name:           "200+408",
-			status1:        200,
-			trace1:         trace1,
-			status2:        408,
-			expectedStatus: 408,
-		},
-		{
-			name:           "200+499",
-			status1:        200,
-			trace1:         trace1,
-			status2:        499,
-			expectedStatus: 499,
-		},
-		{
 			name:           "503+200",
 			status1:        503,
 			status2:        200,

@@ -171,12 +171,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		switch statusCode {
 		case http.StatusNotFound:
 			// Pass through 404s
-		case http.StatusRequestTimeout:
-			// Pass through 408s
 		case http.StatusTooManyRequests:
 			// Pass through 429s
-		case 499:
-			// Pass through 499s, client closed connection
 		default:
 			statusCode = http.StatusInternalServerError
 		}
@@ -248,12 +244,7 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 		return true
 	}
 
-	switch statusCode {
-	case http.StatusTooManyRequests:
-		return true
-	case http.StatusRequestTimeout:
-		return true
-	case 499:
+	if statusCode == http.StatusTooManyRequests {
 		return true
 	}
 
