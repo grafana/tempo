@@ -347,7 +347,7 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 	}
 
 	// calculate duration (start and end) to search the backend blocks
-	start, end := backendRange(searchReq, s.cfg.QueryBackendAfter)
+	start, end := backendRange(searchReq.Start, searchReq.End, s.cfg.QueryBackendAfter)
 
 	// no need to search backend
 	if start == end {
@@ -381,12 +381,9 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 
 // backendRange returns a new start/end range for the backend based on the config parameter
 // query_backend_after. If the returned start == the returned end then backend querying is not necessary.
-func backendRange(searchReq *tempopb.SearchRequest, queryBackendAfter time.Duration) (uint32, uint32) {
+func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, uint32) {
 	now := time.Now()
 	backendAfter := uint32(now.Add(-queryBackendAfter).Unix())
-
-	start := searchReq.Start
-	end := searchReq.End
 
 	// adjust start/end if necessary. if the entire query range was inside backendAfter then
 	// start will == end. This signals we don't need to query the backend.

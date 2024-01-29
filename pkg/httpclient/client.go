@@ -146,6 +146,16 @@ func (c *Client) SearchTagsV2() (*tempopb.SearchTagsV2Response, error) {
 	return m, nil
 }
 
+func (c *Client) SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTagsResponse, error) {
+	m := &tempopb.SearchTagsResponse{}
+	_, err := c.getFor(c.buildTagsQueryURL(start, end), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error) {
 	m := &tempopb.SearchTagValuesResponse{}
 	_, err := c.getFor(c.BaseURL+"/api/search/tag/"+key+"/values", m)
@@ -252,6 +262,18 @@ func (c *Client) buildSearchQueryURL(queryType string, query string, start int64
 		q.Set("end", strconv.FormatInt(end, 10))
 	}
 	q.Set(queryType, query)
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) buildTagsQueryURL(start int64, end int64) string {
+	joinURL, _ := url.Parse(c.BaseURL + "/api/search/tags?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)

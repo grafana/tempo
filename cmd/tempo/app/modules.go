@@ -295,6 +295,8 @@ func (t *App) initQuerier() (services.Service, error) {
 		ingesterRings = append(ingesterRings, ring)
 	}
 
+	t.cfg.Querier.AutocompleteFilteringEnabled = t.cfg.AutocompleteFilteringEnabled
+
 	querier, err := querier.New(
 		t.cfg.Querier,
 		t.cfg.IngesterClient,
