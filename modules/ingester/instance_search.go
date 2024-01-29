@@ -73,6 +73,10 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockID)
 			return
 		}
+		if errors.Is(err, context.Canceled) {
+			// Ignore
+			return
+		}
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching block", "blockID", blockID, "err", err)
 			anyErr.Store(err)
@@ -91,9 +95,15 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			metrics.InspectedBytes += resp.Metrics.InspectedBytes
 		}
 
+		if combiner.Count() >= maxResults {
+			return
+		}
+
 		for _, tr := range resp.Traces {
 			combiner.AddMetadata(tr)
 			if combiner.Count() >= maxResults {
+				// Cancel all other tasks
+				cancel()
 				return
 			}
 		}
@@ -122,7 +132,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}
 
 	// Search all other blocks (concurrently)
-	// Lock blocks mutex until all search tasks are finished and this function exists. This avoids
+	// Lock blocks mutex until all search tasks are finished and this function exits. This avoids
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
