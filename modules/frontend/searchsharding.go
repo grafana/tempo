@@ -279,29 +279,20 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, overallResponse.err
 	}
 
-	if ctxErr := ctx.Err(); ctxErr != nil { // context cancelled or deadline exceeded
-		overallResponse.statusMsg = ctxErr.Error()
-		if errors.Is(ctxErr, context.DeadlineExceeded) {
-			overallResponse.statusCode = http.StatusRequestTimeout
-		} else if errors.Is(ctxErr, context.DeadlineExceeded) {
-			overallResponse.statusCode = 499
-		}
-	}
-
 	switch overallResponse.statusCode {
 	case http.StatusOK:
-	case http.StatusTooManyRequests, http.StatusRequestTimeout, 499:
-		// Ensure we pass back the 408, 429, and 499 status.
+	case http.StatusTooManyRequests:
+		// Ensure we pass back the 429 status.
 		return &http.Response{
 			StatusCode: overallResponse.statusCode,
 			Header:     http.Header{},
 			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
 		}, nil
 	default:
-		// translate all non-200s and unmatched 4xx above into 500s. if, for
-		// instance, we get a 400 back from an internal component it means that we
-		// created a bad request. 400 should not be propagated back to the user b/c
-		// the bad request was due to a bug on our side, so return 500 instead.
+		// translate all non-200s and non-429s. if, for instance, we get a 400 back
+		// from an internal component it means that we created a bad request. 400
+		// should not be propagated back to the user b/c the bad request was due to
+		// a bug on our side, so return 500 instead.
 		return &http.Response{
 			StatusCode: http.StatusInternalServerError,
 			Header:     http.Header{},
