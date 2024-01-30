@@ -40,7 +40,7 @@ func TestInstance(t *testing.T) {
 	cfg.Path = t.TempDir()
 	cfg.RemoteWrite = mockServer.remoteWriteConfig()
 
-	instance, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, logger)
+	instance, err := New(&cfg, &mockOverrides{}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -115,7 +115,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	var instances []Storage
 
 	for i := 0; i < 3; i++ {
-		instance, err := New(&cfg, strconv.Itoa(i), prometheus.DefaultRegisterer, logger)
+		instance, err := New(&cfg, &mockOverrides{}, strconv.Itoa(i), &noopRegisterer{}, logger)
 		assert.NoError(t, err)
 		instances = append(instances, instance)
 	}
@@ -183,10 +183,82 @@ func TestInstance_cantWriteToWAL(t *testing.T) {
 	cfg.Path = "/root"
 
 	// We should be able to attempt to create the instance multiple times
-	_, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
+	_, err := New(&cfg, &mockOverrides{}, "test-tenant", &noopRegisterer{}, log.NewNopLogger())
 	require.Error(t, err)
-	_, err = New(&cfg, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
+	_, err = New(&cfg, &mockOverrides{}, "test-tenant", &noopRegisterer{}, log.NewNopLogger())
 	require.Error(t, err)
+}
+
+func TestInstance_remoteWriteHeaders(t *testing.T) {
+	var err error
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	mockServer := newMockPrometheusRemoteWriterServer(logger)
+	defer mockServer.close()
+
+	var cfg Config
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.Path = t.TempDir()
+	cfg.RemoteWrite = mockServer.remoteWriteConfig()
+
+	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
+
+	instance, err := New(&cfg, &mockOverrides{headers}, "test-tenant", &noopRegisterer{}, logger)
+	require.NoError(t, err)
+
+	// Refuse requests - the WAL should buffer data until requests succeed
+	mockServer.refuseRequests.Store(true)
+
+	sendCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Append some data every second
+	go poll(sendCtx, time.Second, func() {
+		appender := instance.Appender(context.Background())
+
+		lbls := labels.FromMap(map[string]string{"__name__": "my-metrics"})
+		ref, err := appender.Append(0, lbls, time.Now().UnixMilli(), 1.0)
+		assert.NoError(t, err)
+
+		_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "123"}),
+			Value:  1.2,
+		})
+		assert.NoError(t, err)
+
+		if sendCtx.Err() != nil {
+			return
+		}
+
+		assert.NoError(t, appender.Commit())
+	})
+
+	// Wait until remote.Storage has tried at least once to send data
+	err = waitUntil(20*time.Second, func() bool {
+		mockServer.mtx.Lock()
+		defer mockServer.mtx.Unlock()
+
+		return mockServer.refusedRequests > 0
+	})
+	require.NoError(t, err, "timed out while waiting for refused requests")
+
+	// Allow requests
+	mockServer.refuseRequests.Store(false)
+
+	// Shutdown the instance - even though previous requests failed, remote.Storage should flush pending data
+	err = instance.Close()
+	assert.NoError(t, err)
+
+	// WAL should be empty again
+	entries, err := os.ReadDir(cfg.Path)
+	assert.NoError(t, err)
+	assert.Len(t, entries, 0)
+
+	// Verify we received metrics
+	assert.Len(t, mockServer.timeSeries, 1)
+	assert.Contains(t, mockServer.timeSeries, "my-other-tenant")
+	// We should have received at least 2 time series: one for the sample and one for the examplar
+	assert.GreaterOrEqual(t, len(mockServer.timeSeries["my-other-tenant"]), 2)
 }
 
 type mockPrometheusRemoteWriteServer struct {
@@ -285,3 +357,23 @@ func waitUntil(timeout time.Duration, f func() bool) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+var _ Overrides = (*mockOverrides)(nil)
+
+type mockOverrides struct {
+	headers map[string]string
+}
+
+func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
+	return m.headers
+}
+
+var _ prometheus.Registerer = (*noopRegisterer)(nil)
+
+type noopRegisterer struct{}
+
+func (n *noopRegisterer) Register(prometheus.Collector) error { return nil }
+
+func (n *noopRegisterer) MustRegister(...prometheus.Collector) {}
+
+func (n *noopRegisterer) Unregister(prometheus.Collector) bool { return true }

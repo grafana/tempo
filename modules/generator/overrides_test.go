@@ -57,6 +57,10 @@ func (m *mockOverrides) MetricsGenerationTraceIDLabelName(userID string) string 
 	return ""
 }
 
+func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
+	return nil
+}
+
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(string) []float64 {
 	return m.serviceGraphsHistogramBuckets
 }

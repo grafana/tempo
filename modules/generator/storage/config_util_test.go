@@ -32,7 +32,7 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 
 	addOrgIDHeader := true
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", addOrgIDHeader, logger)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 	assert.Equal(t, map[string]string{}, original[0].Headers, "Original headers have been modified")
@@ -61,7 +61,7 @@ func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
 
 	addOrgIDHeader := true
 
-	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, addOrgIDHeader, logger)
+	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, nil, addOrgIDHeader, logger)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 
@@ -95,7 +95,7 @@ func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
 
 	addOrgIDHeader := false
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", addOrgIDHeader, logger)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 	assert.Empty(t, original[0].Headers, "X-Scope-OrgID header is not added")

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
@@ -12,6 +13,7 @@ import (
 
 type metricsGeneratorOverrides interface {
 	registry.Overrides
+	storage.Overrides
 
 	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
