@@ -45,6 +45,8 @@ storage:
       queue_depth: 100
     block:
       version: vParquet3
+    blocklist_poll: 1s
+
 
 overrides:
   user_configurable_overrides:

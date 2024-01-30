@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util"
+
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -32,6 +30,9 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -77,7 +78,13 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
+	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
+	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
+	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
+
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
+	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error
+
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 
@@ -104,6 +111,8 @@ type WriteableBlock interface {
 	BlockMeta() *backend.BlockMeta
 	Write(ctx context.Context, w backend.Writer) error
 }
+
+var _ Reader = (*readerWriter)(nil)
 
 type readerWriter struct {
 	r backend.Reader
@@ -353,7 +362,68 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
-// it only uses rw.r which has caching enabled
+func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+	attributeScope := traceql.AttributeScopeFromString(scope)
+
+	if attributeScope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", scope)
+	}
+
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+
+	dv := util.NewDistinctStringCollector(0)
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTags(ctx, attributeScope, dv.Collect, opts)
+
+	return &tempopb.SearchTagsResponse{
+		TagNames: dv.Strings(),
+	}, err
+}
+
+func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+
+	dv := util.NewDistinctStringCollector(0)
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTagValues(ctx, tag, dv.Collect, opts)
+
+	return dv.Strings(), err
+}
+
+func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return nil, err
+	}
+
+	tag, err := traceql.ParseIdentifier(req.TagName)
+	if err != nil {
+		return nil, err
+	}
+
+	dv := util.NewDistinctValueCollector[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), opts)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &tempopb.SearchTagValuesV2Response{}
+	for _, v := range dv.Values() {
+		v2 := v
+		resp.TagValues = append(resp.TagValues, &v2)
+	}
+
+	return resp, nil
+}
+
+// Fetch only uses rw.r which has caching enabled
 func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
@@ -362,6 +432,16 @@ func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req 
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Fetch(ctx, req, opts)
+}
+
+func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return err
+	}
+
+	rw.cfg.Search.ApplyToOptions(&opts)
+	return block.FetchTagValues(ctx, req, cb, opts)
 }
 
 func (rw *readerWriter) Shutdown() {

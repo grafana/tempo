@@ -58,6 +58,10 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: blocklistPoll,
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
 	}
 
 	for _, opt := range opts {

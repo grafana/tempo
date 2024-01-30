@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [FEATURE] Add support for multi-tenant queries in streaming search [#3262](https://github.com/grafana/tempo/pull/3262) (@electron0zero)
 * [FEATURE] TraceQL metrics queries [#3227](https://github.com/grafana/tempo/pull/3227) [#3252](https://github.com/grafana/tempo/pull/3252) [#3258](https://github.com/grafana/tempo/pull/3258) (@mdisibio @zalegrala)
 * [FEATURE] Add support for multi-tenant queries. [#3087](https://github.com/grafana/tempo/pull/3087) (@electron0zero)
 * [BUGFIX] Fix parsing of span.resource.xyz attributes in TraceQL. [#3284](https://github.com/grafana/tempo/pull/3284) (@mghildiy)
@@ -47,6 +48,8 @@
 * [BUGFIX] Fixed an issue where cached footers were requested then ignored. [#3196](https://github.com/grafana/tempo/pull/3196) (@joe-elliott)
 * [BUGFIX] Fix panic in autocomplete when query condition had wrong type [#3277](https://github.com/grafana/tempo/pull/3277) (@mapno)
 * [BUGFIX] Fix TLS when GRPC is enabled on HTTP [#3300](https://github.com/grafana/tempo/pull/3300) (@joe-elliott)
+* [BUGFIX] Correctly return 400 when max limit is requested on search. [#3340](https://github.com/grafana/tempo/pull/3340) (@joe-elliott)
+* [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
 
 ## v2.3.1 / 2023-11-28
 

@@ -59,7 +59,7 @@ func TestRuntimeConfigOverridesManager_GetRuntimeOverridesFor_userConfigurableOv
 	// put in some user-configurable limits - these will be ignored anyway
 	userConfigurableOverridesManager.setTenantLimit("foo", &client.Limits{
 		Forwarders: nil,
-		MetricsGenerator: &client.LimitsMetricsGenerator{
+		MetricsGenerator: client.LimitsMetricsGenerator{
 			CollectionInterval: &client.Duration{Duration: 5 * time.Minute},
 		},
 	})

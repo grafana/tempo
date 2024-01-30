@@ -47,165 +47,261 @@ func (m *mockStreamingServer) SendMsg(interface{}) error    { return nil }
 func (m *mockStreamingServer) RecvMsg(interface{}) error    { return nil }
 func (m *mockStreamingServer) SetTrailer(metadata.MD)       {}
 
-func newMockStreamingServer(cb func(int, *tempopb.SearchResponse)) *mockStreamingServer {
+func newMockStreamingServer(orgID string, cb func(int, *tempopb.SearchResponse)) *mockStreamingServer {
 	return &mockStreamingServer{
-		ctx: user.InjectOrgID(context.Background(), "fake-tenant"),
+		ctx: user.InjectOrgID(context.Background(), orgID),
 		cb:  cb,
 	}
 }
 
 func TestStreamingSearchHandlerSucceeds(t *testing.T) {
-	traceResp := []*tempopb.TraceSearchMetadata{
+	tests := []struct {
+		name       string
+		tenants    string
+		tenantSize uint32
+	}{
 		{
-			TraceID:         "1234",
-			RootServiceName: "root",
+			name:       "single tenant",
+			tenants:    "single-tenant",
+			tenantSize: 1,
+		},
+		{
+			name:       "multiple tenants",
+			tenants:    "tenant-1|tenant-2|tenant-3",
+			tenantSize: 3,
 		},
 	}
 
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		response := &tempopb.SearchResponse{
-			Traces:  traceResp,
-			Metrics: &tempopb.SearchMetrics{},
-		}
-		resString, err := (&jsonpb.Marshaler{}).MarshalToString(response)
-		require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			traceResp := []*tempopb.TraceSearchMetadata{
+				{
+					TraceID:         "1234",
+					RootServiceName: "root",
+				},
+			}
 
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader(resString)),
-			StatusCode: 200,
-		}, nil
-	})
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				response := &tempopb.SearchResponse{
+					Traces:  traceResp,
+					Metrics: &tempopb.SearchMetrics{},
+				}
+				resString, err := (&jsonpb.Marshaler{}).MarshalToString(response)
+				require.NoError(t, err)
 
-	srv := newMockStreamingServer(nil)
-	handler := testHandler(t, next)
-	err := handler(&tempopb.SearchRequest{
-		Start: 1000,
-		End:   1500,
-		Query: "{}",
-	}, srv)
-	require.NoError(t, err)
-	// confirm final result is expected
-	require.Equal(t,
-		*srv.lastResponse.Load(),
-		&tempopb.SearchResponse{
-			Traces: traceResp,
-			Metrics: &tempopb.SearchMetrics{
-				TotalBlocks:     1,
-				CompletedJobs:   2,
-				TotalJobs:       2,
-				TotalBlockBytes: 209715200,
-			},
-		},
-	)
+				return &http.Response{
+					Body:       io.NopCloser(strings.NewReader(resString)),
+					StatusCode: 200,
+				}, nil
+			})
+
+			srv := newMockStreamingServer(tc.tenants, nil)
+			handler := testHandler(t, next)
+			err := handler(&tempopb.SearchRequest{
+				Start: 1000,
+				End:   1500,
+				Query: "{}",
+			}, srv)
+			require.NoError(t, err)
+
+			// confirm final result is expected and metrics are merged
+			lastResp := *srv.lastResponse.Load()
+			expectedLastResp := &tempopb.SearchResponse{
+				Traces: traceResp,
+				Metrics: &tempopb.SearchMetrics{
+					TotalBlocks:     tc.tenantSize,
+					CompletedJobs:   2 * tc.tenantSize,
+					TotalJobs:       2 * tc.tenantSize,
+					TotalBlockBytes: uint64(209715200 * tc.tenantSize),
+				},
+			}
+
+			require.Equal(t, expectedLastResp, lastResp)
+		})
+	}
 }
 
 func TestStreamingSearchHandlerStreams(t *testing.T) {
-	traceResp := []*tempopb.TraceSearchMetadata{
+	tests := []struct {
+		name       string
+		tenants    string
+		tenantSize uint32
+	}{
 		{
-			TraceID:         "1234",
-			RootServiceName: "root",
+			name:       "single tenant",
+			tenants:    "single-tenant",
+			tenantSize: 1,
+		},
+		{
+			name:       "multiple tenants",
+			tenants:    "tenant-1|tenant-2|tenant-3",
+			tenantSize: 3,
 		},
 	}
 
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		time.Sleep(1 * time.Second) // forces the streaming responses to work
-
-		response := &tempopb.SearchResponse{
-			Traces:  traceResp,
-			Metrics: &tempopb.SearchMetrics{},
-		}
-		resString, err := (&jsonpb.Marshaler{}).MarshalToString(response)
-		require.NoError(t, err)
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader(resString)),
-			StatusCode: 200,
-		}, nil
-	})
-
-	srv := newMockStreamingServer(
-		func(n int, r *tempopb.SearchResponse) {
-			if len(r.Traces) > 0 {
-				// if we have some traces confirm it's what is expected
-				require.Equal(t, r,
-					&tempopb.SearchResponse{
-						Traces: traceResp,
-						Metrics: &tempopb.SearchMetrics{
-							TotalBlocks:     1,
-							CompletedJobs:   r.Metrics.CompletedJobs,
-							TotalJobs:       2,
-							TotalBlockBytes: 209715200,
-						},
-					},
-				)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			traceResp := []*tempopb.TraceSearchMetadata{
+				{
+					TraceID:         "1234",
+					RootServiceName: "root",
+				},
 			}
-		},
-	)
-	handler := testHandler(t, next)
-	err := handler(&tempopb.SearchRequest{
-		Start: 1000,
-		End:   1500,
-		Query: "{}",
-	}, srv)
-	require.NoError(t, err)
-	require.GreaterOrEqual(t, srv.responses.Load(), int32(3)) // confirm that our server got 3 or more sends
+
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				time.Sleep(1 * time.Second) // forces the streaming responses to work
+
+				response := &tempopb.SearchResponse{
+					Traces:  traceResp,
+					Metrics: &tempopb.SearchMetrics{},
+				}
+				resString, err := (&jsonpb.Marshaler{}).MarshalToString(response)
+				require.NoError(t, err)
+
+				return &http.Response{
+					Body:       io.NopCloser(strings.NewReader(resString)),
+					StatusCode: 200,
+				}, nil
+			})
+
+			srv := newMockStreamingServer(tc.tenants,
+				func(n int, r *tempopb.SearchResponse) {
+					if len(r.Traces) > 0 {
+						// if we have some traces confirm it's what is expected
+						require.Equal(t, r,
+							&tempopb.SearchResponse{
+								Traces: traceResp,
+								Metrics: &tempopb.SearchMetrics{
+									TotalBlocks:     tc.tenantSize,
+									CompletedJobs:   r.Metrics.CompletedJobs,
+									TotalJobs:       2 * tc.tenantSize,
+									TotalBlockBytes: uint64(209715200 * tc.tenantSize),
+								},
+							},
+						)
+					}
+				},
+			)
+			handler := testHandler(t, next)
+			err := handler(&tempopb.SearchRequest{
+				Start: 1000,
+				End:   1500,
+				Query: "{}",
+			}, srv)
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, srv.responses.Load(), int32(3)) // confirm that our server got 3 or more sends
+		})
+	}
 }
 
 func TestStreamingSearchHandlerCancels(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		time.Sleep(24 * time.Hour) // will break any test time limits
-		return nil, nil
-	})
+	tests := []struct {
+		name    string
+		tenants string
+	}{
+		{
+			name:    "single tenant",
+			tenants: "single-tenant",
+		},
+		{
+			name:    "multiple tenants",
+			tenants: "tenant-1|tenant-2|tenant-3",
+		},
+	}
 
-	var cancel context.CancelFunc
-	srv := newMockStreamingServer(nil)
-	srv.ctx, cancel = context.WithCancel(srv.ctx)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				time.Sleep(24 * time.Hour) // will break any test time limits
+				return nil, nil
+			})
 
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		cancel()
-	}()
+			var cancel context.CancelFunc
+			srv := newMockStreamingServer(tc.tenants, nil)
+			srv.ctx, cancel = context.WithCancel(srv.ctx)
 
-	handler := testHandler(t, next)
-	err := handler(&tempopb.SearchRequest{
-		Start: 1000,
-		End:   1500,
-		Query: "{}",
-	}, srv)
-	require.Equal(t, context.Canceled, err)
+			go func() {
+				time.Sleep(500 * time.Millisecond)
+				cancel()
+			}()
+
+			handler := testHandler(t, next)
+			err := handler(&tempopb.SearchRequest{
+				Start: 1000,
+				End:   1500,
+				Query: "{}",
+			}, srv)
+			require.Equal(t, context.Canceled, err)
+		})
+	}
 }
 
 func TestStreamingSearchHandlerFailsDueToStatusCode(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader("error")),
-			StatusCode: 500,
-		}, nil
-	})
+	tests := []struct {
+		name    string
+		tenants string
+	}{
+		{
+			name:    "single tenant",
+			tenants: "single-tenant",
+		},
+		{
+			name:    "multiple tenants",
+			tenants: "tenant-1|tenant-2|tenant-3",
+		},
+	}
 
-	srv := newMockStreamingServer(nil)
-	handler := testHandler(t, next)
-	err := handler(&tempopb.SearchRequest{
-		Start: 1000,
-		End:   1500,
-		Query: "{}",
-	}, srv)
-	require.Error(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					Body:       io.NopCloser(strings.NewReader("error")),
+					StatusCode: 500,
+				}, nil
+			})
+			srv := newMockStreamingServer(tc.tenants, nil)
+			handler := testHandler(t, next)
+			err := handler(&tempopb.SearchRequest{
+				Start: 1000,
+				End:   1500,
+				Query: "{}",
+			}, srv)
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestStreamingSearchHandlerFailsDueToError(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		return nil, errors.New("error")
-	})
+	tests := []struct {
+		name    string
+		tenants string
+	}{
+		{
+			name:    "single tenant",
+			tenants: "single-tenant",
+		},
+		{
+			name:    "multiple tenants",
+			tenants: "tenant-1|tenant-2|tenant-3",
+		},
+	}
 
-	srv := newMockStreamingServer(nil)
-	handler := testHandler(t, next)
-	err := handler(&tempopb.SearchRequest{
-		Start: 1000,
-		End:   1500,
-		Query: "{}",
-	}, srv)
-	require.Error(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return nil, errors.New("error")
+			})
+
+			srv := newMockStreamingServer(tc.tenants, nil)
+			handler := testHandler(t, next)
+			err := handler(&tempopb.SearchRequest{
+				Start: 1000,
+				End:   1500,
+				Query: "{}",
+			}, srv)
+			require.Error(t, err)
+		})
+	}
 }
 
 func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
@@ -221,6 +317,7 @@ func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
 		},
+		MultiTenantQueriesEnabled: true, // to test multi-tenant
 	}, o, next, &mockReader{
 		metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
 			{
@@ -352,4 +449,130 @@ func TestDiffSearchProgress(t *testing.T) {
 			InspectedBytes:  6,
 		},
 	}, diffProgress.result().response)
+}
+
+func TestMultiProgress(t *testing.T) {
+	mp := newMultiProgress()
+	ctx := context.Background()
+
+	diffProgress := newDiffSearchProgress(ctx, 0, 0, 0, 0)
+	mp.Add(diffProgress)
+
+	// first request should be empty
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces:  []*tempopb.TraceSearchMetadata{},
+		Metrics: &tempopb.SearchMetrics{},
+	}, mp.finalResults(ctx).response)
+
+	diffProgress.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	// now we should get the same metadata as above
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, mp.finalResults(ctx).response)
+
+	// metrics, but the trace hasn't change
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, mp.finalResults(ctx).response)
+
+	// now let's add another diffProgress
+	diffProgress2 := newDiffSearchProgress(ctx, 0, 0, 0, 0)
+	mp.Add(diffProgress2)
+
+	// second diffProgress is empty, so results should be same
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   2, // one for each diffProgress
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, mp.finalResults(ctx).response)
+
+	// add some results to the second diffProgress
+	diffProgress2.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "8756",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 1, // forces order
+			},
+			{
+				TraceID:           "1245",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 2,
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	// merged results from both diffProgress
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "1234",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 10, // forces order
+			},
+			{
+				TraceID:           "1245",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 2,
+			},
+			{
+				TraceID:           "8756",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 1, // forces order
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{ // metrics should be summed
+			CompletedJobs:   2,
+			InspectedTraces: 2,
+			InspectedBytes:  4,
+		},
+	}, mp.finalResults(ctx).response)
 }

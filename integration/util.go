@@ -365,14 +365,16 @@ func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
+// SearchStreamAndAssertTrace will search and assert that the trace is present in the streamed results.
+// nolint: revive
+func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
 
-	resp, err := client.Search(context.Background(), &tempopb.SearchRequest{
+	resp, err := client.Search(ctx, &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(start),
 		End:   uint32(end),
@@ -410,6 +412,20 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 	require.NoError(t, err)
 
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
+}
+
+// by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
+// to look in the backend blocks
+func SearchAndAsserTagsBackend(t *testing.T, client *httpclient.Client, start, end int64) {
+	resp, err := client.SearchTags()
+	require.NoError(t, err)
+
+	require.Equal(t, len(resp.TagNames), 0)
+
+	// verify trace can be found using attribute and time range
+	resp, err = client.SearchTagsWithRange(start, end)
+	require.NoError(t, err)
+	require.True(t, len(resp.TagNames) > 0)
 }
 
 func traceIDInResults(t *testing.T, hexID string, resp *tempopb.SearchResponse) bool {

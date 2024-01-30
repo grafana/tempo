@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
@@ -33,7 +35,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 	assert.NoError(t, err)
 
 	validator := &mockValidator{}
-	overridesAPI, err := New(&cfg, o, validator)
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &cfg, o, validator)
 	require.NoError(t, err)
 
 	// Provision some data
@@ -60,7 +62,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "GET",
 			handler:        overridesAPI.GetHandler,
 			req:            prepareRequest(tenant, "GET", nil),
-			expResp:        "{\"forwarders\":[\"my-other-forwarder\"]}",
+			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -147,7 +149,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - no values stored yet",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        ``,
-			expResp:        `{"forwarders":["my-other-forwarder"]}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -155,7 +157,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - empty overrides are merged",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        `{}`,
-			expResp:        `{"forwarders":["my-other-forwarder"]}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -163,7 +165,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - overwrite",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        `{"forwarders":["previous-forwarder"]}`,
-			expResp:        `{"forwarders":["my-other-forwarder"]}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -171,7 +173,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:          "PATCH - invalid patch",
 			patch:         `{"newField":true}`,
 			current:       `{"forwarders":["prior-forwarder"]}`,
-			expResp:       "client.Limits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|{\"forwarders\":[\"prior-forwarder\"],\"newField\":true}|...\n",
+			expResp:       "client.Limits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|\"service_graphs\":{},\"span_metrics\":{}}},\"newField\":true}|...\n",
 			expStatusCode: 400,
 		},
 	}
@@ -180,7 +182,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 			assert.NoError(t, err)
 
-			overridesAPI, err := New(&client.Config{
+			overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &client.Config{
 				Backend: backend.Local,
 				Local:   &local.Config{Path: t.TempDir()},
 			}, o, &mockValidator{})
@@ -215,7 +217,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
-	overridesAPI, err := New(&client.Config{
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	}, o, &mockValidator{})
@@ -245,7 +247,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	overridesAPI.PatchHandler(w, r)
 
 	data := w.Body.String()
-	assert.Equal(t, `{"forwarders":["f"]}`, data)
+	assert.Equal(t, `{"forwarders":["f"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`, data)
 
 	res := w.Result()
 	assert.Equal(t, "2", res.Header.Get(headerEtag))
@@ -256,7 +258,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing
 	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
-	overridesAPI, err := New(&client.Config{
+	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &client.Config{
 		Backend: backend.Local,
 		Local:   &local.Config{Path: t.TempDir()},
 	}, o, &mockValidator{})
@@ -287,6 +289,191 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing
 
 	data := w.Body.String()
 	assert.Equal(t, "overrides have been modified during request processing, try again\n", data)
+}
+
+func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) {
+	tenant := "foo"
+
+	testCases := []struct {
+		name                                string
+		checkForConflictingRuntimeOverrides bool
+		defaultOverrides                    overrides.Overrides
+		userConfigOverrides                 *client.Limits
+		request                             *client.Limits
+		skipConflictingOverridesCheck       string
+		expStatusCode                       int
+		expResp                             string
+	}{
+		{
+			name:                                "No conflicting runtime overrides",
+			checkForConflictingRuntimeOverrides: true,
+			defaultOverrides: overrides.Overrides{
+				Ingestion: overrides.IngestionOverrides{
+					RateStrategy: overrides.GlobalIngestionRateStrategy,
+				},
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					// processors is ignored when checking for conflicting fields since we merge this field
+					Processors: map[string]struct{}{"service-graphs": {}},
+				},
+			},
+			userConfigOverrides: nil,
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			expStatusCode: 200,
+			expResp:       "",
+		},
+		{
+			name:                                "Conflicting runtime overrides",
+			checkForConflictingRuntimeOverrides: true,
+			defaultOverrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: 15 * time.Second,
+				},
+			},
+			userConfigOverrides: nil,
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			expStatusCode: 400,
+			expResp:       errConflictingRuntimeOverrides.Error() + "\n",
+		},
+		{
+			name:                                "Conflicting runtime overrides but check disabled",
+			checkForConflictingRuntimeOverrides: false,
+			defaultOverrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					CollectionInterval: 15 * time.Second,
+				},
+			},
+			userConfigOverrides: nil,
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			expStatusCode: 200,
+			expResp:       "",
+		},
+		{
+			name:                                "Conflicting runtime overrides but skip check",
+			checkForConflictingRuntimeOverrides: true,
+			defaultOverrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: 15 * time.Second,
+				},
+			},
+			userConfigOverrides: nil,
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			skipConflictingOverridesCheck: "true",
+			expStatusCode:                 200,
+			expResp:                       "",
+		},
+		{
+			name:                                "Conflicting runtime overrides but already has user-config overiddes",
+			checkForConflictingRuntimeOverrides: true,
+			defaultOverrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: 15 * time.Second,
+				},
+			},
+			userConfigOverrides: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 30 * time.Second},
+				},
+			},
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			expStatusCode: 200,
+			expResp:       "",
+		},
+		{
+			name:                                "Invalid skip check parameter",
+			checkForConflictingRuntimeOverrides: true,
+			defaultOverrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processors:         map[string]struct{}{"service-graphs": {}},
+					CollectionInterval: 15 * time.Second,
+				},
+			},
+			userConfigOverrides: nil,
+			request: &client.Limits{
+				MetricsGenerator: client.LimitsMetricsGenerator{
+					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
+				},
+			},
+			skipConflictingOverridesCheck: "yes",
+			expStatusCode:                 400,
+			expResp:                       "could not parse skip-conflicting-overrides-check, must be a boolean value\n",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := overrides.Config{
+				Defaults: tc.defaultOverrides,
+				UserConfigurableOverridesConfig: overrides.UserConfigurableOverridesConfig{
+					Enabled: true,
+					Client: client.Config{
+						Backend: backend.Local,
+						Local:   &local.Config{Path: t.TempDir()},
+					},
+					API: overrides.UserConfigurableOverridesAPIConfig{
+						CheckForConflictingRuntimeOverrides: tc.checkForConflictingRuntimeOverrides,
+					},
+				},
+				ConfigType: "",
+			}
+			o, err := overrides.NewOverrides(cfg, prometheus.DefaultRegisterer)
+			assert.NoError(t, err)
+
+			overridesAPI, err := New(&cfg.UserConfigurableOverridesConfig.API, &cfg.UserConfigurableOverridesConfig.Client, o, &mockValidator{})
+			require.NoError(t, err)
+
+			version := backend.VersionNew
+			if tc.userConfigOverrides != nil {
+				_, err = overridesAPI.client.Set(context.Background(), tenant, tc.userConfigOverrides, backend.VersionNew)
+				assert.NoError(t, err)
+			}
+
+			w := httptest.NewRecorder()
+
+			json, err := jsoniter.Marshal(tc.request)
+			assert.NoError(t, err)
+
+			path := "/"
+			if tc.skipConflictingOverridesCheck != "" {
+				path = fmt.Sprintf("%s?%s=%s", path, queryParamSkipConflictingOverridesCheck, tc.skipConflictingOverridesCheck)
+			}
+			r := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(json))
+			r.Header.Set(headerIfMatch, string(version))
+			ctx := user.InjectOrgID(r.Context(), tenant)
+			r = r.WithContext(ctx)
+
+			overridesAPI.PostHandler(w, r)
+
+			res := w.Result()
+			assert.Equal(t, tc.expStatusCode, res.StatusCode)
+
+			data := w.Body.String()
+			assert.Equal(t, tc.expResp, data)
+		})
+	}
 }
 
 func prepareRequest(tenant, method string, payload []byte) *http.Request {
