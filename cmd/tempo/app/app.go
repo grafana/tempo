@@ -66,20 +66,21 @@ var (
 type App struct {
 	cfg Config
 
-	Server         *server.Server
+	Server         TempoServer
 	InternalServer *server.Server
-	readRings      map[string]*ring.Ring
-	Overrides      overrides.Service
-	distributor    *distributor.Distributor
-	querier        *querier.Querier
-	frontend       *frontend_v1.Frontend
-	compactor      *compactor.Compactor
-	ingester       *ingester.Ingester
-	generator      *generator.Generator
-	store          storage.Store
-	usageReport    *usagestats.Reporter
-	cacheProvider  cache.Provider
-	MemberlistKV   *memberlist.KVInitService
+
+	readRings     map[string]*ring.Ring
+	Overrides     overrides.Service
+	distributor   *distributor.Distributor
+	querier       *querier.Querier
+	frontend      *frontend_v1.Frontend
+	compactor     *compactor.Compactor
+	ingester      *ingester.Ingester
+	generator     *generator.Generator
+	store         storage.Store
+	usageReport   *usagestats.Reporter
+	cacheProvider cache.Provider
+	MemberlistKV  *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -94,6 +95,7 @@ func New(cfg Config) (*App, error) {
 	app := &App{
 		cfg:       cfg,
 		readRings: map[string]*ring.Ring{},
+		Server:    newTempoServer(),
 	}
 
 	usagestats.Edition("oss")
@@ -192,12 +194,13 @@ func (t *App) Run() error {
 		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm))
 	}
 
-	t.Server.HTTP.Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
+	t.Server.HTTP().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
 
-	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
-	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
-	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	grpc_health_v1.RegisterHealthServer(t.Server.GRPC, grpcutil.NewHealthCheck(sm))
+	t.Server.HTTP().Path("/ready").Handler(t.readyHandler(sm))
+	t.Server.HTTP().Path("/status").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTP().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTP().Path("/status/overrides/{tenant}").Handler(t.tenantOverridesHandler()).Methods("GET")
+	grpc_health_v1.RegisterHealthServer(t.Server.GRPC(), grpcutil.NewHealthCheck(sm))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
@@ -226,7 +229,7 @@ func (t *App) Run() error {
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
 	// Setup signal handler. If signal arrives, we stop the manager, which stops all the services.
-	handler := signals.NewHandler(t.Server.Log)
+	handler := signals.NewHandler(t.Server.Log())
 	go func() {
 		handler.Loop()
 		sm.StopAsync()
@@ -370,6 +373,8 @@ func (t *App) statusHandler() http.HandlerFunc {
 
 			switch endpoint {
 			case "runtime_config":
+				fallthrough
+			case "overrides":
 				err := t.writeRuntimeConfig(&msg, r)
 				if err != nil {
 					errs = append(errs, err)
@@ -472,7 +477,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	endpoints := []endpoint{}
 
-	err := t.Server.HTTP.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	err := t.Server.HTTP().Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		e := endpoint{}
 
 		pathTemplate, err := route.GetPathTemplate()
@@ -516,6 +521,25 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 	}
 
 	return nil
+}
+
+func (t *App) tenantOverridesHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+
+		tenant, ok := vars["tenant"]
+		if !ok {
+			http.Error(w, "must specify tenant ID", http.StatusBadRequest)
+			return
+		}
+
+		err := t.Overrides.WriteTenantOverrides(w, r, tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			level.Error(log.Logger).Log("msg", "error writing response", "endpoint", r.URL.String(), "err", err)
+			return
+		}
+	}
 }
 
 func (t *App) buildinfoHandler() http.HandlerFunc {

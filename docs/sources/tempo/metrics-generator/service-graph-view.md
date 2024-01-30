@@ -105,7 +105,7 @@ The grid layout changes the service graph to a series of rows and columns.
 If you are using the metrics-generator, then it processes traces and generates service graphs in the form of time series metrics like:
 
 ```yaml
-tempo_service_graph_request_total{client="app", server="db"} 20
+traces_service_graph_request_total{client="app", server="db"} 20
 ```
 
 For information about service graphs and how they are calculated, refer to the [Service Graphs documentation]({{< relref "../metrics-generator/service_graphs" >}}).

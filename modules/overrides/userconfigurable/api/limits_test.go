@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -51,7 +52,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 			},
 		},
 	}
-	overridesInt, err := overrides.NewOverrides(cfg)
+	overridesInt, err := overrides.NewOverrides(cfg, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	limits := limitsFromOverrides(overridesInt, userID)

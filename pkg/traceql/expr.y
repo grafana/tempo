@@ -41,6 +41,10 @@ import (
     staticStr   string
     staticFloat float64
     staticDuration time.Duration
+
+    hint *Hint
+    hintList []*Hint
+    hints *Hints
 }
 
 %type <RootExpr> root
@@ -70,6 +74,10 @@ import (
 %type <intrinsicField> intrinsicField
 %type <attributeField> attributeField
 
+%type <hint> hint
+%type <hintList> hintList
+%type <hints> hints
+
 %token <staticStr>      IDENTIFIER STRING
 %token <staticInt>      INTEGER
 %token <staticFloat>    FLOAT
@@ -83,6 +91,7 @@ import (
                         BY COALESCE SELECT
                         END_ATTRIBUTE
                         RATE COUNT_OVER_TIME
+                        WITH
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
@@ -102,6 +111,7 @@ root:
   | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
   | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) } 
   | spansetPipeline PIPE metricsAggregation     { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
+  | root hints                                  { yylex.(*lexer).expr.withHints($2) }
   ;
 
 // **********************
@@ -256,6 +266,23 @@ metricsAggregation:
     | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
   ;
+
+// **********************
+// Hints
+// **********************
+hint:
+    IDENTIFIER EQ static { $$ = newHint($1,$3) }
+  ;
+
+hints:
+    WITH OPEN_PARENS hintList CLOSE_PARENS { $$ = newHints($3) }
+  ;   
+
+hintList:
+    hint                { $$ = []*Hint{$1} }
+  | hintList COMMA hint { $$ = append($1, $3) }
+  ;
+
 
 // **********************
 // FieldExpressions

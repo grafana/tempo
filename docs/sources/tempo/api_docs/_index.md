@@ -289,9 +289,20 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 }
 ```
 
+Parameters:
+- `scope = (resource|span|intrinsic)`
+  Optional. Specifies the scope of the tags. If not specified, it means all scopes.
+  Default = `all`
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end`, defines a time range from which tags should be returned.
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+
+
 ### Search tags V2
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only 
+fetch blocks that wasn't flushed to backend.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
@@ -300,6 +311,15 @@ of tags or attributes returned. If nothing is provided, the endpoint will return
 ```
 GET /api/v2/search/tags?scope=<resource|span|intrinsic>
 ```
+
+Parameters:
+- `scope = (resource|span|intrinsic)`
+  Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
+  Default = `all`
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end` define a time range from which tags should be returned.
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start` define a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
 
 #### Example
 
@@ -340,7 +360,8 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 
 ### Search tag values
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only
+fetch blocks that wasn't flushed to backend.
 
 This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request will return all discovered service names.
@@ -367,6 +388,13 @@ $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
   ]
 }
 ```
+
+Parameters:
+- `start = (unix epoch seconds)`
+  Optional. Along with `end`, defines a time range from which tags should be returned.
+- `end = (unix epoch seconds)`
+  Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+
 
 ### Search tag values V2
 
@@ -405,6 +433,7 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
   ]
 }
 ```
+This endpoint can also receive `start` and `end` optional parameters. These parameters will define the time range from which the tags will be fetched
 
 #### Filtered tag values
 
@@ -560,6 +589,14 @@ Displays the override configuration.
 Query parameter:
 - `mode = (diff)`: Show the difference between defaults and overrides.
 
+Alias: `/status/overrides`
+
+```
+GET /status/overrides/{tenant}
+```
+
+Displays the override configuration for the specified tenant.
+
 ```
 GET /status/usage-stats
 ```
@@ -579,10 +616,6 @@ The query-frontend component implements the streaming querier interface defined 
 
 By default, this service is only offered over the GRPC port.
 You can use streaming service over the HTTP port as well (which Grafana expects).
-
-{{% admonition type="note" %}}
-Enabling this setting is incompatible with TLS.
-{{% /admonition %}}
 
 To enable the streaming service over the HTTP port for use with Grafana, set the following:
 

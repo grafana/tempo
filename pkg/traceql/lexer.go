@@ -80,6 +80,7 @@ var tokens = map[string]int{
 	"select":          SELECT,
 	"rate":            RATE,
 	"count_over_time": COUNT_OVER_TIME,
+	"with":            WITH,
 }
 
 type lexer struct {
@@ -89,6 +90,7 @@ type lexer struct {
 	errs   []*ParseError
 
 	parsingAttribute bool
+	currentScope     int
 }
 
 func (l *lexer) Lex(lval *yySymType) int {
@@ -102,8 +104,9 @@ func (l *lexer) Lex(lval *yySymType) int {
 
 	if l.parsingAttribute {
 		// parse out any scopes here
-		scopeToken, ok := tryScopeAttribute(&l.Scanner)
+		scopeToken, ok := tryScopeAttribute(&l.Scanner, l.currentScope)
 		if ok {
+			l.currentScope = scopeToken
 			return scopeToken
 		}
 
@@ -186,6 +189,10 @@ func (l *lexer) Lex(lval *yySymType) int {
 		break
 	}
 
+	if multiTok == PARENT_DOT || multiTok == SPAN_DOT || multiTok == RESOURCE_DOT {
+		l.currentScope = multiTok
+	}
+
 	// did we find a combination token?
 	if multiTok != -1 {
 		l.parsingAttribute = startsAttribute(multiTok)
@@ -260,7 +267,7 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 	return sb.String(), nil
 }
 
-func tryScopeAttribute(l *scanner.Scanner) (int, bool) {
+func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
 	// copy the scanner to avoid advancing if it's not a scope.
 	s := *l
 	str := ""
@@ -272,7 +279,8 @@ func tryScopeAttribute(l *scanner.Scanner) (int, bool) {
 		str += string(s.Next())
 	}
 	tok := tokens[str]
-	if tok == RESOURCE_DOT || tok == SPAN_DOT {
+
+	if (tok == SPAN_DOT || tok == RESOURCE_DOT) && currentScope == PARENT_DOT {
 		// we have found scope attribute so consume the original scanner
 		for i := 0; i < len(str); i++ {
 			l.Next()

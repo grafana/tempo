@@ -35,6 +35,7 @@ type typedExpression interface {
 type RootExpr struct {
 	Pipeline        Pipeline
 	MetricsPipeline metricsFirstStageElement
+	Hints           *Hints
 }
 
 func newRootExpr(e pipelineElement) *RootExpr {
@@ -58,6 +59,11 @@ func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *Root
 		Pipeline:        p,
 		MetricsPipeline: m,
 	}
+}
+
+func (r *RootExpr) withHints(h *Hints) *RootExpr {
+	r.Hints = h
+	return r
 }
 
 // **********************
@@ -291,7 +297,6 @@ func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
 	Expression          FieldExpression
-	outputBuffer        []*Spanset
 	matchingSpansBuffer []Span
 }
 
@@ -305,7 +310,7 @@ func newSpansetFilter(e FieldExpression) *SpansetFilter {
 func (*SpansetFilter) __spansetExpression() {}
 
 func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
-	f.outputBuffer = f.outputBuffer[:0]
+	var outputBuffer []*Spanset
 
 	for _, ss := range input {
 		if len(ss.Spans) == 0 {
@@ -338,16 +343,16 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 		if len(f.matchingSpansBuffer) == len(ss.Spans) {
 			// All matched, so we return the input as-is
 			// and preserve the local buffer.
-			f.outputBuffer = append(f.outputBuffer, ss)
+			outputBuffer = append(outputBuffer, ss)
 			continue
 		}
 
 		matchingSpanset := ss.clone()
 		matchingSpanset.Spans = append([]Span(nil), f.matchingSpansBuffer...)
-		f.outputBuffer = append(f.outputBuffer, matchingSpanset)
+		outputBuffer = append(outputBuffer, matchingSpanset)
 	}
 
-	return f.outputBuffer, nil
+	return outputBuffer, nil
 }
 
 type ScalarFilter struct {

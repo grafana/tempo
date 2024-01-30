@@ -27,7 +27,7 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ traceDuration > 1s }`
+	q := `{ resource.region != nil && resource.service.name = "bar" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
@@ -584,12 +584,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
+	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/home/joe/testblock/"),
-		// Path: path.Join("/Users/marty/src/tmp"),
+		// Path: path.Join("/home/joe/testblock/"),
+		Path: path.Join("/Users/marty/src/tmp"),
 	})
 	require.NoError(b, err)
 
@@ -674,6 +674,63 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 
 				require.NoError(b, err)
 				require.NotNil(b, r)
+			}
+		})
+	}
+}
+
+func BenchmarkBackendBlockQueryRange(b *testing.B) {
+	testCases := []string{
+		"{} | rate()",
+		"{} | rate() by (name)",
+		"{} | rate() by (resource.service.name)",
+		"{resource.service.name=`tempo-gateway`} | rate()",
+		"{status=error} | rate()",
+	}
+
+	var (
+		ctx      = context.TODO()
+		e        = traceql.NewEngine()
+		opts     = common.DefaultSearchOptions()
+		tenantID = "1"
+		blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		path     = "/Users/marty/src/tmp/"
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+	require.Equal(b, VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	for _, tc := range testCases {
+		b.Run(tc, func(b *testing.B) {
+			req := &tempopb.QueryRangeRequest{
+				Query: tc,
+				Step:  uint64(time.Minute),
+				Start: uint64(meta.StartTime.UnixNano()),
+				End:   uint64(meta.EndTime.UnixNano()),
+			}
+
+			eval, err := e.CompileMetricsQueryRange(req, false)
+			require.NoError(b, err)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := eval.Do(ctx, f)
+				require.NoError(b, err)
 			}
 		})
 	}

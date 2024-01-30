@@ -407,7 +407,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 
 func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Config) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(o)
+	limits, err := overrides.NewOverrides(o, prometheus.DefaultRegisterer)
 	require.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{

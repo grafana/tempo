@@ -115,7 +115,7 @@ type runtimeConfigOverridesManager struct {
 
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
-func newRuntimeConfigOverrides(cfg Config) (Service, error) {
+func newRuntimeConfigOverrides(cfg Config, registerer prometheus.Registerer) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -125,7 +125,7 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides(cfg.ConfigType, cfg.ExpandEnv),
 		}
-		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
 		}
@@ -255,6 +255,22 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	}
 
 	return nil
+}
+
+func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
+	return o.getOverridesForUser(userID)
+}
+
+func (o *runtimeConfigOverridesManager) WriteTenantOverrides(w io.Writer, _ *http.Request, userID string) error {
+	overrides := o.getOverridesForUser(userID)
+
+	out, err := yaml.Marshal(overrides)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(out)
+	return err
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied

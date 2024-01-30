@@ -287,3 +287,70 @@ func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {
 		require.Equal(t, string(wantJSON), string(gotJSON))
 	}
 }
+
+func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.Trace {
+	now := time.Now()
+
+	traceID = ValidTraceID(traceID)
+
+	trace := &tempopb.Trace{
+		Batches: make([]*v1_trace.ResourceSpans, 0),
+	}
+
+	attributes := make([]*v1_common.KeyValue, 0, 2)
+	attributes = append(attributes, &v1_common.KeyValue{
+		Key:   "stringTag",
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value1"}},
+	})
+
+	attributes = append(attributes, &v1_common.KeyValue{
+		Key:   "intTag",
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: intValue}},
+	})
+
+	trace.Batches = append(trace.Batches, &v1_trace.ResourceSpans{
+		Resource: &v1_resource.Resource{
+			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: service,
+						},
+					},
+				},
+				{
+					Key: "other",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "other-value",
+						},
+					},
+				},
+			},
+		},
+		ScopeSpans: []*v1_trace.ScopeSpans{
+			{
+				Spans: []*v1_trace.Span{
+					{
+						Name:         "test",
+						TraceId:      traceID,
+						SpanId:       make([]byte, 8),
+						ParentSpanId: make([]byte, 8),
+						Kind:         v1_trace.Span_SPAN_KIND_CLIENT,
+						Status: &v1_trace.Status{
+							Code:    1,
+							Message: "OK",
+						},
+						StartTimeUnixNano:      uint64(now.UnixNano()),
+						EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
+						Attributes:             attributes,
+						DroppedLinksCount:      rand.Uint32(),
+						DroppedAttributesCount: rand.Uint32(),
+					},
+				},
+			},
+		},
+	})
+	return trace
+}

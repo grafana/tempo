@@ -14,10 +14,10 @@ import (
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/golang/protobuf/proto"  //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
@@ -28,7 +28,7 @@ import (
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler, SearchWSHandler                http.Handler
+	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler, QueryRangeHandler              http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
@@ -71,23 +71,27 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchTagsMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTags, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagsResultHandlerFactory, parseTagsRequest), retryWare)
 
 	searchTagsV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagsV2, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagsV2ResultHandlerFactory, parseTagsRequest), retryWare)
 
 	searchTagsValuesMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValues, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesResultHandlerFactory, parseTagValuesRequest), retryWare)
 
 	searchTagsValuesV2Middleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValuesV2, logger),
-		newSearchTagsMiddleware(), retryWare)
+		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesV2ResultHandlerFactory, parseTagValuesRequest), retryWare)
 
-	spanMetricsMiddleware := MergeMiddlewares(
+	metricsMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
-		newSpanMetricsMiddleware(), retryWare)
+		newMetricsMiddleware(), retryWare)
+
+	queryRangeMiddleware := MergeMiddlewares(
+		newMultiTenantUnsupportedMiddleware(cfg, logger),
+		newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
@@ -96,7 +100,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagValues := searchTagsValuesMiddleware.Wrap(next)
 	searchTagValuesV2 := searchTagsValuesV2Middleware.Wrap(next)
 
-	metrics := spanMetricsMiddleware.Wrap(next)
+	metrics := metricsMiddleware.Wrap(next)
+	queryrange := queryRangeMiddleware.Wrap(next)
 
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
@@ -105,9 +110,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchTagsV2Handler:       newHandler(searchTagsV2, nil, nil, logger),
 		SearchTagsValuesHandler:   newHandler(searchTagValues, nil, nil, logger),
 		SearchTagsValuesV2Handler: newHandler(searchTagValuesV2, nil, nil, logger),
-
 		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
-		SearchWSHandler:           newSearchStreamingWSHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
+		QueryRangeHandler:         newHandler(queryrange, nil, nil, logger),
 		cacheProvider:             cacheProvider,
 		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
 		logger:                    logger,
@@ -222,24 +226,16 @@ func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reade
 }
 
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware() Middleware {
+func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger,
+	resultsHandlerFactory tagResultHandlerFactory, parseRequest parseRequestFunction,
+) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		ingesterSearchRT := next
-
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// ingester search tags queries only need to be proxied to a single querier
-			orgID, _ := user.ExtractOrgID(r.Context())
-
-			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
-
-			return ingesterSearchRT.RoundTrip(r)
-		})
+		return NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, resultsHandlerFactory, logger, parseRequest))
 	})
 }
 
-// newSpanMetricsMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSpanMetricsMiddleware() Middleware {
+// newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
+func newMetricsMiddleware() Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		generatorRT := next
 
@@ -267,4 +263,14 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	}
 
 	return uri
+}
+
+func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
+	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		searchRT := NewRoundTripper(next, newQueryRangeSharder(reader, o, cfg.Metrics.Sharder, newSearchProgress, logger))
+
+		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return searchRT.RoundTrip(r)
+		})
+	})
 }

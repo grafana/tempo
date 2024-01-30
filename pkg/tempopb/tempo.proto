@@ -16,6 +16,7 @@ service Pusher {
 service MetricsGenerator {
   rpc PushSpans(PushSpansRequest) returns (PushResponse) {}
   rpc GetMetrics(SpanMetricsRequest) returns (SpanMetricsResponse) {}
+  rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 
 service Querier {
@@ -139,7 +140,42 @@ message SearchMetrics {
 
 message SearchTagsRequest {
   string scope = 1;
+  uint32 start = 3;
+  uint32 end = 4;
 }
+
+// SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
+// to search a block in the backend.
+message SearchTagsBlockRequest {
+  SearchTagsRequest searchReq = 1;
+  string blockID = 2;
+  uint32 startPage = 3;
+  uint32 pagesToSearch = 4;
+  string encoding = 5;
+  uint32 indexPageSize = 6;
+  uint32 totalRecords = 7;
+  string dataEncoding = 8;
+  string version = 9;
+  uint64 size = 10; // total size of data file
+  uint32 footerSize = 11; // size of file footer (parquet)
+  repeated DedicatedColumn dedicatedColumns = 12;
+}
+
+message SearchTagValuesBlockRequest {
+  SearchTagValuesRequest searchReq = 1;
+  string blockID = 2;
+  uint32 startPage = 3;
+  uint32 pagesToSearch = 4;
+  string encoding = 5;
+  uint32 indexPageSize = 6;
+  uint32 totalRecords = 7;
+  string dataEncoding = 8;
+  string version = 9;
+  uint64 size = 10; // total size of data file
+  uint32 footerSize = 11; // size of file footer (parquet)
+  repeated DedicatedColumn dedicatedColumns = 12;
+}
+
 
 message SearchTagsResponse {
   repeated string tagNames = 1;
@@ -157,6 +193,8 @@ message SearchTagsV2Scope {
 message SearchTagValuesRequest {
   string tagName = 1;
   string query = 2; // TraceQL query
+  uint32 start = 4;
+  uint32 end = 5;
 }
 
 message SearchTagValuesResponse {
@@ -316,10 +354,12 @@ message QueryRangeRequest {
   uint64 step = 4;
   uint32 shardID = 5;
   uint32 shardCount = 6;
+  string queryMode = 7;
 }
 
 message QueryRangeResponse {
   repeated TimeSeries series = 1;
+  SearchMetrics metrics = 2;
 }
 
 message Sample {

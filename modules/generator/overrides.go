@@ -35,6 +35,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	DedicatedColumns(userID string) backend.DedicatedColumns
+	MaxBytesPerTrace(userID string) int
 }
 
 var _ metricsGeneratorOverrides = (overrides.Interface)(nil)

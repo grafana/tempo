@@ -1,14 +1,18 @@
 package overrides
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"reflect"
 	"testing"
 
+	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 )
 
 // Copied from Cortex
@@ -253,4 +257,34 @@ func rvCountFields(rv reflect.Value) int {
 		}
 	}
 	return n
+}
+
+func TestOverrides_AssertUserConfigurableOverridesAreASubsetOfRuntimeOverrides(t *testing.T) {
+	userConfigurableOverrides := client.Limits{}
+
+	err := gofakeit.Struct(&userConfigurableOverrides)
+	assert.NoError(t, err)
+
+	// TODO clear out collection_interval because unmarshalling a time.Duration into overrides.Overrides
+	//  fails. The JSON decoder is not able to parse creations correctly, so e.g. a string like "30s" is
+	//  not considered valid.
+	//  To fix this we should migrate the various time.Duration to a similar type like client.Duration and
+	//  verify they operate the same when marshalling/unmshalling yaml.
+	userConfigurableOverrides.MetricsGenerator.CollectionInterval = nil
+
+	// encode to json
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	err = encoder.Encode(&userConfigurableOverrides)
+	assert.NoError(t, err)
+
+	// and decode back to overrides.Overrides
+	d := json.NewDecoder(&buf)
+
+	// all fields should be known
+	d.DisallowUnknownFields()
+
+	var runtimeOverrides Overrides
+	err = d.Decode(&runtimeOverrides)
+	assert.NoError(t, err)
 }
