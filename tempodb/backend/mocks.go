@@ -29,6 +29,7 @@ type MockRawReader struct {
 	Range        []byte // ReadRange
 	ReadFn       func(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
 	FindResult   []string
+	DeleteResult []string
 
 	BlockIDs          []uuid.UUID
 	CompactedBlockIDs []uuid.UUID
@@ -248,6 +249,10 @@ func (m *MockWriter) Append(context.Context, string, uuid.UUID, string, AppendTr
 }
 
 func (m *MockWriter) CloseAppend(context.Context, AppendTracker) error {
+	return nil
+}
+
+func (m *MockWriter) Delete(context.Context, string, KeyPath) error {
 	return nil
 }
 

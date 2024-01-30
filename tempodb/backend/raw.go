@@ -145,7 +145,7 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 }
 
 func (w *writer) Delete(ctx context.Context, name string, keypath KeyPath) error {
-	return w.w.Delete(ctx, name, keypath, false)
+	return w.w.Delete(ctx, name, keypath, nil)
 }
 
 type reader struct {
