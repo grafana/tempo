@@ -471,7 +471,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	for _, b := range i.completingBlocks {
 		wg.Add(1)
 		go func(b common.WALBlock) {
-			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.headBlock")
+			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.completingBlock")
 			defer span.Finish()
 			defer wg.Done()
 			if err := searchBlock(ctx, b); err != nil {
