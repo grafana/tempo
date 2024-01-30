@@ -182,8 +182,8 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
-	t.Server.HTTP().Path("/status/overrides").HandlerFunc(t.Overrides.TenantsHandler).Methods("GET")
-	t.Server.HTTP().Path("/status/overrides/{tenant}").HandlerFunc(t.Overrides.TenantStatusHandler).Methods("GET")
+	t.Server.HTTP().Path("/status/overrides").HandlerFunc(overrides.TenantsHandler(t.Overrides)).Methods("GET")
+	t.Server.HTTP().Path("/status/overrides/{tenant}").HandlerFunc(overrides.TenantStatusHandler(t.Overrides)).Methods("GET")
 
 	return t.Overrides, nil
 }

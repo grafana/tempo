@@ -26,58 +26,54 @@ type tenantsPageTenant struct {
 	HasUserConfigurableOverrides bool   `json:"has_user_configurable_overrides"`
 }
 
-func (o *runtimeConfigOverridesManager) TenantsHandler(w http.ResponseWriter, req *http.Request) {
-	var tenants []tenantsPageTenant
-	for _, tenant := range o.GetTenantIDs() {
-		tenants = append(tenants, tenantsPageTenant{
-			Name:                         tenant,
-			HasRuntimeOverrides:          true,
-			HasUserConfigurableOverrides: false,
-		})
-	}
+func TenantsHandler(o Interface) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		tenants := make(map[string]tenantsPageTenant)
 
-	sortTenantsPageTenant(tenants)
-
-	util.RenderHTTPResponse(w, tenantsPageContents{
-		Now:     time.Now(),
-		Tenants: tenants,
-	}, tenantsTemplate, req)
-}
-
-func (o *userConfigurableOverridesManager) TenantsHandler(w http.ResponseWriter, req *http.Request) {
-	tenants := make(map[string]tenantsPageTenant)
-
-	// runtime overrides
-	for _, tenant := range o.Interface.GetTenantIDs() {
-		tenants[tenant] = tenantsPageTenant{
-			Name:                         tenant,
-			HasRuntimeOverrides:          true,
-			HasUserConfigurableOverrides: false,
+		// runtime overrides
+		var runtimeTenants []string
+		switch o := o.(type) {
+		case *runtimeConfigOverridesManager:
+			runtimeTenants = o.GetTenantIDs()
+		case *userConfigurableOverridesManager:
+			runtimeTenants = o.Interface.GetTenantIDs()
+		default:
+			util.WriteTextResponse(w, "Internal error happened when retrieving runtime overrides")
 		}
-	}
-
-	// user-configurable overrides
-	for _, tenant := range o.GetTenantIDs() {
-		_, hasRuntimeOverrides := tenants[tenant]
-
-		tenants[tenant] = tenantsPageTenant{
-			Name:                         tenant,
-			HasRuntimeOverrides:          hasRuntimeOverrides,
-			HasUserConfigurableOverrides: true,
+		for _, tenant := range runtimeTenants {
+			tenants[tenant] = tenantsPageTenant{
+				Name:                         tenant,
+				HasRuntimeOverrides:          true,
+				HasUserConfigurableOverrides: false,
+			}
 		}
+
+		// user-configurable overrides
+		userConfigurableOverridesManager, ok := o.(*userConfigurableOverridesManager)
+		if ok {
+			for _, tenant := range userConfigurableOverridesManager.GetTenantIDs() {
+				_, hasRuntimeOverrides := tenants[tenant]
+
+				tenants[tenant] = tenantsPageTenant{
+					Name:                         tenant,
+					HasRuntimeOverrides:          hasRuntimeOverrides,
+					HasUserConfigurableOverrides: true,
+				}
+			}
+		}
+
+		var tenantsList []tenantsPageTenant
+		for _, tenant := range tenants {
+			tenantsList = append(tenantsList, tenant)
+		}
+
+		sortTenantsPageTenant(tenantsList)
+
+		util.RenderHTTPResponse(w, tenantsPageContents{
+			Now:     time.Now(),
+			Tenants: tenantsList,
+		}, tenantsTemplate, req)
 	}
-
-	var tenantsList []tenantsPageTenant
-	for _, tenant := range tenants {
-		tenantsList = append(tenantsList, tenant)
-	}
-
-	sortTenantsPageTenant(tenantsList)
-
-	util.RenderHTTPResponse(w, tenantsPageContents{
-		Now:     time.Now(),
-		Tenants: tenantsList,
-	}, tenantsTemplate, req)
 }
 
 func sortTenantsPageTenant(list []tenantsPageTenant) {

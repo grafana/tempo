@@ -71,7 +71,4 @@ type Interface interface {
 
 	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
-
-	TenantsHandler(w http.ResponseWriter, req *http.Request)
-	TenantStatusHandler(w http.ResponseWriter, req *http.Request)
 }
