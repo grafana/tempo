@@ -94,7 +94,7 @@ Here is an example query:
 
 This query has several parts to consider.
 
-First, the query begins with the TraceQL `{status=error}`, to find spans who's `status` has been set to `error`.
+First, the query begins with the TraceQL `{status=error}`, to find spans who's `status` has been set to `error`.  See the TraceQL docs on [selecting spans](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#selecting-spans) for more information.
 
 Next, the `| count_over_time()` passes the spans matched to a new function,
 introduced with this API.  There is also a `rate()` function.
