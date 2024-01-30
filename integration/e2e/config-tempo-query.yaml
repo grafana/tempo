@@ -1,1 +1,2 @@
 backend: tempo:3200
+services_query_duration: 1h

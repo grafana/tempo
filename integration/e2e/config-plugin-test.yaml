@@ -4,6 +4,10 @@ server:
   http_listen_port: 3200
   log_level: debug
 
+query_frontend:
+  search:
+    query_backend_after: 1s
+
 distributor:
   receivers:
     jaeger:
@@ -38,3 +42,6 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 100
+    block:
+      version: vParquet3
+    blocklist_poll: 1s
