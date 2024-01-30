@@ -2,6 +2,8 @@
 
 Once installed, dashboards, rules, and alerts are in the [`yamls`](./yamls) folder. Use them directly in Prometheus and Grafana to monitor Tempo.
 
+You can either use the mixins in the `tempo-mixin-compiled` folder or you can build your own to incorporate your own changes. 
+
 ## Build
 
 To regenerate dashboards, rule and alerts, run `make all`.
