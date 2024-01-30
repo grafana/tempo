@@ -24,18 +24,23 @@ func NewEngine() *Engine {
 	return &Engine{}
 }
 
-func (e *Engine) Compile(query string) (func(input []*Spanset) (result []*Spanset, err error), *FetchSpansRequest, error) {
+func (e *Engine) Compile(query string) (func(input []*Spanset) (result []*Spanset, err error), metricsFirstStageElement, *FetchSpansRequest, error) {
 	expr, err := Parse(query)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	req := &FetchSpansRequest{
 		AllConditions: true,
 	}
-	expr.Pipeline.extractConditions(req)
+	expr.extractConditions(req)
 
-	return expr.Pipeline.evaluate, req, nil
+	err = expr.validate()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return expr.Pipeline.evaluate, expr.MetricsPipeline, req, nil
 }
 
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
@@ -252,7 +257,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 				continue
 			}
 
-			staticAnyValue := static.asAnyValue()
+			staticAnyValue := static.AsAnyValue()
 
 			keyValue := &common_v1.KeyValue{
 				Key:   attribute.Name,
@@ -279,7 +284,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 			continue
 		}
 
-		staticAnyValue := att.Val.asAnyValue()
+		staticAnyValue := att.Val.AsAnyValue()
 		keyValue := &common_v1.KeyValue{
 			Key:   att.Name,
 			Value: staticAnyValue,
@@ -294,7 +299,7 @@ func unixSecToNano(ts uint32) uint64 {
 	return uint64(ts) * uint64(time.Second/time.Nanosecond)
 }
 
-func (s Static) asAnyValue() *common_v1.AnyValue {
+func (s Static) AsAnyValue() *common_v1.AnyValue {
 	switch s.Type {
 	case TypeInt:
 		return &common_v1.AnyValue{

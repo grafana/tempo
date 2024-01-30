@@ -407,7 +407,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 
 func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Config) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(o)
+	limits, err := overrides.NewOverrides(o, prometheus.DefaultRegisterer)
 	require.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
@@ -505,27 +505,8 @@ func defaultOverridesConfig() overrides.Config {
 
 func pushBatchV2(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
-	batchDecoder := model.MustNewSegmentDecoder(model_v2.Encoding)
 
-	pbTrace := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{batch},
-	}
-
-	buffer, err := batchDecoder.PrepareForWrite(pbTrace, 0, 0)
-	require.NoError(t, err)
-
-	_, err = i.PushBytesV2(ctx, &tempopb.PushBytesRequest{
-		Traces: []tempopb.PreallocBytes{
-			{
-				Slice: buffer,
-			},
-		},
-		Ids: []tempopb.PreallocBytes{
-			{
-				Slice: id,
-			},
-		},
-	})
+	_, err := i.PushBytesV2(ctx, makePushBytesRequest(id, batch))
 	require.NoError(t, err)
 }
 

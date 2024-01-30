@@ -2,27 +2,20 @@ package httpclient
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
-	"github.com/gorilla/websocket"
 	"github.com/klauspost/compress/gzhttp"
 
-	"github.com/grafana/dskit/user"
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/api"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 
@@ -135,7 +128,27 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 
 func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
 	m := &tempopb.SearchTagsResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search/tags", m)
+	_, err := c.getFor(c.BaseURL+tempo_api.PathSearchTags, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTagsV2() (*tempopb.SearchTagsV2Response, error) {
+	m := &tempopb.SearchTagsV2Response{}
+	_, err := c.getFor(c.BaseURL+tempo_api.PathSearchTagsV2, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTagsResponse, error) {
+	m := &tempopb.SearchTagsResponse{}
+	_, err := c.getFor(c.buildTagsQueryURL(start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -153,10 +166,22 @@ func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, 
 	return m, nil
 }
 
+func (c *Client) SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error) {
+	m := &tempopb.SearchTagValuesV2Response{}
+	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values?q=%s`, key, url.QueryEscape(query))
+
+	_, err := c.getFor(c.BaseURL+urlPath, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 // Search Tempo. tags must be in logfmt format, that is "key1=value1 key2=value2"
 func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildQueryURL("tags", tags, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +193,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildQueryURL("tags", tags, start, end), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +216,7 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildQueryURL("q", query, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +226,7 @@ func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildQueryURL("q", query, start, end), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -209,84 +234,27 @@ func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*
 	return m, nil
 }
 
-func (c *Client) SearchWithWebsocket(req *tempopb.SearchRequest, f func(*tempopb.SearchResponse)) (*tempopb.SearchResponse, error) {
-	httpReq, err := http.NewRequest("GET", c.BaseURL+api.PathWSSearch, nil)
+func (c *Client) MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error) {
+	joinURL, _ := url.Parse(c.BaseURL + tempo_api.PathSpanMetricsSummary + "?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	q.Set("q", query)
+	q.Set("groupBy", groupBy)
+	joinURL.RawQuery = q.Encode()
+
+	m := &tempopb.SpanMetricsSummaryResponse{}
+	_, err := c.getFor(fmt.Sprint(joinURL), m)
 	if err != nil {
-		return nil, err
+		return m, err
 	}
 
-	// swap out scheme for ws
-	httpReq, err = api.BuildSearchRequest(httpReq, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// always org id
-	httpReq.Header = http.Header{}
-	err = user.InjectOrgIDIntoHTTPRequest(user.InjectOrgID(context.Background(), c.OrgID), httpReq)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, resp, err := websocket.DefaultDialer.Dial(httpReq.URL.String(), httpReq.Header)
-	if err != nil {
-		return nil, fmt.Errorf("ws dial failed: %w, resp: %v", err, resp)
-	}
-	defer conn.Close()
-
-	var finalResponse *tempopb.SearchResponse
-	var finalErr error
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				var closeErr *websocket.CloseError
-				if errors.As(err, &closeErr) {
-					if closeErr.Code == websocket.CloseNormalClosure {
-						break
-					}
-				}
-				finalErr = err
-				break
-			}
-			resp := &tempopb.SearchResponse{}
-			err = jsonpb.Unmarshal(bytes.NewReader(message), resp)
-			if err != nil {
-				finalErr = err
-				break
-			}
-			f(resp)
-			finalResponse = resp
-		}
-	}()
-
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	for {
-		select {
-		case <-done:
-			return finalResponse, finalErr
-		case <-interrupt:
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				return nil, err
-			}
-
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return finalResponse, finalErr
-		}
-	}
+	return m, nil
 }
 
-func (c *Client) buildQueryURL(queryType string, query string, start int64, end int64) string {
+func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64) string {
 	joinURL, _ := url.Parse(c.BaseURL + "/api/search?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {
@@ -294,6 +262,18 @@ func (c *Client) buildQueryURL(queryType string, query string, start int64, end 
 		q.Set("end", strconv.FormatInt(end, 10))
 	}
 	q.Set(queryType, query)
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) buildTagsQueryURL(start int64, end int64) string {
+	joinURL, _ := url.Parse(c.BaseURL + "/api/search/tags?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)

@@ -1,0 +1,79 @@
+target: all
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+  tls_min_version: VersionTLS12
+  grpc_tls_config:
+    cert_file: /shared/tls.crt
+    key_file: /shared/tls.key
+    client_auth_type: VerifyClientCertIfGiven
+    client_ca_file: /shared/ca.crt
+  http_tls_config:
+    cert_file: /shared/tls.crt
+    key_file: /shared/tls.key
+    client_auth_type: VerifyClientCertIfGiven
+    client_ca_file: /shared/ca.crt
+
+internal_server:
+  enable: true
+  http_listen_port: 3201
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 1ms
+  max_block_duration: 1h
+  complete_block_timeout: 1h
+  flush_check_period: 1ms
+
+storage:
+  trace:
+    backend: gcs
+    gcs:
+      bucket_name: tempo
+      endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 1000
+
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    poll_interval: 10s
+    client:
+      backend: gcs
+      # fsouza/fake-gcs-server does not support versioning
+      confirm_versioning: false
+      gcs:
+        bucket_name: tempo
+        endpoint: https://tempo_e2e-gcs:4443/storage/v1/
+        insecure: true
+
+ingester_client:
+  grpc_client_config:
+    tls_enabled: true
+    tls_insecure_skip_verify: true
+    tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    tls_min_version: VersionTLS12
+
+querier:
+  frontend_worker:
+    grpc_client_config:
+      tls_enabled: true
+      tls_insecure_skip_verify: true
+      tls_cipher_suites: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+      tls_min_version: VersionTLS12

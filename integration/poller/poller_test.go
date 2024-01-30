@@ -218,9 +218,9 @@ func decrementUUIDBytes(uuidBytes []byte) {
 		if uuidBytes[i] > 0 {
 			uuidBytes[i]--
 			break
-		} else {
-			uuidBytes[i] = 255 // Wrap around if the byte is 0
 		}
+
+		uuidBytes[i] = 255 // Wrap around if the byte is 0
 	}
 }
 
@@ -229,8 +229,8 @@ func incrementUUIDBytes(uuidBytes []byte) {
 		if uuidBytes[i] < 255 {
 			uuidBytes[i]++
 			break
-		} else {
-			uuidBytes[i] = 0 // Wrap around if the byte is 255
 		}
+
+		uuidBytes[i] = 0 // Wrap around if the byte is 255
 	}
 }

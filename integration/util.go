@@ -20,8 +20,16 @@ import (
 	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	mnoop "go.opentelemetry.io/otel/metric/noop"
+	tnoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/grafana/tempo/pkg/httpclient"
@@ -57,6 +65,10 @@ func buildArgsWithExtra(args, extraArgs []string) []string {
 }
 
 func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
+	return NewTempoAllInOneWithReadinessProbe(e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299), extraArgs...)
+}
+
+func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...string) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
 	args = buildArgsWithExtra(args, extraArgs)
 
@@ -64,8 +76,9 @@ func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 		"tempo",
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
-		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		rp,
 		3200,  // http all things
+		3201,  // http all things
 		9095,  // grpc tempo
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
@@ -267,6 +280,31 @@ func TempoBackoff() backoff.Config {
 	}
 }
 
+func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
+	factory := otlpexporter.NewFactory()
+	exporterCfg := factory.CreateDefaultConfig()
+	otlpCfg := exporterCfg.(*otlpexporter.Config)
+	otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
+		Endpoint: endpoint,
+		TLSSetting: configtls.TLSClientSetting{
+			Insecure: true,
+		},
+	}
+	logger, _ := zap.NewDevelopment()
+	return factory.CreateTracesExporter(
+		context.Background(),
+		exporter.CreateSettings{
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         logger,
+				TracerProvider: tnoop.NewTracerProvider(),
+				MeterProvider:  mnoop.NewMeterProvider(),
+			},
+			BuildInfo: component.NewDefaultBuildInfo(),
+		},
+		otlpCfg,
+	)
+}
+
 func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// new jaeger grpc exporter
 	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -280,8 +318,12 @@ func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
-func NewSearchGRPCClient(endpoint string) (tempopb.StreamingQuerierClient, error) {
-	clientConn, err := grpc.DialContext(context.Background(), endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewSearchGRPCClient(ctx context.Context, endpoint string) (tempopb.StreamingQuerierClient, error) {
+	return NewSearchGRPCClientWithCredentials(ctx, endpoint, insecure.NewCredentials())
+}
+
+func NewSearchGRPCClientWithCredentials(ctx context.Context, endpoint string, creds credentials.TransportCredentials) (tempopb.StreamingQuerierClient, error) {
+	clientConn, err := grpc.DialContext(ctx, endpoint, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
@@ -323,14 +365,16 @@ func SearchTraceQLAndAssertTrace(t *testing.T, client *httpclient.Client, info *
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
+// SearchStreamAndAssertTrace will search and assert that the trace is present in the streamed results.
+// nolint: revive
+func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
 
-	resp, err := client.Search(context.Background(), &tempopb.SearchRequest{
+	resp, err := client.Search(ctx, &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(start),
 		End:   uint32(end),
@@ -355,23 +399,6 @@ func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierCli
 	require.True(t, found)
 }
 
-func SearchWSStreamAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	attr := tempoUtil.RandomAttrFromTrace(expected)
-	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
-
-	resp, err := client.SearchWithWebsocket(&tempopb.SearchRequest{
-		Query: query,
-		Start: uint32(start),
-		End:   uint32(end),
-	}, func(sr *tempopb.SearchResponse) {})
-
-	require.NoError(t, err)
-	require.True(t, traceIDInResults(t, info.HexID(), resp))
-}
-
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
 func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo, start, end int64) {
@@ -385,6 +412,20 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 	require.NoError(t, err)
 
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
+}
+
+// by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
+// to look in the backend blocks
+func SearchAndAsserTagsBackend(t *testing.T, client *httpclient.Client, start, end int64) {
+	resp, err := client.SearchTags()
+	require.NoError(t, err)
+
+	require.Equal(t, len(resp.TagNames), 0)
+
+	// verify trace can be found using attribute and time range
+	resp, err = client.SearchTagsWithRange(start, end)
+	require.NoError(t, err)
+	require.True(t, len(resp.TagNames) > 0)
 }
 
 func traceIDInResults(t *testing.T, hexID string, resp *tempopb.SearchResponse) bool {

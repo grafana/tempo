@@ -142,28 +142,8 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{
-				Defaults: tt.defaultLimits,
-			}
-
-			if tt.perTenantOverrides != nil {
-				overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
-
-				buff, err := yaml.Marshal(tt.perTenantOverrides)
-				require.NoError(t, err)
-
-				err = os.WriteFile(overridesFile, buff, os.ModePerm)
-				require.NoError(t, err)
-
-				cfg.PerTenantOverrideConfig = overridesFile
-				cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
-			}
-
-			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(cfg)
-			require.NoError(t, err)
-			err = services.StartAndAwaitRunning(context.TODO(), overrides)
-			require.NoError(t, err)
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			defer cleanup()
 
 			for user, expectedVal := range tt.expectedMaxLocalTraces {
 				assert.Equal(t, expectedVal, overrides.MaxLocalTracesPerUser(user))
@@ -184,10 +164,8 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 			for user, expectedVal := range tt.expectedMaxSearchDuration {
 				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
 			}
-
-			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
-			require.NoError(t, err)
 		})
+
 		t.Run(fmt.Sprintf("%s (legacy)", tt.name), func(t *testing.T) {
 			cfg := Config{
 				Defaults: tt.defaultLimits,
@@ -213,7 +191,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := newRuntimeConfigOverrides(cfg)
+			overrides, err := newRuntimeConfigOverrides(cfg, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -414,28 +392,8 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{
-				Defaults: tt.defaultLimits,
-			}
-
-			if tt.perTenantOverrides != nil {
-				overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
-
-				buff, err := yaml.Marshal(tt.perTenantOverrides)
-				require.NoError(t, err)
-
-				err = os.WriteFile(overridesFile, buff, os.ModePerm)
-				require.NoError(t, err)
-
-				cfg.PerTenantOverrideConfig = overridesFile
-				cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
-			}
-
-			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := newRuntimeConfigOverrides(cfg)
-			require.NoError(t, err)
-			err = services.StartAndAwaitRunning(context.TODO(), overrides)
-			require.NoError(t, err)
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			defer cleanup()
 
 			for user, expectedVal := range tt.expectedEnableTargetInfo {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(user))
@@ -449,10 +407,8 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 				assert.Equal(t, expectedVal, overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(user))
 			}
 
-			// if srv != nil {
-			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
+			err := services.StopAndAwaitTerminated(context.TODO(), overrides)
 			require.NoError(t, err)
-			// }
 		})
 	}
 }
@@ -460,13 +416,13 @@ func TestMetricsGeneratorOverrides(t *testing.T) {
 func TestTempoDBOverrides(t *testing.T) {
 	tests := []struct {
 		name                     string
-		limits                   Overrides
-		overrides                string
+		defaultLimits            Overrides
+		perTenantOverrides       string
 		expectedDedicatedColumns map[string]backend.DedicatedColumns
 	}{
 		{
 			name: "limits",
-			limits: Overrides{
+			defaultLimits: Overrides{
 				Storage: StorageOverrides{
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "resource", Name: "namespace", Type: "string"},
@@ -480,14 +436,14 @@ func TestTempoDBOverrides(t *testing.T) {
 		},
 		{
 			name: "basic overrides",
-			limits: Overrides{
+			defaultLimits: Overrides{
 				Storage: StorageOverrides{
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "resource", Name: "namespace", Type: "string"},
 					},
 				},
 			},
-			overrides: `
+			perTenantOverrides: `
 overrides:
   user2:
     storage:
@@ -503,14 +459,14 @@ overrides:
 		},
 		{
 			name: "empty dedicated columns override global cfg",
-			limits: Overrides{
+			defaultLimits: Overrides{
 				Storage: StorageOverrides{
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "resource", Name: "namespace", Type: "string"},
 					},
 				},
 			},
-			overrides: `
+			perTenantOverrides: `
 overrides:
   user1:
   user2:
@@ -526,31 +482,46 @@ overrides:
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := Config{
-				Defaults: tc.limits,
-			}
-
-			if len(tc.overrides) > 0 {
-				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
-
-				require.NoError(t, os.WriteFile(overridesFile, []byte(tc.overrides), os.ModePerm))
-
-				cfg.PerTenantOverrideConfig = overridesFile
-				cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
-			}
-
-			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := newRuntimeConfigOverrides(cfg)
-			require.NoError(t, err)
-			err = services.StartAndAwaitRunning(context.TODO(), overrides)
-			require.NoError(t, err)
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tc.defaultLimits, []byte(tc.perTenantOverrides))
+			defer cleanup()
 
 			for user, expected := range tc.expectedDedicatedColumns {
 				assert.Equal(t, expected, overrides.DedicatedColumns(user))
 			}
-
-			err = services.StopAndAwaitTerminated(context.TODO(), overrides)
-			require.NoError(t, err)
 		})
 	}
+}
+
+func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {
+	cfg := Config{
+		Defaults: defaultLimits,
+	}
+
+	if perTenantOverrides != nil {
+		overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+
+		err := os.WriteFile(overridesFile, perTenantOverrides, os.ModePerm)
+		require.NoError(t, err)
+
+		cfg.PerTenantOverrideConfig = overridesFile
+		cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
+	}
+
+	prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
+	overrides, err := newRuntimeConfigOverrides(cfg, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	err = services.StartAndAwaitRunning(context.TODO(), overrides)
+	require.NoError(t, err)
+
+	return overrides, func() {
+		err := services.StopAndAwaitTerminated(context.TODO(), overrides)
+		require.NoError(t, err)
+	}
+}
+
+func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
+	buff, err := yaml.Marshal(perTenantOverrides)
+	require.NoError(t, err)
+	return buff
 }

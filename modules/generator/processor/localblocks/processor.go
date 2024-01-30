@@ -12,7 +12,11 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/atomic"
+
 	gen "github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -30,6 +34,7 @@ const timeBuffer = 5 * time.Minute
 // ProcessorOverrides is just the set of overrides needed here.
 type ProcessorOverrides interface {
 	DedicatedColumns(string) backend.DedicatedColumns
+	MaxBytesPerTrace(string) int
 }
 
 type Processor struct {
@@ -51,6 +56,7 @@ type Processor struct {
 
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
+	traceSizes    *traceSizes
 }
 
 var _ gen.Processor = (*Processor)(nil)
@@ -77,6 +83,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) 
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
 		liveTraces:     newLiveTraces(),
+		traceSizes:     newTraceSizes(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
@@ -104,17 +111,43 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
-	var count int
 	before := p.liveTraces.Len()
 
-	for _, batch := range req.Batches {
-		if batch, count = filterBatch(batch); batch != nil {
-			err := p.liveTraces.Push(batch, p.Cfg.MaxLiveTraces)
-			if errors.Is(err, errMaxExceeded) {
-				metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
-			}
-			metricTotalSpans.WithLabelValues(p.tenant).Add(float64(count))
+	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
+
+	batches := req.Batches
+	if p.Cfg.FilterServerSpans {
+		batches = filterBatches(batches)
+	}
+
+	for _, batch := range batches {
+
+		// Spans in the batch are for the same trace.
+		// We use the first one.
+		if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
+			return
 		}
+		traceID := batch.ScopeSpans[0].Spans[0].TraceId
+
+		// Metric total spans regardless of outcome
+		numSpans := 0
+		for _, ss := range batch.ScopeSpans {
+			numSpans += len(ss.Spans)
+		}
+		metricTotalSpans.WithLabelValues(p.tenant).Add(float64(numSpans))
+
+		// Check max trace size
+		if maxSz > 0 && !p.traceSizes.Allow(traceID, batch.Size(), maxSz) {
+			metricDroppedSpans.WithLabelValues(p.tenant, reasonTraceSizeExceeded).Add(float64(numSpans))
+			continue
+		}
+
+		// Live traces
+		if !p.liveTraces.Push(traceID, batch, p.Cfg.MaxLiveTraces) {
+			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
+			continue
+		}
+
 	}
 
 	after := p.liveTraces.Len()
@@ -387,6 +420,85 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	return resp, nil
 }
 
+// QueryRange returns metrics.
+func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (traceql.SeriesSet, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	p.blocksMtx.RLock()
+	defer p.blocksMtx.RUnlock()
+
+	cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
+	if req.Start < uint64(cutoff.UnixNano()) {
+		return nil, fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
+	}
+
+	// Blocks to check
+	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
+	if p.headBlock != nil {
+		blocks = append(blocks, p.headBlock)
+	}
+	for _, b := range p.walBlocks {
+		blocks = append(blocks, b)
+	}
+	for _, b := range p.completeBlocks {
+		blocks = append(blocks, b)
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		wg     = boundedwaitgroup.New(p.Cfg.ConcurrentBlocks)
+		jobErr = atomic.Error{}
+	)
+
+	for _, b := range blocks {
+		// If a job errored then quit immediately.
+		if err := jobErr.Load(); err != nil {
+			return nil, err
+		}
+
+		start := uint64(b.BlockMeta().StartTime.UnixNano())
+		end := uint64(b.BlockMeta().EndTime.UnixNano())
+		if start > req.End || end < req.Start {
+			// Out of time range
+			continue
+		}
+
+		wg.Add(1)
+		go func(b common.BackendBlock) {
+			defer wg.Done()
+
+			span, ctx := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.Block", opentracing.Tags{
+				"block":     b.BlockMeta().BlockID,
+				"blockSize": b.BlockMeta().Size,
+			})
+			defer span.Finish()
+
+			// TODO - caching
+			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, common.DefaultSearchOptions())
+			})
+
+			err := eval.Do(ctx, f)
+			if err != nil {
+				jobErr.Store(err)
+			}
+		}(b)
+	}
+
+	wg.Wait()
+
+	if err := jobErr.Load(); err != nil {
+		return nil, err
+	}
+
+	return eval.Results()
+}
+
 func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {
 	p.cacheMtx.RLock()
 	defer p.cacheMtx.RUnlock()
@@ -519,6 +631,9 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return nil
 	}
 
+	// Clear historical trace sizes for traces that weren't seen in this block.
+	p.traceSizes.ClearIdle(p.lastCutTime)
+
 	// Final flush
 	err := p.headBlock.Flush()
 	if err != nil {
@@ -622,40 +737,6 @@ func (p *Processor) recordBlockBytes() {
 	metricBlockSize.WithLabelValues(p.tenant).Set(float64(sum))
 }
 
-// filterBatch to only root spans or kind==server. Does not modify the input
-// but returns a new struct referencing the same input pointers. Returns nil
-// if there were no matching spans.
-func filterBatch(batch *v1.ResourceSpans) (*v1.ResourceSpans, int) {
-	var keep int
-	var keepSS []*v1.ScopeSpans
-	for _, ss := range batch.ScopeSpans {
-
-		var keepSpans []*v1.Span
-		for _, s := range ss.Spans {
-			if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
-				keepSpans = append(keepSpans, s)
-			}
-		}
-
-		if len(keepSpans) > 0 {
-			keepSS = append(keepSS, &v1.ScopeSpans{
-				Scope: ss.Scope,
-				Spans: keepSpans,
-			})
-			keep += len(keepSpans)
-		}
-	}
-
-	if len(keepSS) > 0 {
-		return &v1.ResourceSpans{
-			Resource:   batch.Resource,
-			ScopeSpans: keepSS,
-		}, keep
-	}
-
-	return nil, 0
-}
-
 func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue {
 	var r []*tempopb.KeyValue
 	for _, kv := range series {
@@ -677,4 +758,40 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 		}
 	}
 	return r
+}
+
+// filterBatches to only root spans or kind==server. Does not modify the input
+// but returns a new struct referencing the same input pointers. Returns nil
+// if there were no matching spans.
+func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
+	keep := make([]*v1.ResourceSpans, 0, len(batches))
+
+	for _, batch := range batches {
+		var keepSS []*v1.ScopeSpans
+		for _, ss := range batch.ScopeSpans {
+
+			var keepSpans []*v1.Span
+			for _, s := range ss.Spans {
+				if s.Kind == v1.Span_SPAN_KIND_SERVER || len(s.ParentSpanId) == 0 {
+					keepSpans = append(keepSpans, s)
+				}
+			}
+
+			if len(keepSpans) > 0 {
+				keepSS = append(keepSS, &v1.ScopeSpans{
+					Scope: ss.Scope,
+					Spans: keepSpans,
+				})
+			}
+		}
+
+		if len(keepSS) > 0 {
+			keep = append(keep, &v1.ResourceSpans{
+				Resource:   batch.Resource,
+				ScopeSpans: keepSS,
+			})
+		}
+	}
+
+	return keep
 }

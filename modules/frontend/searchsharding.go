@@ -102,7 +102,13 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// adjust limit based on config
-	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
+	searchReq.Limit, err = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
+	if err != nil {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
+	}
 
 	requestCtx := r.Context()
 	tenantID, err := user.ExtractOrgID(requestCtx)
@@ -151,7 +157,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-	progress := s.progress(ctx, int(searchReq.Limit), totalJobs, totalBlocks, totalBlockBytes)
+	progress := s.progress(ctx, int(searchReq.Limit), uint32(totalJobs), uint32(totalBlocks), totalBlockBytes)
 
 	startedReqs := 0
 	for req := range reqCh {
@@ -272,10 +278,20 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, overallResponse.err
 	}
 
-	if overallResponse.statusCode != http.StatusOK {
-		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
-		// it means that we created a bad request. 400 should not be propagated back to the user b/c
-		// the bad request was due to a bug on our side, so return 500 instead.
+	switch overallResponse.statusCode {
+	case http.StatusOK:
+	case http.StatusTooManyRequests:
+		// Ensure we pass back the 429 status.
+		return &http.Response{
+			StatusCode: overallResponse.statusCode,
+			Header:     http.Header{},
+			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
+		}, nil
+	default:
+		// translate all non-200s and non-429s into 500s. if, for instance, we get
+		// a 400 back from an internal component it means that we created a bad
+		// request. 400 should not be propagated back to the user b/c the bad
+		// request was due to a bug on our side, so return 500 instead.
 		return &http.Response{
 			StatusCode: http.StatusInternalServerError,
 			Header:     http.Header{},
@@ -331,7 +347,7 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 	}
 
 	// calculate duration (start and end) to search the backend blocks
-	start, end := backendRange(searchReq, s.cfg.QueryBackendAfter)
+	start, end := backendRange(searchReq.Start, searchReq.End, s.cfg.QueryBackendAfter)
 
 	// no need to search backend
 	if start == end {
@@ -365,12 +381,9 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 
 // backendRange returns a new start/end range for the backend based on the config parameter
 // query_backend_after. If the returned start == the returned end then backend querying is not necessary.
-func backendRange(searchReq *tempopb.SearchRequest, queryBackendAfter time.Duration) (uint32, uint32) {
+func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, uint32) {
 	now := time.Now()
 	backendAfter := uint32(now.Add(-queryBackendAfter).Unix())
-
-	start := searchReq.Start
-	end := searchReq.End
 
 	// adjust start/end if necessary. if the entire query range was inside backendAfter then
 	// start will == end. This signals we don't need to query the backend.
@@ -557,16 +570,16 @@ func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Req
 }
 
 // adjusts the limit based on provided config
-func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
+func adjustLimit(limit, defaultLimit, maxLimit uint32) (uint32, error) {
 	if limit == 0 {
-		return defaultLimit
+		return defaultLimit, nil
 	}
 
 	if maxLimit != 0 && limit > maxLimit {
-		return maxLimit
+		return 0, fmt.Errorf("limit %d exceeds max limit %d", limit, maxLimit)
 	}
 
-	return limit
+	return limit, nil
 }
 
 // maxDuration returns the max search duration allowed for this tenant.

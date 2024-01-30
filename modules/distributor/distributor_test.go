@@ -13,12 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/dskit/kv"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -44,7 +42,10 @@ import (
 )
 
 const (
-	numIngesters = 5
+	numIngesters       = 5
+	noError            = tempopb.PushErrorReason_NO_ERROR
+	maxLiveTraceError  = tempopb.PushErrorReason_MAX_LIVE_TRACES
+	traceTooLargeError = tempopb.PushErrorReason_TRACE_TOO_LARGE
 )
 
 var ctx = user.InjectOrgID(context.Background(), "test")
@@ -770,7 +771,7 @@ func TestDistributor(t *testing.T) {
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
-			d := prepare(t, limits, nil, nil)
+			d := prepare(t, limits, nil)
 
 			b := test.MakeBatch(tc.lines, []byte{})
 			traces := batchesToTraces(t, []*v1.ResourceSpans{b})
@@ -953,7 +954,7 @@ func TestLogSpans(t *testing.T) {
 			buf := &bytes.Buffer{}
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
 
-			d := prepare(t, limits, nil, logger)
+			d := prepare(t, limits, logger)
 			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
 				Enabled:              tc.LogReceivedSpansEnabled,
 				FilterByStatusError:  tc.filterByStatusError,
@@ -994,7 +995,7 @@ func TestRateLimitRespected(t *testing.T) {
 	}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, nil, logger)
+	d := prepare(t, overridesConfig, logger)
 	batches := []*v1.ResourceSpans{
 		makeResourceSpans("test-service", []*v1.ScopeSpans{
 			makeScope(
@@ -1023,6 +1024,284 @@ func TestRateLimitRespected(t *testing.T) {
 	status, ok := status.FromError(err)
 	assert.True(t, ok)
 	assert.True(t, status.Code() == codes.ResourceExhausted, "Wrong status code")
+}
+
+func TestDiscardCountReplicationFactor(t *testing.T) {
+	tt := []struct {
+		name                                string
+		pushErrorByTrace                    [][]tempopb.PushErrorReason
+		replicationFactor                   int
+		expectedLiveTracesDiscardedCount    int
+		expectedTraceTooLargeDiscardedCount int
+	}{
+		// trace sizes
+		// trace[0] = 5 spans
+		// trace[1] = 10 spans
+		// trace[2] = 15 spans
+		{
+			name:                                "no errors, minimum responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "no error, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "one mlt error, minimum responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    5,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "one mlt error, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "one ttl error, minimum responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 10,
+		},
+		{
+			name:                                "one ttl error, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "two mlt errors, minimum responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{maxLiveTraceError, noError, noError}, {maxLiveTraceError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    5,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "two ttl errors, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, noError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 10,
+		},
+		{
+			name:                                "three ttl errors, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}, {noError, traceTooLargeError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 10,
+		},
+		{
+			name:                                "three mix errors, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, maxLiveTraceError, noError}, {noError, traceTooLargeError, noError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 10,
+		},
+		{
+			name:                                "three mix trace errors, max responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, traceTooLargeError}, {noError, maxLiveTraceError, traceTooLargeError}},
+			replicationFactor:                   3,
+			expectedLiveTracesDiscardedCount:    10,
+			expectedTraceTooLargeDiscardedCount: 15,
+		},
+		{
+			name:                                "one ttl error rep factor 5 min (3) response",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   5,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 10,
+		},
+		{
+			name:                                "one error rep factor 5 with 4 responses",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}, {noError, noError, noError}, {noError, noError, noError}, {noError, noError, noError}},
+			replicationFactor:                   5,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 0,
+		},
+		{
+			name:                                "replication factor 1",
+			pushErrorByTrace:                    [][]tempopb.PushErrorReason{{noError, traceTooLargeError, noError}},
+			replicationFactor:                   1,
+			expectedLiveTracesDiscardedCount:    0,
+			expectedTraceTooLargeDiscardedCount: 10,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			traceByID := make([]*rebatchedTrace, 3)
+			// batch with 3 traces
+			traceByID[0] = &rebatchedTrace{
+				spanCount: 5,
+			}
+
+			traceByID[1] = &rebatchedTrace{
+				spanCount: 15,
+			}
+
+			traceByID[2] = &rebatchedTrace{
+				spanCount: 10,
+			}
+
+			keys := []int{0, 2, 1}
+
+			numSuccessByTraceIndex := make([]int, len(traceByID))
+			lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, len(traceByID))
+
+			for _, ErrorByTrace := range tc.pushErrorByTrace {
+				for ringIndex, err := range ErrorByTrace {
+					// translate
+					traceIndex := keys[ringIndex]
+
+					currentNumSuccess := numSuccessByTraceIndex[traceIndex]
+					if err == tempopb.PushErrorReason_NO_ERROR {
+						numSuccessByTraceIndex[traceIndex] = currentNumSuccess + 1
+					} else {
+						lastErrorReasonByTraceIndex[traceIndex] = err
+					}
+				}
+			}
+
+			liveTraceDiscardedCount, traceTooLongDiscardedCount, _ := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traceByID, tc.replicationFactor)
+
+			require.Equal(t, tc.expectedLiveTracesDiscardedCount, liveTraceDiscardedCount)
+			require.Equal(t, tc.expectedTraceTooLargeDiscardedCount, traceTooLongDiscardedCount)
+		})
+	}
+}
+
+func TestProcessIngesterPushByteResponse(t *testing.T) {
+	// batch has 5 traces [0, 1, 2, 3, 4, 5]
+	numOfTraces := 5
+	tt := []struct {
+		name                   string
+		pushErrorByTrace       []tempopb.PushErrorReason
+		indexes                []int
+		expectedSuccessIndex   []int
+		expectedLastErrorIndex []tempopb.PushErrorReason
+	}{
+		{
+			name:                   "explicit no errors, first three traces",
+			pushErrorByTrace:       []tempopb.PushErrorReason{noError, noError, noError},
+			indexes:                []int{0, 1, 2},
+			expectedSuccessIndex:   []int{1, 1, 1, 0, 0},
+			expectedLastErrorIndex: make([]tempopb.PushErrorReason, numOfTraces),
+		},
+		{
+			name:                   "no errors, no ErrorsByTrace value",
+			pushErrorByTrace:       []tempopb.PushErrorReason{},
+			indexes:                []int{1, 2, 3},
+			expectedSuccessIndex:   []int{0, 1, 1, 1, 0},
+			expectedLastErrorIndex: make([]tempopb.PushErrorReason, numOfTraces),
+		},
+		{
+			name:                   "all errors, first three traces",
+			pushErrorByTrace:       []tempopb.PushErrorReason{traceTooLargeError, traceTooLargeError, traceTooLargeError},
+			indexes:                []int{0, 1, 2},
+			expectedSuccessIndex:   []int{0, 0, 0, 0, 0},
+			expectedLastErrorIndex: []tempopb.PushErrorReason{traceTooLargeError, traceTooLargeError, traceTooLargeError, noError, noError},
+		},
+		{
+			name:                   "random errors, random three traces",
+			pushErrorByTrace:       []tempopb.PushErrorReason{traceTooLargeError, maxLiveTraceError, noError},
+			indexes:                []int{0, 2, 4},
+			expectedSuccessIndex:   []int{0, 0, 0, 0, 1},
+			expectedLastErrorIndex: []tempopb.PushErrorReason{traceTooLargeError, noError, maxLiveTraceError, noError, noError},
+		},
+	}
+
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d := prepare(t, overridesConfig, logger)
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			numSuccessByTraceIndex := make([]int, numOfTraces)
+			lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, numOfTraces)
+			pushByteResponse := &tempopb.PushResponse{
+				ErrorsByTrace: tc.pushErrorByTrace,
+			}
+			d.processPushResponse(pushByteResponse, numSuccessByTraceIndex, lastErrorReasonByTraceIndex, numOfTraces, tc.indexes)
+			assert.Equal(t, numSuccessByTraceIndex, tc.expectedSuccessIndex)
+			assert.Equal(t, lastErrorReasonByTraceIndex, tc.expectedLastErrorIndex)
+		})
+	}
+}
+
+func TestIngesterPushBytes(t *testing.T) {
+	// prepare test data
+	overridesConfig := overrides.Config{}
+	buf := &bytes.Buffer{}
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+	d := prepare(t, overridesConfig, logger)
+
+	traces := []*rebatchedTrace{
+		{
+			spanCount: 1,
+		},
+		{
+			spanCount: 5,
+		},
+		{
+			spanCount: 10,
+		},
+		{
+			spanCount: 15,
+		},
+		{
+			spanCount: 20,
+		},
+	}
+	numOfTraces := len(traces)
+	numSuccessByTraceIndex := make([]int, numOfTraces)
+	lastErrorReasonByTraceIndex := make([]tempopb.PushErrorReason, numOfTraces)
+
+	// 0 = trace_too_large, trace_too_large || discard count: 1
+	// 1 = no error, trace_too_large || discard count: 5
+	// 2 = no error, no error || discard count: 0
+	// 3 = max_live, max_live || discard count: 15
+	// 4 = trace_too_large, max_live || discard count: 20
+	// total ttl: 6, mlt: 35
+
+	batches := [][]int{
+		{0, 1, 2},
+		{1, 3},
+		{0, 2},
+		{3, 4},
+		{4},
+	}
+
+	errorsByTraces := [][]tempopb.PushErrorReason{
+		{traceTooLargeError, noError, noError},
+		{traceTooLargeError, maxLiveTraceError},
+		{traceTooLargeError, noError},
+		{maxLiveTraceError, traceTooLargeError},
+		{maxLiveTraceError},
+	}
+
+	for i, indexes := range batches {
+		pushResponse := &tempopb.PushResponse{
+			ErrorsByTrace: errorsByTraces[i],
+		}
+		d.processPushResponse(pushResponse, numSuccessByTraceIndex, lastErrorReasonByTraceIndex, numOfTraces, indexes)
+	}
+
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount, _ := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, 3)
+	assert.Equal(t, traceTooLargeDiscardedCount, 6)
+	assert.Equal(t, maxLiveDiscardedCount, 35)
 }
 
 type testLogSpan struct {
@@ -1103,9 +1382,9 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger log.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distributor {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = kitlog.NewNopLogger()
 	}
 
 	var (
@@ -1114,7 +1393,7 @@ func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger lo
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(limits)
+	overrides, err := overrides.NewOverrides(limits, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring
@@ -1134,7 +1413,7 @@ func prepare(t *testing.T, limits overrides.Config, kvStore kv.Client, logger lo
 
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
-	distributorConfig.DistributorRing.KVStore.Mock = kvStore
+	distributorConfig.DistributorRing.KVStore.Mock = nil
 	distributorConfig.DistributorRing.InstanceInterfaceNames = []string{"eth0", "en0", "lo0"}
 	distributorConfig.factory = func(addr string) (ring_client.PoolClient, error) {
 		return ingesters[addr], nil
@@ -1156,11 +1435,11 @@ type mockIngester struct {
 var _ tempopb.PusherClient = (*mockIngester)(nil)
 
 func (i *mockIngester) PushBytes(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return nil, nil
+	return &tempopb.PushResponse{}, nil
 }
 
 func (i *mockIngester) PushBytesV2(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return nil, nil
+	return &tempopb.PushResponse{}, nil
 }
 
 func (i *mockIngester) Close() error {
@@ -1226,4 +1505,8 @@ func (r mockRing) CleanupShuffleShardCache(string) {
 
 func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 	return ring.ACTIVE, nil
+}
+
+func (r mockRing) GetTokenRangesForInstance(_ string) (ring.TokenRanges, error) {
+	return nil, nil
 }

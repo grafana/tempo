@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"reflect"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-kit/log"
@@ -21,6 +22,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+var errConflictingRuntimeOverrides = errors.New("tenant has conflicting overrides set in runtime config, contact your system administrator to perform changes through the API")
+
 type Validator interface {
 	Validate(limits *client.Limits) error
 }
@@ -30,6 +33,7 @@ type Validator interface {
 type UserConfigOverridesAPI struct {
 	services.Service
 
+	cfg       *overrides.UserConfigurableOverridesAPIConfig
 	client    client.Client
 	overrides overrides.Interface
 	validator Validator
@@ -37,13 +41,14 @@ type UserConfigOverridesAPI struct {
 	logger log.Logger
 }
 
-func New(config *client.Config, overrides overrides.Interface, validator Validator) (*UserConfigOverridesAPI, error) {
-	client, err := client.New(config)
+func New(cfg *overrides.UserConfigurableOverridesAPIConfig, clientCfg *client.Config, overrides overrides.Interface, validator Validator) (*UserConfigOverridesAPI, error) {
+	client, err := client.New(clientCfg)
 	if err != nil {
 		return nil, err
 	}
 
 	api := &UserConfigOverridesAPI{
+		cfg:       cfg,
 		client:    client,
 		overrides: overrides,
 		validator: validator,
@@ -75,7 +80,7 @@ func (a *UserConfigOverridesAPI) get(ctx context.Context, userID string) (*clien
 }
 
 // set the Limits. Can return backend.ErrVersionDoesNotMatch, validationError
-func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits *client.Limits, version backend.Version) (backend.Version, error) {
+func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits *client.Limits, version backend.Version, skipConflictingOverridesCheck bool) (backend.Version, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.set", opentracing.Tags{
 		"userID":  userID,
 		"version": version,
@@ -89,6 +94,13 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 		return "", newValidationError(err)
 	}
 
+	if a.cfg.CheckForConflictingRuntimeOverrides && !skipConflictingOverridesCheck {
+		err = a.assertNoConflictingRuntimeOverrides(ctx, userID)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	level.Info(a.logger).Log("traceID", traceID, "msg", "storing user-configurable overrides", "userID", userID, "limits", logLimits(limits), "version", version)
 
 	newVersion, err := a.client.Set(ctx, userID, limits, version)
@@ -97,7 +109,7 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 	return newVersion, err
 }
 
-func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patch []byte) (*client.Limits, backend.Version, error) {
+func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patch []byte, skipConflictingOverridesCheck bool) (*client.Limits, backend.Version, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.update", opentracing.Tags{
 		"userID": userID,
 	})
@@ -133,7 +145,7 @@ func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patc
 		return nil, "", newValidationError(err)
 	}
 
-	version, err := a.set(ctx, userID, patchedLimits, currVersion)
+	version, err := a.set(ctx, userID, patchedLimits, currVersion, skipConflictingOverridesCheck)
 	if errors.Is(err, backend.ErrVersionDoesNotMatch) {
 		return nil, "", errors.New("overrides have been modified during request processing, try again")
 	}
@@ -167,6 +179,41 @@ func (a *UserConfigOverridesAPI) parseLimits(body io.Reader) (*client.Limits, er
 
 	err := d.Decode(&limits)
 	return &limits, err
+}
+
+func (a *UserConfigOverridesAPI) assertNoConflictingRuntimeOverrides(ctx context.Context, userID string) error {
+	limits, _, err := a.client.Get(ctx, userID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return err
+	}
+	// we already store limits for this user, don't check further
+	if limits != nil {
+		return nil
+	}
+
+	runtimeOverrides := a.overrides.GetRuntimeOverridesFor(userID)
+
+	// convert overrides.Overrides to client.Limits through marshalling and unmarshalling it from json
+	// this is the easiest way to convert the optional fields
+	marshalledOverrides, err := jsoniter.Marshal(runtimeOverrides)
+	if err != nil {
+		return err
+	}
+	var runtimeLimits client.Limits
+	err = jsoniter.Unmarshal(marshalledOverrides, &runtimeLimits)
+	if err != nil {
+		return err
+	}
+
+	// clear out processors since we merge this field
+	runtimeLimits.MetricsGenerator.Processors = nil
+
+	emptyLimits := client.Limits{}
+	if reflect.DeepEqual(runtimeLimits, emptyLimits) {
+		return nil
+	}
+
+	return errConflictingRuntimeOverrides
 }
 
 // validationError is returned when the request can not be accepted because of a client error

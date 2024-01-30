@@ -23,6 +23,9 @@ It may optionally include key/value attributes that are relevant to the span its
 By definition, traces are never complete. You can always push a new batch of spans, even if days have passed since the last one.
 When receiving a query requesting a stored trace, tracing backends (for example Tempo), find all the spans for that specific trace and collate them into a returned result. For that reason, issues can start to arise predominantly on retrieval of the trace data if you are creating traces that are extremely large in size.
 
+<!-- Explanation of traces -->
+{{< youtube id="ZirbR0ZJIOs" >}}
+
 ## Example of traces
 
 Firstly, a user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID that is subsequently associated with every interaction in the chain of processes within a system.
@@ -59,6 +62,17 @@ This data helps you locate problem areas, often in places you never would have a
 Metrics, logs, and traces form the three pillars of observability.
 Metrics provide the health data about the state of a system.
 Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway.
+
+## Traces versus metrics and logs
+
+Let's say a server takes too long to send data and triggers an alert because that time range is outside of an acceptable threshold. The metrics for those alert help you identify problems and patterns.
+
+Traces help you pin-point where in your system or services the problem happens. Traces provide context around the issue you're investigating. For example, traces can pinpoint the specific service where the error started and how that error moved through the system.
+
+Logs provide the verbose details about the context. For example, the log could show multiple connection refused errors showing why the email server took too long to send data.
+
+<!-- What traces provide that logs and metrics don't -->
+{{< youtube id="0tlp7QCPu0k" >}}
 
 ## Tracing versus profiling
 

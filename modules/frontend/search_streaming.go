@@ -13,10 +13,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
-	"github.com/gorilla/websocket"
-	"go.uber.org/atomic"
+	"github.com/go-kit/log/level" //nolint:all //deprecated
+	"github.com/grafana/tempo/modules/frontend/combiner"
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/overrides"
@@ -35,7 +33,7 @@ type diffSearchProgress struct {
 	mtx        sync.Mutex
 }
 
-func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) *diffSearchProgress {
+func newDiffSearchProgress(ctx context.Context, limit int, totalJobs, totalBlocks uint32, totalBlockBytes uint64) *diffSearchProgress {
 	return &diffSearchProgress{
 		seenTraces: map[string]struct{}{},
 		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
@@ -89,10 +87,89 @@ func (p *diffSearchProgress) result() *shardedSearchResults {
 	return res
 }
 
+func (p *diffSearchProgress) metrics() tempopb.SearchMetrics {
+	return p.progress.metrics()
+}
+
 // finalResult gives the user the ability to pull all results w/o filtering
 // to ensure that all results are sent to the caller
 func (p *diffSearchProgress) finalResult() *shardedSearchResults {
 	return p.progress.result()
+}
+
+type multiProgress struct {
+	mu              sync.Mutex
+	progress        []*diffSearchProgress
+	combinedMetrics *tempopb.SearchMetrics
+}
+
+func newMultiProgress() *multiProgress {
+	return &multiProgress{
+		progress:        make([]*diffSearchProgress, 0),
+		combinedMetrics: &tempopb.SearchMetrics{},
+	}
+}
+
+func (mp *multiProgress) Add(p *diffSearchProgress) {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	mp.progress = append(mp.progress, p)
+
+	// combine metrics
+	m := p.metrics()
+	// only set the metrics we set in progress constructor, other metrics are set by the sharder
+	mp.combinedMetrics.TotalBlocks += m.TotalBlocks
+	mp.combinedMetrics.TotalBlockBytes += m.TotalBlockBytes
+	mp.combinedMetrics.TotalJobs += m.TotalJobs
+}
+
+// results will calls result on underlying progress objects and combines them into a single result.
+func (mp *multiProgress) results(ctx context.Context) *shardedSearchResults {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	if len(mp.progress) == 1 {
+		// single tenant query, only one progress object.
+		return mp.progress[0].result()
+	}
+
+	comb := newSearchProgress(ctx, 0, mp.combinedMetrics.TotalJobs, mp.combinedMetrics.TotalBlocks, mp.combinedMetrics.TotalBlockBytes)
+	for _, progress := range mp.progress {
+		r := progress.result() // only get new results from each progress object
+		comb.addResponse(r.response)
+		// set the error and status code, if any
+		if r.err != nil || r.statusCode != http.StatusOK {
+			comb.setError(r.err)
+			comb.setStatus(r.statusCode, r.statusMsg)
+		}
+	}
+
+	return comb.result()
+}
+
+// finalResults will call finalResult on underlying progress objects and combines them into a single result.
+func (mp *multiProgress) finalResults(ctx context.Context) *shardedSearchResults {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	if len(mp.progress) == 1 {
+		// single tenant query, only one progress object.
+		return mp.progress[0].finalResult()
+	}
+
+	// init the progress object with combinedMetrics to report accurate metrics
+	comb := newSearchProgress(ctx, 0, mp.combinedMetrics.TotalJobs, mp.combinedMetrics.TotalBlocks, mp.combinedMetrics.TotalBlockBytes)
+	for _, progress := range mp.progress {
+		r := progress.finalResult()
+		comb.addResponse(r.response)
+		// set the error and status code, if any
+		if r.err != nil || r.statusCode != http.StatusOK {
+			comb.setError(r.err)
+			comb.setStatus(r.statusCode, r.statusMsg)
+		}
+	}
+	return comb.result()
 }
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -105,6 +182,9 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 		o:           o,
 		searchCache: searchCache,
 		cfg:         &cfg,
+		// pass NoOp combiner because we combine results ourselves.
+		// we don't use combiner's combined result for streaming search.
+		preMiddleware: newMultiTenantMiddleware(cfg, combiner.NewNoOp, logger),
 	}
 
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
@@ -130,117 +210,21 @@ func newSearchStreamingGRPCHandler(cfg Config, o overrides.Interface, downstream
 	}
 }
 
-func newSearchStreamingWSHandler(cfg Config, o overrides.Interface, downstream http.RoundTripper, reader tempodb.Reader, searchCache *frontendCache, apiPrefix string, logger log.Logger) http.Handler {
-	searcher := streamingSearcher{
-		logger:      logger,
-		downstream:  downstream,
-		reader:      reader,
-		postSLOHook: searchSLOPostHook(cfg.Search.SLO),
-		o:           o,
-		searchCache: searchCache,
-		cfg:         &cfg,
-	}
-
-	// since this is a backend DB we allow websockets to originate from anywhere
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
-	downstreamPath := path.Join(apiPrefix, api.PathSearch)
-	fnHandler := func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithCancel(r.Context())
-		defer cancel()
-		r = r.WithContext(ctx)
-
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			level.Error(logger).Log("msg", "error in upgrading websocket", "err", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// flag to track if we closed the connection. we use this to ignore errors from read
-		// if we have closed the connection purposefully then read errors are ignorable
-		connClosedByUs := &atomic.Bool{}
-
-		// defer closing of the websocket
-		defer func() {
-			connClosedByUs.Store(true)
-			if err := conn.Close(); err != nil {
-				level.Error(logger).Log("msg", "error closing websocket", "err", err)
-			}
-		}()
-
-		// watch for graceful closure from client
-		go func() {
-			// cancel the context when we exit to cancel downstream requests
-			defer cancel()
-			for {
-				// generally websockets allow bi-directional communication. however, in tempo, we have decided to only accept and service
-				// a single query per websocket. this code drops all messages from the client except for graceful closures.
-				// Both graceful closures and unexpected closures are signaled through the error return of the conn.ReadMessage() method.
-				// In both cases we cancel the context to signal to the downstream request to stop.
-				_, _, err := conn.ReadMessage()
-				if connClosedByUs.Load() {
-					return // we closed the connection, ignore errors
-				}
-				if err != nil {
-					var closeErr *websocket.CloseError
-					if errors.As(err, &closeErr) {
-						if closeErr.Code == websocket.CloseNormalClosure {
-							return // graceful closure. exit silently
-						}
-					}
-
-					// on an unexpected closure, the error "use of closed network connection" will be logged
-					level.Error(logger).Log("msg", "unexpected error from client", "err", err)
-					return
-				}
-			}
-		}()
-
-		// set the path correctly, RequestUri is used by the httpgrpc bridge
-		r.URL.Path = downstreamPath
-		r.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
-
-		jsonMarshaler := &jsonpb.Marshaler{}
-		err = searcher.handle(r, func(resp *tempopb.SearchResponse) error {
-			msg, err := jsonMarshaler.MarshalToString(resp)
-			if err != nil {
-				return err
-			}
-
-			return conn.WriteMessage(websocket.TextMessage, []byte(msg))
-		})
-
-		// send a close msg to the client now that we are done
-		if err != nil {
-			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()))
-		} else {
-			err = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "query complete"))
-		}
-		if err != nil {
-			level.Error(logger).Log("msg", "error writing close message to websocket", "err", err)
-		}
-	}
-
-	return http.HandlerFunc(fnHandler)
-}
-
 type streamingSearcher struct {
-	logger      log.Logger
-	downstream  http.RoundTripper
-	reader      tempodb.Reader
-	postSLOHook handlerPostHook
-	o           overrides.Interface
-	searchCache *frontendCache
-	cfg         *Config
+	logger        log.Logger
+	downstream    http.RoundTripper
+	reader        tempodb.Reader
+	postSLOHook   handlerPostHook
+	o             overrides.Interface
+	searchCache   *frontendCache
+	cfg           *Config
+	preMiddleware Middleware
 }
 
 func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb.SearchResponse) error) error {
 	ctx := r.Context()
 
-	// SLOS - start timer and prep context
+	// SLOs - start timer and prep context
 	start := time.Now()
 	tenant, _ := user.ExtractOrgID(ctx)
 	ctx = searchSLOPreHook(ctx)
@@ -250,15 +234,18 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 		return errors.New("request must contain a start/end date for streaming search")
 	}
 
-	progress := atomic.NewPointer[*diffSearchProgress](nil)
-	fn := func(ctx context.Context, limit, totalJobs, totalBlocks int, totalBlockBytes uint64) shardedSearchProgress {
-		p := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
-		progress.Store(&p)
-		return p
+	mProgress := newMultiProgress()
+	// create diffSearchProgress for each tenant, and keep a reference to
+	// stream results back to the client.
+	progressFactoryFn := func(ctx context.Context, limit int, totalJobs, totalBlocks uint32, totalBlockBytes uint64) shardedSearchProgress {
+		diffProgress := newDiffSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes)
+		mProgress.Add(diffProgress)
+		return diffProgress
 	}
-	// build roundtripper
-	ss := newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, fn, s.searchCache, s.logger)
-	rt := NewRoundTripper(s.downstream, ss)
+
+	// build search roundtripper
+	ss := newSearchSharder(s.reader, s.o, s.cfg.Search.Sharder, progressFactoryFn, s.searchCache, s.logger)
+	rt := NewRoundTripper(s.downstream, s.preMiddleware, ss)
 
 	type roundTripResult struct {
 		resp *http.Response
@@ -268,6 +255,7 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 
 	// initiate http pipeline
 	go func() {
+		// query is finished when RoundTrip returns.
 		resp, err := rt.RoundTrip(r)
 		resultChan <- roundTripResult{resp, err}
 		close(resultChan)
@@ -284,22 +272,14 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 			return ctx.Err()
 		// stream results as they come in
 		case <-time.After(500 * time.Millisecond):
-			p := progress.Load()
-			if p == nil {
-				continue
-			}
-
-			result := (*p).result()
-			if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
-				continue
-			}
-
-			err := forwardResults(result.response)
+			res := mProgress.results(ctx)
+			err := forwardResults(res.response)
 			if err != nil {
 				level.Error(s.logger).Log("msg", "search streaming: send failed", "err", err)
 				return fmt.Errorf("search streaming send failed: %w", err)
 			}
-		// final result is available
+
+		// final result is available, pipeline is done
 		case roundTripRes := <-resultChan:
 			// check for errors in the http response
 			if roundTripRes.err != nil {
@@ -312,9 +292,9 @@ func (s *streamingSearcher) handle(r *http.Request, forwardResults func(*tempopb
 				return fmt.Errorf("http error: %d msg: %s", roundTripRes.resp.StatusCode, string(b))
 			}
 
-			// overall pipeline returned successfully, now grab the final results and send them
-			p := *progress.Load()
-			result := p.finalResult()
+			// overall pipeline returned successfully, send final results to client.
+			result := mProgress.finalResults(ctx)
+
 			if result.err != nil || result.statusCode != http.StatusOK {
 				level.Error(s.logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 				return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)

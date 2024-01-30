@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -106,7 +107,7 @@ func TestEncodings(t *testing.T) {
 			queryAndAssertTrace(t, apiClient, info)
 
 			// create grpc client used for streaming
-			grpcClient, err := integration.NewSearchGRPCClient(tempo.Endpoint(3200))
+			grpcClient, err := integration.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
 			require.NoError(t, err)
 
 			if enc.Version() == v2.VersionString {
@@ -120,7 +121,7 @@ func TestEncodings(t *testing.T) {
 				// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 				integration.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 				// find the trace with streaming. using the http server b/c that's what Grafana will do
-				integration.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+				integration.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 			}
 		})
 	}
