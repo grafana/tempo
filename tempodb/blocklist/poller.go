@@ -259,6 +259,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 			return nil, nil, err
 		}
 
+		// TODO: perform one final check to see if we have an index.  If we have an index, bail.
 		for _, v := range vvv {
 			dir, name := path.Split(v)
 			err = p.writer.Delete(ctx, name, backend.KeyPath{dir})
