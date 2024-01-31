@@ -115,6 +115,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
+	span.LogFields(ot_log.String("msg", "acquired headblock mtx"))
 	if includeBlock(i.headBlock.BlockMeta(), req) {
 		search(i.headBlock.BlockMeta().BlockID, i.headBlock, "headBlock")
 	}
@@ -135,6 +136,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
+	span.LogFields(ot_log.String("msg", "acquired blocks mtx"))
 
 	wg := sync.WaitGroup{}
 
