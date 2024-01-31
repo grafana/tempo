@@ -699,6 +699,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
+		defer file.Close()
 
 		pf := file.parquetFile
 
@@ -715,7 +716,6 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 				return fmt.Errorf("iterating spans in walBlock: %w", err)
 			}
 			if res == nil {
-				iter.Close()
 				break
 			}
 
