@@ -81,6 +81,7 @@ type PollerConfig struct {
 	StaleTenantIndex          time.Duration
 	PollJitterMs              int
 	TolerateConsecutiveErrors int
+	EmptyTenantDeletionAge    time.Duration
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -246,7 +247,9 @@ func (p *Poller) pollTenantAndCreateIndex(
 	if len(blocklist) == 0 && len(compactedBlocklist) == 0 {
 		// if the tenant has no blocks remove all tenant objects
 		vvv, err := p.reader.Find(ctx, backend.KeyPath{tenantID}, func(opts backend.FindOpts) (bool, error) {
-			if time.Since(opts.Modified) > time.Hour {
+			// TODO: make time configurable.
+			// TODO: bail if ops.Modified is zero.
+			if time.Since(opts.Modified) > p.cfg.EmptyTenantDeletionAge {
 				return true, nil
 			}
 
@@ -258,7 +261,10 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 		for _, v := range vvv {
 			dir, name := path.Split(v)
-			p.writer.Delete(ctx, name, backend.KeyPath{dir})
+			err = p.writer.Delete(ctx, name, backend.KeyPath{dir})
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 

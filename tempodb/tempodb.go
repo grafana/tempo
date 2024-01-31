@@ -13,6 +13,10 @@ import (
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -30,9 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -500,6 +501,11 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
+
+	// TODO: set the default EmptyTenantDeletionAge. Perhaps the minimum is twice
+	// the poll interval?
+
+	// TODO: think about moving these defaults above into the RegisterFlagsAndApplyDefaults pattern.
 
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)
 
