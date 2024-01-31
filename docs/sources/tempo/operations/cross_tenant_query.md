@@ -25,6 +25,7 @@ By default, Cross-tenant query is enabled and can be controlled using `multi_ten
 query_frontend:
    multi_tenant_queries_enabled: true
 ```
+## TraceQL queries
 
 Queries performed using the cross-tenant configured data source, in either **Explore** or inside of dashboards, 
 are performed across all the tenants that you specified in the **X-Scope-OrgID** header. 
