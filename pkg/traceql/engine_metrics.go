@@ -493,9 +493,7 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 
 	if fetcherStart > 0 && fetcherEnd > 0 {
 		// Dynamically decide whether to use the trace-level timestamp columns
-		// for filtering.  Our heuristic is if the overlap between the given fetcher (i.e. block)
-		// and the request is less than 80%, use them.  In the last 90-100%, the cost of loading
-		// them doesn't outweight the benefits. 80% was measured in local benchmarking
+		// for filtering.
 		overlap := timeRangeOverlap(e.start, e.end, fetcherStart, fetcherEnd)
 
 		if overlap == 0.0 {
@@ -504,6 +502,9 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 			return nil
 		}
 
+		// Our heuristic is if the overlap between the given fetcher (i.e. block)
+		// and the request is less than 80%, use them.  In the last 80-100%, the cost of loading
+		// them doesn't outweight the benefits. 80% was measured in local benchmarking.
 		if overlap < 0.8 {
 			storageReq.StartTimeUnixNanos = e.start
 			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
