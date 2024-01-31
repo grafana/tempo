@@ -102,7 +102,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 			})
 
 			// TODO handle error
-			err := eval.Do(ctx, f)
+			err := eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 			if err != nil {
 				jobErr.Store(err)
 			}

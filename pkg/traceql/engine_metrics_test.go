@@ -93,6 +93,25 @@ func TestIntervalOf(t *testing.T) {
 	}
 }
 
+func TestTimeRangeOverlap(t *testing.T) {
+	tc := []struct {
+		reqStart, reqEnd, dataStart, dataEnd uint64
+		expected                             float64
+	}{
+		{1, 2, 3, 4, 0.0},   // No overlap
+		{0, 10, 0, 10, 1.0}, // Perfect overlap
+		{0, 10, 1, 2, 1.0},  // Request covers 100% of data
+		{3, 8, 0, 10, 0.5},  // 50% in the middle
+		{0, 10, 5, 15, 0.5}, // 50% of the start
+		{5, 15, 0, 10, 0.5}, // 50% of the end
+	}
+
+	for _, c := range tc {
+		actual := timeRangeOverlap(c.reqStart, c.reqEnd, c.dataStart, c.dataEnd)
+		require.Equal(t, c.expected, actual)
+	}
+}
+
 func TestCompileMetricsQueryRange(t *testing.T) {
 	tc := map[string]struct {
 		q           string
