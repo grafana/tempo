@@ -10,7 +10,7 @@ aliases:
 
 # Cross-tenant query federation
 
-{{% admonition type=note" %}}
+{{% admonition type="note" %}}
 You need to enable `multitenancy_enabled: true` in the cluster for multi-tenant querying to work.
 see [enable multi-tenancy]({{< relref "./multitenancy" >}}) for more details and implications of `multitenancy_enabled: true`.
 {{% /admonition %}}
@@ -28,3 +28,10 @@ query_frontend:
 
 Queries performed using the cross-tenant configured data source, in either **Explore** or inside of dashboards, 
 are performed across all the tenants that you specified in the **X-Scope-OrgID** header. 
+
+TraceQL queries that compare multiple spansets may not correctly return all traces in a cross-tenant query. For instance,
+```
+{ span.attr1 = "bar" } && { span.attr2 = "foo" }
+```
+TraceQL evaluates a contiguously stored trace. If these two conditions are satisfied in separate tenants, then Tempo 
+will not correctly return it.
