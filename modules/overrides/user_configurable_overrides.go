@@ -16,6 +16,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -199,11 +200,7 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 }
 
 func (o *userConfigurableOverridesManager) GetTenantIDs() []string {
-	var ids []string
-	for tenant := range o.getAllTenantLimits() {
-		ids = append(ids, tenant)
-	}
-	return ids
+	return maps.Keys(o.getAllTenantLimits())
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {

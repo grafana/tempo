@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -16,8 +18,8 @@ var tenantsPageHTML string
 var tenantsTemplate = template.Must(template.New("webpage").Parse(tenantsPageHTML))
 
 type tenantsPageContents struct {
-	Now     time.Time           `json:"now"`
-	Tenants []tenantsPageTenant `json:"tenants,omitempty"`
+	Now     time.Time            `json:"now"`
+	Tenants []*tenantsPageTenant `json:"tenants,omitempty"`
 }
 
 type tenantsPageTenant struct {
@@ -28,7 +30,7 @@ type tenantsPageTenant struct {
 
 func TenantsHandler(o Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		tenants := make(map[string]tenantsPageTenant)
+		tenants := make(map[string]*tenantsPageTenant)
 
 		// runtime overrides
 		var runtimeTenants []string
@@ -41,10 +43,9 @@ func TenantsHandler(o Interface) http.HandlerFunc {
 			util.WriteTextResponse(w, "Internal error happened when retrieving runtime overrides")
 		}
 		for _, tenant := range runtimeTenants {
-			tenants[tenant] = tenantsPageTenant{
-				Name:                         tenant,
-				HasRuntimeOverrides:          true,
-				HasUserConfigurableOverrides: false,
+			tenants[tenant] = &tenantsPageTenant{
+				Name:                tenant,
+				HasRuntimeOverrides: true,
 			}
 		}
 
@@ -52,21 +53,17 @@ func TenantsHandler(o Interface) http.HandlerFunc {
 		userConfigurableOverridesManager, ok := o.(*userConfigurableOverridesManager)
 		if ok {
 			for _, tenant := range userConfigurableOverridesManager.GetTenantIDs() {
-				_, hasRuntimeOverrides := tenants[tenant]
-
-				tenants[tenant] = tenantsPageTenant{
-					Name:                         tenant,
-					HasRuntimeOverrides:          hasRuntimeOverrides,
-					HasUserConfigurableOverrides: true,
+				tenantsPage := tenants[tenant]
+				if tenantsPage == nil {
+					tenantsPage = &tenantsPageTenant{Name: tenant}
+					tenants[tenant] = tenantsPage
 				}
+
+				tenantsPage.HasUserConfigurableOverrides = true
 			}
 		}
 
-		var tenantsList []tenantsPageTenant
-		for _, tenant := range tenants {
-			tenantsList = append(tenantsList, tenant)
-		}
-
+		tenantsList := maps.Values(tenants)
 		sortTenantsPageTenant(tenantsList)
 
 		util.RenderHTTPResponse(w, tenantsPageContents{
@@ -76,7 +73,7 @@ func TenantsHandler(o Interface) http.HandlerFunc {
 	}
 }
 
-func sortTenantsPageTenant(list []tenantsPageTenant) {
+func sortTenantsPageTenant(list []*tenantsPageTenant) {
 	sort.Slice(list, func(i, j int) bool {
 		return strings.Compare(list[i].Name, list[j].Name) < 0
 	})

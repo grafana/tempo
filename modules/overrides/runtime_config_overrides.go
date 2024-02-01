@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"golang.org/x/exp/maps"
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -247,11 +248,7 @@ func (o *runtimeConfigOverridesManager) GetTenantIDs() []string {
 		return nil
 	}
 
-	var ids []string
-	for tenant := range tenantOverrides.TenantLimits {
-		ids = append(ids, tenant)
-	}
-	return ids
+	return maps.Keys(tenantOverrides.TenantLimits)
 }
 
 func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
