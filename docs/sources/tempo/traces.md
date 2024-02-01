@@ -65,11 +65,18 @@ Logs provide an audit trail of activity that create an informational context. Tr
 
 ## Traces versus metrics and logs
 
-Let's say a server takes too long to send data and triggers an alert because that time range is outside of an acceptable threshold. The metrics for those alert help you identify problems and patterns.
+Each observability signal plays a unique role in providing insights into your systems.
+Metrics act as the high-level indicators of system health.
+They alert you that something is wrong or deviating from the norm.
+Logs then help you understand what exactly is going wrong, for example, the nature or cause of the elevated error rates you're seeing in your metrics.
+Traces illustrate where in the sequence of events something is going wrong.
+They let you pinpoint which service in the many services that any given request traverses is the source of the delay or the error.
 
-Traces help you pin-point where in your system or services the problem happens. Traces provide context around the issue you're investigating. For example, traces can pinpoint the specific service where the error started and how that error moved through the system.
+Let's say a server takes too long to send data. Your metrics that track the latency of your system will increase, and they may then trigger an alert once that latency rises outside of an acceptable threshold.
 
-Logs provide the verbose details about the context. For example, the log could show multiple connection refused errors showing why the email server took too long to send data.
+Sending that data likely requires that a request interact with many different services in your system. Traces help you pinpoint the specific service that's introducing the added latency that you're seeing in your metrics. Alternatively, if you're seeing an elevated rate of errors when sending data, traces help you figure out from which service the errors are originating from.
+
+Logs provide a granular view of what exactly is going wrong. For example, there could be multiple connection refused errors in your log lines. This explains why the email server took too long to send data.
 
 <!-- What traces provide that logs and metrics don't -->
 {{< youtube id="0tlp7QCPu0k" >}}
