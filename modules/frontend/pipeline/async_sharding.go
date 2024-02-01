@@ -13,8 +13,9 @@ type waitGroup interface {
 	Wait()
 }
 
-// jpe reqFn returns a request and response. remove when/if we put caching in its own middleware
-func NewAsyncSharder(concurrent int, reqFn func(i int) (*http.Request, *http.Response), next AsyncRoundTripper) Responses { // jpe - added i here for tenant sharder, ditch? change order to put next before reqFn?
+// NewAsyncSharder creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response]. It creates one
+// goroutine per concurrent request.
+func NewAsyncSharder(concurrent int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) *asyncResponse {
 	var wg waitGroup
 	if concurrent <= 0 {
 		wg = &sync.WaitGroup{}
@@ -29,31 +30,74 @@ func NewAsyncSharder(concurrent int, reqFn func(i int) (*http.Request, *http.Res
 
 		reqIdx := 0
 		for {
-			req, resp := reqFn(reqIdx)
+			req := reqFn(reqIdx)
 			reqIdx++
-
-			// if we have a response, likely from cache, send it back
-			if resp != nil {
-				asyncResp.send(NewSyncResponse(resp))
-				continue
-			}
 
 			// else check for a request to pass down the pipeline
 			if req == nil {
 				break
 			}
 
-			// jpe pass async forward as well? instead of using go routines?
 			wg.Add(1)
 			go func(r *http.Request) {
 				defer wg.Done()
 
-				resp, _ := next.RoundTrip(r) // jpe - handle err
-				asyncResp.send(resp)
+				resp, err := next.RoundTrip(r)
+				if err != nil {
+					asyncResp.SendError(err)
+					return
+				}
+
+				asyncResp.Send(resp)
 			}(req)
 		}
 
 		wg.Wait()
+	}()
+
+	return asyncResp
+}
+
+// NewAsyncSharderLimitedGoroutines creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response] using a limited number of goroutines.
+func NewAsyncSharderLimitedGoroutines(concurrent int, reqs <-chan *http.Request, resps Responses[*http.Response], next AsyncRoundTripper[*http.Response]) *asyncResponse {
+	asyncResp := newAsyncResponse()
+	concurrencyLimiter := boundedwaitgroup.New(uint(concurrent))
+
+	const minLimitedGoroutines = 100
+
+	// todo: concurrent/5 is a very roughly estimated number. make this configurable? tune it?
+	limitedRoutines := max(minLimitedGoroutines, concurrent/5)
+	goroutines := min(limitedRoutines, concurrent)
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for req := range reqs {
+				concurrencyLimiter.Add(1)
+
+				resp, err := next.RoundTrip(req)
+				if err != nil {
+					asyncResp.SendError(err)
+					concurrencyLimiter.Done()
+					continue
+				}
+
+				asyncResp.Send(resp)
+				concurrencyLimiter.Done()
+			}
+		}()
+	}
+
+	go func() {
+		if resps != nil {
+			asyncResp.Send(resps)
+		}
+
+		wg.Wait()
+		asyncResp.done()
 	}()
 
 	return asyncResp

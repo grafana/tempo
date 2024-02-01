@@ -14,11 +14,11 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/uber-go/atomic"
 )
-
-// jpe - remove
 
 const (
 	statusCodeLabel = "status_code"
@@ -59,8 +59,8 @@ type tenantRoundTripper struct {
 }
 
 // newMultiTenantMiddleware returns a middleware that takes a request and fans it out to each tenant
-func newMultiTenantMiddleware(cfg Config, combinerFn func() combiner.Combiner, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newMultiTenantMiddleware(cfg Config, combinerFn func() combiner.Combiner, logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return &tenantRoundTripper{
 			cfg:                cfg,
 			next:               next,
@@ -102,6 +102,8 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	var wg sync.WaitGroup
 	respCombiner := t.newCombiner()
 
+	overallErr := atomic.NewError(nil)
+
 	// call RoundTrip for each tenant and combine results
 	// Send one request per tenant to downstream tripper
 	// Return early if statusCode is already set by a previous response
@@ -114,7 +116,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			subCtx, cancel := context.WithCancel(req.Context())
 			defer cancel()
 
-			if respCombiner.ShouldQuit() {
+			if respCombiner.ShouldQuit() || overallErr.Load() != nil {
 				return
 			}
 
@@ -123,7 +125,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			r := requestForTenant(subCtx, req, tenant)
 			resp, err := t.next.RoundTrip(r)
 
-			if respCombiner.ShouldQuit() {
+			if respCombiner.ShouldQuit() || overallErr.Load() != nil {
 				return
 			}
 
@@ -131,6 +133,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			if err != nil {
 				_ = level.Error(t.logger).Log("msg", "error querying for tenant", "tenant", tenant, "err", err)
 				t.tenantFailureTotal.With(prometheus.Labels{tenantLabel: tenant, statusCodeLabel: strconv.Itoa(respCombiner.StatusCode())}).Inc()
+				overallErr.Store(err)
 				return
 			}
 
@@ -138,6 +141,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			if err := respCombiner.AddRequest(resp, tenant); err != nil {
 				_ = level.Error(t.logger).Log("msg", "error combining responses", "tenant", tenant, "err", err)
 				t.tenantFailureTotal.With(prometheus.Labels{tenantLabel: tenant, statusCodeLabel: strconv.Itoa(resp.StatusCode)}).Inc()
+				overallErr.Store(err)
 				return
 			}
 
@@ -148,7 +152,11 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 
 	wg.Wait()
 
-	return respCombiner.Complete()
+	err = overallErr.Load()
+	if err != nil {
+		return nil, err
+	}
+	return respCombiner.HTTPFinal()
 }
 
 // requestForTenant makes a copy of request and injects the tenant id into context and Header.
@@ -168,8 +176,8 @@ type unsupportedRoundTripper struct {
 	resolver tenant.Resolver
 }
 
-func newMultiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newMultiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return &unsupportedRoundTripper{
 			cfg:      cfg,
 			next:     next,

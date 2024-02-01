@@ -13,10 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
@@ -38,7 +35,7 @@ func TestMultiTenant(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tenantMiddleware := newMultiTenantMiddleware(log.NewNopLogger())
+			tenantMiddleware := NewMultiTenantMiddleware(log.NewNopLogger())
 
 			var reqCount atomic.Int32
 
@@ -54,8 +51,7 @@ func TestMultiTenant(t *testing.T) {
 			trace := test.MakeTrace(10, traceID)
 
 			once := sync.Once{}
-			var fastestTenant string
-			next := AsyncRoundTripperFunc(func(req *http.Request) (Responses, error) {
+			next := AsyncRoundTripperFunc[*http.Response](func(req *http.Request) (Responses[*http.Response], error) {
 				reqCount.Inc() // Count the number of requests.
 
 				// Check if the tenant is in the list of tenants.
@@ -75,14 +71,13 @@ func TestMultiTenant(t *testing.T) {
 				statusCode := http.StatusNotFound
 				var body []byte
 				once.Do(func() {
-					fastestTenant = tenantID
 					statusCode = http.StatusOK
 					buff, err := trace.Marshal()
 					require.NoError(t, err)
 					body = buff
 				})
 
-				return NewSyncResponse(&http.Response{
+				return NewSyncToAsyncResponse(&http.Response{
 					StatusCode: statusCode,
 					Body:       io.NopCloser(bytes.NewReader(body)),
 				}), nil
@@ -98,51 +93,53 @@ func TestMultiTenant(t *testing.T) {
 			resps, err := rt.RoundTrip(req)
 			require.NoError(t, err)
 
-			res, err, done := resps.Next(context.Background())
-			require.NotNil(t, res)
-			require.True(t, done)
+			for {
+				res, err, done := resps.Next(context.Background())
+				if done {
+					break
+				}
 
-			require.NoError(t, err)
-			require.Equal(t, len(tenants), int(reqCount.Load()))
-			require.NotNil(t, res)
-			require.Equal(t, http.StatusOK, res.StatusCode)
-
-			buff, err := io.ReadAll(res.Body)
-			require.NoError(t, err)
-			// Unmarshal response into a trace.
-			responseTrace := &tempopb.Trace{}
-			require.NoError(t, responseTrace.Unmarshal(buff))
-			// Add tenant to the original trace to compare.
-			if len(tenants) > 1 {
-				combiner.InjectTenantResource(fastestTenant, trace)
+				require.NotNil(t, res)
+				require.NoError(t, err)
 			}
-			// Check if the trace is the same as the original.
-			require.Equal(t, trace, responseTrace)
+
+			require.Equal(t, len(tenants), int(reqCount.Load()))
 		})
 	}
 }
 
 func TestMultiTenantNotSupported(t *testing.T) {
 	tests := []struct {
-		name    string
-		tenant  string
-		err     error
-		context bool
+		name         string
+		tenant       string
+		expectedResp *http.Response
+		context      bool
 	}{
 		{
 			name:   "multi-tenant queries disabled",
 			tenant: "test",
-			err:    nil,
+			expectedResp: &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     http.StatusText(http.StatusOK),
+				Body:       io.NopCloser(strings.NewReader("foo")),
+			},
 		},
 		{
 			name:   "multi-tenant queries disabled with multiple tenant",
 			tenant: "test|test1",
-			err:    ErrMultiTenantUnsupported,
+			expectedResp: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader(ErrMultiTenantUnsupported.Error())),
+			},
 		},
 		{
-			name:   "no org id in request context",
-			tenant: "test",
-			err:    user.ErrNoOrgID,
+			name: "no org id in request context",
+			expectedResp: &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader(user.ErrNoOrgID.Error())),
+			},
 		},
 	}
 
@@ -154,12 +151,26 @@ func TestMultiTenantNotSupported(t *testing.T) {
 				req = req.WithContext(ctx)
 			}
 
-			test := newMultiTenantUnsupportedMiddleware(log.NewNopLogger())
-			next := AsyncRoundTripperFunc(func(req *http.Request) (Responses, error) { return nil, nil })
+			test := NewMultiTenantUnsupportedMiddleware(log.NewNopLogger())
+			next := AsyncRoundTripperFunc[*http.Response](func(req *http.Request) (Responses[*http.Response], error) { return NewSuccessfulResponse("foo"), nil })
 
 			rt := test.Wrap(next)
-			_, err := rt.RoundTrip(req) // jpe assert resps?
-			assert.Equal(t, tc.err, err)
+			resps, err := rt.RoundTrip(req)
+			require.NoError(t, err) // no error expected. tenant unsupported should be passed back as a bad request. errors bubble up as 5xx
+
+			res, err, done := resps.Next(context.Background())
+			require.True(t, done)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectedResp.StatusCode, res.StatusCode)
+			require.Equal(t, tc.expectedResp.Status, res.Status)
+
+			expectedBody, err := io.ReadAll(tc.expectedResp.Body)
+			require.NoError(t, err)
+			actualBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, expectedBody, actualBody)
 		})
 	}
 }

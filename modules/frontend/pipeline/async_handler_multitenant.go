@@ -10,8 +10,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -21,49 +19,26 @@ const (
 
 var ErrMultiTenantUnsupported = errors.New("multi-tenant query unsupported")
 
-var (
-	tenantSuccessTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "tempo_query_frontend",
-			Name:      "multitenant_success_total",
-			Help:      "Total number of successful fetches of a trace per tenant.",
-		},
-		[]string{tenantLabel})
-
-	tenantFailureTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "tempo_query_frontend",
-			Name:      "multitenant_failures_total",
-			Help:      "Total number of failing fetches of a trace per tenant.",
-		},
-		[]string{tenantLabel, statusCodeLabel})
-)
-
 type tenantRoundTripper struct {
-	next   AsyncRoundTripper
+	next   AsyncRoundTripper[*http.Response]
 	logger log.Logger
 
 	resolver tenant.Resolver
-
-	tenantSuccessTotal *prometheus.CounterVec
-	tenantFailureTotal *prometheus.CounterVec
 }
 
-// newMultiTenantMiddleware returns a middleware that takes a request and fans it out to each tenant  - jpe used to take a combiner. save for the end of async
-func newMultiTenantMiddleware(logger log.Logger) AsyncMiddleware {
-	return AsyncMiddlewareFunc(func(next AsyncRoundTripper) AsyncRoundTripper {
+// NewMultiTenantMiddleware returns a middleware that takes a request and fans it out to each tenant
+// It currently accepts a success and failure counter, to prevent metrics collisions with
+func NewMultiTenantMiddleware(logger log.Logger) AsyncMiddleware[*http.Response] {
+	return AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
 		return &tenantRoundTripper{
-			next:               next,
-			logger:             logger,
-			resolver:           tenant.NewMultiResolver(),
-			tenantSuccessTotal: tenantSuccessTotal,
-			tenantFailureTotal: tenantFailureTotal,
+			next:     next,
+			logger:   logger,
+			resolver: tenant.NewMultiResolver(),
 		}
 	})
 }
 
-// jpe -  used to accept a config, for "enabled" or not. just don't install if not enabled
-func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses, error) {
+func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses[*http.Response], error) {
 	// extract tenant ids, this will normalize and de-duplicate tenant ids
 	tenants, err := t.resolver.TenantIDs(req.Context())
 	if err != nil {
@@ -80,12 +55,11 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses, error) {
 	// join tenants for logger because list value type is unsupported.
 	_ = level.Debug(t.logger).Log("msg", "handling multi-tenant query", "tenants", strings.Join(tenants, ","))
 
-	// jpe a lot of code was lost here. respCombiner.ShouldQuit() cancelly stuff was removed. this needs to exist at a higher lvl. does it exist once per pipeline? or after each sharding layer to control combine and reply logic?
-	return NewAsyncSharder(0, func(tenantIdx int) (*http.Request, *http.Response) {
+	return NewAsyncSharder(0, func(tenantIdx int) *http.Request {
 		if tenantIdx >= len(tenants) {
-			return nil, nil
+			return nil
 		}
-		return requestForTenant(req.Context(), req, tenants[tenantIdx]), nil // jpe we used to do a subctx with a cancel, how does the new pattern work for cancellations?
+		return requestForTenant(req.Context(), req, tenants[tenantIdx])
 	}, t.next), nil
 }
 
@@ -99,15 +73,14 @@ func requestForTenant(ctx context.Context, r *http.Request, tenant string) *http
 }
 
 type unsupportedRoundTripper struct {
-	next   AsyncRoundTripper
+	next   AsyncRoundTripper[*http.Response]
 	logger log.Logger
 
 	resolver tenant.Resolver
 }
 
-// jpe - used to take a config, for "enabled" or not. just don't install if not enabled. or maybe install everywhere if enabled?
-func newMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware {
-	return AsyncMiddlewareFunc(func(next AsyncRoundTripper) AsyncRoundTripper {
+func NewMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware[*http.Response] {
+	return AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
 		return &unsupportedRoundTripper{
 			next:     next,
 			logger:   logger,
@@ -116,11 +89,11 @@ func newMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware {
 	})
 }
 
-func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (Responses, error) {
+func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (Responses[*http.Response], error) {
 	// extract tenant ids
 	tenants, err := t.resolver.TenantIDs(req.Context())
 	if err != nil {
-		return nil, err
+		return NewBadRequest(err), nil
 	}
 	// error if we get more then 1 tenant
 	if len(tenants) > 1 {

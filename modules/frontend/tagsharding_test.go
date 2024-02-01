@@ -24,6 +24,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -408,7 +409,7 @@ func TestTagsSearchSharderRoundTrip(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var response *tempopb.SearchTagsResponse
 				var statusCode int
 				var err error
@@ -493,7 +494,7 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 	totalJobs := 5
 
 	wg := sync.WaitGroup{}
-	nextSuccess := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	nextSuccess := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		wg.Done()
 		wg.Wait()
 
@@ -510,14 +511,14 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 		}, nil
 	})
 
-	nextErr := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	nextErr := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		wg.Done()
 		wg.Wait()
 
 		return nil, fmt.Errorf("error")
 	})
 
-	next500 := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next500 := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		wg.Done()
 		wg.Wait()
 
@@ -527,7 +528,7 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 		}, nil
 	})
 
-	nextRequireCancelled := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	nextRequireCancelled := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		wg.Done()
 
 		ctx := r.Context()
@@ -568,23 +569,23 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 	// 500, err, limit
 	tcs := []struct {
 		name  string
-		nexts []RoundTripperFunc
+		nexts []pipeline.RoundTripperFunc
 	}{
 		{
 			name:  "success",
-			nexts: []RoundTripperFunc{nextSuccess},
+			nexts: []pipeline.RoundTripperFunc{nextSuccess},
 		},
 		{
 			name:  "two successes -> reach limit",
-			nexts: []RoundTripperFunc{nextSuccess, nextSuccess, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
+			nexts: []pipeline.RoundTripperFunc{nextSuccess, nextSuccess, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
 		},
 		{
 			name:  "one errors",
-			nexts: []RoundTripperFunc{nextErr, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
+			nexts: []pipeline.RoundTripperFunc{nextErr, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
 		},
 		{
 			name:  "one 500s",
-			nexts: []RoundTripperFunc{next500, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
+			nexts: []pipeline.RoundTripperFunc{next500, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
 		},
 	}
 
@@ -593,7 +594,7 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 			prev := atomic.NewInt32(0)
 
 			// create a next function that round robins through the nexts.
-			nextRR := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			nextRR := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				next := tc.nexts[prev.Load()%int32(len(tc.nexts))]
 				prev.Inc()
 				return next.RoundTrip(r)
@@ -615,7 +616,7 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 }
 
 func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		return nil, nil
 	})
 

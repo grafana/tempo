@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/blockboundary"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -198,7 +199,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 				QueryShards: 2,
 			}, o, log.NewNopLogger())
 
-			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
 				var statusCode int
 				var err error
@@ -283,7 +284,7 @@ func TestConcurrentShards(t *testing.T) {
 
 	sawMaxConcurrncy := atomic.NewBool(false)
 	currentlyExecuting := atomic.NewInt32(0)
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		current := currentlyExecuting.Inc()
 		if current > int32(concurrency) {
 			t.Fatal("too many concurrent requests")

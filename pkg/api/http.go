@@ -121,7 +121,6 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
-		Limit:           defaultLimit,
 		SpansPerSpanSet: defaultSpansPerSpanSet,
 	}
 

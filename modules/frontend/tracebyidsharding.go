@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
@@ -29,8 +30,8 @@ const (
 	maxQueryShards = 100_000
 )
 
-func newTraceByIDSharder(cfg *TraceByIDConfig, o overrides.Interface, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newTraceByIDSharder(cfg *TraceByIDConfig, o overrides.Interface, logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			cfg:             cfg,

@@ -8,30 +8,30 @@ import (
 // sync call with one response just returns a Response interface above. maybe a small wrapper to fulfill Responses
 // async call with multiple responses returns something that satisfies Responses. likely with an internal channel to pass back response
 
-type Responses interface {
-	Next(context.Context) (*http.Response, error, bool) // bool = done
+type Responses[T any] interface {
+	Next(context.Context) (T, error, bool) // bool = done
 }
 
-type AsyncRoundTripper interface {
-	RoundTrip(*http.Request) (Responses, error)
+type AsyncRoundTripper[T any] interface {
+	RoundTrip(*http.Request) (Responses[T], error)
 }
 
-type AsyncRoundTripperFunc func(*http.Request) (Responses, error)
+type AsyncRoundTripperFunc[T any] func(*http.Request) (Responses[T], error)
 
-func (fn AsyncRoundTripperFunc) RoundTrip(req *http.Request) (Responses, error) {
+func (fn AsyncRoundTripperFunc[T]) RoundTrip(req *http.Request) (Responses[T], error) {
 	return fn(req)
 }
 
 // AsyncMiddleware is used to build pipelines of pipeline.Roundtrippers
-type AsyncMiddleware interface {
-	Wrap(AsyncRoundTripper) AsyncRoundTripper
+type AsyncMiddleware[T any] interface {
+	Wrap(AsyncRoundTripper[T]) AsyncRoundTripper[T]
 }
 
 // AsyncMiddlewareFunc is like http.HandlerFunc, but for Middleware.
-type AsyncMiddlewareFunc func(AsyncRoundTripper) AsyncRoundTripper
+type AsyncMiddlewareFunc[T any] func(AsyncRoundTripper[T]) AsyncRoundTripper[T]
 
 // Wrap implements Middleware.
-func (f AsyncMiddlewareFunc) Wrap(w AsyncRoundTripper) AsyncRoundTripper {
+func (f AsyncMiddlewareFunc[T]) Wrap(w AsyncRoundTripper[T]) AsyncRoundTripper[T] {
 	return f(w)
 }
 

@@ -3,7 +3,6 @@ package frontend
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,32 +10,26 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/jsonpb" //nolint:all deprecated
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 var _ tempodb.Reader = (*mockReader)(nil)
@@ -85,12 +78,13 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                           {}
 
+//nolint:all deprecated
+
 func TestBuildBackendRequests(t *testing.T) {
 	tests := []struct {
 		targetBytesPerRequest int
 		metas                 []*backend.BlockMeta
 		expectedURIs          []string
-		expectedError         error
 	}{
 		{
 			expectedURIs: []string{},
@@ -226,32 +220,21 @@ func TestBuildBackendRequests(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		stopCh := make(chan struct{})
-		defer close(stopCh)
-		reqCh := make(chan *backendReqMsg)
+		ctx, cancelCause := context.WithCancelCause(context.Background())
+		reqCh := make(chan *http.Request)
 
 		go func() {
-			buildBackendRequests(context.Background(), "test", req, searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, stopCh)
+			buildBackendRequests(ctx, "test", req, searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
 		}()
 
 		actualURIs := []string{}
-		var actualErr error
 		for r := range reqCh {
-			if r.err != nil {
-				actualErr = r.err
-				break
-			}
-
-			if r.req != nil {
-				actualURIs = append(actualURIs, r.req.RequestURI)
+			if r != nil {
+				actualURIs = append(actualURIs, r.RequestURI)
 			}
 		}
 
-		if tc.expectedError != nil {
-			assert.Equal(t, tc.expectedError, actualErr)
-			continue
-		}
-		assert.NoError(t, actualErr)
+		assert.NoError(t, ctx.Err())
 		assert.Equal(t, tc.expectedURIs, actualURIs)
 	}
 }
@@ -263,7 +246,7 @@ func TestBackendRequests(t *testing.T) {
 	bm.Size = defaultTargetBytesPerRequest * 2
 	bm.TotalRecords = 2
 
-	s := &searchSharder{
+	s := &asyncSearchSharder{
 		cfg:    SearchSharderConfig{},
 		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
 	}
@@ -272,7 +255,6 @@ func TestBackendRequests(t *testing.T) {
 		name               string
 		request            string
 		expectedReqsURIs   []string
-		expectedError      error
 		expectedJobs       int
 		expectedBlocks     int
 		expectedBlockBytes uint64
@@ -284,7 +266,6 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=200&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=100&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedError:      nil,
 			expectedJobs:       2,
 			expectedBlocks:     1,
 			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
@@ -296,7 +277,6 @@ func TestBackendRequests(t *testing.T) {
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=0&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 				"/querier?blockID=" + bm.BlockID.String() + "&dataEncoding=asdf&encoding=gzip&end=150&footerSize=0&indexPageSize=0&limit=50&maxDuration=30ms&minDuration=10ms&pagesToSearch=1&size=209715200&start=110&startPage=1&tags=foo%3Dbar&totalRecords=2&version=wdwad",
 			},
-			expectedError:      nil,
 			expectedJobs:       2,
 			expectedBlocks:     1,
 			expectedBlockBytes: defaultTargetBytesPerRequest * 2,
@@ -305,25 +285,21 @@ func TestBackendRequests(t *testing.T) {
 			name:             "start and end out of block",
 			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
 			expectedReqsURIs: make([]string, 0),
-			expectedError:    nil,
 		},
 		{
 			name:             "no start and end",
 			request:          "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			expectedReqsURIs: make([]string, 0),
-			expectedError:    nil,
 		},
 		{
 			name:             "only tags",
 			request:          "/?tags=foo%3Dbar",
 			expectedReqsURIs: make([]string, 0),
-			expectedError:    nil,
 		},
 		{
 			name:             "no params",
 			request:          "/",
 			expectedReqsURIs: make([]string, 0),
-			expectedError:    nil,
 		},
 	}
 	for _, tc := range tests {
@@ -334,24 +310,22 @@ func TestBackendRequests(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			reqCh := make(chan *backendReqMsg)
+			reqCh := make(chan *http.Request)
 
-			jobs, blocks, blockBytes := s.backendRequests(context.TODO(), "test", r, searchReq, reqCh, stopCh)
+			ctx, cancelCause := context.WithCancelCause(context.Background())
+
+			jobs, blocks, blockBytes := s.backendRequests(ctx, "test", r, searchReq, reqCh, cancelCause)
 			require.Equal(t, tc.expectedJobs, jobs)
 			require.Equal(t, tc.expectedBlocks, blocks)
 			require.Equal(t, tc.expectedBlockBytes, blockBytes)
 
-			var actualErr error
 			actualReqURIs := []string{}
 			for r := range reqCh {
-				if r.err != nil {
-					actualErr = r.err
-				}
-				if r.req != nil {
-					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
+				if r != nil {
+					actualReqURIs = append(actualReqURIs, r.RequestURI)
 				}
 			}
-			require.Equal(t, tc.expectedError, actualErr)
+			require.NoError(t, ctx.Err())
 			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
 		})
 	}
@@ -423,7 +397,7 @@ func TestIngesterRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		s := &searchSharder{
+		s := &asyncSearchSharder{
 			cfg: SearchSharderConfig{
 				QueryIngestersUntil: tc.queryIngestersUntil,
 			},
@@ -534,259 +508,17 @@ func TestBackendRange(t *testing.T) {
 	}
 }
 
-func TestSearchSharderRoundTrip(t *testing.T) {
-	tests := []struct {
-		name             string
-		status1          int
-		status2          int
-		response1        *tempopb.SearchResponse
-		response2        *tempopb.SearchResponse
-		err1             error
-		err2             error
-		expectedStatus   int
-		expectedResponse *tempopb.SearchResponse
-		expectedError    error
-	}{
-		{
-			name:           "empty returns",
-			status1:        200,
-			status2:        200,
-			expectedStatus: 200,
-			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
-				TotalBlocks:     1,
-				CompletedJobs:   2,
-				TotalJobs:       2,
-				TotalBlockBytes: defaultTargetBytesPerRequest * 2,
-			}},
-		},
-		{
-			name:           "404+200",
-			status1:        404,
-			status2:        200,
-			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedStatus: 500,
-		},
-		{
-			name:           "200+400",
-			status1:        200,
-			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			status2:        400,
-			expectedStatus: 500,
-		},
-		{
-			name:           "200+429",
-			status1:        200,
-			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			status2:        429,
-			expectedStatus: 429,
-		},
-		{
-			name:           "500+404",
-			status1:        500,
-			status2:        404,
-			expectedStatus: 500,
-		},
-		{
-			name:           "404+500",
-			status1:        404,
-			status2:        500,
-			expectedStatus: 500,
-		},
-		{
-			name:           "500+200",
-			status1:        500,
-			status2:        200,
-			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedStatus: 500,
-		},
-		{
-			name:           "200+500",
-			status1:        200,
-			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			status2:        500,
-			expectedStatus: 500,
-		},
-		{
-			name:    "200+200",
-			status1: 200,
-			response1: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "1234",
-						StartTimeUnixNano: 1,
-					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 1,
-					TotalBlocks:     2,
-					InspectedBytes:  3,
-				},
-			},
-			status2: 200,
-			response2: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "5678",
-						StartTimeUnixNano: 0,
-					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 5,
-					TotalBlocks:     6,
-					InspectedBytes:  7,
-				},
-			},
-			expectedStatus: 200,
-			expectedResponse: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "1234",
-						StartTimeUnixNano: 1,
-						RootServiceName:   search.RootSpanNotYetReceivedText,
-					},
-					{
-						TraceID:           "5678",
-						StartTimeUnixNano: 0,
-						RootServiceName:   search.RootSpanNotYetReceivedText,
-					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 6,
-					TotalBlocks:     1,
-					InspectedBytes:  10,
-					CompletedJobs:   2,
-					TotalJobs:       2,
-					TotalBlockBytes: defaultTargetBytesPerRequest * 2,
-				},
-			},
-		},
-		{
-			name:          "200+err",
-			status1:       200,
-			response1:     &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			err2:          errors.New("booo"),
-			expectedError: errors.New("booo"),
-		},
-		{
-			name:          "err+200",
-			err1:          errors.New("booo"),
-			status2:       200,
-			response2:     &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedError: errors.New("booo"),
-		},
-		{
-			name:           "500+err",
-			status1:        500,
-			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			err2:           errors.New("booo"),
-			expectedStatus: 500,
-			expectedError:  errors.New("booo"),
-		},
-		{
-			name:          "err+500",
-			err1:          errors.New("booo"),
-			status2:       500,
-			response2:     &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-			expectedError: errors.New("booo"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				var response *tempopb.SearchResponse
-				var statusCode int
-				var err error
-
-				if strings.Contains(r.RequestURI, "startPage=0") {
-					response = tc.response1
-					statusCode = tc.status1
-					err = tc.err1
-				} else {
-					response = tc.response2
-					err = tc.err2
-					statusCode = tc.status2
-				}
-
-				if err != nil {
-					return nil, err
-				}
-
-				var resString string
-				if response != nil {
-					resString, err = (&jsonpb.Marshaler{}).MarshalToString(response)
-					require.NoError(t, err)
-				}
-
-				return &http.Response{
-					Body:       io.NopCloser(strings.NewReader(resString)),
-					StatusCode: statusCode,
-				}, nil
-			})
-
-			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
-			require.NoError(t, err)
-
-			sharder := newSearchSharder(&mockReader{
-				metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
-					{
-						StartTime:    time.Unix(1100, 0),
-						EndTime:      time.Unix(1200, 0),
-						Size:         defaultTargetBytesPerRequest * 2,
-						TotalRecords: 2,
-						BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					},
-				},
-			}, o, SearchSharderConfig{
-				ConcurrentRequests:    1, // 1 concurrent request to force order
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
-			testRT := NewRoundTripper(next, sharder)
-
-			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
-			ctx := req.Context()
-			ctx = user.InjectOrgID(ctx, "blerg")
-			req = req.WithContext(ctx)
-
-			resp, err := testRT.RoundTrip(req)
-			if tc.expectedError != nil {
-				assert.Equal(t, tc.expectedError, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
-			if tc.expectedStatus == http.StatusOK {
-				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-			}
-			if tc.expectedResponse != nil {
-				actualResp := &tempopb.SearchResponse{}
-				bytesResp, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
-				require.NoError(t, err)
-
-				// We don't need to check on this metric
-				// actualResp.Metrics.TotalBlockBytes = 0
-
-				assert.Equal(t, tc.expectedResponse, actualResp)
-			}
-		})
-	}
-}
-
 func TestTotalJobsIncludesIngester(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
 		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
 			Metrics: &tempopb.SearchMetrics{},
 		})
 		require.NoError(t, err)
 
-		return &http.Response{
+		return pipeline.NewSyncToAsyncResponse(&http.Response{
 			Body:       io.NopCloser(strings.NewReader(resString)),
 			StatusCode: 200,
-		}, nil
+		}), nil
 	})
 
 	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
@@ -794,7 +526,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 
 	now := time.Now().Add(-10 * time.Minute).Unix()
 
-	sharder := newSearchSharder(&mockReader{
+	sharder := newAsyncSearchSharder(&mockReader{
 		metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
 			{
 				StartTime:    time.Unix(now, 0),
@@ -808,8 +540,8 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
-	testRT := NewRoundTripper(next, sharder)
+	}, log.NewNopLogger())
+	testRT := sharder.Wrap(next)
 
 	path := fmt.Sprintf("/?start=%d&end=%d", now-1, now+1)
 	req := httptest.NewRequest("GET", path, nil)
@@ -817,50 +549,62 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 	ctx = user.InjectOrgID(ctx, "blerg")
 	req = req.WithContext(ctx)
 
-	resp, err := testRT.RoundTrip(req)
-	require.NoError(t, err)
-	require.Equal(t, 200, resp.StatusCode)
+	resps, err := testRT.RoundTrip(req)
+	// find a response with total jobs > . this is the metadata response
+	var resp *tempopb.SearchResponse
+	for {
+		r, err, done := resps.Next(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 200, r.StatusCode)
 
-	actualResp := &tempopb.SearchResponse{}
-	bytesResp, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
-	require.NoError(t, err)
+		actualResp := &tempopb.SearchResponse{}
+		bytesResp, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+		require.NoError(t, err)
+
+		if actualResp.Metrics.TotalJobs > 0 {
+			resp = actualResp
+			break
+		}
+
+		require.False(t, done)
+	}
 
 	// 2 jobs for the meta + 1 for th ingester
-	assert.Equal(t, uint32(3), actualResp.Metrics.TotalJobs)
+	assert.Equal(t, uint32(3), resp.Metrics.TotalJobs)
 }
 
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
 		return nil, nil
 	})
 
 	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	sharder := newSearchSharder(&mockReader{}, o, SearchSharderConfig{
+	sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
-	testRT := NewRoundTripper(next, sharder)
+	}, log.NewNopLogger())
+	testRT := sharder.Wrap(next)
 
 	// no org id
 	req := httptest.NewRequest("GET", "/?start=1000&end=1100", nil)
 	resp, err := testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "no org id")
+	testBadRequestFromResponses(t, resp, err, "no org id")
 
 	// start/end outside of max duration
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
+	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
 
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
 	resp, err = testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Config{
@@ -872,142 +616,25 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	sharder = newSearchSharder(&mockReader{}, o, SearchSharderConfig{
+	sharder = newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
-	testRT = NewRoundTripper(next, sharder)
+	}, log.NewNopLogger())
+	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
+	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
 
-func TestSharderAccessesCache(t *testing.T) {
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
-			Traces: []*tempopb.TraceSearchMetadata{{
-				TraceID:         util.TraceIDToHexString(test.ValidTraceID(nil)),
-				RootServiceName: "test",
-				RootTraceName:   "bar",
-			}},
-			Metrics: &tempopb.SearchMetrics{
-				InspectedBytes: 4,
-			},
-		})
-		require.NoError(t, err)
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader(resString)),
-			StatusCode: 200,
-		}, nil
-	})
-
-	// setup mock cache
-	c := cache.NewMockCache()
-
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+func testBadRequestFromResponses(t *testing.T, resp pipeline.Responses[*http.Response], err error, expectedBody string) {
+	r, err, done := resp.Next(context.Background())
 	require.NoError(t, err)
+	require.True(t, done) // there should only be one response
 
-	meta := &backend.BlockMeta{
-		StartTime:    time.Unix(15, 0),
-		EndTime:      time.Unix(16, 0),
-		Size:         defaultTargetBytesPerRequest,
-		TotalRecords: 1,
-		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-	}
-
-	// setup sharder
-	sharder := newSearchSharder(&mockReader{
-		metas: []*backend.BlockMeta{meta},
-	}, o, SearchSharderConfig{
-		QueryIngestersUntil:   15 * time.Minute,
-		ConcurrentRequests:    1, // 1 concurrent request to force order
-		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, newSearchProgress, &frontendCache{
-		c: c,
-	}, log.NewNopLogger())
-	testRT := NewRoundTripper(next, sharder)
-
-	// setup query
-	query := "{}"
-	hash := hashForTraceQLQuery(query)
-	start := uint32(10)
-	end := uint32(20)
-	cacheKey := cacheKeyForJob(hash, &tempopb.SearchRequest{Start: start, End: end}, meta, 0, 1)
-
-	// confirm cache key coesn't exist
-	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
-	require.Equal(t, 0, len(bufs))
-
-	// execute query
-	path := fmt.Sprintf("/?start=%d&end=%d&q=%s", start, end, query) // encapsulates block above
-	req := httptest.NewRequest("GET", path, nil)
-	ctx := req.Context()
-	ctx = user.InjectOrgID(ctx, "blerg")
-	req = req.WithContext(ctx)
-
-	resp, err := testRT.RoundTrip(req)
-	require.NoError(t, err)
-	require.Equal(t, 200, resp.StatusCode)
-
-	actualResp := &tempopb.SearchResponse{}
-	bytesResp, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
-	require.NoError(t, err)
-
-	// confirm cache key exists and matches the response above
-	_, bufs, _ = c.Fetch(context.Background(), []string{cacheKey})
-	require.Equal(t, 1, len(bufs))
-
-	actualCache := &tempopb.SearchResponse{}
-	err = jsonpb.Unmarshal(bytes.NewReader(bufs[0]), actualCache)
-	require.NoError(t, err)
-
-	// zeroing these out b/c they are set by the sharder and won't be in cache
-	cacheResponsesEqual(t, actualCache, actualResp)
-
-	// now let's "poison" cache by writing different values directly and confirm
-	// the sharder returns them
-	overwriteResp := &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{{
-			TraceID:         util.TraceIDToHexString(test.ValidTraceID(nil)),
-			RootServiceName: "test2",
-			RootTraceName:   "bar2",
-		}},
-		Metrics: &tempopb.SearchMetrics{
-			InspectedBytes: 11,
-		},
-	}
-	overwriteString, err := (&jsonpb.Marshaler{}).MarshalToString(overwriteResp)
-	require.NoError(t, err)
-
-	c.Store(context.Background(), []string{cacheKey}, [][]byte{[]byte(overwriteString)})
-
-	resp, err = testRT.RoundTrip(req)
-	require.NoError(t, err)
-	require.Equal(t, 200, resp.StatusCode)
-
-	actualResp = &tempopb.SearchResponse{}
-	bytesResp, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
-	require.NoError(t, err)
-
-	cacheResponsesEqual(t, overwriteResp, actualResp)
-}
-
-func cacheResponsesEqual(t *testing.T, cacheResponse *tempopb.SearchResponse, pipelineResp *tempopb.SearchResponse) {
-	// zeroing these out b/c they are set by the sharder and won't be in cache
-	pipelineResp.Metrics.TotalJobs = 0
-	pipelineResp.Metrics.CompletedJobs = 0
-	pipelineResp.Metrics.TotalBlockBytes = 0
-	pipelineResp.Metrics.TotalBlocks = 0
-
-	require.Equal(t, pipelineResp, cacheResponse)
+	testBadRequest(t, r, err, expectedBody)
 }
 
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {
@@ -1040,7 +667,7 @@ func TestMaxDuration(t *testing.T) {
 	//
 	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
-	sharder := searchSharder{
+	sharder := asyncSearchSharder{
 		cfg: SearchSharderConfig{
 			MaxDuration: 5 * time.Minute,
 		},
@@ -1057,7 +684,7 @@ func TestMaxDuration(t *testing.T) {
 		},
 	}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
-	sharder = searchSharder{
+	sharder = asyncSearchSharder{
 		cfg: SearchSharderConfig{
 			MaxDuration: 5 * time.Minute,
 		},
@@ -1065,132 +692,6 @@ func TestMaxDuration(t *testing.T) {
 	}
 	actual = sharder.maxDuration("test")
 	assert.Equal(t, 10*time.Minute, actual)
-}
-
-func TestSubRequestsCancelled(t *testing.T) {
-	totalJobs := 5
-
-	wg := sync.WaitGroup{}
-	nextSuccess := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-		wg.Wait()
-
-		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
-			Traces: []*tempopb.TraceSearchMetadata{{
-				TraceID: test.RandomString(),
-			}},
-			Metrics: &tempopb.SearchMetrics{},
-		})
-		require.NoError(t, err)
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader(resString)),
-			StatusCode: 200,
-		}, nil
-	})
-
-	nextErr := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-		wg.Wait()
-
-		return nil, fmt.Errorf("error")
-	})
-
-	next500 := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-		wg.Wait()
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader("")),
-			StatusCode: 500,
-		}, nil
-	})
-
-	nextRequireCancelled := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-
-		ctx := r.Context()
-
-		select {
-		case <-ctx.Done():
-		case <-time.After(1 * time.Second):
-		}
-
-		if ctx.Err() == nil {
-			return nil, fmt.Errorf("context should have been cancelled")
-		}
-
-		// check and see if there's an error
-		return httptest.NewRecorder().Result(), nil
-	})
-
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-
-	sharder := newSearchSharder(&mockReader{
-		metas: []*backend.BlockMeta{
-			{
-				StartTime:    time.Unix(1100, 0),
-				EndTime:      time.Unix(1200, 0),
-				Size:         uint64(defaultTargetBytesPerRequest * totalJobs),
-				TotalRecords: uint32(totalJobs),
-				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-			},
-		},
-	}, o, SearchSharderConfig{
-		ConcurrentRequests:    10,
-		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-		DefaultLimit:          2,
-	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
-
-	// return some things and assert the right subrequests are cancelled
-	// 500, err, limit
-	tcs := []struct {
-		name  string
-		nexts []RoundTripperFunc
-	}{
-		{
-			name:  "success",
-			nexts: []RoundTripperFunc{nextSuccess},
-		},
-		{
-			name:  "two successes -> reach limit",
-			nexts: []RoundTripperFunc{nextSuccess, nextSuccess, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
-		},
-		{
-			name:  "one errors",
-			nexts: []RoundTripperFunc{nextErr, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
-		},
-		{
-			name:  "one 500s",
-			nexts: []RoundTripperFunc{next500, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			prev := atomic.NewInt32(0)
-
-			// create a next function that round robins through the nexts.
-			nextRR := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				next := tc.nexts[prev.Load()%int32(len(tc.nexts))]
-				prev.Inc()
-				return next.RoundTrip(r)
-			})
-
-			testRT := NewRoundTripper(nextRR, sharder)
-
-			// all requests will create totalJobs subrequests. let's reset the wg here
-			wg.Add(totalJobs)
-
-			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
-			ctx := req.Context()
-			ctx = user.InjectOrgID(ctx, "blerg")
-			req = req.WithContext(ctx)
-
-			_, _ = testRT.RoundTrip(req)
-		})
-	}
 }
 
 func TestHashTraceQLQuery(t *testing.T) {
@@ -1351,76 +852,6 @@ func TestCacheKeyForJob(t *testing.T) {
 			actual := cacheKeyForJob(tc.queryHash, tc.req, tc.meta, tc.searchPage, tc.pagesToSearch)
 			require.Equal(t, tc.expected, actual)
 		})
-	}
-}
-
-func BenchmarkSearchSharderRoundTrip5(b *testing.B)     { benchmarkSearchSharderRoundTrip(b, 5) }
-func BenchmarkSearchSharderRoundTrip500(b *testing.B)   { benchmarkSearchSharderRoundTrip(b, 500) }
-func BenchmarkSearchSharderRoundTrip50000(b *testing.B) { benchmarkSearchSharderRoundTrip(b, 50000) } // max, forces all queries to run
-
-func benchmarkSearchSharderRoundTrip(b *testing.B, s int32) {
-	resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}})
-	require.NoError(b, err)
-
-	successResString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID: "1234",
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{},
-	})
-	require.NoError(b, err)
-
-	succeedAfter := atomic.NewInt32(s)
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		val := succeedAfter.Dec()
-
-		s := resString
-		if val == 0 {
-			s = successResString
-		}
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader(s)),
-			StatusCode: 200,
-		}, nil
-	})
-
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
-	require.NoError(b, err)
-
-	totalMetas := 10000
-	jobsPerMeta := 2
-	metas := make([]*backend.BlockMeta, 0, totalMetas)
-	for i := 0; i < totalMetas; i++ {
-		metas = append(metas, &backend.BlockMeta{
-			StartTime:    time.Unix(1100, 0),
-			EndTime:      time.Unix(1200, 0),
-			Size:         defaultTargetBytesPerRequest * uint64(jobsPerMeta),
-			TotalRecords: uint32(jobsPerMeta),
-			BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-		})
-	}
-
-	sharder := newSearchSharder(&mockReader{
-		metas: metas,
-	}, o, SearchSharderConfig{
-		ConcurrentRequests:    100,
-		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-	}, newSearchProgress, &frontendCache{}, log.NewNopLogger())
-	testRT := NewRoundTripper(next, sharder)
-
-	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=1", nil) // limiting to 1 to let succeedAfter work
-	ctx := req.Context()
-	ctx = user.InjectOrgID(ctx, "blerg")
-	req = req.WithContext(ctx)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		succeedAfter = atomic.NewInt32(s)
-		_, err = testRT.RoundTrip(req)
-		require.NoError(b, err)
 	}
 }
 

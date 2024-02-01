@@ -1,94 +1,112 @@
 package combiner
 
 import (
-	"fmt"
-	"io"
 	"sort"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
-var _ Combiner = (*genericCombiner[*tempopb.SearchResponse])(nil)
+var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
 // TODO: we also have a combiner in pkg/traceql/combine.go, which is slightly different then this.
 // this Combiner locks, and merges the spans slightly differently. compare and consolidate both if possible.
-func NewSearch() Combiner {
-	resultsMap := make(map[string]*tempopb.TraceSearchMetadata)
+func NewSearch(limit int) Combiner {
+	metadataCombiner := traceql.NewMetadataCombiner()
+	diffTraces := map[string]struct{}{}
+
 	return &genericCombiner[*tempopb.SearchResponse]{
-		code:  200,
-		final: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(body io.ReadCloser, final *tempopb.SearchResponse) error {
-			response := &tempopb.SearchResponse{}
-			if err := jsonpb.Unmarshal(body, response); err != nil {
-				return fmt.Errorf("error unmarshalling response body: %w", err)
-			}
-			for _, t := range response.Traces {
-				if res := resultsMap[t.TraceID]; res != nil {
-					// Merge search results
-					CombineSearchResults(res, t)
-				} else {
-					// New entry
-					resultsMap[t.TraceID] = t
+		httpStatusCode: 200,
+		new:            func() *tempopb.SearchResponse { return &tempopb.SearchResponse{} },
+		current:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
+		combine: func(partial *tempopb.SearchResponse, final *tempopb.SearchResponse) error {
+			for _, t := range partial.Traces {
+				// if we've reached the limit and this is NOT a new trace then skip it
+				if limit > 0 &&
+					metadataCombiner.Count() >= limit &&
+					!metadataCombiner.Exists(t.TraceID) {
+					continue
 				}
+
+				metadataCombiner.AddMetadata(t)
+				// record modified traces
+				diffTraces[t.TraceID] = struct{}{}
 			}
 
-			if response.Metrics != nil {
-				final.Metrics.InspectedBytes += response.Metrics.InspectedBytes
-				final.Metrics.InspectedTraces += response.Metrics.InspectedTraces
-				final.Metrics.TotalBlocks += response.Metrics.TotalBlocks
-				final.Metrics.CompletedJobs += response.Metrics.CompletedJobs
-				final.Metrics.TotalJobs += response.Metrics.TotalJobs
-				final.Metrics.TotalBlockBytes += response.Metrics.TotalBlockBytes
+			if partial.Metrics != nil {
+				// there is a coordination with the search sharder here. normal responses
+				// will never have total jobs set, but they will have valid Inspected* values
+				// a special response is sent back from the sharder with no traces but valid Total* values
+				// if TotalJobs is nonzero then assume its the special response
+				if partial.Metrics.TotalJobs == 0 {
+					final.Metrics.CompletedJobs++
+
+					final.Metrics.InspectedBytes += partial.Metrics.InspectedBytes
+					final.Metrics.InspectedTraces += partial.Metrics.InspectedTraces
+				} else {
+					final.Metrics.TotalBlocks += partial.Metrics.TotalBlocks
+					final.Metrics.TotalJobs += partial.Metrics.TotalJobs
+					final.Metrics.TotalBlockBytes += partial.Metrics.TotalBlockBytes
+				}
 			}
 
 			return nil
 		},
-		result: func(response *tempopb.SearchResponse) (string, error) {
-			for _, t := range resultsMap {
-				response.Traces = append(response.Traces, t)
+		finalize: func(final *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
+			// metrics are already combined on the passed in final
+			final.Traces = metadataCombiner.Metadata()
+
+			addRootSpanNotReceivedText(final.Traces)
+			return final, nil
+		},
+		diff: func(current *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
+			// wipe out any existing traces and recreate from the map
+			diff := &tempopb.SearchResponse{
+				Traces:  make([]*tempopb.TraceSearchMetadata, 0, len(diffTraces)),
+				Metrics: current.Metrics,
 			}
-			sort.Slice(response.Traces, func(i, j int) bool {
-				return response.Traces[i].StartTimeUnixNano > response.Traces[j].StartTimeUnixNano
+
+			for _, tr := range metadataCombiner.Metadata() {
+				// if not in the map, skip. we haven't seen an update
+				if _, ok := diffTraces[tr.TraceID]; !ok {
+					continue
+				}
+
+				diff.Traces = append(diff.Traces, tr)
+			}
+
+			sort.Slice(diff.Traces, func(i, j int) bool {
+				return diff.Traces[i].StartTimeUnixNano > diff.Traces[j].StartTimeUnixNano
 			})
 
-			return new(jsonpb.Marshaler).MarshalToString(response)
+			addRootSpanNotReceivedText(diff.Traces)
+
+			// wipe out diff traces for the next time
+			clear(diffTraces)
+
+			return diff, nil
+		},
+		// search combiner doesn't use current in the way i would have expected. it only tracks metrics through current and uses the results map for the actual traces.
+		//  should we change this?
+		quit: func(_ *tempopb.SearchResponse) bool {
+			if limit <= 0 {
+				return false
+			}
+
+			return metadataCombiner.Count() >= limit
 		},
 	}
 }
 
-// TODO: merge this with /pkg/traceql/combine.go#L46-L95, this method is slightly different so look into it and merge both.
-func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
-	if existing.TraceID == "" {
-		existing.TraceID = incoming.TraceID
-	}
-
-	if existing.RootServiceName == "" {
-		existing.RootServiceName = incoming.RootServiceName
-	}
-
-	if existing.RootTraceName == "" {
-		existing.RootTraceName = incoming.RootTraceName
-	}
-
-	// Earliest start time.
-	if existing.StartTimeUnixNano > incoming.StartTimeUnixNano {
-		existing.StartTimeUnixNano = incoming.StartTimeUnixNano
-	}
-
-	// Longest duration
-	if existing.DurationMs < incoming.DurationMs {
-		existing.DurationMs = incoming.DurationMs
-	}
-
-	// If TraceQL results are present
-	if incoming.SpanSet != nil {
-		if existing.SpanSet == nil {
-			existing.SpanSet = &tempopb.SpanSet{}
+func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
+	for _, tr := range results {
+		if tr.RootServiceName == "" {
+			tr.RootServiceName = search.RootSpanNotYetReceivedText
 		}
-
-		existing.SpanSet.Matched += incoming.SpanSet.Matched
-		existing.SpanSet.Spans = append(existing.SpanSet.Spans, incoming.SpanSet.Spans...)
-		// Note - should we dedupe spans? Spans shouldn't be present in multiple clusters.
 	}
+}
+
+func NewTypedSearch(limit int) GRPCCombiner[*tempopb.SearchResponse] {
+	return NewSearch(limit).(GRPCCombiner[*tempopb.SearchResponse])
 }

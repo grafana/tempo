@@ -28,7 +28,6 @@ type traceByIDCombiner struct {
 
 	code          int
 	statusMessage string
-	err           error
 }
 
 func NewTraceByID() Combiner {
@@ -65,8 +64,7 @@ func (c *traceByIDCombiner) AddRequest(res *http.Response, tenant string) error 
 	buff, err := io.ReadAll(res.Body)
 	if err != nil {
 		c.statusMessage = internalErrorMsg
-		c.err = fmt.Errorf("error reading response body: %w", err)
-		return c.err
+		return fmt.Errorf("error reading response body: %w", err)
 	}
 	_ = res.Body.Close()
 
@@ -75,8 +73,7 @@ func (c *traceByIDCombiner) AddRequest(res *http.Response, tenant string) error 
 	err = trace.Unmarshal(buff)
 	if err != nil {
 		c.statusMessage = internalErrorMsg
-		c.err = fmt.Errorf("error unmarshalling response body: %w", err)
-		return c.err
+		return fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
 	// inject tenant label as resource in trace
@@ -87,7 +84,7 @@ func (c *traceByIDCombiner) AddRequest(res *http.Response, tenant string) error 
 	return err
 }
 
-func (c *traceByIDCombiner) Complete() (*http.Response, error) {
+func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -143,10 +140,6 @@ func (c *traceByIDCombiner) ShouldQuit() bool {
 }
 
 func (c *traceByIDCombiner) shouldQuit() bool {
-	if c.err != nil {
-		return true
-	}
-
 	if c.getStatusCode()/100 == 5 { // Bail on 5xx
 		return true
 	}

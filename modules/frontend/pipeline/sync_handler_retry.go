@@ -55,8 +55,12 @@ func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err := r.next.RoundTrip(req)
 
+		if r.maxRetries == 0 {
+			return resp, err
+		}
+
 		// do not retry if no error and response is not HTTP 5xx
-		if err == nil && !shouldRetry(resp.StatusCode) {
+		if err == nil && resp != nil && !shouldRetry(resp.StatusCode) {
 			return resp, nil
 		}
 

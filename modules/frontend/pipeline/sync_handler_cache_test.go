@@ -1,10 +1,8 @@
-package frontend
+package pipeline
 
 import (
 	"bytes"
 	"context"
-	"io"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -16,20 +14,8 @@ import (
 )
 
 func TestNilProvider(t *testing.T) {
-	testKey := "key"
-
-	c := newFrontendCache(nil, cache.RoleBloom, log.NewNopLogger())
-	require.NotNil(t, c)
-
-	rec := httptest.NewRecorder()
-
-	bodyBuffer, err := io.ReadAll(rec.Result().Body)
-	require.NoError(t, err)
-
-	c.store(context.Background(), testKey, bodyBuffer)
-	found := c.fetch(testKey, &tempopb.SearchResponse{})
-
-	require.False(t, found)
+	c := newFrontendCache(nil, cache.RoleFrontendSearch, log.NewNopLogger())
+	require.Nil(t, c)
 }
 
 func TestCacheCaches(t *testing.T) {

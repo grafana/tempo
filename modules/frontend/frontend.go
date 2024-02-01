@@ -57,18 +57,18 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	}
 
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
-
-	// cache
-	searchCache := newFrontendCache(cacheProvider, cache.RoleFrontendSearch, logger)
+	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
+	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 
 	// inject multi-tenant middleware in multi-tenant routes
 	traceByIDMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewTraceByID, logger),
 		newTraceByIDMiddleware(cfg, o, logger), retryWare)
 
-	searchMiddleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewSearch, logger),
-		newSearchMiddleware(cfg, o, reader, searchCache, logger), retryWare)
+	searchPipeline := pipeline.Build(
+		asyncPipeline(cfg, newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger), logger),
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
 
 	searchTagsMiddleware := MergeMiddlewares(
 		newMultiTenantMiddleware(cfg, combiner.NewSearchTags, logger),
@@ -95,7 +95,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
 
 	traces := traceByIDMiddleware.Wrap(next)
-	search := searchMiddleware.Wrap(next)
+	search := newSearchHTTPHandler(cfg, searchPipeline)
 	searchTags := searchTagsMiddleware.Wrap(next)
 	searchTagsV2 := searchTagsV2Middleware.Wrap(next)
 	searchTagValues := searchTagsValuesMiddleware.Wrap(next)
@@ -105,16 +105,16 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	queryrange := queryRangeMiddleware.Wrap(next)
 
 	return &QueryFrontend{
-		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), nil, logger),
-		SearchHandler:             newHandler(search, searchSLOPostHook(cfg.Search.SLO), searchSLOPreHook, logger),
-		SearchTagsHandler:         newHandler(searchTags, nil, nil, logger),
-		SearchTagsV2Handler:       newHandler(searchTagsV2, nil, nil, logger),
-		SearchTagsValuesHandler:   newHandler(searchTagValues, nil, nil, logger),
-		SearchTagsValuesV2Handler: newHandler(searchTagValuesV2, nil, nil, logger),
-		SpanMetricsSummaryHandler: newHandler(metrics, nil, nil, logger),
-		QueryRangeHandler:         newHandler(queryrange, nil, nil, logger),
+		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
+		SearchHandler:             newHandler(search, nil, logger),
+		SearchTagsHandler:         newHandler(searchTags, nil, logger),
+		SearchTagsV2Handler:       newHandler(searchTagsV2, nil, logger),
+		SearchTagsValuesHandler:   newHandler(searchTagValues, nil, logger),
+		SearchTagsValuesV2Handler: newHandler(searchTagValuesV2, nil, logger),
+		SpanMetricsSummaryHandler: newHandler(metrics, nil, logger),
+		QueryRangeHandler:         newHandler(queryrange, nil, logger),
 		cacheProvider:             cacheProvider,
-		streamingSearch:           newSearchStreamingGRPCHandler(cfg, o, retryWare.Wrap(next), reader, searchCache, apiPrefix, logger),
+		streamingSearch:           newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
 		logger:                    logger,
 	}, nil
 }
@@ -125,20 +125,20 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
 		rt := NewRoundTripper(
 			next,
-			newDeduper(logger), // jpe - move to combiner?
+			newDeduper(logger),
 			newTraceByIDSharder(&cfg.TraceByID, o, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)
 
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID
 			_, err := api.ParseTraceID(r)
 			if err != nil {
@@ -213,34 +213,21 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 	})
 }
 
-// newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSearchMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, c *frontendCache, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		ss := newSearchSharder(reader, o, cfg.Search.Sharder, newSearchProgress, c, logger)
-		searchRT := NewRoundTripper(next, ss)
-
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// backend search queries require sharding, so we pass through a special roundtripper
-			return searchRT.RoundTrip(r)
-		})
-	})
-}
-
 // newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
 func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger,
 	resultsHandlerFactory tagResultHandlerFactory, parseRequest parseRequestFunction,
-) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, resultsHandlerFactory, logger, parseRequest))
 	})
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsMiddleware() Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newMetricsMiddleware() pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		generatorRT := next
 
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// ingester search queries only need to be proxied to a single querier
 			orgID, _ := user.ExtractOrgID(r.Context())
 
@@ -266,12 +253,26 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	return uri
 }
 
-func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		searchRT := NewRoundTripper(next, newQueryRangeSharder(reader, o, cfg.Metrics.Sharder, newSearchProgress, logger))
+func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		searchRT := NewRoundTripper(next, newQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger))
 
-		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			return searchRT.RoundTrip(r)
 		})
 	})
+}
+
+func asyncPipeline(cfg Config, sharder pipeline.AsyncMiddleware[*http.Response], logger log.Logger) []pipeline.AsyncMiddleware[*http.Response] {
+	if cfg.MultiTenantQueriesEnabled {
+		return []pipeline.AsyncMiddleware[*http.Response]{
+			pipeline.NewMultiTenantMiddleware(logger),
+			sharder,
+		}
+	}
+
+	return []pipeline.AsyncMiddleware[*http.Response]{
+		pipeline.NewMultiTenantUnsupportedMiddleware(logger),
+		sharder,
+	}
 }

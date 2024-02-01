@@ -3,10 +3,8 @@ package pipeline
 import "net/http"
 
 // MergeMiddlewares takes a set of ordered middlewares and merges them into a pipeline
-//
-//	jpe - add a bridge middleware
-func Build(asyncMW []AsyncMiddleware, mw []Middleware, next http.RoundTripper) AsyncRoundTripper {
-	asyncPipeline := AsyncMiddlewareFunc(func(next AsyncRoundTripper) AsyncRoundTripper {
+func Build(asyncMW []AsyncMiddleware[*http.Response], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[*http.Response] {
+	asyncPipeline := AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
 		for i := len(asyncMW) - 1; i >= 0; i-- {
 			next = asyncMW[i].Wrap(next)
 		}
@@ -27,18 +25,39 @@ func Build(asyncMW []AsyncMiddleware, mw []Middleware, next http.RoundTripper) A
 	return asyncPipeline.Wrap(bridge)
 }
 
-var _ AsyncRoundTripper = (*pipelineBridge)(nil)
+// async
+var _ AsyncRoundTripper[*http.Response] = (*pipelineBridge)(nil)
 
 type pipelineBridge struct {
 	next http.RoundTripper
 }
 
-// jpe - create a worker pool of goroutines and change req to be a channel
-func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses, error) {
+func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[*http.Response], error) {
 	r, err := b.next.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewSyncResponse(r), nil
+	return NewSyncToAsyncResponse(r), nil
+}
+
+// sync
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip implememnts http.RoundTripper
+func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+// Middleware is used to build pipelines of pipeline.Roundtrippers
+type Middleware interface {
+	Wrap(http.RoundTripper) http.RoundTripper
+}
+
+// MiddlewareFunc is like http.HandlerFunc, but for Middleware.
+type MiddlewareFunc func(http.RoundTripper) http.RoundTripper
+
+// Wrap implements Middleware.
+func (f MiddlewareFunc) Wrap(w http.RoundTripper) http.RoundTripper {
+	return f(w)
 }

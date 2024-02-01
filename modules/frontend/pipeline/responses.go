@@ -7,77 +7,129 @@ import (
 	"strings"
 )
 
-var _ Responses = syncResponse{}
+var _ Responses[*http.Response] = syncResponse{}
 
-type syncResponse struct { // jpe do i need this anymore? maybe to bridge sync to async?
+// syncResponse is a single http.Response that implements the Responses[*http.Response] interface.
+type syncResponse struct {
 	r *http.Response
 }
 
-func NewBadRequest(err error) Responses {
-	return NewSyncResponse(&http.Response{
+// NewSyncToAsyncResponse creates a new AsyncResponse that wraps a single http.Response.
+func NewSyncToAsyncResponse(r *http.Response) Responses[*http.Response] {
+	return syncResponse{
+		r: r,
+	}
+}
+
+// NewBadRequest creates a new AsyncResponse that wraps a single http.Response with a 400 status code and the provided error message.
+func NewBadRequest(err error) Responses[*http.Response] {
+	return NewSyncToAsyncResponse(&http.Response{
 		StatusCode: http.StatusBadRequest,
 		Status:     http.StatusText(http.StatusBadRequest),
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
 	})
 }
 
-func NewSyncResponse(r *http.Response) Responses { // jpe - add to pipeline.go? better naming? note similarities to AsyncResponse. name is bad. this is an async response
-	return syncResponse{ // jpe make sure doesn't allocate
-		r: r,
-	}
+// NewSuccessfulResponse creates a new AsyncResponse that wraps a single http.Response with a 200 status code and the provided body.
+func NewSuccessfulResponse(body string) Responses[*http.Response] {
+	return NewSyncToAsyncResponse(&http.Response{
+		StatusCode: http.StatusOK,
+		Status:     http.StatusText(http.StatusOK),
+		Body:       io.NopCloser(strings.NewReader(body)),
+	})
 }
 
 func (s syncResponse) Next(ctx context.Context) (*http.Response, error, bool) {
 	if err := ctx.Err(); err != nil {
-		return nil, err, false
+		return nil, err, true
 	}
 
 	return s.r, nil, true
 }
 
-var _ Responses = &asyncResponse{}
+var _ Responses[*http.Response] = &asyncResponse{}
 
-type asyncResponse struct { // jpe response fan in
-	respChan chan Responses
+// asyncResponse supports a fan in of a variable number of http.Responses.
+type asyncResponse struct {
+	respChan chan Responses[*http.Response]
+	errChan  chan error
 
-	curResponses Responses
+	curResponses Responses[*http.Response]
 }
 
 func newAsyncResponse() *asyncResponse {
 	return &asyncResponse{
-		respChan: make(chan Responses), // jpe - buffered?
+		respChan: make(chan Responses[*http.Response]),
+		errChan:  make(chan error),
 	}
 }
 
-func (a *asyncResponse) send(r Responses) {
+func (a *asyncResponse) Send(r Responses[*http.Response]) {
 	a.respChan <- r
+}
+
+// SendError sends an error to the asyncResponse. This will cause the asyncResponse to return the error on the next call to Next.
+// Note that this will not, by itself, unblock a call to Next that is currently blocked. The context also needs to be canceled.
+func (a *asyncResponse) SendError(err error) {
+	a.errChan <- err
 }
 
 func (a *asyncResponse) done() {
 	close(a.respChan)
 }
 
+// Next returns the next http.Response or an error if one is available. It always prefers an error over a response.
+// todo: review performance. There is a lot of channel access here
 func (a *asyncResponse) Next(ctx context.Context) (*http.Response, error, bool) {
-	if a.curResponses == nil {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err(), false
-		case r := <-a.respChan:
-			a.curResponses = r
-		default:
-			// no more responses, bail
-			return nil, nil, true
-		}
+	if err := a.error(); err != nil {
+		return nil, err, true
 	}
 
-	return a.curResponses.Next(ctx)
+	// no error, attempt to do the normal thing
+	for {
+		if a.curResponses == nil {
+			select {
+			case err := <-a.errChan:
+				return nil, err, true
+			case <-ctx.Done():
+				err := a.error() // double check our error and prefer it over the context error if it exists
+				if err == nil {
+					err = ctx.Err()
+				}
+				return nil, err, true
+			case r, ok := <-a.respChan:
+				a.curResponses = r
+				if r == nil && !ok {
+					return nil, a.error(), true
+				}
+			}
+		}
+
+		// double check error again! we should always prioritize error over response and the above
+		// select is not deterministic and may choose the response channel over the error channel
+		if err := a.error(); err != nil {
+			return nil, err, true
+		}
+
+		resp, err, done := a.curResponses.Next(ctx)
+		if done {
+			a.curResponses = nil
+		}
+
+		if err == nil && resp == nil {
+			continue
+		}
+
+		return resp, err, false
+	}
 }
 
-// func (a *asyncResponse) All() *http.Response { // - jpe - just remove all?
-// 	var resp *http.Response
-// 	for r := range a.respChan {
-// 		a.c.AddRequest(r, "") // jpe - add tenant somehow? it's a one off for the trace by id path so find a way to add there?
-// 		//		resp = r.Combine(resp) - jpe take combiner?
-// 	}
-// 	return resp
-// }
+func (a *asyncResponse) error() error {
+	select {
+	case err := <-a.errChan:
+		return err
+	default:
+	}
+
+	return nil
+}
