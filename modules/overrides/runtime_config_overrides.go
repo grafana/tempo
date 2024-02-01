@@ -10,6 +10,7 @@ import (
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
+	"golang.org/x/exp/maps"
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -257,20 +258,17 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	return nil
 }
 
-func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
-	return o.getOverridesForUser(userID)
-}
-
-func (o *runtimeConfigOverridesManager) WriteTenantOverrides(w io.Writer, _ *http.Request, userID string) error {
-	overrides := o.getOverridesForUser(userID)
-
-	out, err := yaml.Marshal(overrides)
-	if err != nil {
-		return err
+func (o *runtimeConfigOverridesManager) GetTenantIDs() []string {
+	tenantOverrides := o.tenantOverrides()
+	if tenantOverrides == nil {
+		return nil
 	}
 
-	_, err = w.Write(out)
-	return err
+	return maps.Keys(tenantOverrides.TenantLimits)
+}
+
+func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
+	return o.getOverridesForUser(userID)
 }
 
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied

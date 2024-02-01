@@ -21,6 +21,9 @@ type Service interface {
 type Interface interface {
 	prometheus.Collector
 
+	// GetTenantIDs returns all tenants that have non-default overrides.
+	GetTenantIDs() []string
+
 	// GetRuntimeOverridesFor returns the runtime overrides set for the given user excluding
 	// overrides from the user-configurable overrides, if enabled.
 	GetRuntimeOverridesFor(userID string) *Overrides
@@ -69,5 +72,4 @@ type Interface interface {
 
 	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
-	WriteTenantOverrides(w io.Writer, r *http.Request, tenant string) error
 }
