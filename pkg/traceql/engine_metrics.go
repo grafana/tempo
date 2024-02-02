@@ -503,10 +503,10 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		}
 
 		// Our heuristic is if the overlap between the given fetcher (i.e. block)
-		// and the request is less than 80%, use them.  In the last 80-100%, the cost of loading
-		// them doesn't outweight the benefits. 80% was measured in local benchmarking.
+		// and the request is less than 20%, use them.  Above 20%, the cost of loading
+		// them doesn't outweight the benefits. 20% was measured in local benchmarking.
 		// TODO - Make configurable or a query hint?
-		if overlap < 0.8 {
+		if overlap < 0.2 {
 			storageReq.StartTimeUnixNanos = e.start
 			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
 		}
