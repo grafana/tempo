@@ -53,11 +53,12 @@ var tlsVersions = map[string]uint16{
 }
 
 type Backend struct {
-	tempoBackend    string
-	tlsEnabled      bool
-	tls             tlsCfg.ClientConfig
-	httpClient      *http.Client
-	tenantHeaderKey string
+	tempoBackend          string
+	tlsEnabled            bool
+	tls                   tlsCfg.ClientConfig
+	httpClient            *http.Client
+	tenantHeaderKey       string
+	QueryServicesDuration *time.Duration
 }
 
 func New(cfg *Config) (*Backend, error) {
@@ -65,12 +66,25 @@ func New(cfg *Config) (*Backend, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var queryServiceDuration *time.Duration
+
+	if cfg.QueryServicesDuration != "" {
+		queryDuration, err := time.ParseDuration(cfg.QueryServicesDuration)
+		if err != nil {
+			return nil, err
+		}
+		queryServiceDuration = &queryDuration
+
+	}
+
 	return &Backend{
-		tempoBackend:    cfg.Backend,
-		tlsEnabled:      cfg.TLSEnabled,
-		tls:             cfg.TLS,
-		httpClient:      httpClient,
-		tenantHeaderKey: cfg.TenantHeaderKey,
+		tempoBackend:          cfg.Backend,
+		tlsEnabled:            cfg.TLSEnabled,
+		tls:                   cfg.TLS,
+		httpClient:            httpClient,
+		tenantHeaderKey:       cfg.TenantHeaderKey,
+		QueryServicesDuration: queryServiceDuration,
 	}, nil
 }
 
@@ -229,6 +243,12 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	return jaegerTrace, nil
 }
 
+func (b *Backend) calculateTimeRange() (int64, int64) {
+	now := time.Now()
+	start := now.Add(*b.QueryServicesDuration * -1)
+	return start.Unix(), now.Unix()
+}
+
 func (b *Backend) GetServices(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetOperations")
 	defer span.Finish()
@@ -379,7 +399,14 @@ func createTagsQueryParam(service string, operation string, tags map[string]stri
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
-	url := fmt.Sprintf("%s://%s/api/search/tag/%s/values", b.apiSchema(), b.tempoBackend, tagName)
+	var url string
+
+	if b.QueryServicesDuration == nil {
+		url = fmt.Sprintf("%s://%s/api/search/tag/%s/values", b.apiSchema(), b.tempoBackend, tagName)
+	} else {
+		startTime, endTime := b.calculateTimeRange()
+		url = fmt.Sprintf("%s://%s/api/search/tag/%s/values?start=%d&end=%d", b.apiSchema(), b.tempoBackend, tagName, startTime, endTime)
+	}
 
 	req, err := b.newGetRequest(ctx, url, span)
 	if err != nil {
