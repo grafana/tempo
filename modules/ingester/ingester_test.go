@@ -309,6 +309,24 @@ func TestSearchWAL(t *testing.T) {
 }
 */
 
+func TestIngesterStartingReadOnly(t *testing.T) {
+	ctx := user.InjectOrgID(context.Background(), "test")
+
+	limits, err := overrides.NewOverrides(defaultOverridesConfig(), prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	// Create ingester but without starting it
+	ingester, err := New(
+		defaultIngesterTestConfig(),
+		defaultIngesterStore(t, t.TempDir()),
+		limits,
+		prometheus.NewPedanticRegistry())
+	require.NoError(t, err)
+
+	_, err = ingester.PushBytesV2(ctx, &tempopb.PushBytesRequest{})
+	require.ErrorIs(t, err, ErrStarting)
+}
+
 func TestFlush(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -405,11 +423,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 	return defaultIngesterWithOverrides(t, tmpDir, defaultOverridesConfig())
 }
 
-func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Config) *Ingester {
-	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(o, prometheus.DefaultRegisterer)
-	require.NoError(t, err, "unexpected error creating overrides")
-
+func defaultIngesterStore(t testing.TB, tmpDir string) storage.Store {
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
 			Backend: backend.Local,
@@ -430,6 +444,16 @@ func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Confi
 		},
 	}, nil, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error store")
+
+	return s
+}
+
+func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Config) *Ingester {
+	ingesterConfig := defaultIngesterTestConfig()
+	limits, err := overrides.NewOverrides(o, prometheus.DefaultRegisterer)
+	require.NoError(t, err, "unexpected error creating overrides")
+
+	s := defaultIngesterStore(t, tmpDir)
 
 	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry())
 	require.NoError(t, err, "unexpected error creating ingester")
