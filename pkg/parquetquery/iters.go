@@ -598,7 +598,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	}
 
 	// todo: reenable once https://github.com/parquet-go/parquet-go/pull/109 is merged
-	//c.seekWithinPage(to, definitionLevel)
+	// c.seekWithinPage(to, definitionLevel)
 
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
