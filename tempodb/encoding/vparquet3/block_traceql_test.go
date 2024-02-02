@@ -750,7 +750,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					bytes, spansTotal, _ := eval.Metrics()
 					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
-					b.ReportMetric(float64(spansTotal)/float64(b.Elapsed().Seconds()), "spans/s")
+					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
 			}
 		})
