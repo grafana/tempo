@@ -109,7 +109,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.89.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.89.0
-	github.com/parquet-go/parquet-go v0.20.1-0.20231211122939-bec192ac8b06
+	github.com/parquet-go/parquet-go v0.20.1-0.20240202191842-cdb927eb8d5b
 	github.com/stoewer/parquet-cli v0.0.7
 	go.opentelemetry.io/collector/config/configgrpc v0.89.0
 	go.opentelemetry.io/collector/config/confighttp v0.89.0
