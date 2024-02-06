@@ -16,6 +16,7 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -31,9 +32,10 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
-// ErrReadOnly is returned when the ingester is shutting down and a push was
-// attempted.
-var ErrReadOnly = errors.New("Ingester is shutting down")
+var (
+	ErrShuttingDown = errors.New("Ingester is shutting down")
+	ErrStarting     = errors.New("Ingester is starting")
+)
 
 var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "tempo",
@@ -53,7 +55,7 @@ type Ingester struct {
 
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
-	readonly     bool
+	pushErr      atomic.Error
 
 	lifecycler   *ring.Lifecycler
 	store        storage.Store
@@ -80,6 +82,8 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		replayJitter: true,
 		overrides:    overrides,
 	}
+
+	i.pushErr.Store(ErrStarting)
 
 	i.local = store.WAL().LocalBackend()
 
@@ -124,6 +128,8 @@ func (i *Ingester) starting(ctx context.Context) error {
 	if err := i.lifecycler.AwaitRunning(ctx); err != nil {
 		return fmt.Errorf("failed to start lifecycle: %w", err)
 	}
+
+	i.pushErr.Store(nil)
 
 	return nil
 }
@@ -195,6 +201,10 @@ func (i *Ingester) markUnavailable() {
 // defined by ./pkg/model/v1
 // This push function is extremely inefficient and is only provided as a migration path from the v1->v2 encodings
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	if err := i.pushErr.Load(); err != nil {
+		return nil, err
+	}
+
 	var err error
 	v1Decoder, err := model.NewSegmentDecoder(v1.Encoding)
 	if err != nil {
@@ -226,8 +236,8 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
 // defined by ./pkg/model/v2
 func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-	if i.readonly {
-		return nil, ErrReadOnly
+	if err := i.pushErr.Load(); err != nil {
+		return nil, err
 	}
 
 	if len(req.Traces) != len(req.Ids) {
@@ -331,7 +341,7 @@ func (i *Ingester) stopIncomingRequests() {
 	i.instancesMtx.Lock()
 	defer i.instancesMtx.Unlock()
 
-	i.readonly = true
+	i.pushErr.Store(ErrShuttingDown)
 }
 
 // TransferOut implements ring.Lifecycler.

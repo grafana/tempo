@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/atomic"
 
-	"github.com/grafana/dskit/user"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -80,7 +81,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 	for _, tc := range tests {
 		numExternalRequests.Store(0)
 
-		o, err := overrides.NewOverrides(overrides.Config{})
+		o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 		require.NoError(t, err)
 
 		q, err := New(tc.cfg, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)
@@ -97,7 +98,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 }
 
 func TestVirtualTagsDoesntHitBackend(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{})
+	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)

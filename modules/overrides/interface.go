@@ -21,6 +21,13 @@ type Service interface {
 type Interface interface {
 	prometheus.Collector
 
+	// GetTenantIDs returns all tenants that have non-default overrides.
+	GetTenantIDs() []string
+
+	// GetRuntimeOverridesFor returns the runtime overrides set for the given user excluding
+	// overrides from the user-configurable overrides, if enabled.
+	GetRuntimeOverridesFor(userID string) *Overrides
+
 	// Config
 	IngestionRateStrategy() string
 	MaxLocalTracesPerUser(userID string) int
@@ -39,6 +46,7 @@ type Interface interface {
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
 	MetricsGenerationTraceIDLabelName(userID string) string
+	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
@@ -62,6 +70,6 @@ type Interface interface {
 	MaxSearchDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
 
-	// API
+	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 }

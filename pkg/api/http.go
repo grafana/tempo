@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -74,7 +73,6 @@ const (
 
 	PathTraces             = "/api/traces/{traceID}"
 	PathSearch             = "/api/search"
-	PathWSSearch           = "/api/search-ws"
 	PathSearchTags         = "/api/search/tags"
 	PathSearchTagValues    = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho               = "/api/echo"
@@ -253,114 +251,6 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	if req.End <= req.Start {
 		return nil, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", req.Start, req.End)
 	}
-	return req, nil
-}
-
-// ParseSearchBlockRequest parses all http parameters necessary to perform a block search.
-func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, error) {
-	searchReq, err := ParseSearchRequest(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// start and end = 0 is NOT fine for a block search request
-	if searchReq.End == 0 {
-		return nil, errors.New("start and end required")
-	}
-
-	req := &tempopb.SearchBlockRequest{
-		SearchReq: searchReq,
-	}
-
-	s := r.URL.Query().Get(urlParamStartPage)
-	startPage, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid startPage: %w", err)
-	}
-	if startPage < 0 {
-		return nil, fmt.Errorf("startPage must be non-negative. received: %s", s)
-	}
-	req.StartPage = uint32(startPage)
-
-	s = r.URL.Query().Get(urlParamPagesToSearch)
-	pagesToSearch64, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid pagesToSearch %s: %w", s, err)
-	}
-	if pagesToSearch64 <= 0 {
-		return nil, fmt.Errorf("pagesToSearch must be greater than 0. received: %s", s)
-	}
-	req.PagesToSearch = uint32(pagesToSearch64)
-
-	s = r.URL.Query().Get(urlParamBlockID)
-	blockID, err := uuid.Parse(s)
-	if err != nil {
-		return nil, fmt.Errorf("invalid blockID: %w", err)
-	}
-	req.BlockID = blockID.String()
-
-	s = r.URL.Query().Get(urlParamEncoding)
-	encoding, err := backend.ParseEncoding(s)
-	if err != nil {
-		return nil, err
-	}
-	req.Encoding = encoding.String()
-
-	s = r.URL.Query().Get(urlParamIndexPageSize)
-	indexPageSize, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
-	}
-	req.IndexPageSize = uint32(indexPageSize)
-
-	s = r.URL.Query().Get(urlParamTotalRecords)
-	totalRecords, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid totalRecords %s: %w", s, err)
-	}
-	if totalRecords <= 0 {
-		return nil, fmt.Errorf("totalRecords must be greater than 0. received %d", totalRecords)
-	}
-	req.TotalRecords = uint32(totalRecords)
-
-	// Data encoding can be blank for some block formats, therefore
-	// no validation on the param here.  Eventually we may be able
-	// to remove this parameter entirely.
-	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
-	req.DataEncoding = dataEncoding
-
-	version := r.URL.Query().Get(urlParamVersion)
-	if version == "" {
-		return nil, errors.New("version required")
-	}
-	req.Version = version
-
-	s = r.URL.Query().Get(urlParamSize)
-	size, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid size %s: %w", s, err)
-	}
-	req.Size_ = size
-
-	// Footer size can be 0 for some blocks, just ensure we
-	// get a valid integer.
-	f := r.URL.Query().Get(urlParamFooterSize)
-	footerSize, err := strconv.ParseUint(f, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
-	}
-	req.FooterSize = uint32(footerSize)
-
-	s = r.URL.Query().Get(urlParamDedicatedColumns)
-	if s != "" {
-		var dedicatedColumns []*tempopb.DedicatedColumn
-		err = json.Unmarshal([]byte(s), &dedicatedColumns)
-		if err != nil {
-			return nil, fmt.Errorf("invalid dedicatedColumns '%s': %w", s, err)
-		}
-		req.DedicatedColumns = dedicatedColumns
-	}
-
 	return req, nil
 }
 

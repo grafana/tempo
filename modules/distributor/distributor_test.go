@@ -1393,7 +1393,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distr
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(limits)
+	overrides, err := overrides.NewOverrides(limits, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring
@@ -1509,4 +1509,8 @@ func (r mockRing) CleanupShuffleShardCache(string) {
 
 func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 	return ring.ACTIVE, nil
+}
+
+func (r mockRing) GetTokenRangesForInstance(_ string) (ring.TokenRanges, error) {
+	return nil, nil
 }

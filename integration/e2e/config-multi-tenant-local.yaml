@@ -54,6 +54,7 @@ metrics_generator:
 
 storage:
   trace:
+    blocklist_poll: 1s
     backend: local
     local:
       path: /var/tempo

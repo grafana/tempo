@@ -190,8 +190,8 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				},
 			},
 		},
-		"complex": {
-			q:          "{duration > 10s} | rate() by (resource.service.name)",
+		"secondPass": {
+			q:          "{duration > 10s} | rate() by (resource.cluster)",
 			shardID:    123,
 			shardCount: 456,
 			expectedReq: FetchSpansRequest{
@@ -214,6 +214,37 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				SecondPassConditions: []Condition{
 					{
 						// Group-by attributes (non-intrinsic) must be in the second pass
+						Attribute: NewScopedAttribute(AttributeScopeResource, false, "cluster"),
+					},
+				},
+			},
+		},
+		"optimizations": {
+			q:          "{duration > 10s} | rate() by (name, resource.service.name)",
+			shardID:    123,
+			shardCount: 456,
+			expectedReq: FetchSpansRequest{
+				AllConditions: true,
+				ShardID:       123,
+				ShardCount:    456,
+				Conditions: []Condition{
+					{
+						Attribute: NewIntrinsic(IntrinsicDuration),
+						Op:        OpGreater,
+						Operands:  Operands{NewStaticDuration(10 * time.Second)},
+					},
+					{
+						Attribute: NewIntrinsic(IntrinsicTraceID), // Required for sharding
+					},
+					{
+						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+					},
+					{
+						// Intrinsic moved to first pass
+						Attribute: NewIntrinsic(IntrinsicName),
+					},
+					{
+						// Resource service name is treated as an intrinsic and moved to the first pass
 						Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name"),
 					},
 				},

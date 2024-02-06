@@ -1,13 +1,16 @@
 package overrides
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
+	"golang.org/x/exp/maps"
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -60,9 +63,23 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(typ ConfigType) func(r io.Reader) (interface{}, error) {
+func loadPerTenantOverrides(typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
 	return func(r io.Reader) (interface{}, error) {
 		overrides := &perTenantOverrides{}
+
+		if expandEnv {
+			rr := r.(*bytes.Reader)
+			b, err := io.ReadAll(rr)
+			if err != nil {
+				return nil, err
+			}
+
+			s, err := envsubst.EvalEnv(string(b))
+			if err != nil {
+				return nil, fmt.Errorf("failed to expand env vars: %w", err)
+			}
+			r = bytes.NewReader([]byte(s))
+		}
 
 		decoder := yaml.NewDecoder(r)
 		decoder.SetStrict(true)
@@ -99,7 +116,7 @@ type runtimeConfigOverridesManager struct {
 
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
-func newRuntimeConfigOverrides(cfg Config) (Service, error) {
+func newRuntimeConfigOverrides(cfg Config, registerer prometheus.Registerer) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -107,9 +124,9 @@ func newRuntimeConfigOverrides(cfg Config) (Service, error) {
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(cfg.ConfigType),
+			Loader:       loadPerTenantOverrides(cfg.ConfigType, cfg.ExpandEnv),
 		}
-		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager: %w", err)
 		}
@@ -241,6 +258,19 @@ func (o *runtimeConfigOverridesManager) WriteStatusRuntimeConfig(w io.Writer, r 
 	return nil
 }
 
+func (o *runtimeConfigOverridesManager) GetTenantIDs() []string {
+	tenantOverrides := o.tenantOverrides()
+	if tenantOverrides == nil {
+		return nil
+	}
+
+	return maps.Keys(tenantOverrides.TenantLimits)
+}
+
+func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
+	return o.getOverridesForUser(userID)
+}
+
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
 // to each distributor instance (local) or evenly shared across the cluster (global).
 func (o *runtimeConfigOverridesManager) IngestionRateStrategy() string {
@@ -305,6 +335,11 @@ func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Du
 // for the span to be considered in metrics generation
 func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
 	return o.getOverridesForUser(userID).MetricsGenerator.IngestionSlack
+}
+
+// MetricsGeneratorRemoteWriteHeaders returns the custom remote write headers for this tenant.
+func (o *runtimeConfigOverridesManager) MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string {
+	return o.getOverridesForUser(userID).MetricsGenerator.RemoteWriteHeaders.toStringStringMap()
 }
 
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.

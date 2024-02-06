@@ -25,7 +25,8 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 		return err
 	}
 
-	if len(req.Conditions) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
+	// Last check. No conditions, use old path. It's much faster.
+	if len(req.Conditions) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
 	}
 
@@ -64,7 +65,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
 func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	iter, err := createDistinctIterator(ctx, nil, req.Conditions, req.TagName, pf, opts, dc)
+	iter, err := createDistinctIterator(ctx, req.Conditions, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -74,7 +75,6 @@ func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *
 
 func createDistinctIterator(
 	ctx context.Context,
-	primaryIter parquetquery.Iterator,
 	conds []traceql.Condition,
 	tag traceql.Attribute,
 	pf *parquet.File,
@@ -96,7 +96,7 @@ func createDistinctIterator(
 	var currentIter parquetquery.Iterator
 
 	if len(spanConditions) > 0 {
-		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, primaryIter, spanConditions, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, currentIter, spanConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
@@ -371,16 +371,16 @@ func createDistinctAttributeIterator(
 
 	var valueIters []parquetquery.Iterator
 	if len(attrStringPreds) > 0 {
-		valueIters = append(valueIters, makeIter(strPath, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
+		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), "string"))
 	}
 	if len(attrIntPreds) > 0 {
-		valueIters = append(valueIters, makeIter(intPath, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
+		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), "int"))
 	}
 	if len(attrFltPreds) > 0 {
-		valueIters = append(valueIters, makeIter(floatPath, parquetquery.NewOrPredicate(attrFltPreds...), "float"))
+		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float"))
 	}
 	if len(boolPreds) > 0 {
-		valueIters = append(valueIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
+		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool"))
 	}
 
 	if len(valueIters) > 0 || len(iters) > 0 {
@@ -500,7 +500,7 @@ func createDistinctResourceIterator(
 		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceSpans,
+	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")

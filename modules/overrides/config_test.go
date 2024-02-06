@@ -1,14 +1,18 @@
 package overrides
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"reflect"
 	"testing"
 
+	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 )
 
 // Copied from Cortex
@@ -103,6 +107,8 @@ metrics_generator_collection_interval: 5s
 metrics_generator_disable_collection: false
 metrics_generator_forwarder_queue_size: 6
 metrics_generator_forwarder_workers: 7
+metrics_generator_remote_write_headers:
+  tenant-id: foo
 metrics_generator_processor_service_graphs_histogram_buckets: [1,2]
 metrics_generator_processor_service_graphs_dimensions: ['foo']
 metrics_generator_processor_service_graphs_peer_attributes: ['foo']
@@ -167,6 +173,8 @@ defaults:
     max_active_series: 4
     collection_interval: 5s
     disable_collection: false
+    remote_write_headers:
+      tenant-id: foo
     forwarder:
       queue_size: 6
       workers: 7
@@ -249,4 +257,34 @@ func rvCountFields(rv reflect.Value) int {
 		}
 	}
 	return n
+}
+
+func TestOverrides_AssertUserConfigurableOverridesAreASubsetOfRuntimeOverrides(t *testing.T) {
+	userConfigurableOverrides := client.Limits{}
+
+	err := gofakeit.Struct(&userConfigurableOverrides)
+	assert.NoError(t, err)
+
+	// TODO clear out collection_interval because unmarshalling a time.Duration into overrides.Overrides
+	//  fails. The JSON decoder is not able to parse creations correctly, so e.g. a string like "30s" is
+	//  not considered valid.
+	//  To fix this we should migrate the various time.Duration to a similar type like client.Duration and
+	//  verify they operate the same when marshalling/unmshalling yaml.
+	userConfigurableOverrides.MetricsGenerator.CollectionInterval = nil
+
+	// encode to json
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	err = encoder.Encode(&userConfigurableOverrides)
+	assert.NoError(t, err)
+
+	// and decode back to overrides.Overrides
+	d := json.NewDecoder(&buf)
+
+	// all fields should be known
+	d.DisallowUnknownFields()
+
+	var runtimeOverrides Overrides
+	err = d.Decode(&runtimeOverrides)
+	assert.NoError(t, err)
 }

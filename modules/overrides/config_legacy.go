@@ -28,6 +28,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorCollectionInterval:                               c.MetricsGenerator.CollectionInterval,
 		MetricsGeneratorDisableCollection:                                c.MetricsGenerator.DisableCollection,
 		MetricsGeneratorTraceIDLabelName:                                 c.MetricsGenerator.TraceIDLabelName,
+		MetricsGeneratorRemoteWriteHeaders:                               c.MetricsGenerator.RemoteWriteHeaders,
 		MetricsGeneratorForwarderQueueSize:                               c.MetricsGenerator.Forwarder.QueueSize,
 		MetricsGeneratorForwarderWorkers:                                 c.MetricsGenerator.Forwarder.Workers,
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:           c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
@@ -86,6 +87,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorTraceIDLabelName                                 string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                               int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                 int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
+	MetricsGeneratorRemoteWriteHeaders                               RemoteWriteHeaders               `yaml:"metrics_generator_remote_write_headers,omitempty" json:"metrics_generator_remote_write_headers,omitempty"`
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets           []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
 	MetricsGeneratorProcessorServiceGraphsDimensions                 []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes             []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
@@ -150,6 +152,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			DisableCollection:  l.MetricsGeneratorDisableCollection,
 			TraceIDLabelName:   l.MetricsGeneratorTraceIDLabelName,
 			IngestionSlack:     l.MetricsGeneratorIngestionSlack,
+			RemoteWriteHeaders: l.MetricsGeneratorRemoteWriteHeaders,
 			Forwarder: ForwarderOverrides{
 				QueueSize: l.MetricsGeneratorForwarderQueueSize,
 				Workers:   l.MetricsGeneratorForwarderWorkers,

@@ -173,6 +173,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 			if err != nil {
 				return nil, err
 			}
+			defer parquet.Release(page)
 
 			c, err := page.Values().ReadValues(buf)
 			if err != nil && !errors.Is(err, io.EOF) {
@@ -182,7 +183,9 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
 			}
 
-			min = buf[0].ByteArray()
+			// Clone ensures that the byte array is disconnected
+			// from the underlying i/o buffers.
+			min = buf[0].Clone().ByteArray()
 			rowGroupMins[rgIdx] = min
 			return min, nil
 		}
@@ -246,14 +249,16 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	rowMatch += res.RowNumber[0]
 
 	// seek to row and read
-	r := parquet.NewReader(pf)
+	r := parquet.NewGenericReader[*Trace](pf)
+	defer r.Close()
+
 	err = r.SeekToRow(rowMatch)
 	if err != nil {
 		return nil, fmt.Errorf("seek to row: %w", err)
 	}
 
 	tr := new(Trace)
-	err = r.Read(tr)
+	_, err = r.Read([]*Trace{tr})
 	if err != nil {
 		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}

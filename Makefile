@@ -45,7 +45,7 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GOTEST_OPT?= -race -timeout 20m -count=1 -v
+GOTEST_OPT?= -race -timeout 25m -count=1 -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=gotestsum --format=testname --
 LINT=golangci-lint
@@ -164,7 +164,7 @@ lint:
 
 .PHONY: docker-component # Not intended to be used directly
 docker-component: check-component exe
-	docker build -t grafana/$(COMPONENT) --load --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
+	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 
 .PHONY: docker-component-debug

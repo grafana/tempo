@@ -23,6 +23,9 @@ It may optionally include key/value attributes that are relevant to the span its
 By definition, traces are never complete. You can always push a new batch of spans, even if days have passed since the last one.
 When receiving a query requesting a stored trace, tracing backends (for example Tempo), find all the spans for that specific trace and collate them into a returned result. For that reason, issues can start to arise predominantly on retrieval of the trace data if you are creating traces that are extremely large in size.
 
+<!-- Explanation of traces -->
+{{< youtube id="ZirbR0ZJIOs" >}}
+
 ## Example of traces
 
 Firstly, a user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID that is subsequently associated with every interaction in the chain of processes within a system.
@@ -59,6 +62,24 @@ This data helps you locate problem areas, often in places you never would have a
 Metrics, logs, and traces form the three pillars of observability.
 Metrics provide the health data about the state of a system.
 Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway.
+
+## Traces versus metrics and logs
+
+Each observability signal plays a unique role in providing insights into your systems.
+Metrics act as the high-level indicators of system health.
+They alert you that something is wrong or deviating from the norm.
+Logs then help you understand what exactly is going wrong, for example, the nature or cause of the elevated error rates you're seeing in your metrics.
+Traces illustrate where in the sequence of events something is going wrong.
+They let you pinpoint which service in the many services that any given request traverses is the source of the delay or the error.
+
+Let's say a server takes too long to send data. Your metrics that track the latency of your system will increase, and they may then trigger an alert once that latency rises outside of an acceptable threshold.
+
+Sending that data likely requires that a request interact with many different services in your system. Traces help you pinpoint the specific service that's introducing the added latency that you're seeing in your metrics. Alternatively, if you're seeing an elevated rate of errors when sending data, traces help you figure out from which service the errors are originating from.
+
+Logs provide a granular view of what exactly is going wrong. For example, there could be multiple connection refused errors in your log lines. This explains why the email server took too long to send data.
+
+<!-- What traces provide that logs and metrics don't -->
+{{< youtube id="0tlp7QCPu0k" >}}
 
 ## Tracing versus profiling
 
