@@ -159,6 +159,17 @@ func (r *searchProgress) result() *shardedSearchResults {
 			SpanSet:           copySpanset(m.SpanSet),
 		}
 
+		// copy service stats
+		if len(m.ServiceStats) > 0 {
+			mCopy.ServiceStats = make(map[string]*tempopb.ServiceStats, len(m.ServiceStats))
+			for service, stat := range m.ServiceStats {
+				mCopy.ServiceStats[service] = &tempopb.ServiceStats{
+					SpanCount:  stat.SpanCount,
+					ErrorCount: stat.ErrorCount,
+				}
+			}
+		}
+
 		// now copy spansets
 		if len(m.SpanSets) > 0 {
 			mCopy.SpanSets = make([]*tempopb.SpanSet, 0, len(m.SpanSets))

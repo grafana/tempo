@@ -42,6 +42,7 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 	want := &Trace{
 		TraceID:       make([]byte, 16),
 		ResourceSpans: nil,
+		ServiceStats:  map[string]ServiceStats{},
 	}
 
 	got, connected := traceToParquet(&backend.BlockMeta{}, nil, &tempopb.Trace{}, nil)
@@ -182,6 +183,12 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
+				ServiceStats: map[string]ServiceStats{
+					"service-a": {
+						SpanCount:  1,
+						ErrorCount: 0,
+					},
+				},
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
 						ServiceName:      "service-a",
@@ -274,6 +281,12 @@ func TestTraceToParquet(t *testing.T) {
 				TraceIDText:     "102030405060708090a0b0c0d0e0f",
 				RootSpanName:    "span-a",
 				RootServiceName: "service-a",
+				ServiceStats: map[string]ServiceStats{
+					"service-a": {
+						SpanCount:  3,
+						ErrorCount: 0,
+					},
+				},
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
 						ServiceName: "service-a",
@@ -312,6 +325,141 @@ func TestTraceToParquet(t *testing.T) {
 								Attrs: []Attribute{
 									{Key: "span.attr", Value: strPtr("ccc")},
 								},
+							},
+						},
+					}},
+				}},
+			},
+		},
+		{
+			name: "service stats",
+			id:   traceID,
+			trace: tempopb.Trace{
+				Batches: []*v1_trace.ResourceSpans{{
+					Resource: &v1_resource.Resource{
+						Attributes: []*v1.KeyValue{
+							{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-a"}}},
+						},
+					},
+					ScopeSpans: []*v1_trace.ScopeSpans{{
+						Scope: &v1.InstrumentationScope{},
+						Spans: []*v1_trace.Span{
+							{
+								Name:   "span-a",
+								SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+								Status: &v1_trace.Status{
+									Code: v1_trace.Status_STATUS_CODE_ERROR,
+								},
+							},
+							{
+								Name:         "span-b",
+								SpanId:       common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+								ParentSpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							},
+							{
+								Name:         "span-c",
+								SpanId:       common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+								ParentSpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							},
+						},
+					}},
+				}, {
+					Resource: &v1_resource.Resource{
+						Attributes: []*v1.KeyValue{
+							{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-b"}}},
+						},
+					},
+					ScopeSpans: []*v1_trace.ScopeSpans{{
+						Scope: &v1.InstrumentationScope{},
+						Spans: []*v1_trace.Span{
+							{
+								Name:         "span-d",
+								SpanId:       common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04},
+								ParentSpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+							},
+							{
+								Name:         "span-e",
+								SpanId:       common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05},
+								ParentSpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04},
+								Status: &v1_trace.Status{
+									Code: v1_trace.Status_STATUS_CODE_ERROR,
+								},
+							},
+						},
+					}},
+				}},
+			},
+			expected: Trace{
+				TraceID:         traceID,
+				TraceIDText:     "102030405060708090a0b0c0d0e0f",
+				RootSpanName:    "span-a",
+				RootServiceName: "service-a",
+				ServiceStats: map[string]ServiceStats{
+					"service-a": {
+						SpanCount:  3,
+						ErrorCount: 1,
+					},
+					"service-b": {
+						SpanCount:  2,
+						ErrorCount: 1,
+					},
+				},
+				ResourceSpans: []ResourceSpans{{
+					Resource: Resource{
+						ServiceName: "service-a",
+						Attrs:       []Attribute{},
+					},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{
+								Name:           "span-a",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+								NestedSetLeft:  1,
+								NestedSetRight: 10,
+								ParentID:       -1,
+								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
+							},
+							{
+								Name:           "span-b",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+								ParentSpanID:   []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+								ParentID:       1,
+								NestedSetLeft:  2,
+								NestedSetRight: 3,
+							},
+							{
+								Name:           "span-c",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+								ParentSpanID:   []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+								ParentID:       1,
+								NestedSetLeft:  4,
+								NestedSetRight: 9,
+							},
+						},
+					}},
+				}, {
+					Resource: Resource{
+						ServiceName: "service-b",
+						Attrs:       []Attribute{},
+					},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{
+								Name:           "span-d",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04},
+								ParentSpanID:   []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+								NestedSetLeft:  5,
+								NestedSetRight: 8,
+								ParentID:       4,
+							},
+							{
+								Name:           "span-e",
+								SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05},
+								ParentSpanID:   []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04},
+								ParentID:       5,
+								NestedSetLeft:  6,
+								NestedSetRight: 7,
+								StatusCode:     int(v1_trace.Status_STATUS_CODE_ERROR),
 							},
 						},
 					}},

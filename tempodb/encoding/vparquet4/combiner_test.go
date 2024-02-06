@@ -44,7 +44,8 @@ func TestCombiner(t *testing.T) {
 		// root meta from second overrides empty first
 		{
 			traceA: &Trace{
-				TraceID: []byte{0x00, 0x01},
+				TraceID:      []byte{0x00, 0x01},
+				ServiceStats: map[string]ServiceStats{},
 			},
 			traceB: &Trace{
 				TraceID:           []byte{0x00, 0x01},
@@ -53,6 +54,12 @@ func TestCombiner(t *testing.T) {
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
 				DurationNano:      10,
+				ServiceStats: map[string]ServiceStats{
+					"serviceNameB": {
+						SpanCount:  1,
+						ErrorCount: 0,
+					},
+				},
 			},
 			expectedTrace: &Trace{
 				TraceID:           []byte{0x00, 0x01},
@@ -61,6 +68,12 @@ func TestCombiner(t *testing.T) {
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
 				DurationNano:      10,
+				ServiceStats: map[string]ServiceStats{
+					"serviceNameB": {
+						SpanCount:  1,
+						ErrorCount: 0,
+					},
+				},
 			},
 		},
 		// if both set first root name wins
@@ -69,16 +82,34 @@ func TestCombiner(t *testing.T) {
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
 				RootSpanName:    "spanNameA",
+				ServiceStats: map[string]ServiceStats{
+					"serviceNameB": {
+						SpanCount:  1,
+						ErrorCount: 0,
+					},
+				},
 			},
 			traceB: &Trace{
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameB",
 				RootSpanName:    "spanNameB",
+				ServiceStats: map[string]ServiceStats{
+					"serviceNameB": {
+						SpanCount:  1,
+						ErrorCount: 1,
+					},
+				},
 			},
 			expectedTrace: &Trace{
 				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
 				RootSpanName:    "spanNameA",
+				ServiceStats: map[string]ServiceStats{
+					"serviceNameB": {
+						SpanCount:  2,
+						ErrorCount: 1,
+					},
+				},
 			},
 		},
 		// second trace start/end override

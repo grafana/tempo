@@ -131,6 +131,11 @@ type SpansetAttribute struct {
 	Val  Static
 }
 
+type ServiceStats struct {
+	SpanCount  uint32
+	ErrorCount uint32
+}
+
 type Spanset struct {
 	// these fields are actually used by the engine to evaluate queries
 	Scalar Static
@@ -141,6 +146,7 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
+	ServiceStats       map[string]ServiceStats
 	Attributes         []*SpansetAttribute
 
 	// Set this function to provide upstream callers with a method to
