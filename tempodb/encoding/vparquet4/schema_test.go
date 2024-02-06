@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,9 +77,8 @@ func TestFieldsAreCleared(t *testing.T) {
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1.KeyValue{
-						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
+						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 123.456}}},
 					},
-					DroppedAttributesCount: 10,
 				},
 				ScopeSpans: []*v1_trace.ScopeSpans{
 					{
@@ -87,18 +88,17 @@ func TestFieldsAreCleared(t *testing.T) {
 								TraceId: traceID,
 								Status:  &v1_trace.Status{},
 								Attributes: []*v1.KeyValue{
-									{
-										Key: "a",
-										Value: &v1.AnyValue{
-											Value: &v1.AnyValue_StringValue{StringValue: "b"},
-										},
-									},
+									// an attribute for every type in order to make sure attributes are reused with different
+									// type combinations
+									{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 11}}},
+									{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bbb"}}},
+									{Key: "c", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+									{Key: "d", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 111.11}}},
 								},
 								Events: []*v1_trace.Span_Event{
 									{
 										// An attribute of every type
 										Attributes: []*v1.KeyValue{
-											// String
 											{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 										},
 									},
@@ -111,20 +111,45 @@ func TestFieldsAreCleared(t *testing.T) {
 		},
 	}
 
+	expectedTrace := &Trace{
+		TraceID:      traceID,
+		TraceIDText:  "102030405060708090a0b0c0d0e0f",
+		ServiceStats: map[string]ServiceStats{"": {SpanCount: 1}},
+		ResourceSpans: []ResourceSpans{{
+			Resource: Resource{
+				Attrs: []Attribute{
+					attr("i", 123.456),
+				},
+			},
+			ScopeSpans: []ScopeSpans{{
+				Spans: []Span{{
+					ParentID:       -1,
+					NestedSetLeft:  1,
+					NestedSetRight: 2,
+					Attrs: []Attribute{
+						attr("a", 11),
+						attr("b", "bbb"),
+						attr("c", true),
+						attr("d", 111.11),
+					},
+					Events: []Event{{Attrs: []EventAttribute{
+						{Key: "i", Value: []uint8{0x18, 0x7b}},
+					}}},
+				}},
+			}},
+		}},
+	}
+
 	// first convert a trace that sets all fields and then convert
 	// a minimal trace to make sure nothing bleeds through
 	tr := &Trace{}
 	_, _ = traceToParquet(&meta, traceID, complexTrace, tr)
+	actualTrace, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
 
-	parqTr, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
-	actualTrace := parquetTraceToTempopbTrace(&meta, parqTr, false)
-	require.Equal(t, simpleTrace, actualTrace)
+	assertEqualEquateEmpty(t, expectedTrace, actualTrace)
 }
 
 func TestTraceToParquet(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
-	intPtr := func(i int64) *int64 { return &i }
-
 	meta := backend.BlockMeta{DedicatedColumns: test.MakeDedicatedColumns()}
 	traceID := common.ID{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
@@ -156,6 +181,34 @@ func TestTraceToParquet(t *testing.T) {
 							{Key: "dedicated.resource.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-3"}}},
 							{Key: "dedicated.resource.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-4"}}},
 							{Key: "dedicated.resource.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-resource-attr-value-5"}}},
+							{Key: "res.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
+									{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
+									{Value: &v1.AnyValue_StringValue{StringValue: "three"}},
+								},
+							}}}},
+							{Key: "res.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_IntValue{IntValue: 1}},
+									{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+								},
+							}}}},
+							{Key: "res.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}},
+									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}},
+									{Value: &v1.AnyValue_DoubleValue{DoubleValue: 3.3}},
+								},
+							}}}},
+							{Key: "res.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+								Values: []*v1.AnyValue{
+									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+									{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
+									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+									{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+								},
+							}}}},
 						},
 					},
 					ScopeSpans: []*v1_trace.ScopeSpans{{
@@ -173,6 +226,46 @@ func TestTraceToParquet(t *testing.T) {
 								{Key: "dedicated.span.3", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-3"}}},
 								{Key: "dedicated.span.4", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-4"}}},
 								{Key: "dedicated.span.5", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "dedicated-span-attr-value-5"}}},
+								{Key: "span.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
+										{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
+									},
+								}}}},
+								{Key: "span.int.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_IntValue{IntValue: 1}},
+										{Value: &v1.AnyValue_IntValue{IntValue: 2}},
+										{Value: &v1.AnyValue_IntValue{IntValue: 3}},
+									},
+								}}}},
+								{Key: "span.double.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}},
+										{Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}},
+									},
+								}}}},
+								{Key: "span.bool.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: false}},
+									},
+								}}}},
+								{Key: "span.unsupported.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+										{Value: &v1.AnyValue_IntValue{IntValue: 1}},
+										{Value: &v1.AnyValue_BoolValue{BoolValue: true}},
+									},
+								}}}},
+								{Key: "span.unsupported.kvlist", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{
+									Values: []*v1.KeyValue{
+										{Key: "key-a", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "val-a"}}},
+										{Key: "key-b", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "val-b"}}},
+									},
+								}}}},
 							},
 						}},
 					}},
@@ -192,23 +285,27 @@ func TestTraceToParquet(t *testing.T) {
 				ResourceSpans: []ResourceSpans{{
 					Resource: Resource{
 						ServiceName:      "service-a",
-						Cluster:          strPtr("cluster-a"),
-						Namespace:        strPtr("namespace-a"),
-						Pod:              strPtr("pod-a"),
-						Container:        strPtr("container-a"),
-						K8sClusterName:   strPtr("k8s-cluster-a"),
-						K8sNamespaceName: strPtr("k8s-namespace-a"),
-						K8sPodName:       strPtr("k8s-pod-a"),
-						K8sContainerName: strPtr("k8s-container-a"),
+						Cluster:          ptr("cluster-a"),
+						Namespace:        ptr("namespace-a"),
+						Pod:              ptr("pod-a"),
+						Container:        ptr("container-a"),
+						K8sClusterName:   ptr("k8s-cluster-a"),
+						K8sNamespaceName: ptr("k8s-namespace-a"),
+						K8sPodName:       ptr("k8s-pod-a"),
+						K8sContainerName: ptr("k8s-container-a"),
 						Attrs: []Attribute{
-							{Key: "res.attr", ValueInt: intPtr(int64(123))},
+							attr("res.attr", 123),
+							attr("res.string.array", []string{"one", "two", "three"}),
+							attr("res.int.array", []int64{1, 2}),
+							attr("res.double.array", []float64{1.1, 2.2, 3.3}),
+							attr("res.bool.array", []bool{true, false, true, true}),
 						},
 						DedicatedAttributes: DedicatedAttributes{
-							String01: strPtr("dedicated-resource-attr-value-1"),
-							String02: strPtr("dedicated-resource-attr-value-2"),
-							String03: strPtr("dedicated-resource-attr-value-3"),
-							String04: strPtr("dedicated-resource-attr-value-4"),
-							String05: strPtr("dedicated-resource-attr-value-5"),
+							String01: ptr("dedicated-resource-attr-value-1"),
+							String02: ptr("dedicated-resource-attr-value-2"),
+							String03: ptr("dedicated-resource-attr-value-3"),
+							String04: ptr("dedicated-resource-attr-value-4"),
+							String05: ptr("dedicated-resource-attr-value-5"),
 						},
 					},
 					ScopeSpans: []ScopeSpans{{
@@ -218,18 +315,25 @@ func TestTraceToParquet(t *testing.T) {
 							NestedSetLeft:  1,
 							NestedSetRight: 2,
 							ParentID:       -1,
-							HttpMethod:     strPtr("POST"),
-							HttpUrl:        strPtr("https://example.com"),
-							HttpStatusCode: intPtr(201),
+							HttpMethod:     ptr("POST"),
+							HttpUrl:        ptr("https://example.com"),
+							HttpStatusCode: ptr(int64(201)),
 							Attrs: []Attribute{
-								{Key: "span.attr", Value: strPtr("aaa")},
+								attr("span.attr", "aaa"),
+								attr("span.string.array", []string{"one", "two"}),
+								attr("span.int.array", []int64{1, 2, 3}),
+								attr("span.double.array", []float64{1.1, 2.2}),
+								attr("span.bool.array", []bool{true, false, true, false}),
+								{Key: "span.unsupported.array", ValueDropped: "{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}", ValueType: attrTypeNotSupported},
+								{Key: "span.unsupported.kvlist", ValueDropped: "{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}", ValueType: attrTypeNotSupported},
 							},
+							DroppedAttributesCount: 2,
 							DedicatedAttributes: DedicatedAttributes{
-								String01: strPtr("dedicated-span-attr-value-1"),
-								String02: strPtr("dedicated-span-attr-value-2"),
-								String03: strPtr("dedicated-span-attr-value-3"),
-								String04: strPtr("dedicated-span-attr-value-4"),
-								String05: strPtr("dedicated-span-attr-value-5"),
+								String01: ptr("dedicated-span-attr-value-1"),
+								String02: ptr("dedicated-span-attr-value-2"),
+								String03: ptr("dedicated-span-attr-value-3"),
+								String04: ptr("dedicated-span-attr-value-4"),
+								String05: ptr("dedicated-span-attr-value-5"),
 							},
 						}},
 					}},
@@ -301,7 +405,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetRight: 6,
 								ParentID:       -1,
 								Attrs: []Attribute{
-									{Key: "span.attr", Value: strPtr("aaa")},
+									attr("span.attr", "aaa"),
 								},
 							},
 							{
@@ -312,7 +416,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetLeft:  2,
 								NestedSetRight: 3,
 								Attrs: []Attribute{
-									{Key: "span.attr", Value: strPtr("bbb")},
+									attr("span.attr", "bbb"),
 								},
 							},
 							{
@@ -323,7 +427,7 @@ func TestTraceToParquet(t *testing.T) {
 								NestedSetLeft:  4,
 								NestedSetRight: 5,
 								Attrs: []Attribute{
-									{Key: "span.attr", Value: strPtr("ccc")},
+									attr("span.attr", "ccc"),
 								},
 							},
 						},
@@ -472,7 +576,7 @@ func TestTraceToParquet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var actual Trace
 			traceToParquet(&meta, tt.id, &tt.trace, &actual)
-			assert.Equal(t, tt.expected, actual)
+			assertEqualEquateEmpty(t, tt.expected, actual)
 		})
 	}
 }
@@ -659,5 +763,13 @@ func BenchmarkExtendReuseSlice(b *testing.B) {
 	in := []int{1, 2, 3}
 	for i := 0; i < b.N; i++ {
 		_ = extendReuseSlice(100, in)
+	}
+}
+
+// assertEqualEquateEmpty asserts similar to assert.Equal but treats empty / nil slices and maps as equal
+func assertEqualEquateEmpty(t *testing.T, expected, actual interface{}, messages ...interface{}) {
+	if !cmp.Equal(expected, actual, cmpopts.EquateEmpty()) {
+		t.Log(cmp.Diff(expected, actual))
+		assert.Fail(t, "expected and actual are not equal", messages...)
 	}
 }
