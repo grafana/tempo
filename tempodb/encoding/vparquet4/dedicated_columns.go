@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"

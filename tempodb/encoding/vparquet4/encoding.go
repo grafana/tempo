@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-const VersionString = "vParquet3"
+const VersionString = "vParquet4"
 
 type Encoding struct{}
 

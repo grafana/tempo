@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import (
 	"context"
@@ -98,7 +98,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 			FlushSizeBytes:   30_000_000,
 			MaxBytesPerTrace: 50_000_000,
 			ObjectsCombined:  func(compactionLevel, objects int) {},
-			SpansDiscarded:   func(traceID, rootSpanName string, rootServiceName string, spans int) {},
+			SpansDiscarded:   func(traceID, rootSpanName, rootServiceName string, spans int) {},
 		})
 
 		_, err = c.Compact(ctx, l, r, w, inputs)

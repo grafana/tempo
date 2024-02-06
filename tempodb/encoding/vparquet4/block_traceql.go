@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import (
 	"context"
@@ -170,7 +170,7 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 || len(rhs) == 0 {
 		return nil
 	}
@@ -186,7 +186,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	}
 	sort.Slice(lhs, sortFn)
 
-	descendantOf := func(a *span, b *span) bool {
+	descendantOf := func(a, b *span) bool {
 		if a.nestedSetLeft == 0 ||
 			b.nestedSetLeft == 0 ||
 			a.nestedSetRight == 0 ||
@@ -232,13 +232,13 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	return buffer
 }
 
-func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) SiblingOf(lhs, rhs []traceql.Span, falseForAll bool, buffer []traceql.Span) []traceql.Span {
 	// this is easy. we're just looking for anything on the lhs side with the same nested set parent as the rhs
 	sort.Slice(lhs, func(i, j int) bool {
 		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
 	})
 
-	siblingOf := func(a *span, b *span) bool {
+	siblingOf := func(a, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
 			a.nestedSetParent != 0 &&
 			b.nestedSetParent != 0
@@ -275,7 +275,7 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 	return buffer
 }
 
-func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) ChildOf(lhs, rhs []traceql.Span, falseForAll, invert bool, buffer []traceql.Span) []traceql.Span {
 	// we will search the LHS by either nestedSetLeft or nestedSetParent. if we are doing child we sort by nestedSetLeft
 	// so we can quickly find children. if the invert flag is set we are looking for parents and so we sort appropriately
 	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
@@ -283,7 +283,7 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
 	}
 
-	childOf := func(a *span, b *span) bool {
+	childOf := func(a, b *span) bool {
 		return a.nestedSetLeft == b.nestedSetParent &&
 			a.nestedSetLeft != 0 &&
 			b.nestedSetParent != 0
