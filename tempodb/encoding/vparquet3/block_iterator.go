@@ -19,7 +19,13 @@ func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader
 	// 128 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 2*1024*1024, 64)
 
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
+	o := []parquet.FileOption{
+		parquet.SkipBloomFilters(true),
+		parquet.SkipPageIndex(true),
+		parquet.FileSchema(parquetSchema),
+	}
+
+	pf, err := parquet.OpenFile(br, int64(b.meta.Size), o...)
 	if err != nil {
 		return nil, nil, err
 	}

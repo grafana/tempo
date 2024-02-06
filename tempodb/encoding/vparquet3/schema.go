@@ -3,14 +3,15 @@ package vparquet3
 import (
 	"bytes"
 
-	"github.com/grafana/tempo/tempodb/backend"
-
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
+	"github.com/parquet-go/parquet-go"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -103,6 +104,8 @@ var (
 		LabelHTTPUrl:        "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
 		LabelHTTPStatusCode: "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 	}
+
+	parquetSchema = parquet.SchemaOf(&Trace{})
 )
 
 type Attribute struct {
