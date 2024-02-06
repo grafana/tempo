@@ -154,7 +154,7 @@ type Event struct {
 	TimeSinceStartNano     uint64      `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dic"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
 func (e *Event) addDroppedAttr(n int32) {
@@ -166,7 +166,7 @@ type Link struct {
 	SpanID                 []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 }
 
 func (l *Link) addDroppedAttr(n int32) {
@@ -191,7 +191,7 @@ type Span struct {
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 	Events                 []Event     `parquet:",list"`
 	DroppedEventsCount     int32       `parquet:",snappy"`
 	Links                  []Link      `parquet:",list"`
@@ -215,8 +215,14 @@ func (s *Span) IsRoot() bool {
 }
 
 type InstrumentationScope struct {
-	Name    string `parquet:",snappy,dict"`
-	Version string `parquet:",snappy,dict"`
+	Name                   string      `parquet:",snappy,dict"`
+	Version                string      `parquet:",snappy,dict"`
+	Attrs                  []Attribute `parquet:",list"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
+}
+
+func (is *InstrumentationScope) addDroppedAttr(n int32) {
+	is.DroppedAttributesCount += n
 }
 
 type ScopeSpans struct {
@@ -226,7 +232,7 @@ type ScopeSpans struct {
 
 type Resource struct {
 	Attrs                  []Attribute `parquet:",list"`
-	DroppedAttributesCount int32       `parquet:",snappy"`
+	DroppedAttributesCount int32       `parquet:",snappy,delta"`
 
 	// Static dedicated attribute columns
 	ServiceName      string  `parquet:",snappy,dict"`
@@ -456,15 +462,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 		ob.ScopeSpans = extendReuseSlice(len(b.ScopeSpans), ob.ScopeSpans)
 		for iils, ils := range b.ScopeSpans {
 			oils := &ob.ScopeSpans[iils]
-			if ils.Scope != nil {
-				oils.Scope = InstrumentationScope{
-					Name:    ils.Scope.Name,
-					Version: ils.Scope.Version,
-				}
-			} else {
-				oils.Scope.Name = ""
-				oils.Scope.Version = ""
-			}
+			instrumentationScopeToParquet(ils.Scope, &oils.Scope)
 
 			oils.Spans = extendReuseSlice(len(ils.Spans), oils.Spans)
 			for is, s := range ils.Spans {
@@ -601,6 +599,20 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	return ot, assignNestedSetModelBounds(ot)
 }
 
+func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {
+	if s == nil {
+		ss.Name = ""
+		ss.Version = ""
+	} else {
+		ss.Name = s.Name
+		ss.Version = s.Version
+	}
+
+	// TODO: handle attributes correctly once they are added to the proto
+	ss.Attrs = ss.Attrs[:0]
+	ss.DroppedAttributesCount = 0
+}
+
 func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
 	ee.Name = e.Name
 	ee.TimeSinceStartNano = e.TimeUnixNano - spanStartTime
@@ -726,7 +738,16 @@ func parquetToProtoAttrs(parquetAttrs []Attribute, counter droppedAttrCounter, i
 	return protoAttrs
 }
 
-func parquetToLinks(parquetLinks []Link) []*v1_trace.Span_Link {
+func parquetToProtoInstrumentationScope(parquetScope *InstrumentationScope) *v1.InstrumentationScope {
+	scope := v1.InstrumentationScope{
+		Name:    parquetScope.Name,
+		Version: parquetScope.Version,
+	}
+	// TODO: handle attributes correctly once they are added to the proto
+	return &scope
+}
+
+func parquetToProtoLinks(parquetLinks []Link) []*v1_trace.Span_Link {
 	var protoLinks []*v1_trace.Span_Link
 
 	if len(parquetLinks) > 0 {
@@ -842,16 +863,13 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 
 		protoBatch.ScopeSpans = make([]*v1_trace.ScopeSpans, 0, len(rs.ScopeSpans))
 
-		for _, span := range rs.ScopeSpans {
+		for _, scopeSpan := range rs.ScopeSpans {
 			protoSS := &v1_trace.ScopeSpans{
-				Scope: &v1.InstrumentationScope{
-					Name:    span.Scope.Name,
-					Version: span.Scope.Version,
-				},
+				Scope: parquetToProtoInstrumentationScope(&scopeSpan.Scope),
 			}
 
-			protoSS.Spans = make([]*v1_trace.Span, 0, len(span.Spans))
-			for _, span := range span.Spans {
+			protoSS.Spans = make([]*v1_trace.Span, 0, len(scopeSpan.Spans))
+			for _, span := range scopeSpan.Spans {
 
 				spanAttr := parquetToProtoAttrs(span.Attrs, &span, includeDroppedAttr)
 				protoSpan := &v1_trace.Span{
@@ -874,7 +892,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace, in
 					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 				}
 
-				protoSpan.Links = parquetToLinks(span.Links)
+				protoSpan.Links = parquetToProtoLinks(span.Links)
 
 				// dynamically assigned dedicated resource attribute columns
 				dedicatedSpanAttributes.forEach(func(attr string, col dedicatedColumn) {

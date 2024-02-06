@@ -452,6 +452,10 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						Scope: InstrumentationScope{
+							Name:    "scope-1",
+							Version: "version-1",
+						},
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid"),
@@ -534,6 +538,10 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						Scope: InstrumentationScope{
+							Name:    "scope-2",
+							Version: "version-2",
+						},
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid2"),
