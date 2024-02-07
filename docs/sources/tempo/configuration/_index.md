@@ -1378,12 +1378,51 @@ overrides:
           scope: <string> # scope of the attribute. options: resource, span
         ]
 
-    # Tenant-specific overrides settings configuration file. The empty string (default
-    # value) disables using an overrides file.
-    [per_tenant_override_config: <string> | default = ""]
+  # Tenant-specific overrides settings configuration file. The empty string (default
+  # value) disables using an overrides file.
+  [per_tenant_override_config: <string> | default = ""]
+        
+  # How frequent tenant-specific overrides are read from the configuration file.
+  [per_tenant_override_period: <druation> | default = 10s]
+
+  # User-configurable overrides configuration
+  user_configurable_overrides:
+    
+    # Enable the user-configurable overrides module
+    [enabled: <bool> | default = false]
+    
+    # How often to poll the backend for new user-configurable overrides
+    [poll_interval: <duration> | default = 60s]
+
+    client:
+      # The storage backend to use
+      # Should be one of "gcs", "s3", "azure" or "local"
+      [backend: <string>]
+
+      # Backend-specific configuration, support the same configuration options as the
+      # trace backend configuration
+      local:
+      gcs:
+      s3:
+      azure:
+
+      # Check whether the backend supports versioning at startup. If enabled Tempo will not start if
+      # the backend doesn't support versioning.
+      [confirm_versioning: <bool> | default = true]
+
+    api:
+      # When enabled, Tempo will refuse request that modify overrides that are already set in the
+      # runtime overrides. For more details, see user-configurable overrides docs.
+      [check_for_conflicting_runtime_overrides: <bool> | default = false]
 ```
 
 #### Tenant-specific overrides
+
+There are two types of tenant-specific overrides:
+- runtime overrides
+- user-configurable overrides
+
+##### Runtime overrides
 
 You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it.
 This overrides file is dynamically loaded.
@@ -1418,6 +1457,12 @@ overrides:
     global:
       [max_bytes_per_trace: <int>]
 ```
+
+##### User-configurable overrides
+
+These tenant-specific overrides are stored in an object store and can be modified using API requests.
+User-configurable overrides have priority over runtime overrides.
+See [user-configurable overrides](../operations/user-configurable-overrides.md) for more details.
 
 #### Override strategies
 
