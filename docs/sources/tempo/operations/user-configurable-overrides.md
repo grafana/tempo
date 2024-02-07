@@ -5,7 +5,7 @@ description: Configure Tempo overrides through the user-configurable overrides A
 weight: 90
 ---
 
-# Configure Tempo overrides through the user-configurable overrides API
+# User-configurable overrides
 
 User-configurable overrides in Tempo let you change overrides for your tenant using an API.
 Instead of modifying a file or Kubernetes configmap, you (and other services relying on Tempo) can use this API to modify the overrides directly.
@@ -34,7 +34,7 @@ This bucket is regularly polled and a copy of the limits is kept in-memory. When
 
 ### Supported fields
 
-User-configurable overrides are designed to be a subset of the runtime overrides. See [Overrides](../configuration/_index.md#overrides) for all overrides.
+User-configurable overrides are designed to be a subset of the runtime overrides. See [Overrides]{{< relref "../configuration/_index#overrides" >}} for all overrides.
 
 {{% admonition type="note" %}}
 When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will be returned. The only exception is `processors` which will merge values from both sources.

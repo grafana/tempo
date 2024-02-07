@@ -1462,7 +1462,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-See [user-configurable overrides](../operations/user-configurable-overrides.md) for more details.
+See [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
 
 #### Override strategies
 
