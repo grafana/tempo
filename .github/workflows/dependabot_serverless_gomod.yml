@@ -1,4 +1,4 @@
-name: Dependabot serverless gomod update
+name: Dependabot
 on: pull_request
 
 # NOTE: For this job, we are unable to use the GITHUB_TOKEN from the action
@@ -11,6 +11,7 @@ on: pull_request
 
 jobs:
   dependabot:
+    name: Serverless gomod update
     runs-on: ubuntu-latest
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
@@ -21,9 +22,6 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.head_ref }}
-          token: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
 
       - name: Update serverless gomod
         run: make -C cmd/tempo-serverless update-mod
