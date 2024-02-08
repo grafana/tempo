@@ -58,6 +58,7 @@
 * [BUGFIX] Fix TLS when GRPC is enabled on HTTP [#3300](https://github.com/grafana/tempo/pull/3300) (@joe-elliott)
 * [BUGFIX] Correctly return 400 when max limit is requested on search. [#3340](https://github.com/grafana/tempo/pull/3340) (@joe-elliott)
 * [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
+* [CHANGE] Deprecating vParquet v1 
 
 ## v2.3.1 / 2023-11-28
 
