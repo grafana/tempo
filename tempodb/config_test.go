@@ -129,6 +129,7 @@ func TestValidateConfig(t *testing.T) {
 }
 
 func TestDeprecatedVersions(t *testing.T) {
+	errorMessage := "this version of vParquet has been deprecated, please use vParquet2 or higher"
 	tests := []struct {
 		cfg            *Config
 		expectedConfig *Config
@@ -174,7 +175,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              "v2",
 				},
 			},
-			err: "this version of vParquet has been deprecated, please use vParquet2 or higher",
+			err: errorMessage,
 		},
 		{
 			cfg: &Config{
@@ -189,7 +190,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              "vParquet",
 				},
 			},
-			err: "this version of vParquet has been deprecated, please use vParquet2 or higher",
+			err: errorMessage,
 		},
 	}
 
