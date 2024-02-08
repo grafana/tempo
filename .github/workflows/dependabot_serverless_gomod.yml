@@ -39,5 +39,9 @@ jobs:
           git diff --quiet --staged || git commit -m 'Update serverless gomod'
 
       - name: Push changes
+        env:
+          USER: grafanabot
+          TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
         run: |
+          git remote set-url origin https://${USER}:${TOKEN}@github.com/grafana/tempo.git
           git push origin ${{ github.head_ref }}
