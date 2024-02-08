@@ -564,22 +564,26 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		query string
 	}{
 		// span
-		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
-		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
+		{"spanAttValMatch", "{ span.component = `net/http` }"},
+		{"spanAttValNoMatch", "{ span.bloom = `does-not-exit-6c2408325a45` }"},
+		{"spanAttIntrinsicMatch", "{ name = `/cortex.Ingester/Push` }"},
+		{"spanAttIntrinsicNoMatch", "{ name = `does-not-exit-6c2408325a45` }"},
 
 		// resource
-		{"resourceAttValNoMatch", "{ resource.module.path = `bar` }"},
-		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-query-frontend` }"},
+		{"resourceAttValMatch", "{ resource.opencensus.exporterversion = `Jaeger-Go-2.30.0` }"},
+		{"resourceAttValNoMatch", "{ resource.module.path = `does-not-exit-6c2408325a45` }"},
+		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
+		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
 		// mixed
-		{"mixedValNoMatch", "{ .bloom = `bar` }"},
+		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
 		{"mixedValMixedMatchOr", "{ resource.foo = `bar` || name = `gcs.ReadRange` }"},
 
 		{"count", "{ } | count() > 1"},
-		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-querier` && status = error }"},
-		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-ingester` }"},
-		{"mixed", `{resource.namespace!="" && resource.service.name="loki-distributor" && duration>2s && resource.cluster=~"prod.*"}`},
+		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-gateway` && status = error }"},
+		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
+		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
 	}
 
 	ctx := context.TODO()
@@ -598,8 +602,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	require.NoError(b, err)
 
 	opts := common.DefaultSearchOptions()
-	opts.StartPage = 10
-	opts.TotalPages = 1
+	opts.StartPage = 3
+	opts.TotalPages = 2
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
