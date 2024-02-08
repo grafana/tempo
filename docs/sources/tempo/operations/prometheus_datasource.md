@@ -1,6 +1,5 @@
 ---
-aliases:
-- /docs/tempo/latest/metrics-generator/prometheus-compatibility
+aliases: []
 title: Prometheus compatibility
 menuTitle: Prometheus compatibility
 description: Learn about using tempo as a Prometheus data source.
