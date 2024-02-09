@@ -55,7 +55,7 @@ func Test_overridesValidator(t *testing.T) {
 			name: "metrics_generator.processor",
 			cfg:  Config{},
 			limits: client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					Processors: map[string]struct{}{
 						"service-graphs": {},
 						"span-span":      {},
@@ -69,7 +69,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				Forwarders: &[]string{},
-				MetricsGenerator: &client.LimitsMetricsGenerator{Processor: &client.LimitsMetricsGeneratorProcessor{SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{FilterPolicies: &[]filterconfig.FilterPolicy{{
+				MetricsGenerator: client.LimitsMetricsGenerator{Processor: client.LimitsMetricsGeneratorProcessor{SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{FilterPolicies: &[]filterconfig.FilterPolicy{{
 					Include: &filterconfig.PolicyMatch{
 						MatchType: filterconfig.Strict,
 						Attributes: []filterconfig.MatchPolicyAttribute{
@@ -87,7 +87,7 @@ func Test_overridesValidator(t *testing.T) {
 			cfg:  Config{},
 			limits: client.Limits{
 				Forwarders: &[]string{},
-				MetricsGenerator: &client.LimitsMetricsGenerator{Processor: &client.LimitsMetricsGeneratorProcessor{SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{FilterPolicies: &[]filterconfig.FilterPolicy{
+				MetricsGenerator: client.LimitsMetricsGenerator{Processor: client.LimitsMetricsGeneratorProcessor{SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{FilterPolicies: &[]filterconfig.FilterPolicy{
 					{
 						Include: &filterconfig.PolicyMatch{
 							MatchType: "invalid",
@@ -101,7 +101,7 @@ func Test_overridesValidator(t *testing.T) {
 			name: "metrics_generator.collection_interval valid",
 			cfg:  Config{},
 			limits: client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					CollectionInterval: &client.Duration{Duration: 60 * time.Second},
 				},
 			},
@@ -110,7 +110,7 @@ func Test_overridesValidator(t *testing.T) {
 			name: "metrics_generator.collection_interval minimum",
 			cfg:  Config{},
 			limits: client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					CollectionInterval: &client.Duration{Duration: 1 * time.Second},
 				},
 			},
@@ -120,7 +120,7 @@ func Test_overridesValidator(t *testing.T) {
 			name: "metrics_generator.collection_interval maximum",
 			cfg:  Config{},
 			limits: client.Limits{
-				MetricsGenerator: &client.LimitsMetricsGenerator{
+				MetricsGenerator: client.LimitsMetricsGenerator{
 					CollectionInterval: &client.Duration{Duration: 10 * time.Minute},
 				},
 			},

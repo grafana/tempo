@@ -248,7 +248,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 	// main registry only if successful.
 	reg := prometheus.NewRegistry()
 
-	wal, err := storage.New(&g.cfg.Storage, id, reg, g.logger)
+	wal, err := storage.New(&g.cfg.Storage, g.overrides, id, reg, g.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -337,4 +337,19 @@ func (g *Generator) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	}
 
 	return instance.GetMetrics(ctx, req)
+}
+
+func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// return empty if we don't have an instance
+	instance, ok := g.getInstanceByID(instanceID)
+	if !ok || instance == nil {
+		return &tempopb.QueryRangeResponse{}, nil
+	}
+
+	return instance.QueryRange(ctx, req)
 }

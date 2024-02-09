@@ -73,6 +73,46 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 	callJaegerQuerySearchTraceAssert(t, tempoQuery, "execute", "backend")
 }
 
+func TestSearchUsingBackendTagsService(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_query_plugin_backend_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, "config-plugin-test.yaml", "config.yaml"))
+	require.NoError(t, util.CopyFileToSharedDir(s, "config-tempo-query.yaml", "config-tempo-query.yaml"))
+
+	tempo := util.NewTempoAllInOne()
+	tempoQuery := util.NewTempoQuery()
+
+	require.NoError(t, s.StartAndWaitReady(tempo))
+	require.NoError(t, s.StartAndWaitReady(tempoQuery))
+
+	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, jaegerClient)
+
+	batch := makeThriftBatchWithSpanCountForServiceAndOp(2, "execute", "backend")
+	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+
+	batch = makeThriftBatchWithSpanCountForServiceAndOp(2, "request", "frontend")
+	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+
+	// Wait for the traces to be written to the WAL
+	time.Sleep(time.Second * 3)
+
+	callFlush(t, tempo)
+	time.Sleep(time.Second * 1)
+	callFlush(t, tempo)
+
+	callJaegerQuerySearchServicesAssert(t, tempoQuery, servicesOrOpJaegerQueryResponse{
+		Data: []string{
+			"frontend",
+			"backend",
+		},
+		Total: 2,
+	})
+}
+
 func callJaegerQuerySearchServicesAssert(t *testing.T, svc *e2e.HTTPService, expected servicesOrOpJaegerQueryResponse) {
 	// search for tag values
 	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(16686)+"/api/services", nil)

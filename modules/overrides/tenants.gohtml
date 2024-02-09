@@ -1,0 +1,30 @@
+{{- /*gotype: github.com/grafana/tempo/modules/overrides.tenantsPageContents*/ -}}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Overrides: tenants</title>
+</head>
+<body>
+<h1>Overrides: tenants</h1>
+<p>Current time: {{ .Now }}</p>
+<table border="1" cellpadding="5" style="border-collapse: collapse">
+    <thead>
+    <tr>
+        <th>Tenant</th>
+        <th>Runtime overrides</th>
+        <th>User-configurable overrides</th>
+    </tr>
+    </thead>
+    <tbody style="font-family: monospace;">
+    {{ range .Tenants }}
+        <tr>
+            <td><a href="overrides/{{ .Name }}">{{ .Name }}</a></td>
+            <td>{{ if .HasRuntimeOverrides }}x{{ end }}</td>
+            <td>{{ if .HasUserConfigurableOverrides }}x{{ end }}</td>
+        </tr>
+    {{ end }}
+    </tbody>
+</table>
+</body>
+</html>

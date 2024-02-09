@@ -91,7 +91,6 @@ Arguments:
 Options:
 - `--org-id <value>`      Organization ID (for use in multi-tenant setup).
 - `--use-grpc`            Use GRPC streaming
-- `--use-ws`              Use HTTP/Websocket streaming
 - `--spss <value>`        Number of spans to return for each spanset
 - `--limit <value>`       Number of results to return
 - `--path-prefix <value>` String to prefix search paths with

@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
+	"github.com/grafana/dskit/spanprofiler"
 	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -196,6 +197,9 @@ func loadConfig() (*app.Config, bool, error) {
 
 	}
 
+	// Pass --config.expand-env flag to overrides module
+	config.Overrides.ExpandEnv = configExpandEnv
+
 	// overlay with cli
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
 	flagext.IgnoredFlag(flag.CommandLine, configExpandEnvOption, "Whether to expand environment variables in config file")
@@ -225,6 +229,8 @@ func installOpenTracingTracer(config *app.Config) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("error initialising tracer: %w", err)
 	}
+	ot.SetGlobalTracer(spanprofiler.NewTracer(ot.GlobalTracer()))
+
 	return func() {
 		if err := trace.Close(); err != nil {
 			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
@@ -283,7 +289,7 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	bridgeTracer.SetWarningHandler(func(msg string) {
 		level.Warn(log.Logger).Log("msg", msg, "source", "BridgeTracer.OnWarningHandler")
 	})
-	ot.SetGlobalTracer(bridgeTracer)
+	ot.SetGlobalTracer(spanprofiler.NewTracer(bridgeTracer))
 
 	// Install the OpenCensus bridge
 	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))

@@ -12,18 +12,18 @@ import (
 func limitsFromOverrides(overrides overrides.Interface, userID string) *client.Limits {
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
-		MetricsGenerator: &client.LimitsMetricsGenerator{
+		MetricsGenerator: client.LimitsMetricsGenerator{
 			Processors:         overrides.MetricsGeneratorProcessors(userID),
 			DisableCollection:  boolPtr(overrides.MetricsGeneratorDisableCollection(userID)),
 			CollectionInterval: timePtr(overrides.MetricsGeneratorCollectionInterval(userID)),
-			Processor: &client.LimitsMetricsGeneratorProcessor{
-				ServiceGraphs: &client.LimitsMetricsGeneratorProcessorServiceGraphs{
+			Processor: client.LimitsMetricsGeneratorProcessor{
+				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
 					EnableClientServerPrefix: boolPtr(overrides.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)),
 					PeerAttributes:           strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)),
 					HistogramBuckets:         floatArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID)),
 				},
-				SpanMetrics: &client.LimitsMetricsGeneratorProcessorSpanMetrics{
+				SpanMetrics: client.LimitsMetricsGeneratorProcessorSpanMetrics{
 					Dimensions:                   strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
 					EnableTargetInfo:             boolPtr(overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)),
 					FilterPolicies:               filterPoliciesPtr(overrides.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID)),

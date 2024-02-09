@@ -585,17 +585,20 @@ func (page *booleanPage) Bounds() (min, max Value, ok bool) {
 }
 
 func (page *booleanPage) Slice(i, j int64) Page {
-	off := i / 8
-	end := j / 8
+	lowWithOffset := i + int64(page.offset)
+	highWithOffset := j + int64(page.offset)
 
-	if (j % 8) != 0 {
+	off := lowWithOffset / 8
+	end := highWithOffset / 8
+
+	if (highWithOffset % 8) != 0 {
 		end++
 	}
 
 	return &booleanPage{
 		typ:         page.typ,
 		bits:        page.bits[off:end],
-		offset:      int32(i % 8),
+		offset:      int32(lowWithOffset % 8),
 		numValues:   int32(j - i),
 		columnIndex: page.columnIndex,
 	}

@@ -10,15 +10,16 @@ weight: 30
 Tempo requires the following configuration to authenticate to and access Azure blob storage:
 
 - Storage Account name specified in the configuration file as `storage_account_name` or in the environment variable `AZURE_STORAGE_ACCOUNT`
-- Credentials for accessing the Storage Account; can be one of the following
+- Credentials for accessing the Storage Account that are one of the following:
   - Storage Account access key specified in the configuration file as `storage_account_key` or in the environment variable `AZURE_STORAGE_KEY`
-  - An Azure Managed Identity; either system or user assigned. To use Azure Managed Identities, you'll need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.
+  - An Azure Managed Identity that is either system or user assigned. To use Azure Managed Identities, you'll need to set `use_managed_identity` to `true` in the configuration file or set `user_assigned_id` to the client ID for the managed identity you'd like to use.
       - For a system-assigned managed identity, no additional configuration is required.
       - For a user-assigned managed identity, you'll need to set `user_assigned_id` to the client ID for the managed identity in the configuration file.
-  - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label.
+  - Via Azure Workload Identity. To use Azure Workload Identity, you'll need to enable Azure Workload Identity on your cluster, add the required label and annotation to the service account and the required pod label. Additionally, you will need to set `use_federated_token` to `true` to utilize Azure Workload Identity.
 
 ## Sample configuration (for Tempo Monolithic Mode)
 
+### Access key
 This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
 
 ```yaml
@@ -39,6 +40,19 @@ tempo:
         secretKeyRef:
           name: secret-name
           key: STORAGE_ACCOUNT_ACCESS_KEY
+```
+
+### Azure Workload Identity
+Here is an example config for using Azure Workload Identity. 
+```yaml
+tempo:
+  storage:
+    trace:
+      backend: azure
+      azure:
+        container_name: container-name
+        storage_account_name: storage-account-name
+        use_federated_token: true
 ```
 
 ## Sample configuration (for Tempo Distributed Mode)

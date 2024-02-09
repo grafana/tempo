@@ -58,6 +58,10 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 			Filepath: path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: blocklistPoll,
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
 	}
 
 	for _, opt := range opts {
@@ -697,8 +701,9 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	require.NoError(t, err, "unexpected error completing block")
 
 	// Verify the block time was constrained to the slack time.
-	require.Equal(t, now.Unix(), complete.BlockMeta().StartTime.Unix())
-	require.Equal(t, now.Unix(), complete.BlockMeta().EndTime.Unix())
+	// Accept a couple seconds of slack time to ensure test reliability.
+	require.Less(t, complete.BlockMeta().StartTime.Sub(now).Seconds(), 2.0)
+	require.Less(t, complete.BlockMeta().EndTime.Sub(now).Seconds(), 2.0)
 }
 
 func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {

@@ -205,16 +205,6 @@ func TestMultiTenantSearch(t *testing.T) {
 				assertRequestCountMetric(t, tempo, rt.route, rt.reqCount)
 			}
 
-			// test all the unsupported endpoints
-			now := time.Now()
-			_, msErr := apiClient.MetricsSummary("{}", "name", 0, 0)
-
-			// test websockets search
-			wsClient := httpclient.New("ws://"+tempo.Endpoint(3200), tc.tenant)
-			_, wsErr := wsClient.SearchWithWebsocket(&tempopb.SearchRequest{
-				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
-			}, func(sr *tempopb.SearchResponse) {})
-
 			// test streaming search over grpc
 			grpcCtx := user.InjectOrgID(context.Background(), tc.tenant)
 			grpcCtx, err = user.InjectIntoGRPCRequest(grpcCtx)
@@ -222,22 +212,19 @@ func TestMultiTenantSearch(t *testing.T) {
 
 			grpcClient, err := util.NewSearchGRPCClient(grpcCtx, tempo.Endpoint(3200))
 			require.NoError(t, err)
-			grpcResp, err := grpcClient.Search(grpcCtx, &tempopb.SearchRequest{
-				Query: "{}", Start: uint32(now.Add(-20 * time.Minute).Unix()), End: uint32(now.Unix()),
-			})
-			require.NoError(t, err)
-			// actual error comes in resp, need to call Recv to get it.
-			_, grpcErr := grpcResp.Recv()
 
+			time.Sleep(2 * time.Second) // ensure that blocklist poller has built the blocklist
+			now := time.Now()
+			util.SearchStreamAndAssertTrace(t, grpcCtx, grpcClient, info, now.Add(-5*time.Minute).Unix(), now.Add(5*time.Minute).Unix())
+			assertRequestCountMetric(t, tempo, "/tempopb.StreamingQuerier/Search", 1)
+
+			// test unsupported endpoint
+			_, msErr := apiClient.MetricsSummary("{}", "name", 0, 0)
 			if tc.tenantSize > 1 {
-				// we expect error in case of multi-tenant request for unsupported endpoints
+				// error for multi-tenant request for unsupported endpoints
 				require.Error(t, msErr)
-				require.Error(t, wsErr)
-				require.Error(t, grpcErr)
 			} else {
 				require.NoError(t, msErr)
-				require.NoError(t, wsErr)
-				require.NoError(t, grpcErr)
 			}
 		})
 	}

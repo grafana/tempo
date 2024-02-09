@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/util/listtomap"
-
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/common/config"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -107,6 +107,20 @@ type ProcessorOverrides struct {
 	LocalBlocks LocalBlocksOverrides `yaml:"local_blocks,omitempty" json:"local_blocks,omitempty"`
 }
 
+type RemoteWriteHeaders map[string]config.Secret
+
+func (h *RemoteWriteHeaders) toStringStringMap() map[string]string {
+	if h == nil {
+		return nil
+	}
+
+	headers := make(map[string]string)
+	for k, v := range *h {
+		headers[k] = string(v)
+	}
+	return headers
+}
+
 type MetricsGeneratorOverrides struct {
 	RingSize           int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
 	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
@@ -114,6 +128,7 @@ type MetricsGeneratorOverrides struct {
 	CollectionInterval time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection  bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
 	TraceIDLabelName   string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
+	RemoteWriteHeaders RemoteWriteHeaders  `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
 	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 
@@ -174,6 +189,7 @@ type Config struct {
 	UserConfigurableOverridesConfig UserConfigurableOverridesConfig `yaml:"user_configurable_overrides" json:"user_configurable_overrides"`
 
 	ConfigType ConfigType `yaml:"-" json:"-"`
+	ExpandEnv  bool       `yaml:"-" json:"-"`
 }
 
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {

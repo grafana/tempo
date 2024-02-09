@@ -28,6 +28,7 @@ type mockOverrides struct {
 	localBlocksTraceIdlePeriod              time.Duration
 	localBlocksCompleteBlockTimeout         time.Duration
 	dedicatedColumns                        backend.DedicatedColumns
+	maxBytesPerTrace                        int
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -54,6 +55,10 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 
 func (m *mockOverrides) MetricsGenerationTraceIDLabelName(userID string) string {
 	return ""
+}
+
+func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
+	return nil
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(string) []float64 {
@@ -128,4 +133,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDi
 
 func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return m.dedicatedColumns
+}
+
+func (m *mockOverrides) MaxBytesPerTrace(string) int {
+	return m.maxBytesPerTrace
 }

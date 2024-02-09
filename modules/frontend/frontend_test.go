@@ -46,15 +46,51 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 
-	// searchTags is a blind pass through. easy!
 	resTags := httptest.NewRecorder()
 	f.SearchTagsHandler.ServeHTTP(resTags, req)
-	assert.Equal(t, resTags.Body.String(), "next")
+	assert.Equal(t, resTags.Body.String(), "no org id")
 
 	// search will fail with `no org id` error
 	resSearch := httptest.NewRecorder()
 	f.SearchHandler.ServeHTTP(resSearch, req)
 	assert.Equal(t, resSearch.Body.String(), "no org id")
+}
+
+func TestFrontendRoundTripsTagSearch(t *testing.T) {
+	next := &mockNextTripperware{}
+	f, err := New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: minQueryShards,
+			SLO:         testSLOcfg,
+		},
+		Search: SearchConfig{
+			Sharder: SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			},
+			SLO: testSLOcfg,
+		},
+	}, next, nil, nil, nil, "", log.NewNopLogger(), nil)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/", nil)
+
+	// search will fail with `no org id` error
+	resSearch := httptest.NewRecorder()
+	f.SearchTagsValuesHandler.ServeHTTP(resSearch, req)
+	assert.Equal(t, resSearch.Body.String(), "no org id")
+
+	resSearch1 := httptest.NewRecorder()
+	f.SearchTagsValuesV2Handler.ServeHTTP(resSearch1, req)
+	assert.Equal(t, resSearch1.Body.String(), "no org id")
+
+	resSearch2 := httptest.NewRecorder()
+	f.SearchTagsV2Handler.ServeHTTP(resSearch2, req)
+	assert.Equal(t, resSearch2.Body.String(), "no org id")
+
+	resSearch3 := httptest.NewRecorder()
+	f.SearchTagsHandler.ServeHTTP(resSearch3, req)
+	assert.Equal(t, resSearch3.Body.String(), "no org id")
 }
 
 func TestFrontendBadConfigFails(t *testing.T) {

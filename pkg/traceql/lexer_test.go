@@ -128,6 +128,28 @@ func TestLexerParseDuration(t *testing.T) {
 	}
 }
 
+func TestLexerScoping(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		{`span.foo3`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.foo+bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.foo-bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.resource.foo`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.foo.bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// resource attributes
+		{`resource.foo`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.count`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.foo3`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.foo+bar`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.foo-bar`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.span.foo`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// parent span attributes
+		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.count`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.resource.id`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+	}))
+}
+
 func testLexer(t *testing.T, tcs []lexerTestCase) {
 	for _, tc := range tcs {
 		t.Run(tc.input, func(t *testing.T) {
