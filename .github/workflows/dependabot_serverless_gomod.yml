@@ -29,7 +29,11 @@ jobs:
         run: make -C cmd/tempo-serverless update-mod
 
       - name: Commit serverless gomod changes
+        env:
+          USER: grafanabot
+          TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
         run: |
+          git config --global url."https://${USER}:${TOKEN}@github.com/grafana/".insteadOf "https://github.com/grafana/"
           git config user.name grafanabot
           git config user.email bot@grafana.com
           git add cmd/tempo-serverless/lambda/go.mod
@@ -39,9 +43,6 @@ jobs:
           git diff --quiet --staged || git commit -m 'Update serverless gomod'
 
       - name: Push changes
-        env:
-          USER: grafanabot
-          TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
         run: |
           git remote set-url origin https://${USER}:${TOKEN}@github.com/grafana/tempo.git
           git push origin ${{ github.head_ref }}
