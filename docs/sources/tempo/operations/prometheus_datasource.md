@@ -36,11 +36,11 @@ for the experimental feature.
 
 ### Query timeouts
 
-Because of the expensive nature, these queries can take a long time to run in different systems. 
+Because of the expensive nature, these queries can take a long time to run in different systems.
 As such, consider increasing the timeouts in various places of
 the system to allow enough time for the data to be returned.
 
-Consider these areas when raising timeouts: 
+Consider these areas when raising timeouts:
 
   - Any proxy in front of Grafana
   - Grafana data source for Prometheus pointing at Tempo
@@ -100,5 +100,4 @@ introduced with this API.  There is also a `rate()` function.
 
 Finally, the `by (resource.service.name)` groups the results into each series.
 
-<p align="center"><img src="explore.png" alt="Metrics visualization in Grafana "></p>
-![Caption](/media/docs/tempo/metrics-explore-sample.png)
+![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample.png)
