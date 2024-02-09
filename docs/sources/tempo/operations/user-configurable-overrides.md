@@ -14,7 +14,12 @@ Instead of modifying a file or Kubernetes configmap, you (and other services rel
 
 ![user-configurable-overrides-architecture.png](./user-configurable-overrides-architecture.png)
 
-User-configurable are stored in an object store bucket. We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
+User-configurable are stored in an object store bucket managed by Tempo.
+
+{{% admonition type="note" %}}
+We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
+When sharing a bucket, make sure any lifecycle rules are scoped correctly to not remove data of user-configurable overrides module.
+{{% /admonition %}}
 
 Overrides of every tenant are stored at `/{tenant name}/overrides.json`:
 
@@ -37,7 +42,8 @@ This bucket is regularly polled and a copy of the limits is kept in-memory. When
 User-configurable overrides are designed to be a subset of the runtime overrides. See [Overrides]{{< relref "../configuration/_index#overrides" >}} for all overrides.
 
 {{% admonition type="note" %}}
-When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will be returned. The only exception is `processors` which will merge values from both sources.
+When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will be returned.
+The only exception is `processors` which will merge values from both sources.
 {{% /admonition %}}
 
 ```yaml

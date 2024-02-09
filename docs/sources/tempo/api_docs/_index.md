@@ -32,7 +32,7 @@ For externally support GRPC API [see below](#tempo-grpc-api)
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
-| [Overrides API](#overrides-api) | ... | HTTP | `GET,POST,PATCH,DELETE /api/overrides` |
+| [Overrides API](#overrides-api) | Query-frontend | HTTP | `GET,POST,PATCH,DELETE /api/overrides` |
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
