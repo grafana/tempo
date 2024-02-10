@@ -86,7 +86,7 @@ All API requests are handled on the `/api/overrides` endpoint, the module suppor
 
 This endpoint is tenant-specific, if Tempo is run in multitenant mode all requests should have an appropriate `X-Scope-OrgID` header.
 
-If tenant is run in distributed mode, only the query-frontend will accept API requests.
+If the tenant is run in distributed mode, only the query-frontend will accept API requests.
 
 #### Operations
 
