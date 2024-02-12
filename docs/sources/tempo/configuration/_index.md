@@ -437,6 +437,10 @@ query_frontend:
     # (default: true)
     [multi_tenant_queries_enabled: <bool>]
 
+    # Comma-separated list of request header names to include in query logs. Applies
+    # to both query stats and slow queries logs.
+    [log_query_request_headers: <string> | default = ""]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
