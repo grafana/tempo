@@ -14,7 +14,7 @@ Instead of modifying a file or Kubernetes configmap, you (and other services rel
 
 ![user-configurable-overrides-architecture.png](./user-configurable-overrides-architecture.png)
 
-User-configurable are stored in an object store bucket managed by Tempo.
+User-configurable overrides are stored in an object store bucket managed by Tempo.
 
 {{% admonition type="note" %}}
 We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
@@ -39,7 +39,7 @@ This bucket is regularly polled and a copy of the limits is kept in-memory. When
 
 ### Supported fields
 
-User-configurable overrides are designed to be a subset of the runtime overrides. See [Overrides]{{< relref "../configuration/_index#overrides" >}} for all overrides.
+User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]{{< relref "../configuration/_index#overrides" >}} for information about all overrides.
 
 {{% admonition type="note" %}}
 When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will be returned.
@@ -82,9 +82,9 @@ metrics_generator:
 
 ### API
 
-All API requests are handled on the `/api/overrides` endpoint, the module supports `GET`, `POST`, `PATCH` and `DELETE` requests.
+All API requests are handled on the `/api/overrides` endpoint. The module supports `GET`, `POST`, `PATCH`, and `DELETE` requests.
 
-This endpoint is tenant-specific, if Tempo is run in multitenant mode all requests should have an appropriate `X-Scope-OrgID` header.
+This endpoint is tenant-specific. If Tempo is run in multitenant mode, all requests should have an appropriate `X-Scope-OrgID` header.
 
 If the tenant is run in distributed mode, only the query-frontend will accept API requests.
 
@@ -123,7 +123,7 @@ DELETE /api/overrides
 
 Delete the existing overrides.
 
-Example: `➜ curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides`
+Example: `curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides`
 
 #### Versioning
 
@@ -147,7 +147,7 @@ Requests that modify or delete overrides need to pass the current version using 
 $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "..."
 ```
 
-If the version does not match the version in the backend the request will be rejected with HTTP error 412.
+If the version does not match the version in the backend, the request is rejected with HTTP error 412.
 
 #### Conflicting runtime overrides check
 

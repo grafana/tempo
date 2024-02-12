@@ -470,7 +470,7 @@ Meant to be used in a Query Visualization UI like Grafana to test that the Tempo
 
 ### Overrides API
 
-The user-configurable overrides API is documented in detail at [user-configurable overrides]{{< relref "../operations/user-configurable-overrides#api" >}}.
+For more information about user-configurable overrides API, refer to the [user-configurable overrides]{{< relref "../operations/user-configurable-overrides#api" >}} documentation.
 
 ### Flush
 
