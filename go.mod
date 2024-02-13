@@ -39,7 +39,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.63
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.74.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.85.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.89.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.89.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.89.0
