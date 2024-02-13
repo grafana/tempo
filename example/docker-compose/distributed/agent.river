@@ -1,0 +1,34 @@
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+otelcol.processor.batch "batch" {
+  output {
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+otelcol.receiver.jaeger "traces" {
+  protocols {
+    grpc {}
+    thrift_http {}
+    thrift_binary {}
+    thrift_compact {}
+  }
+
+  output {
+    traces  = [otelcol.processor.batch.batch.input]
+  }
+}
+
+// Uses HTTP to send traces to Tempo
+// This allows to not use TLS and use basic auth
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://distributor:4318"
+    tls {
+      insecure = true
+    }
+  }
+}
