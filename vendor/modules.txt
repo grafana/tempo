@@ -879,9 +879,10 @@ github.com/oklog/ulid
 # github.com/olekukonko/tablewriter v0.0.5
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
-# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.74.0
-## explicit; go 1.19
+# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.85.0
+## explicit; go 1.20
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter/internal/metadata
 # github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.89.0
 ## explicit; go 1.20
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter
