@@ -13,6 +13,8 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+	"github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
 
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
@@ -146,6 +148,16 @@ func (fp *frontendProcessor) runRequests(ctx context.Context, requests []*httpgr
 }
 
 func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.HTTPRequest) *httpgrpc.HTTPResponse {
+	tracer := opentracing.GlobalTracer()
+	// Ignore errors here. If we cannot get parent span, we just don't create new one.
+	parentSpanContext, _ := httpgrpcutil.GetParentSpanForRequest(tracer, request)
+	if parentSpanContext != nil {
+		queueSpan, spanCtx := opentracing.StartSpanFromContextWithTracer(ctx, tracer, "querier_processor_runRequest", opentracing.ChildOf(parentSpanContext))
+		defer queueSpan.Finish()
+
+		ctx = spanCtx
+	}
+
 	response, err := fp.handler.Handle(ctx, request)
 	if err != nil {
 		var ok bool
