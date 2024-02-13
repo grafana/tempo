@@ -154,6 +154,8 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 		q.metrics.TotalBlocks += resp.Metrics.TotalBlocks
 		q.metrics.TotalBlockBytes += resp.Metrics.TotalBlockBytes
 		q.metrics.InspectedBytes += resp.Metrics.InspectedBytes
+		q.metrics.InspectedTraces += resp.Metrics.InspectedTraces
+		q.metrics.InspectedSpans += resp.Metrics.InspectedSpans
 	}
 }
 

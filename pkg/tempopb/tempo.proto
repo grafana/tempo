@@ -136,6 +136,7 @@ message SearchMetrics {
   uint32 completedJobs = 4;
   uint32 totalJobs = 5;
   uint64 totalBlockBytes = 6;
+  uint64 inspectedSpans = 7;
 }
 
 message SearchTagsRequest {

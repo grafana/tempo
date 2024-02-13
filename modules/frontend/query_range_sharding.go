@@ -217,15 +217,18 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
 
 	reqTime := time.Since(now)
-	throughput := float64(res.Metrics.InspectedBytes) / reqTime.Seconds()
+	throughput := math.Round(float64(res.Metrics.InspectedBytes) / reqTime.Seconds())
+	spanThroughput := math.Round(float64(res.Metrics.InspectedSpans) / reqTime.Seconds())
 
 	span.SetTag("totalBlocks", res.Metrics.TotalBlocks)
 	span.SetTag("inspectedBytes", res.Metrics.InspectedBytes)
 	span.SetTag("inspectedTraces", res.Metrics.InspectedTraces)
+	span.SetTag("inspectedSpans", res.Metrics.InspectedSpans)
 	span.SetTag("totalBlockBytes", res.Metrics.TotalBlockBytes)
 	span.SetTag("totalJobs", res.Metrics.TotalJobs)
 	span.SetTag("finishedJobs", res.Metrics.CompletedJobs)
 	span.SetTag("requestThroughput", throughput)
+	span.SetTag("spanThroughput", spanThroughput)
 
 	if jErr := jobErr.Load(); jErr != nil {
 		return s.respErrHandler(isProm, jErr)

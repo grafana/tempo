@@ -365,30 +365,30 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans:     dedupeSpans,
 	}
 
-	// TraceID (not always required)
-	if req.ShardCount > 1 || dedupeSpans {
+	// TraceID (optional)
+	if req.ShardCount > 1 {
 		// For sharding it must be in the first pass so that we only evalulate our traces.
 		storageReq.ShardID = req.ShardID
 		storageReq.ShardCount = req.ShardCount
-		traceID := NewIntrinsic(IntrinsicTraceID)
-		if !storageReq.HasAttribute(traceID) {
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: traceID})
+		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
+			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: IntrinsicTraceIDAttribute})
+		}
+	}
+
+	if dedupeSpans {
+		// For dedupe we only need the trace ID on matching spans, so it can go in the second pass.
+		// This is a no-op if we are already sharding and it's in the first pass.
+		// Finally, this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicTraceIDAttribute})
 		}
 	}
 
 	// Span start time (always required)
-	startTime := NewIntrinsic(IntrinsicSpanStartTime)
-	if !storageReq.HasAttribute(startTime) {
-		if storageReq.AllConditions {
-			// The most efficient case.  We can add it to the primary pass
-			// without affecting correctness. And this lets us avoid the
-			// entire second pass.
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: startTime})
-		} else {
-			// Complex query with a second pass. In this case it is better to
-			// add it to the second pass so that it's only returned for the matches.
-			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: startTime})
-		}
+	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
+		// Technically we only need the start time of matching spans, so we add it to the second pass.
+		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
 	}
 
 	// Timestamp filtering
@@ -399,6 +399,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	// (2) Only include spans that started in this time frame.
 	//     This is checked outside the fetch layer in the evaluator. Timestamp
 	//     is only checked on the spans that are the final results.
+	// TODO - I think there are cases where we can push this down.
+	// Queries like {status=error} | rate() don't assert inter-span conditions
+	// and we could filter on span start time without affecting correctness.
+	// Queries where we can't are like:  {A} >> {B} | rate() because only require
+	// that {B} occurs within our time range but {A} is allowed to occur any time.
 	me.checkTime = true
 	me.start = req.Start
 	me.end = req.End
@@ -422,7 +427,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
-	// Special optimization for queries like {} | rate() by (rootName)
+	// Special optimization for queries like:
+	//  {} | rate()
+	//  {} | rate() by (rootName)
+	//  {} | rate() by (resource.service.name)
 	// When the second pass consists only of intrinsics, then it's possible to
 	// move them to the first pass and increase performance. It avoids the second pass/bridge
 	// layer and doesn't alter the correctness of the query.

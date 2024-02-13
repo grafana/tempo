@@ -86,9 +86,11 @@ var (
 	IntrinsicStatusMessageAttribute    = NewIntrinsic(IntrinsicStatusMessage)
 	IntrinsicKindAttribute             = NewIntrinsic(IntrinsicKind)
 	IntrinsicChildCountAttribute       = NewIntrinsic(IntrinsicChildCount)
+	IntrinsicTraceIDAttribute          = NewIntrinsic(IntrinsicTraceID)
 	IntrinsicTraceRootServiceAttribute = NewIntrinsic(IntrinsicTraceRootService)
 	IntrinsicTraceRootSpanAttribute    = NewIntrinsic(IntrinsicTraceRootSpan)
 	IntrinsicTraceDurationAttribute    = NewIntrinsic(IntrinsicTraceDuration)
+	IntrinsicSpanStartTimeAttribute    = NewIntrinsic(IntrinsicSpanStartTime)
 )
 
 func (i Intrinsic) String() string {
