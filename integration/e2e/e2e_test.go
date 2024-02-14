@@ -312,6 +312,39 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 	}
 }
 
+func TestShutdownDelay(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	// set up the backend
+	cfg := app.Config{}
+	buff, err := os.ReadFile(configAllInOneS3)
+	require.NoError(t, err)
+	err = yaml.UnmarshalStrict(buff, &cfg)
+	require.NoError(t, err)
+	_, err = backend.New(s, cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneS3, "config.yaml"))
+	tempo := util.NewTempoAllInOne("-shutdown-delay=5s")
+	require.NoError(t, s.StartAndWaitReady(tempo))
+	tempo.SetReadinessProbe(nil)
+
+	// if we're here the readiness flag is up. now call kill and check the readiness flag is down
+	go func() {
+		_ = tempo.Stop()
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+
+	// confirm the readiness flag is down
+	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/ready")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+	defer res.Body.Close()
+}
+
 func TestScalableSingleBinary(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)

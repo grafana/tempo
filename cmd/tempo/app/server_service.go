@@ -25,6 +25,7 @@ type TempoServer interface {
 	GRPC() *grpc.Server
 	Log() log.Logger
 	EnableHTTP2()
+	SetKeepAlivesEnabled(enabled bool)
 
 	StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error)
 }
@@ -60,6 +61,10 @@ func (s *tempoServer) EnableHTTP2() {
 	s.enableHTTP2Once.Do(func() {
 		s.externalServer.HTTPServer.Handler = h2c.NewHandler(s.externalServer.HTTPServer.Handler, &http2.Server{})
 	})
+}
+
+func (s *tempoServer) SetKeepAlivesEnabled(enabled bool) {
+	s.externalServer.HTTPServer.SetKeepAlivesEnabled(enabled)
 }
 
 func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error) {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
@@ -23,6 +24,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"gopkg.in/yaml.v3"
@@ -42,6 +44,7 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	util_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -189,17 +192,23 @@ func (t *App) Run() error {
 		return fmt.Errorf("failed to start service manager: %w", err)
 	}
 
+	// Used to delay shutdown but return "not ready" during this delay.
+	shutdownRequested := atomic.NewBool(false)
 	// before starting servers, register /ready handler and gRPC health check service.
 	if t.cfg.InternalServer.Enable {
-		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm))
+		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm, shutdownRequested))
 	}
 
 	t.Server.HTTP().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
 
-	t.Server.HTTP().Path("/ready").Handler(t.readyHandler(sm))
+	t.Server.HTTP().Path("/ready").Handler(t.readyHandler(sm, shutdownRequested))
 	t.Server.HTTP().Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	grpc_health_v1.RegisterHealthServer(t.Server.GRPC(), grpcutil.NewHealthCheck(sm))
+	grpc_health_v1.RegisterHealthServer(t.Server.GRPC(),
+		grpcutil.NewHealthCheckFrom(
+			grpcutil.WithShutdownRequested(shutdownRequested),
+			grpcutil.WithManager(sm),
+		))
 
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
@@ -231,6 +240,14 @@ func (t *App) Run() error {
 	handler := signals.NewHandler(t.Server.Log())
 	go func() {
 		handler.Loop()
+
+		shutdownRequested.Store(true)
+		t.Server.SetKeepAlivesEnabled(false)
+
+		if t.cfg.ShutdownDelay > 0 {
+			time.Sleep(t.cfg.ShutdownDelay)
+		}
+
 		sm.StopAsync()
 	}()
 
@@ -301,8 +318,14 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 	return nil
 }
 
-func (t *App) readyHandler(sm *services.Manager) http.HandlerFunc {
+func (t *App) readyHandler(sm *services.Manager, shutdownRequested *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if shutdownRequested.Load() {
+			level.Debug(util_log.Logger).Log("msg", "application is stopping")
+			http.Error(w, "Application is stopping", http.StatusServiceUnavailable)
+			return
+		}
+
 		if !sm.IsHealthy() {
 			msg := bytes.Buffer{}
 			msg.WriteString("Some services are not Running:\n")
