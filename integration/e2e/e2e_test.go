@@ -328,15 +328,19 @@ func TestShutdownDelay(t *testing.T) {
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneS3, "config.yaml"))
 	tempo := util.NewTempoAllInOne("-shutdown-delay=5s")
+
+	// this line tests confirms that the readiness flag is up
 	require.NoError(t, s.StartAndWaitReady(tempo))
-	tempo.SetReadinessProbe(nil)
 
 	// if we're here the readiness flag is up. now call kill and check the readiness flag is down
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		_ = tempo.Stop()
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	wg.Wait()
 
 	// confirm the readiness flag is down
 	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/ready")
