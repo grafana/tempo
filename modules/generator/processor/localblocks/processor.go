@@ -472,9 +472,11 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		go func(b common.BackendBlock) {
 			defer wg.Done()
 
+			m := b.BlockMeta()
+
 			span, ctx := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.Block", opentracing.Tags{
-				"block":     b.BlockMeta().BlockID,
-				"blockSize": b.BlockMeta().Size,
+				"block":     m.BlockID,
+				"blockSize": m.Size,
 			})
 			defer span.Finish()
 
@@ -483,7 +485,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 				return b.Fetch(ctx, req, common.DefaultSearchOptions())
 			})
 
-			err := eval.Do(ctx, f)
+			err := eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 			if err != nil {
 				jobErr.Store(err)
 			}
