@@ -32,11 +32,11 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	}
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 
-	expectedTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceIDA), true)
+	expectedTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceIDA))
 
 	parquetTrace, connected := traceToParquet(&meta, traceIDA, expectedTrace, nil)
 	require.True(t, connected)
-	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace, true)
+	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
@@ -60,7 +60,7 @@ func TestProtoParquetRando(t *testing.T) {
 		expectedTrace := test.AddDedicatedAttributes(test.MakeTrace(batches, id))
 
 		parqTr, _ := traceToParquet(&backend.BlockMeta{}, id, expectedTrace, trp)
-		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr, true)
+		actualTrace := parquetTraceToTempopbTrace(&backend.BlockMeta{}, parqTr)
 		require.Equal(t, expectedTrace, actualTrace)
 	}
 }
@@ -71,7 +71,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	}
 
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
-	complexTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceID), false)
+	complexTrace := parquetTraceToTempopbTrace(&meta, fullyPopulatedTestTrace(traceID))
 	simpleTrace := &tempopb.Trace{
 		Batches: []*v1_trace.ResourceSpans{
 			{
@@ -337,10 +337,10 @@ func TestTraceToParquet(t *testing.T) {
 								attr("span.int.array", []int64{1, 2, 3}),
 								attr("span.double.array", []float64{1.1, 2.2}),
 								attr("span.bool.array", []bool{true, false, true, false}),
-								{Key: "span.unsupported.array", ValueDropped: "{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}", ValueType: attrTypeNotSupported},
-								{Key: "span.unsupported.kvlist", ValueDropped: "{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}", ValueType: attrTypeNotSupported},
+								{Key: "span.unsupported.array", ValueUnsupported: ptr("{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"intValue\":\"1\"},{\"boolValue\":true}]}}"), ValueType: attrTypeNotSupported},
+								{Key: "span.unsupported.kvlist", ValueUnsupported: ptr("{\"kvlistValue\":{\"values\":[{\"key\":\"key-a\",\"value\":{\"stringValue\":\"val-a\"}},{\"key\":\"key-b\",\"value\":{\"stringValue\":\"val-b\"}}]}}"), ValueType: attrTypeNotSupported},
 							},
-							DroppedAttributesCount: 2,
+							DroppedAttributesCount: 0,
 							DedicatedAttributes: DedicatedAttributes{
 								String01: ptr("dedicated-span-attr-value-1"),
 								String02: ptr("dedicated-span-attr-value-2"),

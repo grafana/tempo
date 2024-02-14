@@ -438,8 +438,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						attr("str-array", []string{"value-one", "value-two"}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
-						{Key: "unsupported-mixed-array", ValueDropped: mixedArrayAttrValue, ValueType: attrTypeNotSupported},
-						{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
+						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, ValueType: attrTypeNotSupported},
+						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, ValueType: attrTypeNotSupported},
 					},
 					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
@@ -486,8 +486,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
 									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
-									{Key: "unsupported-mixed-array", ValueDropped: mixedArrayAttrValue, ValueType: attrTypeNotSupported},
-									{Key: "unsupported-kv-list", ValueDropped: kvListValue, ValueType: attrTypeNotSupported},
+									{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, ValueType: attrTypeNotSupported},
+									{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, ValueType: attrTypeNotSupported},
 								},
 								Events: []Event{
 									{
