@@ -7,19 +7,22 @@ aliases:
 - /docs/tempo/configuratioon/multitenancy
 - /docs/tempo/operations/multitenancy
 ---
+
 # Enable multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use
 of a header: `X-Scope-OrgID`.
 
 If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
-in the repo. This example uses the following settings to achieve multi-tenancy in Tempo.
+in the repository. This example uses the following settings to achieve multi-tenancy in Tempo.
 
->**Note** Multi-tenancy on ingestion is currently [only working](https://github.com/grafana/tempo/issues/495) with GPRC and this may never change. It is strongly recommended to use the OpenTelemetry Collector to support multi-tenancy.
+{{% admonition type="note" %}}
+Multi-tenancy on ingestion is currently [only working](https://github.com/grafana/tempo/issues/495) with GPRC and this may never change. It's strongly recommended to use the OpenTelemetry Collector to support multi-tenancy.
+{{% /admonition %}}
 
 ## Configure multi-tenancy
 
-1. Configure the OTEL Collector to attach the X-Scope-OrgID header on push:
+1. Configure the OTEL Collector to attach the `X-Scope-OrgID` header on push:
 
    ```
    exporters:
@@ -38,7 +41,7 @@ in the repo. This example uses the following settings to achieve multi-tenancy i
        httpHeaderValue1: 'foo-bar-baz'
    ```
 
-1. Enable multi-tenancy on Tempo backend, set the following configuration value on all Tempo components:
+1. Enable multi-tenancy on the Tempo backend by setting the following configuration value on all Tempo components:
 
    ```
    multitenancy_enabled: true
@@ -50,7 +53,7 @@ in the repo. This example uses the following settings to achieve multi-tenancy i
    --multitenancy.enabled=true
    ```
 
-   This option will force all Tempo components to require the `X-Scope-OrgID` header.
+   This option forces all Tempo components to require the `X-Scope-OrgID` header.
 
 <!-- Commented out since 7.4 is no longer supported.
 ### Grafana 7.4.x
