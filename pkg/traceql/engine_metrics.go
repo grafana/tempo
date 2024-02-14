@@ -317,23 +317,11 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	}
 }
 
-// ExecuteMetricsQueryRange - Execute the given metrics query. Just a wrapper around CompileMetricsQueryRange
-func (e *Engine) ExecuteMetricsQueryRange(ctx context.Context, req *tempopb.QueryRangeRequest, fetcher SpansetFetcher) (results SeriesSet, err error) {
-	eval, err := e.CompileMetricsQueryRange(req, false)
-	if err != nil {
-		return nil, err
-	}
-
-	err = eval.Do(ctx, fetcher, 0, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	return eval.Results()
-}
-
 // CompileMetricsQueryRange returns an evalulator that can be reused across multiple data sources.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool) (*MetricsEvalulator, error) {
+// Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
+// example if the datasource is replication factor=1 or only a single block then we know there
+// aren't duplicates and we can make some optimizations.
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -347,7 +335,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		return nil, fmt.Errorf("step required")
 	}
 
-	eval, metricsPipeline, storageReq, err := e.Compile(req.Query)
+	expr, eval, metricsPipeline, storageReq, err := e.Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -356,13 +344,25 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
+	timeOverlapCutoff := 0.2
+	if allowUnsafeQueryHints {
+		if ok, v := expr.Hints.GetFloat("time_overlap_cutoff"); ok && v >= 0 && v <= 1.0 {
+			timeOverlapCutoff = v
+		}
+	}
+
+	if ok, v := expr.Hints.GetBool(HintDedupe); ok {
+		dedupeSpans = v
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req)
 
 	me := &MetricsEvalulator{
-		storageReq:      storageReq,
-		metricsPipeline: metricsPipeline,
-		dedupeSpans:     dedupeSpans,
+		storageReq:        storageReq,
+		metricsPipeline:   metricsPipeline,
+		dedupeSpans:       dedupeSpans,
+		timeOverlapCutoff: timeOverlapCutoff,
 	}
 
 	// TraceID (optional)
@@ -470,16 +470,17 @@ func lookup(needles []Attribute, haystack Span) Static {
 }
 
 type MetricsEvalulator struct {
-	start, end      uint64
-	checkTime       bool
-	dedupeSpans     bool
-	deduper         *SpanDeduper2
-	storageReq      *FetchSpansRequest
-	metricsPipeline metricsFirstStageElement
-	spansTotal      uint64
-	spansDeduped    uint64
-	bytes           uint64
-	mtx             sync.Mutex
+	start, end        uint64
+	checkTime         bool
+	dedupeSpans       bool
+	deduper           *SpanDeduper2
+	timeOverlapCutoff float64
+	storageReq        *FetchSpansRequest
+	metricsPipeline   metricsFirstStageElement
+	spansTotal        uint64
+	spansDeduped      uint64
+	bytes             uint64
+	mtx               sync.Mutex
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -511,10 +512,10 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		}
 
 		// Our heuristic is if the overlap between the given fetcher (i.e. block)
-		// and the request is less than 20%, use them.  Above 20%, the cost of loading
-		// them doesn't outweight the benefits. 20% was measured in local benchmarking.
-		// TODO - Make configurable or a query hint?
-		if overlap < 0.2 {
+		// and the request is less than X%, use them.  Above X%, the cost of loading
+		// them doesn't outweight the benefits. The default 20% was measured in
+		// local benchmarking.
+		if overlap < e.timeOverlapCutoff {
 			storageReq.StartTimeUnixNanos = e.start
 			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
 		}

@@ -29,6 +29,10 @@ func (m *mockOverrides) MaxBytesPerTrace(string) int {
 	return 0
 }
 
+func (m *mockOverrides) UnsafeQueryHints(string) bool {
+	return false
+}
+
 func TestProcessorDoesNotRace(t *testing.T) {
 	wal, err := wal.New(&wal.Config{
 		Filepath: t.TempDir(),

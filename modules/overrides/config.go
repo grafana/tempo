@@ -128,6 +128,8 @@ type ReadOverrides struct {
 
 	// QueryFrontend enforced overrides
 	MaxSearchDuration model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
+
+	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
 }
 
 type CompactionOverrides struct {

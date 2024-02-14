@@ -738,7 +738,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						ShardCount: 65,
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false)
+					eval, err := e.CompileMetricsQueryRange(req, false, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()

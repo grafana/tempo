@@ -35,6 +35,7 @@ const timeBuffer = 5 * time.Minute
 type ProcessorOverrides interface {
 	DedicatedColumns(string) backend.DedicatedColumns
 	MaxBytesPerTrace(string) int
+	UnsafeQueryHints(string) bool
 }
 
 type Processor struct {
@@ -445,7 +446,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		blocks = append(blocks, b)
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, p.overrides.UnsafeQueryHints(p.tenant))
 	if err != nil {
 		return nil, err
 	}

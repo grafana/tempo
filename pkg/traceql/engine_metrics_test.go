@@ -165,7 +165,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, false)
+			}, false, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -280,7 +280,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Start:      1,
 				End:        2,
 				Step:       3,
-			}, tc.dedupe)
+			}, tc.dedupe, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
