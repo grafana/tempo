@@ -40,4 +40,4 @@ TraceQL queries that compare multiple spansets may not correctly return all trac
 ```
 
 TraceQL evaluates a contiguously stored trace.
-If these two conditions are satisfied in separate tenants, then Tempo  doesn't correctly return it.
+If these two conditions are satisfied in separate tenants, then Tempo  doesn't correctly return the trace.
