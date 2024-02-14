@@ -337,16 +337,26 @@ func TestShutdownDelay(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_ = tempo.Stop()
+
+		for i := 0; i < 10; i++ {
+			res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/ready")
+			require.NoError(t, err)
+			res.Body.Close()
+
+			if res.StatusCode == http.StatusServiceUnavailable {
+				// found it!
+				return
+			}
+			time.Sleep(time.Second)
+		}
+
+		require.Fail(t, "readiness flag never went down")
 	}()
 
-	wg.Wait()
+	// call stop and allow the code above to test for a unavailable readiness flag
+	_ = tempo.Stop()
 
-	// confirm the readiness flag is down
-	res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/ready")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
-	defer res.Body.Close()
+	wg.Wait()
 }
 
 func TestScalableSingleBinary(t *testing.T) {
