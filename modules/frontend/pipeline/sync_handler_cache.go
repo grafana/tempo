@@ -143,11 +143,7 @@ func (c *frontendCache) fetch(key string, pb proto.Message) bool {
 	}
 
 	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bufs[0]), pb)
-	if err != nil {
-		return false
-	}
-
-	return true
+	return err == nil
 }
 
 // fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
