@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
+	"strconv"
 	"testing"
 	"time"
 
@@ -739,20 +740,39 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			req := &tempopb.QueryRangeRequest{
-				Query: tc,
-				Step:  uint64(time.Minute),
-				Start: uint64(meta.StartTime.UnixNano()),
-				End:   uint64(meta.EndTime.UnixNano()),
-			}
+			for _, minutes := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
+					st := meta.StartTime
+					end := st.Add(time.Duration(minutes) * time.Minute)
 
-			eval, err := e.CompileMetricsQueryRange(req, false)
-			require.NoError(b, err)
+					if end.After(meta.EndTime) {
+						b.SkipNow()
+						return
+					}
 
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				err := eval.Do(ctx, f)
-				require.NoError(b, err)
+					req := &tempopb.QueryRangeRequest{
+						Query:      tc,
+						Step:       uint64(time.Minute),
+						Start:      uint64(st.UnixNano()),
+						End:        uint64(end.UnixNano()),
+						ShardID:    30,
+						ShardCount: 65,
+					}
+
+					eval, err := e.CompileMetricsQueryRange(req, false)
+					require.NoError(b, err)
+
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						err := eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano()))
+						require.NoError(b, err)
+					}
+
+					bytes, spansTotal, _ := eval.Metrics()
+					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
+					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
+					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
+				})
 			}
 		})
 	}
