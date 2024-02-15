@@ -95,7 +95,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
 
 	traces := traceByIDMiddleware.Wrap(next)
-	search := newSearchHTTPHandler(cfg, searchPipeline)
+	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
 	searchTags := searchTagsMiddleware.Wrap(next)
 	searchTagsV2 := searchTagsV2Middleware.Wrap(next)
 	searchTagValues := searchTagsValuesMiddleware.Wrap(next)
