@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
   sync:
@@ -28,13 +28,13 @@ jobs:
     needs: test
     steps:
       - name: Checkout this repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # Fetch tags
           fetch-depth: 0
 
       - name: Checkout Actions library
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "grafana/grafana-github-actions"
           path: ./actions

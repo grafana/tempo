@@ -65,5 +65,9 @@ func ValidateConfig(b *BlockConfig) error {
 		return fmt.Errorf("positive value required for bloom-filter shard size")
 	}
 
+	if b.Version == "vParquet" {
+		return fmt.Errorf("this version of vParquet has been deprecated, please use vParquet2 or higher")
+	}
+
 	return b.DedicatedColumns.Validate()
 }
