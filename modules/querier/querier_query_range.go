@@ -64,11 +64,6 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, true)
-	if err != nil {
-		return nil, err
-	}
-
 	// Get blocks that overlap this time range
 	metas := q.store.BlockMetas(tenantID)
 	withinTimeRange := metas[:0]
@@ -76,6 +71,19 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		if m.StartTime.UnixNano() <= int64(req.End) && m.EndTime.UnixNano() > int64(req.Start) {
 			withinTimeRange = append(withinTimeRange, m)
 		}
+	}
+
+	if len(withinTimeRange) == 0 {
+		return nil, nil
+	}
+
+	// Optimization
+	// If there's only 1 block then dedupe not needed.
+	dedupe := len(withinTimeRange) > 1
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe)
+	if err != nil {
+		return nil, err
 	}
 
 	wg := boundedwaitgroup.New(2)
@@ -119,7 +127,15 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	return &tempopb.QueryRangeResponse{Series: queryRangeTraceQLToProto(res, req)}, nil
+	inspectedBytes, spansTotal, _ := eval.Metrics()
+
+	return &tempopb.QueryRangeResponse{
+		Series: queryRangeTraceQLToProto(res, req),
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes: inspectedBytes,
+			InspectedSpans: spansTotal,
+		},
+	}, nil
 }
 
 func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
