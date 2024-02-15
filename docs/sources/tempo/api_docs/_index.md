@@ -589,13 +589,17 @@ Displays the override configuration.
 Query parameter:
 - `mode = (diff)`: Show the difference between defaults and overrides.
 
-Alias: `/status/overrides`
+```
+GET /status/overrides
+```
+
+Displays all tenants that have non-default overrides configured. 
 
 ```
 GET /status/overrides/{tenant}
 ```
 
-Displays the override configuration for the specified tenant.
+Displays all overrides configured for the specified tenant.
 
 ```
 GET /status/usage-stats

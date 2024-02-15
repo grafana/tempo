@@ -85,7 +85,6 @@ func LatestEncoding() VersionedEncoding {
 func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
-		vparquet.Encoding{},
 		vparquet2.Encoding{},
 		vparquet3.Encoding{},
 	}

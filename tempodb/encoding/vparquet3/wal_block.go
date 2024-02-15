@@ -35,9 +35,6 @@ const defaultRowPoolSize = 100000
 // completeBlockRowPool is used by the wal iterators and complete block logic to pool rows
 var completeBlockRowPool = newRowPool(defaultRowPoolSize)
 
-// walSchema is a shared schema that all wals use. it comes with minor cpu and memory improvements
-var walSchema = parquet.SchemaOf(&Trace{})
-
 // path + filename = folder to create
 //   path/folder/00001
 //   	        /00002
@@ -227,7 +224,13 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 	size := info.Size()
 
 	wr := newWalReaderAt(ctx, file)
-	pf, err := parquet.OpenFile(wr, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
+	o := []parquet.FileOption{
+		parquet.SkipBloomFilters(true),
+		parquet.SkipPageIndex(true),
+		parquet.FileSchema(parquetSchema),
+	}
+
+	pf, err := parquet.OpenFile(wr, size, o...)
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
@@ -387,7 +390,7 @@ func (b *walBlock) openWriter() (err error) {
 
 	if b.writer == nil {
 		b.writer = parquet.NewGenericWriter[*Trace](b.file, &parquet.WriterConfig{
-			Schema: walSchema,
+			Schema: parquetSchema,
 			// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
 			// cutting pages more aggressively when writing column chunks
 			PageBufferSize: 1024,
@@ -699,6 +702,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
+		defer file.Close()
 
 		pf := file.parquetFile
 
@@ -715,7 +719,6 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 				return fmt.Errorf("iterating spans in walBlock: %w", err)
 			}
 			if res == nil {
-				iter.Close()
 				break
 			}
 

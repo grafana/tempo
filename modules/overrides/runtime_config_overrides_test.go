@@ -1,8 +1,11 @@
 package overrides
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +13,7 @@ import (
 
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -490,6 +494,76 @@ overrides:
 			}
 		})
 	}
+}
+
+func TestRemoteWriteHeaders(t *testing.T) {
+	cfg := Config{
+		Defaults: Overrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				RemoteWriteHeaders: map[string]config.Secret{
+					"Authorization": "Bearer secret-token",
+				},
+			},
+		},
+	}
+
+	overrides, err := newRuntimeConfigOverrides(cfg, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
+
+	buff := bytes.NewBuffer(nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	require.NoError(t, overrides.WriteStatusRuntimeConfig(buff, req))
+
+	fmt.Println(buff.String())
+}
+
+func TestExpandEnvOverrides(t *testing.T) {
+	const envVar = "TOKEN"
+	cfg := Config{
+		Defaults: Overrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				RemoteWriteHeaders: map[string]config.Secret{
+					"Authorization": "Bearer token",
+				},
+			},
+		},
+		ExpandEnv: true,
+	}
+	// Set the ORG_ID env var
+	require.NoError(t, os.Setenv(envVar, "super-secret-token"))
+	t.Cleanup(func() {
+		require.NoError(t, os.Unsetenv(envVar))
+	})
+
+	perTenantOverrides := fmt.Sprintf(`
+overrides:
+  user1:
+    metrics_generator:
+      remote_write_headers:
+        Authorization: Bearer ${%s}
+`, envVar)
+
+	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
+
+	require.NoError(t, os.WriteFile(overridesFile, []byte(perTenantOverrides), os.ModePerm))
+
+	cfg.PerTenantOverrideConfig = overridesFile
+	cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
+
+	overrides, err := newRuntimeConfigOverrides(cfg, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
+
+	expectedRemoteWriteHeaders := map[string]map[string]string{
+		"user1": {"Authorization": "Bearer super-secret-token"},
+		"user2": {"Authorization": "Bearer token"},
+	}
+	for user, expected := range expectedRemoteWriteHeaders {
+		assert.Equal(t, expected, overrides.MetricsGeneratorRemoteWriteHeaders(user))
+	}
+
+	require.NoError(t, services.StopAndAwaitTerminated(context.Background(), overrides))
 }
 
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {

@@ -189,7 +189,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Conditions: []Condition{
 					{
 						// In this case start time is in the first pass
-						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
 				},
 			},
@@ -201,10 +201,10 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				AllConditions: true,
 				Conditions: []Condition{
 					{
-						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
 					{
-						Attribute: NewIntrinsic(IntrinsicTraceID), // Required for dedupe
+						Attribute: IntrinsicTraceIDAttribute, // Required for dedupe
 					},
 				},
 			},
@@ -219,21 +219,22 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				ShardCount:    456,
 				Conditions: []Condition{
 					{
-						Attribute: NewIntrinsic(IntrinsicDuration),
+						Attribute: IntrinsicDurationAttribute,
 						Op:        OpGreater,
 						Operands:  Operands{NewStaticDuration(10 * time.Second)},
 					},
 					{
-						Attribute: NewIntrinsic(IntrinsicTraceID), // Required for sharding
-					},
-					{
-						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+						Attribute: IntrinsicTraceIDAttribute, // Required for sharding
 					},
 				},
 				SecondPassConditions: []Condition{
 					{
 						// Group-by attributes (non-intrinsic) must be in the second pass
 						Attribute: NewScopedAttribute(AttributeScopeResource, false, "cluster"),
+					},
+					{
+						// Since there is already a second pass then span start time isn't optimized to the first pass.
+						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
 				},
 			},
@@ -248,23 +249,23 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				ShardCount:    456,
 				Conditions: []Condition{
 					{
-						Attribute: NewIntrinsic(IntrinsicDuration),
+						Attribute: IntrinsicDurationAttribute,
 						Op:        OpGreater,
 						Operands:  Operands{NewStaticDuration(10 * time.Second)},
 					},
 					{
-						Attribute: NewIntrinsic(IntrinsicTraceID), // Required for sharding
-					},
-					{
-						Attribute: NewIntrinsic(IntrinsicSpanStartTime),
+						Attribute: IntrinsicTraceIDAttribute, // Required for sharding
 					},
 					{
 						// Intrinsic moved to first pass
-						Attribute: NewIntrinsic(IntrinsicName),
+						Attribute: IntrinsicNameAttribute,
 					},
 					{
 						// Resource service name is treated as an intrinsic and moved to the first pass
 						Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name"),
+					},
+					{
+						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
 				},
 			},

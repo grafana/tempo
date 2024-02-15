@@ -199,7 +199,6 @@ func (t *App) Run() error {
 	t.Server.HTTP().Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP().Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
-	t.Server.HTTP().Path("/status/overrides/{tenant}").Handler(t.tenantOverridesHandler()).Methods("GET")
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC(), grpcutil.NewHealthCheck(sm))
 
 	// Let's listen for events from this manager, and log them.
@@ -373,8 +372,6 @@ func (t *App) statusHandler() http.HandlerFunc {
 
 			switch endpoint {
 			case "runtime_config":
-				fallthrough
-			case "overrides":
 				err := t.writeRuntimeConfig(&msg, r)
 				if err != nil {
 					errs = append(errs, err)
@@ -521,25 +518,6 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 	}
 
 	return nil
-}
-
-func (t *App) tenantOverridesHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-
-		tenant, ok := vars["tenant"]
-		if !ok {
-			http.Error(w, "must specify tenant ID", http.StatusBadRequest)
-			return
-		}
-
-		err := t.Overrides.WriteTenantOverrides(w, r, tenant)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			level.Error(log.Logger).Log("msg", "error writing response", "endpoint", r.URL.String(), "err", err)
-			return
-		}
-	}
 }
 
 func (t *App) buildinfoHandler() http.HandlerFunc {

@@ -32,14 +32,14 @@ You can still use the previous format `vParquet2`.
 To enable it, set the block version option to `vParquet2` in the Storage section of the configuration file.
 
 ```yaml
-# block format version. options: v2, vParquet, vParquet2, vParquet3
+# block format version. options: v2, vParquet2, vParquet3
 [version: vParquet2]
 ```
 
 In some cases, you may choose to disable Parquet and use the old `v2` block format. Using the `v2` block format disables all forms of search, but also reduces resource consumption, and may be desired for a high-throughput cluster that does not need these capabilities. To make this change, set the block version option to `v2` in the Storage section of the configuration file.
 
 ```yaml
-# block format version. options: v2, vParquet, vParquet2, vParquet3
+# block format version. options: v2, vParquet2, vParquet3
 [version: v2]
 ```
 

@@ -1492,6 +1492,10 @@ func (r mockRing) ShuffleShardWithLookback(string, int, time.Duration, time.Time
 	return r
 }
 
+func (r mockRing) GetTokenRangesForInstance(_ string) (ring.TokenRanges, error) {
+	return nil, nil
+}
+
 func (r mockRing) InstancesCount() int {
 	return len(r.ingesters)
 }
@@ -1505,8 +1509,4 @@ func (r mockRing) CleanupShuffleShardCache(string) {
 
 func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 	return ring.ACTIVE, nil
-}
-
-func (r mockRing) GetTokenRangesForInstance(_ string) (ring.TokenRanges, error) {
-	return nil, nil
 }

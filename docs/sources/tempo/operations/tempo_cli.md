@@ -433,6 +433,8 @@ Options:
 - `--num-attr <value>` Number of attributes to output (default: 10)
 - `--min-compaction-level <value>` Minimum compaction level to include in the analysis (default: 3)
 - `--max-blocks <value>` Maximum number of blocks to analyze (default: 10)
+- `--max-start-time <value>` Oldest start time for a block to be processed. RFC3339 format (default: disabled)
+- `--min-end-time <value>` Newest end time for a block to be processed. RFC3339 format (default: disabled)
 
 **Example:**
 ```bash

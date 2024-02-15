@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,7 +93,7 @@ func TestValidateConfig(t *testing.T) {
 		{
 			cfg: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet",
+					Version: "vParquet2",
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
@@ -104,7 +105,7 @@ func TestValidateConfig(t *testing.T) {
 			},
 			expectedConfig: &Config{
 				WAL: &wal.Config{
-					Version: "vParquet",
+					Version: "vParquet2",
 				},
 				Block: &common.BlockConfig{
 					IndexDownsampleBytes: 1,
@@ -120,6 +121,86 @@ func TestValidateConfig(t *testing.T) {
 	for _, test := range tests {
 		err := validateConfig(test.cfg)
 		require.Equal(t, test.err, err)
+
+		if test.expectedConfig != nil {
+			require.Equal(t, test.expectedConfig, test.cfg)
+		}
+	}
+}
+
+func TestDeprecatedVersions(t *testing.T) {
+	errorMessage := "this version of vParquet has been deprecated, please use vParquet2 or higher"
+	tests := []struct {
+		cfg            *Config
+		expectedConfig *Config
+		err            string
+	}{
+		// block version not copied to wal if populated
+		{
+			cfg: &Config{
+				WAL: &wal.Config{
+					Version: "vParquet2",
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              "vParquet3",
+				},
+			},
+			expectedConfig: &Config{
+				WAL: &wal.Config{
+					Version: "vParquet2",
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              "vParquet3",
+				},
+			},
+		},
+		{
+			cfg: &Config{
+				WAL: &wal.Config{
+					Version: "vParquet",
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              "v2",
+				},
+			},
+			err: errorMessage,
+		},
+		{
+			cfg: &Config{
+				WAL: &wal.Config{
+					Version: "vParquet2",
+				},
+				Block: &common.BlockConfig{
+					IndexDownsampleBytes: 1,
+					IndexPageSizeBytes:   1,
+					BloomFP:              0.01,
+					BloomShardSizeBytes:  1,
+					Version:              "vParquet",
+				},
+			},
+			err: errorMessage,
+		},
+	}
+
+	for _, test := range tests {
+		err := validateConfig(test.cfg)
+		if test.err == "" {
+			require.Equal(t, nil, err)
+		} else {
+			assert.Contains(t, err.Error(), test.err)
+		}
 
 		if test.expectedConfig != nil {
 			require.Equal(t, test.expectedConfig, test.cfg)

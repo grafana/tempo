@@ -68,6 +68,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileReadMode(parquet.ReadModeAsync),
+		parquet.FileSchema(parquetSchema),
 	}
 
 	// if the read buffer size provided is <= 0 then we'll use the parquet default

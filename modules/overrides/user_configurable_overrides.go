@@ -16,6 +16,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -82,7 +83,10 @@ type userConfigurableOverridesManager struct {
 	logger log.Logger
 }
 
-var _ Service = (*userConfigurableOverridesManager)(nil)
+var (
+	_ Service   = (*userConfigurableOverridesManager)(nil)
+	_ Interface = (*userConfigurableOverridesManager)(nil)
+)
 
 // newUserConfigOverrides wraps the given overrides with user-configurable overrides.
 func newUserConfigOverrides(cfg *UserConfigurableOverridesConfig, subOverrides Service) (*userConfigurableOverridesManager, error) {
@@ -208,6 +212,10 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 	}
 }
 
+func (o *userConfigurableOverridesManager) GetTenantIDs() []string {
+	return maps.Keys(o.getAllTenantLimits())
+}
+
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 	if forwarders, ok := o.getTenantLimits(userID).GetForwarders(); ok {
 		return forwarders
@@ -327,26 +335,6 @@ func (o *userConfigurableOverridesManager) WriteStatusRuntimeConfig(w io.Writer,
 	}
 
 	return nil
-}
-
-type statusTenantOverrides struct {
-	UserConfigurableLimits *userconfigurableoverrides.Limits `yaml:"user_configurable_limits"`
-	RuntimeOverrides       *Overrides                        `yaml:"runtime_overrides"`
-}
-
-func (o *userConfigurableOverridesManager) WriteTenantOverrides(w io.Writer, _ *http.Request, userID string) error {
-	overrides := statusTenantOverrides{
-		UserConfigurableLimits: o.getTenantLimits(userID),
-		RuntimeOverrides:       o.GetRuntimeOverridesFor(userID),
-	}
-
-	out, err := yaml.Marshal(overrides)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(out)
-	return err
 }
 
 func (o *userConfigurableOverridesManager) Describe(ch chan<- *prometheus.Desc) {
