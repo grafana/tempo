@@ -550,6 +550,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	resps, err := testRT.RoundTrip(req)
+	require.NoError(t, err)
 	// find a response with total jobs > . this is the metadata response
 	var resp *tempopb.SearchResponse
 	for {
@@ -630,6 +631,8 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 }
 
 func testBadRequestFromResponses(t *testing.T, resp pipeline.Responses[*http.Response], err error, expectedBody string) {
+	require.NoError(t, err)
+
 	r, err, done := resp.Next(context.Background())
 	require.NoError(t, err)
 	require.True(t, done) // there should only be one response

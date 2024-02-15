@@ -12,11 +12,6 @@ import (
 	"github.com/grafana/dskit/user"
 )
 
-const (
-	statusCodeLabel = "status_code"
-	tenantLabel     = "tenant"
-)
-
 var ErrMultiTenantUnsupported = errors.New("multi-tenant query unsupported")
 
 type tenantRoundTripper struct {

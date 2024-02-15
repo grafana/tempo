@@ -26,7 +26,7 @@ func TestAsyncSharders(t *testing.T) {
 						return nil
 					}
 					return &http.Request{}
-				}, next)
+				}, next).(*asyncResponse)
 			},
 		},
 		{
@@ -40,7 +40,7 @@ func TestAsyncSharders(t *testing.T) {
 					close(reqChan)
 				}()
 
-				return NewAsyncSharderLimitedGoroutines(10, reqChan, nil, next)
+				return NewAsyncSharderLimitedGoroutines(10, reqChan, nil, next).(*asyncResponse)
 			},
 		},
 	}

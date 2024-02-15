@@ -14,11 +14,9 @@ import (
 	"testing"
 	"time"
 
-	//nolint:all //deprecated
-
 	"github.com/go-kit/log"
 	"github.com/gogo/status"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
@@ -347,7 +345,6 @@ func TestSearchLimitHonored(t *testing.T) {
 					InspectedBytes:  1,
 				},
 			}
-
 		},
 	}, nil, &Config{
 		MultiTenantQueriesEnabled: true,
@@ -578,7 +575,8 @@ func TestSearchAccessesCache(t *testing.T) {
 	// setup mock cache
 	c := cache.NewMockCache()
 	p := test.NewMockProvider()
-	p.AddCache(cache.RoleFrontendSearch, c)
+	err := p.AddCache(cache.RoleFrontendSearch, c)
+	require.NoError(t, err)
 	f := frontendWithSettings(t, nil, rdr, nil, p)
 
 	// setup query

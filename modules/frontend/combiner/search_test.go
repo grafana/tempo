@@ -25,14 +25,14 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// 500 response should quit
 	c = NewSearch(0)
-	err := c.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{}, 500), "")
+	err := c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{}, 500), "")
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
 	c = NewSearch(0)
-	err = c.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{}, 429), "")
+	err = c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{}, 429), "")
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
@@ -46,7 +46,7 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// under limit should not quit
 	c = NewSearch(2)
-	err = c.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{
+	err = c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
@@ -59,7 +59,7 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// over limit should quit
 	c = NewSearch(1)
-	err = c.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{
+	err = c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
@@ -79,7 +79,7 @@ func TestSearchCombinesResults(t *testing.T) {
 	traceID := "traceID"
 
 	c := NewSearch(10)
-	sr := toHttpResponse(t, &tempopb.SearchResponse{
+	sr := toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:           traceID,
@@ -120,7 +120,7 @@ func TestSearchCombinesResults(t *testing.T) {
 	require.NoError(t, err)
 
 	actual := &tempopb.SearchResponse{}
-	fromHttpResponse(t, resp, actual)
+	fromHTTPResponse(t, resp, actual)
 
 	require.Equal(t, expected, actual)
 }
@@ -138,67 +138,68 @@ func TestSearchResponseCombiner(t *testing.T) {
 	}{
 		{
 			name:           "empty returns",
-			response1:      toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:      toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response1:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response2:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
 			expectedStatus: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{},
 				Metrics: &tempopb.SearchMetrics{
 					CompletedJobs: 2,
-				}},
+				},
+			},
 		},
 		{
 			name:              "404+200",
-			response1:         toHttpResponse(t, nil, 404),
-			response2:         toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response1:         toHTTPResponse(t, nil, 404),
+			response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
 			expectedStatus:    404,
 			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
 		},
 		{
 			name:              "200+400",
-			response1:         toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:         toHttpResponse(t, nil, 400),
+			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response2:         toHTTPResponse(t, nil, 400),
 			expectedStatus:    400,
 			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
 		},
 		{
 			name:              "200+429",
-			response1:         toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:         toHttpResponse(t, nil, 429),
+			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response2:         toHTTPResponse(t, nil, 429),
 			expectedStatus:    429,
 			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
 		},
 		{
 			name:              "500+404",
-			response1:         toHttpResponse(t, nil, 500),
-			response2:         toHttpResponse(t, nil, 404),
+			response1:         toHTTPResponse(t, nil, 500),
+			response2:         toHTTPResponse(t, nil, 404),
 			expectedStatus:    500,
 			expectedGRPCError: status.Error(codes.Internal, ""),
 		},
 		{
 			name:              "404+500 - first bad response wins",
-			response1:         toHttpResponse(t, nil, 404),
-			response2:         toHttpResponse(t, nil, 500),
+			response1:         toHTTPResponse(t, nil, 404),
+			response2:         toHTTPResponse(t, nil, 500),
 			expectedStatus:    404,
 			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
 		},
 		{
 			name:              "500+200",
-			response1:         toHttpResponse(t, nil, 500),
-			response2:         toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response1:         toHTTPResponse(t, nil, 500),
+			response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
 			expectedStatus:    500,
 			expectedGRPCError: status.Error(codes.Internal, ""),
 		},
 		{
 			name:              "200+500",
-			response1:         toHttpResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:         toHttpResponse(t, nil, 500),
+			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+			response2:         toHTTPResponse(t, nil, 500),
 			expectedStatus:    500,
 			expectedGRPCError: status.Error(codes.Internal, ""),
 		},
 		{
 			name: "respects total blocks message",
-			response1: toHttpResponse(t, &tempopb.SearchResponse{
+			response1: toHTTPResponse(t, &tempopb.SearchResponse{
 				Traces: nil,
 				Metrics: &tempopb.SearchMetrics{
 					TotalBlocks:     5,
@@ -206,7 +207,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 					TotalBlockBytes: 15,
 				},
 			}, 200),
-			response2: toHttpResponse(t, &tempopb.SearchResponse{
+			response2: toHTTPResponse(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "5678",
@@ -239,7 +240,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 		},
 		{
 			name: "200+200",
-			response1: toHttpResponse(t, &tempopb.SearchResponse{
+			response1: toHTTPResponse(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "1234",
@@ -252,7 +253,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 					InspectedBytes:  3,
 				},
 			}, 200),
-			response2: toHttpResponse(t, &tempopb.SearchResponse{
+			response2: toHTTPResponse(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
 						TraceID:           "5678",
@@ -312,7 +313,7 @@ func TestSearchDiffsResults(t *testing.T) {
 	traceID := "traceID"
 
 	c := NewTypedSearch(10)
-	sr := toHttpResponse(t, &tempopb.SearchResponse{
+	sr := toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: traceID,
@@ -357,7 +358,7 @@ func TestSearchDiffsResults(t *testing.T) {
 
 	// let's add a different trace and get it back in diff
 	traceID2 := "traceID2"
-	sr2 := toHttpResponse(t, &tempopb.SearchResponse{
+	sr2 := toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: traceID2,
@@ -385,7 +386,7 @@ func TestSearchDiffsResults(t *testing.T) {
 	require.Equal(t, expectedDiff2, actual)
 }
 
-func toHttpResponse(t *testing.T, pb proto.Message, statusCode int) *http.Response {
+func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) *http.Response {
 	var body string
 
 	if pb != nil {
@@ -401,7 +402,7 @@ func toHttpResponse(t *testing.T, pb proto.Message, statusCode int) *http.Respon
 	}
 }
 
-func fromHttpResponse(t *testing.T, r *http.Response, pb proto.Message) {
+func fromHTTPResponse(t *testing.T, r *http.Response, pb proto.Message) {
 	err := jsonpb.Unmarshal(r.Body, pb)
 	require.NoError(t, err)
 }
@@ -417,7 +418,7 @@ func TestCombinerDiffs(t *testing.T) {
 		Metrics: &tempopb.SearchMetrics{},
 	}, resp)
 
-	err = combiner.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{
+	err = combiner.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:         "1234",
@@ -461,7 +462,7 @@ func TestCombinerDiffs(t *testing.T) {
 	}, resp)
 
 	// new traces
-	err = combiner.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{
+	err = combiner.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:           "5678",
@@ -504,7 +505,7 @@ func TestCombinerDiffs(t *testing.T) {
 	}, resp)
 
 	// write over existing trace
-	err = combiner.AddRequest(toHttpResponse(t, &tempopb.SearchResponse{
+	err = combiner.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:    "1234",
@@ -554,7 +555,7 @@ func TestSearchCombinerDoesNotRace(t *testing.T) {
 	i := 0
 	go concurrent(func() {
 		i++
-		resp := toHttpResponse(t, &tempopb.SearchResponse{
+		resp := toHTTPResponse(t, &tempopb.SearchResponse{
 			Traces: []*tempopb.TraceSearchMetadata{
 				{
 					TraceID:           traceID,
@@ -573,7 +574,7 @@ func TestSearchCombinerDoesNotRace(t *testing.T) {
 				CompletedJobs:   1,
 			},
 		}, 200)
-		combiner.AddRequest(resp, "")
+		_ = combiner.AddRequest(resp, "")
 	})
 
 	go concurrent(func() {

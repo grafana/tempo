@@ -39,9 +39,8 @@ type SearchSharderConfig struct {
 }
 
 type backendReqMsg struct {
-	req      *http.Request
-	cacheKey string
-	err      error
+	req *http.Request
+	err error
 }
 
 type asyncSearchSharder struct {
