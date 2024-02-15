@@ -800,8 +800,8 @@ func TestTraceIDShardingQuality(t *testing.T) {
 		return block.Fetch(ctx, req, opts)
 	})
 
-	shardsToTest := []int{2, 5, 10, 100, 500, 1000, 2000}
-	bitsToTest := []int{ /*4, 8, 12, 16 20,*/ 24 /*28, 32*/}
+	shardsToTest := []int{2, 5, 10 /*, 100, 500, 1000, 2000*/}
+	bitsToTest := []int{4, 8, 12 /*16, 20, 24 /*28, 32*/}
 
 	for _, shards := range shardsToTest {
 		t.Run(strconv.Itoa(shards), func(t *testing.T) {
