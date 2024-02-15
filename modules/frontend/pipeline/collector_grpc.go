@@ -59,7 +59,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 				break
 			}
 
-			resp, err, done := resps.Next(ctx)
+			resp, done, err := resps.Next(ctx)
 			if err != nil {
 				overallErr = err
 				break

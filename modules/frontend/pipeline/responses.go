@@ -39,12 +39,12 @@ func NewSuccessfulResponse(body string) Responses[*http.Response] {
 	})
 }
 
-func (s syncResponse) Next(ctx context.Context) (*http.Response, error, bool) {
+func (s syncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err, true
+		return nil, true, err
 	}
 
-	return s.r, nil, true
+	return s.r, true, nil
 }
 
 var _ Responses[*http.Response] = &asyncResponse{}
@@ -80,9 +80,9 @@ func (a *asyncResponse) done() {
 
 // Next returns the next http.Response or an error if one is available. It always prefers an error over a response.
 // todo: review performance. There is a lot of channel access here
-func (a *asyncResponse) Next(ctx context.Context) (*http.Response, error, bool) {
+func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
 	if err := a.error(); err != nil {
-		return nil, err, true
+		return nil, true, err
 	}
 
 	// no error, attempt to do the normal thing
@@ -90,17 +90,17 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, error, bool) 
 		if a.curResponses == nil {
 			select {
 			case err := <-a.errChan:
-				return nil, err, true
+				return nil, true, err
 			case <-ctx.Done():
 				err := a.error() // double check our error and prefer it over the context error if it exists
 				if err == nil {
 					err = ctx.Err()
 				}
-				return nil, err, true
+				return nil, true, err
 			case r, ok := <-a.respChan:
 				a.curResponses = r
 				if r == nil && !ok {
-					return nil, a.error(), true
+					return nil, true, a.error()
 				}
 			}
 		}
@@ -108,10 +108,10 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, error, bool) 
 		// double check error again! we should always prioritize error over response and the above
 		// select is not deterministic and may choose the response channel over the error channel
 		if err := a.error(); err != nil {
-			return nil, err, true
+			return nil, true, err
 		}
 
-		resp, err, done := a.curResponses.Next(ctx)
+		resp, done, err := a.curResponses.Next(ctx)
 		if done {
 			a.curResponses = nil
 		}
@@ -120,7 +120,7 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, error, bool) 
 			continue
 		}
 
-		return resp, err, false
+		return resp, false, err
 	}
 }
 

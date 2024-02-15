@@ -64,7 +64,7 @@ func TestAsyncSharders(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				for {
-					resp, err, done := sharderResp.Next(context.Background())
+					resp, done, err := sharderResp.Next(context.Background())
 					if resp != nil {
 						actualRequestCount++
 					}

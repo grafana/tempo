@@ -94,7 +94,7 @@ func TestMultiTenant(t *testing.T) {
 			require.NoError(t, err)
 
 			for {
-				res, err, done := resps.Next(context.Background())
+				res, done, err := resps.Next(context.Background())
 				if done {
 					break
 				}
@@ -158,7 +158,7 @@ func TestMultiTenantNotSupported(t *testing.T) {
 			resps, err := rt.RoundTrip(req)
 			require.NoError(t, err) // no error expected. tenant unsupported should be passed back as a bad request. errors bubble up as 5xx
 
-			res, err, done := resps.Next(context.Background())
+			res, done, err := resps.Next(context.Background())
 			require.True(t, done)
 			require.NoError(t, err)
 

@@ -27,7 +27,7 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 	asyncR := NewSyncToAsyncResponse(expected)
 
 	// confirm we get back what we put in
-	actual, err, done := asyncR.Next(context.Background())
+	actual, done, err := asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -35,7 +35,7 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 	// confirm errored context is honored
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	actual, err, done = asyncR.Next(ctx)
+	actual, done, err = asyncR.Next(ctx)
 	require.True(t, done)
 	require.Error(t, err)
 	require.Nil(t, actual)
@@ -47,7 +47,7 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 		Status:     http.StatusText(http.StatusBadRequest),
 		Body:       io.NopCloser(strings.NewReader("foo")),
 	}
-	actual, err, done = asyncR.Next(context.Background())
+	actual, done, err = asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -59,7 +59,7 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 		Status:     http.StatusText(http.StatusOK),
 		Body:       io.NopCloser(strings.NewReader("foo")),
 	}
-	actual, err, done = asyncR.Next(context.Background())
+	actual, done, err = asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -96,14 +96,14 @@ func TestAsyncResponseReturnsResponsesInOrder(t *testing.T) {
 
 	// confirm we get back what we put in
 	for _, e := range expected {
-		actual, err, done := asyncR.Next(context.Background())
+		actual, done, err := asyncR.Next(context.Background())
 		require.False(t, done)
 		require.NoError(t, err)
 		require.Equal(t, e, actual)
 	}
 
 	// next call should be done
-	actual, err, done := asyncR.Next(context.Background())
+	actual, done, err := asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
 	require.Nil(t, actual)
@@ -113,7 +113,7 @@ func TestAsyncResponseHonorsContextFailure(t *testing.T) {
 	asyncR := newAsyncResponse()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	actual, err, done := asyncR.Next(ctx)
+	actual, done, err := asyncR.Next(ctx)
 	require.True(t, done)
 	require.Error(t, err)
 	require.Nil(t, actual)
@@ -130,7 +130,7 @@ func TestAsyncResponseReturnsSentErrors(t *testing.T) {
 		asyncR.Send(NewSuccessfulResponse("foo"))
 	}()
 	time.Sleep(100 * time.Millisecond)
-	actual, actualErr, done := asyncR.Next(context.Background())
+	actual, done, actualErr := asyncR.Next(context.Background())
 	require.True(t, done)
 	require.Equal(t, expectedErr, actualErr)
 	require.Nil(t, actual)
@@ -157,7 +157,7 @@ func TestAsyncResponseFansIn(t *testing.T) {
 		defer wg.Done()
 
 		for {
-			resp, err, done := rootResp.Next(context.Background())
+			resp, done, err := rootResp.Next(context.Background())
 			if done {
 				return
 			}

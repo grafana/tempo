@@ -9,7 +9,7 @@ import (
 // async call with multiple responses returns something that satisfies Responses. likely with an internal channel to pass back response
 
 type Responses[T any] interface {
-	Next(context.Context) (T, error, bool) // bool = done
+	Next(context.Context) (T, bool, error) // bool = done
 }
 
 type AsyncRoundTripper[T any] interface {

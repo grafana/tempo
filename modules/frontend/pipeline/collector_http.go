@@ -36,7 +36,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	for {
-		resp, err, done := resps.Next(ctx)
+		resp, done, err := resps.Next(ctx)
 		if err != nil {
 			return nil, err
 		}
