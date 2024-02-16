@@ -13,28 +13,31 @@ keywords:
 
 {{< docs/experimental product="Prometheus-compatible API"  >}}
 
-This experimental Prometheus-compatible API provides a way to visualize metrics out of traces using TraceQL.  Additionally, the only implemented endpoint is `/query_range`, to allow a Prometheus data source in Grafana to be used.
+This experimental Prometheus-compatible API provides a way to visualize metrics out of traces using TraceQL. Additionally, the only implemented endpoint is `/query_range`,  to allow a Prometheus data source in Grafana to be used.
 
 The API will have native support in a future Grafana release, possibly using an internal API, deprecating the need for
 this compatibility layer.
 
-## Configure a Grafana datasource
+## Configure options to enable visualization
+
+You can use the metrics generated from traces in Grafana using an existing or new Tempo data source.
+This capability is available in Grafana Cloud and Grafana (10.4 and newer).
+
+### Before you begin
+
+To use the metrics generated from traces, you need to:
+
+* Set the `local-blocks` processor to active in your `metrics-generator` configuration
+* Configure a Tempo data source configured in Grafana or Grafana Cloud
+* Access Grafana Cloud or Grafana 10.4
+
+### Configure the `local-blocks` processor
 
 Once the `local-blocks` processor is enabled in your `metrics-generator`
-configuration, you can add a new Prometheus data source in Grafana to use the
-`query-frontend` at the `/prom` endpoint for this.  Set the data source URL
-parameter to `http://<HOST>:<PORT>/prom`.  For example:
+configuration, you can configure a Tempo data source or use an existing Tempo data source.
 
-    ```
-    http://query-frontend.trace.svc.cluster.local:3200/prom
-    ```
 
-![Caption](/media/docs/tempo/metrics-data-source.png)
-
-The data source test will fail with a `404` status code, but this is accepted
-for the experimental feature.
-
-### Query timeouts
+### Evaluate query timeouts
 
 Because of the expensive nature, these queries can take a long time to run in different systems.
 As such, consider increasing the timeouts in various places of
@@ -75,10 +78,10 @@ query_frontend:
 
 ## Visualize traces with TraceQL
 
-Next, use Grafana `explore` to query the data source.
+Next, use Grafana **Explore** to query the Tempo data source.
 
 {{% admonition type="note" %}}
-Even though you are using a Prometheus data source, queries don't use PromQL. Grafana will have no way to parse, validate or provide completion options for the query.
+Even though you are using a Prometheus data source, queries don't use PromQL. Grafana will have no way to parse, validate, or provide completion options for the query.
 {{% /admonition %}}
 
 Adjust the query `type` so only `range` is selected.
@@ -100,4 +103,4 @@ introduced with this API.  There is also a `rate()` function.
 
 Finally, the `by (resource.service.name)` groups the results into each series.
 
-![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample.png)
+![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample-2.4.png)
