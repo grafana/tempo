@@ -70,15 +70,17 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 		existing.DurationMs = incoming.DurationMs
 	}
 
-	// Merge service stats
+	// Combine service stats
+	// It's possible to find multiple trace fragments that satisfy a TraceQL result,
+	// therefore we use max() to merge the ServiceStats.
 	for service, incomingStats := range incoming.ServiceStats {
 		existingStats, ok := existing.ServiceStats[service]
 		if !ok {
 			existingStats = &tempopb.ServiceStats{}
 			existing.ServiceStats[service] = existingStats
 		}
-		existingStats.SpanCount += incomingStats.SpanCount
-		existingStats.ErrorCount += incomingStats.ErrorCount
+		existingStats.SpanCount = max(existingStats.SpanCount, incomingStats.SpanCount)
+		existingStats.ErrorCount = max(existingStats.ErrorCount, incomingStats.ErrorCount)
 	}
 
 	// make a map of existing Spansets
