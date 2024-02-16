@@ -199,11 +199,11 @@ func (t *App) Run() error {
 		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm, shutdownRequested))
 	}
 
-	t.Server.HTTP().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
+	t.Server.HTTPRouter().Path(addHTTPAPIPrefix(&t.cfg, api.PathBuildInfo)).Handler(t.buildinfoHandler()).Methods("GET")
 
-	t.Server.HTTP().Path("/ready").Handler(t.readyHandler(sm, shutdownRequested))
-	t.Server.HTTP().Path("/status").Handler(t.statusHandler()).Methods("GET")
-	t.Server.HTTP().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTPRouter().Path("/ready").Handler(t.readyHandler(sm, shutdownRequested))
+	t.Server.HTTPRouter().Path("/status").Handler(t.statusHandler()).Methods("GET")
+	t.Server.HTTPRouter().Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")
 	grpc_health_v1.RegisterHealthServer(t.Server.GRPC(),
 		grpcutil.NewHealthCheckFrom(
 			grpcutil.WithShutdownRequested(shutdownRequested),
@@ -497,7 +497,7 @@ func (t *App) writeStatusEndpoints(w io.Writer) error {
 
 	endpoints := []endpoint{}
 
-	err := t.Server.HTTP().Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	err := t.Server.HTTPRouter().Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		e := endpoint{}
 
 		pathTemplate, err := route.GetPathTemplate()
