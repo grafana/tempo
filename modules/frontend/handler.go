@@ -45,7 +45,7 @@ type handler struct {
 	logger                 log.Logger
 	post                   handlerPostHook
 	pre                    handlerPreHook
-	LogQueryRequestHeaders flagext.StringSliceCSV
+	logQueryRequestHeaders flagext.StringSliceCSV
 }
 
 // newHandler creates a handler
