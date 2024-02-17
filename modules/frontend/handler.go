@@ -86,13 +86,13 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.post(ctx, resp, orgID, elapsed, err)
 	}
 
-	logMessage := append([]interface{}{
+	logMessage := []interface{}{
 		"tenant", orgID,
 		"method", r.Method,
 		"traceID", traceID,
 		"url", r.URL.RequestURI(),
 		"duration", elapsed.String(),
-	})
+	}
 	if len(f.LogQueryRequestHeaders) != 0 {
 		logMessage = append(logMessage, formatRequestHeaders(&r.Header, f.LogQueryRequestHeaders)...)
 	}
