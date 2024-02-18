@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
+	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -168,12 +169,8 @@ func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest)
 	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
 	tracer, span := opentracing.GlobalTracer(), opentracing.SpanFromContext(ctx)
 	if tracer != nil && span != nil {
-		// carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
-		carrier := make(opentracing.TextMapCarrier, len(req.Headers))
-		for _, header := range req.Headers {
-			carrier.Set(header.Key, header.Values[0])
-		}
-		err := tracer.Inject(span.Context(), opentracing.TextMap, carrier)
+		carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
+		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, carrier)
 		if err != nil {
 			return nil, err
 		}

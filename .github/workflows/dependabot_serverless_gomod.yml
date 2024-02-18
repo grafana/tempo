@@ -1,5 +1,7 @@
 name: Dependabot
 on: pull_request
+permissions:
+  contents: write
 
 # NOTE: For this job, we are unable to use the GITHUB_TOKEN from the action
 # itself.  The reason for this is that the tokens handed out for actions dont'
@@ -16,12 +18,12 @@ jobs:
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
 
@@ -33,7 +35,7 @@ jobs:
           USER: grafanabot
           TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
         run: |
-          git config --global url."https://${USER}:${TOKEN}@github.com/grafana/".insteadOf "https://github.com/grafana/"
+          git config --global url."https://${USER}:${TOKEN}@github.com/grafana/tempo".insteadOf "https://github.com/grafana/tempo"
           git config user.name grafanabot
           git config user.email bot@grafana.com
           git add cmd/tempo-serverless/lambda/go.mod
@@ -44,5 +46,4 @@ jobs:
 
       - name: Push changes
         run: |
-          git remote set-url origin https://${USER}:${TOKEN}@github.com/grafana/tempo.git
           git push origin ${{ github.head_ref }}

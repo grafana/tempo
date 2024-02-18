@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build Website
         run: |
           docker run \
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: "Clone website-sync Action"
         # WEBSITE_SYNC_TOKEN is a fine-grained GitHub Personal Access Token that expires.
         # It must be regenerated in the grafanabot GitHub account and requires a Grafana organization

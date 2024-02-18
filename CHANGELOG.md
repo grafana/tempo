@@ -11,6 +11,7 @@
 * [BUGFIX] Move waitgroup handling for poller error condition [#3224](https://github.com/grafana/tempo/pull/3224) (@zalegrala)
 * [BUGFIX] Fix head block excessive locking in ingester search [#3328](https://github.com/grafana/tempo/pull/3328) (@mdisibio)
 * [BUGFIX] Fix issue with ingester failed to cut traces no such file or directory [#3346](https://github.com/grafana/tempo/issues/3346) (@mdisibio)
+* [BUGFIX] Restore `tempo_request_duration_seconds` metrics for `querier_api_*` requests [#3403](https://github.com/grafana/tempo/pull/3403) (@kvrhdn)
 * [ENHANCEMENT] Introduced `AttributePolicyMatch` & `IntrinsicPolicyMatch` structures to match span attributes based on strongly typed values & precompiled regexp [#3025](https://github.com/grafana/tempo/pull/3025) (@andriusluk)
 * [CHANGE] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
 * [CHANGE] Merge the processors overrides set through runtime overrides and user-configurable overrides [#3125](https://github.com/grafana/tempo/pull/3125) (@kvrhdn)
@@ -53,6 +54,7 @@
 * [ENHANCEMENT] Add HTML pages /status/overrides and /status/overrides/{tenant} [#3244](https://github.com/grafana/tempo/pull/3244) [#3332](https://github.com/grafana/tempo/pull/3332) (@kvrhdn)
 * [ENHANCEMENT] Precalculate and reuse the vParquet3 schema before opening blocks [#3367](https://github.com/grafana/tempo/pull/3367) (@stoewer)
 * [ENHANCEMENT] Config: Adds `query-frontend.log-query-request-headers` to enable logging of request headers in query logs. [#3383](https://github.com/grafana/tempo/pull/3383) (@jmichalek132)
+* [ENHANCEMENT] Add `--shutdown-delay` to allow Tempo to cleanly drain connections. [#3395](https://github.com/grafana/tempo/pull/3395) (@joe-elliott)
 * [BUGFIX] Prevent building parquet iterators that would loop forever. [#3159](https://github.com/grafana/tempo/pull/3159) (@mapno)
 * [BUGFIX] Sanitize name in mapped dimensions in span-metrics processor [#3171](https://github.com/grafana/tempo/pull/3171) (@mapno)
 * [BUGFIX] Fixed an issue where cached footers were requested then ignored. [#3196](https://github.com/grafana/tempo/pull/3196) (@joe-elliott)
@@ -61,6 +63,7 @@
 * [BUGFIX] Correctly return 400 when max limit is requested on search. [#3340](https://github.com/grafana/tempo/pull/3340) (@joe-elliott)
 * [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
 * [CHANGE] **Breaking Change** Deprecating vParquet v1 [#3377](https://github.com/grafana/tempo/pull/3377) (@ie-pham)
+* [BUGFIX] Fixes trace context propagation between query-frontend and querier. [#3387](https://github.com/grafana/tempo/pull/3387) (@mapno)
 
 ## v2.3.1 / 2023-11-28
 

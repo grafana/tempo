@@ -324,7 +324,7 @@ func (e *Engine) ExecuteMetricsQueryRange(ctx context.Context, req *tempopb.Quer
 		return nil, err
 	}
 
-	err = eval.Do(ctx, fetcher)
+	err = eval.Do(ctx, fetcher, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -365,42 +365,45 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans:     dedupeSpans,
 	}
 
-	// TraceID (not always required)
-	if req.ShardCount > 1 || dedupeSpans {
+	// TraceID (optional)
+	if req.ShardCount > 1 {
 		// For sharding it must be in the first pass so that we only evalulate our traces.
 		storageReq.ShardID = req.ShardID
 		storageReq.ShardCount = req.ShardCount
-		traceID := NewIntrinsic(IntrinsicTraceID)
-		if !storageReq.HasAttribute(traceID) {
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: traceID})
+		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
+			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: IntrinsicTraceIDAttribute})
+		}
+	}
+
+	if dedupeSpans {
+		// For dedupe we only need the trace ID on matching spans, so it can go in the second pass.
+		// This is a no-op if we are already sharding and it's in the first pass.
+		// Finally, this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicTraceIDAttribute})
 		}
 	}
 
 	// Span start time (always required)
-	startTime := NewIntrinsic(IntrinsicSpanStartTime)
-	if !storageReq.HasAttribute(startTime) {
-		if storageReq.AllConditions {
-			// The most efficient case.  We can add it to the primary pass
-			// without affecting correctness. And this lets us avoid the
-			// entire second pass.
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: startTime})
-		} else {
-			// Complex query with a second pass. In this case it is better to
-			// add it to the second pass so that it's only returned for the matches.
-			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: startTime})
-		}
+	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
+		// Technically we only need the start time of matching spans, so we add it to the second pass.
+		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
 	}
 
 	// Timestamp filtering
 	// (1) Include any overlapping trace
-	//     TODO - It can be faster to skip the trace-level timestamp check
+	//     It can be faster to skip the trace-level timestamp check
 	//     when all or most of the traces overlap the window.
-	//     Maybe it can be dynamic.
-	// storageReq.StartTimeUnixNanos = req.Start
-	// storageReq.EndTimeUnixNanos = req.End // Should this be exclusive?
+	//     So this is done dynamically on a per-fetcher basis in Do()
 	// (2) Only include spans that started in this time frame.
 	//     This is checked outside the fetch layer in the evaluator. Timestamp
 	//     is only checked on the spans that are the final results.
+	// TODO - I think there are cases where we can push this down.
+	// Queries like {status=error} | rate() don't assert inter-span conditions
+	// and we could filter on span start time without affecting correctness.
+	// Queries where we can't are like:  {A} >> {B} | rate() because only require
+	// that {B} occurs within our time range but {A} is allowed to occur any time.
 	me.checkTime = true
 	me.start = req.Start
 	me.end = req.End
@@ -424,7 +427,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
-	// Special optimization for queries like {} | rate() by (rootName)
+	// Special optimization for queries like:
+	//  {} | rate()
+	//  {} | rate() by (rootName)
+	//  {} | rate() by (resource.service.name)
 	// When the second pass consists only of intrinsics, then it's possible to
 	// move them to the first pass and increase performance. It avoids the second pass/bridge
 	// layer and doesn't alter the correctness of the query.
@@ -470,13 +476,51 @@ type MetricsEvalulator struct {
 	deduper         *SpanDeduper2
 	storageReq      *FetchSpansRequest
 	metricsPipeline metricsFirstStageElement
-	count           int
-	deduped         int
+	spansTotal      uint64
+	spansDeduped    uint64
+	bytes           uint64
 	mtx             sync.Mutex
 }
 
-func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
-	fetch, err := f.Fetch(ctx, *e.storageReq)
+func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
+	st := max(reqStart, dataStart)
+	end := min(reqEnd, dataEnd)
+
+	if end <= st {
+		return 0
+	}
+
+	return float64(end-st) / float64(dataEnd-dataStart)
+}
+
+// Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
+// uses the known time range of the data for last-minute optimizations. Time range is unix nanos
+func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64) error {
+	// Make a copy of the request so we can modify it.
+	storageReq := *e.storageReq
+
+	if fetcherStart > 0 && fetcherEnd > 0 {
+		// Dynamically decide whether to use the trace-level timestamp columns
+		// for filtering.
+		overlap := timeRangeOverlap(e.start, e.end, fetcherStart, fetcherEnd)
+
+		if overlap == 0.0 {
+			// This shouldn't happen but might as well check.
+			// No overlap == nothing to do
+			return nil
+		}
+
+		// Our heuristic is if the overlap between the given fetcher (i.e. block)
+		// and the request is less than 20%, use them.  Above 20%, the cost of loading
+		// them doesn't outweight the benefits. 20% was measured in local benchmarking.
+		// TODO - Make configurable or a query hint?
+		if overlap < 0.2 {
+			storageReq.StartTimeUnixNanos = e.start
+			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
+		}
+	}
+
+	fetch, err := f.Fetch(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
 		return nil
 	}
@@ -510,11 +554,11 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
 			}
 
 			if e.dedupeSpans && e.deduper.Skip(ss.TraceID, s.StartTimeUnixNanos()) {
-				e.deduped++
+				e.spansDeduped++
 				continue
 			}
 
-			e.count++
+			e.spansTotal++
 			e.metricsPipeline.observe(s)
 
 		}
@@ -522,11 +566,18 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher) error {
 		ss.Release()
 	}
 
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.bytes += fetch.Bytes()
+
 	return nil
 }
 
-func (e *MetricsEvalulator) SpanCount() {
-	fmt.Println(e.count, e.deduped)
+func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
 func (e *MetricsEvalulator) Results() (SeriesSet, error) {

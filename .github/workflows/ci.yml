@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
@@ -35,7 +35,7 @@ jobs:
           go install golang.org/x/tools/cmd/goimports@v0.1.12
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: check-fmt
         run: make check-fmt
@@ -44,7 +44,7 @@ jobs:
         run: make check-jsonnetfmt
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
           version: v1.55.2
           only-new-issues: true
@@ -54,12 +54,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Test
         run: make test-with-cover-pkg
@@ -69,12 +69,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Test
         run: make test-with-cover-tempodb
@@ -84,12 +84,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Test
         run: make test-with-cover-tempodb-wal
@@ -99,12 +99,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Test
         run: make test-with-cover-others
@@ -114,12 +114,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Test
         run: make test-e2e
@@ -132,12 +132,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Test
         run: make test-e2e-serverless
@@ -147,12 +147,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Tempo
         run: make tempo
@@ -171,12 +171,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Bench
         run: make test-bench
@@ -186,12 +186,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -206,7 +206,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.21
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
@@ -222,7 +222,7 @@ jobs:
           chmod a+x /usr/local/bin/tk
 
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Check jsonnet
         run: make jsonnet-check
@@ -238,6 +238,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod

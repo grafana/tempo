@@ -9,6 +9,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   ingester-0:
     image: grafana/tempo:latest
@@ -18,6 +23,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   ingester-1:
     image: grafana/tempo:latest
@@ -27,6 +37,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   ingester-2:
     image: grafana/tempo:latest
@@ -36,6 +51,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   query-frontend:
     image: grafana/tempo:latest
@@ -45,6 +65,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200:3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   querier:
     image: grafana/tempo:latest
@@ -54,6 +79,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   compactor:
     image: grafana/tempo:latest
@@ -63,6 +93,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   metrics-generator:
     image: grafana/tempo:latest
@@ -72,6 +107,11 @@ services:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
+# Uncomment the following lines to enable tracing
+#    environment:
+#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_SAMPLER_TYPE=const
+#      - JAEGER_SAMPLER_PARAM=1
 
   minio:
     image: minio/minio:latest
@@ -86,7 +126,7 @@ services:
       - mkdir -p /data/tempo && minio server /data --console-address ':9001'
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+    image: ghcr.io/grafana/xk6-client-tracing:latest
     environment:
       - ENDPOINT=distributor:4317
     restart: always
@@ -117,3 +157,17 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     ports:
       - "3000:3000"
+
+  agent:
+    image: grafana/agent:v0.38.1
+    volumes:
+      - /tmp/agent:/tmp/agent
+      - ./agent.river:/etc/agent.river
+    environment:
+      - AGENT_MODE=flow
+    entrypoint:
+      - sh
+      - -euc
+      - /bin/grafana-agent run --server.http.listen-addr=0.0.0.0:12345 /etc/agent.river
+    ports:
+      - "12345:12345"
