@@ -24,7 +24,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.6.0
-	github.com/google/uuid v1.4.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20240116202611-824e75a28ee8
 	github.com/grafana/e2e v0.1.1
