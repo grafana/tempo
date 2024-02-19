@@ -25,6 +25,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
           ref: ${{ github.head_ref }}
 
       - name: Update serverless gomod
