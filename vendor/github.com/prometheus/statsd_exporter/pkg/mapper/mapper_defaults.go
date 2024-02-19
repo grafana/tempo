@@ -15,7 +15,7 @@ package mapper
 
 import "time"
 
-type mapperConfigDefaults struct {
+type MapperConfigDefaults struct {
 	ObserverType        ObserverType     `yaml:"observer_type"`
 	MatchType           MatchType        `yaml:"match_type"`
 	GlobDisableOrdering bool             `yaml:"glob_disable_ordering"`
@@ -29,7 +29,7 @@ type mapperConfigDefaultsAlias struct {
 	ObserverType        ObserverType      `yaml:"observer_type"`
 	TimerType           ObserverType      `yaml:"timer_type,omitempty"` // DEPRECATED - field only present to preserve backwards compatibility in configs
 	Buckets             []float64         `yaml:"buckets"`              // DEPRECATED - field only present to preserve backwards compatibility in configs
-	Quantiles           []metricObjective `yaml:"quantiles"`            // DEPRECATED - field only present to preserve backwards compatibility in configs
+	Quantiles           []MetricObjective `yaml:"quantiles"`            // DEPRECATED - field only present to preserve backwards compatibility in configs
 	MatchType           MatchType         `yaml:"match_type"`
 	GlobDisableOrdering bool              `yaml:"glob_disable_ordering"`
 	Ttl                 time.Duration     `yaml:"ttl"`
@@ -39,7 +39,7 @@ type mapperConfigDefaultsAlias struct {
 
 // UnmarshalYAML is a custom unmarshal function to allow use of deprecated config keys
 // observer_type will override timer_type
-func (d *mapperConfigDefaults) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (d *MapperConfigDefaults) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var tmp mapperConfigDefaultsAlias
 	if err := unmarshal(&tmp); err != nil {
 		return err
