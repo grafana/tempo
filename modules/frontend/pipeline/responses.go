@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+type Responses[T any] interface {
+	Next(context.Context) (T, bool, error) // bool = done
+}
+
 var _ Responses[*http.Response] = syncResponse{}
 
 // syncResponse is a single http.Response that implements the Responses[*http.Response] interface.

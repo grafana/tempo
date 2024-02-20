@@ -1,6 +1,63 @@
 package pipeline
 
-import "net/http"
+import (
+	"net/http"
+)
+
+//
+// Async Pipeline
+//
+
+type AsyncRoundTripper[T any] interface {
+	RoundTrip(*http.Request) (Responses[T], error)
+}
+
+type AsyncRoundTripperFunc[T any] func(*http.Request) (Responses[T], error)
+
+func (fn AsyncRoundTripperFunc[T]) RoundTrip(req *http.Request) (Responses[T], error) {
+	return fn(req)
+}
+
+// AsyncMiddleware is used to build pipelines of pipeline.Roundtrippers
+type AsyncMiddleware[T any] interface {
+	Wrap(AsyncRoundTripper[T]) AsyncRoundTripper[T]
+}
+
+// AsyncMiddlewareFunc is like http.HandlerFunc, but for Middleware.
+type AsyncMiddlewareFunc[T any] func(AsyncRoundTripper[T]) AsyncRoundTripper[T]
+
+// Wrap implements Middleware.
+func (f AsyncMiddlewareFunc[T]) Wrap(w AsyncRoundTripper[T]) AsyncRoundTripper[T] {
+	return f(w)
+}
+
+//
+// Sync Pipeline
+//
+
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip implememnts http.RoundTripper
+func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+// Middleware is used to build pipelines of pipeline.Roundtrippers
+type Middleware interface {
+	Wrap(http.RoundTripper) http.RoundTripper
+}
+
+// MiddlewareFunc is like http.HandlerFunc, but for Middleware.
+type MiddlewareFunc func(http.RoundTripper) http.RoundTripper
+
+// Wrap implements Middleware.
+func (f MiddlewareFunc) Wrap(w http.RoundTripper) http.RoundTripper {
+	return f(w)
+}
+
+//
+// Builder and Bridge
+//
 
 // MergeMiddlewares takes a set of ordered middlewares and merges them into a pipeline
 func Build(asyncMW []AsyncMiddleware[*http.Response], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[*http.Response] {
@@ -25,7 +82,6 @@ func Build(asyncMW []AsyncMiddleware[*http.Response], mw []Middleware, next http
 	return asyncPipeline.Wrap(bridge)
 }
 
-// async
 var _ AsyncRoundTripper[*http.Response] = (*pipelineBridge)(nil)
 
 type pipelineBridge struct {
@@ -39,25 +95,4 @@ func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[*http.Response]
 	}
 
 	return NewSyncToAsyncResponse(r), nil
-}
-
-// sync
-type RoundTripperFunc func(*http.Request) (*http.Response, error)
-
-// RoundTrip implememnts http.RoundTripper
-func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return fn(req)
-}
-
-// Middleware is used to build pipelines of pipeline.Roundtrippers
-type Middleware interface {
-	Wrap(http.RoundTripper) http.RoundTripper
-}
-
-// MiddlewareFunc is like http.HandlerFunc, but for Middleware.
-type MiddlewareFunc func(http.RoundTripper) http.RoundTripper
-
-// Wrap implements Middleware.
-func (f MiddlewareFunc) Wrap(w http.RoundTripper) http.RoundTripper {
-	return f(w)
 }
