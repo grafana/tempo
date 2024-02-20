@@ -138,7 +138,11 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 }
 
 func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span, resourceLabels []string, resourceValues []string) {
-	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
+	// Spans with negative latency are treated as zero.
+	latencySeconds := 0.0
+	if start, end := span.GetStartTimeUnixNano(), span.GetEndTimeUnixNano(); start < end {
+		latencySeconds = float64(end-start) / float64(time.Second.Nanoseconds())
+	}
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
 	targetInfoLabelValues := make([]string, len(resourceLabels))
