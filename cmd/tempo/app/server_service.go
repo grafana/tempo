@@ -21,17 +21,20 @@ import (
 )
 
 type TempoServer interface {
-	HTTP() *mux.Router
+	HTTPRouter() *mux.Router
+	HTTPHandler() http.Handler
 	GRPC() *grpc.Server
 	Log() log.Logger
 	EnableHTTP2()
+	SetKeepAlivesEnabled(enabled bool)
 
 	StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error)
 }
 
 // todo: evaluate whether the internal server should be included as part of this
 type tempoServer struct {
-	mux *mux.Router // all tempo http routes are added here
+	mux     *mux.Router  // all tempo http routes are added here
+	handler http.Handler // the final handler which includes the router and any middleware
 
 	externalServer  *server.Server // the standard server that all HTTP/GRPC requests are served on
 	enableHTTP2Once sync.Once
@@ -44,8 +47,12 @@ func newTempoServer() *tempoServer {
 	}
 }
 
-func (s *tempoServer) HTTP() *mux.Router {
+func (s *tempoServer) HTTPRouter() *mux.Router {
 	return s.mux
+}
+
+func (s *tempoServer) HTTPHandler() http.Handler {
+	return s.handler
 }
 
 func (s *tempoServer) GRPC() *grpc.Server {
@@ -62,26 +69,36 @@ func (s *tempoServer) EnableHTTP2() {
 	})
 }
 
+func (s *tempoServer) SetKeepAlivesEnabled(enabled bool) {
+	s.externalServer.HTTPServer.SetKeepAlivesEnabled(enabled)
+}
+
 func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error) {
 	var err error
 
 	metrics := server.NewServerMetrics(cfg)
-	// use tempo's mux unless we are doing grpc over http, then we will let the library instantiate its own
-	// router and piggy back on it to route grpc requests
-	cfg.Router = s.mux
-	if supportGRPCOnHTTP {
+	DisableSignalHandling(&cfg)
+
+	if !supportGRPCOnHTTP {
+		// We don't do any GRPC handling, let the library handle all routing for us
+		cfg.Router = s.mux
+
+		s.externalServer, err = server.NewWithMetrics(cfg, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create server: %w", err)
+		}
+		s.handler = s.externalServer.HTTPServer.Handler
+	} else {
+		// We want to route both GRPC and HTTP requests on the same endpoint
 		cfg.Router = nil
 		cfg.DoNotAddDefaultHTTPMiddleware = true // we don't want instrumentation on the "root" router, we want it on our mux. it will be added below.
-	}
 
-	DisableSignalHandling(&cfg)
-	s.externalServer, err = server.NewWithMetrics(cfg, metrics)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create server: %w", err)
-	}
+		s.externalServer, err = server.NewWithMetrics(cfg, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create server: %w", err)
+		}
 
-	// now that we have created the server and service let's setup our grpc/http router if necessary
-	if supportGRPCOnHTTP {
+		// now that we have created the server and service let's setup our grpc/http router if necessary
 		// for grpc to work we must enable h2c on the external server
 		s.EnableHTTP2()
 
@@ -91,7 +108,8 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 		if err != nil {
 			return nil, fmt.Errorf("failed to create http middleware: %w", err)
 		}
-		router := middleware.Merge(httpMiddleware...).Wrap(s.mux)
+
+		s.handler = middleware.Merge(httpMiddleware...).Wrap(s.mux)
 		s.externalServer.HTTP.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			// route to GRPC server if it's a GRPC request
 			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") {
@@ -100,7 +118,7 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 			}
 
 			// default to standard http server
-			router.ServeHTTP(w, req)
+			s.handler.ServeHTTP(w, req)
 		})
 	}
 

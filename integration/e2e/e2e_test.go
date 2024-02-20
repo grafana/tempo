@@ -312,6 +312,53 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 	}
 }
 
+func TestShutdownDelay(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	// set up the backend
+	cfg := app.Config{}
+	buff, err := os.ReadFile(configAllInOneS3)
+	require.NoError(t, err)
+	err = yaml.UnmarshalStrict(buff, &cfg)
+	require.NoError(t, err)
+	_, err = backend.New(s, cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneS3, "config.yaml"))
+	tempo := util.NewTempoAllInOne("-shutdown-delay=5s")
+
+	// this line tests confirms that the readiness flag is up
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// if we're here the readiness flag is up. now call kill and check the readiness flag is down
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 10; i++ {
+			res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/ready")
+			require.NoError(t, err)
+			res.Body.Close()
+
+			if res.StatusCode == http.StatusServiceUnavailable {
+				// found it!
+				return
+			}
+			time.Sleep(time.Second)
+		}
+
+		require.Fail(t, "readiness flag never went down")
+	}()
+
+	// call stop and allow the code above to test for a unavailable readiness flag
+	_ = tempo.Stop()
+
+	wg.Wait()
+}
+
 func TestScalableSingleBinary(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)

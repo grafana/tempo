@@ -28,12 +28,13 @@ type MetricMapping struct {
 	nameFormatter    *fsm.TemplateFormatter
 	regex            *regexp.Regexp
 	Labels           prometheus.Labels `yaml:"labels"`
+	HonorLabels      bool              `yaml:"honor_labels"`
 	labelKeys        []string
 	labelFormatters  []*fsm.TemplateFormatter
 	ObserverType     ObserverType      `yaml:"observer_type"`
 	TimerType        ObserverType      `yaml:"timer_type,omitempty"` // DEPRECATED - field only present to preserve backwards compatibility in configs. Always empty
 	LegacyBuckets    []float64         `yaml:"buckets"`
-	LegacyQuantiles  []metricObjective `yaml:"quantiles"`
+	LegacyQuantiles  []MetricObjective `yaml:"quantiles"`
 	MatchType        MatchType         `yaml:"match_type"`
 	HelpText         string            `yaml:"help"`
 	Action           ActionType        `yaml:"action"`
@@ -41,6 +42,7 @@ type MetricMapping struct {
 	Ttl              time.Duration     `yaml:"ttl"`
 	SummaryOptions   *SummaryOptions   `yaml:"summary_options"`
 	HistogramOptions *HistogramOptions `yaml:"histogram_options"`
+	Scale            MaybeFloat64      `yaml:"scale"`
 }
 
 // UnmarshalYAML is a custom unmarshal function to allow use of deprecated config keys
@@ -56,6 +58,7 @@ func (m *MetricMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	m.Match = tmp.Match
 	m.Name = tmp.Name
 	m.Labels = tmp.Labels
+	m.HonorLabels = tmp.HonorLabels
 	m.ObserverType = tmp.ObserverType
 	m.LegacyBuckets = tmp.LegacyBuckets
 	m.LegacyQuantiles = tmp.LegacyQuantiles
@@ -66,11 +69,34 @@ func (m *MetricMapping) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	m.Ttl = tmp.Ttl
 	m.SummaryOptions = tmp.SummaryOptions
 	m.HistogramOptions = tmp.HistogramOptions
+	m.Scale = tmp.Scale
 
 	// Use deprecated TimerType if necessary
 	if tmp.ObserverType == "" {
 		m.ObserverType = tmp.TimerType
 	}
 
+	return nil
+}
+
+type MaybeFloat64 struct {
+	Set bool
+	Val float64
+}
+
+func (m *MaybeFloat64) MarshalYAML() (interface{}, error) {
+	if m.Set {
+		return m.Val, nil
+	}
+	return nil, nil
+}
+
+func (m *MaybeFloat64) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var tmp float64
+	if err := unmarshal(&tmp); err != nil {
+		return err
+	}
+	m.Val = tmp
+	m.Set = true
 	return nil
 }
