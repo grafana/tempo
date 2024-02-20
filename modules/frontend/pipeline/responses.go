@@ -73,7 +73,6 @@ func (a *asyncResponse) Send(r Responses[*http.Response]) {
 }
 
 // SendError sends an error to the asyncResponse. This will cause the asyncResponse to return the error on the next call to Next.
-// Note that this will not, by itself, unblock a call to Next that is currently blocked. The context also needs to be canceled.
 func (a *asyncResponse) SendError(err error) {
 	a.errChan <- err
 }
@@ -85,41 +84,36 @@ func (a *asyncResponse) done() {
 // Next returns the next http.Response or an error if one is available. It always prefers an error over a response.
 // todo: review performance. There is a lot of channel access here
 func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
-	if err := a.error(); err != nil {
-		return nil, true, err
-	}
-
-	// no error, attempt to do the normal thing
 	for {
+		// explicitly check the err channel first. selects are non-deterministic and
+		// if there is an error we want to prioritize it over a valid response
+		if err := a.error(); err != nil {
+			return nil, true, err
+		}
+
+		// grab a new AsyncResponse if we don't have one
 		if a.curResponses == nil {
 			select {
 			case err := <-a.errChan:
 				return nil, true, err
 			case <-ctx.Done():
-				err := a.error() // double check our error and prefer it over the context error if it exists
-				if err == nil {
-					err = ctx.Err()
-				}
-				return nil, true, err
+				return nil, true, ctx.Err()
 			case r, ok := <-a.respChan:
 				a.curResponses = r
 				if r == nil && !ok {
+					// this AsyncResponse is completely exhausted
 					return nil, true, a.error()
 				}
 			}
 		}
 
-		// double check error again! we should always prioritize error over response and the above
-		// select is not deterministic and may choose the response channel over the error channel
-		if err := a.error(); err != nil {
-			return nil, true, err
-		}
-
+		// get the next response from the current AsyncResponse
 		resp, done, err := a.curResponses.Next(ctx)
 		if done {
 			a.curResponses = nil
 		}
 
+		// if the response is nil and there is no error, continue to the next AsyncResponse
 		if err == nil && resp == nil {
 			continue
 		}
