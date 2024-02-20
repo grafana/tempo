@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/intern"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -526,6 +527,8 @@ type SyncIterator struct {
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
+
+	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -560,6 +563,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMax:     rgsMax,
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
+		interner:   intern.New(),
 	}
 }
 
@@ -933,7 +937,7 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v.Clone())
+		r.AppendValue(c.selectAs, c.interner.UnsafeClone(v))
 	}
 	return r
 }
