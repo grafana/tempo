@@ -65,7 +65,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// context propagation
 	r = r.WithContext(ctx)
-	reqs, err := s.buildShardedRequests(r)
+	subCtx, subCancel := context.WithCancel(ctx)
+	defer subCancel()
+
+	reqs, err := s.buildShardedRequests(subCtx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +78,18 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	if s.cfg.ConcurrentShards > 0 {
 		concurrentShards = uint(s.cfg.ConcurrentShards)
 	}
-	wg := boundedwaitgroup.New(concurrentShards)
-	mtx := sync.Mutex{}
 
-	var overallError error
+	var (
+		overallError error
+
+		mtx        = sync.Mutex{}
+		statusCode = http.StatusNotFound
+		statusMsg  = "trace not found"
+		wg         = boundedwaitgroup.New(concurrentShards)
+	)
+
 	combiner := trace.NewCombiner(s.o.MaxBytesPerTrace(userID))
 	_, _ = combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
-	statusCode := http.StatusNotFound
-	statusMsg := "trace not found"
 
 	for _, req := range reqs {
 		wg.Add(1)
@@ -97,20 +104,16 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				overallError = rtErr
 			}
 
-			if shouldQuit(r.Context(), statusCode, overallError) {
+			// Check the context of the worker request
+			if shouldQuit(innerR.Context(), statusCode, overallError) {
 				return
 			}
 
-			// check http error
-			if rtErr != nil {
-				_ = level.Error(s.logger).Log("msg", "error querying proxy target", "url", innerR.RequestURI, "err", rtErr)
-				overallError = rtErr
-				return
-			}
-
-			// if the status code is anything but happy, save the error and pass it down the line
+			// if the status code is anything but happy, save the error and pass it
+			// down the line
 			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast?
+				defer subCancel()
+
 				statusCode = resp.StatusCode
 				bytesMsg, readErr := io.ReadAll(resp.Body)
 				if readErr != nil {
@@ -129,7 +132,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			// marshal into a trace to combine.
-			// todo: better define responsibilities between middleware. the parent middleware in frontend.go actually sets the header
+			// TODO: better define responsibilities between middleware. the parent middleware in frontend.go actually sets the header
 			//  which forces the body here to be a proto encoded tempopb.Trace{}
 			traceResp := &tempopb.TraceByIDResponse{}
 			rtErr = proto.Unmarshal(buff, traceResp)
@@ -202,9 +205,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 // buildShardedRequests returns a slice of requests sharded on the precalculated
 // block boundaries
-func (s *shardQuery) buildShardedRequests(parent *http.Request) ([]*http.Request, error) {
-	ctx := parent.Context()
-	userID, err := user.ExtractOrgID(ctx)
+func (s *shardQuery) buildShardedRequests(ctx context.Context, parent *http.Request) ([]*http.Request, error) {
+	userID, err := user.ExtractOrgID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +239,7 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 	if err != nil {
 		return true
 	}
+
 	if ctx.Err() != nil {
 		return true
 	}
@@ -245,9 +248,5 @@ func shouldQuit(ctx context.Context, statusCode int, err error) bool {
 		return true
 	}
 
-	if statusCode/100 == 5 { // bail on any 5xx's
-		return true
-	}
-
-	return false
+	return statusCode/100 == 5 // bail on any 5xx's
 }
