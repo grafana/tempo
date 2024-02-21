@@ -352,7 +352,7 @@ TraceQL can select arbitrary fields from spans. This is particularly performant 
 
 ## Experimental TraceQL metrics
 
-TraceQL metrics are experimental, but easy to get started with. See [the docs]({{< relref "../operations/traceql-metrics.md" >}}) for more info.
+TraceQL metrics are experimental, but easy to get started with. Refer to [the TraceQL metrics]({{< relref "../operations/traceql-metrics.md" >}}) documentation for more information.
 
 ## Examples
 
