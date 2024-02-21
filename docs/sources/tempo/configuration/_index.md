@@ -1516,8 +1516,6 @@ cache:
         # Allowed values:
         #   bloom              - Bloom filters for trace id lookup.
         #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
-        #   parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
-        #   parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
         #   parquet-page       - Parquet "pages". WARNING: This will attempt to cache most reads from parquet and, as a result, is very high volume.
         #   frontend-search    - Frontend search job results.
 
