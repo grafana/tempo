@@ -952,6 +952,8 @@ func (c *SyncIterator) Close() {
 	c.span.SetTag("keptPages", c.filter.KeptPages)
 	c.span.SetTag("keptValues", c.filter.KeptValues)
 	c.span.Finish()
+
+	c.interner.Close()
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies
