@@ -7,19 +7,17 @@ import (
 	pq "github.com/parquet-go/parquet-go"
 )
 
-var mapPool = sync.Pool{
-	New: func() interface{} {
-		return make(map[string][]byte)
-	},
-}
-
 type Interner struct {
 	mtx sync.RWMutex
 	m   map[string][]byte
 }
 
 func New() *Interner {
-	return &Interner{m: mapPool.Get().(map[string][]byte)}
+	return NewWithSize(0)
+}
+
+func NewWithSize(size int) *Interner {
+	return &Interner{m: make(map[string][]byte, size)}
 }
 
 func (i *Interner) UnsafeClone(v *pq.Value) pq.Value {
@@ -53,16 +51,9 @@ func (i *Interner) internBytes(b []byte) []byte {
 	return clone
 }
 
-func (i *Interner) Reset() {
-	i.mtx.Lock()
-	clear(i.m)
-	i.mtx.Unlock()
-}
-
 func (i *Interner) Close() {
 	i.mtx.Lock()
-	clear(i.m)
-	mapPool.Put(i.m)
+	clear(i.m) // clear the map
 	i.m = nil
 	i.mtx.Unlock()
 }
