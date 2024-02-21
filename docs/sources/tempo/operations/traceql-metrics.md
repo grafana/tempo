@@ -56,6 +56,7 @@ Once the `local-blocks` processor is enabled in your `metrics-generator`
 configuration, you can configure it using the following block to make sure
 it records all spans for TraceQL metrics.
 
+Here is an example configuration: 
 ```yaml
  metrics_generator:
   processor:
