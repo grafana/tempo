@@ -350,6 +350,10 @@ TraceQL can select arbitrary fields from spans. This is particularly performant 
 { status=error } | select(span.http.status_code, span.http.url)
 ```
 
+## Experimental TraceQL metrics
+
+TraceQL metrics are experimental, but easy to get started with. See [the docs]({{< relref "../operations/traceql-metrics.md" >}}) for more info.
+
 ## Examples
 
 ### Find traces of a specific operation
