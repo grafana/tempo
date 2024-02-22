@@ -10,8 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/intern"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -507,6 +507,7 @@ type SyncIteratorOpt func(*SyncIterator)
 func SyncIteratorOptIntern() SyncIteratorOpt {
 	return func(i *SyncIterator) {
 		i.intern = true
+		i.interner = intern.New()
 	}
 }
 
@@ -576,7 +577,6 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMax:     rgsMax,
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
-		interner:   intern.New(),
 	}
 
 	// Apply options
@@ -977,7 +977,9 @@ func (c *SyncIterator) Close() {
 	c.span.SetTag("keptValues", c.filter.KeptValues)
 	c.span.Finish()
 
-	c.interner.Close()
+	if c.intern && c.interner != nil {
+		c.interner.Close()
+	}
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies
