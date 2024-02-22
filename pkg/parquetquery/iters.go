@@ -501,6 +501,9 @@ func ReleaseResult(r *IteratorResult) {
 
 type SyncIteratorOpt func(*SyncIterator)
 
+// SyncIteratorOptIntern enables interning of string values.
+// This is useful when the same string value is repeated many times.
+// Not recommended with (very) high cardinality columns, such as UUIDs (spanID and traceID).
 func SyncIteratorOptIntern() SyncIteratorOpt {
 	return func(i *SyncIterator) {
 		i.intern = true
