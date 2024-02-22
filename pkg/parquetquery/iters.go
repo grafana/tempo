@@ -499,6 +499,14 @@ func ReleaseResult(r *IteratorResult) {
 	}
 }
 
+type SyncIteratorOpt func(*SyncIterator)
+
+func SyncIteratorOptIntern() SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.intern = true
+	}
+}
+
 // SyncIterator is like ColumnIterator but synchronous. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -528,12 +536,13 @@ type SyncIterator struct {
 	currBufN        int
 	currPageN       int
 
+	intern   bool
 	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
 
-func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
+func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, opts ...SyncIteratorOpt) *SyncIterator {
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -552,7 +561,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		"column":      columnName,
 	})
 
-	return &SyncIterator{
+	// Create the iterator
+	i := &SyncIterator{
 		span:       span,
 		column:     column,
 		columnName: columnName,
@@ -565,6 +575,13 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		curr:       EmptyRowNumber(),
 		interner:   intern.New(),
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(i)
+	}
+
+	return i
 }
 
 func (c *SyncIterator) String() string {
@@ -937,7 +954,11 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := GetResult()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, c.interner.UnsafeClone(v))
+		if c.intern {
+			r.AppendValue(c.selectAs, c.interner.UnsafeClone(v))
+		} else {
+			r.AppendValue(c.selectAs, v.Clone())
+		}
 	}
 	return r
 }
