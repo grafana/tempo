@@ -20,7 +20,8 @@ func TestInterner_internBytes(t *testing.T) {
 		// Values are interned, so there should be only 2 unique words
 		t.Errorf("expected 2, got %d", len(i.m))
 	}
-	if i.internBytes([]byte("hello"))[0] != i.internBytes([]byte("hello"))[0] {
+	interned1, interned2 := i.internBytes([]byte("hello")), i.internBytes([]byte("hello"))
+	if interned1[0] != interned2[0] {
 		// Values are interned, so the memory address should be the same
 		t.Error("expected same memory address")
 	}
