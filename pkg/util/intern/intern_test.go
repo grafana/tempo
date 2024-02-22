@@ -1,6 +1,7 @@
 package intern
 
 import (
+	"fmt"
 	"testing"
 	"unsafe"
 
@@ -63,5 +64,50 @@ func Test_pqValue(t *testing.T) {
 
 	if value.String() != back.String() {
 		t.Error("expected same value")
+	}
+}
+
+func BenchmarkIntern(b *testing.B) {
+	words := []string{"foo", "bar", "baz", "qux", "quux", "corge", "grault", "garply", "waldo", "fred", "plugh", "xyzzy", "thud"}
+	testCases := []struct {
+		name    string
+		valueFn func(i int) pq.Value
+	}{
+		{
+			name:    "byte_array",
+			valueFn: func(i int) pq.Value { return pq.ByteArrayValue([]byte(words[i%len(words)])) },
+		},
+		{
+			name:    "fixed_len_byte_array",
+			valueFn: func(i int) pq.Value { return pq.FixedLenByteArrayValue([]byte(words[i%len(words)])) },
+		},
+		{
+			name:    "bool",
+			valueFn: func(i int) pq.Value { return pq.BooleanValue(i%2 == 0) },
+		},
+		{
+			name:    "int32",
+			valueFn: func(i int) pq.Value { return pq.Int32Value(int32(i)) },
+		},
+	}
+
+	for _, tc := range testCases {
+		b.Run(fmt.Sprintf("no_interning: %s", tc.name), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				value := tc.valueFn(i)
+				_ = value.Clone()
+			}
+		})
+
+		b.Run(fmt.Sprintf("interning: %s", tc.name), func(b *testing.B) {
+			interner := New()
+			defer interner.Close()
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				value := tc.valueFn(i)
+				_ = interner.UnsafeClone(&value)
+			}
+		})
 	}
 }
