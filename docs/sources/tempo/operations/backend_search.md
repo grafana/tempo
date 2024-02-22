@@ -145,16 +145,3 @@ See here for cloud-specific details:
 
 - [AWS Lambda]({{< relref "./serverless_aws" >}})
 - [Google Cloud Run]({{< relref "./serverless_gcp" >}})
-
-## Caching
-
-If you have set up an external cache (redis or memcached) in in your storage block you can also use it to cache
-parquet footers using the following configuration:
-
-```
-storage:
-  trace:
-    search:
-      cache_control:
-        footer: true
-```
