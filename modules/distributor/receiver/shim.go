@@ -233,8 +233,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			Logger:         zapLogger,
 			TracerProvider: tracenoop.NewTracerProvider(),
 			MeterProvider:  metricnoop.NewMeterProvider(),
-			ReportComponentStatus: func(*component.StatusEvent) error {
-				return nil
+			ReportStatus: func(*component.StatusEvent) {
 			},
 		},
 	}
@@ -258,7 +257,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "zipkin":
 			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
 
-			zipkinRecvCfg.HTTPServerSettings.IncludeMetadata = true
+			zipkinRecvCfg.ServerConfig.IncludeMetadata = true
 			cfg = zipkinRecvCfg
 
 		case "jaeger":

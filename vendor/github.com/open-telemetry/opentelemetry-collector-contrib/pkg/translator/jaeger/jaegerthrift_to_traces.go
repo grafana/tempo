@@ -80,6 +80,33 @@ func jThriftSpansToInternal(spans []*jaeger.Span, dest ptrace.SpanSlice) {
 	}
 }
 
+// jThriftSpanParentID infers the parent span ID for a given span.
+// Based on https://github.com/jaegertracing/jaeger/blob/8c61b6561f9057a199c1504606d8e68319ee7b31/model/span.go#L143
+func jThriftSpanParentID(span *jaeger.Span) int64 {
+	if span.ParentSpanId != 0 {
+		return span.ParentSpanId
+	}
+	// If span.ParentSpanId undefined but there are references to the same trace,
+	// they can also be considered a parent, with CHILD_OF being higher priority.
+	var ffRef *jaeger.SpanRef
+	for _, ref := range span.References {
+		// must be from the same trace
+		if ref.TraceIdHigh != span.TraceIdHigh || ref.TraceIdLow != span.TraceIdLow {
+			continue
+		}
+		if ref.RefType == jaeger.SpanRefType_CHILD_OF {
+			return ref.SpanId
+		}
+		if ffRef == nil && ref.RefType == jaeger.SpanRefType_FOLLOWS_FROM {
+			ffRef = ref
+		}
+	}
+	if ffRef != nil {
+		return ffRef.SpanId
+	}
+	return 0
+}
+
 func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 	dest.SetTraceID(idutils.UInt64ToTraceID(uint64(span.TraceIdHigh), uint64(span.TraceIdLow)))
 	dest.SetSpanID(idutils.UInt64ToSpanID(uint64(span.SpanId)))
@@ -87,7 +114,7 @@ func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 	dest.SetStartTimestamp(microsecondsToUnixNano(span.StartTime))
 	dest.SetEndTimestamp(microsecondsToUnixNano(span.StartTime + span.Duration))
 
-	parentSpanID := span.ParentSpanId
+	parentSpanID := jThriftSpanParentID(span)
 	if parentSpanID != 0 {
 		dest.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
 	}

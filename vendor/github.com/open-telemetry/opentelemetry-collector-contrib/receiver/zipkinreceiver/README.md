@@ -4,7 +4,7 @@
 | Status        |           |
 | ------------- |-----------|
 | Stability     | [beta]: traces   |
-| Distributions | [core], [contrib], [aws], [grafana], [observiq], [redhat], [splunk], [sumo] |
+| Distributions | [core], [contrib], [aws], [grafana], [liatrio], [observiq], [redhat], [splunk], [sumo] |
 | Issues        | [![Open issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aopen%20label%3Areceiver%2Fzipkin%20&label=open&color=orange&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aopen+is%3Aissue+label%3Areceiver%2Fzipkin) [![Closed issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aclosed%20label%3Areceiver%2Fzipkin%20&label=closed&color=blue&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aclosed+is%3Aissue+label%3Areceiver%2Fzipkin) |
 | [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@MovieStoreGuy](https://www.github.com/MovieStoreGuy), [@astencel-sumo](https://www.github.com/astencel-sumo), [@crobert-1](https://www.github.com/crobert-1) |
 
@@ -13,6 +13,7 @@
 [contrib]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib
 [aws]: https://github.com/aws-observability/aws-otel-collector
 [grafana]: https://github.com/grafana/agent
+[liatrio]: https://github.com/liatrio/liatrio-otel-collector
 [observiq]: https://github.com/observIQ/observiq-otel-collector
 [redhat]: https://github.com/os-observability/redhat-opentelemetry-collector
 [splunk]: https://github.com/signalfx/splunk-otel-collector
@@ -33,7 +34,7 @@ receivers:
 
 The following settings are configurable:
 
-- `endpoint` (default = 0.0.0.0:9411): host:port on which the receiver is going to receive data.
+- `endpoint` (default = 0.0.0.0:9411): host:port on which the receiver is going to receive data. The `component.UseLocalHostAsDefaultHost` feature gate changes this to localhost:9411. This will become the default in a future release.
 - `parse_string_tags` (default = false): if enabled, the receiver will attempt to parse string tags/binary annotations into int/bool/float.
 
 ## Advanced Configuration

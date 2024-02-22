@@ -241,6 +241,8 @@ type DB struct {
 	donec chan struct{}
 	stopc chan struct{}
 
+	writeNotified wlog.WriteNotified
+
 	metrics *dbMetrics
 }
 
@@ -309,6 +311,12 @@ func Open(l log.Logger, reg prometheus.Registerer, rs *remote.Storage, dir strin
 
 	go db.run()
 	return db, nil
+}
+
+// SetWriteNotified allows to set an instance to notify when a write happens.
+// It must be used during initialization. It is not safe to use it during execution.
+func (db *DB) SetWriteNotified(wn wlog.WriteNotified) {
+	db.writeNotified = wn
 }
 
 func validateOptions(opts *Options) *Options {
@@ -716,12 +724,12 @@ func (db *DB) StartTime() (int64, error) {
 }
 
 // Querier implements the Storage interface.
-func (db *DB) Querier(context.Context, int64, int64) (storage.Querier, error) {
+func (db *DB) Querier(int64, int64) (storage.Querier, error) {
 	return nil, ErrUnsupported
 }
 
 // ChunkQuerier implements the Storage interface.
-func (db *DB) ChunkQuerier(context.Context, int64, int64) (storage.ChunkQuerier, error) {
+func (db *DB) ChunkQuerier(int64, int64) (storage.ChunkQuerier, error) {
 	return nil, ErrUnsupported
 }
 
@@ -801,11 +809,6 @@ func (a *appender) Append(ref storage.SeriesRef, l labels.Labels, t int64, v flo
 
 	series.Lock()
 	defer series.Unlock()
-
-	if t < series.lastTs {
-		a.metrics.totalOutOfOrderSamples.Inc()
-		return 0, storage.ErrOutOfOrderSample
-	}
 
 	// NOTE: always modify pendingSamples and sampleSeries together.
 	a.pendingSamples = append(a.pendingSamples, record.RefSample{
@@ -930,11 +933,6 @@ func (a *appender) AppendHistogram(ref storage.SeriesRef, l labels.Labels, t int
 	series.Lock()
 	defer series.Unlock()
 
-	if t < series.lastTs {
-		a.metrics.totalOutOfOrderSamples.Inc()
-		return 0, storage.ErrOutOfOrderSample
-	}
-
 	switch {
 	case h != nil:
 		// NOTE: always modify pendingHistograms and histogramSeries together
@@ -971,6 +969,10 @@ func (a *appender) Commit() error {
 
 	a.clearData()
 	a.appenderPool.Put(a)
+
+	if a.writeNotified != nil {
+		a.writeNotified.Notify()
+	}
 	return nil
 }
 
