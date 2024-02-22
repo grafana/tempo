@@ -13,7 +13,125 @@ The upgrade process changes for each version, depending upon the changes made fo
 
 This upgrade guide applies to on-premise installations and not for Grafana Cloud.
 
->**TIP**: You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
+{{% admonition type="tip" %}}
+You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
+{{% /admonition %}}
+
+## Upgrade to Tempo 2.4
+
+Tempo 2.4 has several considerations for any upgrade:
+
+* vParquet3 is now the default backend
+* Caches configuration was refactored
+* Updated, removed, and renamed configuration parameters
+
+For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.4 changelog](https://github.com/grafana/tempo/releases).
+
+### Transition to vParquet3 as default block format
+
+vParquet3 format is now the default block format. It is production ready and we highly recommend switching to it for improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
+
+Upgrading to Tempo 2.4 modifies the Parquet block format. Although you can use Tempo 2.3 with vParquet2 or vParquet3, you can only use Tempo 2.4 with vParquet3.
+
+With this release, vParquet is being deprecated. Tempo 2.4 will still read vParquet1 blocks. However, Tempo will fail to configure them. [[PR 3377](https://github.com/grafana/tempo/pull/3377/files#top)]
+
+For information on upgrading, refer to [Change the block format to vParquet3](https://grafana.com/docs/tempo/latest/setup/upgrade/) upgrade documentation.
+
+### Cache configuration refactored
+
+The major cache refactor to allow multiple role-based caches to be configured. [[PR 3166](https://github.com/grafana/tempo/pull/3166)]
+This change resulted in the following fields being deprecated.
+These have all been migrated to a top level `cache:` field.
+
+For more information about the configuration, refer to the [Cache]({{< relref "../configuration#cache" >}}) section.
+
+The old configuration block looked like this:
+
+```yaml
+storage:
+  trace:
+    cache:
+    search:
+      cache_control:
+    background_cache:
+    memcached:
+    redis:
+```
+
+With the new configuration, you create your list of caches,- with either `redis` or `memcached` cluster with your config, then define the types of data and roles.
+
+```yaml
+cache:
+    caches:
+        - memcached:
+            consistent_hash: true
+            host: memcached
+            max_idle_conns: 100
+            service: memcached-client
+            timeout: 200ms
+          roles:
+            - bloom
+
+
+        - memcached:
+            consistent_hash: true
+            host: memcached
+            max_idle_conns: 100
+            service: memcached-client
+            timeout: 200ms
+          roles:
+            - parquet-footer
+
+
+        - memcached:
+            consistent_hash: true
+            host: memcached-frontend-search
+            max_idle_conns: 100
+            service: memcached-client
+            timeout: 50ms
+          roles:
+            - frontend-search
+
+        - memcached:
+            consistent_hash: true
+            host: memcached-parquet-page
+            max_idle_conns: 100
+            service: memcached-client
+            timeout: 200ms
+          roles:
+            - parquet-page
+```
+
+### Updated, removed, or renamed configuration parameters
+
+<table>
+  <tr>
+   <td>Parameter
+   </td>
+   <td>Comments
+   </td>
+  </tr>
+  <tr>
+   <td><code>autocomplete_filtering_enabled</code>
+   </td>
+   <td>Set to <code>true</code> by default [PR <a href="https://github.com/grafana/tempo/pull/3178">3178</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>distributor.log_received_traces</code>
+   </td>
+   <td>Use the <code>distributor.log_received_spans</code> configuration block instead. [PR <a href="https://github.com/grafana/tempo/pull/3008">#3008</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>tempo_query_frontend_queries_total{op="searchtags|metrics"}</code>
+   </td>
+   <td>Removed deprecated frontend metrics configuration option
+   </td>
+  </tr>
+</table>
+
+The distributor now returns 200 for any batch containing only `trace_too_large` and `max_live_traces` errors. The number of discarded spans are still reflected in the `tempo_discarded_spans_total metrics`.
 
 ## Upgrade to Tempo 2.3
 
@@ -32,10 +150,10 @@ vParquet3 provides improved query performance and [dedicated attribute columns](
 
 This block format is required for using dedicated attribute columns.
 
-While vParquet2 remains the default backend for Tempo 2.3, vParquet3 is available as a stable option. 
+While vParquet2 remains the default backend for Tempo 2.3, vParquet3 is available as a stable option.
 Both work with Tempo 2.3.
 
-Upgrading to Tempo 2.3 doesn’t modify the Parquet block format. 
+Upgrading to Tempo 2.3 doesn’t modify the Parquet block format.
 
 {{% admonition type="note" %}}
 Tempo 2.2 can’t read data stored in vParquet3.
@@ -49,7 +167,7 @@ Recommended update process:
 
 If you notice any issues on step 3 using the new block format, you can downgrade to vParquet2.
 All your data remains readable in Tempo 2.3.
-However, if you have vParquet3 blocks and have to downgrade to Tempo 2.2, you will have data loss. 
+However, if you have vParquet3 blocks and have to downgrade to Tempo 2.2, you will have data loss.
 
 ### Use Azure SDK v2
 
@@ -107,7 +225,7 @@ overrides:
   <tr>
    <td><code>distributor.log_received_traces</code>
    </td>
-   <td>Use the <code>distributor.log_received_spans</code> configuration block instead. [PR <a href="https://github.com/grafana/tempo/pull/3008">#3008</a>]
+   <td>Use the <code>distributor.log_received_spans</code> configuration block instead. [PR <a href="https://github.com/grafana/tempo/pull/3008">3008</a>]
    </td>
   </tr>
   <tr>
