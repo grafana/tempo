@@ -24,16 +24,16 @@ For example:
 { resource.service.name = "foo" && status = error } | rate()
 ```
 
-In this case we are rating the erroring spans in the service `foo`.
+In this case, we are calculating the rate of the erroring spans coming from the service `foo`. Rate is a `spans/sec` quantity. 
 Combined with the `by()` operator, this can be even more powerful!
 
 ```
 { resource.service.name = "foo" && status = error } | rate() by (span.http.route)
 ```
 
-Now, we are still rating the erroring spans in the service "foo" but the metrics have been broken
-down by http endpoint. This might let you determine that `/api/sad` had a higher rate of erroring
-spans than `/api/happy` for example.
+Now, we are still rating the erroring spans in the service `foo` but the metrics have been broken
+down by HTTP endpoint. This might let you determine that `/api/sad` had a higher rate of erroring
+spans than `/api/happy`, for example.
 
 ## Enable and use TraceQL metrics
 
@@ -68,7 +68,7 @@ Here is an example configuration:
     path: /tmp/tempo/generator/traces
 ```
 
-Refer to the [metrics-generator configuration]({{< relref "../configuration#metrics-generator">}}) documentation for more information.
+Refer to the [metrics-generator configuration]({{< relref "../configuration#metrics-generator" >}}) documentation for more information.
 
 ### Evaluate query timeouts
 
