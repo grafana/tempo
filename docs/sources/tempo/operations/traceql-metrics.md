@@ -72,7 +72,7 @@ Refer to the [metrics-generator configuration]({{< relref "../configuration#metr
 
 ### Evaluate query timeouts
 
-Because of the expensive nature, these queries can take a long time to run in different systems.
+Because of their expensive nature, these queries can take a long time to run in different systems.
 As such, consider increasing the timeouts in various places of
 the system to allow enough time for the data to be returned.
 
