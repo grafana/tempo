@@ -22,8 +22,7 @@ type histogram struct {
 	buckets      []float64
 	bucketLabels []string
 
-	// seriesMtx is used to sync modifications to the map, not to the data in series
-	seriesMtx sync.RWMutex
+	seriesMtx sync.Mutex
 	series    map[uint64]*histogramSeries
 
 	onAddSerie    func(count uint32) bool
@@ -89,10 +88,10 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
 	hash := labelValueCombo.getHash()
 
-	h.seriesMtx.RLock()
-	s, ok := h.series[hash]
-	h.seriesMtx.RUnlock()
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
 
+	s, ok := h.series[hash]
 	if ok {
 		h.updateSeries(s, value, traceID, multiplier)
 		return
@@ -103,10 +102,6 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 	}
 
 	newSeries := h.newSeries(labelValueCombo, value, traceID, multiplier)
-
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
-
 	s, ok = h.series[hash]
 	if ok {
 		h.updateSeries(s, value, traceID, multiplier)
@@ -157,8 +152,8 @@ func (h *histogram) name() string {
 }
 
 func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
-	h.seriesMtx.RLock()
-	defer h.seriesMtx.RUnlock()
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
 
 	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
