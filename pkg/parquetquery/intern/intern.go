@@ -1,3 +1,9 @@
+// Package intern is a utility for interning byte slices for pq.Value's.
+// It is not safe for concurrent use.
+//
+// The Interner is used to intern byte slices for pq.Value's. This is useful
+// for reducing memory usage and improving performance when working with
+// large datasets with many repeated strings.
 package intern
 
 import (
@@ -47,9 +53,12 @@ func (i *Interner) Close() {
 }
 
 // bytesToString converts a byte slice to a string.
+// String shares the memory with the byte slice.
+// The byte slice should not be modified after call.
 func bytesToString(b []byte) string { return unsafe.String(unsafe.SliceData(b), len(b)) }
 
 // addressOfBytes returns the address of the first byte in data.
+// The data should not be modified after call.
 func addressOfBytes(data []byte) *byte { return unsafe.SliceData(data) }
 
 // bytes converts a pointer to a slice of bytes
