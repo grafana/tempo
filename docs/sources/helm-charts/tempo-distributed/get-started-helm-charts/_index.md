@@ -325,11 +325,11 @@ minio:
 
 Update the `storage` configuration options based upon your requirements:
 
-- [Amazon S3 configuration documentation]({{< relref "/docs/tempo/latest/configuration/s3" >}}). The Amazon S3 example is identical to the MinIO configuration. The two last options, `endpoint` and `insecure`, are dropped.
+- [Amazon S3 configuration documentation]({{< relref "/docs/tempo/latest/configuration/hosted-storage/s3" >}}). The Amazon S3 example is identical to the MinIO configuration. The two last options, `endpoint` and `insecure`, are dropped.
 
-- [Azure Blob Storage configuration documentation]({{< relref "/docs/tempo/latest/configuration/azure" >}})
+- [Azure Blob Storage configuration documentation]({{< relref "/docs/tempo/latest/configuration/hosted-storage/azure" >}})
 
-- [Google Cloud Storage configuration documentation]({{< relref "/docs/tempo/latest/configuration/gcs" >}})
+- [Google Cloud Storage configuration documentation]({{< relref "/docs/tempo/latest/configuration/hosted-storage/gcs" >}})
 
 ### Set traces receivers
 

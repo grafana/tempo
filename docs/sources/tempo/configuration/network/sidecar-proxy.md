@@ -1,13 +1,15 @@
 ---
-title: Run Tempo Distributed with sidecar proxies
+title: Run Tempo distributed with sidecar proxies
 menuTitle: Configure sidecar proxies
-description: Configure Tempo Distributed to run with sidecar proxies
-weight: 36
+description: Configure Tempo distributed to run with sidecar proxies
+aliases:
+  - ../../configuration/sidecar-proxy/ # /docs/tempo/<TEMPO_VERSION>/configuration/sidecar-proxy/
 ---
 
-# Run Tempo Distributed with sidecar proxies
+# Run Tempo distributed with sidecar proxies
 
-You can route inter-pod gRPC traffic run through a sidecar proxy to meet requirements such as custom security, routing, or logging.  Common examples include Envoy, Nginx, Traefik, or service meshes like Istio and Linkerd. 
+You can route inter-pod gRPC traffic run through a sidecar proxy to meet requirements such as custom security, routing, or logging.
+Common examples include Envoy, Nginx, Traefik, or service meshes like Istio and Linkerd.
 
 ## How Tempo pods communicate
 
