@@ -11,6 +11,6 @@ aliases:
 
 Tempo provides additional hosted storage configuration options discussed on the pages below. These options relate to providers such as Google Cloud, AWS S3, and Azure.
 
-For additional details about storage configuration, refer to the [Storage configuration]({{< relref "../../configuration#storage" >}}).
+For additional details about storage configuration, refer to [Storage configuration]({{< relref "../../configuration#storage" >}}).
 
 {{< section withDescriptions="true">}}

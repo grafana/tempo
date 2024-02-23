@@ -7,7 +7,6 @@ weight: 500
 
 # Network options
 
-
 Tempo provides additional network configuration options discussed on the pages below.
 
 {{< section withDescriptions="true" >}}
