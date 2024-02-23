@@ -1,14 +1,18 @@
 ---
 title: Configure IPv6
 description: Learn how to configure IPv6 for Tempo.
-weight: 37
+menuTitle: Configure IPv6
+aliases:
+  - ../../configuration/ipv6/ # /docs/tempo/<TEMPO_VERSION>/configuration/ipv6/
 ---
 
 # Configure IPv6
 
 Tempo can be configured to communicate between the components using Internet Protocol Version 6, or IPv6.
 
-> Note: In order to support this support this configuration, the underlying infrastructure must support this address family. This configuration may be used in a single-stack IPv6 environment, or in a dual-stack environment where both IPv6 and IPv4 are present. In a dual-stack scenario, only one address family may be configured at a time, and all components must be configured for that address family.
+{{% admonition type="note" %}}
+The underlying infrastructure must support this address family. This configuration may be used in a single-stack IPv6 environment, or in a dual-stack environment where both IPv6 and IPv4 are present. In a dual-stack scenario, only one address family may be configured at a time, and all components must be configured for that address family.
+{{% /admonition %}}
 
 ## Protocol configuration
 

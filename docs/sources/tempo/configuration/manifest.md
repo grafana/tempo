@@ -1,7 +1,7 @@
 ---
 title: Manifest
 description: This manifest lists of all Tempo options and their defaults.
-weight: 70
+weight: 110
 ---
 
 # Manifest

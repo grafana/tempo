@@ -38,7 +38,7 @@ The Tempo configuration options include:
   - [Usage-report](#usage-report)
   - [Cache](#cache)
 
-Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "./network/tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -666,9 +666,9 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "./gcs" >}})
-* [S3]({{< relref "./s3" >}})
-* [Azure]({{< relref "./azure" >}})
+* [GCS]({{< relref "./hosted-storage/gcs" >}})
+* [S3]({{< relref "./hosted-storage/s3" >}})
+* [Azure]({{< relref "./hosted-storage/azure" >}})
 * [Parquet]({{< relref "./parquet" >}})
 
 ```yaml

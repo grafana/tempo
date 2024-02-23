@@ -2,7 +2,8 @@
 title: Configure TLS communication
 menuTitle: Configure TLS
 description: Configure Tempo components to communicate using TLS.
-weight: 35
+aliases:
+  - ../../configuration/tls/ # /docs/tempo/<TEMPO_VERSION>/configuration/tls/
 ---
 
 # Configure TLS communication
