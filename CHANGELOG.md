@@ -61,6 +61,7 @@
 * [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
 * [CHANGE] **Breaking Change** Deprecating vParquet v1 [#3377](https://github.com/grafana/tempo/pull/3377) (@ie-pham)
 * [BUGFIX] Fixes trace context propagation between query-frontend and querier. [#3387](https://github.com/grafana/tempo/pull/3387) (@mapno)
+* [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
 
 ## v2.3.1 / 2023-11-28
 
