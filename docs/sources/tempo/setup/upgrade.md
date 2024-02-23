@@ -35,7 +35,7 @@ Upgrading to Tempo 2.4 modifies the Parquet block format. Although you can use T
 
 With this release, vParquet is being deprecated. Tempo 2.4 will still read vParquet1 blocks. However, Tempo will fail to configure them. [[PR 3377](https://github.com/grafana/tempo/pull/3377/files#top)]
 
-For information on upgrading, refer to [Change the block format to vParquet3](https://grafana.com/docs/tempo/latest/setup/upgrade/) upgrade documentation.
+For information on changing the vParquet version, refer to [Choose a different block format](https://grafana.com/docs/tempo/next/configuration/parquet#choose-a-different-block-format).
 
 ### Cache configuration refactored
 
