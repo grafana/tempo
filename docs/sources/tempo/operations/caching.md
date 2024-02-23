@@ -23,12 +23,12 @@ As a cluster grows in size, the number of instances of Tempo connecting to the c
 By default, Memcached has a connection limit of 1024. If this limit is surpassed new connections are refused.
 This is resolved by increasing the connection limit of Memcached.
 
-These errors can be observed using the `cortex_memcache_request_duration_seconds_count` metric.
+These errors can be observed using the `tempo_memcache_request_duration_seconds_count` metric.
 For example, by using the following query:
 
 ```promql
 sum by (status_code) (
-  rate(cortex_memcache_request_duration_seconds_count{}[$__rate_interval])
+  rate(tempo_memcache_request_duration_seconds_count{}[$__rate_interval])
 )
 ```
 
