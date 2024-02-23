@@ -58,7 +58,25 @@ storage:
     redis:
 ```
 
-With the new configuration, you create your list of caches,- with either `redis` or `memcached` cluster with your config, then define the types of data and roles.
+With the new configuration, you create your list of caches, with either `redis` or `memcached` cluster with your configuration, and then define the types of data and roles.
+
+Simple configuration example:
+
+```yaml
+cache:
+  caches:
+  - memcached:
+      host: <some memcached cluster>
+    roles:
+    - bloom
+    - parquet-footer
+  - memcached:
+      host: <some memcached cluster>
+    roles:
+    - frontend-search
+```
+
+Configuration example showing more options:
 
 ```yaml
 cache:
