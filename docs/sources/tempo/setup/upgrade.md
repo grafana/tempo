@@ -33,7 +33,9 @@ vParquet3 format is now the default block format. It is production ready and we 
 
 Upgrading to Tempo 2.4 modifies the Parquet block format. Although you can use Tempo 2.3 with vParquet2 or vParquet3, you can only use Tempo 2.4 with vParquet3.
 
-With this release, vParquet is being deprecated. Tempo 2.4 will still read vParquet1 blocks. However, Tempo will fail to configure them. [[PR 3377](https://github.com/grafana/tempo/pull/3377/files#top)]
+With this release, the first version of our Parquet backend, vParquet, is being deprecated.
+Tempo 2.4 will still read vParquet1 blocks.
+However, Tempo will exit with error if they are manually configured. [[PR 3377](https://github.com/grafana/tempo/pull/3377/files#top)]
 
 For information on changing the vParquet version, refer to [Choose a different block format](https://grafana.com/docs/tempo/next/configuration/parquet#choose-a-different-block-format).
 
