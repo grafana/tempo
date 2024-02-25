@@ -51,7 +51,7 @@ type handler struct {
 // newHandler creates a handler
 func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, post handlerPostHook, pre handlerPreHook, logger log.Logger) http.Handler {
 	return &handler{
-		LogQueryRequestHeaders: LogQueryRequestHeaders,
+		logQueryRequestHeaders: LogQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
 		post:                   post,
@@ -93,8 +93,8 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"url", r.URL.RequestURI(),
 		"duration", elapsed.String(),
 	}
-	if len(f.LogQueryRequestHeaders) != 0 {
-		logMessage = append(logMessage, formatRequestHeaders(&r.Header, f.LogQueryRequestHeaders)...)
+	if len(f.logQueryRequestHeaders) != 0 {
+		logMessage = append(logMessage, formatRequestHeaders(&r.Header, f.logQueryRequestHeaders)...)
 	}
 
 	if err != nil {
