@@ -151,13 +151,26 @@ If the version does not match the version in the backend, the request is rejecte
 
 #### Conflicting runtime overrides check
 
-This is an optional check that will block update requests if:
+Overrides set through the user-configurable overrides take priority over runtime overrides.
+This can lead to misleading scenarios because a value set in the runtime overrides is not actively being used.
+
+To warn users about preexisting runtime overrides there is an optional check for conflicting runtime overrides.
+If enabled requests are rejected if:
 
 1. there are no user-configurable overrides yet for this tenant
-2. there are runtime overrides set 
+2. there are runtime overrides set that contain overrides present in the user-configurable overrides
 
-This prevents callers 
+The check can be enabled in the configuration:
 
-Explain how the check works, how to configure and how to bypass.
+```yaml
+overrides:
+  user_configurable_overrides:
+    api:
+      check_for_conflicting_runtime_overrides: true
+```
 
 This check can be bypassed by setting the query parameter `skip-conflicting-overrides-check=true`
+
+```
+$ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides?skip-conflicting-overrides-check=true --data "..."
+```
