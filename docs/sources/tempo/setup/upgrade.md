@@ -78,50 +78,6 @@ cache:
     - frontend-search
 ```
 
-Configuration example showing more options:
-
-```yaml
-cache:
-    caches:
-        - memcached:
-            consistent_hash: true
-            host: memcached
-            max_idle_conns: 100
-            service: memcached-client
-            timeout: 200ms
-          roles:
-            - bloom
-
-
-        - memcached:
-            consistent_hash: true
-            host: memcached
-            max_idle_conns: 100
-            service: memcached-client
-            timeout: 200ms
-          roles:
-            - parquet-footer
-
-
-        - memcached:
-            consistent_hash: true
-            host: memcached-frontend-search
-            max_idle_conns: 100
-            service: memcached-client
-            timeout: 50ms
-          roles:
-            - frontend-search
-
-        - memcached:
-            consistent_hash: true
-            host: memcached-parquet-page
-            max_idle_conns: 100
-            service: memcached-client
-            timeout: 200ms
-          roles:
-            - parquet-page
-```
-
 ### Updated, removed, or renamed configuration parameters
 
 <table>
