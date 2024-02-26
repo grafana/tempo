@@ -6,7 +6,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-var DefaultResultPool = NewResultPool(10)
+var DefaultPool = NewResultPool(10)
 
 type (
 	PoolFn    func() *IteratorResult
@@ -29,26 +29,24 @@ func NewResultPool(defaultCapacity int) *ResultPool {
 }
 
 func (p *ResultPool) Get() *IteratorResult {
-	x := p.pool.Get()
-	if x == nil {
-		return &IteratorResult{
-			Entries: make([]struct {
-				Key   string
-				Value parquet.Value
-			}, 0, p.cap),
-			OtherEntries: make([]struct {
-				Key   string
-				Value any
-			}, 0, p.cap),
-			ReleaseFn: p.Release,
-		}
+	if x := p.pool.Get(); x != nil {
+		return x.(*IteratorResult)
 	}
-	return x.(*IteratorResult)
+
+	return &IteratorResult{
+		Entries: make([]struct {
+			Key   string
+			Value parquet.Value
+		}, 0, p.cap),
+		OtherEntries: make([]struct {
+			Key   string
+			Value any
+		}, 0, p.cap),
+		ReleaseFn: p.Release,
+	}
 }
 
 func (p *ResultPool) Release(r *IteratorResult) {
-	if r != nil {
-		r.Reset()
-		p.pool.Put(r)
-	}
+	r.Reset()
+	p.pool.Put(r)
 }

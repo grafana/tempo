@@ -27,10 +27,10 @@ import (
 )
 
 var (
-	pqSpanPool    = parquetquery.NewResultPool(10)
-	pqSpansetPool = parquetquery.NewResultPool(10)
-	pqTracePool   = parquetquery.NewResultPool(10)
-	pqAttrPool    = parquetquery.NewResultPool(10)
+	pqSpanPool    = parquetquery.NewResultPool(1)
+	pqSpansetPool = parquetquery.NewResultPool(1)
+	pqTracePool   = parquetquery.NewResultPool(1)
+	pqAttrPool    = parquetquery.NewResultPool(1)
 )
 
 type attrVal struct {
@@ -718,7 +718,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := parquetquery.DefaultResultPool.Get()
+	res := parquetquery.DefaultPool.Get()
 	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
@@ -841,7 +841,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := parquetquery.DefaultResultPool.Get()
+			res := parquetquery.DefaultPool.Get()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -1325,7 +1325,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	if err != nil {
 		return nil, err
 	}
-	j.PoolFn = pqSpanPool.Get
+	j.Pool = pqSpanPool.Get
 	return j, nil
 }
 
@@ -1447,7 +1447,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	if err != nil {
 		return nil, err
 	}
-	j.PoolFn = pqSpansetPool.Get
+	j.Pool = pqSpansetPool.Get
 	return j, nil
 }
 
@@ -1519,7 +1519,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
 	j := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector())
-	j.PoolFn = pqTracePool.Get
+	j.Pool = pqTracePool.Get
 	return j, nil
 }
 
@@ -1825,7 +1825,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			j := parquetquery.NewJoinIterator(definitionLevel,
 				iters,
 				&attributeCollector{})
-			j.PoolFn = pqAttrPool.Get
+			j.Pool = pqAttrPool.Get
 			return j, nil
 		}
 
@@ -1836,7 +1836,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		if err != nil {
 			return nil, err
 		}
-		j.PoolFn = pqAttrPool.Get
+		j.Pool = pqAttrPool.Get
 		return j, nil
 	}
 

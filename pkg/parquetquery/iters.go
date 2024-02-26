@@ -913,7 +913,7 @@ func (c *SyncIterator) closeCurrRowGroup() {
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
-	r := DefaultResultPool.Get()
+	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v.Clone())
@@ -1228,7 +1228,7 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
-	r := DefaultResultPool.Get()
+	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v)
@@ -1257,7 +1257,7 @@ type JoinIterator struct {
 	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
-	PoolFn          func() *IteratorResult
+	Pool            PoolFn
 }
 
 var _ Iterator = (*JoinIterator)(nil)
@@ -1269,7 +1269,7 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
-		PoolFn:          DefaultResultPool.Get,
+		Pool:            DefaultPool.Get,
 	}
 	return &j
 }
@@ -1392,7 +1392,7 @@ func (j *JoinIterator) peek(iterNum int) (*IteratorResult, error) {
 func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := j.PoolFn()
+	result := j.Pool()
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
@@ -1427,7 +1427,7 @@ type LeftJoinIterator struct {
 	lowestIters                  []int
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
-	PoolFn                       func() *IteratorResult
+	Pool                         PoolFn
 }
 
 var _ Iterator = (*LeftJoinIterator)(nil)
@@ -1448,7 +1448,7 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
-		PoolFn:          DefaultResultPool.Get,
+		Pool:            DefaultPool.Get,
 	}
 	return &j, nil
 }
@@ -1583,7 +1583,7 @@ func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 // or are exhausted.
 func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
-	result := j.PoolFn()
+	result := j.Pool()
 	result.RowNumber = rowNumber
 
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
@@ -1746,7 +1746,7 @@ func (u *UnionIterator) peek(iterNum int) (*IteratorResult, error) {
 func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := DefaultResultPool.Get()
+	result := DefaultPool.Get()
 	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {

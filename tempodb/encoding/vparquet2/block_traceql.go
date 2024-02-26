@@ -588,7 +588,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := parquetquery.DefaultResultPool.Get()
+	res := parquetquery.DefaultPool.Get()
 	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
@@ -711,7 +711,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := parquetquery.DefaultResultPool.Get()
+			res := parquetquery.DefaultPool.Get()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
