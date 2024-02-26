@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gogo/status"
@@ -42,68 +41,58 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	// stores any error that occurs during the streaming
 	//  the wg protects the store from concurrent writes/reads
 	var overallErr error
+	lastUpdate := time.Now()
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		lastUpdate := time.Now()
-
-		for {
-			done, err := contextDone(ctx)
-			if done {
-				if err != nil {
-					overallErr = err
-				}
-				break
+	for {
+		done, err := contextDone(ctx) // jpe - not in collector_http.go?
+		if done {
+			if err != nil {
+				overallErr = err
 			}
+			break
+		}
 
-			resp, done, err := resps.Next(ctx)
+		resp, done, err := resps.Next(ctx)
+		if err != nil {
+			overallErr = err
+			break
+		}
+
+		if resp != nil {
+			err = c.combiner.AddResponse(resp, "")
 			if err != nil {
 				overallErr = err
 				break
 			}
+		}
 
-			if resp != nil {
-				err = c.combiner.AddResponse(resp, "")
-				if err != nil {
-					overallErr = err
-					break
-				}
-			}
+		// limit reached or http errors
+		if c.combiner.ShouldQuit() {
+			break
+		}
 
-			// limit reached or http errors
-			if c.combiner.ShouldQuit() {
+		// pipeline exhausted
+		if done {
+			break
+		}
+
+		// check if we should send an update
+		if time.Since(lastUpdate) > 500*time.Millisecond {
+			lastUpdate = time.Now()
+
+			// send a diff only during streaming
+			resp, err := c.combiner.GRPCDiff()
+			if err != nil {
+				overallErr = err
 				break
 			}
-
-			// pipeline exhausted
-			if done {
+			err = c.send(resp)
+			if err != nil {
+				overallErr = err
 				break
-			}
-
-			// check if we should send an update
-			if time.Since(lastUpdate) > 500*time.Millisecond {
-				lastUpdate = time.Now()
-
-				// send a diff only during streaming
-				resp, err := c.combiner.GRPCDiff()
-				if err != nil {
-					overallErr = err
-					break
-				}
-				err = c.send(resp)
-				if err != nil {
-					overallErr = err
-					break
-				}
 			}
 		}
-	}()
-
-	// goroutine to close the streamingResps and send the final message
-	wg.Wait()
+	}
 
 	// if we have an error then no need to send a final message
 	if overallErr != nil {
