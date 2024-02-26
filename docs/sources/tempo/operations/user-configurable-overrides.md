@@ -157,11 +157,11 @@ If the version does not match the version in the backend, the request is rejecte
 Overrides set through the user-configurable overrides take priority over runtime overrides.
 This can lead to misleading scenarios because a value set in the runtime overrides is not actively being used.
 
-To warn users about preexisting runtime overrides there is an optional check for conflicting runtime overrides.
+To warn users about preexisting runtime overrides, there is an optional check for conflicting runtime overrides.
 If enabled requests are rejected if:
 
-1. there are no user-configurable overrides yet for this tenant
-2. there are runtime overrides set that contain overrides present in the user-configurable overrides
+1. There are no user-configurable overrides yet for this tenant.
+2. There are runtime overrides set that contain overrides present in the user-configurable overrides.
 
 The check can be enabled in the configuration:
 
@@ -172,7 +172,7 @@ overrides:
       check_for_conflicting_runtime_overrides: true
 ```
 
-This check can be bypassed by setting the query parameter `skip-conflicting-overrides-check=true`
+You can bypass this check by setting the query parameter `skip-conflicting-overrides-check=true`:
 
 ```
 $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides?skip-conflicting-overrides-check=true --data "..."
