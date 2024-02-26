@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -210,7 +211,7 @@ func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.Fi
 		}
 
 		matched, e := f(opts)
-		if e == backend.ErrDone {
+		if errors.Is(e, backend.ErrDone) {
 			return e
 		}
 		if matched {

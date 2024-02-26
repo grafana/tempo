@@ -324,7 +324,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 
 	for {
 		attrs, iterErr := iter.Next()
-		if iterErr == iterator.Done {
+		if errors.Is(iterErr, iterator.Done) {
 			break
 		}
 		if iterErr != nil {
@@ -338,7 +338,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			Modified: attrs.Updated,
 		}
 		matched, e := f(opts)
-		if e == backend.ErrDone {
+		if errors.Is(e, backend.ErrDone) {
 			return
 		}
 		if !matched {
