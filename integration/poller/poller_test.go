@@ -356,9 +356,10 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 	ctx := context.Background()
 
 	token := make([]byte, 32)
-	rand.Read(token)
+	_, err := rand.Read(token)
+	require.NoError(t, err)
 
-	err := ww.Write(
+	err = ww.Write(
 		ctx,
 		vparquet3.DataFileName,
 		backend.KeyPath([]string{tenant, uuid.New().String()}),
