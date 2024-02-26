@@ -40,10 +40,10 @@ Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When
 ### Supported fields
 
 User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]{{< relref "../configuration/_index#overrides" >}} for information about all overrides.
+When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will take priority.
 
 {{% admonition type="note" %}}
-When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will be returned.
-The only exception is `processors` which will merge values from both sources.
+`processors` is an exception: Tempo will merge values from both user-configurable overrides and runtime overrides into a single list.
 {{% /admonition %}}
 
 ```yaml
