@@ -31,11 +31,11 @@ overrides/
 └── overrides.json
 ```
 
-This bucket is regularly polled and a copy of the limits is kept in-memory. When requesting the overrides for a tenant, the overrides module will now:
+Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When requesting the overrides for a tenant, the overrides module:
 
-1. check this override is set in the user-configurable overrides, if so return that value
-2. check if this override is set in the runtime config (configmap), if so return that value
-3. return the default value
+1. Checks this override is set in the user-configurable overrides, if so return that value
+2. Checks if this override is set in the runtime config (configmap), if so return that value
+3. Returns the default value
 
 ### Supported fields
 
