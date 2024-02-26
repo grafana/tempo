@@ -13,9 +13,9 @@ type waitGroup interface {
 	Wait()
 }
 
-// NewAsyncSharder creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response]. It creates one
+// NewAsyncSharderFunc creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response]. It creates one
 // goroutine per concurrent request.
-func NewAsyncSharder(concurrentReqs, totalReqs int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
+func NewAsyncSharderFunc(concurrentReqs, totalReqs int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
 	var wg waitGroup
 	if concurrentReqs <= 0 {
 		wg = &sync.WaitGroup{}
@@ -55,44 +55,39 @@ func NewAsyncSharder(concurrentReqs, totalReqs int, reqFn func(i int) *http.Requ
 	return asyncResp
 }
 
-// NewAsyncSharderLimitedGoroutines creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response] using a limited number of goroutines.
-func NewAsyncSharderLimitedGoroutines(concurrent int, reqs <-chan *http.Request, resps Responses[*http.Response], next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
+// NewAsyncSharderChan creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response] using a limited number of goroutines.
+func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Responses[*http.Response], next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
+	if concurrentReqs == 0 {
+		panic("NewAsyncSharderChan: concurrentReqs must be greater than 0")
+	}
+
+	wg := &sync.WaitGroup{}
 	asyncResp := newAsyncResponse()
-	concurrencyLimiter := boundedwaitgroup.New(uint(concurrent))
 
-	const minLimitedGoroutines = 100
-
-	// todo: concurrent/5 is a very roughly estimated number. make this configurable? tune it?
-	limitedRoutines := max(minLimitedGoroutines, concurrent/5)
-	goroutines := min(limitedRoutines, concurrent)
-
-	wg := sync.WaitGroup{}
-	for i := 0; i < goroutines; i++ {
+	for i := 0; i < concurrentReqs; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			for req := range reqs {
-				concurrencyLimiter.Add(1)
-
 				resp, err := next.RoundTrip(req)
 				if err != nil {
 					asyncResp.SendError(err)
-					concurrencyLimiter.Done()
 					continue
 				}
 
 				asyncResp.Send(resp)
-				concurrencyLimiter.Done()
 			}
 		}()
 	}
 
 	go func() {
+		// send any responses back the caller would like to send
 		if resps != nil {
 			asyncResp.Send(resps)
 		}
 
+		// and wait for all the workers to finish
 		wg.Wait()
 		asyncResp.done()
 	}()
