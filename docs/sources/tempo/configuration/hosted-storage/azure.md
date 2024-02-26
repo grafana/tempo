@@ -2,7 +2,8 @@
 title: Azure blob storage permissions and management
 menuTitle: Azure blob storage
 description: Azure blog storage permissions and configuration options for Tempo.
-weight: 30
+aliases:
+  - ../../configuration/azure/ # /docs/tempo/<TEMPO_VERSION>/configuration/azure/
 ---
 
 # Azure blob storage permissions and management
@@ -20,6 +21,7 @@ Tempo requires the following configuration to authenticate to and access Azure b
 ## Sample configuration (for Tempo Monolithic Mode)
 
 ### Access key
+
 This sample configuration shows how to set up Azure blob storage using Helm charts and an access key from Kubernetes secrets.
 
 ```yaml
@@ -43,7 +45,7 @@ tempo:
 ```
 
 ### Azure Workload Identity
-Here is an example config for using Azure Workload Identity. 
+Here is an example config for using Azure Workload Identity.
 ```yaml
 tempo:
   storage:

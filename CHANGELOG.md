@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Fix some instances where spanmetrics histograms could be inconsistent [#3412](https://github.com/grafana/tempo/pull/3412) (@mdisibio)
+
 ## v2.4.0-rc.0
 
 * [CHANGE] Merge the processors overrides set through runtime overrides and user-configurable overrides [#3125](https://github.com/grafana/tempo/pull/3125) (@kvrhdn)
@@ -42,6 +44,7 @@
 * [ENHANCEMENT] Update memcached default image in jsonnet for multiple CVE [#3310](https://github.com/grafana/tempo/pull/3310) (@zalegrala)
 * [ENHANCEMENT] Add HTML pages /status/overrides and /status/overrides/{tenant} [#3244](https://github.com/grafana/tempo/pull/3244) [#3332](https://github.com/grafana/tempo/pull/3332) (@kvrhdn)
 * [ENHANCEMENT] Precalculate and reuse the vParquet3 schema before opening blocks [#3367](https://github.com/grafana/tempo/pull/3367) (@stoewer)
+* [ENHANCEMENT] Config: Adds `query-frontend.log-query-request-headers` to enable logging of request headers in query logs. [#3383](https://github.com/grafana/tempo/pull/3383) (@jmichalek132)
 * [ENHANCEMENT] Add `--shutdown-delay` to allow Tempo to cleanly drain connections. [#3395](https://github.com/grafana/tempo/pull/3395) (@joe-elliott)
 * [ENHANCEMENT] Introduce localblocks process config option to select only server spans 3303<https://github.com/grafana/tempo/pull/3303> (@zalegrala)
 * [ENHANCEMENT] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
