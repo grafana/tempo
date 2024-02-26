@@ -25,28 +25,28 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// 500 response should quit
 	c = NewSearch(0)
-	err := c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{}, 500), "")
+	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500), "")
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
 	c = NewSearch(0)
-	err = c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{}, 429), "")
+	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 429), "")
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
 	c = NewSearch(0)
-	err = c.AddRequest(&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}, "")
+	err = c.AddResponse(&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}, "")
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
 	c = NewSearch(2)
-	err = c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
+	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
@@ -59,7 +59,7 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// over limit should quit
 	c = NewSearch(1)
-	err = c.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
+	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID: "1",
@@ -99,7 +99,7 @@ func TestSearchCombinesResults(t *testing.T) {
 		},
 		Metrics: &tempopb.SearchMetrics{},
 	}, 200)
-	err := c.AddRequest(sr, "")
+	err := c.AddResponse(sr, "")
 	require.NoError(t, err)
 
 	expected := &tempopb.SearchResponse{
@@ -293,9 +293,9 @@ func TestSearchResponseCombiner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			combiner := NewTypedSearch(20)
 
-			err := combiner.AddRequest(tc.response1, "")
+			err := combiner.AddResponse(tc.response1, "")
 			require.NoError(t, err)
-			err = combiner.AddRequest(tc.response2, "")
+			err = combiner.AddResponse(tc.response2, "")
 			require.NoError(t, err)
 
 			httpResp, err := combiner.HTTPFinal()
@@ -343,7 +343,7 @@ func TestSearchDiffsResults(t *testing.T) {
 	require.Equal(t, expectedNoDiff, actual)
 
 	// add a trace and get it back in diff
-	err = c.AddRequest(sr, "")
+	err = c.AddResponse(sr, "")
 	require.NoError(t, err)
 
 	actual, err = c.GRPCDiff()
@@ -378,7 +378,7 @@ func TestSearchDiffsResults(t *testing.T) {
 		},
 	}
 
-	err = c.AddRequest(sr2, "")
+	err = c.AddResponse(sr2, "")
 	require.NoError(t, err)
 
 	actual, err = c.GRPCDiff()
@@ -418,7 +418,7 @@ func TestCombinerDiffs(t *testing.T) {
 		Metrics: &tempopb.SearchMetrics{},
 	}, resp)
 
-	err = combiner.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
+	err = combiner.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:         "1234",
@@ -462,7 +462,7 @@ func TestCombinerDiffs(t *testing.T) {
 	}, resp)
 
 	// new traces
-	err = combiner.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
+	err = combiner.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:           "5678",
@@ -505,7 +505,7 @@ func TestCombinerDiffs(t *testing.T) {
 	}, resp)
 
 	// write over existing trace
-	err = combiner.AddRequest(toHTTPResponse(t, &tempopb.SearchResponse{
+	err = combiner.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
 				TraceID:    "1234",
@@ -574,7 +574,7 @@ func TestSearchCombinerDoesNotRace(t *testing.T) {
 				CompletedJobs:   1,
 			},
 		}, 200)
-		_ = combiner.AddRequest(resp, "")
+		_ = combiner.AddResponse(resp, "")
 	})
 
 	go concurrent(func() {

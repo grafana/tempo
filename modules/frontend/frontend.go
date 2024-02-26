@@ -66,7 +66,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		newTraceByIDMiddleware(cfg, o, logger), retryWare)
 
 	searchPipeline := pipeline.Build(
-		asyncPipeline(cfg, newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger), logger),
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantMiddleware(cfg, logger),
+			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
+		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
@@ -263,16 +266,18 @@ func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.R
 	})
 }
 
-func asyncPipeline(cfg Config, sharder pipeline.AsyncMiddleware[*http.Response], logger log.Logger) []pipeline.AsyncMiddleware[*http.Response] {
+func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
 	if cfg.MultiTenantQueriesEnabled {
-		return []pipeline.AsyncMiddleware[*http.Response]{
-			pipeline.NewMultiTenantMiddleware(logger),
-			sharder,
-		}
+		return pipeline.NewMultiTenantMiddleware(logger)
 	}
 
-	return []pipeline.AsyncMiddleware[*http.Response]{
-		pipeline.NewMultiTenantUnsupportedMiddleware(logger),
-		sharder,
+	return pipeline.NewNoopMiddleware()
+}
+
+func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+	if cfg.MultiTenantQueriesEnabled {
+		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
 	}
+
+	return pipeline.NewNoopMiddleware()
 }

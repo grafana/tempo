@@ -37,7 +37,7 @@ func NewTraceByID() Combiner {
 	}
 }
 
-func (c *traceByIDCombiner) AddRequest(res *http.Response, tenant string) error {
+func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

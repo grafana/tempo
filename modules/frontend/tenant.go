@@ -138,7 +138,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 			}
 
 			// If we get here, we have a successful response
-			if err := respCombiner.AddRequest(resp, tenant); err != nil {
+			if err := respCombiner.AddResponse(resp, tenant); err != nil {
 				_ = level.Error(t.logger).Log("msg", "error combining responses", "tenant", tenant, "err", err)
 				t.tenantFailureTotal.With(prometheus.Labels{tenantLabel: tenant, statusCodeLabel: strconv.Itoa(resp.StatusCode)}).Inc()
 				overallErr.Store(err)

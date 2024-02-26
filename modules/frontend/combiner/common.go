@@ -34,8 +34,8 @@ type genericCombiner[T TResponse] struct {
 	httpRespBody   string
 }
 
-// AddRequest actually adds a response. Rename?
-func (c *genericCombiner[T]) AddRequest(res *http.Response, _ string) error {
+// AddResponse is used to add a http response to the combiner.
+func (c *genericCombiner[T]) AddResponse(res *http.Response, _ string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

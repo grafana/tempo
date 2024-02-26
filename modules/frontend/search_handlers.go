@@ -173,5 +173,6 @@ func logShardedResults(logger log.Logger, tenantID string, durationSeconds float
 		"completed_requests", resp.Metrics.CompletedJobs,
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
+		"inspected_spans", resp.Metrics.InspectedSpans,
 		"error", err)
 }

@@ -297,40 +297,6 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	require.Equal(t, status.Error(codes.Internal, "context canceled"), err)
 }
 
-func TestMultitenantFailsWhenDisabled(t *testing.T) {
-	f := frontendWithSettings(t, nil, nil, &Config{
-		TraceByID: TraceByIDConfig{
-			QueryShards: minQueryShards,
-			SLO:         testSLOcfg,
-		},
-		Search: SearchConfig{
-			Sharder: SearchSharderConfig{
-				ConcurrentRequests:    defaultConcurrentRequests,
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			},
-			SLO: testSLOcfg,
-		},
-	}, nil)
-
-	multiTenant := "foo|bar"
-
-	httpReq := httptest.NewRequest("GET", "/api/search", nil)
-	httpResp := httptest.NewRecorder()
-
-	ctx := user.InjectOrgID(httpReq.Context(), multiTenant)
-	httpReq = httpReq.WithContext(ctx)
-
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
-	require.Equal(t, "multi-tenant query unsupported", httpResp.Body.String())
-	require.Equal(t, 400, httpResp.Code)
-
-	// grpc
-	srv := newMockStreamingServer(multiTenant, nil)
-	grpcReq := &tempopb.SearchRequest{}
-	err := f.streamingSearch(grpcReq, srv)
-	require.Equal(t, status.Error(codes.InvalidArgument, "multi-tenant query unsupported"), err)
-}
-
 func TestSearchLimitHonored(t *testing.T) {
 	f := frontendWithSettings(t, &mockSearchQuerierResponse{
 		responseFn: func() *tempopb.SearchResponse {

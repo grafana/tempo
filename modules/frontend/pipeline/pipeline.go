@@ -59,7 +59,7 @@ func (f MiddlewareFunc) Wrap(w http.RoundTripper) http.RoundTripper {
 // Builder and Bridge
 //
 
-// MergeMiddlewares takes a set of ordered middlewares and merges them into a pipeline
+// Build takes a slice of async, sync middleware and a http.RoundTripper and builds a request pipeline
 func Build(asyncMW []AsyncMiddleware[*http.Response], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[*http.Response] {
 	asyncPipeline := AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
 		for i := len(asyncMW) - 1; i >= 0; i-- {
