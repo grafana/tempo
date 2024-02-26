@@ -65,7 +65,7 @@
 * [BUGFIX] Correctly return 400 when max limit is requested on search. [#3340](https://github.com/grafana/tempo/pull/3340) (@joe-elliott)
 * [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
 * [BUGFIX] Fixes trace context propagation between query-frontend and querier. [#3387](https://github.com/grafana/tempo/pull/3387) (@mapno)
-* [BUGFIX] Return unfiltered results when a bad TraceQL query is provided in autocomplete. [#](https://github.com/grafana/tempo) (@mapno)
+* [BUGFIX] Return unfiltered results when a bad TraceQL query is provided in autocomplete. [#3426](https://github.com/grafana/tempo/pull/3426) (@mapno)
 
 ## v2.3.1 / 2023-11-28
 
