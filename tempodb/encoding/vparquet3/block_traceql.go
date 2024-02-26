@@ -26,6 +26,13 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+var (
+	pqSpanPool    = parquetquery.NewResultPool(10)
+	pqSpansetPool = parquetquery.NewResultPool(10)
+	pqTracePool   = parquetquery.NewResultPool(10)
+	pqAttrPool    = parquetquery.NewResultPool(10)
+)
+
 type attrVal struct {
 	a traceql.Attribute
 	s traceql.Static
@@ -695,7 +702,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
-		parquetquery.ReleaseResult(res)
+		res.Release()
 
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpansILSSpan, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
@@ -711,7 +718,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := parquetquery.GetResult()
+	res := parquetquery.DefaultResultPool.Get()
 	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
@@ -817,7 +824,7 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
-		parquetquery.ReleaseResult(res)
+		res.Release()
 		putSpanset(ss) // Repool the spanset but not the spans which have been moved to nextSpans as needed.
 
 		res = i.resultFromNextSpans()
@@ -834,7 +841,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := parquetquery.GetResult()
+			res := parquetquery.DefaultResultPool.Get()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -874,7 +881,7 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 		return nil, nil
 	}
 
-	defer parquetquery.ReleaseResult(res)
+	defer res.Release()
 
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)
@@ -1314,7 +1321,12 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol)
+	j, err := parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol)
+	if err != nil {
+		return nil, err
+	}
+	j.PoolFn = pqSpanPool.Get
+	return j, nil
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -1431,8 +1443,12 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	// Left join here means the span iterator + 1 are required,
 	// and all other resource conditions are optional. Whatever matches
 	// is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
-		required, iters, batchCol)
+	j, err := parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, batchCol)
+	if err != nil {
+		return nil, err
+	}
+	j.PoolFn = pqSpansetPool.Get
+	return j, nil
 }
 
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, shardID, shardCount uint32, allConditions bool) (parquetquery.Iterator, error) {
@@ -1502,7 +1518,9 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector()), nil
+	j := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector())
+	j.PoolFn = pqTracePool.Get
+	return j, nil
 }
 
 func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -1804,15 +1822,22 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
 		if allConditions && len(valueIters) == 1 {
 			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
-			return parquetquery.NewJoinIterator(definitionLevel,
+			j := parquetquery.NewJoinIterator(definitionLevel,
 				iters,
-				&attributeCollector{}), nil
+				&attributeCollector{})
+			j.PoolFn = pqAttrPool.Get
+			return j, nil
 		}
 
-		return parquetquery.NewLeftJoinIterator(definitionLevel,
+		j, err := parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
 			&attributeCollector{})
+		if err != nil {
+			return nil, err
+		}
+		j.PoolFn = pqAttrPool.Get
+		return j, nil
 	}
 
 	return nil, nil
