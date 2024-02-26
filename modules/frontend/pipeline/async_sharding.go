@@ -15,12 +15,12 @@ type waitGroup interface {
 
 // NewAsyncSharder creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response]. It creates one
 // goroutine per concurrent request.
-func NewAsyncSharder(concurrent int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
+func NewAsyncSharder(concurrentReqs, totalReqs int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
 	var wg waitGroup
-	if concurrent <= 0 {
+	if concurrentReqs <= 0 {
 		wg = &sync.WaitGroup{}
 	} else {
-		bwg := boundedwaitgroup.New(uint(concurrent))
+		bwg := boundedwaitgroup.New(uint(concurrentReqs))
 		wg = &bwg
 	}
 	asyncResp := newAsyncResponse()
@@ -28,14 +28,11 @@ func NewAsyncSharder(concurrent int, reqFn func(i int) *http.Request, next Async
 	go func() {
 		defer asyncResp.done()
 
-		reqIdx := 0
-		for {
-			req := reqFn(reqIdx)
-			reqIdx++
-
+		for i := 0; i < totalReqs; i++ {
+			req := reqFn(i)
 			// else check for a request to pass down the pipeline
 			if req == nil {
-				break
+				continue
 			}
 
 			wg.Add(1)

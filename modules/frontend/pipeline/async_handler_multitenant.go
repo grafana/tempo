@@ -50,7 +50,7 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses[*http.Respo
 	// join tenants for logger because list value type is unsupported.
 	_ = level.Debug(t.logger).Log("msg", "handling multi-tenant query", "tenants", strings.Join(tenants, ","))
 
-	return NewAsyncSharder(0, func(tenantIdx int) *http.Request {
+	return NewAsyncSharder(0, len(tenants), func(tenantIdx int) *http.Request {
 		if tenantIdx >= len(tenants) {
 			return nil
 		}

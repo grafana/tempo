@@ -21,7 +21,7 @@ func TestAsyncSharders(t *testing.T) {
 		{
 			name: "AsyncSharder",
 			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
-				return NewAsyncSharder(10, func(i int) *http.Request {
+				return NewAsyncSharder(10, expectedRequestCount, func(i int) *http.Request {
 					if i >= expectedRequestCount {
 						return nil
 					}
@@ -30,6 +30,16 @@ func TestAsyncSharders(t *testing.T) {
 			},
 		},
 		{
+			name: "AsyncSharder - no limit",
+			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
+				return NewAsyncSharder(0, expectedRequestCount, func(i int) *http.Request {
+					if i >= expectedRequestCount {
+						return nil
+					}
+					return &http.Request{}
+				}, next).(*asyncResponse)
+			},
+		}, {
 			name: "AsyncSharderLimitedGoroutines",
 			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
 				reqChan := make(chan *http.Request)
