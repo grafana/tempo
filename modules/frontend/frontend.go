@@ -106,16 +106,15 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	metrics := metricsMiddleware.Wrap(next)
 	queryrange := queryRangeMiddleware.Wrap(next)
-
 	return &QueryFrontend{
-		TraceByIDHandler:          newHandler(traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
-		SearchHandler:             newHandler(search, nil, logger),
-		SearchTagsHandler:         newHandler(searchTags, nil, logger),
-		SearchTagsV2Handler:       newHandler(searchTagsV2, nil, logger),
-		SearchTagsValuesHandler:   newHandler(searchTagValues, nil, logger),
-		SearchTagsValuesV2Handler: newHandler(searchTagValuesV2, nil, logger),
-		SpanMetricsSummaryHandler: newHandler(metrics, nil, logger),
-		QueryRangeHandler:         newHandler(queryrange, nil, logger),
+		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
+		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, searchSLOPostHook(cfg.Search.SLO), logger),
+		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, nil, logger),
+		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, nil, logger),
+		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, nil, logger),
+		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, nil, logger),
+		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, nil, logger),
+		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, nil, logger),
 		cacheProvider:             cacheProvider,
 		streamingSearch:           newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
 		logger:                    logger,

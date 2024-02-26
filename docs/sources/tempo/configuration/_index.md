@@ -38,7 +38,7 @@ The Tempo configuration options include:
   - [Usage-report](#usage-report)
   - [Cache](#cache)
 
-Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "./network/tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -437,6 +437,10 @@ query_frontend:
     # (default: true)
     [multi_tenant_queries_enabled: <bool>]
 
+    # Comma-separated list of request header names to include in query logs. Applies
+    # to both query stats and slow queries logs.
+    [log_query_request_headers: <string> | default = ""]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
@@ -666,9 +670,9 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "./gcs" >}})
-* [S3]({{< relref "./s3" >}})
-* [Azure]({{< relref "./azure" >}})
+* [GCS]({{< relref "./hosted-storage/gcs" >}})
+* [S3]({{< relref "./hosted-storage/s3" >}})
+* [Azure]({{< relref "./hosted-storage/azure" >}})
 * [Parquet]({{< relref "./parquet" >}})
 
 ```yaml
@@ -1516,8 +1520,6 @@ cache:
         # Allowed values:
         #   bloom              - Bloom filters for trace id lookup.
         #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
-        #   parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
-        #   parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
         #   parquet-page       - Parquet "pages". WARNING: This will attempt to cache most reads from parquet and, as a result, is very high volume.
         #   frontend-search    - Frontend search job results.
 

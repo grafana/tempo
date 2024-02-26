@@ -340,6 +340,19 @@ func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.
 	return false, nil
 }
 
+func (i *Ingester) enqueueExec(op *flushOp) {
+	// Check if shutdown initiated
+	if i.flushQueues.IsStopped() {
+		handleAbandonedOp(op)
+		return
+	}
+
+	err := i.flushQueues.Enqueue(op)
+	if err != nil {
+		handleFailedOp(op, err)
+	}
+}
+
 func (i *Ingester) enqueue(op *flushOp, jitter bool) {
 	delay := time.Duration(0)
 
@@ -349,19 +362,15 @@ func (i *Ingester) enqueue(op *flushOp, jitter bool) {
 
 	op.at = time.Now().Add(delay)
 
+	if !jitter {
+		// Execute synchronously to make sure we can flush during shutdown
+		i.enqueueExec(op)
+		return
+	}
+
 	go func() {
 		time.Sleep(delay)
-
-		// Check if shutdown initiated
-		if i.flushQueues.IsStopped() {
-			handleAbandonedOp(op)
-			return
-		}
-
-		err := i.flushQueues.Enqueue(op)
-		if err != nil {
-			handleFailedOp(op, err)
-		}
+		i.enqueueExec(op)
 	}()
 }
 
