@@ -146,6 +146,9 @@ Requests that modify or delete overrides need to pass the current version using 
 ```
 $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "..."
 ```
+This example uses uses overrides in the `overrides.json` file with the location in `pwd`: 
+
+`curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json`
 
 If the version does not match the version in the backend, the request is rejected with HTTP error 412.
 
