@@ -482,6 +482,33 @@ func syncIteratorPoolPut(b []pq.Value) {
 	syncIteratorPool.Put(b) // nolint: staticcheck
 }
 
+type JoinIteratorOption interface {
+	applyToJoinIterator(*JoinIterator)
+}
+
+type LeftJoinIteratorOption interface {
+	applyToLeftJoinIterator(*LeftJoinIterator)
+}
+
+type poolOption struct {
+	pool PoolFn
+}
+
+// WithPool allows setting a custom result pool for this iterator. Custom pooling
+// can be useful to keep similar sized results together or to isolate data. By
+// default all iterators use a shared pool.
+func WithPool(p *ResultPool) poolOption {
+	return poolOption{p.Get}
+}
+
+func (o poolOption) applyToJoinIterator(j *JoinIterator) {
+	j.pool = o.pool
+}
+
+func (o poolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
+	j.pool = o.pool
+}
+
 type SyncIteratorOpt func(*SyncIterator)
 
 // SyncIteratorOptIntern enables interning of string values.
@@ -1289,21 +1316,25 @@ type JoinIterator struct {
 	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
-	Pool            PoolFn
+	pool            PoolFn
 }
 
 var _ Iterator = (*JoinIterator)(nil)
 
-func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate) *JoinIterator {
-	j := JoinIterator{
+func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate, opts ...JoinIteratorOption) *JoinIterator {
+	j := &JoinIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
 		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
-		Pool:            DefaultPool.Get,
+		pool:            DefaultPool.Get,
 	}
-	return &j
+
+	for _, opt := range opts {
+		opt.applyToJoinIterator(j)
+	}
+	return j
 }
 
 func (j *JoinIterator) String() string {
@@ -1424,7 +1455,7 @@ func (j *JoinIterator) peek(iterNum int) (*IteratorResult, error) {
 func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := j.Pool()
+	result := j.pool()
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
@@ -1459,12 +1490,12 @@ type LeftJoinIterator struct {
 	lowestIters                  []int
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
-	Pool                         PoolFn
+	pool                         PoolFn
 }
 
 var _ Iterator = (*LeftJoinIterator)(nil)
 
-func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate) (*LeftJoinIterator, error) {
+func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate, opts ...LeftJoinIteratorOption) (*LeftJoinIterator, error) {
 	// No query should ever result in a left-join with no required iterators.
 	// If this happens, it's a bug in the iter building code.
 	// LeftJoinIterator is not designed to handle this case and will loop forever.
@@ -1472,7 +1503,7 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		return nil, fmt.Errorf("left join iterator requires at least one required iterator")
 	}
 
-	j := LeftJoinIterator{
+	j := &LeftJoinIterator{
 		definitionLevel: definitionLevel,
 		required:        required,
 		optional:        optional,
@@ -1480,9 +1511,14 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
-		Pool:            DefaultPool.Get,
+		pool:            DefaultPool.Get,
 	}
-	return &j, nil
+
+	for _, opt := range opts {
+		opt.applyToLeftJoinIterator(j)
+	}
+
+	return j, nil
 }
 
 func (j *LeftJoinIterator) String() string {
@@ -1615,7 +1651,7 @@ func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 // or are exhausted.
 func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
-	result := j.Pool()
+	result := j.pool()
 	result.RowNumber = rowNumber
 
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
