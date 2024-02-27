@@ -690,6 +690,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | rate()",
 		"{} | rate() by (name)",
 		"{} | rate() by (resource.service.name)",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
 		"{resource.service.name=`loki-ingester`} | rate()",
 		"{status=error} | rate()",
 	}
