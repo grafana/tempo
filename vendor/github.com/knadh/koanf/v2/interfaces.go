@@ -3,7 +3,7 @@ package koanf
 // Provider represents a configuration provider. Providers can
 // read configuration from a source (file, HTTP etc.)
 type Provider interface {
-	// Read returns the entire configuration as raw []bytes to be parsed.
+	// ReadBytes returns the entire configuration as raw []bytes to be parsed.
 	// with a Parser.
 	ReadBytes() ([]byte, error)
 

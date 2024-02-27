@@ -114,7 +114,7 @@ func (ko *Koanf) Int64Map(path string) map[string]int64 {
 }
 
 // MustInt64Map returns the map[string]int64 value of a given key path
-// or panics if its not set or set to default value.
+// or panics if it isn't set or set to default value.
 func (ko *Koanf) MustInt64Map(path string) map[string]int64 {
 	val := ko.Int64Map(path)
 	if len(val) == 0 {
@@ -130,7 +130,7 @@ func (ko *Koanf) Int(path string) int {
 }
 
 // MustInt returns the int value of a given key path or panics
-// or panics if its not set or set to default value of 0.
+// if it isn't set or set to default value of 0.
 func (ko *Koanf) MustInt(path string) int {
 	val := ko.Int(path)
 	if val == 0 {
@@ -221,7 +221,7 @@ func (ko *Koanf) Float64(path string) float64 {
 }
 
 // MustFloat64 returns the float64 value of a given key path or panics
-// or panics if its not set or set to default value 0.
+// if it isn't set or set to default value 0.
 func (ko *Koanf) MustFloat64(path string) float64 {
 	val := ko.Float64(path)
 	if val == 0 {
@@ -328,7 +328,7 @@ func (ko *Koanf) Duration(path string) time.Duration {
 }
 
 // MustDuration returns the time.Duration value of a given key path or panics
-// if its not set or set to default value 0.
+// if it isn't set or set to default value 0.
 func (ko *Koanf) MustDuration(path string) time.Duration {
 	val := ko.Duration(path)
 	if val == 0 {
@@ -382,7 +382,7 @@ func (ko *Koanf) String(path string) string {
 }
 
 // MustString returns the string value of a given key path
-// or panics if its not set or set to default value "".
+// or panics if it isn't set or set to default value "".
 func (ko *Koanf) MustString(path string) string {
 	val := ko.String(path)
 	if val == "" {
@@ -414,7 +414,7 @@ func (ko *Koanf) Strings(path string) []string {
 		return out
 	case []string:
 		out := make([]string, len(v))
-		copy(out[:], v[:])
+		copy(out, v)
 		return out
 	}
 

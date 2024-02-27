@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2"
@@ -71,15 +72,17 @@ func defaultMetricsUnmarshalers() map[string]MetricsUnmarshaler {
 	}
 }
 
-func defaultLogsUnmarshalers() map[string]LogsUnmarshaler {
+func defaultLogsUnmarshalers(version string, logger *zap.Logger) map[string]LogsUnmarshaler {
+	azureResourceLogs := newAzureResourceLogsUnmarshaler(version, logger)
 	otlpPb := newPdataLogsUnmarshaler(&plog.ProtoUnmarshaler{}, defaultEncoding)
 	raw := newRawLogsUnmarshaler()
 	text := newTextLogsUnmarshaler()
 	json := newJSONLogsUnmarshaler()
 	return map[string]LogsUnmarshaler{
-		otlpPb.Encoding(): otlpPb,
-		raw.Encoding():    raw,
-		text.Encoding():   text,
-		json.Encoding():   json,
+		azureResourceLogs.Encoding(): azureResourceLogs,
+		otlpPb.Encoding():            otlpPb,
+		raw.Encoding():               raw,
+		text.Encoding():              text,
+		json.Encoding():              json,
 	}
 }
