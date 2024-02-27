@@ -221,16 +221,6 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		case <-ticker.C:
 			if p.tenantQueues.IsEmpty() {
 
-				for tenantID := range blocklist {
-					metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist[tenantID])))
-
-					backendMetaMetrics := sumTotalBackendMetaMetrics(blocklist[tenantID], compactedBlocklist[tenantID])
-					metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-					metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-					metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-					metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-				}
-
 				// Ensure that even empty results in either the blocklist or compacted blocklist contain the same tenants.
 				for tenantID := range compactedBlocklist {
 					if _, ok := blocklist[tenantID]; !ok {
@@ -242,6 +232,17 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 					if _, ok := compactedBlocklist[tenantID]; !ok {
 						compactedBlocklist[tenantID] = []*backend.CompactedBlockMeta{}
 					}
+				}
+
+				// Metric the blocklist
+				for tenantID := range blocklist {
+					metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(blocklist[tenantID])))
+
+					backendMetaMetrics := sumTotalBackendMetaMetrics(blocklist[tenantID], compactedBlocklist[tenantID])
+					metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+					metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+					metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+					metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
 				}
 
 				return blocklist, compactedBlocklist, nil
