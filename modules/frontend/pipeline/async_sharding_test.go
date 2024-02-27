@@ -39,7 +39,8 @@ func TestAsyncSharders(t *testing.T) {
 					return &http.Request{}
 				}, next).(*asyncResponse)
 			},
-		}, {
+		},
+		{
 			name: "AsyncSharderLimitedGoroutines",
 			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
 				reqChan := make(chan *http.Request)
