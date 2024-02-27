@@ -108,7 +108,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
 		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
-		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, searchSLOPostHook(cfg.Search.SLO), logger),
+		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, nil, logger),
 		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, nil, logger),
 		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, nil, logger),
 		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, nil, logger),
