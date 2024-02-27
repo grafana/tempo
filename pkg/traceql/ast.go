@@ -766,12 +766,13 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 		// No extra conditions, start time is already enough
 	}
 
-	selectR := &FetchSpansRequest{}
-	// copy any conditions to the normal request's SecondPassConditions
 	for _, b := range a.by {
-		b.extractConditions(selectR)
+		if !request.HasAttribute(b) {
+			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+				Attribute: b,
+			})
+		}
 	}
-	request.SecondPassConditions = append(request.SecondPassConditions, selectR.Conditions...)
 }
 
 func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest) {

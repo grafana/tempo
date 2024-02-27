@@ -196,3 +196,39 @@ func TestSelect_extractConditions(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricsAggregate_extractConditions(t *testing.T) {
+	tests := map[string]struct {
+		first  []Condition
+		second []Condition
+		all    bool
+	}{
+		`{} | rate() by (name)`: {
+			// Empty spanset implies start time
+			[]Condition{newCondition(IntrinsicSpanStartTimeAttribute, OpNone)},
+			[]Condition{newCondition(IntrinsicNameAttribute, OpNone)},
+			true,
+		},
+		`{name="foo"} | rate() by (name)`: {
+			// by() clause doesn't overwrite existing condition
+			[]Condition{newCondition(IntrinsicNameAttribute, OpEqual, NewStaticString("foo"))},
+			nil,
+			true,
+		},
+	}
+	for q, tt := range tests {
+		t.Run(q, func(t *testing.T) {
+			expr, err := Parse(q)
+			require.NoError(t, err)
+
+			req := &FetchSpansRequest{
+				AllConditions: true,
+			}
+			expr.extractConditions(req)
+
+			require.Equal(t, tt.first, req.Conditions)
+			require.Equal(t, tt.second, req.SecondPassConditions)
+			require.Equal(t, tt.all, req.AllConditions, "FetchSpansRequest.AllConditions")
+		})
+	}
+}
