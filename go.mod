@@ -65,7 +65,7 @@ require (
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.94.1
 	go.opentelemetry.io/collector/component v0.94.1
-	go.opentelemetry.io/collector/confmap v0.94.1
+	go.opentelemetry.io/collector/confmap v0.95.0
 	go.opentelemetry.io/collector/consumer v0.94.1
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.94.1
 	go.opentelemetry.io/collector/pdata v1.1.0
@@ -112,7 +112,7 @@ require (
 	github.com/stoewer/parquet-cli v0.0.7
 	go.opentelemetry.io/collector/config/configgrpc v0.94.1
 	go.opentelemetry.io/collector/config/confighttp v0.94.1
-	go.opentelemetry.io/collector/config/configtls v0.94.1
+	go.opentelemetry.io/collector/config/configtls v0.95.0
 	go.opentelemetry.io/collector/exporter v0.94.1
 	go.opentelemetry.io/collector/extension v0.94.1
 	go.opentelemetry.io/collector/otelcol v0.94.1
@@ -217,7 +217,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
-	github.com/knadh/koanf/v2 v2.0.2 // indirect
+	github.com/knadh/koanf/v2 v2.1.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
@@ -298,10 +298,16 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.94.1 // indirect
 	go.opentelemetry.io/collector/config/configcompression v0.94.1 // indirect
 	go.opentelemetry.io/collector/config/confignet v0.94.1 // indirect
-	go.opentelemetry.io/collector/config/configopaque v0.94.1 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.2.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.94.1 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.94.1 // indirect
 	go.opentelemetry.io/collector/config/internal v0.94.1 // indirect
+	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.95.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/envprovider v0.95.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.95.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.95.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.95.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.95.0 // indirect
 	go.opentelemetry.io/collector/connector v0.94.1 // indirect
 	go.opentelemetry.io/collector/extension/auth v0.94.1 // indirect
 	go.opentelemetry.io/collector/featuregate v1.1.0 // indirect
