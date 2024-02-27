@@ -4,6 +4,6 @@ status:
   class: exporter
   stability:
     beta: [traces, metrics, logs]
-  distributions: [contrib, observiq, splunk, sumo, aws]
+  distributions: [core, contrib, observiq, splunk, sumo, aws]
   codeowners:
     active: [pavolloffay, MovieStoreGuy]
