@@ -273,10 +273,14 @@ func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddlewa
 	return pipeline.NewNoopMiddleware()
 }
 
-func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] { //nolint:unused will be used when we migrate an endpoint that does not support multitenancy
+/*
+// nolint:unused was not working so i'm commenting this out. we are not using this function now, but will use it
+// when we migrate all endpoints to the new middleware
+func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
 	}
 
 	return pipeline.NewNoopMiddleware()
 }
+*/
