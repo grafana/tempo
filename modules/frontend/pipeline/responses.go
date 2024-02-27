@@ -74,7 +74,10 @@ func (a *asyncResponse) Send(r Responses[*http.Response]) {
 
 // SendError sends an error to the asyncResponse. This will cause the asyncResponse to return the error on the next call to Next.
 func (a *asyncResponse) SendError(err error) {
-	a.errChan <- err
+	select {
+	case a.errChan <- err:
+	default:
+	}
 }
 
 func (a *asyncResponse) done() {

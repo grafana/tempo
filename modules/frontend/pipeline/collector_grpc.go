@@ -43,14 +43,6 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	lastUpdate := time.Now()
 
 	for {
-		// done, err := contextDone(ctx)
-		// if done {
-		// 	if err != nil {
-		// 		overallErr = err
-		// 	}
-		// 	break
-		// }
-
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
 			overallErr = err
