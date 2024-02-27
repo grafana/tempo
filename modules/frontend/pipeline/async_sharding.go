@@ -70,6 +70,7 @@ func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Re
 			defer wg.Done()
 
 			for req := range reqs {
+
 				resp, err := next.RoundTrip(req)
 				if err != nil {
 					asyncResp.SendError(err)

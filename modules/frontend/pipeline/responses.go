@@ -64,7 +64,7 @@ type asyncResponse struct {
 func newAsyncResponse() *asyncResponse {
 	return &asyncResponse{
 		respChan: make(chan Responses[*http.Response]),
-		errChan:  make(chan error),
+		errChan:  make(chan error, 1),
 	}
 }
 
