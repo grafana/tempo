@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,28 +48,12 @@ func TestReceivers(t *testing.T) {
 		endpoint string
 	}{
 		{
-			"jaeger gRPC",
-			jaegerexporter.NewFactory(),
-			func(factory exporter.Factory, endpoint string) component.Config {
-				exporterCfg := factory.CreateDefaultConfig()
-				jaegerCfg := exporterCfg.(*jaegerexporter.Config)
-				jaegerCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
-					Endpoint: endpoint,
-					TLSSetting: configtls.TLSClientSetting{
-						Insecure: true,
-					},
-				}
-				return jaegerCfg
-			},
-			tempo.Endpoint(14250),
-		},
-		{
 			"otlp gRPC",
 			otlpexporter.NewFactory(),
 			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				otlpCfg := exporterCfg.(*otlpexporter.Config)
-				otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
+				otlpCfg.ClientConfig = configgrpc.GRPCClientSettings{
 					Endpoint: endpoint,
 					TLSSetting: configtls.TLSClientSetting{
 						Insecure: true,
@@ -86,7 +69,7 @@ func TestReceivers(t *testing.T) {
 			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				zipkinCfg := exporterCfg.(*zipkinexporter.Config)
-				zipkinCfg.HTTPClientSettings = confighttp.HTTPClientSettings{
+				zipkinCfg.ClientConfig = confighttp.HTTPClientSettings{
 					Endpoint: endpoint,
 					TLSSetting: configtls.TLSClientSetting{
 						Insecure: true,

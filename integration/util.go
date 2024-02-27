@@ -284,7 +284,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	factory := otlpexporter.NewFactory()
 	exporterCfg := factory.CreateDefaultConfig()
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
-	otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
+	otlpCfg.ClientConfig = configgrpc.GRPCClientSettings{
 		Endpoint: endpoint,
 		TLSSetting: configtls.TLSClientSetting{
 			Insecure: true,

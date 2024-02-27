@@ -10,7 +10,7 @@ import (
 
 	"github.com/knadh/koanf/maps"
 	"github.com/mitchellh/copystructure"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 // Koanf is the configuration apparatus.
@@ -132,12 +132,12 @@ func (ko *Koanf) Keys() []string {
 }
 
 // KeyMap returns a map of flattened keys and the individual parts of the
-// key as slices. eg: "parent.child.key" => ["parent", "child", "key"]
+// key as slices. eg: "parent.child.key" => ["parent", "child", "key"].
 func (ko *Koanf) KeyMap() KeyMap {
 	out := make(KeyMap, len(ko.keyMap))
 	for key, parts := range ko.keyMap {
 		out[key] = make([]string, len(parts))
-		copy(out[key][:], parts[:])
+		copy(out[key], parts)
 	}
 	return out
 }
@@ -161,7 +161,7 @@ func (ko *Koanf) Raw() map[string]interface{} {
 func (ko *Koanf) Sprint() string {
 	b := bytes.Buffer{}
 	for _, k := range ko.Keys() {
-		b.Write([]byte(fmt.Sprintf("%s -> %v\n", k, ko.confMapFlat[k])))
+		b.WriteString(fmt.Sprintf("%s -> %v\n", k, ko.confMapFlat[k]))
 	}
 	return b.String()
 }
@@ -425,7 +425,7 @@ func (ko *Koanf) merge(c map[string]interface{}, opts *options) error {
 
 // toInt64 takes an interface value and if it is an integer type,
 // converts and returns int64. If it's any other type,
-// forces it to a string and attempts to an strconv.Atoi
+// forces it to a string and attempts to do a strconv.Atoi
 // to get an integer out.
 func toInt64(v interface{}) (int64, error) {
 	switch i := v.(type) {
@@ -507,19 +507,20 @@ func populateKeyParts(m KeyMap, delim string) KeyMap {
 				continue
 			}
 			out[nk] = make([]string, i+1)
-			copy(out[nk][:], parts[0:i+1])
+			copy(out[nk], parts[0:i+1])
 		}
 	}
 	return out
 }
 
 // textUnmarshalerHookFunc is a fixed version of mapstructure.TextUnmarshallerHookFunc.
-// This hook allows to additionally unmarshal text into custom string types that implement the encoding.(Un)TextMarshaler interface(s)
+// This hook allows to additionally unmarshal text into custom string types that implement the encoding.Text(Un)Marshaler interface(s).
 func textUnmarshalerHookFunc() mapstructure.DecodeHookFuncType {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}
@@ -529,7 +530,7 @@ func textUnmarshalerHookFunc() mapstructure.DecodeHookFuncType {
 			return data, nil
 		}
 
-		// default text representaion is the actual value of the `from` string
+		// default text representation is the actual value of the `from` string
 		var (
 			dataVal = reflect.ValueOf(data)
 			text    = []byte(dataVal.String())
@@ -550,8 +551,8 @@ func textUnmarshalerHookFunc() mapstructure.DecodeHookFuncType {
 			ptrVal.Elem().Set(dataVal)
 
 			// We need to assert that both, the value type and the pointer type
-			// do (not) implement the TextMarshaler interface before proceeding and simmply
-			// using the the string value of the string type.
+			// do (not) implement the TextMarshaller interface before proceeding and simply
+			// using the string value of the string type.
 			// it might be the case that the internal string representation differs from
 			// the (un)marshalled string.
 
@@ -567,7 +568,7 @@ func textUnmarshalerHookFunc() mapstructure.DecodeHookFuncType {
 		}
 
 		// text is either the source string's value or the source string type's marshaled value
-		// which may differ fromit internal string value.
+		// which may differ from its internal string value.
 		if err := unmarshaller.UnmarshalText(text); err != nil {
 			return nil, err
 		}

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
@@ -481,6 +482,18 @@ func syncIteratorPoolPut(b []pq.Value) {
 	syncIteratorPool.Put(b) // nolint: staticcheck
 }
 
+type SyncIteratorOpt func(*SyncIterator)
+
+// SyncIteratorOptIntern enables interning of string values.
+// This is useful when the same string value is repeated many times.
+// Not recommended with (very) high cardinality columns, such as UUIDs (spanID and traceID).
+func SyncIteratorOptIntern() SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.intern = true
+		i.interner = intern.New()
+	}
+}
+
 // SyncIterator is like ColumnIterator but synchronous. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -509,11 +522,14 @@ type SyncIterator struct {
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
+
+	intern   bool
+	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
 
-func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
+func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, opts ...SyncIteratorOpt) *SyncIterator {
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -532,7 +548,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		"column":      columnName,
 	})
 
-	return &SyncIterator{
+	// Create the iterator
+	i := &SyncIterator{
 		span:       span,
 		column:     column,
 		columnName: columnName,
@@ -544,6 +561,13 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(i)
+	}
+
+	return i
 }
 
 func (c *SyncIterator) String() string {
@@ -916,7 +940,11 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v.Clone())
+		if c.intern {
+			r.AppendValue(c.selectAs, c.interner.UnsafeClone(v))
+		} else {
+			r.AppendValue(c.selectAs, v.Clone())
+		}
 	}
 	return r
 }
@@ -931,6 +959,10 @@ func (c *SyncIterator) Close() {
 	c.span.SetTag("keptPages", c.filter.KeptPages)
 	c.span.SetTag("keptValues", c.filter.KeptValues)
 	c.span.Finish()
+
+	if c.intern && c.interner != nil {
+		c.interner.Close()
+	}
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies

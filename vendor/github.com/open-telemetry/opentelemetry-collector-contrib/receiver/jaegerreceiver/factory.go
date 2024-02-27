@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/jaegerreceiverdeprecated"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
 )
 
@@ -51,21 +50,18 @@ func logDeprecation(logger *zap.Logger) {
 	})
 }
 
-const protoInsteadOfThrift = "receiver.jaegerreceiver.replaceThriftWithProto"
-
+// nolint
 var protoGate = featuregate.GlobalRegistry().MustRegister(
-	protoInsteadOfThrift,
-	featuregate.StageBeta,
+	"receiver.jaegerreceiver.replaceThriftWithProto",
+	featuregate.StageStable,
 	featuregate.WithRegisterDescription(
 		"When enabled, the jaegerreceiver will use Proto-gen over Thrift-gen.",
 	),
+	featuregate.WithRegisterToVersion("0.92.0"),
 )
 
 // NewFactory creates a new Jaeger receiver factory.
 func NewFactory() receiver.Factory {
-	if !protoGate.IsEnabled() {
-		return jaegerreceiverdeprecated.NewFactory()
-	}
 	return receiver.NewFactory(
 		metadata.Type,
 		createDefaultConfig,

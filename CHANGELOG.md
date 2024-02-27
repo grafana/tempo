@@ -1,8 +1,8 @@
 ## main / unreleased
 
-* [BUGFIX] Fix some instances where spanmetrics histograms could be inconsistent [#3412](https://github.com/grafana/tempo/pull/3412) (@mdisibio)
+* [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
 
-## v2.4.0-rc.0
+## v2.4.0
 
 * [CHANGE] Merge the processors overrides set through runtime overrides and user-configurable overrides [#3125](https://github.com/grafana/tempo/pull/3125) (@kvrhdn)
 * [CHANGE] Make vParquet3 the default block encoding [#2526](https://github.com/grafana/tempo/pull/3134) (@stoewer)
@@ -66,6 +66,7 @@
 * [BUGFIX] Correctly return 400 when max limit is requested on search. [#3340](https://github.com/grafana/tempo/pull/3340) (@joe-elliott)
 * [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
 * [BUGFIX] Fixes trace context propagation between query-frontend and querier. [#3387](https://github.com/grafana/tempo/pull/3387) (@mapno)
+* [BUGFIX] Fix some instances where spanmetrics histograms could be inconsistent [#3412](https://github.com/grafana/tempo/pull/3412) (@mdisibio)
 
 ## v2.3.1 / 2023-11-28
 

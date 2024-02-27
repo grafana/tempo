@@ -13,7 +13,8 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/exporterhelper/internal"
+	"go.opentelemetry.io/collector/exporter/exporterqueue"
+	"go.opentelemetry.io/collector/exporter/internal/queue"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
@@ -32,7 +33,7 @@ func newLogsRequest(ld plog.Logs, pusher consumer.ConsumeLogsFunc) Request {
 	}
 }
 
-func newLogsRequestUnmarshalerFunc(pusher consumer.ConsumeLogsFunc) RequestUnmarshaler {
+func newLogsRequestUnmarshalerFunc(pusher consumer.ConsumeLogsFunc) exporterqueue.Unmarshaler[Request] {
 	return func(bytes []byte) (Request, error) {
 		logs, err := logsUnmarshaler.UnmarshalLogs(bytes)
 		if err != nil {
@@ -96,7 +97,7 @@ func NewLogsExporter(
 	lc, err := consumer.NewLogs(func(ctx context.Context, ld plog.Logs) error {
 		req := newLogsRequest(ld, pusher)
 		serr := be.send(ctx, req)
-		if errors.Is(serr, internal.ErrQueueIsFull) {
+		if errors.Is(serr, queue.ErrQueueIsFull) {
 			be.obsrep.recordEnqueueFailure(ctx, component.DataTypeLogs, int64(req.ItemsCount()))
 		}
 		return serr
@@ -108,13 +109,10 @@ func NewLogsExporter(
 	}, err
 }
 
-// LogsConverter provides an interface for converting plog.Logs into a request.
+// RequestFromLogsFunc converts plog.Logs data into a user-defined request.
 // This API is at the early stage of development and may change without backward compatibility
 // until https://github.com/open-telemetry/opentelemetry-collector/issues/8122 is resolved.
-type LogsConverter interface {
-	// RequestFromLogs converts plog.Logs data into a request.
-	RequestFromLogs(context.Context, plog.Logs) (Request, error)
-}
+type RequestFromLogsFunc func(context.Context, plog.Logs) (Request, error)
 
 // NewLogsRequestExporter creates new logs exporter based on custom LogsConverter and RequestSender.
 // This API is at the early stage of development and may change without backward compatibility
@@ -122,7 +120,7 @@ type LogsConverter interface {
 func NewLogsRequestExporter(
 	_ context.Context,
 	set exporter.CreateSettings,
-	converter LogsConverter,
+	converter RequestFromLogsFunc,
 	options ...Option,
 ) (exporter.Logs, error) {
 	if set.Logger == nil {
@@ -139,7 +137,7 @@ func NewLogsRequestExporter(
 	}
 
 	lc, err := consumer.NewLogs(func(ctx context.Context, ld plog.Logs) error {
-		req, cErr := converter.RequestFromLogs(ctx, ld)
+		req, cErr := converter(ctx, ld)
 		if cErr != nil {
 			set.Logger.Error("Failed to convert logs. Dropping data.",
 				zap.Int("dropped_log_records", ld.LogRecordCount()),
@@ -147,7 +145,7 @@ func NewLogsRequestExporter(
 			return consumererror.NewPermanent(cErr)
 		}
 		sErr := be.send(ctx, req)
-		if errors.Is(sErr, internal.ErrQueueIsFull) {
+		if errors.Is(sErr, queue.ErrQueueIsFull) {
 			be.obsrep.recordEnqueueFailure(ctx, component.DataTypeLogs, int64(req.ItemsCount()))
 		}
 		return sErr
