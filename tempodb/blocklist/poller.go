@@ -290,6 +290,10 @@ func (p *Poller) tenantPollLoop(ctx context.Context, j int) {
 	}()
 
 	for {
+		if ctx.Err() != nil { // context cancelled
+			return
+		}
+
 		o := p.tenantQueues.Dequeue(j)
 		if o == nil {
 			return
