@@ -185,7 +185,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		}
 
 		err = p.tenantQueues.Enqueue(&tenantOp{
-			at:       lastTenantPoll,
+			lastPoll: lastTenantPoll,
 			tenantID: tenantID,
 		})
 		if err != nil {
