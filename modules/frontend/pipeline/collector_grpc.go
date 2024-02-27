@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -44,13 +43,13 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	lastUpdate := time.Now()
 
 	for {
-		done, err := contextDone(ctx) // jpe - not in collector_http.go?
-		if done {
-			if err != nil {
-				overallErr = err
-			}
-			break
-		}
+		// done, err := contextDone(ctx)
+		// if done {
+		// 	if err != nil {
+		// 		overallErr = err
+		// 	}
+		// 	break
+		// }
 
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
@@ -121,15 +120,15 @@ func grpcError(err error) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
-func contextDone(ctx context.Context) (bool, error) {
-	select {
-	case <-ctx.Done():
-		err := ctx.Err()
-		if err != nil && !errors.Is(err, context.Canceled) {
-			return true, err
-		}
-		return true, nil
-	default:
-		return false, nil
-	}
-}
+// func contextDone(ctx context.Context) (bool, error) {
+// 	select {
+// 	case <-ctx.Done():
+// 		err := ctx.Err()
+// 		if err != nil && !errors.Is(err, context.Canceled) {
+// 			return true, err
+// 		}
+// 		return true, nil
+// 	default:
+// 		return false, nil
+// 	}
+// }
