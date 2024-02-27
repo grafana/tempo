@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
+* [BUGFIX] Fix metrics query results when filtering and rating on the same atribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)
 
 ## v2.4.0
 
