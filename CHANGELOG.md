@@ -1,27 +1,22 @@
 ## main / unreleased
 
-* [ENHANCEMENT] Add tracing integration to profiling endpoints [#3276](https://github.com/grafana/tempo/pull/3276) (@cyriltovena)
-* [FEATURE] Add configuration on tempo-query plugin for fetch services older than complete_block_timeout [#3262](https://github.com/grafana/tempo/pull/3350) (@rubenvp8510)
-* [FEATURE] Add support for multi-tenant queries in streaming search [#3262](https://github.com/grafana/tempo/pull/3262) (@electron0zero)
-* [FEATURE] TraceQL metrics queries [#3227](https://github.com/grafana/tempo/pull/3227) [#3252](https://github.com/grafana/tempo/pull/3252) [#3258](https://github.com/grafana/tempo/pull/3258) (@mdisibio @zalegrala)
-* [FEATURE] Add support for multi-tenant queries. [#3087](https://github.com/grafana/tempo/pull/3087) (@electron0zero)
-* [BUGFIX] Fix parsing of span.resource.xyz attributes in TraceQL. [#3284](https://github.com/grafana/tempo/pull/3284) (@mghildiy)
-* [BUGFIX] Change exit code if config is successfully verified [#3174](https://github.com/grafana/tempo/pull/3174) (@am3o @agrib-01)
-* [BUGFIX] The tempo-cli analyse blocks command no longer fails on compacted blocks [#3183](https://github.com/grafana/tempo/pull/3183) (@stoewer)
-* [BUGFIX] Move waitgroup handling for poller error condition [#3224](https://github.com/grafana/tempo/pull/3224) (@zalegrala)
-* [BUGFIX] Fix head block excessive locking in ingester search [#3328](https://github.com/grafana/tempo/pull/3328) (@mdisibio)
-* [BUGFIX] Fix issue with ingester failed to cut traces no such file or directory [#3346](https://github.com/grafana/tempo/issues/3346) (@mdisibio)
-* [ENHANCEMENT] Introduced `AttributePolicyMatch` & `IntrinsicPolicyMatch` structures to match span attributes based on strongly typed values & precompiled regexp [#3025](https://github.com/grafana/tempo/pull/3025) (@andriusluk)
-* [CHANGE] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
+* [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
+
+## v2.4.0
+
 * [CHANGE] Merge the processors overrides set through runtime overrides and user-configurable overrides [#3125](https://github.com/grafana/tempo/pull/3125) (@kvrhdn)
 * [CHANGE] Make vParquet3 the default block encoding [#2526](https://github.com/grafana/tempo/pull/3134) (@stoewer)
 * [CHANGE] Set `autocomplete_filtering_enabled` to `true` by default [#3178](https://github.com/grafana/tempo/pull/3178) (@mapno)
 * [CHANGE] Update Alpine image version to 3.19 [#3289](https://github.com/grafana/tempo/pull/3289) (@zalegrala)
-* [CHANGE] Introduce localblocks process config option to select only server spans 3303<https://github.com/grafana/tempo/pull/3303> (@zalegrala)
-* [CHANGE] Localblocks processor honor tenant max trace size limit [3305](https://github.com/grafana/tempo/pull/3305) (@mdisibio)
-* [CHANGE] Major cache refactor to allow multiple role based caches to be configured [#3166](https://github.com/grafana/tempo/pull/3166).
+* [CHANGE] **Breaking Change** Fix issue where tempo drops the entire batch if one trace triggers an error [#2571](https://github.com/grafana/tempo/pull/2571) (@ie-pham)
+  Distributor now returns 200 for any batch containing only trace_too_large and max_live_traces errors
+  The number of discarded spans are still reflected in the tempo_discarded_spans_total metrics
+* [CHANGE] Remove experimental websockets support for search streaming. GRPC is the supported method of streaming results [#3307](https://github.com/grafana/tempo/pull/3307) (@joe-elliott)
+* [CHANGE] **Breaking Change** Deprecating vParquet v1 [#3377](https://github.com/grafana/tempo/pull/3377) (@ie-pham)
+* [FEATURE] TraceQL metrics queries [#3227](https://github.com/grafana/tempo/pull/3227) [#3252](https://github.com/grafana/tempo/pull/3252) [#3258](https://github.com/grafana/tempo/pull/3258) (@mdisibio @zalegrala)
+* [FEATURE] Add support for multi-tenant queries. [#3087](https://github.com/grafana/tempo/pull/3087) (@electron0zero)
+* [FEATURE] Major cache refactor to allow multiple role based caches to be configured [#3166](https://github.com/grafana/tempo/pull/3166).
   **BREAKING CHANGE** Deprecate the following fields. These have all been migrated to a top level "cache:" field.
-
   ```
   storage:
     trace:
@@ -32,14 +27,11 @@
       memcached:
       redis:
   ```
-
-* [FEATURE] Introduce list_blocks_concurrency on GCS and S3 backends to control backend load and performance. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
-* [FEATURE] Add per-tenant compaction window [#3129](https://github.com/grafana/tempo/pull/3129) (@zalegrala)
+* [ENHANCEMENT] Add support for multi-tenant queries in streaming search [#3262](https://github.com/grafana/tempo/pull/3262) (@electron0zero)
+* [ENHANCEMENT] Add configuration on tempo-query plugin for fetch services older than complete_block_timeout [#3262](https://github.com/grafana/tempo/pull/3350) (@rubenvp8510)
+* [ENHANCEMENT] Add tracing integration to profiling endpoints [#3276](https://github.com/grafana/tempo/pull/3276) (@cyriltovena)
+* [ENHANCEMENT] Introduced `AttributePolicyMatch` & `IntrinsicPolicyMatch` structures to match span attributes based on strongly typed values & precompiled regexp [#3025](https://github.com/grafana/tempo/pull/3025) (@andriusluk)
 * [ENHANCEMENT] Make the trace ID label name configurable for remote written exemplars [#3074](https://github.com/grafana/tempo/pull/3074)
-* [CHANGE] **Breaking Change** Fix issue where tempo drops the entire batch if one trace triggers an error [#2571](https://github.com/grafana/tempo/pull/2571) (@ie-pham)
-  Distributor now returns 200 for any batch containing only trace_too_large and max_live_traces errors
-  The number of discarded spans are still reflected in the tempo_discarded_spans_total metrics
-* [CHANGE] Remove experimental websockets support for search streaming. GRPC is the supported method of streaming results [#3307](https://github.com/grafana/tempo/pull/3307) (@joe-elliott)
 * [ENHANCEMENT] Update poller to make use of previous results and reduce backend load. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
 * [ENHANCEMENT] Improve TraceQL regex performance in certain queries. [#3139](https://github.com/grafana/tempo/pull/3139) (@joe-elliott)
 * [ENHANCEMENT] Improve TraceQL performance in complex queries. [#3113](https://github.com/grafana/tempo/pull/3113) (@joe-elliott)
@@ -52,6 +44,20 @@
 * [ENHANCEMENT] Update memcached default image in jsonnet for multiple CVE [#3310](https://github.com/grafana/tempo/pull/3310) (@zalegrala)
 * [ENHANCEMENT] Add HTML pages /status/overrides and /status/overrides/{tenant} [#3244](https://github.com/grafana/tempo/pull/3244) [#3332](https://github.com/grafana/tempo/pull/3332) (@kvrhdn)
 * [ENHANCEMENT] Precalculate and reuse the vParquet3 schema before opening blocks [#3367](https://github.com/grafana/tempo/pull/3367) (@stoewer)
+* [ENHANCEMENT] Config: Adds `query-frontend.log-query-request-headers` to enable logging of request headers in query logs. [#3383](https://github.com/grafana/tempo/pull/3383) (@jmichalek132)
+* [ENHANCEMENT] Add `--shutdown-delay` to allow Tempo to cleanly drain connections. [#3395](https://github.com/grafana/tempo/pull/3395) (@joe-elliott)
+* [ENHANCEMENT] Introduce localblocks process config option to select only server spans 3303<https://github.com/grafana/tempo/pull/3303> (@zalegrala)
+* [ENHANCEMENT] TraceQL/Structural operators performance improvement. [#3088](https://github.com/grafana/tempo/pull/3088) (@joe-elliott)
+* [ENHANCEMENT] Localblocks processor honor tenant max trace size limit [3305](https://github.com/grafana/tempo/pull/3305) (@mdisibio)
+* [ENHANCEMENT] Introduce list_blocks_concurrency on GCS and S3 backends to control backend load and performance. [#2652](https://github.com/grafana/tempo/pull/2652) (@zalegrala)
+* [ENHANCEMENT] Add per-tenant compaction window [#3129](https://github.com/grafana/tempo/pull/3129) (@zalegrala)
+* [BUGFIX] Fix parsing of span.resource.xyz attributes in TraceQL. [#3284](https://github.com/grafana/tempo/pull/3284) (@mghildiy)
+* [BUGFIX] Change exit code if config is successfully verified [#3174](https://github.com/grafana/tempo/pull/3174) (@am3o @agrib-01)
+* [BUGFIX] The tempo-cli analyse blocks command no longer fails on compacted blocks [#3183](https://github.com/grafana/tempo/pull/3183) (@stoewer)
+* [BUGFIX] Move waitgroup handling for poller error condition [#3224](https://github.com/grafana/tempo/pull/3224) (@zalegrala)
+* [BUGFIX] Fix head block excessive locking in ingester search [#3328](https://github.com/grafana/tempo/pull/3328) (@mdisibio)
+* [BUGFIX] Fix issue with ingester failed to cut traces no such file or directory [#3346](https://github.com/grafana/tempo/issues/3346) (@mdisibio)
+* [BUGFIX] Restore `tempo_request_duration_seconds` metrics for `querier_api_*` requests [#3403](https://github.com/grafana/tempo/pull/3403) (@kvrhdn)
 * [BUGFIX] Prevent building parquet iterators that would loop forever. [#3159](https://github.com/grafana/tempo/pull/3159) (@mapno)
 * [BUGFIX] Sanitize name in mapped dimensions in span-metrics processor [#3171](https://github.com/grafana/tempo/pull/3171) (@mapno)
 * [BUGFIX] Fixed an issue where cached footers were requested then ignored. [#3196](https://github.com/grafana/tempo/pull/3196) (@joe-elliott)
@@ -59,9 +65,8 @@
 * [BUGFIX] Fix TLS when GRPC is enabled on HTTP [#3300](https://github.com/grafana/tempo/pull/3300) (@joe-elliott)
 * [BUGFIX] Correctly return 400 when max limit is requested on search. [#3340](https://github.com/grafana/tempo/pull/3340) (@joe-elliott)
 * [BUGFIX] Fix autocomplete filters sometimes returning erroneous results. [#3339](https://github.com/grafana/tempo/pull/3339) (@joe-elliott)
-* [CHANGE] **Breaking Change** Deprecating vParquet v1 [#3377](https://github.com/grafana/tempo/pull/3377) (@ie-pham)
 * [BUGFIX] Fixes trace context propagation between query-frontend and querier. [#3387](https://github.com/grafana/tempo/pull/3387) (@mapno)
-* [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
+* [BUGFIX] Fix some instances where spanmetrics histograms could be inconsistent [#3412](https://github.com/grafana/tempo/pull/3412) (@mdisibio)
 
 ## v2.3.1 / 2023-11-28
 

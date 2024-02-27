@@ -20,6 +20,7 @@ import (
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	resource_v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -1021,6 +1022,47 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+}
+
+func TestSpanMetricsNegativeLatency(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{
+		Batches: []*trace_v1.ResourceSpans{{
+			Resource: &resource_v1.Resource{},
+			ScopeSpans: []*trace_v1.ScopeSpans{{
+				Spans: []*trace_v1.Span{
+					{
+						StartTimeUnixNano: uint64(1),
+						EndTimeUnixNano:   uint64(0),
+					},
+				},
+			}},
+		}},
+	})
+
+	lbls := labels.FromMap(map[string]string{
+		"service":     "",
+		"span_name":   "",
+		"span_kind":   "SPAN_KIND_UNSPECIFIED",
+		"status_code": "STATUS_CODE_UNSET",
+	})
+
+	require.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls), "calls_total")
+	require.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)), "bucket_0.5")
+	require.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)), "bucket_1")
+	require.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))), "bucket_Inf")
+	require.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls), "count")
+	require.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls), "sum")
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {

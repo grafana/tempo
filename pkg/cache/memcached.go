@@ -11,12 +11,10 @@ import (
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/pkg/util/math"
-	"github.com/grafana/tempo/pkg/util/spanlogger"
 )
 
 // MemcachedConfig is config to make a Memcached
@@ -137,7 +135,7 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 		found, bufs, missed = c.fetch(ctx, keys)
 		return
 	}
-	_ = instr.CollectedRequest(ctx, "Memcache.GetBatched", c.requestDuration, memcacheStatusCode, func(ctx context.Context) error {
+	_ = measureRequest(ctx, "Memcache.GetBatched", c.requestDuration, memcacheStatusCode, func(ctx context.Context) error {
 		found, bufs, missed = c.fetchKeysBatched(ctx, keys)
 		return nil
 	})
@@ -147,21 +145,12 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
 	var items map[string]*memcache.Item
 	const method = "Memcache.GetMulti"
-	err := instr.CollectedRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(innerCtx context.Context) error {
-		log, _ := spanlogger.New(innerCtx, method)
-		defer log.Finish()
-		log.LogFields(otlog.Int("keys requested", len(keys)))
-
+	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(innerCtx context.Context) error {
 		var err error
 		items, err = c.memcache.GetMulti(keys)
 
-		log.LogFields(otlog.Int("keys found", len(items)))
-
-		// Memcached returns partial results even on error.
 		if err != nil {
-			// nolint:errcheck
-			log.Error(err)
-			level.Error(log).Log("msg", "Failed to get keys from memcached", "err", err)
+			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
 		}
 		return err
 	})
@@ -235,7 +224,7 @@ loopResults:
 // Store stores the key in the cache.
 func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	for i := range keys {
-		err := instr.CollectedRequest(ctx, "Memcache.Put", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+		err := measureRequest(ctx, "Memcache.Put", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 			item := memcache.Item{
 				Key:        keys[i],
 				Value:      bufs[i],
@@ -247,6 +236,14 @@ func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 			level.Error(c.logger).Log("msg", "failed to put to memcached", "name", c.name, "err", err)
 		}
 	}
+}
+
+func measureRequest(ctx context.Context, method string, col instr.Collector, toStatusCode func(error) string, f func(context.Context) error) error {
+	start := time.Now()
+	col.Before(ctx, method, start)
+	err := f(ctx)
+	col.After(ctx, method, toStatusCode(err), start)
+	return err
 }
 
 // Stop does nothing.

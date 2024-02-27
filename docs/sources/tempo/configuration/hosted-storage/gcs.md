@@ -1,12 +1,13 @@
 ---
-title: Google Cloud Storage permissions
+title: Google Cloud Storage
 description: Learn about Google Cloud Storage permissions for Tempo.
-weight: 10
+aliases:
+  - ../../configuration/gcs/ # /docs/tempo/<TEMPO_VERSION>/configuration/gcs/
 ---
 
-# Google Cloud Storage permissions
+# Google Cloud Storage
 
-For configuration options, check the storage section on the [configuration]({{< relref "../configuration#storage" >}}) page.
+For configuration options, check the storage section on the [configuration]({{< relref "../../configuration#storage" >}}) page.
 
 ## Permissions
 

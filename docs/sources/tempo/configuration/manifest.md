@@ -1,7 +1,7 @@
 ---
 title: Manifest
 description: This manifest lists of all Tempo options and their defaults.
-weight: 70
+weight: 110
 ---
 
 # Manifest
@@ -24,6 +24,7 @@ This manifest was generated on 2023-11-13.
 ```yaml
 target: all
 http_api_prefix: ""
+autocomplete_filtering_enabled: true
 server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -52,11 +53,13 @@ server:
         client_auth_type: ""
         client_ca_file: ""
     register_instrumentation: true
+    report_grpc_codes_in_instrumentation_label_enabled: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
     http_server_read_header_timeout: 0s
     http_server_write_timeout: 30s
     http_server_idle_timeout: 2m0s
+    http_log_closed_connections_without_response_enabled: false
     grpc_server_max_recv_msg_size: 16777216
     grpc_server_max_send_msg_size: 16777216
     grpc_server_max_concurrent_streams: 100
@@ -79,7 +82,7 @@ server:
     http_path_prefix: ""
 internal_server:
     http_listen_network: tcp
-    http_listen_address: localhost
+    http_listen_address: ""
     http_listen_port: 3101
     http_listen_conn_limit: 0
     grpc_listen_network: ""
@@ -105,11 +108,13 @@ internal_server:
         client_auth_type: ""
         client_ca_file: ""
     register_instrumentation: false
+    report_grpc_codes_in_instrumentation_label_enabled: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
     http_server_read_header_timeout: 0s
     http_server_write_timeout: 30s
     http_server_idle_timeout: 2m0s
+    http_log_closed_connections_without_response_enabled: false
     grpc_server_max_recv_msg_size: 0
     grpc_server_max_send_msg_size: 0
     grpc_server_max_concurrent_streams: 0
@@ -298,6 +303,13 @@ query_frontend:
         query_shards: 50
         hedge_requests_at: 2s
         hedge_requests_up_to: 2
+    metrics:
+        concurrent_jobs: 1000
+        target_bytes_per_job: 104857600
+        max_duration: 0s
+        query_backend_after: 1h0m0s
+        interval: 5m0s
+    multi_tenant_queries_enabled: true
 compactor:
     ring:
         kvstore:
@@ -400,6 +412,7 @@ ingester:
         min_ready_duration: 15s
         interface_names:
             - en0
+            - bridge100
         enable_inet6: false
         final_sleep: 0s
         tokens_file_path: ""
@@ -538,6 +551,8 @@ metrics_generator:
             max_block_bytes: 500000000
             complete_block_timeout: 1h0m0s
             max_live_traces: 0
+            concurrent_blocks: 10
+            filter_server_spans: true
     registry:
         collection_interval: 15s
         stale_duration: 15m0s
@@ -662,13 +677,13 @@ storage:
             hedge_requests_up_to: 2
             use_v2_sdk: false
         cache: ""
-        cache_min_compaction_level: 0
-        cache_max_block_age: 0s
         background_cache:
             writeback_goroutines: 10
             writeback_buffer: 10000
         memcached: null
         redis: null
+        cache_min_compaction_level: 0
+        cache_max_block_age: 0s
 overrides:
     defaults:
         ingestion:
@@ -742,10 +757,12 @@ overrides:
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
                 use_v2_sdk: false
+        api:
+            check_for_conflicting_runtime_overrides: false
 memberlist:
     node_name: ""
     randomize_node_name: true
-    stream_timeout: 10s
+    stream_timeout: 2s
     retransmit_factor: 2
     pull_push_interval: 30s
     gossip_interval: 1s
@@ -784,4 +801,9 @@ usage_report:
         min_period: 100ms
         max_period: 10s
         max_retries: 0
+cache:
+    background:
+        writeback_goroutines: 10
+        writeback_buffer: 10000
+    caches: []
 ```

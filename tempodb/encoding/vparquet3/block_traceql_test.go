@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
+	"os"
 	"path"
 	"strconv"
 	"testing"
@@ -19,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -755,6 +758,110 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(bytes)/float64(b.N)/1024.0/1024.0, "MB_IO/op")
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
+				})
+			}
+		})
+	}
+}
+
+func TestTraceIDShardingQuality(t *testing.T) {
+	// Use debug=1 go test -v -run=TestTraceIDShardingQuality
+	if os.Getenv("debug") != "1" {
+		t.Skip()
+	}
+
+	var (
+		ctx      = context.TODO()
+		opts     = common.DefaultSearchOptions()
+		tenantID = "1"
+		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		path    = "/Users/marty/src/tmp/"
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(t, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	require.Equal(t, VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	fetchReq := traceql.FetchSpansRequest{
+		AllConditions: true,
+		Conditions: []traceql.Condition{
+			{Attribute: traceql.IntrinsicTraceIDAttribute},
+		},
+	}
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	shardsToTest := []int{2, 5, 10 /*, 100, 500, 1000, 2000*/}
+	bitsToTest := []int{4, 8, 12 /*16, 20, 24 /*28, 32*/}
+
+	for _, shards := range shardsToTest {
+		t.Run(strconv.Itoa(shards), func(t *testing.T) {
+			for _, bits := range bitsToTest {
+				t.Run(strconv.Itoa(bits), func(t *testing.T) {
+					// Create all shard-ownership functions
+					counts := make([]int, shards)
+					funcs := make([]func([]byte) bool, shards)
+					for s := 1; s <= shards; s++ {
+						funcs[s-1], _ = traceidboundary.FuncsWithBitSharding(uint32(s), uint32(shards), bits)
+					}
+
+					resp, err := f.Fetch(ctx, fetchReq)
+					require.NoError(t, err)
+					defer resp.Results.Close()
+
+					for {
+						ss, err := resp.Results.Next(ctx)
+						require.NoError(t, err)
+
+						if ss == nil {
+							break
+						}
+
+						// Match the trace ID against every shard
+						matches := 0
+						for i := 0; i < shards; i++ {
+							if funcs[i](ss.TraceID) {
+								counts[i]++
+								matches++
+								// fmt.Println("TraceID:", ss.TraceID, "is bucket", i)
+							}
+						}
+
+						if matches > 1 {
+							fmt.Println("TraceID matched mutiple shards:", ss.TraceID)
+							panic("trace matched multiple shards")
+						} else if matches == 0 {
+							fmt.Println("TraceID not matched by any shard:", ss.TraceID)
+							panic("trace id not matched by any shard")
+						}
+
+						ss.Release()
+					}
+
+					fmt.Println(counts)
+
+					sum := 0
+					minv := math.MaxInt
+					maxv := math.MinInt
+					for _, v := range counts {
+						sum += v
+						minv = min(minv, v)
+						maxv = max(maxv, v)
+					}
+					fmt.Printf("Shards:%d Bits:%d Total:%d spans Min:%d Max:%d Quality:%.1f %%\n", shards, bits, sum, minv, maxv, float64(minv)/float64(maxv)*100.0)
 				})
 			}
 		})
