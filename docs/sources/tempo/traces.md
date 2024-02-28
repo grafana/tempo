@@ -21,7 +21,7 @@ A span is a unit of work within a trace that has a start time relative to the be
 It may optionally include key/value attributes that are relevant to the span itself, for example the HTTP method being used by the span, as well as other metadata such as sub-span events or links to other spans.
 
 By definition, traces are never complete. You can always push a new batch of spans, even if days have passed since the last one.
-When receiving a query requesting a stored trace, tracing backends (for example Tempo), find all the spans for that specific trace and collate them into a returned result. For that reason, issues can start to arise predominantly on retrieval of the trace data if you are creating traces that are extremely large in size.
+When receiving a query requesting a stored trace, tracing backends (for example Tempo) find all the spans for that specific trace and collate them into a returned result. For that reason, issues can start to arise predominantly on retrieval of the trace data if you are creating traces that are extremely large in size.
 
 <!-- Explanation of traces -->
 {{< youtube id="ZirbR0ZJIOs" >}}
