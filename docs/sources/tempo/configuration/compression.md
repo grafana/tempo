@@ -1,7 +1,7 @@
 ---
 title: Compression and encoding
 description: Learn about compression and encoding options available for Tempo.
-weight: 50
+weight: 200
 ---
 
 <!-- Page needs to be updated. -->
