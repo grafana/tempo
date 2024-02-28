@@ -6,6 +6,7 @@
 * [BUGFIX] Fix metrics query results when series contain empty strings or nil values [#3429](https://github.com/grafana/tempo/issues/3429) (@mdisibio)
 * [BUGFIX] Return unfiltered results when a bad TraceQL query is provided in autocomplete. [#3426](https://github.com/grafana/tempo/pull/3426) (@mapno)
 * [BUGFIX] Correctly handle 429s in GRPC search streaming. [#3469](https://github.com/grafana/tempo/pull/3469) (@joe-ellitot)
+* [BUGFIX] Correctly cancel GRPC streaming context beneath the HTTP server. [#3443](https://github.com/grafana/tempo/pull/3443) (@joe-elliott)
 
 ## v2.4.0
 
