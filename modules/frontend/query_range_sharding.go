@@ -216,6 +216,11 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	res.Metrics.TotalBlocks = uint32(totalBlocks)
 	res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
 
+	// Sort series alphabetically so they are stable in the UI
+	sort.SliceStable(res.Series, func(i, j int) bool {
+		return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
+	})
+
 	reqTime := time.Since(now)
 	throughput := math.Round(float64(res.Metrics.InspectedBytes) / reqTime.Seconds())
 	spanThroughput := math.Round(float64(res.Metrics.InspectedSpans) / reqTime.Seconds())
@@ -243,7 +248,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}
 		bodyString = string(bytes)
 	} else {
-		m := &jsonpb.Marshaler{}
+		m := &jsonpb.Marshaler{EmitDefaults: true}
 		bodyString, err = m.MarshalToString(res)
 		if err != nil {
 			return nil, err
@@ -442,19 +447,6 @@ func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 }
 
 func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse) PromResponse {
-	// Sort series alphabetically so they are stable in the UI
-	sort.Slice(resp.Series, func(i, j int) bool {
-		a := resp.Series[i].Labels
-		b := resp.Series[j].Labels
-
-		for k := 0; k < len(a) && k < len(b); k++ {
-			if a[k].Value.GetStringValue() < b[k].Value.GetStringValue() {
-				return true
-			}
-		}
-		return false
-	})
-
 	// Sort in increasing timestamp so that lines are drawn correctly
 	for _, series := range resp.Series {
 		sort.Slice(series.Samples, func(i, j int) bool {

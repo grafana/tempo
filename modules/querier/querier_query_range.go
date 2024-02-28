@@ -147,7 +147,7 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 			labels = append(labels,
 				v1.KeyValue{
 					Key:   label.Name,
-					Value: traceql.NewStaticString(label.Value).AsAnyValue(),
+					Value: label.Value.AsAnyValue(),
 				},
 			)
 		}
