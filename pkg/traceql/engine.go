@@ -152,7 +152,13 @@ func (e *Engine) ExecuteTagValues(
 
 	rootExpr, err := Parse(query)
 	if err != nil {
-		return err
+		// If the query has bad TraceQL, don't error out, return unfiltered results
+		var parseErr *ParseError
+		if errors.As(err, &parseErr) {
+			rootExpr, _ = Parse("{ true }")
+		} else {
+			return err
+		}
 	}
 
 	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
