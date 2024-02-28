@@ -35,6 +35,11 @@ func NewAsyncSharderFunc(concurrentReqs, totalReqs int, reqFn func(i int) *http.
 				continue
 			}
 
+			if err := req.Context().Err(); err != nil {
+				asyncResp.SendError(err)
+				continue
+			}
+
 			wg.Add(1)
 			go func(r *http.Request) {
 				defer wg.Done()
@@ -68,8 +73,11 @@ func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Re
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
 			for req := range reqs {
+				if err := req.Context().Err(); err != nil {
+					asyncResp.SendError(err)
+					continue
+				}
 
 				resp, err := next.RoundTrip(req)
 				if err != nil {
