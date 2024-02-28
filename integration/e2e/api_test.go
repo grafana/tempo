@@ -146,6 +146,14 @@ func TestSearchTagValuesV2(t *testing.T) {
 				TagValues: []TagValue{{Type: "string", Value: "my-service"}},
 			},
 		},
+		{
+			name:    "bad query - unfiltered results",
+			query:   fmt.Sprintf("%s = bar", spanX), // bad query, missing quotes
+			tagName: spanX,
+			expected: searchTagValuesV2Response{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
