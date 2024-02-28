@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -465,7 +466,18 @@ func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse
 		}
 
 		for _, label := range series.Labels {
-			promResult.Metric[label.Key] = label.Value.GetStringValue()
+			var s string
+			switch v := label.Value.Value.(type) {
+			case *common_v1.AnyValue_StringValue:
+				s = v.StringValue
+			case *common_v1.AnyValue_IntValue:
+				s = strconv.Itoa(int(v.IntValue))
+			case *common_v1.AnyValue_DoubleValue:
+				s = strconv.FormatFloat(v.DoubleValue, 'g', -1, 64)
+			case *common_v1.AnyValue_BoolValue:
+				s = strconv.FormatBool(v.BoolValue)
+			}
+			promResult.Metric[label.Key] = s
 		}
 
 		promResult.Values = make([]interface{}, 0, len(series.Samples))
