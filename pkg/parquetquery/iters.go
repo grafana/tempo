@@ -490,22 +490,22 @@ type LeftJoinIteratorOption interface {
 	applyToLeftJoinIterator(*LeftJoinIterator)
 }
 
-type poolOption struct {
+type PoolOption struct {
 	pool PoolFn
 }
 
 // WithPool allows setting a custom result pool for this iterator. Custom pooling
 // can be useful to keep similar sized results together or to isolate data. By
 // default all iterators use a shared pool.
-func WithPool(p *ResultPool) poolOption {
-	return poolOption{p.Get}
+func WithPool(p *ResultPool) PoolOption {
+	return PoolOption{p.Get}
 }
 
-func (o poolOption) applyToJoinIterator(j *JoinIterator) {
+func (o PoolOption) applyToJoinIterator(j *JoinIterator) {
 	j.pool = o.pool
 }
 
-func (o poolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
+func (o PoolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
 	j.pool = o.pool
 }
 
