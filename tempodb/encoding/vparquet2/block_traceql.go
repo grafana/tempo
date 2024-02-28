@@ -572,7 +572,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
-		parquetquery.ReleaseResult(res)
+		res.Release()
 
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpansILSSpan, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
@@ -588,7 +588,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 }
 
 func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := parquetquery.GetResult()
+	res := parquetquery.DefaultPool.Get()
 	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
@@ -694,7 +694,7 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
-		parquetquery.ReleaseResult(res)
+		res.Release()
 		putSpanset(ss) // Repool the spanset but not the spans which have been moved to nextSpans as needed.
 
 		res = i.resultFromNextSpans()
@@ -711,7 +711,7 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := parquetquery.GetResult()
+			res := parquetquery.DefaultPool.Get()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -751,7 +751,7 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 		return nil, nil
 	}
 
-	defer parquetquery.ReleaseResult(res)
+	defer res.Release()
 
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)
