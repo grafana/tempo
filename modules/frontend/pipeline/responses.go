@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"go.uber.org/atomic"
 )
 
 type Responses[T any] interface {
@@ -57,6 +59,7 @@ var _ Responses[*http.Response] = &asyncResponse{}
 type asyncResponse struct {
 	respChan chan Responses[*http.Response]
 	errChan  chan error
+	err      *atomic.Error
 
 	curResponses Responses[*http.Response]
 }
@@ -65,6 +68,7 @@ func newAsyncResponse() *asyncResponse {
 	return &asyncResponse{
 		respChan: make(chan Responses[*http.Response]),
 		errChan:  make(chan error, 1),
+		err:      atomic.NewError(nil),
 	}
 }
 
@@ -73,9 +77,12 @@ func (a *asyncResponse) Send(r Responses[*http.Response]) {
 }
 
 // SendError sends an error to the asyncResponse. This will cause the asyncResponse to return the error on the next call to Next.
+// we send on a channel to give errors the chance to unblock the select below. we also store in an atomic error so that
+// a Responses in error will always remain in error
 func (a *asyncResponse) SendError(err error) {
 	select {
 	case a.errChan <- err:
+		a.err.Store(err)
 	default:
 	}
 }
@@ -90,7 +97,7 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) 
 	for {
 		// explicitly check the err channel first. selects are non-deterministic and
 		// if there is an error we want to prioritize it over a valid response
-		if err := a.error(); err != nil {
+		if err := a.err.Load(); err != nil {
 			return nil, true, err
 		}
 
@@ -105,7 +112,7 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) 
 				a.curResponses = r
 				if r == nil && !ok {
 					// this AsyncResponse is completely exhausted
-					return nil, true, a.error()
+					return nil, true, a.err.Load()
 				}
 			}
 		}
@@ -123,14 +130,4 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) 
 
 		return resp, false, err
 	}
-}
-
-func (a *asyncResponse) error() error {
-	select {
-	case err := <-a.errChan:
-		return err
-	default:
-	}
-
-	return nil
 }
