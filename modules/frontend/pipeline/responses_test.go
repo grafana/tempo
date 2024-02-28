@@ -134,6 +134,12 @@ func TestAsyncResponseReturnsSentErrors(t *testing.T) {
 	require.True(t, done)
 	require.Equal(t, expectedErr, actualErr)
 	require.Nil(t, actual)
+
+	// make sure that responses continues to return the error
+	actual, done, actualErr = asyncR.Next(context.Background())
+	require.True(t, done)
+	require.Equal(t, expectedErr, actualErr)
+	require.Nil(t, actual)
 }
 
 func TestAsyncResponseFansIn(t *testing.T) {
