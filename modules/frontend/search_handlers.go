@@ -107,9 +107,6 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Resp
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		resp, err := rt.RoundTrip(req)
-		if err != nil {
-			return nil, err
-		}
 
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		var bytesProcessed uint64
@@ -121,7 +118,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Resp
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 		logShardedResults(logger, tenant, duration.Seconds(), searchReq, searchResp, err)
-		return resp, nil
+		return resp, err
 	})
 }
 
