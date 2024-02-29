@@ -60,13 +60,18 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
+type Label struct {
+	Name  string
+	Value Static
+}
+
 type TimeSeries struct {
-	Labels labels.Labels
+	Labels []Label
 	Values []float64
 }
 
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
-// text description: {x="a",y="b"}
+// text description: {x="a",y="b"} for convenience.
 type SeriesSet map[string]TimeSeries
 
 // VectorAggregator turns a vector of spans into a single numeric scalar
@@ -251,39 +256,48 @@ func (g *GroupingAggregator) Observe(span Span) {
 //	{       y=...       }
 //	etc
 //
-// (3) Exceptional case: All Nils. Real Prometheus-style metrics have a name, so there is
-// always at least 1 label. Not so here. We have to force at least 1 label or else things
+// (3) Exceptional case: All Nils. For the TraceQL data-type aware labels we still drop
+// all nils which results in an empty label set. But Prometheus-style always have
+// at least 1 label, so in that case we have to force at least 1 label or else things
 // may not be handled correctly downstream.  In this case we take the first label and
 // make it the string "nil"
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator) labelsFor(vals FastValues) labels.Labels {
-	b := labels.NewBuilder(nil)
-
-	present := false
+func (g *GroupingAggregator) labelsFor(vals FastValues) ([]Label, string) {
+	tempoLabels := make([]Label, 0, len(g.by))
 	for i, v := range vals {
-		if v.Type != TypeNil {
-			b.Set(g.by[i].String(), v.EncodeToString(false))
-			present = true
+		if v.Type == TypeNil {
+			continue
 		}
+		tempoLabels = append(tempoLabels, Label{g.by[i].String(), v})
 	}
 
-	if !present {
-		b.Set(g.by[0].String(), "<nil>")
+	// Prometheus-style version for convenience
+	promLabels := labels.NewBuilder(nil)
+	for _, l := range tempoLabels {
+		promValue := l.Value.EncodeToString(false)
+		if promValue == "" {
+			promValue = "<empty>"
+		}
+		promLabels.Set(l.Name, promValue)
+	}
+	// When all nil then force one.
+	if promLabels.Labels().IsEmpty() {
+		promLabels.Set(g.by[0].String(), "<nil>")
 	}
 
-	return b.Labels()
+	return tempoLabels, promLabels.Labels().String()
 }
 
 func (g *GroupingAggregator) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for vals, agg := range g.series {
-		l := g.labelsFor(vals)
+		labels, promLabels := g.labelsFor(vals)
 
-		ss[l.String()] = TimeSeries{
-			Labels: l,
+		ss[promLabels] = TimeSeries{
+			Labels: labels,
 			Values: agg.Samples(),
 		}
 	}
@@ -311,7 +325,7 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	l := labels.FromStrings(labels.MetricName, u.name)
 	return SeriesSet{
 		l.String(): {
-			Labels: l,
+			Labels: []Label{{labels.MetricName, NewStaticString(u.name)}},
 			Values: u.innerAgg.Samples(),
 		},
 	}

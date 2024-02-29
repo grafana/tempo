@@ -369,15 +369,14 @@ message Sample {
   double value = 1;
 }
 
-// https : // github.com/grafana/mimir/blob/main/pkg/mimirpb/mimir.proto#L53
 message TimeSeries {
-  // repeated LabelPair labels = 1 [(gogoproto.nullable) = false,
-  // (gogoproto.customtype) = "LabelAdapter"];
+  // Series labels containing name and value. Data-type aware.
   repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  
   // Sorted by time, oldest sample first.
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
-  // repeated Exemplar exemplars = 3 [ (gogoproto.nullable) = false ];
-  // repeated Histogram histograms = 4 [ (gogoproto.nullable) = false ];
-  // TODO: review the LabelAdapter and migrate the use of this string
+
+  // prom_labels are a flattened string-only version of the typed labels.
+  // They are used internally and may differ from official prometheus conventions.
   string prom_labels = 3;
 }

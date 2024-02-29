@@ -2878,16 +2878,13 @@ func (m *Sample) GetValue() float64 {
 	return 0
 }
 
-// https : // github.com/grafana/mimir/blob/main/pkg/mimirpb/mimir.proto#L53
 type TimeSeries struct {
-	// repeated LabelPair labels = 1 [(gogoproto.nullable) = false,
-	// (gogoproto.customtype) = "LabelAdapter"];
+	// Series labels containing name and value. Data-type aware.
 	Labels []v1.KeyValue `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels"`
 	// Sorted by time, oldest sample first.
 	Samples []Sample `protobuf:"bytes,2,rep,name=samples,proto3" json:"samples"`
-	// repeated Exemplar exemplars = 3 [ (gogoproto.nullable) = false ];
-	// repeated Histogram histograms = 4 [ (gogoproto.nullable) = false ];
-	// TODO: review the LabelAdapter and migrate the use of this string
+	// prom_labels are a flattened string-only version of the typed labels.
+	// They are used internally and may differ from official prometheus conventions.
 	PromLabels string `protobuf:"bytes,3,opt,name=prom_labels,json=promLabels,proto3" json:"prom_labels,omitempty"`
 }
 

@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -216,6 +217,11 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	res.Metrics.TotalBlocks = uint32(totalBlocks)
 	res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
 
+	// Sort series alphabetically so they are stable in the UI
+	sort.SliceStable(res.Series, func(i, j int) bool {
+		return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
+	})
+
 	reqTime := time.Since(now)
 	throughput := math.Round(float64(res.Metrics.InspectedBytes) / reqTime.Seconds())
 	spanThroughput := math.Round(float64(res.Metrics.InspectedSpans) / reqTime.Seconds())
@@ -243,7 +249,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}
 		bodyString = string(bytes)
 	} else {
-		m := &jsonpb.Marshaler{}
+		m := &jsonpb.Marshaler{EmitDefaults: true}
 		bodyString, err = m.MarshalToString(res)
 		if err != nil {
 			return nil, err
@@ -442,19 +448,6 @@ func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 }
 
 func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse) PromResponse {
-	// Sort series alphabetically so they are stable in the UI
-	sort.Slice(resp.Series, func(i, j int) bool {
-		a := resp.Series[i].Labels
-		b := resp.Series[j].Labels
-
-		for k := 0; k < len(a) && k < len(b); k++ {
-			if a[k].Value.GetStringValue() < b[k].Value.GetStringValue() {
-				return true
-			}
-		}
-		return false
-	})
-
 	// Sort in increasing timestamp so that lines are drawn correctly
 	for _, series := range resp.Series {
 		sort.Slice(series.Samples, func(i, j int) bool {
@@ -473,7 +466,18 @@ func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse
 		}
 
 		for _, label := range series.Labels {
-			promResult.Metric[label.Key] = label.Value.GetStringValue()
+			var s string
+			switch v := label.Value.Value.(type) {
+			case *common_v1.AnyValue_StringValue:
+				s = v.StringValue
+			case *common_v1.AnyValue_IntValue:
+				s = strconv.Itoa(int(v.IntValue))
+			case *common_v1.AnyValue_DoubleValue:
+				s = strconv.FormatFloat(v.DoubleValue, 'g', -1, 64)
+			case *common_v1.AnyValue_BoolValue:
+				s = strconv.FormatBool(v.BoolValue)
+			}
+			promResult.Metric[label.Key] = s
 		}
 
 		promResult.Values = make([]interface{}, 0, len(series.Samples))

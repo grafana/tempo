@@ -296,9 +296,6 @@ func Test_instanceQueryRangeTraceQLToProto(t *testing.T) {
 	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil)
 	assert.NoError(t, err)
 
-	// k1 := traceql.Label{Key: traceql.NewAttribute("."), Value: traceql.NewStaticString("nil")}
-	ls1 := labels.FromStrings("a", "b")
-
 	req := &tempopb.QueryRangeRequest{
 		Query: "{}",
 		Start: 1700143700617413958, // 3 minute window
@@ -308,7 +305,7 @@ func Test_instanceQueryRangeTraceQLToProto(t *testing.T) {
 
 	ts := instance.queryRangeTraceQLToProto(traceql.SeriesSet{
 		"": traceql.TimeSeries{
-			Labels: ls1,
+			Labels: []traceql.Label{{Name: "a", Value: traceql.NewStaticString("b")}},
 			Values: []float64{17.566666666666666, 18.133333333333333, 17.3, 14.533333333333333, 0, 0, 0},
 		},
 	}, req)
