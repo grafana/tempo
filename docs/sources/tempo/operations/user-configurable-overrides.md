@@ -90,40 +90,48 @@ If the tenant is run in distributed mode, only the query-frontend will accept AP
 
 #### Operations
 
-```
-GET /api/overrides
-```
+##### GET /api/overrides
 
 Returns the current overrides and it's version.
 
 Query-parameters:
 - `scope`: whether to return overrides from the API only `api` or merge it with the runtime overrides `merged`. Defaults to `api`.
 
-Example: `curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
+Example:
 
 ```
-POST /api/overrides
+$ curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
 ```
+
+##### POST /api/overrides
 
 Update the overrides with the given payload. Note this will overwrite any existing overrides.
 
-Example: `curl -X POST -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{}"`
+Example:
 
 ```
-PATCH /api/overrides
+curl -X POST -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{}"
 ```
+
+##### PATCH /api/overrides
 
 Update the existing overrides by patching it with the payload. It follows the JSON merge patch protocol ([RFC 7386](https://datatracker.ietf.org/doc/html/rfc7386)).
 
-Example: `curl -X PUT -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"`
+Example:
 
 ```
-DELETE /api/overrides
+curl -X PUT -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
 ```
+
+##### DELETE /api/overrides
 
 Delete the existing overrides.
 
-Example: `curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides`
+Example:
+
+```
+curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides
+```
 
 #### Versioning
 
