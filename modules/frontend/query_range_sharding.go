@@ -21,6 +21,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
@@ -36,7 +37,6 @@ type queryRangeSharder struct {
 	next      http.RoundTripper
 	reader    tempodb.Reader
 	overrides overrides.Interface
-	progress  searchProgressFactory
 	cfg       QueryRangeSharderConfig
 	logger    log.Logger
 }
@@ -49,16 +49,14 @@ type QueryRangeSharderConfig struct {
 	Interval              time.Duration `yaml:"interval,omitempty"`
 }
 
-func newQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, progress searchProgressFactory, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return &queryRangeSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
 			cfg:       cfg,
 			logger:    logger,
-
-			progress: progress,
 		}
 	})
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"path"
@@ -113,7 +112,7 @@ func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 		return err
 	}
 
-	fmt.Println(httpReq)
+	// fmt.Println(httpReq)
 	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return err
@@ -126,7 +125,7 @@ func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return errors.New("failed to query: " + string(body))
+		return errors.New("failed to query. body: " + string(body) + " status: " + httpResp.Status)
 	}
 
 	resp := &tempopb.SearchResponse{}

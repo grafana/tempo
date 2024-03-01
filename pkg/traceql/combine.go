@@ -33,6 +33,11 @@ func (c *MetadataCombiner) Count() int {
 	return len(c.trs)
 }
 
+func (c *MetadataCombiner) Exists(id string) bool {
+	_, ok := c.trs[id]
+	return ok
+}
+
 func (c *MetadataCombiner) Metadata() []*tempopb.TraceSearchMetadata {
 	m := make([]*tempopb.TraceSearchMetadata, 0, len(c.trs))
 	for _, tr := range c.trs {

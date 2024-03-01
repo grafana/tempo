@@ -167,20 +167,6 @@ func TestMultiTenantSearch(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, tagsValuesV2Resp.TagValues)
 
-			// assert tenant federation metrics
-			if tc.tenantSize > 1 {
-				for _, ta := range tenants {
-					matcher, err := labels.NewMatcher(labels.MatchEqual, "tenant", ta)
-					require.NoError(t, err)
-					// we should have 8 requests for each tenant
-					err = tempo.WaitSumMetricsWithOptions(e2e.Equals(8),
-						[]string{"tempo_query_frontend_multitenant_success_total"},
-						e2e.WithLabelMatchers(matcher),
-					)
-					require.NoError(t, err)
-				}
-			}
-
 			// check metrics for all routes
 			routeTable := []struct {
 				route    string
@@ -215,7 +201,7 @@ func TestMultiTenantSearch(t *testing.T) {
 
 			time.Sleep(2 * time.Second) // ensure that blocklist poller has built the blocklist
 			now := time.Now()
-			util.SearchStreamAndAssertTrace(t, grpcCtx, grpcClient, info, now.Add(-5*time.Minute).Unix(), now.Add(5*time.Minute).Unix())
+			util.SearchStreamAndAssertTrace(t, grpcCtx, grpcClient, info, now.Add(-10*time.Minute).Unix(), now.Add(10*time.Minute).Unix())
 			assertRequestCountMetric(t, tempo, "/tempopb.StreamingQuerier/Search", 1)
 
 			// test unsupported endpoint

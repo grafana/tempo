@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -21,8 +22,8 @@ var hedgedRequestsMetrics = promauto.NewGauge(
 	},
 )
 
-func newHedgedRequestWare(cfg HedgingConfig) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newHedgedRequestWare(cfg HedgingConfig) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		if cfg.HedgeRequestsAt == 0 {
 			return next
 		}

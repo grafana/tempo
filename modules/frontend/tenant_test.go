@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
@@ -70,7 +71,7 @@ func TestMultiTenant(t *testing.T) {
 
 			once := sync.Once{}
 			var fastestTenant string
-			next := RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			next := pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				reqCount.Inc() // Count the number of requests.
 
 				// Check if the tenant is in the list of tenants.

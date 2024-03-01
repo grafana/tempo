@@ -1,4 +1,4 @@
-package frontend
+package pipeline
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-func newRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
+func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_retries",
@@ -55,8 +55,12 @@ func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err := r.next.RoundTrip(req)
 
+		if r.maxRetries == 0 {
+			return resp, err
+		}
+
 		// do not retry if no error and response is not HTTP 5xx
-		if err == nil && !shouldRetry(resp.StatusCode) {
+		if err == nil && resp != nil && !shouldRetry(resp.StatusCode) {
 			return resp, nil
 		}
 

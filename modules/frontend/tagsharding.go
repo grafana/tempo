@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -417,8 +418,8 @@ func newTagsSharding(
 	reader tempodb.Reader, o overrides.Interface,
 	cfg SearchSharderConfig, tagShardHandler tagResultHandlerFactory, logger log.Logger,
 	parseRequest parseRequestFunction,
-) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchTagSharder{
 			next:                   next,
 			reader:                 reader,
