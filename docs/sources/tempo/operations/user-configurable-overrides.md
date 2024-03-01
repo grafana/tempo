@@ -12,7 +12,7 @@ Instead of modifying a file or Kubernetes configmap, you (and other services rel
 
 ### Architecture
 
-![user-configurable-overrides-architecture.png](./user-configurable-overrides-architecture.png)
+![user-configurable-overrides-architecture.png](/media/docs/tempo/user-configurable-overrides-architecture.png)
 
 User-configurable overrides are stored in an object store bucket managed by Tempo.
 
@@ -28,7 +28,7 @@ overrides/
 ├── 1/
 │   └── overrides.json
 └── 2/
-└── overrides.json
+    └── overrides.json
 ```
 
 Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When requesting the overrides for a tenant, the overrides module:
@@ -39,7 +39,7 @@ Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When
 
 ### Supported fields
 
-User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]{{< relref "../configuration/_index#overrides" >}} for information about all overrides.
+User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]{{< relref "../configuration#overrides" >}} for information about all overrides.
 When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will take priority.
 
 {{% admonition type="note" %}}
@@ -90,40 +90,48 @@ If the tenant is run in distributed mode, only the query-frontend will accept AP
 
 #### Operations
 
-```
-GET /api/overrides
-```
+##### GET /api/overrides
 
 Returns the current overrides and it's version.
 
 Query-parameters:
 - `scope`: whether to return overrides from the API only `api` or merge it with the runtime overrides `merged`. Defaults to `api`.
 
-Example: `curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
+Example:
 
 ```
-POST /api/overrides
+$ curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
 ```
+
+##### POST /api/overrides
 
 Update the overrides with the given payload. Note this will overwrite any existing overrides.
 
-Example: `curl -X POST -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{}"
+Example:
 
 ```
-PATCH /api/overrides
+curl -X POST -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{}"
 ```
+
+##### PATCH /api/overrides
 
 Update the existing overrides by patching it with the payload. It follows the JSON merge patch protocol ([RFC 7386](https://datatracker.ietf.org/doc/html/rfc7386)).
 
-Example: `curl -X PUT -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
+Example:
 
 ```
-DELETE /api/overrides
+curl -X PUT -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
 ```
+
+##### DELETE /api/overrides
 
 Delete the existing overrides.
 
-Example: `curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides`
+Example:
+
+```
+curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides
+```
 
 #### Versioning
 
@@ -148,7 +156,9 @@ $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrid
 ```
 This example uses uses overrides in the `overrides.json` file with the location in `pwd`: 
 
-`curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json`
+```
+$ curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json
+```
 
 If the version does not match the version in the backend, the request is rejected with HTTP error 412.
 
