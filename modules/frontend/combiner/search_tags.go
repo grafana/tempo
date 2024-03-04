@@ -10,7 +10,8 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagsV2Response] = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 )
 
-func NewSearchTags() Combiner {
+// jpe do something with all these limitBytes
+func NewSearchTags(limitBytes int) Combiner {
 	// Distinct collector with no limit
 	d := util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
 
@@ -31,11 +32,11 @@ func NewSearchTags() Combiner {
 	}
 }
 
-func NewTypedSearchTags() GRPCCombiner[*tempopb.SearchTagsResponse] {
-	return NewSearchTags().(GRPCCombiner[*tempopb.SearchTagsResponse])
+func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse] {
+	return NewSearchTags(limitBytes).(GRPCCombiner[*tempopb.SearchTagsResponse])
 }
 
-func NewSearchTagsV2() Combiner {
+func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
 	distinctValues := map[string]*util.DistinctValueCollector[string]{}
 
@@ -71,6 +72,6 @@ func NewSearchTagsV2() Combiner {
 	}
 }
 
-func NewTypedSearchTagsV2() GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTagsV2().(GRPCCombiner[*tempopb.SearchTagsV2Response])
+func NewTypedSearchTagsV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagsV2Response] {
+	return NewSearchTagsV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }

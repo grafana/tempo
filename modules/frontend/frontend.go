@@ -26,7 +26,8 @@ import (
 	"github.com/grafana/tempo/tempodb"
 )
 
-// jpe - is this handler "bridge" necessary?
+// these handler funcs could likely be removed and the code written directly into the respective
+// gRPC functions
 type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
 type streamingTagsHandler func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error
 type streamingTagsV2Handler func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error
@@ -108,10 +109,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := newTagHTTPHandler(searchTagsPipeline, o, tagsCombinerFactory, logger)
-	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, tagsV2CombinerFactory, logger)
-	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, tagValuesCombinerFactory, logger)
-	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, tagValuesV2CombinerFactory, logger)
+	searchTags := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTags, logger)
+	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
+	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
+	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
 
 	metrics := metricsMiddleware.Wrap(next)
 	queryrange := queryRangeMiddleware.Wrap(next)

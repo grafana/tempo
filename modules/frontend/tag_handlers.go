@@ -26,32 +26,12 @@ import (
 
 //nolint:all //deprecated
 
-// jpe - do we need these
-type tagResultsCombinerFactory func(limit int) combiner.Combiner
-
-// jpe - pass limit on all of these
-func tagValuesCombinerFactory(limit int) combiner.Combiner {
-	return combiner.NewSearchTagValues()
-}
-
-func tagValuesV2CombinerFactory(limit int) combiner.Combiner {
-	return combiner.NewSearchTagValuesV2()
-}
-
-func tagsCombinerFactory(limit int) combiner.Combiner { // jpe can we remove this bridge by requiring the param on combiner.NewSearchTags?
-	return combiner.NewSearchTags()
-}
-
-func tagsV2CombinerFactory(limit int) combiner.Combiner {
-	return combiner.NewSearchTagsV2()
-}
-
 // newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newTagStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logTagsRequest, logTagsResult, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, "", o, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logTagsRequest, logTagsResult, logger)
 	}
 }
 
@@ -60,7 +40,7 @@ func newTagV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*h
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logTagsRequest, logTagsResult, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, "", o, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logTagsRequest, logTagsResult, logger)
 	}
 }
 
@@ -71,7 +51,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logTagValuesRequest, logTagValuesResult, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, o, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logTagValuesRequest, logTagValuesResult, logger)
 	}
 }
 
@@ -82,19 +62,20 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logTagValuesRequest, logTagValuesResult, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, o, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logTagValuesRequest, logTagValuesResult, logger)
 	}
 }
 
-// streamingTags abstracts the boilerplate for streaming tags and tag values
+// streamingTags abstracts the boilerplate for streaming tags and tag values - jpe SLOs
 func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	next pipeline.AsyncRoundTripper[*http.Response],
 	req TReq,
 	downstreamPath string,
 	tagName string,
+	o overrides.Interface,
 	fnBuild func(*http.Request, TReq) (*http.Request, error),
 	fnSend func(TResp) error,
-	fnCombiner func() combiner.GRPCCombiner[TResp],
+	fnCombiner func(int) combiner.GRPCCombiner[TResp],
 	logRequest func(log.Logger, string, TReq),
 	logResult func(log.Logger, string, float64, TReq, error),
 	logger log.Logger) error {
@@ -121,10 +102,13 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 		// an *http.Request pipeline.
 		httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: tagName})
 	}
-	tenant, _ := user.ExtractOrgID(ctx) // jpe return bad request
+	tenant, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		level.Error(logger).Log("msg", "search tags: ", "err", err)
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
 
-	// limit := o.MaxBytesPerTagValuesQuery(tenant) // jpe do we need a default here? make combiner take limit
-	c := fnCombiner() // jpe limits!
+	c := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
 	collector := pipeline.NewGRPCCollector[TResp](next, c, fnSend)
 
 	start := time.Now()
@@ -136,14 +120,20 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 }
 
 // newTagHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newTagHTTPHandler(next pipeline.AsyncRoundTripper[*http.Response], o overrides.Interface, combinerFn tagResultsCombinerFactory, logger log.Logger) http.RoundTripper {
+func newTagHTTPHandler(next pipeline.AsyncRoundTripper[*http.Response], o overrides.Interface, fnCombiner func(int) combiner.Combiner, logger log.Logger) http.RoundTripper {
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		// tenant, _ := user.ExtractOrgID(req.Context())
-
-		// logRequest(logger, tenant, searchReq)
+		tenant, err := user.ExtractOrgID(req.Context())
+		if err != nil {
+			level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
 
 		// build and use roundtripper
-		combiner := combinerFn(0) // jpe - need to use overrides and pass limit
+		combiner := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		return rt.RoundTrip(req)
