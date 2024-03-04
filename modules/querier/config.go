@@ -45,7 +45,15 @@ type TraceByIDConfig struct {
 }
 
 type MetricsConfig struct {
-	BlockConcurrency int `yaml:"block_concurrency,omitempty"`
+	ConcurrentBlocks int `yaml:"concurrent_blocks,omitempty"`
+
+	// TimeOverlapCutoff is a tuning factor that controls whether the trace-level
+	// timestamp columns are used in a metrics query.  Loading these columns has a cost,
+	// so in some cases it faster to skip these columns entirely, reducing I/O but
+	// increasing the number of spans evalulated and thrown away. The value is a ratio
+	// between 0.0 and 1.0.  If a block overlaps the time window by less than this value,
+	// then we skip the columns. A value of 1.0 will always load the columns, and 0.0 never.
+	TimeOverlapCutoff float64 `yaml:"time_overlap_cutoff,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults register flags.
@@ -58,7 +66,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search.HedgeRequestsAt = 8 * time.Second
 	cfg.Search.HedgeRequestsUpTo = 2
 	cfg.Search.QueryTimeout = 30 * time.Second
-	cfg.Metrics.BlockConcurrency = 2
+	cfg.Metrics.ConcurrentBlocks = 2
+	cfg.Metrics.TimeOverlapCutoff = 0.2
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,

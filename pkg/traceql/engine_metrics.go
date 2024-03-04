@@ -335,7 +335,7 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -356,11 +356,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
-	}
-
-	timeOverlapCutoff := 0.2
-	if v, ok := expr.Hints.GetFloat(HintTimeOverlapCutoff, allowUnsafeQueryHints); ok && v >= 0 && v <= 1.0 {
-		timeOverlapCutoff = v
 	}
 
 	if v, ok := expr.Hints.GetBool(HintDedupe, allowUnsafeQueryHints); ok {

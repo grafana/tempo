@@ -445,14 +445,34 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	for _, b := range p.completeBlocks {
 		blocks = append(blocks, b)
 	}
+	if len(blocks) == 0 {
+		return nil, nil
+	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, p.overrides.UnsafeQueryHints(p.tenant))
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+
+	unsafe := p.overrides.UnsafeQueryHints(p.tenant)
+
+	timeOverlapCutoff := p.Cfg.Metrics.TimeOverlapCutoff
+	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
+		timeOverlapCutoff = v
+	}
+
+	concurrency := p.Cfg.Metrics.ConcurrentBlocks
+	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
+		concurrency = uint(v)
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		wg     = boundedwaitgroup.New(p.Cfg.ConcurrentBlocks)
+		wg     = boundedwaitgroup.New(concurrency)
 		jobErr = atomic.Error{}
 	)
 

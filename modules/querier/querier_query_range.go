@@ -83,19 +83,24 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 	// If there's only 1 block then dedupe not needed.
 	dedupe := len(withinTimeRange) > 1
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
 		return nil, err
 	}
 
-	concurrency := q.cfg.Metrics.BlockConcurrency
-	if v, ok := expr.Hints.GetInt(traceql.HintBlockConcurrency, unsafe); ok && v > 0 && v < 100 {
+	timeOverlapCutoff := q.cfg.Metrics.TimeOverlapCutoff
+	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
+		timeOverlapCutoff = v
+	}
+
+	concurrency := q.cfg.Metrics.ConcurrentBlocks
+	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
 		concurrency = v
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, timeOverlapCutoff, unsafe)
+	if err != nil {
+		return nil, err
 	}
 
 	wg := boundedwaitgroup.New(uint(concurrency))

@@ -4,13 +4,15 @@ import (
 	"time"
 )
 
+// The list of all traceql query hints.  Although most of these are implementation-specific
+// and not part of the language or engine, we organize them here in one place.
 const (
 	HintSample            = "sample"
 	HintDedupe            = "dedupe"
 	HintJobInterval       = "job_interval"
 	HintJobSize           = "job_size"
 	HintTimeOverlapCutoff = "time_overlap_cutoff"
-	HintBlockConcurrency  = "block_concurrency"
+	HintConcurrentBlocks  = "concurrent_blocks"
 )
 
 func isUnsafe(h string) bool {
