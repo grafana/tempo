@@ -125,7 +125,7 @@ func newJaegerReceiver(
 }
 
 func (jr *jReceiver) Start(_ context.Context, host component.Host) error {
-	if err := jr.startAgent(host); err != nil {
+	if err := jr.startAgent(); err != nil {
 		return err
 	}
 
@@ -222,7 +222,7 @@ func (jr *jReceiver) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) 
 	return &api_v2.PostSpansResponse{}, nil
 }
 
-func (jr *jReceiver) startAgent(host component.Host) error {
+func (jr *jReceiver) startAgent() error {
 	if jr.config == nil {
 		return nil
 	}
@@ -283,7 +283,7 @@ func (jr *jReceiver) startAgent(host component.Host) error {
 		go func() {
 			defer jr.goroutines.Done()
 			if err := jr.agentServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) && err != nil {
-				host.ReportFatalError(fmt.Errorf("jaeger agent server error: %w", err))
+				jr.settings.ReportStatus(component.NewFatalErrorEvent(fmt.Errorf("jaeger agent server error: %w", err)))
 			}
 		}()
 	}
@@ -391,7 +391,7 @@ func (jr *jReceiver) startCollector(host component.Host) error {
 		go func() {
 			defer jr.goroutines.Done()
 			if errHTTP := jr.collectorServer.Serve(cln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-				host.ReportFatalError(errHTTP)
+				jr.settings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
 			}
 		}()
 	}
@@ -414,7 +414,7 @@ func (jr *jReceiver) startCollector(host component.Host) error {
 		go func() {
 			defer jr.goroutines.Done()
 			if errGrpc := jr.grpc.Serve(ln); !errors.Is(errGrpc, grpc.ErrServerStopped) && errGrpc != nil {
-				host.ReportFatalError(errGrpc)
+				jr.settings.ReportStatus(component.NewFatalErrorEvent(errGrpc))
 			}
 		}()
 	}

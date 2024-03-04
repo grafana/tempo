@@ -13,3 +13,7 @@ status:
   - sumo
   codeowners:
     active: [pavolloffay, MovieStoreGuy]
+
+tests:
+  config:
+  skip_lifecycle: true
