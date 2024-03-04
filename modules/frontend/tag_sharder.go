@@ -85,14 +85,10 @@ func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 }
 
 /*
-  jpe - need handler?
-      - add logging like on search request
-	  - grpc/proto
-	  - add cache key?
+  jpe - add cache key?
 	  - add gprc endpoints to frontend
 	  - docs for :point-up:
 	  - e2e tests for :point-up:
-	  - add support in cli for streaming/discrete tag calls
 */
 
 func (r *tagValueSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
