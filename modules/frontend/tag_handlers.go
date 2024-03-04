@@ -8,12 +8,14 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/gorilla/mux"
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -49,7 +51,7 @@ func newTagStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*htt
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logTagsRequest, logTagsResult, logger)
 	}
 }
 
@@ -58,19 +60,19 @@ func newTagV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*h
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logTagsRequest, logTagsResult, logger)
 	}
 }
 
+// jpe - streaming tag values does not work. streaming tags does work!
 func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
-
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
 		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logTagValuesRequest, logTagValuesResult, logger)
 	}
 }
 
@@ -81,7 +83,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logTagValuesRequest, logTagValuesResult, logger)
 	}
 }
 
@@ -94,6 +96,8 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	fnBuild func(*http.Request, TReq) (*http.Request, error),
 	fnSend func(TResp) error,
 	fnCombiner func() combiner.GRPCCombiner[TResp],
+	logRequest func(log.Logger, string, TReq),
+	logResult func(log.Logger, string, float64, TReq, error),
 	logger log.Logger) error {
 
 	httpReq, err := fnBuild(&http.Request{
@@ -118,15 +122,18 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 		// an *http.Request pipeline.
 		httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: tagName})
 	}
-	// tenant, _ := user.ExtractOrgID(ctx) // jpe return bad request
-	// start := time.Now()
+	tenant, _ := user.ExtractOrgID(ctx) // jpe return bad request
 
 	// limit := o.MaxBytesPerTagValuesQuery(tenant) // jpe do we need a default here? make combiner take limit
 	c := fnCombiner() // jpe limits!
 	collector := pipeline.NewGRPCCollector[TResp](next, c, fnSend)
 
-	// logRequest(logger, tenant, req) - jpe log request
-	return collector.RoundTrip(httpReq)
+	start := time.Now()
+	logRequest(logger, tenant, req)
+	err = collector.RoundTrip(httpReq)
+	logResult(logger, tenant, time.Since(start).Seconds(), req, err)
+
+	return err
 }
 
 // newTagHTTPHandler returns a handler that returns a single response from the HTTP handler
@@ -144,52 +151,40 @@ func newTagHTTPHandler(next pipeline.AsyncRoundTripper[*http.Response], o overri
 	})
 }
 
-/* jpe - gru?
-func logResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, err error) {
-	if resp == nil {
-		level.Info(logger).Log(
-			"msg", "search results - no resp",
-			"tenant", tenantID,
-			"duration_seconds", durationSeconds,
-			"error", err)
-
-		return
-	}
-
-	if resp.Metrics == nil {
-		level.Info(logger).Log(
-			"msg", "search results - no metrics",
-			"tenant", tenantID,
-			"query", req.Query,
-			"range_seconds", req.End-req.Start,
-			"duration_seconds", durationSeconds,
-			"error", err)
-		return
-	}
-
+func logTagsResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchTagsRequest, err error) {
 	level.Info(logger).Log(
-		"msg", "search results",
+		"msg", "search tag results",
 		"tenant", tenantID,
-		"query", req.Query,
+		"scope", req.Scope,
 		"range_seconds", req.End-req.Start,
 		"duration_seconds", durationSeconds,
-		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
-		"total_requests", resp.Metrics.TotalJobs,
-		"total_blockBytes", resp.Metrics.TotalBlockBytes,
-		"total_blocks", resp.Metrics.TotalBlocks,
-		"completed_requests", resp.Metrics.CompletedJobs,
-		"inspected_bytes", resp.Metrics.InspectedBytes,
-		"inspected_traces", resp.Metrics.InspectedTraces,
-		"inspected_spans", resp.Metrics.InspectedSpans,
 		"error", err)
 }
 
-func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
+func logTagsRequest(logger log.Logger, tenantID string, req *tempopb.SearchTagsRequest) {
 	level.Info(logger).Log(
-		"msg", "search results - no resp",
+		"msg", "search tag request",
 		"tenant", tenantID,
-		"query", req.Query)
-
-	return
+		"scope", req.Scope,
+		"range_seconds", req.End-req.Start)
 }
-*/
+
+func logTagValuesResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchTagValuesRequest, err error) {
+	level.Info(logger).Log(
+		"msg", "search tag results",
+		"tenant", tenantID,
+		"tag", req.TagName,
+		"query", req.Query,
+		"range_seconds", req.End-req.Start,
+		"duration_seconds", durationSeconds,
+		"error", err)
+}
+
+func logTagValuesRequest(logger log.Logger, tenantID string, req *tempopb.SearchTagValuesRequest) {
+	level.Info(logger).Log(
+		"msg", "search tag request",
+		"tenant", tenantID,
+		"tag", req.TagName,
+		"query", req.Query,
+		"range_seconds", req.End-req.Start)
+}

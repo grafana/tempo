@@ -179,9 +179,12 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 
 func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
 	level.Info(logger).Log(
-		"msg", "search results - no resp",
+		"msg", "search request",
 		"tenant", tenantID,
-		"query", req.Query)
+		"query", req.Query,
+		"range_seconds", req.End-req.Start,
+		"limit", req.Limit,
+		"spans_per_spanset", req.SpansPerSpanSet)
 
 	return
 }
