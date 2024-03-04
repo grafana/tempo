@@ -852,7 +852,7 @@ func TestCacheKeyForJob(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := cacheKeyForJob(tc.queryHash, tc.req, tc.meta, tc.searchPage, tc.pagesToSearch)
+			actual := cacheKeyForJob(tc.queryHash, int64(tc.req.Start), int64(tc.req.End), tc.meta, tc.searchPage, tc.pagesToSearch)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -870,7 +870,7 @@ func BenchmarkCacheKeyForJob(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		s := cacheKeyForJob(10, req, meta, 1, 2)
+		s := cacheKeyForJob(10, int64(req.Start), int64(req.End), meta, 1, 2)
 		if len(s) == 0 {
 			b.Fatalf("expected non-empty string")
 		}

@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
+	"github.com/segmentio/fasthash/fnv1a"
 )
 
 /* tagsSearchRequest request interface for transform tags and tags V2 requests into a querier request */
@@ -28,6 +29,10 @@ func (r *tagsSearchRequest) start() uint32 {
 
 func (r *tagsSearchRequest) end() uint32 {
 	return r.request.End
+}
+
+func (r *tagsSearchRequest) hash() uint64 {
+	return fnv1a.HashString64(r.request.Scope)
 }
 
 func (r *tagsSearchRequest) newWithRange(start, end uint32) tagSearchReq {
@@ -74,6 +79,20 @@ func (r *tagValueSearchRequest) end() uint32 {
 	return r.request.End
 }
 
+func (r *tagValueSearchRequest) hash() uint64 {
+	hash := fnv1a.HashString64(r.request.TagName)
+	// adding the query to the hash makes it so brittle it may not be worth caching.
+	// should we just return 0 here to bypass caching?
+	//
+	// when caching normal TraceQL results we normalize the query before hashing to prevent small
+	// changes from causing cache misses. however, the way we search for tag values
+	// doesn't allow for strict parsing. if we find a way to do "error tolerant" parsing
+	// on the query to extract matchers we should use that here.
+	hash = fnv1a.AddString64(hash, r.request.Query)
+
+	return hash
+}
+
 func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 	newReq := r.request
 	newReq.Start = start
@@ -83,12 +102,6 @@ func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 		request: newReq,
 	}
 }
-
-/*
-  jpe - add cache key?
-	  - add gprc endpoints to frontend
-	  - e2e tests for :point-up:
-*/
 
 func (r *tagValueSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
 	return api.BuildSearchTagValuesRequest(subR, &r.request)
@@ -139,6 +152,10 @@ type tagSearchReq interface {
 	newWithRange(start, end uint32) tagSearchReq
 	buildSearchTagRequest(subR *http.Request) (*http.Request, error)
 	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
+
+	// hash for calculating cache keys. this hash should NOT use the start/end ranges of the request and
+	// should only be based on the content the request is searching for
+	hash() uint64
 }
 
 type searchTagSharder struct {
@@ -261,6 +278,8 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *http.Request, errFn func(error), searchReq tagSearchReq) {
 	defer close(reqCh)
 
+	hash := searchReq.hash()
+
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
 		if pages == 0 {
@@ -277,6 +296,12 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				return
 			}
 			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
+
+			key := cacheKeyForJob(hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
+			if len(key) > 0 {
+				subR = pipeline.AddCacheKey(key, subR)
+			}
+
 			select {
 			case reqCh <- subR:
 			case <-ctx.Done():

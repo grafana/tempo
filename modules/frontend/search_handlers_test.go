@@ -550,7 +550,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	hash := hashForTraceQLQuery(query)
 	start := uint32(10)
 	end := uint32(20)
-	cacheKey := cacheKeyForJob(hash, &tempopb.SearchRequest{Start: start, End: end}, meta, 0, 1)
+	cacheKey := cacheKeyForJob(hash, int64(start), int64(end), meta, 0, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
