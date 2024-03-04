@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -40,38 +42,73 @@ func tagsV2CombinerFactory(limit int) combiner.Combiner {
 	return combiner.NewSearchTagsV2()
 }
 
-// newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
+// newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newTagStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
-		httpReq, err := api.BuildSearchTagsRequest(&http.Request{
-			URL: &url.URL{
-				Path: downstreamPath,
-			},
-			Header:     http.Header{},
-			Body:       io.NopCloser(bytes.NewReader([]byte{})),
-			RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
-		}, req)
-		if err != nil {
-			level.Error(logger).Log("msg", "search tags: build tags request failed", "err", err)
-			return status.Errorf(codes.InvalidArgument, "build tags request failed: %s", err.Error())
-		}
-
-		ctx := srv.Context()
-		httpReq = httpReq.WithContext(ctx)
-		// tenant, _ := user.ExtractOrgID(ctx) // jpe return bad request
-		// start := time.Now()
-
-		// limit := o.MaxBytesPerTagValuesQuery(tenant) // jpe do we need a default here? make combiner take limit
-		c := combiner.NewTypedSearchTags()
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagsResponse](next, c, srv.Send)
-
-		// logRequest(logger, tenant, req) - jpe log request
-		err = collector.RoundTrip(httpReq)
-
-		return err
+		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logger)
 	}
+}
+
+// newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
+func newTagV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+
+	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
+		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logger)
+	}
+}
+
+func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+
+	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
+		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logger)
+	}
+}
+
+func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesV2Handler {
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+
+	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
+		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logger)
+	}
+}
+
+// streamingTags abstracts the boilerplate for streaming tags and tag values
+func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
+	next pipeline.AsyncRoundTripper[*http.Response],
+	req TReq,
+	downstreamPath string,
+	fnBuild func(*http.Request, TReq) (*http.Request, error),
+	fnSend func(TResp) error,
+	fnCombiner func() combiner.GRPCCombiner[TResp],
+	logger log.Logger) error {
+
+	httpReq, err := fnBuild(&http.Request{
+		URL: &url.URL{
+			Path: downstreamPath,
+		},
+		Header:     http.Header{},
+		Body:       io.NopCloser(bytes.NewReader([]byte{})),
+		RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
+	}, req)
+	if err != nil {
+		level.Error(logger).Log("msg", "search tags: build tags request failed", "err", err)
+		return status.Errorf(codes.InvalidArgument, "build tags request failed: %s", err.Error())
+	}
+
+	httpReq = httpReq.WithContext(ctx)
+	// tenant, _ := user.ExtractOrgID(ctx) // jpe return bad request
+	// start := time.Now()
+
+	// limit := o.MaxBytesPerTagValuesQuery(tenant) // jpe do we need a default here? make combiner take limit
+	c := fnCombiner() // jpe limits!
+	collector := pipeline.NewGRPCCollector[TResp](next, c, fnSend)
+
+	// logRequest(logger, tenant, req) - jpe log request
+	return collector.RoundTrip(httpReq)
 }
 
 // newTagHTTPHandler returns a handler that returns a single response from the HTTP handler
@@ -89,7 +126,7 @@ func newTagHTTPHandler(next pipeline.AsyncRoundTripper[*http.Response], o overri
 	})
 }
 
-/*
+/* jpe - gru?
 func logResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, err error) {
 	if resp == nil {
 		level.Info(logger).Log(

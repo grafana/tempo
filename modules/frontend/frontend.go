@@ -116,6 +116,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	metrics := metricsMiddleware.Wrap(next)
 	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
+		// http/discrete
 		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
 		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, nil, logger),
 		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, nil, logger),
@@ -124,9 +125,16 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, nil, logger),
 		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, nil, logger),
 		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, nil, logger),
-		cacheProvider:             cacheProvider,
-		streamingSearch:           newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		logger:                    logger,
+
+		// grpc/streaming
+		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
+		streamingTags:        newTagStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagsV2:      newTagV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagValues:   newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+
+		cacheProvider: cacheProvider,
+		logger:        logger,
 	}, nil
 }
 
