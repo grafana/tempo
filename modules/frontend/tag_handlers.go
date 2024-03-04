@@ -64,7 +64,6 @@ func newTagV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*h
 	}
 }
 
-// jpe - streaming tag values does not work. streaming tags does work!
 func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
@@ -80,7 +79,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
-		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
+		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
 		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logTagValuesRequest, logTagValuesResult, logger)
