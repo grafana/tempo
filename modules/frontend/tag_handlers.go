@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
+	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
@@ -44,35 +46,42 @@ func tagsV2CombinerFactory(limit int) combiner.Combiner {
 
 // newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newTagStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
-	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logger)
 	}
 }
 
 // newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newTagV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
-	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logger)
+		return streamingTags(srv.Context(), next, req, downstreamPath, "", api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logger)
 	}
 }
 
 func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
-	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logger)
+		// we have to interpolate the tag name into the path so that when it is routed to the queriers
+		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
+		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
+		downstreamPath := path.Join(apiPrefix, pathWithValue)
+
+		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logger)
 	}
 }
 
 func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesV2Handler {
-	downstreamPath := path.Join(apiPrefix, api.PathSearch)
-
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
-		return streamingTags(srv.Context(), next, req, downstreamPath, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logger)
+		// we have to interpolate the tag name into the path so that when it is routed to the queriers
+		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
+		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
+		downstreamPath := path.Join(apiPrefix, pathWithValue)
+
+		return streamingTags(srv.Context(), next, req, downstreamPath, req.TagName, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logger)
 	}
 }
 
@@ -81,6 +90,7 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	next pipeline.AsyncRoundTripper[*http.Response],
 	req TReq,
 	downstreamPath string,
+	tagName string,
 	fnBuild func(*http.Request, TReq) (*http.Request, error),
 	fnSend func(TResp) error,
 	fnCombiner func() combiner.GRPCCombiner[TResp],
@@ -100,6 +110,14 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	}
 
 	httpReq = httpReq.WithContext(ctx)
+
+	if tagName != "" {
+		// the functions that parse an http request in the api package expect the tagName
+		// to be parsed out of the path so we're injecting it here. this is a hack and
+		// could be removed if the pipeline were swapped to be a proto.Message pipeline instead of
+		// an *http.Request pipeline.
+		httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: tagName})
+	}
 	// tenant, _ := user.ExtractOrgID(ctx) // jpe return bad request
 	// start := time.Now()
 

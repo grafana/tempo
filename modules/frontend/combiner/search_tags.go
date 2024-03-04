@@ -72,5 +72,5 @@ func NewSearchTagsV2() Combiner {
 }
 
 func NewTypedSearchTagsV2() GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTags().(GRPCCombiner[*tempopb.SearchTagsV2Response])
+	return NewSearchTagsV2().(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }
