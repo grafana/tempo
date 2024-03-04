@@ -20,8 +20,8 @@ var (
 	statPartitionClose = stats.Int64("kafka_receiver_partition_close", "Number of finished partitions", stats.UnitDimensionless)
 )
 
-// MetricViews return metric views for Kafka receiver.
-func MetricViews() []*view.View {
+// metricViews return metric views for Kafka receiver.
+func metricViews() []*view.View {
 	tagKeys := []tag.Key{tagInstanceName}
 
 	countMessages := &view.View{

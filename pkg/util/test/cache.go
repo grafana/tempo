@@ -52,6 +52,7 @@ func (p *mockProvider) CacheFor(_ cache.Role) cache.Cache {
 	return p.c
 }
 
-func (p *mockProvider) AddCache(_ cache.Role, _ cache.Cache) error {
+func (p *mockProvider) AddCache(_ cache.Role, c cache.Cache) error {
+	p.c = c
 	return nil
 }

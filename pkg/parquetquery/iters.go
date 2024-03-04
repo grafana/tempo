@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
@@ -344,6 +345,13 @@ type IteratorResult struct {
 		Key   string
 		Value interface{}
 	}
+	ReleaseFn func(*IteratorResult)
+}
+
+func (r *IteratorResult) Release() {
+	if r != nil && r.ReleaseFn != nil {
+		r.ReleaseFn(r)
+	}
 }
 
 func (r *IteratorResult) Reset() {
@@ -474,27 +482,42 @@ func syncIteratorPoolPut(b []pq.Value) {
 	syncIteratorPool.Put(b) // nolint: staticcheck
 }
 
-var columnIteratorResultPool = sync.Pool{
-	New: func() interface{} {
-		return &IteratorResult{Entries: make([]struct {
-			Key   string
-			Value pq.Value
-		}, 0, 10)} // For luck
-	},
+type JoinIteratorOption interface {
+	applyToJoinIterator(*JoinIterator)
 }
 
-// GetResult buffer struct from the internal memory pool.  Should be
-// released by calling ReleaseResult() when done.
-func GetResult() *IteratorResult {
-	res := columnIteratorResultPool.Get().(*IteratorResult)
-	return res
+type LeftJoinIteratorOption interface {
+	applyToLeftJoinIterator(*LeftJoinIterator)
 }
 
-// ReleaseResult returns the buffer struct back to the internal memory pool.
-func ReleaseResult(r *IteratorResult) {
-	if r != nil {
-		r.Reset()
-		columnIteratorResultPool.Put(r)
+type PoolOption struct {
+	pool PoolFn
+}
+
+// WithPool allows setting a custom result pool for this iterator. Custom pooling
+// can be useful to keep similar sized results together or to isolate data. By
+// default all iterators use a shared pool.
+func WithPool(p *ResultPool) PoolOption {
+	return PoolOption{p.Get}
+}
+
+func (o PoolOption) applyToJoinIterator(j *JoinIterator) {
+	j.pool = o.pool
+}
+
+func (o PoolOption) applyToLeftJoinIterator(j *LeftJoinIterator) {
+	j.pool = o.pool
+}
+
+type SyncIteratorOpt func(*SyncIterator)
+
+// SyncIteratorOptIntern enables interning of string values.
+// This is useful when the same string value is repeated many times.
+// Not recommended with (very) high cardinality columns, such as UUIDs (spanID and traceID).
+func SyncIteratorOptIntern() SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.intern = true
+		i.interner = intern.New()
 	}
 }
 
@@ -526,11 +549,14 @@ type SyncIterator struct {
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
+
+	intern   bool
+	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
 
-func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
+func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, opts ...SyncIteratorOpt) *SyncIterator {
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -549,7 +575,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		"column":      columnName,
 	})
 
-	return &SyncIterator{
+	// Create the iterator
+	i := &SyncIterator{
 		span:       span,
 		column:     column,
 		columnName: columnName,
@@ -561,6 +588,13 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(i)
+	}
+
+	return i
 }
 
 func (c *SyncIterator) String() string {
@@ -930,10 +964,14 @@ func (c *SyncIterator) closeCurrRowGroup() {
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
-	r := GetResult()
+	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v.Clone())
+		if c.intern {
+			r.AppendValue(c.selectAs, c.interner.UnsafeClone(v))
+		} else {
+			r.AppendValue(c.selectAs, v.Clone())
+		}
 	}
 	return r
 }
@@ -948,6 +986,10 @@ func (c *SyncIterator) Close() {
 	c.span.SetTag("keptPages", c.filter.KeptPages)
 	c.span.SetTag("keptValues", c.filter.KeptValues)
 	c.span.Finish()
+
+	if c.intern && c.interner != nil {
+		c.interner.Close()
+	}
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies
@@ -1245,7 +1287,7 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
 }
 
 func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
-	r := GetResult()
+	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v)
@@ -1274,19 +1316,25 @@ type JoinIterator struct {
 	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
+	pool            PoolFn
 }
 
 var _ Iterator = (*JoinIterator)(nil)
 
-func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate) *JoinIterator {
-	j := JoinIterator{
+func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate, opts ...JoinIteratorOption) *JoinIterator {
+	j := &JoinIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
 		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
+		pool:            DefaultPool.Get,
 	}
-	return &j
+
+	for _, opt := range opts {
+		opt.applyToJoinIterator(j)
+	}
+	return j
 }
 
 func (j *JoinIterator) String() string {
@@ -1355,7 +1403,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 			}
 
 			// Result discarded
-			ReleaseResult(result)
+			result.Release()
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
@@ -1380,7 +1428,7 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
-			ReleaseResult(j.peeks[iterNum])
+			j.peeks[iterNum].Release()
 			j.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return err
@@ -1407,7 +1455,7 @@ func (j *JoinIterator) peek(iterNum int) (*IteratorResult, error) {
 func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := GetResult()
+	result := j.pool()
 	result.RowNumber = rowNumber
 
 	for i := range j.iters {
@@ -1415,7 +1463,7 @@ func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 
 			result.Append(j.peeks[i])
 
-			ReleaseResult(j.peeks[i])
+			j.peeks[i].Release()
 
 			j.peeks[i], err = j.iters[i].Next()
 			if err != nil {
@@ -1442,11 +1490,12 @@ type LeftJoinIterator struct {
 	lowestIters                  []int
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
+	pool                         PoolFn
 }
 
 var _ Iterator = (*LeftJoinIterator)(nil)
 
-func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate) (*LeftJoinIterator, error) {
+func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate, opts ...LeftJoinIteratorOption) (*LeftJoinIterator, error) {
 	// No query should ever result in a left-join with no required iterators.
 	// If this happens, it's a bug in the iter building code.
 	// LeftJoinIterator is not designed to handle this case and will loop forever.
@@ -1454,7 +1503,7 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		return nil, fmt.Errorf("left join iterator requires at least one required iterator")
 	}
 
-	j := LeftJoinIterator{
+	j := &LeftJoinIterator{
 		definitionLevel: definitionLevel,
 		required:        required,
 		optional:        optional,
@@ -1462,8 +1511,14 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
+		pool:            DefaultPool.Get,
 	}
-	return &j, nil
+
+	for _, opt := range opts {
+		opt.applyToLeftJoinIterator(j)
+	}
+
+	return j, nil
 }
 
 func (j *LeftJoinIterator) String() string {
@@ -1536,7 +1591,7 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 			}
 
 			// Result discarded
-			ReleaseResult(result)
+			result.Release()
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
@@ -1561,7 +1616,7 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.required {
 		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
-			ReleaseResult(j.peeksRequired[iterNum])
+			j.peeksRequired[iterNum].Release()
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
@@ -1570,7 +1625,7 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 	}
 	for iterNum, iter := range j.optional {
 		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d, j.peeksOptional[iterNum].RowNumber, t) == -1 {
-			ReleaseResult(j.peeksOptional[iterNum])
+			j.peeksOptional[iterNum].Release()
 			j.peeksOptional[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
@@ -1596,7 +1651,7 @@ func (j *LeftJoinIterator) peek(iterNum int) (*IteratorResult, error) {
 // or are exhausted.
 func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
-	result := GetResult()
+	result := j.pool()
 	result.RowNumber = rowNumber
 
 	collect := func(iters []Iterator, peeks []*IteratorResult) {
@@ -1604,7 +1659,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 			// Collect matches
 			for peeks[i] != nil && EqualRowNumber(j.definitionLevel, peeks[i].RowNumber, rowNumber) {
 				result.Append(peeks[i])
-				ReleaseResult(peeks[i])
+				peeks[i].Release()
 				peeks[i], err = iters[i].Next()
 				if err != nil {
 					return
@@ -1716,7 +1771,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 		// from at least one iterator, or all are exhausted
 		if len(u.lowestIters) > 0 {
 			if u.pred != nil && !u.pred.KeepGroup(result) {
-				ReleaseResult(result)
+				result.Release()
 				continue
 			}
 
@@ -1759,16 +1814,13 @@ func (u *UnionIterator) peek(iterNum int) (*IteratorResult, error) {
 func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorResult, error) {
 	var err error
 
-	result := GetResult()
+	result := DefaultPool.Get()
 	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
 		for u.peeks[iterNum] != nil && EqualRowNumber(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) {
-
 			result.Append(u.peeks[iterNum])
-
-			ReleaseResult(u.peeks[iterNum])
-
+			u.peeks[iterNum].Release()
 			u.peeks[iterNum], err = u.iters[iterNum].Next()
 			if err != nil {
 				return nil, err

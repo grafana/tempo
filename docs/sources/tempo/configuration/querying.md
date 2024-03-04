@@ -1,19 +1,17 @@
 ---
-title: Query Tempo with Grafana
-menuTitle: Query Tempo with Grafana
+title: Use Tempo with Grafana
+menuTitle: Use Tempo with Grafana
 description: Learn how to configure and query Tempo with Grafana.
-weight: 40
+weight: 900
 ---
 
 <!-- Page is being deprecated because it describes versions of Grafana that are no longer supported. -->
 
-# Query Tempo with Grafana
+# Use Tempo with Grafana
 
-Grafana can query Tempo directly. This feature has been enabled since Grafana 7.5.x.
+You can use Tempo as a data source in Grafana to Tempo can query Grafana directly. Grafana Cloud comes pre-configured with a Tempo data source.
 
-Grafana Cloud comes pre-configured with a Tempo data source.
-
-If you are using Grafana on-prem, you need to [set up the Tempo data source](/docs/grafana/latest/datasources/tempo).
+If you are using Grafana on-prem, you need to [set up the Tempo data source](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo).
 
 {{% admonition type="tip" %}}
 If you want to see what you can do with tracing data in Grafana, try the [Intro to Metrics, Logs, Traces, and Profiling example]({{< relref "../getting-started/docker-example" >}}).
@@ -25,12 +23,17 @@ This video explains how to add data sources, including Loki, Tempo, and Mimir, t
 
 ## Configure the data source
 
-To query Tempo with Grafana:
+For detailed instructions on the Tempo dta source in Grafana, refer to [Tempo data source](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/).
+
+To configure Tempo with Grafana:
 
 1. Point the Grafana data source at your Tempo query frontend (or monolithic mode Tempo).
 1. Enter the URL: `http://<tempo hostname>:<http port number>`. For most of [the Tempo examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) the following works.
 
 The port of 3200 is a common port used in our examples. Tempo default HTTP port is 80.
 
-Prior to Grafana 7.5.x, Grafana was not able to query Tempo directly and required an intermediary, Tempoo-Query.
-This [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) to explains  configuration. The URL entered is `http://<tempo-query hostname>:16686/`.
+## Query the data source
+
+Refer to [Tempo in Grafana]({{< relref "../getting-started/tempo-in-grafana" >}}) for an overview about how tracing data can be viewed and used in Grafana.
+
+For information on querying the Tempo data source, refer to [Tempo query editor](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/query-editor/).

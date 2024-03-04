@@ -34,7 +34,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			name: "empty query",
 			expected: &tempopb.SearchRequest{
 				Tags:            map[string]string{},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -43,7 +42,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "start=0&end=0",
 			expected: &tempopb.SearchRequest{
 				Tags:            map[string]string{},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -78,7 +76,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags:            map[string]string{},
 				MinDurationMs:   10000,
 				MaxDurationMs:   20000,
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -103,7 +100,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			expected: &tempopb.SearchRequest{
 				Query:           `{ .foo="bar" }`,
 				Tags:            map[string]string{},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -140,7 +136,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "foo",
 				},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -153,7 +148,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				},
 				Start:           10,
 				End:             20,
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -169,7 +163,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "bar",
 				},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -180,7 +173,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags:            map[string]string{},
 				Start:           10,
 				End:             20,
-				Limit:           defaultLimit,
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
@@ -204,7 +196,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			urlQuery: "spss=2",
 			expected: &tempopb.SearchRequest{
 				Tags:            map[string]string{},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: 2,
 			},
 		},
@@ -215,7 +206,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "foo",
 				},
-				Limit:           defaultLimit,
 				SpansPerSpanSet: 7,
 			},
 		},

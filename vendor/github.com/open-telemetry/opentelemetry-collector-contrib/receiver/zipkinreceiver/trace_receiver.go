@@ -96,13 +96,13 @@ func (zr *zipkinReceiver) Start(_ context.Context, host component.Host) error {
 	}
 
 	var err error
-	zr.server, err = zr.config.HTTPServerSettings.ToServer(host, zr.settings.TelemetrySettings, zr)
+	zr.server, err = zr.config.ServerConfig.ToServer(host, zr.settings.TelemetrySettings, zr)
 	if err != nil {
 		return err
 	}
 
 	var listener net.Listener
-	listener, err = zr.config.HTTPServerSettings.ToListener()
+	listener, err = zr.config.ServerConfig.ToListener()
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (zr *zipkinReceiver) Start(_ context.Context, host component.Host) error {
 		defer zr.shutdownWG.Done()
 
 		if errHTTP := zr.server.Serve(listener); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-			host.ReportFatalError(errHTTP)
+			zr.settings.TelemetrySettings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
 		}
 	}()
 
@@ -234,13 +234,14 @@ func (zr *zipkinReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	numReceivedSpans := td.SpanCount()
 	consumerErr := zr.nextConsumer.ConsumeTraces(ctx, td)
 
 	receiverTagValue := zipkinV2TagValue
 	if asZipkinv1 {
 		receiverTagValue = zipkinV1TagValue
 	}
-	obsrecv.EndTracesOp(ctx, receiverTagValue, td.SpanCount(), consumerErr)
+	obsrecv.EndTracesOp(ctx, receiverTagValue, numReceivedSpans, consumerErr)
 	if consumerErr == nil {
 		// Send back the response "Accepted" as
 		// required at https://zipkin.io/zipkin-api/#/default/post_spans

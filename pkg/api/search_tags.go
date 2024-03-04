@@ -28,6 +28,9 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	if err != nil {
 		return nil, err
 	}
+	if searchReq.Limit == 0 {
+		searchReq.Limit = defaultLimit
+	}
 
 	// start and end = 0 is NOT fine for a block search request
 	if searchReq.End == 0 {

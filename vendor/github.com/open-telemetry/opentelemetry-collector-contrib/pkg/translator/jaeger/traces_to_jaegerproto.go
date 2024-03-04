@@ -150,7 +150,7 @@ func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
 
 func spanToJaegerProto(span ptrace.Span, libraryTags pcommon.InstrumentationScope) *model.Span {
 	traceID := traceIDToJaegerProto(span.TraceID())
-	jReferences := makeJaegerProtoReferences(span.Links(), span.ParentSpanID(), traceID)
+	jReferences := makeJaegerProtoReferences(span.Links(), spanIDToJaegerProto(span.ParentSpanID()), traceID)
 
 	startTime := span.StartTimestamp().AsTime()
 	return &model.Span{
@@ -237,32 +237,40 @@ func spanIDToJaegerProto(spanID pcommon.SpanID) model.SpanID {
 	return model.SpanID(idutils.SpanIDToUInt64(spanID))
 }
 
-// makeJaegerProtoReferences constructs jaeger span references based on parent span ID and span links
-func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID pcommon.SpanID, traceID model.TraceID) []model.SpanRef {
-	parentSpanIDSet := !parentSpanID.IsEmpty()
-	if !parentSpanIDSet && links.Len() == 0 {
-		return nil
+// makeJaegerProtoReferences constructs jaeger span references based on parent span ID and span links.
+// The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of the links.
+func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID model.SpanID, traceID model.TraceID) []model.SpanRef {
+	refsCount := links.Len()
+	if parentSpanID != 0 {
+		refsCount++
 	}
 
-	refsCount := links.Len()
-	if parentSpanIDSet {
-		refsCount++
+	if refsCount == 0 {
+		return nil
 	}
 
 	refs := make([]model.SpanRef, 0, refsCount)
 
 	// Put parent span ID at the first place because usually backends look for it
 	// as the first CHILD_OF item in the model.SpanRef slice.
-	if parentSpanIDSet {
+	if parentSpanID != 0 {
 		refs = append(refs, model.SpanRef{
 			TraceID: traceID,
-			SpanID:  spanIDToJaegerProto(parentSpanID),
+			SpanID:  parentSpanID,
 			RefType: model.SpanRefType_CHILD_OF,
 		})
 	}
 
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
+		linkTraceID := traceIDToJaegerProto(link.TraceID())
+		linkSpanID := spanIDToJaegerProto(link.SpanID())
+		linkRefType := refTypeFromLink(link)
+		if parentSpanID != 0 && linkTraceID == traceID && linkSpanID == parentSpanID {
+			// We already added a reference to this span, but maybe with the wrong type, so override.
+			refs[0].RefType = linkRefType
+			continue
+		}
 		refs = append(refs, model.SpanRef{
 			TraceID: traceIDToJaegerProto(link.TraceID()),
 			SpanID:  spanIDToJaegerProto(link.SpanID()),

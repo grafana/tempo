@@ -5,13 +5,11 @@ package service // import "go.opentelemetry.io/collector/service"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/sdk/resource"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
@@ -21,14 +19,15 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/internal/localhostgate"
 	"go.opentelemetry.io/collector/internal/obsreportconfig"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
-	semconv "go.opentelemetry.io/collector/semconv/v1.18.0"
 	"go.opentelemetry.io/collector/service/extensions"
 	"go.opentelemetry.io/collector/service/internal/graph"
 	"go.opentelemetry.io/collector/service/internal/proctelemetry"
+	"go.opentelemetry.io/collector/service/internal/resource"
 	"go.opentelemetry.io/collector/service/internal/servicetelemetry"
 	"go.opentelemetry.io/collector/service/internal/status"
 	"go.opentelemetry.io/collector/service/telemetry"
@@ -62,9 +61,6 @@ type Settings struct {
 
 	// LoggingOptions provides a way to change behavior of zap logging.
 	LoggingOptions []zap.Option
-
-	// For testing purpose only.
-	useOtel *bool
 }
 
 // Service represents the implementation of a component.Host.
@@ -75,14 +71,9 @@ type Service struct {
 	host                 *serviceHost
 	telemetryInitializer *telemetryInitializer
 	collectorConf        *confmap.Conf
-	statusInit           status.InitFunc
 }
 
 func New(ctx context.Context, set Settings, cfg Config) (*Service, error) {
-	useOtel := obsreportconfig.UseOtelForInternalMetricsfeatureGate.IsEnabled()
-	if set.useOtel != nil {
-		useOtel = *set.useOtel
-	}
 	disableHighCard := obsreportconfig.DisableHighCardinalityMetricsfeatureGate.IsEnabled()
 	extendedConfig := obsreportconfig.UseOtelWithSDKConfigurationForInternalTelemetryFeatureGate.IsEnabled()
 	srv := &Service{
@@ -96,34 +87,35 @@ func New(ctx context.Context, set Settings, cfg Config) (*Service, error) {
 			buildInfo:         set.BuildInfo,
 			asyncErrorChannel: set.AsyncErrorChannel,
 		},
-		telemetryInitializer: newColTelemetry(useOtel, disableHighCard, extendedConfig),
+		telemetryInitializer: newColTelemetry(disableHighCard, extendedConfig),
 		collectorConf:        set.CollectorConf,
 	}
 	var err error
-	srv.telemetry, err = telemetry.New(ctx, telemetry.Settings{ZapOptions: set.LoggingOptions}, cfg.Telemetry)
+	srv.telemetry, err = telemetry.New(ctx, telemetry.Settings{BuildInfo: set.BuildInfo, ZapOptions: set.LoggingOptions}, cfg.Telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get logger: %w", err)
 	}
-	res := buildResource(set.BuildInfo, cfg.Telemetry)
+	res := resource.New(set.BuildInfo, cfg.Telemetry.Resource)
 	pcommonRes := pdataFromSdk(res)
 
-	srv.telemetrySettings = servicetelemetry.TelemetrySettings{
-		Logger:         srv.telemetry.Logger(),
-		TracerProvider: srv.telemetry.TracerProvider(),
-		MeterProvider:  noop.NewMeterProvider(),
-		MetricsLevel:   cfg.Telemetry.Metrics.Level,
-
-		// Construct telemetry attributes from build info and config's resource attributes.
-		Resource: pcommonRes,
-	}
-
-	if err = srv.telemetryInitializer.init(res, srv.telemetrySettings, cfg.Telemetry, set.AsyncErrorChannel); err != nil {
+	logger := srv.telemetry.Logger()
+	if err = srv.telemetryInitializer.init(res, logger, cfg.Telemetry, set.AsyncErrorChannel); err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
-	srv.telemetrySettings.MeterProvider = srv.telemetryInitializer.mp
-	srv.telemetrySettings.TracerProvider = srv.telemetryInitializer.tp
-	srv.statusInit, srv.telemetrySettings.ReportComponentStatus =
-		status.NewServiceStatusFunc(srv.host.notifyComponentStatusChange)
+	srv.telemetrySettings = servicetelemetry.TelemetrySettings{
+		Logger:         logger,
+		TracerProvider: srv.telemetry.TracerProvider(),
+		MeterProvider:  srv.telemetryInitializer.mp,
+		MetricsLevel:   cfg.Telemetry.Metrics.Level,
+		// Construct telemetry attributes from build info and config's resource attributes.
+		Resource: pcommonRes,
+		Status: status.NewReporter(srv.host.notifyComponentStatusChange, func(err error) {
+			if errors.Is(err, status.ErrStatusNotReady) {
+				srv.telemetry.Logger().Warn("Invalid transition", zap.Error(err))
+			}
+			// ignore other errors as they represent invalid state transitions and are considered benign.
+		}),
+	}
 
 	// process the configuration and initialize the pipeline
 	if err = srv.initExtensionsAndPipeline(ctx, set, cfg); err != nil {
@@ -139,6 +131,11 @@ func New(ctx context.Context, set Settings, cfg Config) (*Service, error) {
 }
 
 // Start starts the extensions and pipelines. If Start fails Shutdown should be called to ensure a clean state.
+// Start does the following steps in order:
+// 1. Start all extensions.
+// 2. Notify extensions about Collector configuration
+// 3. Start all pipelines.
+// 4. Notify extensions that the pipeline is ready.
 func (srv *Service) Start(ctx context.Context) error {
 	srv.telemetrySettings.Logger.Info("Starting "+srv.buildInfo.Command+"...",
 		zap.String("Version", srv.buildInfo.Version),
@@ -146,7 +143,7 @@ func (srv *Service) Start(ctx context.Context) error {
 	)
 
 	// enable status reporting
-	srv.statusInit()
+	srv.telemetrySettings.Status.Ready()
 
 	if err := srv.host.serviceExtensions.Start(ctx, srv.host); err != nil {
 		return fmt.Errorf("failed to start extensions: %w", err)
@@ -167,9 +164,15 @@ func (srv *Service) Start(ctx context.Context) error {
 	}
 
 	srv.telemetrySettings.Logger.Info("Everything is ready. Begin running and processing data.")
+	localhostgate.LogAboutUseLocalHostAsDefault(srv.telemetrySettings.Logger)
 	return nil
 }
 
+// Shutdown the service. Shutdown will do the following steps in order:
+// 1. Notify extensions that the pipeline is shutting down.
+// 2. Shutdown all pipelines.
+// 3. Shutdown all extensions.
+// 4. Shutdown telemetry.
 func (srv *Service) Shutdown(ctx context.Context) error {
 	// Accumulate errors and proceed with shutting down remaining components.
 	var errs error
@@ -228,7 +231,7 @@ func (srv *Service) initExtensionsAndPipeline(ctx context.Context, set Settings,
 
 	if cfg.Telemetry.Metrics.Level != configtelemetry.LevelNone && cfg.Telemetry.Metrics.Address != "" {
 		// The process telemetry initialization requires the ballast size, which is available after the extensions are initialized.
-		if err = proctelemetry.RegisterProcessMetrics(srv.telemetryInitializer.ocRegistry, srv.telemetryInitializer.mp, obsreportconfig.UseOtelForInternalMetricsfeatureGate.IsEnabled(), getBallastSize(srv.host)); err != nil {
+		if err = proctelemetry.RegisterProcessMetrics(srv.telemetryInitializer.mp, getBallastSize(srv.host)); err != nil {
 			return fmt.Errorf("failed to register process metrics: %w", err)
 		}
 	}
@@ -251,37 +254,7 @@ func getBallastSize(host component.Host) uint64 {
 	return 0
 }
 
-func buildResource(buildInfo component.BuildInfo, cfg telemetry.Config) *resource.Resource {
-	var telAttrs []attribute.KeyValue
-
-	for k, v := range cfg.Resource {
-		// nil value indicates that the attribute should not be included in the telemetry.
-		if v != nil {
-			telAttrs = append(telAttrs, attribute.String(k, *v))
-		}
-	}
-
-	if _, ok := cfg.Resource[semconv.AttributeServiceName]; !ok {
-		// AttributeServiceName is not specified in the config. Use the default service name.
-		telAttrs = append(telAttrs, attribute.String(semconv.AttributeServiceName, buildInfo.Command))
-	}
-
-	if _, ok := cfg.Resource[semconv.AttributeServiceInstanceID]; !ok {
-		// AttributeServiceInstanceID is not specified in the config. Auto-generate one.
-		instanceUUID, _ := uuid.NewRandom()
-		instanceID := instanceUUID.String()
-		telAttrs = append(telAttrs, attribute.String(semconv.AttributeServiceInstanceID, instanceID))
-	}
-
-	if _, ok := cfg.Resource[semconv.AttributeServiceVersion]; !ok {
-		// AttributeServiceVersion is not specified in the config. Use the actual
-		// build version.
-		telAttrs = append(telAttrs, attribute.String(semconv.AttributeServiceVersion, buildInfo.Version))
-	}
-	return resource.NewWithAttributes(semconv.SchemaURL, telAttrs...)
-}
-
-func pdataFromSdk(res *resource.Resource) pcommon.Resource {
+func pdataFromSdk(res *sdkresource.Resource) pcommon.Resource {
 	// pcommon.NewResource is the best way to generate a new resource currently and is safe to use outside of tests.
 	// Because the resource is signal agnostic, and we need a net new resource, not an existing one, this is the only
 	// method of creating it without exposing internal packages.

@@ -121,7 +121,6 @@ func ParseTraceID(r *http.Request) ([]byte, error) {
 func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	req := &tempopb.SearchRequest{
 		Tags:            map[string]string{},
-		Limit:           defaultLimit,
 		SpansPerSpanSet: defaultSpansPerSpanSet,
 	}
 
@@ -344,10 +343,9 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 
 	step, err := step(r, start, end)
 	if err != nil {
-		req.Step = traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))
-	} else {
-		req.Step = uint64(step)
+		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
 	}
+	req.Step = uint64(step.Nanoseconds())
 
 	if of, err := strconv.Atoi(r.Form.Get(urlParamShardCount)); err == nil {
 		req.ShardCount = uint32(of)
@@ -458,15 +456,9 @@ func parseTimestamp(value string, def time.Time) (time.Time, error) {
 func step(r *http.Request, start, end time.Time) (time.Duration, error) {
 	value := r.Form.Get(urlParamStep)
 	if value == "" {
-		return time.Duration(defaultQueryRangeStep(start, end)) * time.Second, nil
+		return time.Duration(traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))), nil
 	}
 	return parseSecondsOrDuration(value)
-}
-
-// defaultQueryRangeStep returns the default step used in the query range API,
-// which is dynamically calculated based on the time range
-func defaultQueryRangeStep(start time.Time, end time.Time) int {
-	return int(math.Max(math.Floor(end.Sub(start).Seconds()/250), 1))
 }
 
 func parseSecondsOrDuration(value string) (time.Duration, error) {

@@ -11,6 +11,7 @@ import (
 	"github.com/golang/protobuf/proto" //nolint:all //deprecated
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
@@ -21,8 +22,8 @@ const (
 
 var maxSpanID uint64 = 0xffffffffffffffff
 
-func newDeduper(logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+func newDeduper(logger log.Logger) pipeline.Middleware {
+	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return spanIDDeduper{
 			next:   next,
 			logger: logger,

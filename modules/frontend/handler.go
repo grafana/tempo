@@ -3,10 +3,13 @@ package frontend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/grafana/dskit/flagext"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -31,26 +34,25 @@ var (
 )
 
 type (
-	handlerPostHook func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error)
-	handlerPreHook  func(ctx context.Context) context.Context
+	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
 )
 
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
-	roundTripper http.RoundTripper
-	logger       log.Logger
-	post         handlerPostHook
-	pre          handlerPreHook
+	roundTripper           http.RoundTripper
+	logger                 log.Logger
+	post                   handlerPostHook
+	logQueryRequestHeaders flagext.StringSliceCSV
 }
 
 // newHandler creates a handler
-func newHandler(rt http.RoundTripper, post handlerPostHook, pre handlerPreHook, logger log.Logger) http.Handler {
+func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, post handlerPostHook, logger log.Logger) http.Handler {
 	return &handler{
-		roundTripper: rt,
-		logger:       logger,
-		post:         post,
-		pre:          pre,
+		logQueryRequestHeaders: LogQueryRequestHeaders,
+		roundTripper:           rt,
+		logger:                 logger,
+		post:                   post,
 	}
 }
 
@@ -71,45 +73,46 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		span.SetTag("orgID", orgID)
 	}
 
-	if f.pre != nil {
-		ctx = f.pre(ctx)
-		r = r.WithContext(ctx)
-	}
 	resp, err := f.roundTripper.RoundTrip(r)
 	elapsed := time.Since(start)
 	if f.post != nil {
-		f.post(ctx, resp, orgID, elapsed, err)
+		f.post(resp, orgID, 0, elapsed, err)
+	}
+
+	logMessage := []interface{}{
+		"tenant", orgID,
+		"method", r.Method,
+		"traceID", traceID,
+		"url", r.URL.RequestURI(),
+		"duration", elapsed.String(),
+	}
+	if len(f.logQueryRequestHeaders) != 0 {
+		logMessage = append(logMessage, formatRequestHeaders(&r.Header, f.logQueryRequestHeaders)...)
 	}
 
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		err = writeError(w, err)
-		level.Info(f.logger).Log(
-			"tenant", orgID,
-			"method", r.Method,
-			"traceID", traceID,
-			"url", r.URL.RequestURI(),
-			"duration", elapsed.String(),
-			"response_size", 0,
+		logMessage = append(
+			logMessage,
 			"status", statusCode,
 			"err", err.Error(),
+			"response_size", 0,
 		)
+		level.Info(f.logger).Log(logMessage...)
 		return
 	}
 
 	if resp == nil {
 		statusCode := http.StatusInternalServerError
 		err = writeError(w, errors.New(NilResponseError))
-		level.Info(f.logger).Log(
-			"tenant", orgID,
-			"method", r.Method,
-			"traceID", traceID,
-			"url", r.URL.RequestURI(),
-			"duration", elapsed.String(),
-			"response_size", 0,
+		logMessage = append(
+			logMessage,
 			"status", statusCode,
 			"err", err.Error(),
+			"response_size", 0,
 		)
+		level.Info(f.logger).Log(logMessage...)
 		return
 	}
 
@@ -131,15 +134,21 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contentLength = resp.ContentLength
 	}
 
-	level.Info(f.logger).Log(
-		"tenant", orgID,
-		"method", r.Method,
-		"traceID", traceID,
-		"url", r.URL.RequestURI(),
-		"duration", elapsed.String(),
+	logMessage = append(
+		logMessage,
 		"response_size", contentLength,
 		"status", statusCode,
 	)
+	level.Info(f.logger).Log(logMessage...)
+}
+
+func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {
+	for _, s := range headersToLog {
+		if v := h.Get(s); v != "" {
+			fields = append(fields, fmt.Sprintf("header_%s", strings.ReplaceAll(strings.ToLower(s), "-", "_")), v)
+		}
+	}
+	return fields
 }
 
 func copyHeader(dst, src http.Header) {

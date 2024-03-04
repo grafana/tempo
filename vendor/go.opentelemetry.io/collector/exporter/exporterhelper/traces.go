@@ -13,7 +13,8 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/exporterhelper/internal"
+	"go.opentelemetry.io/collector/exporter/exporterqueue"
+	"go.opentelemetry.io/collector/exporter/internal/queue"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -32,7 +33,7 @@ func newTracesRequest(td ptrace.Traces, pusher consumer.ConsumeTracesFunc) Reque
 	}
 }
 
-func newTraceRequestUnmarshalerFunc(pusher consumer.ConsumeTracesFunc) RequestUnmarshaler {
+func newTraceRequestUnmarshalerFunc(pusher consumer.ConsumeTracesFunc) exporterqueue.Unmarshaler[Request] {
 	return func(bytes []byte) (Request, error) {
 		traces, err := tracesUnmarshaler.UnmarshalTraces(bytes)
 		if err != nil {
@@ -96,7 +97,7 @@ func NewTracesExporter(
 	tc, err := consumer.NewTraces(func(ctx context.Context, td ptrace.Traces) error {
 		req := newTracesRequest(td, pusher)
 		serr := be.send(ctx, req)
-		if errors.Is(serr, internal.ErrQueueIsFull) {
+		if errors.Is(serr, queue.ErrQueueIsFull) {
 			be.obsrep.recordEnqueueFailure(ctx, component.DataTypeTraces, int64(req.ItemsCount()))
 		}
 		return serr
@@ -108,13 +109,10 @@ func NewTracesExporter(
 	}, err
 }
 
-// TracesConverter provides an interface for converting ptrace.Traces into a request.
+// RequestFromTracesFunc converts ptrace.Traces into a user-defined Request.
 // This API is at the early stage of development and may change without backward compatibility
 // until https://github.com/open-telemetry/opentelemetry-collector/issues/8122 is resolved.
-type TracesConverter interface {
-	// RequestFromTraces converts ptrace.Traces into a Request.
-	RequestFromTraces(context.Context, ptrace.Traces) (Request, error)
-}
+type RequestFromTracesFunc func(context.Context, ptrace.Traces) (Request, error)
 
 // NewTracesRequestExporter creates a new traces exporter based on a custom TracesConverter and RequestSender.
 // This API is at the early stage of development and may change without backward compatibility
@@ -122,7 +120,7 @@ type TracesConverter interface {
 func NewTracesRequestExporter(
 	_ context.Context,
 	set exporter.CreateSettings,
-	converter TracesConverter,
+	converter RequestFromTracesFunc,
 	options ...Option,
 ) (exporter.Traces, error) {
 	if set.Logger == nil {
@@ -139,7 +137,7 @@ func NewTracesRequestExporter(
 	}
 
 	tc, err := consumer.NewTraces(func(ctx context.Context, td ptrace.Traces) error {
-		req, cErr := converter.RequestFromTraces(ctx, td)
+		req, cErr := converter(ctx, td)
 		if cErr != nil {
 			set.Logger.Error("Failed to convert traces. Dropping data.",
 				zap.Int("dropped_spans", td.SpanCount()),
@@ -147,7 +145,7 @@ func NewTracesRequestExporter(
 			return consumererror.NewPermanent(cErr)
 		}
 		sErr := be.send(ctx, req)
-		if errors.Is(sErr, internal.ErrQueueIsFull) {
+		if errors.Is(sErr, queue.ErrQueueIsFull) {
 			be.obsrep.recordEnqueueFailure(ctx, component.DataTypeTraces, int64(req.ItemsCount()))
 		}
 		return sErr
