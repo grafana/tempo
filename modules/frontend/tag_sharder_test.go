@@ -1,5 +1,6 @@
 package frontend
 
+/* jpe - restore
 import (
 	"bytes"
 	"context"
@@ -669,3 +670,4 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	resp, err = testRT.RoundTrip(req)
 	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
+*/

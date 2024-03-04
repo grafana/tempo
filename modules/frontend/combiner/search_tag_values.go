@@ -31,6 +31,10 @@ func NewSearchTagValues() Combiner {
 	}
 }
 
+func NewTypedSearchTagValues() GRPCCombiner[*tempopb.SearchTagValuesResponse] {
+	return NewSearchTagValues().(GRPCCombiner[*tempopb.SearchTagValuesResponse])
+}
+
 func NewSearchTagValuesV2() Combiner {
 	// Distinct collector with no limit
 	d := util.NewDistinctValueCollector(0, func(_ tempopb.TagValue) int { return 0 })
@@ -54,4 +58,8 @@ func NewSearchTagValuesV2() Combiner {
 			return final, nil
 		},
 	}
+}
+
+func NewTypedSearchTagValuesV2() GRPCCombiner[*tempopb.SearchTagValuesV2Response] {
+	return NewSearchTagValuesV2().(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
 }

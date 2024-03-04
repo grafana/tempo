@@ -1,5 +1,6 @@
 package frontend
 
+/* jpe - make sure all functionality is replicated in the combiner package
 import (
 	"io"
 	"net/http"
@@ -54,16 +55,6 @@ func tagsResultHandlerFactory(limit int) tagResultsHandler {
 type tagValuesResultsHandler struct {
 	limit           int
 	resultsCombiner *util.DistinctStringCollector
-}
-
-func parseTagValuesRequest(r *http.Request) (tagSearchReq, error) {
-	searchReq, err := api.ParseSearchTagValuesRequest(r)
-	if err != nil {
-		return nil, err
-	}
-	return &tagValueSearchRequest{
-		request: *searchReq,
-	}, nil
 }
 
 func (h *tagValuesResultsHandler) shouldQuit() bool {
@@ -208,3 +199,4 @@ func tagValuesV2ResultHandlerFactory(limit int) tagResultsHandler {
 		resultsCombiner: util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }),
 	}
 }
+*/

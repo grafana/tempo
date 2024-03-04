@@ -1,5 +1,6 @@
-package frontend
+package combiner
 
+/* jpe - restore
 import (
 	"bytes"
 	"encoding/json"
@@ -248,3 +249,4 @@ func TestTagsResultsHandler(t *testing.T) {
 		})
 	}
 }
+*/

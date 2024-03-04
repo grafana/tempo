@@ -2,21 +2,17 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -95,6 +91,10 @@ func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
       - add logging like on search request
 	  - grpc/proto
 	  - add cache key?
+	  - add gprc endpoints to frontend
+	  - docs for :point-up:
+	  - e2e tests for :point-up:
+	  - add support in cli for streaming/discrete tag calls
 */
 
 func (r *tagValueSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
@@ -128,13 +128,21 @@ func parseTagsRequest(r *http.Request) (tagSearchReq, error) {
 	}, nil
 }
 
-type tagResultsHandler interface {
+func parseTagValuesRequest(r *http.Request) (tagSearchReq, error) {
+	searchReq, err := api.ParseSearchTagValuesRequest(r)
+	if err != nil {
+		return nil, err
+	}
+	return &tagValueSearchRequest{
+		request: *searchReq,
+	}, nil
+}
+
+type tagResultsHandler interface { // jpe not needed?
 	shouldQuit() bool
 	addResponse(io.ReadCloser) error
 	marshalResult() (string, error)
 }
-
-type tagResultHandlerFactory func(limit int) tagResultsHandler
 
 type parseRequestFunction func(r *http.Request) (tagSearchReq, error)
 
@@ -146,6 +154,7 @@ type tagSearchReq interface {
 	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
 }
 
+// jpe - not needed?
 type tagResults struct {
 	response    string
 	statusCode  int
@@ -216,142 +225,87 @@ func (r *tagResultCollector) Result() *tagResults {
 	}
 }
 
-func newTagResultCollector(ctx context.Context, factory tagResultHandlerFactory, limit int) *tagResultCollector {
+/*func newTagResultCollector(ctx context.Context, factory tagResultHandlerFactory, limit int) *tagResultCollector { // jpe - covered by combine
 	return &tagResultCollector{
 		statusCode: http.StatusOK,
 		ctx:        ctx,
 		delegate:   factory(limit),
 	}
-}
-
-func httpErrorResponse(err error) *http.Response {
-	return &http.Response{
-		StatusCode: http.StatusBadRequest,
-		Body:       io.NopCloser(strings.NewReader(err.Error())),
-	}
-}
+}*/
 
 type searchTagSharder struct {
-	next                   http.RoundTripper
-	reader                 tempodb.Reader
-	overrides              overrides.Interface
-	tagShardHandlerFactory tagResultHandlerFactory
-	cfg                    SearchSharderConfig
-	logger                 log.Logger
-	parseRequest           parseRequestFunction
+	next      pipeline.AsyncRoundTripper[*http.Response]
+	reader    tempodb.Reader
+	overrides overrides.Interface
+
+	cfg          SearchSharderConfig
+	logger       log.Logger
+	parseRequest parseRequestFunction
 }
 
-// RoundTrip implements http.RoundTripper
+// newAsyncTagSharder creates a sharding middleware for tags and tag values
+func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+		return searchTagSharder{
+			next:         next,
+			reader:       reader,
+			overrides:    o,
+			cfg:          cfg,
+			logger:       logger,
+			parseRequest: parseRequest,
+		}
+	})
+}
+
+// RoundTrip implements pipeline.AsyncRoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
+func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
 	requestCtx := r.Context()
 
 	tenantID, err := user.ExtractOrgID(requestCtx)
 	if err != nil {
-		return httpErrorResponse(err), nil
+		return pipeline.NewBadRequest(err), nil
 	}
 
-	// TODO: Need to review this and only applies to tag values and no tag names, also consolidate the logic in one single place
-	handler := newTagResultCollector(requestCtx, s.tagShardHandlerFactory, s.overrides.MaxBytesPerTagValuesQuery(tenantID))
+	// jpe - cleanup - note that max bytes is a per tenant setting
+	// handler := newTagResultCollector(requestCtx, s.tagShardHandlerFactory, s.overrides.MaxBytesPerTagValuesQuery(tenantID))
 
 	searchReq, err := s.parseRequest(r)
 	if err != nil {
-		return httpErrorResponse(err), nil
+		return pipeline.NewBadRequest(err), nil
 	}
-	span, ctx := opentracing.StartSpanFromContext(requestCtx, "frontend.ShardSearch")
+	span, ctx := opentracing.StartSpanFromContext(requestCtx, "frontend.ShardSearchTags")
 	defer span.Finish()
-
-	// sub context to cancel in-progress sub requests
-	subCtx, subCancel := context.WithCancel(ctx)
-	defer subCancel()
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(searchReq.end()-searchReq.start())*time.Second > maxDuration {
-		return httpErrorResponse(fmt.Errorf("range specified by start and end exceeds %s."+
+		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s."+
 			" received start=%d end=%d", maxDuration, searchReq.start(), searchReq.end())), nil
 	}
 
 	// build request to search ingester based on query_ingesters_until config and time range
 	// pass subCtx in requests, so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, searchReq)
+	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, searchReq)
 	if err != nil {
 		return nil, err
 	}
 
-	reqCh := make(chan *backendReqMsg, 1) // buffer of 1 allows us to insert ingestReq if it exists
-
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
+	reqCh := make(chan *http.Request, 1) // buffer of 1 allows us to insert ingestReq if it exists
 	if ingesterReq != nil {
-		reqCh <- &backendReqMsg{req: ingesterReq}
+		reqCh <- ingesterReq
 	}
-	// TODO: Needs to be reviewed how to shard this property, as this is not very accurate and needs more testing.
-	// 		 even for regular search this is not precise.
-	// pass subCtx in requests, so we can cancel and exit early
-	s.backendRequests(subCtx, tenantID, r, searchReq, reqCh, stopCh)
+
+	s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
+		// todo: actually find a way to return this error to the user
+		s.logger.Log("msg", "failed to build backend requests", "err", err)
+	})
 
 	// execute requests
-	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
+	return pipeline.NewAsyncSharderChan(s.cfg.ConcurrentRequests, reqCh, nil, s.next), nil
 
-	for req := range reqCh {
-		if req.err != nil {
-			return nil, fmt.Errorf("unexpected err building reqs: %w", req.err)
-		}
-		// When we hit capacity of boundedwaitgroup, wg.Add will block
-		wg.Add(1)
-
-		go func(innerR *http.Request) {
-			defer func() {
-				if handler.shouldQuit() {
-					subCancel()
-				}
-				wg.Done()
-			}()
-
-			resp, err := s.next.RoundTrip(innerR)
-			if err != nil {
-				// context cancelled error happens when we exit early. bail, and don't log and don't set this error.
-				if errors.Is(err, context.Canceled) {
-					_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url",
-						innerR.RequestURI, "err", err)
-					return
-				}
-				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url",
-					innerR.RequestURI, "err", err)
-				handler.setError(err)
-				return
-			}
-
-			// if the status code is anything but happy, save the error and pass it down the line
-			if resp.StatusCode != http.StatusOK {
-				statusCode := resp.StatusCode
-				bytesMsg, err := io.ReadAll(resp.Body)
-				if err != nil {
-					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url",
-						innerR.RequestURI, "err", err)
-				}
-				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
-				handler.setStatus(statusCode, statusMsg)
-				return
-			}
-
-			err = handler.addResponseToResult(resp.Body)
-
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url",
-					innerR.RequestURI, "err", err)
-				handler.setError(err)
-				return
-			}
-		}(req.req)
-	}
-
-	// wait for all goroutines running in wg to finish or cancelled
-	wg.Wait()
-
+	/* jpe - make sure this is captured
 	overallResponse := handler.Result()
 
 	if overallResponse.err != nil {
@@ -383,6 +337,7 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+	*/
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
@@ -402,7 +357,7 @@ func (s searchTagSharder) blockMetas(start, end int64, tenantID string) []*backe
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}) {
+func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq, reqCh chan<- *http.Request, errFn func(error)) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
@@ -426,13 +381,13 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
 
 	go func() {
-		s.buildBackendRequests(ctx, tenantID, parent, blocks, targetBytesPerRequest, reqCh, stopCh, searchReq)
+		s.buildBackendRequests(ctx, tenantID, parent, blocks, targetBytesPerRequest, reqCh, errFn, searchReq)
 	}()
 }
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *backendReqMsg, stopCh <-chan struct{}, searchReq tagSearchReq) {
+func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *http.Request, errFn func(error), searchReq tagSearchReq) {
 	defer close(reqCh)
 
 	for _, m := range metas {
@@ -447,13 +402,13 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 			subR, err := searchReq.buildTagSearchBlockRequest(subR, blockID, startPage, pages, m)
 			if err != nil {
-				reqCh <- &backendReqMsg{err: err}
+				errFn(err)
 				return
 			}
 			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
 			select {
-			case reqCh <- &backendReqMsg{req: subR}:
-			case <-stopCh:
+			case reqCh <- subR:
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -517,23 +472,4 @@ func (s searchTagSharder) maxDuration(tenantID string) time.Duration {
 	}
 
 	return s.cfg.MaxDuration
-}
-
-// newTagsSharding creates a sharding middleware for search
-func newTagsSharding(
-	reader tempodb.Reader, o overrides.Interface,
-	cfg SearchSharderConfig, tagShardHandler tagResultHandlerFactory, logger log.Logger,
-	parseRequest parseRequestFunction,
-) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		return searchTagSharder{
-			next:                   next,
-			reader:                 reader,
-			overrides:              o,
-			cfg:                    cfg,
-			logger:                 logger,
-			tagShardHandlerFactory: tagShardHandler,
-			parseRequest:           parseRequest,
-		}
-	})
 }
