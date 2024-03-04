@@ -87,7 +87,6 @@ func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 /*
   jpe - add cache key?
 	  - add gprc endpoints to frontend
-	  - docs for :point-up:
 	  - e2e tests for :point-up:
 */
 

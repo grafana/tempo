@@ -10,7 +10,6 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagsV2Response] = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 )
 
-// jpe do something with all these limitBytes
 func NewSearchTags(limitBytes int) Combiner {
 	// Distinct collector with no limit
 	d := util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
