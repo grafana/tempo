@@ -94,7 +94,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 	}
 
 	concurrency := 2
-	if ok, v := expr.Hints.GetInt(traceql.HintBlockConcurrency, unsafe); ok && v > 0 && v < 100 {
+	if v, ok := expr.Hints.GetInt(traceql.HintBlockConcurrency, unsafe); ok && v > 0 && v < 100 {
 		concurrency = v
 	}
 

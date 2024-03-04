@@ -444,7 +444,7 @@ func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 
 func (s *queryRangeSharder) samplingRate(expr *traceql.RootExpr, allowUnsafe bool) float64 {
 	samplingRate := 1.0
-	if ok, v := expr.Hints.GetFloat(traceql.HintSample, allowUnsafe); ok {
+	if v, ok := expr.Hints.GetFloat(traceql.HintSample, allowUnsafe); ok {
 		if v > 0 && v < 1.0 {
 			samplingRate = v
 		}
@@ -454,7 +454,7 @@ func (s *queryRangeSharder) samplingRate(expr *traceql.RootExpr, allowUnsafe boo
 
 func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, samplingRate float64, allowUnsafe bool) int {
 	// If we have a query hint then use it
-	if ok, v := expr.Hints.GetInt(traceql.HintJobSize, allowUnsafe); ok && v > 0 {
+	if v, ok := expr.Hints.GetInt(traceql.HintJobSize, allowUnsafe); ok && v > 0 {
 		return v
 	}
 
@@ -479,7 +479,7 @@ func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, samplingRate float64
 
 func (s *queryRangeSharder) jobInterval(expr *traceql.RootExpr, allowUnsafe bool) time.Duration {
 	// If we have a query hint then use it
-	if ok, v := expr.Hints.GetDuration(traceql.HintJobInterval, allowUnsafe); ok && v > 0 {
+	if v, ok := expr.Hints.GetDuration(traceql.HintJobInterval, allowUnsafe); ok && v > 0 {
 		return v
 	}
 
