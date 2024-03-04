@@ -3,9 +3,7 @@ package frontend
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -138,12 +136,6 @@ func parseTagValuesRequest(r *http.Request) (tagSearchReq, error) {
 	}, nil
 }
 
-type tagResultsHandler interface { // jpe not needed?
-	shouldQuit() bool
-	addResponse(io.ReadCloser) error
-	marshalResult() (string, error)
-}
-
 type parseRequestFunction func(r *http.Request) (tagSearchReq, error)
 
 type tagSearchReq interface {
@@ -153,85 +145,6 @@ type tagSearchReq interface {
 	buildSearchTagRequest(subR *http.Request) (*http.Request, error)
 	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
 }
-
-// jpe - not needed?
-type tagResults struct {
-	response    string
-	statusCode  int
-	statusMsg   string
-	err         error
-	marshallErr error
-}
-
-type tagResultCollector struct {
-	delegate   tagResultsHandler
-	mtx        sync.Mutex
-	err        error
-	statusCode int
-	statusMsg  string
-	ctx        context.Context
-}
-
-func (r *tagResultCollector) shouldQuit() bool {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-	if r.err != nil {
-		return true
-	}
-	if r.ctx.Err() != nil {
-		return true
-	}
-	if r.statusCode/100 != 2 {
-		return true
-	}
-	if r.delegate.shouldQuit() {
-		return true
-	}
-	return false
-}
-
-func (r *tagResultCollector) setStatus(statusCode int, statusMsg string) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.statusCode = statusCode
-	r.statusMsg = statusMsg
-}
-
-func (r *tagResultCollector) setError(err error) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.err = err
-}
-
-func (r *tagResultCollector) addResponseToResult(ic io.ReadCloser) error {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-	return r.delegate.addResponse(ic)
-}
-
-func (r *tagResultCollector) Result() *tagResults {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	response, err := r.delegate.marshalResult()
-	return &tagResults{
-		statusCode:  r.statusCode,
-		statusMsg:   r.statusMsg,
-		err:         r.err,
-		response:    response,
-		marshallErr: err,
-	}
-}
-
-/*func newTagResultCollector(ctx context.Context, factory tagResultHandlerFactory, limit int) *tagResultCollector { // jpe - covered by combine
-	return &tagResultCollector{
-		statusCode: http.StatusOK,
-		ctx:        ctx,
-		delegate:   factory(limit),
-	}
-}*/
 
 type searchTagSharder struct {
 	next      pipeline.AsyncRoundTripper[*http.Response]
@@ -268,9 +181,6 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.R
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	// jpe - cleanup - note that max bytes is a per tenant setting
-	// handler := newTagResultCollector(requestCtx, s.tagShardHandlerFactory, s.overrides.MaxBytesPerTagValuesQuery(tenantID))
-
 	searchReq, err := s.parseRequest(r)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
@@ -304,40 +214,6 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.R
 
 	// execute requests
 	return pipeline.NewAsyncSharderChan(s.cfg.ConcurrentRequests, reqCh, nil, s.next), nil
-
-	/* jpe - make sure this is captured
-	overallResponse := handler.Result()
-
-	if overallResponse.err != nil {
-		return nil, overallResponse.err
-	}
-
-	if overallResponse.statusCode != http.StatusOK {
-		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
-		// it means that we created a bad request. 400 should not be propagated back to the user b/c
-		// the bad request was due to a bug on our side, so return 500 instead.
-		return &http.Response{
-			StatusCode: http.StatusInternalServerError,
-			Header:     http.Header{},
-			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
-		}, nil
-	}
-
-	if overallResponse.marshallErr != nil {
-		return nil, overallResponse.marshallErr
-	}
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header: http.Header{
-			api.HeaderContentType: {api.HeaderAcceptJSON},
-		},
-		Body:          io.NopCloser(strings.NewReader(overallResponse.response)),
-		ContentLength: int64(len([]byte(overallResponse.response))),
-	}
-
-	return resp, nil
-	*/
 }
 
 // blockMetas returns all relevant blockMetas given a start/end

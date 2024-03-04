@@ -148,7 +148,6 @@ func (q *QueryFrontend) SearchTags(req *tempopb.SearchTagsRequest, srv tempopb.S
 	return q.streamingTags(req, srv)
 }
 
-// jpe - create these
 func (q *QueryFrontend) SearchTagsV2(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
 	return q.streamingTagsV2(req, srv)
 }
