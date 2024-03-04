@@ -35,6 +35,10 @@ func (r *tagsSearchRequest) hash() uint64 {
 	return fnv1a.HashString64(r.request.Scope)
 }
 
+func (r *tagsSearchRequest) keyPrefix() string {
+	return cacheKeyPrefixSearchTag
+}
+
 func (r *tagsSearchRequest) newWithRange(start, end uint32) tagSearchReq {
 	newReq := r.request
 	newReq.Start = start
@@ -91,6 +95,10 @@ func (r *tagValueSearchRequest) hash() uint64 {
 	hash = fnv1a.AddString64(hash, r.request.Query)
 
 	return hash
+}
+
+func (r *tagValueSearchRequest) keyPrefix() string {
+	return cacheKeyPrefixSearchTagValues
 }
 
 func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
@@ -153,9 +161,10 @@ type tagSearchReq interface {
 	buildSearchTagRequest(subR *http.Request) (*http.Request, error)
 	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
 
-	// hash for calculating cache keys. this hash should NOT use the start/end ranges of the request and
+	// funcs for calculating cache keys. this hash should NOT use the start/end ranges of the request and
 	// should only be based on the content the request is searching for
 	hash() uint64
+	keyPrefix() string
 }
 
 type searchTagSharder struct {
@@ -279,6 +288,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 	defer close(reqCh)
 
 	hash := searchReq.hash()
+	keyPrefix := searchReq.keyPrefix()
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
@@ -297,7 +307,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 			}
 			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
 
-			key := cacheKeyForJob(hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
+			key := cacheKey(keyPrefix, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
 			if len(key) > 0 {
 				subR = pipeline.AddCacheKey(key, subR)
 			}
