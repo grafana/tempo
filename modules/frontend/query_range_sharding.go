@@ -112,9 +112,10 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	samplingRate := s.samplingRate(expr)
-	targetBytesPerRequest := s.jobSize(tenantID, expr, samplingRate)
-	interval := s.jobInterval(tenantID, expr)
+	allowUnsafe := s.overrides.UnsafeQueryHints(tenantID)
+	samplingRate := s.samplingRate(expr, allowUnsafe)
+	targetBytesPerRequest := s.jobSize(expr, samplingRate, allowUnsafe)
+	interval := s.jobInterval(expr, allowUnsafe)
 
 	generatorReq = s.generatorRequest(*queryRangeReq, samplingRate)
 
@@ -441,9 +442,9 @@ func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 	return s.cfg.MaxDuration
 }
 
-func (s *queryRangeSharder) samplingRate(expr *traceql.RootExpr) float64 {
+func (s *queryRangeSharder) samplingRate(expr *traceql.RootExpr, allowUnsafe bool) float64 {
 	samplingRate := 1.0
-	if ok, v := expr.Hints.GetFloat(traceql.HintSample); ok {
+	if ok, v := expr.Hints.GetFloat(traceql.HintSample, allowUnsafe); ok {
 		if v > 0 && v < 1.0 {
 			samplingRate = v
 		}
@@ -451,12 +452,10 @@ func (s *queryRangeSharder) samplingRate(expr *traceql.RootExpr) float64 {
 	return samplingRate
 }
 
-func (s *queryRangeSharder) jobSize(userID string, expr *traceql.RootExpr, samplingRate float64) int {
+func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, samplingRate float64, allowUnsafe bool) int {
 	// If we have a query hint then use it
-	if s.overrides.UnsafeQueryHints(userID) {
-		if ok, v := expr.Hints.GetInt("target_bytes_per_request"); ok && v > 0 {
-			return v
-		}
+	if ok, v := expr.Hints.GetInt(traceql.HintJobSize, allowUnsafe); ok && v > 0 {
+		return v
 	}
 
 	// Else use configured value.
@@ -478,12 +477,10 @@ func (s *queryRangeSharder) jobSize(userID string, expr *traceql.RootExpr, sampl
 	return size
 }
 
-func (s *queryRangeSharder) jobInterval(userID string, expr *traceql.RootExpr) time.Duration {
+func (s *queryRangeSharder) jobInterval(expr *traceql.RootExpr, allowUnsafe bool) time.Duration {
 	// If we have a query hint then use it
-	if s.overrides.UnsafeQueryHints(userID) {
-		if ok, v := expr.Hints.GetDuration("interval"); ok && v > 0 {
-			return v
-		}
+	if ok, v := expr.Hints.GetDuration(traceql.HintJobInterval, allowUnsafe); ok && v > 0 {
+		return v
 	}
 
 	// Else use configured value

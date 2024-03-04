@@ -359,13 +359,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	}
 
 	timeOverlapCutoff := 0.2
-	if allowUnsafeQueryHints {
-		if ok, v := expr.Hints.GetFloat("time_overlap_cutoff"); ok && v >= 0 && v <= 1.0 {
-			timeOverlapCutoff = v
-		}
+	if ok, v := expr.Hints.GetFloat(HintTimeOverlapCutoff, allowUnsafeQueryHints); ok && v >= 0 && v <= 1.0 {
+		timeOverlapCutoff = v
 	}
 
-	if ok, v := expr.Hints.GetBool(HintDedupe); ok {
+	if ok, v := expr.Hints.GetBool(HintDedupe, allowUnsafeQueryHints); ok {
 		dedupeSpans = v
 	}
 

@@ -88,15 +88,14 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, err
+	}
+
 	concurrency := 2
-	if unsafe {
-		expr, err := traceql.Parse(req.Query)
-		if err != nil {
-			return nil, err
-		}
-		if ok, v := expr.Hints.GetInt("block_concurrency"); ok && v > 0 && v < 100 {
-			concurrency = v
-		}
+	if ok, v := expr.Hints.GetInt(traceql.HintBlockConcurrency, unsafe); ok && v > 0 && v < 100 {
+		concurrency = v
 	}
 
 	wg := boundedwaitgroup.New(uint(concurrency))
