@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Search    SearchConfig    `yaml:"search"`
 	TraceByID TraceByIDConfig `yaml:"trace_by_id"`
+	Metrics   MetricsConfig   `yaml:"metrics"`
 
 	ExtraQueryDelay        time.Duration `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries   int           `yaml:"max_concurrent_queries"`
@@ -43,6 +44,10 @@ type TraceByIDConfig struct {
 	QueryTimeout time.Duration `yaml:"query_timeout"`
 }
 
+type MetricsConfig struct {
+	BlockConcurrency int `yaml:"block_concurrency,omitempty"`
+}
+
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceByID.QueryTimeout = 10 * time.Second
@@ -53,6 +58,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search.HedgeRequestsAt = 8 * time.Second
 	cfg.Search.HedgeRequestsUpTo = 2
 	cfg.Search.QueryTimeout = 30 * time.Second
+	cfg.Metrics.BlockConcurrency = 2
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,
