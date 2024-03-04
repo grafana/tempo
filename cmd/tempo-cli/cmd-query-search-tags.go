@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// jpe - docs
 type querySearchTagsCmd struct {
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
 	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
