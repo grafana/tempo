@@ -66,7 +66,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 	}
 }
 
-// streamingTags abstracts the boilerplate for streaming tags and tag values - jpe SLOs
+// streamingTags abstracts the boilerplate for streaming tags and tag values
 func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	next pipeline.AsyncRoundTripper[*http.Response],
 	req TReq,
