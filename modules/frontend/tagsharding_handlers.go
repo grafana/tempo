@@ -8,111 +8,12 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
 )
-
-/* tagsSearchRequest request interface for transform tags and tags V2 requests into a querier request */
-type tagsSearchRequest struct {
-	request tempopb.SearchTagsRequest
-}
-
-func (r *tagsSearchRequest) start() uint32 {
-	return r.request.Start
-}
-
-func (r *tagsSearchRequest) end() uint32 {
-	return r.request.End
-}
-
-func (r *tagsSearchRequest) newWithRange(start, end uint32) tagSearchReq {
-	newReq := r.request
-	newReq.Start = start
-	newReq.End = end
-
-	return &tagsSearchRequest{
-		request: newReq,
-	}
-}
-
-func (r *tagsSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
-	return api.BuildSearchTagsRequest(subR, &r.request)
-}
-
-func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,
-	startPage int, pages int, m *backend.BlockMeta,
-) (*http.Request, error) {
-	return api.BuildSearchTagsBlockRequest(subR, &tempopb.SearchTagsBlockRequest{
-		BlockID:       blockID,
-		StartPage:     uint32(startPage),
-		PagesToSearch: uint32(pages),
-		Encoding:      m.Encoding.String(),
-		IndexPageSize: m.IndexPageSize,
-		TotalRecords:  m.TotalRecords,
-		DataEncoding:  m.DataEncoding,
-		Version:       m.Version,
-		Size_:         m.Size,
-		FooterSize:    m.FooterSize,
-	})
-}
-
-/* TagValue V2 handler and request implementation */
-type tagValueSearchRequest struct {
-	request tempopb.SearchTagValuesRequest
-}
-
-func (r *tagValueSearchRequest) start() uint32 {
-	return r.request.Start
-}
-
-func (r *tagValueSearchRequest) end() uint32 {
-	return r.request.End
-}
-
-func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
-	newReq := r.request
-	newReq.Start = start
-	newReq.End = end
-
-	return &tagValueSearchRequest{
-		request: newReq,
-	}
-}
-
-func (r *tagValueSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
-	return api.BuildSearchTagValuesRequest(subR, &r.request)
-}
-
-func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,
-	startPage int, pages int, m *backend.BlockMeta,
-) (*http.Request, error) {
-	return api.BuildSearchTagValuesBlockRequest(subR, &tempopb.SearchTagValuesBlockRequest{
-		BlockID:       blockID,
-		StartPage:     uint32(startPage),
-		PagesToSearch: uint32(pages),
-		Encoding:      m.Encoding.String(),
-		IndexPageSize: m.IndexPageSize,
-		TotalRecords:  m.TotalRecords,
-		DataEncoding:  m.DataEncoding,
-		Version:       m.Version,
-		Size_:         m.Size,
-		FooterSize:    m.FooterSize,
-	})
-}
 
 // tagsResultsHandler handled all request/response payloads for querier and for return to frontend for tags.
 type tagsResultsHandler struct {
 	limit           int
 	resultsCombiner *util.DistinctStringCollector
-}
-
-func parseTagsRequest(r *http.Request) (tagSearchReq, error) {
-	searchReq, err := api.ParseSearchTagsRequest(r)
-	if err != nil {
-		return nil, err
-	}
-	return &tagsSearchRequest{
-		request: *searchReq,
-	}, nil
 }
 
 func (h *tagsResultsHandler) shouldQuit() bool {

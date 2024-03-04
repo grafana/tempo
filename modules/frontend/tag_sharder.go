@@ -17,10 +17,116 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
 )
+
+/* tagsSearchRequest request interface for transform tags and tags V2 requests into a querier request */
+type tagsSearchRequest struct {
+	request tempopb.SearchTagsRequest
+}
+
+func (r *tagsSearchRequest) start() uint32 {
+	return r.request.Start
+}
+
+func (r *tagsSearchRequest) end() uint32 {
+	return r.request.End
+}
+
+func (r *tagsSearchRequest) newWithRange(start, end uint32) tagSearchReq {
+	newReq := r.request
+	newReq.Start = start
+	newReq.End = end
+
+	return &tagsSearchRequest{
+		request: newReq,
+	}
+}
+
+func (r *tagsSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
+	return api.BuildSearchTagsRequest(subR, &r.request)
+}
+
+func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,
+	startPage int, pages int, m *backend.BlockMeta,
+) (*http.Request, error) {
+	return api.BuildSearchTagsBlockRequest(subR, &tempopb.SearchTagsBlockRequest{
+		BlockID:       blockID,
+		StartPage:     uint32(startPage),
+		PagesToSearch: uint32(pages),
+		Encoding:      m.Encoding.String(),
+		IndexPageSize: m.IndexPageSize,
+		TotalRecords:  m.TotalRecords,
+		DataEncoding:  m.DataEncoding,
+		Version:       m.Version,
+		Size_:         m.Size,
+		FooterSize:    m.FooterSize,
+	})
+}
+
+/* TagValue V2 handler and request implementation */
+type tagValueSearchRequest struct {
+	request tempopb.SearchTagValuesRequest
+}
+
+func (r *tagValueSearchRequest) start() uint32 {
+	return r.request.Start
+}
+
+func (r *tagValueSearchRequest) end() uint32 {
+	return r.request.End
+}
+
+func (r *tagValueSearchRequest) newWithRange(start, end uint32) tagSearchReq {
+	newReq := r.request
+	newReq.Start = start
+	newReq.End = end
+
+	return &tagValueSearchRequest{
+		request: newReq,
+	}
+}
+
+/*
+  jpe - need handler?
+      - add logging like on search request
+	  - grpc/proto
+	  - add cache key?
+*/
+
+func (r *tagValueSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
+	return api.BuildSearchTagValuesRequest(subR, &r.request)
+}
+
+func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,
+	startPage int, pages int, m *backend.BlockMeta,
+) (*http.Request, error) {
+	return api.BuildSearchTagValuesBlockRequest(subR, &tempopb.SearchTagValuesBlockRequest{
+		BlockID:       blockID,
+		StartPage:     uint32(startPage),
+		PagesToSearch: uint32(pages),
+		Encoding:      m.Encoding.String(),
+		IndexPageSize: m.IndexPageSize,
+		TotalRecords:  m.TotalRecords,
+		DataEncoding:  m.DataEncoding,
+		Version:       m.Version,
+		Size_:         m.Size,
+		FooterSize:    m.FooterSize,
+	})
+}
+
+func parseTagsRequest(r *http.Request) (tagSearchReq, error) {
+	searchReq, err := api.ParseSearchTagsRequest(r)
+	if err != nil {
+		return nil, err
+	}
+	return &tagsSearchRequest{
+		request: *searchReq,
+	}, nil
+}
 
 type tagResultsHandler interface {
 	shouldQuit() bool
