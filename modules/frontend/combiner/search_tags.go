@@ -13,7 +13,7 @@ var (
 // jpe do something with all these limitBytes
 func NewSearchTags(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
+	d := util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
 
 	return &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -28,6 +28,9 @@ func NewSearchTags(limitBytes int) Combiner {
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			response.TagNames = d.Values()
 			return response, nil
+		},
+		quit: func(_ *tempopb.SearchTagsResponse) bool {
+			return d.Exceeded()
 		},
 	}
 }
@@ -48,8 +51,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			for _, res := range partial.GetScopes() {
 				dvc := distinctValues[res.Name]
 				if dvc == nil {
-					// no limit collector to collect scope values
-					dvc = util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
+					dvc = util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
 					distinctValues[res.Name] = dvc
 				}
 				for _, tag := range res.Tags {
@@ -68,6 +70,14 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 				})
 			}
 			return final, nil
+		},
+		quit: func(_ *tempopb.SearchTagsV2Response) bool {
+			for _, dvc := range distinctValues {
+				if dvc.Exceeded() {
+					return true
+				}
+			}
+			return false
 		},
 	}
 }

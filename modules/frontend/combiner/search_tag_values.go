@@ -10,10 +10,9 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagValuesV2Response] = (*genericCombiner[*tempopb.SearchTagValuesV2Response])(nil)
 )
 
-// jpe - do something with all these limit bytes
 func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
+	d := util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
 
 	return &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
@@ -38,7 +37,7 @@ func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValu
 
 func NewSearchTagValuesV2(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ tempopb.TagValue) int { return 0 })
+	d := util.NewDistinctValueCollector(limitBytes, func(_ tempopb.TagValue) int { return 0 })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		current: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
