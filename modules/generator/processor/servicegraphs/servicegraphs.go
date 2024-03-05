@@ -330,7 +330,7 @@ func (p *Processor) spanFailed(span *v1_trace.Span) bool {
 }
 
 func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
-	// handling potential underflow of unit64s substraction
+	// handling potential underflow of unit64s subtraction
 	diff := int64(unixNanoEnd) - int64(unixNanoStart)
 	return float64(diff) / float64(time.Second.Nanoseconds())
 }
