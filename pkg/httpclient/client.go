@@ -313,7 +313,7 @@ func (c *Client) buildTagsV2QueryURL(start int64, end int64) string {
 }
 
 func (c *Client) buildTagValuesV2QueryURL(key string, start int64, end int64) string {
-	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values`, "key")
+	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values`, key)
 	joinURL, _ := url.Parse(c.BaseURL + urlPath + "?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {

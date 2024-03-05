@@ -185,6 +185,4 @@ func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) 
 		"range_seconds", req.End-req.Start,
 		"limit", req.Limit,
 		"spans_per_spanset", req.SpansPerSpanSet)
-
-	return
 }

@@ -50,6 +50,7 @@ func (cmd *querySearchTagValuesCmd) Run(_ *globalOptions) error {
 	return cmd.searchHTTP(start, end)
 }
 
+// nolint: goconst // goconst wants us to make http:// a const
 func (cmd *querySearchTagValuesCmd) searchHTTP(start, end int64) error {
 	if cmd.PathPrefix != "" {
 		cmd.HostPort = path.Join(cmd.HostPort, cmd.PathPrefix)
