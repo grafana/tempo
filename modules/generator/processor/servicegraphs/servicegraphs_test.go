@@ -28,6 +28,7 @@ func TestServiceGraphs(t *testing.T) {
 
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableMessagingSystemLatencyHistogram = true
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
