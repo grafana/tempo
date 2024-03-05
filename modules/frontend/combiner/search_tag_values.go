@@ -28,6 +28,9 @@ func NewSearchTagValues(limitBytes int) Combiner {
 			final.TagValues = d.Strings()
 			return final, nil
 		},
+		quit: func(_ *tempopb.SearchTagValuesResponse) bool {
+			return d.Exceeded()
+		},
 	}
 }
 
@@ -56,6 +59,9 @@ func NewSearchTagValuesV2(limitBytes int) Combiner {
 				final.TagValues = append(final.TagValues, &v2)
 			}
 			return final, nil
+		},
+		quit: func(_ *tempopb.SearchTagValuesV2Response) bool {
+			return d.Exceeded()
 		},
 	}
 }

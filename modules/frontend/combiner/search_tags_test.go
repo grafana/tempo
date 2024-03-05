@@ -1,252 +1,160 @@
 package combiner
 
-/* jpe - restore
 import (
-	"bytes"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"sort"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/grafana/tempo/pkg/api"
+	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTagsResultsHandler(t *testing.T) {
-	start := uint32(100)
-	end := uint32(200)
-	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
-	bm.StartTime = time.Unix(int64(start), 0)
-	bm.EndTime = time.Unix(int64(end), 0)
-	bm.Size = defaultTargetBytesPerRequest * 2
-	bm.TotalRecords = 2
-
-	encodingURLPart := "&dataEncoding=asdf&encoding=gzip&end=200&"
-	totalRecordsURLPart := "totalRecords=2&version=wdwad"
-	blockIDURLPart := "blockID="
-
 	tests := []struct {
-		name                 string
-		request              string
-		factory              tagResultHandlerFactory
-		result1              string
-		result2              string
-		wrongResult          string
-		expectedResult       string
-		expectedReq          func(r *http.Request) *http.Request
-		expectedBlockURL     string
-		overflowRes1         string
-		overflowRes2         string
-		limit                int
-		assertResultFunction func(t *testing.T, result, expected string)
-		parseRequestFunction parseRequestFunction
+		name               string
+		factory            func(int) Combiner
+		limit              int
+		result1            proto.Message
+		result2            proto.Message
+		expectedResult     proto.Message
+		expectedShouldQuit bool
+
+		actualResult proto.Message       // provides a way for the test runner to unmarshal the response
+		sort         func(proto.Message) // the results are based on non-deterministic map iteration, provides a way for the runner to sort the results for comparison
+
 	}{
 		{
-			name:           "TagsResultHandler",
-			factory:        tagsResultHandlerFactory,
-			request:        "/?start=100&end=200",
-			result1:        "{ \"tagNames\":[\"tag1\"]}",
-			result2:        "{ \"tagNames\":[\"tag2\",\"tag3\"]}",
-			expectedResult: "{\"tagNames\":[\"tag1\",\"tag2\",\"tag3\"]}",
-			expectedReq: func(r *http.Request) *http.Request {
-				expectedReq, _ := api.BuildSearchTagsRequest(r, &tempopb.SearchTagsRequest{
-					Scope: "all",
-					Start: start,
-					End:   end,
-				})
-				return expectedReq
-			},
-			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
-				"footerSize=0&indexPageSize=0&pagesToSearch=1&scope=all&size=209715200&start=100&startPage=0&" +
-				totalRecordsURLPart,
-			overflowRes1: "{ \"tagNames\":[\"tag1\"]}",
-			overflowRes2: "{ \"tagNames\":[\"tag2\"]}",
-			limit:        5,
-			assertResultFunction: func(t *testing.T, result, expected string) {
-				resultStruct := tempopb.SearchTagsResponse{}
-				expectedStruct := tempopb.SearchTagsResponse{}
-
-				err := json.Unmarshal([]byte(result), &resultStruct)
-				require.NoError(t, err)
-				err = json.Unmarshal([]byte(expected), &expectedStruct)
-				require.NoError(t, err)
-
-				sort.Strings(expectedStruct.TagNames)
-				sort.Strings(resultStruct.TagNames)
-				assert.Equal(t, expectedStruct, resultStruct)
-			},
-			parseRequestFunction: parseTagsRequest,
+			name:           "SearchTags",
+			factory:        NewSearchTags,
+			result1:        &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}},
+			result2:        &tempopb.SearchTagsResponse{TagNames: []string{"tag2", "tag3"}},
+			expectedResult: &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2", "tag3"}},
+			actualResult:   &tempopb.SearchTagsResponse{},
+			sort:           func(m proto.Message) { sort.Strings(m.(*tempopb.SearchTagsResponse).TagNames) },
+			limit:          100,
 		},
 		{
-			name:           "TagValuesResultHandler",
-			factory:        tagValuesResultHandlerFactory,
-			request:        "/?start=100&end=200",
-			result1:        "{ \"tagValues\":[\"tag1\"]}",
-			result2:        "{ \"tagValues\":[\"tag2\",\"tag3\"]}",
-			expectedResult: "{\"tagValues\":[\"tag1\",\"tag2\",\"tag3\"]}",
-			expectedReq: func(r *http.Request) *http.Request {
-				expectedReq, _ := api.BuildSearchTagValuesRequest(r, &tempopb.SearchTagValuesRequest{
-					Start: start,
-					End:   end,
+			name:           "SearchTagsV2",
+			factory:        NewSearchTagsV2,
+			result1:        &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"v1"}}}},
+			result2:        &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"v2", "v1"}}}},
+			expectedResult: &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"v1", "v2"}}}},
+			actualResult:   &tempopb.SearchTagsV2Response{},
+			sort: func(m proto.Message) {
+				scopes := m.(*tempopb.SearchTagsV2Response).Scopes
+				for _, scope := range scopes {
+					sort.Strings(scope.Tags)
+				}
+				sort.Slice(scopes, func(i, j int) bool {
+					return scopes[i].Name < scopes[j].Name
 				})
-				return expectedReq
 			},
-			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
-				"footerSize=0&indexPageSize=0&pagesToSearch=1&q=&size=209715200&start=100&startPage=0&" +
-				totalRecordsURLPart,
-			overflowRes1: "{ \"tagValues\":[\"tag1\"]}",
-			overflowRes2: "{ \"tagValues\":[\"tag2\"]}",
-			limit:        5,
-			assertResultFunction: func(t *testing.T, result, expected string) {
-				resultStruct := tempopb.SearchTagValuesResponse{}
-				expectedStruct := tempopb.SearchTagValuesResponse{}
-
-				err := json.Unmarshal([]byte(result), &resultStruct)
-				require.NoError(t, err)
-				err = json.Unmarshal([]byte(expected), &expectedStruct)
-				require.NoError(t, err)
-
-				sort.Strings(expectedStruct.TagValues)
-				sort.Strings(resultStruct.TagValues)
-				assert.Equal(t, expectedStruct, resultStruct)
-			},
-			parseRequestFunction: parseTagValuesRequest,
+			limit: 100,
 		},
 		{
-			name:           "TagValuesV2ResultHandler",
-			request:        "/.service.name/?start=100&end=200",
-			factory:        tagValuesV2ResultHandlerFactory,
-			result1:        "{\"tagValues\":[{\"type\":\"string\",\"value\":\"v1\"}]}",
-			result2:        "{\"tagValues\":[{\"type\":\"string\",\"value\":\"v2\"},{\"type\":\"string\",\"value\":\"v3\"}]}",
-			expectedResult: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"v1\"},{\"type\":\"string\",\"value\":\"v2\"},{\"type\":\"string\",\"value\":\"v3\"}]}",
-			expectedReq: func(r *http.Request) *http.Request {
-				expectedReq, _ := api.BuildSearchTagValuesRequest(r, &tempopb.SearchTagValuesRequest{
-					Start: start,
-					End:   end,
-				})
-				return expectedReq
-			},
-			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
-				"footerSize=0&indexPageSize=0&pagesToSearch=1&q=&size=209715200&start=100&startPage=0&" +
-				totalRecordsURLPart,
-			overflowRes1: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"tag1\"}]}",
-			overflowRes2: "{\"tagValues\":[{\"type\":\"string\",\"value\":\"tag2\"}]}",
-			limit:        15,
-			assertResultFunction: func(t *testing.T, result, expected string) {
-				resultStruct := tempopb.SearchTagValuesV2Response{}
-				expectedStruct := tempopb.SearchTagValuesV2Response{}
-
-				err := json.Unmarshal([]byte(result), &resultStruct)
-				require.NoError(t, err)
-				err = json.Unmarshal([]byte(expected), &expectedStruct)
-				require.NoError(t, err)
-
-				sort.SliceStable(resultStruct.TagValues, func(i, j int) bool {
-					return resultStruct.TagValues[i].Value < resultStruct.TagValues[j].Value
-				})
-
-				sort.SliceStable(expectedStruct.TagValues, func(i, j int) bool {
-					return expectedStruct.TagValues[i].Value < expectedStruct.TagValues[j].Value
-				})
-
-				assert.Equal(t, expectedStruct, resultStruct)
-			},
-			parseRequestFunction: parseTagValuesRequest,
+			name:           "SearchTagValues",
+			factory:        NewSearchTagValues,
+			result1:        &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}},
+			result2:        &tempopb.SearchTagValuesResponse{TagValues: []string{"tag2", "tag3"}},
+			expectedResult: &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2", "tag3"}},
+			actualResult:   &tempopb.SearchTagValuesResponse{},
+			sort:           func(m proto.Message) { sort.Strings(m.(*tempopb.SearchTagValuesResponse).TagValues) },
+			limit:          100,
 		},
 		{
-			name:           "TagsV2ResultHandler",
-			request:        "/.service.name/?start=100&end=200",
-			factory:        tagsV2ResultHandlerFactory,
-			result1:        "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"v1\"]}]}",
-			result2:        "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"v1\",\"v2\"]}]}",
-			expectedResult: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"v1\",\"v2\"]}]}",
-			expectedReq: func(r *http.Request) *http.Request {
-				expectedReq, _ := api.BuildSearchTagValuesRequest(r, &tempopb.SearchTagValuesRequest{
-					Start: start,
-					End:   end,
+			name:           "SearchTagValuesV2",
+			factory:        NewSearchTagValuesV2,
+			result1:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}},
+			result2:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v2", Type: "string"}, {Value: "v3", Type: "string"}}},
+			expectedResult: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}, {Value: "v3", Type: "string"}}},
+			actualResult:   &tempopb.SearchTagValuesV2Response{},
+			sort: func(m proto.Message) {
+				sort.Slice(m.(*tempopb.SearchTagValuesV2Response).TagValues, func(i, j int) bool {
+					return m.(*tempopb.SearchTagValuesV2Response).TagValues[i].Value < m.(*tempopb.SearchTagValuesV2Response).TagValues[j].Value
 				})
-				return expectedReq
 			},
-			expectedBlockURL: blockIDURLPart + bm.BlockID.String() + encodingURLPart +
-				"footerSize=0&indexPageSize=0&pagesToSearch=1&q=&scope=&size=209715200&start=100&startPage=0&" +
-				totalRecordsURLPart,
-			overflowRes1: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"tag1\"]}]}",
-			overflowRes2: "{\"scopes\":[{\"name\":\"scope1\",\"tags\":[\"tag2\"]}]}",
-			limit:        5,
-			assertResultFunction: func(t *testing.T, result, expected string) {
-				resultStruct := tempopb.SearchTagsV2Response{}
-				expectedStruct := tempopb.SearchTagsV2Response{}
-
-				err := json.Unmarshal([]byte(result), &resultStruct)
-				require.NoError(t, err)
-				err = json.Unmarshal([]byte(expected), &expectedStruct)
-				require.NoError(t, err)
-
-				sort.Strings(resultStruct.Scopes[0].Tags)
-				sort.Strings(expectedStruct.Scopes[0].Tags)
-
-				assert.Equal(t, expectedStruct, resultStruct)
+			limit: 100,
+		},
+		// limits
+		{
+			name:               "SearchTags - limited",
+			factory:            NewSearchTags,
+			result1:            &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}},
+			result2:            &tempopb.SearchTagsResponse{TagNames: []string{"tag2", "tag3"}},
+			expectedResult:     &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}},
+			actualResult:       &tempopb.SearchTagsResponse{},
+			sort:               func(m proto.Message) { sort.Strings(m.(*tempopb.SearchTagsResponse).TagNames) },
+			expectedShouldQuit: true,
+			limit:              5,
+		},
+		{
+			name:           "SearchTagsV2 - limited",
+			factory:        NewSearchTagsV2,
+			result1:        &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"v1"}}}},
+			result2:        &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"v2", "v1"}}}},
+			expectedResult: &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"v1"}}}},
+			actualResult:   &tempopb.SearchTagsV2Response{},
+			sort: func(m proto.Message) {
+				scopes := m.(*tempopb.SearchTagsV2Response).Scopes
+				for _, scope := range scopes {
+					sort.Strings(scope.Tags)
+				}
+				sort.Slice(scopes, func(i, j int) bool {
+					return scopes[i].Name < scopes[j].Name
+				})
 			},
-			parseRequestFunction: parseTagsRequest,
+			expectedShouldQuit: true,
+			limit:              2,
+		},
+		{
+			name:               "SearchTagValues - limited",
+			factory:            NewSearchTagValues,
+			result1:            &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}},
+			result2:            &tempopb.SearchTagValuesResponse{TagValues: []string{"tag2", "tag3"}},
+			expectedResult:     &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}},
+			actualResult:       &tempopb.SearchTagValuesResponse{},
+			sort:               func(m proto.Message) { sort.Strings(m.(*tempopb.SearchTagValuesResponse).TagValues) },
+			expectedShouldQuit: true,
+			limit:              5,
+		},
+		{
+			name:           "SearchTagValuesV2 - limited",
+			factory:        NewSearchTagValuesV2,
+			result1:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}},
+			result2:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v2", Type: "string"}, {Value: "v3", Type: "string"}}},
+			expectedResult: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}},
+			actualResult:   &tempopb.SearchTagValuesV2Response{},
+			sort: func(m proto.Message) {
+				sort.Slice(m.(*tempopb.SearchTagValuesV2Response).TagValues, func(i, j int) bool {
+					return m.(*tempopb.SearchTagValuesV2Response).TagValues[i].Value < m.(*tempopb.SearchTagValuesV2Response).TagValues[j].Value
+				})
+			},
+			expectedShouldQuit: true,
+			limit:              10,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", tc.request, nil)
-			r = mux.SetURLVars(r, map[string]string{
-				"tagName": "service.name",
-			})
+			combiner := tc.factory(tc.limit)
 
-			handler := tc.factory(100)
-
-			err := handler.addResponse(io.NopCloser(bytes.NewBufferString("{}")))
+			err := combiner.AddResponse(toHTTPResponse(t, tc.result1, 200), "")
 			assert.NoError(t, err)
 
-			err = handler.addResponse(io.NopCloser(bytes.NewBufferString(tc.result1)))
+			err = combiner.AddResponse(toHTTPResponse(t, tc.result2, 200), "")
 			assert.NoError(t, err)
 
-			err = handler.addResponse(io.NopCloser(bytes.NewBufferString(tc.result2)))
-			assert.NoError(t, err)
-
-			err = handler.addResponse(io.NopCloser(bytes.NewBufferString("{ ]}")))
-			assert.Error(t, err)
-
-			res, err := handler.marshalResult()
-			require.NoError(t, err)
-			tc.assertResultFunction(t, tc.expectedResult, res)
-
-			// Test parse request
-			req, err := tc.parseRequestFunction(r)
-			require.NoError(t, err)
-			assert.Equal(t, start, req.start())
-			assert.Equal(t, end, req.end())
-
-			// Test build
-			backReq, err := req.buildSearchTagRequest(r)
-			assert.NoError(t, err)
-
-			assert.Equal(t, backReq, tc.expectedReq(r))
-
-			blockReq, _ := req.buildTagSearchBlockRequest(r, bm.BlockID.String(), 0, 1, bm)
-			assert.Equal(t, tc.expectedBlockURL, blockReq.URL.RawQuery)
-
-			handlerOverflow := tc.factory(tc.limit)
-			err = handlerOverflow.addResponse(io.NopCloser(bytes.NewBufferString(tc.overflowRes1)))
+			res, err := combiner.HTTPFinal()
 			require.NoError(t, err)
 
-			assert.Equal(t, false, handlerOverflow.shouldQuit())
-			err = handlerOverflow.addResponse(io.NopCloser(bytes.NewBufferString(tc.overflowRes2)))
-			require.NoError(t, err)
-			assert.Equal(t, true, handlerOverflow.shouldQuit())
+			assert.Equal(t, 200, res.StatusCode)
+			assert.Equal(t, tc.expectedShouldQuit, combiner.ShouldQuit())
+			assert.Equal(t, 200, combiner.StatusCode())
+
+			fromHTTPResponse(t, res, tc.actualResult)
+			tc.sort(tc.expectedResult)
+			tc.sort(tc.actualResult)
+			require.Equal(t, tc.expectedResult, tc.actualResult)
 		})
 	}
 }
-*/

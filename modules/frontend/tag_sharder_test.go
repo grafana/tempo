@@ -671,3 +671,29 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
 */
+
+/*
+	// Test parse request
+	req, err := tc.parseRequestFunction(r)
+	require.NoError(t, err)
+	assert.Equal(t, start, req.start())
+	assert.Equal(t, end, req.end())
+
+	// Test build
+	backReq, err := req.buildSearchTagRequest(r)
+	assert.NoError(t, err)
+
+	assert.Equal(t, backReq, tc.expectedReq(r))
+
+	blockReq, _ := req.buildTagSearchBlockRequest(r, bm.BlockID.String(), 0, 1, bm)
+	assert.Equal(t, tc.expectedBlockURL, blockReq.URL.RawQuery)
+
+	handlerOverflow := tc.factory(tc.limit)
+	err = handlerOverflow.addResponse(io.NopCloser(bytes.NewBufferString(tc.overflowRes1)))
+	require.NoError(t, err)
+
+	assert.Equal(t, false, handlerOverflow.shouldQuit())
+	err = handlerOverflow.addResponse(io.NopCloser(bytes.NewBufferString(tc.overflowRes2)))
+	require.NoError(t, err)
+	assert.Equal(t, true, handlerOverflow.shouldQuit())
+*/
