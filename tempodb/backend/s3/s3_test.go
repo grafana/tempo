@@ -449,6 +449,115 @@ func TestObjectWithPrefix(t *testing.T) {
 	}
 }
 
+func TestListBlocksWithPrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:    "with prefix",
+			prefix:  "a/b/c/",
+			keyPath: backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+							<Name>blerg</Name>
+							<Prefix>a/b/c</Prefix>
+							<ContinuationToken></ContinuationToken>
+							<KeyCount>2</KeyCount>
+							<MaxKeys>100</MaxKeys>
+							<EncodingType>url</EncodingType>
+							<IsTruncated>false</IsTruncated>
+							<Contents>
+								<Key>a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+							
+							<Contents>
+								<Key>a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+						</ListBucketResult>`))
+						return
+					}
+				}
+			},
+		},
+		{
+			name:    "without prefix",
+			prefix:  "",
+			keyPath: backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+							<Name>blerg</Name>
+							<Prefix></Prefix>
+							<ContinuationToken></ContinuationToken>
+							<KeyCount>2</KeyCount>
+							<MaxKeys>100</MaxKeys>
+							<EncodingType>url</EncodingType>
+							<IsTruncated>false</IsTruncated>
+							<Contents>
+								<Key>single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+							
+							<Contents>
+								<Key>single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+						</ListBucketResult>`))
+						return
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			r, _, _, err := New(&Config{
+				Region:                "blerg",
+				AccessKey:             "test",
+				SecretKey:             flagext.SecretWithValue("test"),
+				Bucket:                "blerg",
+				Prefix:                tc.prefix,
+				Insecure:              true,
+				Endpoint:              server.URL[7:],
+				ListBlocksConcurrency: 1,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, "single-tenant")
+			assert.NoError(t, err)
+
+			assert.Equal(t, 1, len(blockIDs))
+			assert.Equal(t, 1, len(compactedBlockIDs))
+		})
+	}
+}
+
 func TestObjectStorageClass(t *testing.T) {
 	tests := []struct {
 		name         string

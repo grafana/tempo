@@ -334,7 +334,7 @@ func (rw *readerWriter) ListBlocks(
 
 				for _, c := range res.Contents {
 					// i.e: <tenantID/<blockID>/meta
-					parts := strings.Split(c.Key, "/")
+					parts := strings.Split(strings.TrimPrefix(c.Key, rw.cfg.Prefix), "/")
 					if len(parts) != 3 {
 						continue
 					}
