@@ -1,59 +1,58 @@
 package frontend
 
-/* jpe - restore
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strconv"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
-	"go.uber.org/atomic"
+	//nolint:all deprecated
 
 	"github.com/go-kit/log"
-	"github.com/gogo/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type faceReq struct {
+type fakeReq struct {
 	startValue uint32
 	endValue   uint32
 }
 
-func (r *faceReq) start() uint32 {
+func (r *fakeReq) start() uint32 {
 	return r.startValue
 }
 
-func (r *faceReq) end() uint32 {
+func (r *fakeReq) end() uint32 {
 	return r.endValue
 }
 
-func (r *faceReq) newWithRange(start, end uint32) tagSearchReq {
-	return &faceReq{
+func (r *fakeReq) newWithRange(start, end uint32) tagSearchReq {
+	return &fakeReq{
 		startValue: start,
 		endValue:   end,
 	}
 }
 
-func (r *faceReq) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
+func (r *fakeReq) hash() uint64 {
+	return 0
+}
+
+func (r *fakeReq) keyPrefix() string {
+	return ""
+}
+
+func (r *fakeReq) buildSearchTagRequest(subR *http.Request) (*http.Request, error) {
 	newReq := subR.Clone(subR.Context())
 	q := subR.URL.Query()
 	q.Set("start", strconv.FormatUint(uint64(r.startValue), 10))
@@ -63,7 +62,7 @@ func (r *faceReq) buildSearchTagRequest(subR *http.Request) (*http.Request, erro
 	return newReq, nil
 }
 
-func (r *faceReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
+func (r *fakeReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
 	startPage int, pages int, _ *backend.BlockMeta,
 ) (*http.Request, error) {
 	newReq := subR.Clone(subR.Context())
@@ -153,25 +152,21 @@ func TestTagsBackendRequests(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			reqCh := make(chan *backendReqMsg)
-			req := faceReq{}
+			reqCh := make(chan *http.Request)
+			req := fakeReq{}
 			if tc.params != nil {
 				req.startValue = uint32(tc.params.start)
 				req.endValue = uint32(tc.params.end)
 
 			}
-			s.backendRequests(context.TODO(), "test", r, &req, reqCh, stopCh)
-			var actualErr error
+			s.backendRequests(context.TODO(), "test", r, &req, reqCh, func(err error) {
+				require.Equal(t, tc.expectedError, err)
+			})
+
 			actualReqURIs := []string{}
 			for r := range reqCh {
-				if r.err != nil {
-					actualErr = r.err
-				}
-				if r.req != nil {
-					actualReqURIs = append(actualReqURIs, r.req.RequestURI)
-				}
+				actualReqURIs = append(actualReqURIs, r.RequestURI)
 			}
-			require.Equal(t, tc.expectedError, actualErr)
 			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
 		})
 	}
@@ -261,7 +256,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 
 		req := httptest.NewRequest("GET", tc.request, nil)
 
-		searchReq := faceReq{
+		searchReq := fakeReq{
 			startValue: uint32(tc.start),
 			endValue:   uint32(tc.end),
 		}
@@ -285,368 +280,37 @@ func TestTagsIngesterRequest(t *testing.T) {
 	}
 }
 
-func TestTagsSearchSharderRoundTrip(t *testing.T) {
-	tests := []struct {
-		name             string
-		status1          int
-		status2          int
-		response1        *tempopb.SearchTagsResponse
-		response2        *tempopb.SearchTagsResponse
-		err1             error
-		err2             error
-		expectedStatus   int
-		expectedResponse *tempopb.SearchTagsResponse
-		expectedError    error
-	}{
-		{
-			name:             "empty returns",
-			status1:          200,
-			status2:          200,
-			expectedStatus:   200,
-			response1:        &tempopb.SearchTagsResponse{},
-			response2:        &tempopb.SearchTagsResponse{},
-			expectedResponse: &tempopb.SearchTagsResponse{},
-		},
-		{
-			name:           "404+200",
-			status1:        404,
-			status2:        200,
-			response2:      &tempopb.SearchTagsResponse{},
-			expectedStatus: 500,
-		},
-		{
-			name:           "200+400",
-			status1:        200,
-			response1:      &tempopb.SearchTagsResponse{},
-			status2:        400,
-			expectedStatus: 500,
-		},
-		{
-			name:           "500+404",
-			status1:        500,
-			status2:        404,
-			expectedStatus: 500,
-		},
-		{
-			name:           "404+500",
-			status1:        404,
-			status2:        500,
-			expectedStatus: 500,
-		},
-		{
-			name:           "500+200",
-			status1:        500,
-			status2:        200,
-			response2:      &tempopb.SearchTagsResponse{},
-			expectedStatus: 500,
-		},
-		{
-			name:           "200+500",
-			status1:        200,
-			response1:      &tempopb.SearchTagsResponse{},
-			status2:        500,
-			expectedStatus: 500,
-		},
-		{
-			name:    "200+200",
-			status1: 200,
-			response1: &tempopb.SearchTagsResponse{
-				TagNames: []string{
-					"tag1",
-					"tag2",
-					"tag3",
-					"tag4",
-				},
-			},
-			status2: 200,
-			response2: &tempopb.SearchTagsResponse{
-				TagNames: []string{
-					"tag1",
-					"tag3",
-					"tag5",
-				},
-			},
-			expectedStatus: 200,
-			expectedResponse: &tempopb.SearchTagsResponse{
-				TagNames: []string{
-					"tag1",
-					"tag2",
-					"tag3",
-					"tag4",
-					"tag5",
-				},
-			},
-		},
-		{
-			name:          "200+err",
-			status1:       200,
-			response1:     &tempopb.SearchTagsResponse{},
-			err2:          errors.New("booo"),
-			expectedError: errors.New("booo"),
-		},
-		{
-			name:          "err+200",
-			err1:          errors.New("booo"),
-			status2:       200,
-			response2:     &tempopb.SearchTagsResponse{},
-			expectedError: errors.New("booo"),
-		},
-		{
-			name:           "500+err",
-			status1:        500,
-			response1:      &tempopb.SearchTagsResponse{},
-			err2:           errors.New("booo"),
-			expectedStatus: 500,
-			expectedError:  errors.New("booo"),
-		},
-		{
-			name:          "err+500",
-			err1:          errors.New("booo"),
-			status2:       500,
-			response2:     &tempopb.SearchTagsResponse{},
-			expectedError: errors.New("booo"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				var response *tempopb.SearchTagsResponse
-				var statusCode int
-				var err error
-
-				if strings.Contains(r.RequestURI, "startPage=0") {
-					response = tc.response1
-					statusCode = tc.status1
-					err = tc.err1
-				} else {
-					response = tc.response2
-					err = tc.err2
-					statusCode = tc.status2
-				}
-
-				if err != nil {
-					return nil, err
-				}
-
-				var resString string
-				if response != nil {
-					resString, err = (&jsonpb.Marshaler{}).MarshalToString(response)
-					require.NoError(t, err)
-				}
-
-				return &http.Response{
-					Body:       io.NopCloser(strings.NewReader(resString)),
-					StatusCode: statusCode,
-				}, nil
-			})
-
-			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
-			require.NoError(t, err)
-
-			sharder := newTagsSharding(&mockReader{
-				metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
-					{
-						StartTime:    time.Unix(1100, 0),
-						EndTime:      time.Unix(1200, 0),
-						Size:         defaultTargetBytesPerRequest * 2,
-						TotalRecords: 2,
-						BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					},
-				},
-			}, o, SearchSharderConfig{
-				ConcurrentRequests:    1, // 1 concurrent request to force order
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, tagsResultHandlerFactory, log.NewNopLogger(), parseTagsRequest)
-			testRT := NewRoundTripper(next, sharder)
-
-			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
-			ctx := req.Context()
-			ctx = user.InjectOrgID(ctx, "blerg")
-			req = req.WithContext(ctx)
-
-			resp, err := testRT.RoundTrip(req)
-			if tc.expectedError != nil {
-				assert.Equal(t, tc.expectedError, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
-			if tc.expectedStatus == http.StatusOK {
-				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-			}
-			if tc.expectedResponse != nil {
-				actualResp := &tempopb.SearchTagsResponse{}
-				bytesResp, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
-				err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
-				require.NoError(t, err)
-
-				// We don't need to check on this metric
-				// actualResp.Metrics.TotalBlockBytes = 0
-
-				assert.Equal(t, tc.expectedResponse, actualResp)
-			}
-		})
-	}
-}
-
-func TestTagsSearchSubRequestsCancelled(t *testing.T) {
-	totalJobs := 5
-
-	wg := sync.WaitGroup{}
-	nextSuccess := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-		wg.Wait()
-
-		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchTagsResponse{
-			TagNames: []string{
-				test.RandomString(),
-			},
-		})
-		require.NoError(t, err)
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader(resString)),
-			StatusCode: 200,
-		}, nil
-	})
-
-	nextErr := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-		wg.Wait()
-
-		return nil, fmt.Errorf("error")
-	})
-
-	next500 := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-		wg.Wait()
-
-		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader("")),
-			StatusCode: 500,
-		}, nil
-	})
-
-	nextRequireCancelled := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		wg.Done()
-
-		ctx := r.Context()
-
-		select {
-		case <-ctx.Done():
-		case <-time.After(1 * time.Second):
-		}
-
-		if ctx.Err() == nil {
-			return nil, fmt.Errorf("context should have been cancelled")
-		}
-
-		// check and see if there's an error
-		return httptest.NewRecorder().Result(), nil
-	})
-
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
-	require.NoError(t, err)
-
-	sharder := newTagsSharding(&mockReader{
-		metas: []*backend.BlockMeta{
-			{
-				StartTime:    time.Unix(1100, 0),
-				EndTime:      time.Unix(1200, 0),
-				Size:         uint64(defaultTargetBytesPerRequest * totalJobs),
-				TotalRecords: uint32(totalJobs),
-				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-			},
-		},
-	}, o, SearchSharderConfig{
-		ConcurrentRequests:    10,
-		TargetBytesPerRequest: defaultTargetBytesPerRequest,
-		DefaultLimit:          2,
-	}, tagsResultHandlerFactory, log.NewNopLogger(), parseTagsRequest)
-
-	// return some things and assert the right subrequests are cancelled
-	// 500, err, limit
-	tcs := []struct {
-		name  string
-		nexts []pipeline.RoundTripperFunc
-	}{
-		{
-			name:  "success",
-			nexts: []pipeline.RoundTripperFunc{nextSuccess},
-		},
-		{
-			name:  "two successes -> reach limit",
-			nexts: []pipeline.RoundTripperFunc{nextSuccess, nextSuccess, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
-		},
-		{
-			name:  "one errors",
-			nexts: []pipeline.RoundTripperFunc{nextErr, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
-		},
-		{
-			name:  "one 500s",
-			nexts: []pipeline.RoundTripperFunc{next500, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled, nextRequireCancelled},
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			prev := atomic.NewInt32(0)
-
-			// create a next function that round robins through the nexts.
-			nextRR := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				next := tc.nexts[prev.Load()%int32(len(tc.nexts))]
-				prev.Inc()
-				return next.RoundTrip(r)
-			})
-
-			testRT := NewRoundTripper(nextRR, sharder)
-
-			// all requests will create totalJobs subrequests. let's reset the wg here
-			wg.Add(totalJobs)
-
-			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
-			ctx := req.Context()
-			ctx = user.InjectOrgID(ctx, "blerg")
-			req = req.WithContext(ctx)
-
-			_, _ = testRT.RoundTrip(req)
-		})
-	}
-}
-
 func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
 		return nil, nil
 	})
 
 	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
-	sharder := newTagsSharding(&mockReader{}, o, SearchSharderConfig{
+	sharder := newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, tagsResultHandlerFactory, log.NewNopLogger(), parseTagsRequest)
-	testRT := NewRoundTripper(next, sharder)
+	}, parseTagsRequest, log.NewNopLogger())
+	testRT := sharder.Wrap(next)
 
 	// no org id
 	req := httptest.NewRequest("GET", "/?start=1000&end=1100", nil)
 	resp, err := testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "no org id")
+	testBadRequestFromResponses(t, resp, err, "no org id")
 
 	// start/end outside of max duration
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
+	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
 
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Config{
@@ -658,42 +322,15 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
-	sharder = newTagsSharding(&mockReader{}, o, SearchSharderConfig{
+	sharder = newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, tagsResultHandlerFactory, log.NewNopLogger(), parseTagsRequest)
-	testRT = NewRoundTripper(next, sharder)
+	}, parseTagsRequest, log.NewNopLogger())
+	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
-	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
+	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
-*/
-
-/*
-	// Test parse request
-	req, err := tc.parseRequestFunction(r)
-	require.NoError(t, err)
-	assert.Equal(t, start, req.start())
-	assert.Equal(t, end, req.end())
-
-	// Test build
-	backReq, err := req.buildSearchTagRequest(r)
-	assert.NoError(t, err)
-
-	assert.Equal(t, backReq, tc.expectedReq(r))
-
-	blockReq, _ := req.buildTagSearchBlockRequest(r, bm.BlockID.String(), 0, 1, bm)
-	assert.Equal(t, tc.expectedBlockURL, blockReq.URL.RawQuery)
-
-	handlerOverflow := tc.factory(tc.limit)
-	err = handlerOverflow.addResponse(io.NopCloser(bytes.NewBufferString(tc.overflowRes1)))
-	require.NoError(t, err)
-
-	assert.Equal(t, false, handlerOverflow.shouldQuit())
-	err = handlerOverflow.addResponse(io.NopCloser(bytes.NewBufferString(tc.overflowRes2)))
-	require.NoError(t, err)
-	assert.Equal(t, true, handlerOverflow.shouldQuit())
-*/
