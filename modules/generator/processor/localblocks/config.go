@@ -22,8 +22,19 @@ type Config struct {
 	MaxBlockBytes        uint64                `yaml:"max_block_bytes"`
 	CompleteBlockTimeout time.Duration         `yaml:"complete_block_timeout"`
 	MaxLiveTraces        uint64                `yaml:"max_live_traces"`
-	ConcurrentBlocks     uint                  `yaml:"concurrent_blocks"`
 	FilterServerSpans    bool                  `yaml:"filter_server_spans"`
+	Metrics              MetricsConfig         `yaml:",inline"`
+}
+
+type MetricsConfig struct {
+	ConcurrentBlocks uint `yaml:"concurrent_blocks"`
+	// TimeOverlapCutoff is a tuning factor that controls whether the trace-level
+	// timestamp columns are used in a metrics query.  Loading these columns has a cost,
+	// so in some cases it faster to skip these columns entirely, reducing I/O but
+	// increasing the number of spans evalulated and thrown away. The value is a ratio
+	// between 0.0 and 1.0.  If a block overlaps the time window by less than this value,
+	// then we skip the columns. A value of 1.0 will always load the columns, and 0.0 never.
+	TimeOverlapCutoff float64 `yaml:"time_overlap_cutoff,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -39,6 +50,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 500_000_000
 	cfg.CompleteBlockTimeout = time.Hour
-	cfg.ConcurrentBlocks = 10
 	cfg.FilterServerSpans = true
+	cfg.Metrics = MetricsConfig{
+		ConcurrentBlocks:  10,
+		TimeOverlapCutoff: 0.2,
+	}
 }
