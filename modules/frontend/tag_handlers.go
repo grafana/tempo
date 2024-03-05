@@ -78,8 +78,8 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	fnCombiner func(int) combiner.GRPCCombiner[TResp],
 	logRequest func(log.Logger, string, TReq),
 	logResult func(log.Logger, string, float64, TReq, error),
-	logger log.Logger) error {
-
+	logger log.Logger,
+) error {
 	httpReq, err := fnBuild(&http.Request{
 		URL: &url.URL{
 			Path: downstreamPath,

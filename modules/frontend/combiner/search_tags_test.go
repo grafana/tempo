@@ -22,7 +22,6 @@ func TestTagsResultsHandler(t *testing.T) {
 
 		actualResult proto.Message       // provides a way for the test runner to unmarshal the response
 		sort         func(proto.Message) // the results are based on non-deterministic map iteration, provides a way for the runner to sort the results for comparison
-
 	}{
 		{
 			name:           "SearchTags",
