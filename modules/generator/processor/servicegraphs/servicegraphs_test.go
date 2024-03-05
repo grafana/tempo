@@ -142,6 +142,38 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
 }
 
+func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableMessagingSystemLatencyHistogram = true
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	requesterToRecorderLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-recorder",
+		"connection_type": "messaging_system",
+		"beast":           "",
+		"god":             "",
+	})
+
+	fmt.Println(testRegistry)
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
+}
+
 func TestServiceGraphs_failedRequests(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 

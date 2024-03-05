@@ -33,6 +33,9 @@ type Config struct {
 	// per dimension.
 	EnableClientServerPrefix bool `yaml:"enable_client_server_prefix"`
 
+	// If enabled another histogram will be produced for interactions over messaging systems middlewares
+	EnableMessagingSystemLatencyHistogram bool `yaml:"enable_messaging_system_latency_histogram"`
+
 	// PeerAttributes are attributes that will be used to create a peer edge
 	// Attributes are searched in the order they are provided
 	PeerAttributes []string `yaml:"peer_attributes"`
@@ -53,4 +56,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		peerAttr = append(peerAttr, string(attr))
 	}
 	cfg.PeerAttributes = peerAttr
+
+	cfg.EnableMessagingSystemLatencyHistogram = false
 }

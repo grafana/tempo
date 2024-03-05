@@ -435,6 +435,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
 }
 
+// MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram enables this metric
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram
+}
+
 // MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
 // by the span metrics processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {

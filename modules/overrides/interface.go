@@ -66,6 +66,7 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
