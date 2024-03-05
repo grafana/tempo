@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
@@ -85,14 +86,7 @@ func (r *tagValueSearchRequest) end() uint32 {
 
 func (r *tagValueSearchRequest) hash() uint64 {
 	hash := fnv1a.HashString64(r.request.TagName)
-	// adding the query to the hash makes it so brittle it may not be worth caching.
-	// should we just return 0 here to bypass caching?
-	//
-	// when caching normal TraceQL results we normalize the query before hashing to prevent small
-	// changes from causing cache misses. however, the way we search for tag values
-	// doesn't allow for strict parsing. if we find a way to do "error tolerant" parsing
-	// on the query to extract matchers we should use that here.
-	hash = fnv1a.AddString64(hash, r.request.Query)
+	hash = fnv1a.AddString64(hash, traceql.ExtractMatchers(r.request.Query))
 
 	return hash
 }
