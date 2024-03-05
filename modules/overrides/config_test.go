@@ -113,6 +113,7 @@ metrics_generator_processor_service_graphs_histogram_buckets: [1,2]
 metrics_generator_processor_service_graphs_dimensions: ['foo']
 metrics_generator_processor_service_graphs_peer_attributes: ['foo']
 metrics_generator_processor_service_graphs_enable_client_server_prefix: false
+metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram: false
 metrics_generator_processor_span_metrics_histogram_buckets: [3,4]
 metrics_generator_processor_span_metrics_dimensions: ['foo']
 metrics_generator_processor_span_metrics_intrinsic_dimensions:
@@ -188,6 +189,7 @@ defaults:
         peer_attributes:
         - foo
         enable_client_server_prefix: false
+		enable_messaging_system_latency_histogram: false
       span_metrics:
         histogram_buckets:
         - 3

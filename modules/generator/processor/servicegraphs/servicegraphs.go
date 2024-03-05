@@ -292,7 +292,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
 	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
 
-	if e.ConnectionType == store.MessagingSystem {
+	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
 		if messagingSystemLatencySec < 0 {
 			level.Warn(p.logger).Log("msg", "producerSpanEndTime is greater than consumerSpanStartTime. probably clocks sync problem", "messagingSystemLatencySec", messagingSystemLatencySec)
