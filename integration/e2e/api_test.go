@@ -103,7 +103,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 			name:     "too restrictive query",
 			query:    fmt.Sprintf(`{ %s="%s" && resource.y="%s" }`, resourceX, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
 			tagName:  spanX,
-			expected: searchTagValuesV2Response{},
+			expected: searchTagValuesV2Response{TagValues: []TagValue{}},
 		},
 		// Unscoped not supported, unfiltered results.
 		{
@@ -176,7 +176,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 	// Assert no more on the ingester
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{}, 0, 0)
+			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{TagValues: []TagValue{}}, 0, 0)
 		})
 	}
 
