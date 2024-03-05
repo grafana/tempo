@@ -10,7 +10,7 @@ import (
 
 // Regex to extract matchers from a query string
 // This regular expression matches a string that contains three groups separated by operators.
-// The first group matches one or more Unicode letters, digits, underscores, or periods. It essentially matches variable names or identifiers
+// The first group matches one or more Unicode character, except open or closing brackets, '&' and '|'. It essentially matches variable names or identifiers
 // The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
 // The third group is one of several possible values:
 //  1. A double-quoted string consisting of one or more Unicode characters, including letters, digits, punctuation, diacritical marks, and symbols,
@@ -18,7 +18,7 @@ import (
 //  3. The boolean values "true" or "false".
 //
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._\-" ]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
+var matchersRegexp = regexp.MustCompile(`[^\p{Ps}\p{Pe}&|]+\s*[=|<>~!]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
 
 // TODO: Merge into a single regular expression
 

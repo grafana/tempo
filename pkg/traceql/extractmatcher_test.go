@@ -100,6 +100,11 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ span."foo bar" = "baz" }`,
 			expected: `{span."foo bar" = "baz"}`,
 		},
+		{
+			name:     "any unicode character",
+			query:    `{ span."foo \"☂ᥦᝇصথᡇ-_👎" = "👍" }`,
+			expected: `{span."foo \"☂ᥦᝇصথᡇ-_👎" = "👍"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
