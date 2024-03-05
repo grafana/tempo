@@ -52,7 +52,7 @@ func (cmd *querySearchTagValuesCmd) Run(_ *globalOptions) error {
 
 func (cmd *querySearchTagValuesCmd) searchHTTP(start, end int64) error {
 	if cmd.PathPrefix != "" {
-		cmd.HostPort = path.Join(cmd.PathPrefix, cmd.HostPort)
+		cmd.HostPort = path.Join(cmd.HostPort, cmd.PathPrefix)
 	}
 	client := httpclient.New("http://"+cmd.HostPort, cmd.OrgID)
 

@@ -17,3 +17,19 @@ func TestDistinctStringCollector(t *testing.T) {
 	require.True(t, d.Exceeded())
 	require.Equal(t, []string{"123", "4567", "890"}, d.Strings())
 }
+
+func TestDistinctStringCollectorDiff(t *testing.T) {
+	d := NewDistinctStringCollector(0)
+
+	d.Collect("123")
+	d.Collect("4567")
+
+	require.Equal(t, []string{"123", "4567"}, d.Diff())
+	require.Equal(t, []string{}, d.Diff())
+
+	d.Collect("123")
+	d.Collect("890")
+
+	require.Equal(t, []string{"890"}, d.Diff())
+	require.Equal(t, []string{}, d.Diff())
+}

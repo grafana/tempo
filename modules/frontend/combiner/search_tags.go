@@ -11,7 +11,6 @@ var (
 )
 
 func NewSearchTags(limitBytes int) Combiner {
-	// Distinct collector with no limit
 	d := util.NewDistinctStringCollector(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagsResponse]{
@@ -30,6 +29,10 @@ func NewSearchTags(limitBytes int) Combiner {
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
 			return d.Exceeded()
+		},
+		diff: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
+			response.TagNames = d.Diff()
+			return response, nil
 		},
 	}
 }
@@ -77,6 +80,23 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 				}
 			}
 			return false
+		},
+		diff: func(response *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
+			response.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(distinctValues))
+
+			for scope, dvc := range distinctValues {
+				diff := dvc.Diff()
+				if len(diff) == 0 {
+					continue
+				}
+
+				response.Scopes = append(response.Scopes, &tempopb.SearchTagsV2Scope{
+					Name: scope,
+					Tags: diff,
+				})
+			}
+
+			return response, nil
 		},
 	}
 }
