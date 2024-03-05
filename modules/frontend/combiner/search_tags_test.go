@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// jpe - test diff
-
-func TestTagsResultsHandler(t *testing.T) {
+func TestTagsCombiner(t *testing.T) {
 	tests := []struct {
 		name               string
 		factory            func(int) Combiner
@@ -158,4 +156,79 @@ func TestTagsResultsHandler(t *testing.T) {
 			require.Equal(t, tc.expectedResult, tc.actualResult)
 		})
 	}
+}
+
+func TestTagsGRPCCombiner(t *testing.T) {
+	c := NewTypedSearchTags(0)
+	res1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}}
+	res2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}}
+	diff1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}}
+	diff2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag2"}}
+	expectedFinal := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}}
+	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagsResponse) { sort.Strings(r.TagNames) })
+}
+
+func TestTagsV2GRPCCombiner(t *testing.T) {
+	c := NewTypedSearchTagsV2(0)
+	res1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}}
+	res2 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1", "tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}}
+	diff1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}}
+	diff2 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}}
+	expectedFinal := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1", "tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}}
+	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagsV2Response) {
+		for _, scope := range r.Scopes {
+			sort.Strings(scope.Tags)
+		}
+		sort.Slice(r.Scopes, func(i, j int) bool {
+			return r.Scopes[i].Name < r.Scopes[j].Name
+		})
+	})
+}
+
+func TestTagValuesGRPCCombiner(t *testing.T) {
+	c := NewTypedSearchTagValues(0)
+	res1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}}
+	res2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}}
+	diff1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}}
+	diff2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag2"}}
+	expectedFinal := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}}
+	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagValuesResponse) { sort.Strings(r.TagValues) })
+}
+
+func TestTagValuesV2GRPCCombiner(t *testing.T) {
+	c := NewTypedSearchTagValuesV2(0)
+	res1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}}
+	res2 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}}}
+	diff1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}}
+	diff2 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v2", Type: "string"}}}
+	expectedFinal := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}}}
+	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagValuesV2Response) {
+		sort.Slice(r.TagValues, func(i, j int) bool {
+			return r.TagValues[i].Value < r.TagValues[j].Value
+		})
+	})
+}
+
+func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T)) {
+	err := combiner.AddResponse(toHTTPResponse(t, result1, 200), "")
+	require.NoError(t, err)
+
+	actualDiff1, err := combiner.GRPCDiff()
+	require.NoError(t, err)
+	sort(actualDiff1)
+	require.Equal(t, diff1, actualDiff1)
+
+	err = combiner.AddResponse(toHTTPResponse(t, result2, 200), "")
+	assert.NoError(t, err)
+
+	actualDiff2, err := combiner.GRPCDiff()
+	require.NoError(t, err)
+	sort(actualDiff2)
+	require.Equal(t, diff2, actualDiff2)
+
+	actualFinal, err := combiner.GRPCFinal()
+	require.NoError(t, err)
+
+	sort(actualFinal)
+	require.Equal(t, expectedFinal, actualFinal)
 }
