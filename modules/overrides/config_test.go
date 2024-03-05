@@ -193,7 +193,7 @@ defaults:
         peer_attributes:
         - foo
         enable_client_server_prefix: false
-		enable_messaging_system_latency_histogram: false
+        enable_messaging_system_latency_histogram: false
       span_metrics:
         histogram_buckets:
         - 3
