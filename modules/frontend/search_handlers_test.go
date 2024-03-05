@@ -15,8 +15,9 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,18 +37,18 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-var _ http.RoundTripper = &mockSearchQuerierResponse{}
+var _ http.RoundTripper = &mockRoundTripper{}
 
-type mockSearchQuerierResponse struct {
+type mockRoundTripper struct {
 	err           error
 	statusCode    int
 	statusMessage string
 	once          sync.Once
 
-	responseFn func() *tempopb.SearchResponse
+	responseFn func() proto.Message
 }
 
-func (s *mockSearchQuerierResponse) RoundTrip(_ *http.Request) (*http.Response, error) {
+func (s *mockRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
 	// only return errors once, then do a good response to make sure that the combiner is handling the error correctly
 	var err error
 	var errResponse *http.Response
@@ -85,36 +86,35 @@ func (s *mockSearchQuerierResponse) RoundTrip(_ *http.Request) (*http.Response, 
 	}, nil
 }
 
-type mockSearchStreaming struct {
-	lastResponse atomic.Pointer[*tempopb.SearchResponse]
+type mockGRPCStreaming[T proto.Message] struct {
+	lastResponse atomic.Pointer[T]
 	responses    atomic.Int32
 	ctx          context.Context
-	cb           func(int, *tempopb.SearchResponse)
+	cb           func(int, T)
 }
 
-func (m *mockSearchStreaming) Send(r *tempopb.SearchResponse) error {
-	if r != nil && len(r.Traces) > 0 {
-		m.lastResponse.Store(&r)
-	}
+func (m *mockGRPCStreaming[T]) Send(r T) error {
+	m.lastResponse.Store(&r)
 	m.responses.Inc()
 	if m.cb != nil {
 		m.cb(int(m.responses.Load()), r)
 	}
 	return nil
 }
-func (m *mockSearchStreaming) Context() context.Context     { return m.ctx }
-func (m *mockSearchStreaming) SendHeader(metadata.MD) error { return nil }
-func (m *mockSearchStreaming) SetHeader(metadata.MD) error  { return nil }
-func (m *mockSearchStreaming) SendMsg(interface{}) error    { return nil }
-func (m *mockSearchStreaming) RecvMsg(interface{}) error    { return nil }
-func (m *mockSearchStreaming) SetTrailer(metadata.MD)       {}
 
-func newMockStreamingServer(orgID string, cb func(int, *tempopb.SearchResponse)) *mockSearchStreaming {
+func (m *mockGRPCStreaming[T]) Context() context.Context     { return m.ctx }
+func (m *mockGRPCStreaming[T]) SendHeader(metadata.MD) error { return nil }
+func (m *mockGRPCStreaming[T]) SetHeader(metadata.MD) error  { return nil }
+func (m *mockGRPCStreaming[T]) SendMsg(interface{}) error    { return nil }
+func (m *mockGRPCStreaming[T]) RecvMsg(interface{}) error    { return nil }
+func (m *mockGRPCStreaming[T]) SetTrailer(metadata.MD)       {}
+
+func newMockStreamingServer[T proto.Message](orgID string, cb func(int, T)) *mockGRPCStreaming[T] {
 	ctx := context.Background()
 	if orgID != "" {
 		ctx = user.InjectOrgID(ctx, orgID)
 	}
-	return &mockSearchStreaming{
+	return &mockGRPCStreaming[T]{
 		ctx: ctx,
 		cb:  cb,
 	}
@@ -146,7 +146,7 @@ func runnerBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 
 	// grpc
 	grpcReq := &tempopb.SearchRequest{}
-	err := f.streamingSearch(grpcReq, newMockStreamingServer("", nil))
+	err := f.streamingSearch(grpcReq, newMockStreamingServer[*tempopb.SearchResponse]("", nil))
 	require.Equal(t, status.Error(codes.InvalidArgument, "no org id"), err)
 }
 
@@ -286,7 +286,7 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	require.Equal(t, 499, httpResp.Code) // todo: is this 499 valid?
 
 	// grpc
-	srv := newMockStreamingServer("tenant", nil)
+	srv := newMockStreamingServer[*tempopb.SearchResponse]("tenant", nil)
 	srv.ctx, cancel = context.WithCancel(srv.ctx)
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -298,8 +298,8 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 }
 
 func TestSearchLimitHonored(t *testing.T) {
-	f := frontendWithSettings(t, &mockSearchQuerierResponse{
-		responseFn: func() *tempopb.SearchResponse {
+	f := frontendWithSettings(t, &mockRoundTripper{
+		responseFn: func() proto.Message {
 			return &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
@@ -454,11 +454,11 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 
 	for _, tc := range tcs {
 		// queriers will return one errr
-		f := frontendWithSettings(t, &mockSearchQuerierResponse{
+		f := frontendWithSettings(t, &mockRoundTripper{
 			statusCode:    tc.querierCode,
 			statusMessage: tc.querierMessage,
 			err:           tc.querierErr,
-			responseFn: func() *tempopb.SearchResponse {
+			responseFn: func() proto.Message {
 				return &tempopb.SearchResponse{
 					Traces:  []*tempopb.TraceSearchMetadata{},
 					Metrics: &tempopb.SearchMetrics{},
@@ -491,11 +491,11 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 		require.Equal(t, tc.expectedCode, httpResp.Code)
 
 		// have to recreate the frontend to reset the querier response
-		f = frontendWithSettings(t, &mockSearchQuerierResponse{
+		f = frontendWithSettings(t, &mockRoundTripper{
 			statusCode:    tc.querierCode,
 			statusMessage: tc.querierMessage,
 			err:           tc.querierErr,
-			responseFn: func() *tempopb.SearchResponse {
+			responseFn: func() proto.Message {
 				return &tempopb.SearchResponse{
 					Traces:  []*tempopb.TraceSearchMetadata{},
 					Metrics: &tempopb.SearchMetrics{},
@@ -518,7 +518,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 		}, nil)
 
 		// grpc
-		srv := newMockStreamingServer("bar", nil)
+		srv := newMockStreamingServer[*tempopb.SearchResponse]("bar", nil)
 		grpcReq := &tempopb.SearchRequest{}
 		err := f.streamingSearch(grpcReq, srv)
 		require.Equal(t, tc.expectedErr, err)
@@ -639,8 +639,8 @@ func cacheResponsesEqual(t *testing.T, cacheResponse *tempopb.SearchResponse, pi
 // are given "happy path" defaults
 func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider) *QueryFrontend {
 	if next == nil {
-		next = &mockSearchQuerierResponse{
-			responseFn: func() *tempopb.SearchResponse {
+		next = &mockRoundTripper{
+			responseFn: func() proto.Message {
 				return &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
 						{
