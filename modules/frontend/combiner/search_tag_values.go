@@ -12,7 +12,7 @@ var (
 
 func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
+	d := util.NewDistinctStringCollector(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
@@ -25,7 +25,7 @@ func NewSearchTagValues(limitBytes int) Combiner {
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
-			final.TagValues = d.Values()
+			final.TagValues = d.Strings()
 			return final, nil
 		},
 	}
@@ -37,7 +37,7 @@ func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValu
 
 func NewSearchTagValuesV2(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(limitBytes, func(_ tempopb.TagValue) int { return 0 })
+	d := util.NewDistinctValueCollector(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		current: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},

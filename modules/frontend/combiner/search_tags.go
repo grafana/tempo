@@ -12,7 +12,7 @@ var (
 
 func NewSearchTags(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
+	d := util.NewDistinctStringCollector(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -25,7 +25,7 @@ func NewSearchTags(limitBytes int) Combiner {
 			return nil
 		},
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
-			response.TagNames = d.Values()
+			response.TagNames = d.Strings()
 			return response, nil
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
@@ -40,7 +40,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := map[string]*util.DistinctValueCollector[string]{}
+	distinctValues := map[string]*util.DistinctStringCollector{}
 
 	return &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -50,7 +50,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			for _, res := range partial.GetScopes() {
 				dvc := distinctValues[res.Name]
 				if dvc == nil {
-					dvc = util.NewDistinctValueCollector(limitBytes, func(_ string) int { return 0 })
+					dvc = util.NewDistinctStringCollector(limitBytes)
 					distinctValues[res.Name] = dvc
 				}
 				for _, tag := range res.Tags {
@@ -65,7 +65,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			for scope, dvc := range distinctValues {
 				final.Scopes = append(final.Scopes, &tempopb.SearchTagsV2Scope{
 					Name: scope,
-					Tags: dvc.Values(),
+					Tags: dvc.Strings(),
 				})
 			}
 			return final, nil
