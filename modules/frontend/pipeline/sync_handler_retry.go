@@ -1,10 +1,14 @@
 package pipeline
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/grafana/tempo/modules/frontend/queue"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -64,11 +68,25 @@ func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 
+		/* ---- HTTP GRPC translation ---- */
+		// the following 2 blocks translate httpgrpc errors into something
+		// the rest of the http pipeline can understand. these really should
+		// be there own pipeline item independent of the retry middleware, but
+		// they've always been here and for safety we're not moving them right now.
+		if errors.Is(err, queue.ErrTooManyRequests) {
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Status:     http.StatusText(http.StatusTooManyRequests),
+				Body:       io.NopCloser(strings.NewReader("job queue full")),
+			}, nil
+		}
+
 		// do not retry if GRPC error contains response that is not HTTP 5xx
 		httpResp, ok := httpgrpc.HTTPResponseFromError(err)
 		if ok && !shouldRetry(int(httpResp.Code)) {
 			return resp, err
 		}
+		/* ---- HTTP GRPC translation ---- */
 
 		// reached max retries
 		tries++
