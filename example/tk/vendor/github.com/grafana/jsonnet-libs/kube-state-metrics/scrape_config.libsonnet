@@ -22,6 +22,16 @@ function(namespace) {
       action: 'keep',
     },
 
+    // Drop anything whose port is not 'ksm', these are the metrics computed by
+    // kube-state-metrics itself and not the 'self metrics' which should be
+    // scraped by normal prometheus service discovery ('self-metrics' port
+    // name).
+    {
+      source_labels: ['__meta_kubernetes_pod_container_port_name'],
+      regex: 'ksm',
+      action: 'keep',
+    },
+
     // Rename instances to the concatenation of pod:container:port.
     // In the specific case of KSM, we could leave out the container
     // name and still have a unique instance label, but we leave it
