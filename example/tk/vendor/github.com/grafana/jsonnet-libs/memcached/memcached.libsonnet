@@ -23,6 +23,7 @@ k {
     max_item_size:: '1m',
     memory_limit_mb:: 1024,
     overprovision_factor:: 1.2,
+    cpu_requests:: '500m',
     cpu_limits:: '3',
     connection_limit:: 1024,
     memory_request_overhead_mb:: 100,
@@ -30,6 +31,9 @@ k {
       std.ceil((self.memory_limit_mb * self.overprovision_factor) + self.memory_request_overhead_mb) * 1024 * 1024,
     memory_limits_bytes::
       std.max(self.memory_limit_mb * 1.5 * 1024 * 1024, self.memory_request_bytes),
+    use_topology_spread:: false,
+    topology_spread_max_skew:: 1,
+    extended_options:: [],
 
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
@@ -37,13 +41,16 @@ k {
     memcached_container::
       container.new('memcached', $._images.memcached) +
       container.withPorts([containerPort.new('client', 11211)]) +
-      container.withArgs([
-        '-m %(memory_limit_mb)s' % self,
-        '-I %(max_item_size)s' % self,
-        '-c %(connection_limit)s' % self,
-        '-v',
-      ]) +
-      $.util.resourcesRequests('500m', $.util.bytesToK8sQuantity(self.memory_request_bytes)) +
+      container.withArgs(
+        [
+          '-m %(memory_limit_mb)s' % self,
+          '-I %(max_item_size)s' % self,
+          '-c %(connection_limit)s' % self,
+          '-v',
+        ] +
+        if std.length(self.extended_options) != 0 then ['--extended=' + std.join(',', self.extended_options)] else []
+      ) +
+      $.util.resourcesRequests(self.cpu_requests, $.util.bytesToK8sQuantity(self.memory_request_bytes)) +
       $.util.resourcesLimits(self.cpu_limits, $.util.bytesToK8sQuantity(self.memory_limits_bytes)),
 
     memcached_exporter::
@@ -55,6 +62,7 @@ k {
       ]),
 
     local statefulSet = $.apps.v1.statefulSet,
+    local topologySpreadConstraints = k.core.v1.topologySpreadConstraint,
 
     statefulSet:
       statefulSet.new(self.name, $._config.memcached_replicas, [
@@ -62,7 +70,17 @@ k {
         self.memcached_exporter,
       ], []) +
       statefulSet.spec.withServiceName(self.name) +
-      $.util.antiAffinity,
+      if self.use_topology_spread then
+        local pod_name = self.name;
+        statefulSet.spec.template.spec.withTopologySpreadConstraints(
+          // Evenly spread pods among available nodes.
+          topologySpreadConstraints.labelSelector.withMatchLabels({ name: pod_name }) +
+          topologySpreadConstraints.withTopologyKey('kubernetes.io/hostname') +
+          topologySpreadConstraints.withWhenUnsatisfiable('ScheduleAnyway') +
+          topologySpreadConstraints.withMaxSkew(self.topology_spread_max_skew),
+        )
+      else
+        $.util.antiAffinity,
 
     local service = $.core.v1.service,
 
