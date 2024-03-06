@@ -29,6 +29,7 @@ type mockOverrides struct {
 	localBlocksCompleteBlockTimeout         time.Duration
 	dedicatedColumns                        backend.DedicatedColumns
 	maxBytesPerTrace                        int
+	unsafeQueryHints                        bool
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -137,4 +138,8 @@ func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 
 func (m *mockOverrides) MaxBytesPerTrace(string) int {
 	return m.maxBytesPerTrace
+}
+
+func (m *mockOverrides) UnsafeQueryHints(string) bool {
+	return m.unsafeQueryHints
 }

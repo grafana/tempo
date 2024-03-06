@@ -36,6 +36,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	MaxBytesPerTrace(userID string) int
+	UnsafeQueryHints(userID string) bool
 }
 
 var _ metricsGeneratorOverrides = (overrides.Interface)(nil)
