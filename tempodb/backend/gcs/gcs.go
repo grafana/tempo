@@ -253,7 +253,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					return
 				}
 
-				parts = strings.Split(attrs.Name, "/")
+				parts = strings.Split(strings.TrimPrefix(attrs.Name, rw.cfg.Prefix), "/")
 				// ie: <tenant>/<blockID>/meta.json
 				if len(parts) != 3 {
 					continue
