@@ -252,6 +252,150 @@ func TestObjectWithPrefix(t *testing.T) {
 	}
 }
 
+func TestListBlocksWithPrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:    "with prefix",
+			prefix:  "a/b/c/",
+			keyPath: backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						<?xml version="1.0" encoding="utf-8"?>
+						<EnumerationResults ServiceEndpoint="http://myaccount.blob.core.windows.net/"  ContainerName="mycontainer">
+						  <Prefix>a/b/c/</Prefix>
+						  <MaxResults>100</MaxResults>
+						  <Blobs>
+							<Blob>
+							  <Name>a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Name>
+							  <Url>https://myaccount.blob.core.windows.net/mycontainer/a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Url>
+							  <Properties>
+								<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+								<Etag>0x8CBFF45D8A29A19</Etag>
+								<Content-Length>100</Content-Length>
+								<Content-Type>text/html</Content-Type>
+								<Content-Encoding />
+								<Content-Language>en-US</Content-Language>
+								<Content-MD5 />
+								<Cache-Control>no-cache</Cache-Control>
+								<BlobType>BlockBlob</BlobType>
+								<LeaseStatus>unlocked</LeaseStatus>
+							  </Properties>
+							</Blob>
+							
+							<Blob>
+							  <Name>a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Name>
+							  <Url>https://myaccount.blob.core.windows.net/mycontainer/a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Url>
+							  <Properties>
+								<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+								<Etag>0x8CBFF45D8A29A19</Etag>
+								<Content-Length>100</Content-Length>
+								<Content-Type>text/html</Content-Type>
+								<Content-Encoding />
+								<Content-Language>en-US</Content-Language>
+								<Content-MD5 />
+								<Cache-Control>no-cache</Cache-Control>
+								<BlobType>BlockBlob</BlobType>
+								<LeaseStatus>unlocked</LeaseStatus>
+							  </Properties>
+							</Blob>
+						  </Blobs>
+						  <NextMarker />
+						</EnumerationResults>
+						`))
+						return
+					}
+				}
+			},
+		},
+		{
+			name:    "without prefix",
+			prefix:  "",
+			keyPath: backend.KeyPath{"test"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						<?xml version="1.0" encoding="utf-8"?>
+						<EnumerationResults ServiceEndpoint="http://myaccount.blob.core.windows.net/"  ContainerName="mycontainer">
+						  <Prefix></Prefix>
+						  <MaxResults>100</MaxResults>
+						  <Blobs>
+							<Blob>
+							  <Name>single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Name>
+							  <Url>https://myaccount.blob.core.windows.net/mycontainer/single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Url>
+							  <Properties>
+								<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+								<Etag>0x8CBFF45D8A29A19</Etag>
+								<Content-Length>100</Content-Length>
+								<Content-Type>text/html</Content-Type>
+								<Content-Encoding />
+								<Content-Language>en-US</Content-Language>
+								<Content-MD5 />
+								<Cache-Control>no-cache</Cache-Control>
+								<BlobType>BlockBlob</BlobType>
+								<LeaseStatus>unlocked</LeaseStatus>
+							  </Properties>
+							</Blob>
+
+							<Blob>
+							  <Name>single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Name>
+							  <Url>https://myaccount.blob.core.windows.net/mycontainer/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Url>
+							  <Properties>
+								<Last-Modified>Fri, 01 Mar 2024 00:00:00 GMT</Last-Modified>
+								<Etag>0x8CBFF45D8A29A19</Etag>
+								<Content-Length>100</Content-Length>
+								<Content-Type>text/html</Content-Type>
+								<Content-Encoding />
+								<Content-Language>en-US</Content-Language>
+								<Content-MD5 />
+								<Cache-Control>no-cache</Cache-Control>
+								<BlobType>BlockBlob</BlobType>
+								<LeaseStatus>unlocked</LeaseStatus>
+							  </Properties>
+							</Blob>
+						  </Blobs>
+                          <NextMarker />
+						</EnumerationResults>
+						`))
+						return
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			r, _, _, err := New(&config.Config{
+				StorageAccountName: "testing_account",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Prefix:             tc.prefix,
+				Endpoint:           server.URL[7:], // [7:] -> strip http://,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			blockIDs, compactedBlockIDs, err2 := r.ListBlocks(ctx, "single-tenant")
+			assert.NoError(t, err2)
+
+			assert.Equal(t, 1, len(blockIDs))
+			assert.Equal(t, 1, len(compactedBlockIDs))
+		})
+	}
+}
+
 func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	assert.NotNil(t, httpHandler)
