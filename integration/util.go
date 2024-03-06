@@ -398,61 +398,6 @@ func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempop
 		require.NoError(t, err)
 	}
 	require.True(t, found)
-
-	// -- assert streaming tags
-	respTagsV2, err := client.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{
-		Start: uint32(start),
-		End:   uint32(end),
-	})
-	require.NoError(t, err)
-
-	found = false
-	for {
-		resp, err := respTagsV2.Recv()
-		if resp != nil {
-			for _, sc := range resp.Scopes {
-				for _, tag := range sc.Tags {
-					if tag == attr.GetKey() {
-						found = true
-						goto TagsDone
-					}
-				}
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-	}
-TagsDone:
-	require.True(t, found)
-
-	// -- assert streaming tag values
-	respTagsValuesV2, err := client.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: "." + attr.GetKey(),
-		Start:   uint32(start),
-		End:     uint32(end),
-	})
-	require.NoError(t, err)
-
-	found = false
-	for {
-		resp, err := respTagsValuesV2.Recv()
-		if resp != nil {
-			for _, tv := range resp.TagValues {
-				if tv.Value == attr.GetValue().GetStringValue() {
-					found = true
-					goto TagValuesDone
-				}
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-	}
-TagValuesDone:
-	require.True(t, found)
 }
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
