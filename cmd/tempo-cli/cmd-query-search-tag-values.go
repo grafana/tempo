@@ -20,6 +20,7 @@ type querySearchTagValuesCmd struct {
 	Start    string `arg:"" optional:"" help:"start time in ISO8601 format"`
 	End      string `arg:"" optional:"" help:"end time in ISO8601 format"`
 
+	Query      string `help:"TraceQL query to filter attribute results by (supported by GRPC only)"`
 	OrgID      string `help:"optional orgID"`
 	UseGRPC    bool   `help:"stream search results over GRPC"`
 	PathPrefix string `help:"string to prefix all http paths with"`
@@ -90,6 +91,7 @@ func (cmd *querySearchTagValuesCmd) searchGRPC(start, end int64) error {
 		TagName: cmd.Tag,
 		Start:   uint32(start),
 		End:     uint32(end),
+		Query:   cmd.Query,
 	}
 
 	resp, err := client.SearchTagValuesV2(ctx, tagsRequest)

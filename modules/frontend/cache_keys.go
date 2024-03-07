@@ -10,7 +10,7 @@ import (
 const (
 	cacheKeyPrefixSearchJob       = "sj:"
 	cacheKeyPrefixSearchTag       = "st:"
-	cacheKeyPrefixSearchTagValues = "st:"
+	cacheKeyPrefixSearchTagValues = "stv:"
 )
 
 func searchJobCacheKey(queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {

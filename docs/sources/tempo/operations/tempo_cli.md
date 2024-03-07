@@ -99,8 +99,8 @@ Options:
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
-### Search Tags
-Call the Tempo API and search using TraceQL.
+### Search tags
+Call the Tempo API and search attribute names.
 
 ```bash
 tempo-cli query api search-tags <host-port> [<start> <end>]
@@ -120,7 +120,7 @@ Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For 
 {{% /admonition %}}
 
 ### Search tag values
-Call the Tempo API and search using TraceQL.
+Call the Tempo API and search attribute values.
 
 ```bash
 tempo-cli query api search-tag-values <tag> <host-port> [<start> <end>]
