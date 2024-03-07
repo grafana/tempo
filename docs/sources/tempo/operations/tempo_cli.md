@@ -119,7 +119,7 @@ Options:
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
-### Search Tags
+### Search tag values
 Call the Tempo API and search using TraceQL.
 
 ```bash
