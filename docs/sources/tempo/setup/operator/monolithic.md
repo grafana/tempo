@@ -7,7 +7,7 @@ aliases:
 - /docs/tempo/operator/monolithic
 ---
 
-# Monolithic Deployment
+# Monolithic deployment
 
 The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode](/docs/tempo/latest/setup/deployment/#monolithic-mode).
 In this mode, all components of the Tempo deployment (compactor, distributor, ingester, querier and query-frontend) are contained in a single container.
