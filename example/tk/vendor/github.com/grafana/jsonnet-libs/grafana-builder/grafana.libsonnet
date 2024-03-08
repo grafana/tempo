@@ -1,5 +1,5 @@
 {
-  dashboard(title, uid='', datasource='default'):: {
+  dashboard(title, uid='', datasource='default', datasource_regex=''):: {
     // Stuff that isn't materialised.
     _nextPanel:: 1,
     addRow(row):: self {
@@ -13,7 +13,7 @@
       rows+: [row { panels: panels }],
     },
 
-    addTemplate(name, metric_name, label_name, hide=0, allValue=null):: self {
+    addTemplate(name, metric_name, label_name, hide=0, allValue=null, includeAll=false, sort=2):: self {
       templating+: {
         list+: [{
           allValue: allValue,
@@ -23,7 +23,7 @@
           },
           datasource: '$datasource',
           hide: hide,
-          includeAll: false,
+          includeAll: includeAll,
           label: name,
           multi: false,
           name: name,
@@ -31,7 +31,7 @@
           query: 'label_values(%s, %s)' % [metric_name, label_name],
           refresh: 1,
           regex: '',
-          sort: 2,
+          sort: sort,
           tagValuesQuery: '',
           tags: [],
           tagsQuery: '',
@@ -41,7 +41,7 @@
       },
     },
 
-    addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+'):: self {
+    addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+', sort=2):: self {
       templating+: {
         list+: [{
           allValue: allValue,
@@ -60,7 +60,7 @@
           query: 'label_values(%s, %s)' % [metric_name, label_name],
           refresh: 1,
           regex: '',
-          sort: 2,
+          sort: sort,
           tagValuesQuery: '',
           tags: [],
           tagsQuery: '',
@@ -109,12 +109,12 @@
             value: datasource,
           },
           hide: 0,
-          label: 'Data Source',
+          label: 'Data source',
           name: 'datasource',
           options: [],
           query: 'prometheus',
           refresh: 1,
-          regex: '',
+          regex: datasource_regex,
           type: 'datasource',
         },
       ],
@@ -178,6 +178,7 @@
     titleSize: 'h6',
   },
 
+  // "graph" type, now deprecated.
   panel(title):: {
     aliasColors: {},
     bars: false,
@@ -228,6 +229,46 @@
     yaxes: $.yaxes('short'),
   },
 
+  // "timeseries" panel, introduced with Grafana 7.4 and made standard in 8.0.
+  timeseriesPanel(title):: {
+    datasource: '$datasource',
+    fieldConfig: {
+      defaults: {
+        custom: {
+          drawStyle: 'line',
+          fillOpacity: 1,
+          lineWidth: 1,
+          pointSize: 5,
+          showPoints: 'never',
+          spanNulls: false,
+          stacking: {
+            group: 'A',
+            mode: 'none',
+          },
+        },
+        thresholds: {
+          mode: 'absolute',
+          steps: [],
+        },
+        unit: 's',
+      },
+      overrides: [],
+    },
+    options: {
+      legend: {
+        showLegend: true,
+      },
+      tooltip: {
+        mode: 'single',
+        sort: 'none',
+      },
+    },
+    links: [],
+    targets: [],
+    title: title,
+    type: 'timeseries',
+  },
+
   queryPanel(queries, legends, legendLink=null):: {
 
     local qs =
@@ -248,9 +289,7 @@
         legendLink: legendLink,
         expr: ql.q,
         format: 'time_series',
-        intervalFactor: 2,
         legendFormat: ql.l,
-        step: 10,
       }
       for ql in qsandls
     ],
@@ -265,7 +304,6 @@
         expr: query,
         format: 'time_series',
         instant: true,
-        intervalFactor: 2,
         refId: 'A',
       },
     ],
@@ -328,9 +366,7 @@
         expr: qs[i],
         format: 'table',
         instant: true,
-        intervalFactor: 2,
         legendFormat: '',
-        step: 10,
         refId: std.char(65 + i),
       }
       for i in std.range(0, std.length(qs) - 1)
@@ -391,8 +427,10 @@
       '3xx': '#6ED0E0',
       '4xx': '#EF843C',
       '5xx': '#E24D42',
+      OK: '#7EB26D',
       success: '#7EB26D',
       'error': '#E24D42',
+      cancel: '#A9A9A9',
     },
     targets: [
       {
@@ -401,13 +439,11 @@
             sum by (status) (
               label_replace(label_replace(rate(%s[$__rate_interval]),
               "status", "${1}xx", "%s", "([0-9]).."),
-              "status", "${1}", "%s", "([a-z]+)"))
+              "status", "${1}", "%s", "([a-zA-Z]+)"))
           ||| % [selector, statusLabelName, statusLabelName],
         format: 'time_series',
-        intervalFactor: 2,
         legendFormat: '{{status}}',
         refId: 'A',
-        step: 10,
       },
     ],
   } + $.stack,
@@ -418,26 +454,20 @@
       {
         expr: 'histogram_quantile(0.99, sum(rate(%s_bucket%s[$__rate_interval])) by (le)) * %s' % [metricName, selector, multiplier],
         format: 'time_series',
-        intervalFactor: 2,
         legendFormat: '99th Percentile',
         refId: 'A',
-        step: 10,
       },
       {
         expr: 'histogram_quantile(0.50, sum(rate(%s_bucket%s[$__rate_interval])) by (le)) * %s' % [metricName, selector, multiplier],
         format: 'time_series',
-        intervalFactor: 2,
         legendFormat: '50th Percentile',
         refId: 'B',
-        step: 10,
       },
       {
         expr: 'sum(rate(%s_sum%s[$__rate_interval])) * %s / sum(rate(%s_count%s[$__rate_interval]))' % [metricName, selector, multiplier, metricName, selector],
         format: 'time_series',
-        intervalFactor: 2,
         legendFormat: 'Average',
         refId: 'C',
-        step: 10,
       },
     ],
     yaxes: $.yaxes('ms'),

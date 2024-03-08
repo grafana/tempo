@@ -21,7 +21,7 @@ local ksm = import 'github.com/grafana/jsonnet-libs/kube-state-metrics/main.libs
   ksm: ksm.new(namespace),
 
   prometheus_config+: {
-    scape_configs+: [
+    scrape_configs+: [
       ksm.scrape_config(namespace),
     ],
   },

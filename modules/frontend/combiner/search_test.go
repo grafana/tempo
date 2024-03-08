@@ -167,7 +167,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
 			response2:         toHTTPResponse(t, nil, 429),
 			expectedStatus:    429,
-			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
+			expectedGRPCError: status.Error(codes.ResourceExhausted, ""),
 		},
 		{
 			name:              "500+404",

@@ -3,7 +3,7 @@
     name:: 'prometheus',
 
     // Cluster and environment specific overrides.
-    cluster_dns_tld: 'local',
+    cluster_dns_tld: 'local.',
     cluster_dns_suffix: 'cluster.' + self.cluster_dns_tld,
     namespace: error 'must specify namespace',
 
