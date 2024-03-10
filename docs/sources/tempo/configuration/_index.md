@@ -321,6 +321,9 @@ metrics_generator:
             # per additional dimension instead of one.
             [enable_client_server_prefix: <bool> | default = false]
 
+            # If enabled another histogram will be produced for interactions over messaging systems middlewares
+            [enable_messaging_system_latency_histogram: <bool> | default = false]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -1358,6 +1361,7 @@ overrides:
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
+          [enable_messaging_system_latency_histogram: <bool>]
 
         # Configuration for the span-metrics processor
         span_metrics:
