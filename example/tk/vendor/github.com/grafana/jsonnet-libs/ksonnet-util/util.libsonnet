@@ -162,7 +162,7 @@ local util(k) = {
     ])
     + (if annotations != {} then deployment.mixin.spec.template.metadata.withAnnotationsMixin(annotations) else {}),
 
-  hostVolumeMount(name, hostPath, path, readOnly=false, volumeMountMixin={})::
+  hostVolumeMount(name, hostPath, path, readOnly=false, volumeMountMixin={}, volumeMixin={})::
     local container = k.core.v1.container,
           deployment = k.apps.v1.deployment,
           volumeMount = k.core.v1.volumeMount,
@@ -174,7 +174,8 @@ local util(k) = {
 
     deployment.mapContainers(addMount) +
     deployment.mixin.spec.template.spec.withVolumesMixin([
-      volume.fromHostPath(name, hostPath),
+      volume.fromHostPath(name, hostPath) +
+      volumeMixin,
     ]),
 
   pvcVolumeMount(pvcName, path, readOnly=false, volumeMountMixin={})::
@@ -225,7 +226,9 @@ local util(k) = {
 
   manifestYaml(value):: (
     local f = std.native('manifestYamlFromJson');
-    f(std.toString(value))
+    if f != null
+    then f(std.toString(value))
+    else std.manifestYamlDoc(value)
   ),
 
   resourcesRequests(cpu, memory)::
@@ -238,8 +241,28 @@ local util(k) = {
        else {})
     ),
 
+  resourcesRequestsMixin(cpu, memory)::
+    k.core.v1.container.mixin.resources.withRequestsMixin(
+      (if cpu != null
+       then { cpu: cpu }
+       else {}) +
+      (if memory != null
+       then { memory: memory }
+       else {})
+    ),
+
   resourcesLimits(cpu, memory)::
     k.core.v1.container.mixin.resources.withLimits(
+      (if cpu != null
+       then { cpu: cpu }
+       else {}) +
+      (if memory != null
+       then { memory: memory }
+       else {})
+    ),
+
+  resourcesLimitsMixin(cpu, memory)::
+    k.core.v1.container.mixin.resources.withLimitsMixin(
       (if cpu != null
        then { cpu: cpu }
        else {}) +

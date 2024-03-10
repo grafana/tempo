@@ -8,8 +8,8 @@
           "subdir": "grafana"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "7rANfqY8ERvoABHbwoGsdGpUeHxxYCSVOcM4Eky4QtQ="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "Y5nheroSOIwmE+djEVPq4OvvTxKenzdHhpEwaR3Ebjs="
     },
     {
       "source": {
@@ -18,8 +18,8 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "0KkygBQd/AFzUvVzezE4qF/uDYgrwUXVpZfINBti0oc="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "B49EzIY2WZsFxNMJcgRxE/gcZ9ltnS8pkOOV6Q5qioc="
     },
     {
       "source": {
@@ -28,8 +28,8 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "JDsc/bUs5Yv1RkGKcm0hMteqCKZqemxA3qP6eiEATr8="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
       "source": {
@@ -38,8 +38,8 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "kH7gD2rdqRtBujmCObN0ifNF/BkSZU8pleFRI8itkqY="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
       "source": {
@@ -48,8 +48,8 @@
           "subdir": "memcached"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "dTOeEux3t9bYSqP2L/uCuLo/wUDpCKH4w+4OD9fePUk="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "Cc715Y3rgTuimgDFIw+FaKzXSJGRYwt1pFTMbdrNBD8="
     },
     {
       "source": {
@@ -58,8 +58,8 @@
           "subdir": "prometheus"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "1/gaGD2Wu6ZML+sXTEKo5zZC/VyBgS30yznbprRyy84="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "b4scQI+UtFxkVgzzD3dfbPMwI7EVtyjv1uETEmizM8M="
     },
     {
       "source": {
@@ -68,8 +68,8 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "264a5c2078c5930af57fe2d107eff83ab63553af",
-      "sum": "AGgjH6IJe/1qwNtxFIiG8V1uyOJZascEydQsNrfPQ4c="
+      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {
       "source": {
@@ -78,18 +78,18 @@
           "subdir": "doc-util"
         }
       },
-      "version": "fc3f9bca2dff836b0e924a993bdf11bc51af78d4",
-      "sum": "JUBWG9ybm0TlY3uCWrNoQS00BcfPlCvuK9jPFU0NIj8="
+      "version": "6ac6c69685b8c29c54515448eaca583da2d88150",
+      "sum": "BrAL/k23jq+xy9oA7TWIhUx07dsA/QLm3g7ktCwe//U="
     },
     {
       "source": {
         "git": {
           "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
-          "subdir": "1.21"
+          "subdir": "1.29"
         }
       },
-      "version": "f8efa81cf15257bd151b97e31599e20b2ba5311b",
-      "sum": "FYub7WxElJkqjjXA++DemsKHwsPqUFW945BTgpVop6Q="
+      "version": "bf9a62cfd32a58c071b8410bfcdec058475dd25e",
+      "sum": "i2w3hGbgQmaB73t5LJHSioPOVdYv8ZBvivHiDwZJVyI="
     }
   ],
   "legacyImports": false

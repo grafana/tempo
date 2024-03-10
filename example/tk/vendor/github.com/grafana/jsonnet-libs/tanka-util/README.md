@@ -2,7 +2,7 @@
 permalink: /
 ---
 
-# package tanka_util
+# tanka_util
 
 ```jsonnet
 local tanka_util = import "github.com/grafana/jsonnet-libs/tanka-util/main.libsonnet"
@@ -76,6 +76,7 @@ Kustomize functionality.
 * [`obj environment`](#obj-environment)
   * [`fn new(name, namespace, apiserver)`](#fn-environmentnew)
   * [`fn withApiServer(apiserver)`](#fn-environmentwithapiserver)
+  * [`fn withApplyStrategy(applyStrategy)`](#fn-environmentwithapplystrategy)
   * [`fn withData(data)`](#fn-environmentwithdata)
   * [`fn withDataMixin(data)`](#fn-environmentwithdatamixin)
   * [`fn withInjectLabels(bool)`](#fn-environmentwithinjectlabels)
@@ -120,6 +121,16 @@ withApiServer(apiserver)
 
 `withApiServer` sets the Kubernetes cluster this environment should apply to.
 Must be the full URL, e.g. https://cluster.fqdn:6443
+
+
+### fn environment.withApplyStrategy
+
+```ts
+withApplyStrategy(applyStrategy)
+```
+
+`withApplyStrategy` sets the Kubernetes apply strategy used for this environment.
+Must be `client` or `server`
 
 
 ### fn environment.withData

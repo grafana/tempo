@@ -448,7 +448,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 			querierMessage:  "too fast!",
 			expectedCode:    429,
 			expectedMessage: "too fast!",
-			expectedErr:     status.Error(codes.InvalidArgument, "too fast!"),
+			expectedErr:     status.Error(codes.ResourceExhausted, "too fast!"),
 		},
 	}
 

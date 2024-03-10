@@ -152,6 +152,8 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 	var grpcErr error
 	if c.httpStatusCode/100 == 5 {
 		grpcErr = status.Error(codes.Internal, c.httpRespBody)
+	} else if c.httpStatusCode == http.StatusTooManyRequests {
+		grpcErr = status.Error(codes.ResourceExhausted, c.httpRespBody)
 	} else {
 		grpcErr = status.Error(codes.InvalidArgument, c.httpRespBody)
 	}

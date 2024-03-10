@@ -79,17 +79,6 @@
     v1+: appsPatch,
     v1beta1+: appsPatch,
   },
-  extensions+: {
-    v1beta1+: appsPatch {
-      ingress+: {
-        spec+: {
-          rulesType: $.extensions.v1beta1.ingressRule {
-            httpType+: { pathsType: $.extensions.v1beta1.httpIngressPath },
-          },
-        },
-      },
-    },
-  },
 
   batch+: {
     local patch = {
@@ -111,13 +100,13 @@
 
   local rbacPatch = {
     local role = {
-      rulesType: $.rbac.v1beta1.policyRule,
+      rulesType: $.rbac.v1.policyRule,
     },
     role+: role,
     clusterRole+: role,
 
     local binding = {
-      subjectsType: $.rbac.v1beta1.subject,
+      subjectsType: $.rbac.v1.subject,
     },
     roleBinding+: binding,
     clusterRoleBinding+: binding,
@@ -130,6 +119,7 @@
   },
   rbac+: {
     v1+: rbacPatch,
+    // TODO: the v1beta1 RBAC API has been removed in Kubernetes 1.22 and should get removed once 1.22 is the oldest supported version
     v1beta1+: rbacPatch,
   },
 

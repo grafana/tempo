@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/grafana/dskit/flagext"
@@ -25,8 +24,6 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
-
-var errTooManyRequest = httpgrpc.Errorf(http.StatusTooManyRequests, "too many outstanding requests")
 
 // Config for a Frontend.
 type Config struct {
@@ -377,11 +374,7 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
 	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
 
-	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
-	if errors.Is(err, queue.ErrTooManyRequests) {
-		return errTooManyRequest
-	}
-	return err
+	return f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
 }
 
 // CheckReady determines if the query frontend is ready.  Function parameters/return

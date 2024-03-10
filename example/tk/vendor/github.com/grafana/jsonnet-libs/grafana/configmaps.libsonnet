@@ -74,7 +74,7 @@ local deployment = k.apps.v1.deployment;
 
     // Shard configmaps at around 100kB per shard
     local totalCharacters = std.foldl(function(x, y) x + y, [std.length(d.content) for d in dashboards], 0);
-    local shardCount = std.min(count, std.ceil(totalCharacters / 100000));
+    local shardCount = std.min(count, std.ceil(totalCharacters / $._config.configmap_shard_size));
     {
       // Calculate the number of dashboards per shard
       // This is skewed towards tail dashboards (smallest ones)

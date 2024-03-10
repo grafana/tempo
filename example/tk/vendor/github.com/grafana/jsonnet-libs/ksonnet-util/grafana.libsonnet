@@ -60,10 +60,6 @@
     },
   },
 
-  extensions+: {
-    v1beta1+: appsExtentions,
-  },
-
   apps+: {
     v1beta1+: appsExtentions,
     v1+: appsExtentions,
