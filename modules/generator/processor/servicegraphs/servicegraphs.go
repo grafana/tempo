@@ -294,8 +294,8 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
-		if messagingSystemLatencySec < 0 {
-			level.Warn(p.logger).Log("msg", "producerSpanEndTime is greater than consumerSpanStartTime. probably clocks sync problem", "messagingSystemLatencySec", messagingSystemLatencySec)
+		if messagingSystemLatencySec == 0 {
+			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
 		} else {
 			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
 		}
@@ -330,9 +330,12 @@ func (p *Processor) spanFailed(span *v1_trace.Span) bool {
 }
 
 func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
-	// handling potential underflow of unit64s subtraction
-	diff := int64(unixNanoEnd) - int64(unixNanoStart)
-	return float64(diff) / float64(time.Second.Nanoseconds())
+	if unixNanoStart > unixNanoEnd {
+		// To prevent underflow, return 0.
+		return 0
+	}
+	// Safe subtraction.
+	return float64(unixNanoEnd-unixNanoStart) / 1e9
 }
 
 func spanDurationSec(span *v1_trace.Span) float64 {
