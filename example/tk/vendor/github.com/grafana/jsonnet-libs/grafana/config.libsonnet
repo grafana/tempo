@@ -9,6 +9,15 @@
     provisioningDir: '/etc/grafana/provisioning',
     port: 80,
     containerPort: 3000,
+
+    // Split configmaps into multiple files
+    // 100000 is a good default, because a `kubectl` client-side apply cannot exceed 256kB,
+    //   and the size of the request is doubled when setting the last-applied configuration
+    //   https://github.com/kubernetes/kubectl/issues/712
+    // For serverside applies, it can be increased, but keep in mind the 1MB limit of etcd
+    //   https://github.com/kubernetes/kubernetes/issues/19781
+    configmap_shard_size: 100000,
+
     labels+: {
       dashboards: {},
       datasources: {},

@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gogo/status"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -62,8 +64,12 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 		// first record all queries
 		allByTenantCounter.WithLabelValues(tenant).Inc()
 
-		// now check conditions to see if we should record within SLO
+		// most errors are SLO violations
 		if err != nil {
+			// however, if this is a grpc resource exhausted error (429) then we are within SLO
+			if status.Code(err) == codes.ResourceExhausted {
+				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+			}
 			return
 		}
 

@@ -89,6 +89,13 @@ function(replicas=2) {
     + container.mixin.readinessProbe.httpGet.withPort(self._config.prometheus_port)
     + container.mixin.readinessProbe.withInitialDelaySeconds(15)
     + container.mixin.readinessProbe.withTimeoutSeconds(1)
+    // Give 50 * 30 seconds (= 25 minutes) to start up, then start checking readiness
+    + container.mixin.startupProbe.httpGet.withPath('%(prometheus_path)s-/ready' % self._config)
+    + container.mixin.startupProbe.httpGet.withPort(self._config.prometheus_port)
+    + container.mixin.startupProbe.withInitialDelaySeconds(15)
+    + container.mixin.startupProbe.withTimeoutSeconds(1)
+    + container.mixin.startupProbe.withFailureThreshold(50)
+    + container.mixin.startupProbe.withPeriodSeconds(30)
   ,
 
   prometheus_watch_container+::

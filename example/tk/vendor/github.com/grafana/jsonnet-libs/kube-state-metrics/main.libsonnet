@@ -3,7 +3,7 @@ local kausal = import 'github.com/grafana/jsonnet-libs/ksonnet-util/kausal.libso
 {
   new(
     namespace,
-    image='k8s.gcr.io/kube-state-metrics/kube-state-metrics:v2.1.0',
+    image='registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.1.0',
   ):: {
     local k = kausal {
       _config+: {
@@ -21,7 +21,7 @@ local kausal = import 'github.com/grafana/jsonnet-libs/ksonnet-util/kausal.libso
         '--telemetry-port=8081',
       ])
       + container.withPorts([
-        containerPort.new('http-metrics', 8080),
+        containerPort.new('ksm', 8080),
         containerPort.new('self-metrics', 8081),
       ])
       + k.util.resourcesRequests('50m', '50Mi')
@@ -32,12 +32,9 @@ local kausal = import 'github.com/grafana/jsonnet-libs/ksonnet-util/kausal.libso
       deployment.new('kube-state-metrics', 1, [self.container])
       + deployment.mixin.spec.template.spec.withServiceAccountName(self.rbac.service_account.metadata.name)
       + deployment.mixin.spec.template.spec.securityContext.withRunAsUser(65534)
-      + deployment.mixin.spec.template.spec.securityContext.withRunAsGroup(65534)
-      // Prevent default pod discovery from scraping, use ./scrape_config.libsonnet instead
-      // to preserve namespace etc labels.
-      + deployment.mixin.spec.template.metadata.withAnnotationsMixin({ 'prometheus.io.scrape': 'false' }),
+      + deployment.mixin.spec.template.spec.securityContext.withRunAsGroup(65534),
 
-    local policyRule = k.rbac.v1beta1.policyRule,
+    local policyRule = k.rbac.v1.policyRule,
     rbac:
       k.util.rbac('kube-state-metrics', [
         policyRule.new()
