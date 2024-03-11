@@ -22,9 +22,16 @@ type Config struct {
 	TraceByID                 TraceByIDConfig `yaml:"trace_by_id"`
 	Metrics                   MetricsConfig   `yaml:"metrics"`
 	MultiTenantQueriesEnabled bool            `yaml:"multi_tenant_queries_enabled"`
+
+	// the maximum time limit that tempo will work on an api request. this includes both
+	// grpc and http requests and applies to all "api" frontend query endpoints such as
+	// traceql, tag search, tag value search, trace by id and all streaming gRPC endpoints.
+	// 0 disables
+	ApiTimeout time.Duration `yaml:"api_timeout,omitempty"` // jpe - default to 5m?
 }
 
 type SearchConfig struct {
+	Timeout time.Duration       `yaml:"timeout,omitempty"`
 	Sharder SearchSharderConfig `yaml:",inline"`
 	SLO     SLOConfig           `yaml:",inline"`
 }

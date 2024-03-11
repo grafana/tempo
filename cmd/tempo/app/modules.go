@@ -367,7 +367,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC(), queryFrontend)
 
 	// wrap handlers with auth
-	base := middleware.Merge(
+	base := middleware.Merge( // jpe - add http.TimeoutHandler and grpc interceptor
 		t.HTTPAuthMiddleware,
 		httpGzipMiddleware(),
 	)
