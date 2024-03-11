@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
+	"github.com/grafana/tempo/modules/frontend/interceptor"
 	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
@@ -104,6 +105,13 @@ func (t *App) initServer() (services.Service, error) {
 			}
 		}
 		return svs
+	}
+
+	// add unary and stream timeout interceptors for the query-frontend if configured
+	// this same timeout is enforced for http in the initQueryFrontend() function
+	if t.cfg.Frontend.ApiTimeout > 0 && t.isModuleActive(QueryFrontend) {
+		t.cfg.Server.GRPCMiddleware = append(t.cfg.Server.GRPCMiddleware, interceptor.NewFrontendAPIUnaryTimeout(t.cfg.Frontend.ApiTimeout))
+		t.cfg.Server.GRPCStreamMiddleware = append(t.cfg.Server.GRPCStreamMiddleware, interceptor.NewFrontendAPIStreamTimeout(t.cfg.Frontend.ApiTimeout))
 	}
 
 	return t.Server.StartAndReturnService(t.cfg.Server, t.cfg.StreamOverHTTPEnabled, servicesToWaitFor)
@@ -366,11 +374,19 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// this GRPC service to be available on the HTTP server.
 	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC(), queryFrontend)
 
-	// wrap handlers with auth
-	base := middleware.Merge( // jpe - add http.TimeoutHandler and grpc interceptor
+	httpAPIMiddleware := []middleware.Interface{
 		t.HTTPAuthMiddleware,
 		httpGzipMiddleware(),
-	)
+	}
+
+	// use the api timeout for http requests if set. note that this is set in initServer() for
+	// grpc requests
+	if t.cfg.Frontend.ApiTimeout > 0 {
+		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.ApiTimeout, "unable to process request in the configured timeout", t.Server.Log()))
+	}
+
+	// wrap handlers with auth
+	base := middleware.Merge(httpAPIMiddleware...)
 
 	// http trace by id endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))

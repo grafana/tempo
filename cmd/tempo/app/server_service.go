@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -14,7 +13,6 @@ import (
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -78,22 +76,10 @@ func (s *tempoServer) SetKeepAlivesEnabled(enabled bool) {
 func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP bool, servicesToWaitFor func() []services.Service) (services.Service, error) {
 	var err error
 
-	// the configured write timeout. this is the amount of time we actually want to cancel the request after.
-	actualWriteTimeout := cfg.HTTPServerWriteTimeout
-	cfg.HTTPServerWriteTimeout = 0 // set to 0 b/c we are going to enforce
-	timeoutMiddleware := middleware.Func(func(h http.Handler) http.Handler {
-		return http.TimeoutHandler(h, actualWriteTimeout, "request timed out")
-	})
-
 	metrics := server.NewServerMetrics(cfg)
 	DisableSignalHandling(&cfg)
 
 	if !supportGRPCOnHTTP {
-		// add timeout middleware
-		if actualWriteTimeout > 0 {
-			cfg.HTTPMiddleware = []middleware.Interface{timeoutMiddleware}
-		}
-
 		// We don't do any GRPC handling, let the library handle all routing for us
 		cfg.Router = s.mux
 
@@ -106,11 +92,6 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 		// We want to route both GRPC and HTTP requests on the same endpoint
 		cfg.Router = nil
 		cfg.DoNotAddDefaultHTTPMiddleware = true // we don't want instrumentation on the "root" router, we want it on our mux. it will be added below.
-
-		if actualWriteTimeout > 0 {
-			cfg.GRPCMiddleware = append(cfg.GRPCMiddleware, unaryTimeoutInterceptor(actualWriteTimeout))
-			cfg.GRPCStreamMiddleware = append(cfg.GRPCStreamMiddleware, streamTimeoutInterceptor(actualWriteTimeout))
-		}
 
 		s.externalServer, err = server.NewWithMetrics(cfg, metrics)
 		if err != nil {
@@ -128,18 +109,11 @@ func (s *tempoServer) StartAndReturnService(cfg server.Config, supportGRPCOnHTTP
 			return nil, fmt.Errorf("failed to create http middleware: %w", err)
 		}
 
-		// add timeout middleware and add to the handler
-		if actualWriteTimeout > 0 {
-			httpMiddleware = append(httpMiddleware, timeoutMiddleware)
-		}
 		s.handler = middleware.Merge(httpMiddleware...).Wrap(s.mux)
-
 		s.externalServer.HTTP.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			// route to GRPC server if it's a GRPC request
 			if req.ProtoMajor == 2 && strings.Contains(req.Header.Get("Content-Type"), "application/grpc") {
-				// http is handled by the http.TimeoutHandler. manually write a timeout for grpc
 				s.externalServer.GRPC.ServeHTTP(w, req)
-
 				return
 			}
 
@@ -207,26 +181,4 @@ func (dh ignoreSignalHandler) Loop() {
 
 func (dh ignoreSignalHandler) Stop() {
 	close(dh)
-}
-
-// jpe - revert to main
-func unaryTimeoutInterceptor(timeout time.Duration) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		ctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
-		return handler(ctx, req)
-	}
-}
-
-func streamTimeoutInterceptor(timeout time.Duration) grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx, cancel := context.WithTimeout(ss.Context(), timeout)
-		defer cancel()
-
-		return handler(srv, &grpc_middleware.WrappedServerStream{
-			ServerStream:   ss,
-			WrappedContext: ctx,
-		})
-	}
 }

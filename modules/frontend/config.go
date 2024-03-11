@@ -27,7 +27,7 @@ type Config struct {
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
 	// traceql, tag search, tag value search, trace by id and all streaming gRPC endpoints.
 	// 0 disables
-	ApiTimeout time.Duration `yaml:"api_timeout,omitempty"` // jpe - default to 5m?
+	ApiTimeout time.Duration `yaml:"api_timeout,omitempty"` // jpe docs and better name
 }
 
 type SearchConfig struct {
