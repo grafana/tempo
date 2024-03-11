@@ -788,7 +788,7 @@ github.com/klauspost/cpuid/v2
 ## explicit; go 1.12
 github.com/knadh/koanf/maps
 github.com/knadh/koanf/providers/confmap
-# github.com/knadh/koanf/v2 v2.0.2
+# github.com/knadh/koanf/v2 v2.1.0
 ## explicit; go 1.18
 github.com/knadh/koanf/v2
 # github.com/kylelemons/godebug v1.1.0
@@ -1381,8 +1381,8 @@ go.opentelemetry.io/collector/config/confighttp
 # go.opentelemetry.io/collector/config/confignet v0.94.1
 ## explicit; go 1.20
 go.opentelemetry.io/collector/config/confignet
-# go.opentelemetry.io/collector/config/configopaque v0.94.1
-## explicit; go 1.20
+# go.opentelemetry.io/collector/config/configopaque v1.3.0
+## explicit; go 1.21
 go.opentelemetry.io/collector/config/configopaque
 # go.opentelemetry.io/collector/config/configretry v0.94.1
 ## explicit; go 1.20
@@ -1390,23 +1390,35 @@ go.opentelemetry.io/collector/config/configretry
 # go.opentelemetry.io/collector/config/configtelemetry v0.94.1
 ## explicit; go 1.20
 go.opentelemetry.io/collector/config/configtelemetry
-# go.opentelemetry.io/collector/config/configtls v0.94.1
-## explicit; go 1.20
+# go.opentelemetry.io/collector/config/configtls v0.96.0
+## explicit; go 1.21
 go.opentelemetry.io/collector/config/configtls
 # go.opentelemetry.io/collector/config/internal v0.94.1
 ## explicit; go 1.20
 go.opentelemetry.io/collector/config/internal
-# go.opentelemetry.io/collector/confmap v0.94.1
-## explicit; go 1.20
+# go.opentelemetry.io/collector/confmap v0.96.0
+## explicit; go 1.21
 go.opentelemetry.io/collector/confmap
-go.opentelemetry.io/collector/confmap/converter/expandconverter
 go.opentelemetry.io/collector/confmap/internal/mapstructure
-go.opentelemetry.io/collector/confmap/provider/envprovider
-go.opentelemetry.io/collector/confmap/provider/fileprovider
-go.opentelemetry.io/collector/confmap/provider/httpprovider
-go.opentelemetry.io/collector/confmap/provider/httpsprovider
 go.opentelemetry.io/collector/confmap/provider/internal
 go.opentelemetry.io/collector/confmap/provider/internal/configurablehttpprovider
+# go.opentelemetry.io/collector/confmap/converter/expandconverter v0.96.0
+## explicit; go 1.21
+go.opentelemetry.io/collector/confmap/converter/expandconverter
+# go.opentelemetry.io/collector/confmap/provider/envprovider v0.96.0
+## explicit; go 1.21
+go.opentelemetry.io/collector/confmap/provider/envprovider
+# go.opentelemetry.io/collector/confmap/provider/fileprovider v0.96.0
+## explicit; go 1.21
+go.opentelemetry.io/collector/confmap/provider/fileprovider
+# go.opentelemetry.io/collector/confmap/provider/httpprovider v0.96.0
+## explicit; go 1.21
+go.opentelemetry.io/collector/confmap/provider/httpprovider
+# go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.96.0
+## explicit; go 1.21
+go.opentelemetry.io/collector/confmap/provider/httpsprovider
+# go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.96.0
+## explicit; go 1.21
 go.opentelemetry.io/collector/confmap/provider/yamlprovider
 # go.opentelemetry.io/collector/connector v0.94.1
 ## explicit; go 1.20
