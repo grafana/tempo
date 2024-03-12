@@ -253,20 +253,20 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					return
 				}
 
-				parts = strings.Split(strings.TrimPrefix(attrs.Name, rw.cfg.Prefix), "/")
-				// ie: <tenant>/<blockID>/meta.json
-				if len(parts) != 3 {
+				parts = strings.Split(strings.TrimPrefix(attrs.Name, prefix), "/")
+				// ie: <blockID>/meta.json
+				if len(parts) != 2 {
 					continue
 				}
 
-				switch parts[2] {
+				switch parts[1] {
 				case backend.MetaName:
 				case backend.CompactedMetaName:
 				default:
 					continue
 				}
 
-				id, err = uuid.Parse(parts[1])
+				id, err = uuid.Parse(parts[0])
 				if err != nil {
 					continue
 				}
@@ -283,7 +283,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				}
 
 				mtx.Lock()
-				switch parts[2] {
+				switch parts[1] {
 				case backend.MetaName:
 					blockIDs = append(blockIDs, id)
 				case backend.CompactedMetaName:
