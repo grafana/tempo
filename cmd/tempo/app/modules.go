@@ -109,9 +109,9 @@ func (t *App) initServer() (services.Service, error) {
 
 	// add unary and stream timeout interceptors for the query-frontend if configured
 	// this same timeout is enforced for http in the initQueryFrontend() function
-	if t.cfg.Frontend.ApiTimeout > 0 && t.isModuleActive(QueryFrontend) {
-		t.cfg.Server.GRPCMiddleware = append(t.cfg.Server.GRPCMiddleware, interceptor.NewFrontendAPIUnaryTimeout(t.cfg.Frontend.ApiTimeout))
-		t.cfg.Server.GRPCStreamMiddleware = append(t.cfg.Server.GRPCStreamMiddleware, interceptor.NewFrontendAPIStreamTimeout(t.cfg.Frontend.ApiTimeout))
+	if t.cfg.Frontend.APITimeout > 0 && t.isModuleActive(QueryFrontend) {
+		t.cfg.Server.GRPCMiddleware = append(t.cfg.Server.GRPCMiddleware, interceptor.NewFrontendAPIUnaryTimeout(t.cfg.Frontend.APITimeout))
+		t.cfg.Server.GRPCStreamMiddleware = append(t.cfg.Server.GRPCStreamMiddleware, interceptor.NewFrontendAPIStreamTimeout(t.cfg.Frontend.APITimeout))
 	}
 
 	return t.Server.StartAndReturnService(t.cfg.Server, t.cfg.StreamOverHTTPEnabled, servicesToWaitFor)
@@ -381,8 +381,8 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// use the api timeout for http requests if set. note that this is set in initServer() for
 	// grpc requests
-	if t.cfg.Frontend.ApiTimeout > 0 {
-		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.ApiTimeout, "unable to process request in the configured timeout", t.Server.Log()))
+	if t.cfg.Frontend.APITimeout > 0 {
+		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.APITimeout, "unable to process request in the configured timeout", t.Server.Log()))
 	}
 
 	// wrap handlers with auth
