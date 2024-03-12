@@ -130,7 +130,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, nil, logger),
 
 		// grpc/streaming
-		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
+		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, logger),
 		streamingTags:        newTagStreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagsV2:      newTagV2StreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:   newTagValuesStreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
@@ -258,20 +258,26 @@ func newMetricsMiddleware() pipeline.Middleware {
 
 		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// ingester search queries only need to be proxied to a single querier
-			orgID, _ := user.ExtractOrgID(r.Context())
+			orgID, _ := user.ExtractOrgID(r.Context()) // jpe - test err?
+			// jpe - make this generic? all it does it propagate forward
 
-			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
+			prepareRequestForDownstream(r, orgID, r.RequestURI, nil)
 
 			return generatorRT.RoundTrip(r)
 		})
 	})
 }
 
-// buildUpstreamRequestURI returns a uri based on the passed parameters
-// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
-// https://github.com/grafana/dskit/blob/740f56bd293423c5147773ce97264519f9fddc58/httpgrpc/server/server.go#L59
-func buildUpstreamRequestURI(originalURI string, params url.Values) string {
+// prepareRequestForDownstream modifies the request for downstream functionality
+//   - adds the tenant header
+//   - sets the requesturi (see below for details)
+func prepareRequestForDownstream(req *http.Request, tenant string, originalURI string, params url.Values) { // jpe do we need to take originalURI and parms? can we just get that from req?
+	// set the tenant header
+	req.Header.Set(user.OrgIDHeaderName, tenant)
+
+	// build and set the request uri
+	// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
+	// https://github.com/grafana/dskit/blob/740f56bd293423c5147773ce97264519f9fddc58/httpgrpc/server/server.go#L59
 	const queryDelimiter = "?"
 
 	uri := path.Join(api.PathPrefixQuerier, originalURI)
@@ -279,7 +285,7 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 		uri += queryDelimiter + params.Encode()
 	}
 
-	return uri
+	req.RequestURI = uri
 }
 
 func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) pipeline.Middleware {

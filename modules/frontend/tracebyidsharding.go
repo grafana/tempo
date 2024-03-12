@@ -228,9 +228,7 @@ func (s *shardQuery) buildShardedRequests(ctx context.Context, parent *http.Requ
 			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
 		}
 
-		reqs[i].Header.Set(user.OrgIDHeaderName, userID)
-		uri := buildUpstreamRequestURI(reqs[i].URL.Path, q)
-		reqs[i].RequestURI = uri
+		prepareRequestForDownstream(reqs[i], userID, reqs[i].URL.Path, q)
 	}
 
 	return reqs, nil

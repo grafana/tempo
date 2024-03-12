@@ -293,13 +293,12 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 		blockID := m.BlockID.String()
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
-			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 			subR, err := searchReq.buildTagSearchBlockRequest(subR, blockID, startPage, pages, m)
 			if err != nil {
 				errFn(err)
 				return
 			}
-			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
+			prepareRequestForDownstream(subR, tenantID, parent.URL.Path, subR.URL.Query())
 
 			key := cacheKey(keyPrefix, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
 			if len(key) > 0 {
@@ -352,14 +351,12 @@ func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, 
 
 func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq) (*http.Request, error) {
 	subR := parent.Clone(ctx)
-
-	subR.Header.Set(user.OrgIDHeaderName, tenantID)
 	subR, err := searchReq.buildSearchTagRequest(subR)
 	if err != nil {
 		return nil, err
 	}
 
-	subR.RequestURI = buildUpstreamRequestURI(subR.URL.Path, subR.URL.Query())
+	prepareRequestForDownstream(subR, tenantID, subR.URL.Path, subR.URL.Query())
 	return subR, nil
 }
 
