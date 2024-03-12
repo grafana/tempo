@@ -301,19 +301,24 @@ func TestObjectWithPrefix(t *testing.T) {
 
 func TestListBlocksWithPrefix(t *testing.T) {
 	tests := []struct {
-		name        string
-		prefix      string
-		objectName  string
-		keyPath     backend.KeyPath
-		httpHandler func(t *testing.T) http.HandlerFunc
+		name              string
+		prefix            string
+		tenant            string
+		liveBlockIDs      []uuid.UUID
+		compactedBlockIDs []uuid.UUID
+		httpHandler       func(t *testing.T) http.HandlerFunc
 	}{
 		{
-			name:    "with prefix",
-			prefix:  "a/b/c/",
-			keyPath: backend.KeyPath{"test"},
+			name:              "with prefix",
+			prefix:            "a/b/c/",
+			tenant:            "single-tenant",
+			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
+						assert.Equal(t, "a/b/c/single-tenant/", r.URL.Query().Get("prefix"))
+
 						_, _ = w.Write([]byte(`
 						{
 							"kind": "storage#objects",
@@ -329,7 +334,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 							}, {
 								"kind": "storage#object",
 								"id": "2",
-								"name": "a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/meta.compacted.json",
+								"name": "a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json",
 								"bucket": "blerg",
 								"storageClass": "STANDARD",
 								"size": "1024",
@@ -344,12 +349,16 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			},
 		},
 		{
-			name:    "without prefix",
-			prefix:  "",
-			keyPath: backend.KeyPath{"test"},
+			name:              "without prefix",
+			prefix:            "",
+			tenant:            "single-tenant",
+			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
+						assert.Equal(t, "single-tenant/", r.URL.Query().Get("prefix"))
+
 						_, _ = w.Write([]byte(`
 						{
 							"kind": "storage#objects",
@@ -365,7 +374,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 							}, {
 								"kind": "storage#object",
 								"id": "2",
-								"name": "single-tenant/00000000-0000-0000-0000-000000000000/meta.compacted.json",
+								"name": "single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json",
 								"bucket": "blerg",
 								"storageClass": "STANDARD",
 								"size": "1024",
@@ -384,7 +393,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			server := testServer(t, tc.httpHandler(t))
-			r, _, _, err := New(&Config{
+			r, _, _, err := NewNoConfirm(&Config{
 				BucketName:            "blerg",
 				Endpoint:              server.URL,
 				Insecure:              true,
@@ -394,11 +403,11 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, "single-tenant")
+			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, tc.tenant)
 			assert.NoError(t, err)
 
-			assert.Equal(t, 1, len(blockIDs))
-			assert.Equal(t, 1, len(compactedBlockIDs))
+			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
+			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
 		})
 	}
 }
