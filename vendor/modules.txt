@@ -491,7 +491,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20240116202611-824e75a28ee8
+# github.com/grafana/dskit v0.0.0-20240311184239-73feada6c0d7
 ## explicit; go 1.20
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
@@ -539,7 +539,7 @@ github.com/grafana/dskit/user
 github.com/grafana/e2e
 github.com/grafana/e2e/db
 github.com/grafana/e2e/images
-# github.com/grafana/gomemcache v0.0.0-20231023152154-6947259a0586
+# github.com/grafana/gomemcache v0.0.0-20240229205252-cd6a66d6fb56
 ## explicit; go 1.18
 github.com/grafana/gomemcache/memcache
 # github.com/grafana/pyroscope-go/godeltaprof v0.1.6
