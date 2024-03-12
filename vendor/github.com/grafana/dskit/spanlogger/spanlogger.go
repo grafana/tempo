@@ -158,7 +158,7 @@ func (s *SpanLogger) getLogger() log.Logger {
 
 	traceID, ok := tracing.ExtractSampledTraceID(s.ctx)
 	if ok {
-		logger = log.With(logger, "traceID", traceID)
+		logger = log.With(logger, "trace_id", traceID)
 	}
 	// If the value has been set by another goroutine, fetch that other value and discard the one we made.
 	if !s.logger.CompareAndSwap(nil, &logger) {
