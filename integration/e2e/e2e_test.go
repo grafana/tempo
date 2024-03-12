@@ -58,83 +58,110 @@ func TestAllInOne(t *testing.T) {
 		},
 	}
 
+	storageBackendTestPermutations := []struct {
+		name   string
+		prefix string
+	}{
+		{
+			name:   "empty-string-prefix",
+			prefix: "",
+		},
+		{
+			name: "no-prefix",
+		},
+		{
+			name:   "prefix",
+			prefix: "a/b/c/",
+		},
+		{
+			name:   "prefix-no-trailing-slash",
+			prefix: "a/b/c",
+		},
+	}
+
 	for _, tc := range testBackends {
-		t.Run(tc.name, func(t *testing.T) {
-			s, err := e2e.NewScenario("tempo_e2e")
-			require.NoError(t, err)
-			defer s.Close()
+		for _, pc := range storageBackendTestPermutations {
+			t.Run(tc.name+"-"+pc.name, func(t *testing.T) {
+				s, err := e2e.NewScenario("tempo_e2e")
+				require.NoError(t, err)
+				defer s.Close()
 
-			// set up the backend
-			cfg := app.Config{}
-			buff, err := os.ReadFile(tc.configFile)
-			require.NoError(t, err)
-			err = yaml.UnmarshalStrict(buff, &cfg)
-			require.NoError(t, err)
-			_, err = backend.New(s, cfg)
-			require.NoError(t, err)
+				// copy config template to shared directory and expand template variables
+				tmplConfig := map[string]any{"Prefix": pc.prefix}
+				configFile, err := util.CopyTemplateToSharedDir(s, tc.configFile, "config.yaml", tmplConfig)
+				require.NoError(t, err)
 
-			require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
-			tempo := util.NewTempoAllInOne()
-			require.NoError(t, s.StartAndWaitReady(tempo))
+				// set up the backend
+				cfg := app.Config{}
+				buff, err := os.ReadFile(configFile)
+				require.NoError(t, err)
+				err = yaml.UnmarshalStrict(buff, &cfg)
+				require.NoError(t, err)
+				_, err = backend.New(s, cfg)
+				require.NoError(t, err)
 
-			// Get port for the Jaeger gRPC receiver endpoint
-			c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
-			require.NoError(t, err)
-			require.NotNil(t, c)
+				tempo := util.NewTempoAllInOne()
+				require.NoError(t, s.StartAndWaitReady(tempo))
 
-			info := tempoUtil.NewTraceInfo(time.Now(), "")
-			require.NoError(t, info.EmitAllBatches(c))
+				// Get port for the Jaeger gRPC receiver endpoint
+				c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+				require.NoError(t, err)
+				require.NotNil(t, c)
 
-			expected, err := info.ConstructTraceFromEpoch()
-			require.NoError(t, err)
+				info := tempoUtil.NewTraceInfo(time.Now(), "")
+				require.NoError(t, info.EmitAllBatches(c))
 
-			// test metrics
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+				expected, err := info.ConstructTraceFromEpoch()
+				require.NoError(t, err)
 
-			// test echo
-			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
+				// test metrics
+				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
-			apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
+				// test echo
+				assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-			// query an in-memory trace
-			queryAndAssertTrace(t, apiClient, info)
+				apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
 
-			// wait trace_idle_time and ensure trace is created in ingester
-			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+				// query an in-memory trace
+				queryAndAssertTrace(t, apiClient, info)
 
-			// flush trace to backend
-			callFlush(t, tempo)
+				// wait trace_idle_time and ensure trace is created in ingester
+				require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
-			// search for trace in backend
-			util.SearchAndAssertTrace(t, apiClient, info)
-			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
+				// flush trace to backend
+				callFlush(t, tempo)
 
-			// sleep
-			time.Sleep(10 * time.Second)
+				// search for trace in backend
+				util.SearchAndAssertTrace(t, apiClient, info)
+				util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
-			// force clear completed block
-			callFlush(t, tempo)
+				// sleep
+				time.Sleep(10 * time.Second)
 
-			// test metrics
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(3), "tempo_query_frontend_queries_total"))
+				// force clear completed block
+				callFlush(t, tempo)
 
-			// query trace - should fetch from backend
-			queryAndAssertTrace(t, apiClient, info)
+				// test metrics
+				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+				require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(3), "tempo_query_frontend_queries_total"))
 
-			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
-			now := time.Now()
-			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+				// query trace - should fetch from backend
+				queryAndAssertTrace(t, apiClient, info)
 
-			util.SearchAndAsserTagsBackend(t, apiClient, now.Add(-20*time.Minute).Unix(), now.Unix())
+				// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
+				now := time.Now()
+				util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
-			// find the trace with streaming. using the http server b/c that's what Grafana will do
-			grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
-			require.NoError(t, err)
+				util.SearchAndAsserTagsBackend(t, apiClient, now.Add(-20*time.Minute).Unix(), now.Unix())
 
-			util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-		})
+				// find the trace with streaming. using the http server b/c that's what Grafana will do
+				grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
+				require.NoError(t, err)
+
+				util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+			})
+		}
 	}
 }
 
