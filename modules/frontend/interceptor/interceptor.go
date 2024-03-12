@@ -25,7 +25,7 @@ func NewFrontendAPIUnaryTimeout(timeout time.Duration) grpc.UnaryServerIntercept
 
 func NewFrontendAPIStreamTimeout(timeout time.Duration) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		var ctx = ss.Context()
+		ctx := ss.Context()
 		if strings.HasPrefix(info.FullMethod, streamingQuerierPrefix) {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ss.Context(), timeout)
