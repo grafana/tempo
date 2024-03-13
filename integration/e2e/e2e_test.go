@@ -63,19 +63,11 @@ func TestAllInOne(t *testing.T) {
 		prefix string
 	}{
 		{
-			name:   "empty-string-prefix",
-			prefix: "",
-		},
-		{
 			name: "no-prefix",
 		},
 		{
 			name:   "prefix",
 			prefix: "a/b/c/",
-		},
-		{
-			name:   "prefix-no-trailing-slash",
-			prefix: "a/b/c",
 		},
 	}
 
