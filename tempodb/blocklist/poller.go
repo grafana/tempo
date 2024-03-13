@@ -185,7 +185,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	)
 
 	for _, tenantID := range tenants {
-		lastTenantPoll = time.Now()
+		lastTenantPoll = time.Time{}
 		if last, ok := tenantsPolled[tenantID]; ok {
 			lastTenantPoll = last
 		}
