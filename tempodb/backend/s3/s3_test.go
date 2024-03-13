@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/google/uuid"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +17,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/grafana/dskit/flagext"
