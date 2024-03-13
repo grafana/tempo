@@ -166,7 +166,6 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger(), b)
-			poller.Start(context.Background())
 			actualList, actualCompactedList, err := poller.Do()
 
 			// confirm return as expected
@@ -272,7 +271,6 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger(), b)
-			poller.Start(context.Background())
 			_, _, err := poller.Do()
 
 			assert.Equal(t, tc.expectsError, err != nil)
@@ -585,7 +583,6 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				TolerateConsecutiveErrors: tc.tolerate,
 				TenantPollConcurrency:     testTenantPollConcurrency,
 			}, s, r, c, w, log.NewLogfmtLogger(os.Stdout), b)
-			poller.Start(context.Background())
 
 			_, _, err := poller.Do()
 
@@ -789,7 +786,6 @@ func TestPollComparePreviousResults(t *testing.T) {
 				TenantIndexBuilders:   testBuilders,
 				TenantPollConcurrency: testTenantPollConcurrency,
 			}, s, r, c, w, log.NewNopLogger(), previous)
-			poller.Start(context.Background())
 
 			metas, compactedMetas, err := poller.Do()
 			require.Equal(t, tc.err, err)

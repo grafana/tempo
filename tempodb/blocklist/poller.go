@@ -72,7 +72,7 @@ var (
 		Help:      "Age in seconds of the last pulled tenant index.",
 	}, []string{"tenant"})
 	metricTenantQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "tempo",
+		Namespace: "tempodb",
 		Name:      "poller_tenant_queue_length",
 		Help:      "The total number of tenants pending in the queue.",
 	})
@@ -117,14 +117,6 @@ type Poller struct {
 	sharder JobSharder
 	logger  log.Logger
 
-	tenantQueues     *flushqueues.ExclusiveQueues
-	tenantQueuesDone sync.WaitGroup
-	tenantsPolled    map[string]time.Time
-
-	perTenantChan          chan *PerTenant
-	perTenantCompactedChan chan *PerTenantCompacted
-	perTenantErrChan       chan error
-
 	blocklist *List
 }
 
@@ -135,15 +127,9 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 		compactor: compactor,
 		writer:    writer,
 
-		cfg:           cfg,
-		sharder:       sharder,
-		logger:        logger,
-		tenantQueues:  flushqueues.New(int(cfg.TenantPollConcurrency), metricTenantQueueLength),
-		tenantsPolled: make(map[string]time.Time, 1000),
-
-		perTenantChan:          make(chan *PerTenant),
-		perTenantCompactedChan: make(chan *PerTenantCompacted),
-		perTenantErrChan:       make(chan error, 1000),
+		cfg:     cfg,
+		sharder: sharder,
+		logger:  logger,
 
 		blocklist: blocklist,
 	}
@@ -158,11 +144,31 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 	}()
 
+	var (
+		perTenantChan          = make(chan *PerTenant)
+		perTenantCompactedChan = make(chan *PerTenantCompacted)
+		perTenantErrChan       = make(chan error, 1000)
+		tenantQueues           = flushqueues.New(int(p.cfg.TenantPollConcurrency), metricTenantQueueLength)
+		tenantsPolled          = make(map[string]time.Time, 1000)
+		tenantQueuesDone       sync.WaitGroup
+	)
+	defer func() {
+		close(perTenantChan)
+		close(perTenantCompactedChan)
+		close(perTenantErrChan)
+		tenantQueues.Stop()
+	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Poller.Do")
 	defer span.Finish()
+
+	tenantQueuesDone.Add(int(p.cfg.TenantPollConcurrency))
+	for j := 0; j < int(p.cfg.TenantPollConcurrency); j++ {
+		go p.tenantPollLoop(ctx, j, perTenantChan, perTenantCompactedChan, perTenantErrChan, tenantQueues, &tenantQueuesDone)
+	}
 
 	tenants, err := p.reader.Tenants(ctx)
 	if err != nil {
@@ -180,11 +186,11 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 
 	for _, tenantID := range tenants {
 		lastTenantPoll = time.Now()
-		if last, ok := p.tenantsPolled[tenantID]; ok {
+		if last, ok := tenantsPolled[tenantID]; ok {
 			lastTenantPoll = last
 		}
 
-		err = p.tenantQueues.Enqueue(&tenantOp{
+		err = tenantQueues.Enqueue(&tenantOp{
 			lastPoll: lastTenantPoll,
 			tenantID: tenantID,
 		})
@@ -219,7 +225,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		case <-ctx.Done():
 			return nil, nil, ctx.Err()
 		case <-ticker.C:
-			if p.tenantQueues.IsEmpty() {
+			if tenantQueues.IsEmpty() {
 
 				// Ensure that even empty results in either the blocklist or compacted blocklist contain the same tenants.
 				for tenantID := range compactedBlocklist {
@@ -248,7 +254,7 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 				return blocklist, compactedBlocklist, nil
 			}
 
-		case err := <-p.perTenantErrChan:
+		case err := <-perTenantErrChan:
 			consecutiveErrors++
 			errs = append(errs, err)
 			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
@@ -256,19 +262,19 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 				return nil, nil, errors.Join(errs...)
 			}
 			continue
-		case m := <-p.perTenantChan:
+		case m := <-perTenantChan:
 			if m != nil {
 				consecutiveErrors = 0
 				for tenantID, newBlockList := range *m {
-					p.tenantsPolled[tenantID] = time.Now()
+					tenantsPolled[tenantID] = time.Now()
 					blocklist[tenantID] = newBlockList
 				}
 			}
-		case c := <-p.perTenantCompactedChan:
+		case c := <-perTenantCompactedChan:
 			if c != nil {
 				consecutiveErrors = 0
 				for tenantID, newCompactedBlockList := range *c {
-					p.tenantsPolled[tenantID] = time.Now()
+					tenantsPolled[tenantID] = time.Now()
 					compactedBlocklist[tenantID] = newCompactedBlockList
 				}
 			}
@@ -276,17 +282,10 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 	}
 }
 
-func (p *Poller) Start(ctx context.Context) {
-	p.tenantQueuesDone.Add(int(p.cfg.TenantPollConcurrency))
-	for j := 0; j < int(p.cfg.TenantPollConcurrency); j++ {
-		go p.tenantPollLoop(ctx, j)
-	}
-}
-
-func (p *Poller) tenantPollLoop(ctx context.Context, j int) {
+func (p *Poller) tenantPollLoop(ctx context.Context, j int, perTenantChan chan *PerTenant, perTenantCompactedChan chan *PerTenantCompacted, perTenantErrChan chan error, tenantQueues *flushqueues.ExclusiveQueues, tenantQueuesWg *sync.WaitGroup) {
 	defer func() {
 		level.Debug(p.logger).Log("msg", "Poller.tenantPollLoop() exited")
-		p.tenantQueuesDone.Done()
+		tenantQueuesWg.Done()
 	}()
 
 	for {
@@ -294,7 +293,7 @@ func (p *Poller) tenantPollLoop(ctx context.Context, j int) {
 			return
 		}
 
-		o := p.tenantQueues.Dequeue(j)
+		o := tenantQueues.Dequeue(j)
 		if o == nil {
 			return
 		}
@@ -310,22 +309,22 @@ func (p *Poller) tenantPollLoop(ctx context.Context, j int) {
 		m, c, err = p.pollTenantAndCreateIndex(ctx, op.tenantID)
 		if err != nil {
 			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", op.tenantID, "err", err)
-			p.perTenantErrChan <- err
+			perTenantErrChan <- err
 		}
 
 		if len(m) > 0 {
-			p.perTenantChan <- &PerTenant{
+			perTenantChan <- &PerTenant{
 				op.tenantID: m,
 			}
 		}
 
 		if len(c) > 0 {
-			p.perTenantCompactedChan <- &PerTenantCompacted{
+			perTenantCompactedChan <- &PerTenantCompacted{
 				op.tenantID: c,
 			}
 		}
 
-		p.tenantQueues.Clear(op)
+		tenantQueues.Clear(op)
 	}
 }
 

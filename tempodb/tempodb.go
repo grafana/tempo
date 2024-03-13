@@ -519,8 +519,6 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 
 	rw.blocklistPoller = blocklistPoller
 
-	rw.blocklistPoller.Start(ctx)
-
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
 	rw.pollBlocklist()
