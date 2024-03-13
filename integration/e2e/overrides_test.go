@@ -49,16 +49,21 @@ func TestOverrides(t *testing.T) {
 			require.NoError(t, err)
 			defer s.Close()
 
+			// copy config template to shared directory and expand template variables
+			tmplConfig := map[string]any{"Prefix": ""}
+			configFile, err := util.CopyTemplateToSharedDir(s, tc.configFile, "config.yaml", tmplConfig)
+			require.NoError(t, err)
+
 			// set up the backend
 			cfg := app.Config{}
-			buff, err := os.ReadFile(tc.configFile)
+			buff, err := os.ReadFile(configFile)
 			require.NoError(t, err)
 			err = yaml.UnmarshalStrict(buff, &cfg)
 			require.NoError(t, err)
 			_, err = backend.New(s, cfg)
 			require.NoError(t, err)
 
-			require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
+			require.NoError(t, util.CopyFileToSharedDir(s, configFile, "config.yaml"))
 			tempo := util.NewTempoAllInOne()
 			require.NoError(t, s.StartAndWaitReady(tempo))
 
