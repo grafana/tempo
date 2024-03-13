@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"reflect"
 	"sync"
 	"time"
 
@@ -280,10 +281,15 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
+		limit := int(d.ingestionRateLimiter.Limit(now, userID))
+		if (reflect.TypeOf(*d.ingestionRateLimiter) == reflect.TypeOf(globalStrategy{})) {
+			numDistributors := d.DistributorRing.InstancesCount()
+			limit = limit * numDistributors
+		}
 		return status.Errorf(codes.ResourceExhausted,
 			"%s: ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
-			int(d.ingestionRateLimiter.Limit(now, userID)),
+			limit,
 			tracesSize, userID)
 	}
 
