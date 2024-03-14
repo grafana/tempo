@@ -275,8 +275,8 @@ func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *O
 // to each distributor instance (local) or evenly shared across the cluster (global).
 func (o *runtimeConfigOverridesManager) IngestionRateStrategy() string {
 	// The ingestion rate strategy can't be overridden on a per-tenant basis,
-	// so here we just pass this specific variable to fetch the defaults value.
-	return o.getOverridesForUser(IngestionRateUserVariable).Ingestion.RateStrategy
+	// so here we are returning the defaults overrides
+	return o.defaultLimits.Ingestion.RateStrategy
 }
 
 // MaxLocalTracesPerUser returns the maximum number of traces a user is allowed to store
@@ -484,7 +484,7 @@ func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.
 }
 
 func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
-	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil && userID != IngestionRateUserVariable {
+	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
 		l := tenantOverrides.forUser(userID)
 		if l != nil {
 			return l
