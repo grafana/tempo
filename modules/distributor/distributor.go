@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
-	"reflect"
 	"sync"
 	"time"
 
@@ -164,6 +163,8 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	var ingestionRateStrategy limiter.RateLimiterStrategy
 	var distributorRing *ring.Ring
 
+	fmt.Printf("new dis rate strate %s\n", o.IngestionRateStrategy())
+
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
 		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
@@ -282,11 +283,13 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
 		limit := int(d.ingestionRateLimiter.Limit(now, userID))
-		if reflect.TypeOf(*d.ingestionRateLimiter) == reflect.TypeOf(globalStrategy{}) {
+		fmt.Printf("overrides: %s\n", d.overrides.IngestionRateStrategy())
+		fmt.Printf("what it says: %s\n", overrides.GlobalIngestionRateStrategy)
+		if d.overrides.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 			limit = limit * d.DistributorRing.InstancesCount()
 		}
 		return status.Errorf(codes.ResourceExhausted,
-			"%s: ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
+			"%s: hello ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
 			limit,
 			tracesSize, userID)
