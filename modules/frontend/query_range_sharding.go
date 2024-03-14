@@ -105,7 +105,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
-	if maxDuration != 0 && time.Duration(queryRangeReq.End-queryRangeReq.Start)*time.Second > maxDuration {
+	if maxDuration != 0 && time.Duration(queryRangeReq.End-queryRangeReq.Start)*time.Nanosecond > maxDuration {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, queryRangeReq.Start, queryRangeReq.End))),
@@ -434,7 +434,7 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 // maxDuration returns the max search duration allowed for this tenant.
 func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 	// check overrides first, if no overrides then grab from our config
-	maxDuration := s.overrides.MaxSearchDuration(tenantID)
+	maxDuration := s.overrides.MaxMetricsDuration(tenantID)
 	if maxDuration != 0 {
 		return maxDuration
 	}
