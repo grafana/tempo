@@ -445,12 +445,9 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 // Without alignment each refresh is shifted by seconds or even milliseconds and the time series
 // calculations are sublty different each time. It's not wrong, but less preferred behavior.
 func alignTimeRange(req *tempopb.QueryRangeRequest) {
-	fmt.Println("Before:", req.Start, req.End, "diff(s):", (req.End-req.Start)/uint64(time.Second), "step(s):", req.Step/uint64(time.Second))
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
 	req.Start = uint64(req.Start/req.Step) * req.Step
 	req.End = uint64(req.End/req.Step) * req.Step
-
-	fmt.Println("After:", req.Start, req.End, "diff(s):", (req.End-req.Start)/uint64(time.Second))
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
