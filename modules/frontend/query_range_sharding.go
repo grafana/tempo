@@ -446,8 +446,8 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 // calculations are sublty different each time. It's not wrong, but less preferred behavior.
 func alignTimeRange(req *tempopb.QueryRangeRequest) {
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = uint64(req.Start/req.Step) * req.Step
-	req.End = uint64(req.End/req.Step) * req.Step
+	req.Start = req.Start / req.Step * req.Step
+	req.End = req.End / req.Step * req.Step
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
