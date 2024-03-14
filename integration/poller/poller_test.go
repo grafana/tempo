@@ -61,132 +61,158 @@ func TestPollerOwnership(t *testing.T) {
 		},
 	}
 
+	storageBackendTestPermutations := []struct {
+		name   string
+		prefix string
+	}{
+		{
+			name:   "empty-string-prefix",
+			prefix: "",
+		},
+		{
+			name: "no-prefix",
+		},
+		{
+			name:   "prefix",
+			prefix: "a/b/c/",
+		},
+		{
+			name:   "prefix-no-trailing-slash",
+			prefix: "a/b/c",
+		},
+	}
+
 	logger := log.NewLogfmtLogger(os.Stdout)
 	var hhh *e2e.HTTPService
 	t.Parallel()
 	for _, tc := range testCompactorOwnershipBackends {
-		t.Run(tc.name, func(t *testing.T) {
-			s, err := e2e.NewScenario("tempo-integration")
-			require.NoError(t, err)
-			defer s.Close()
+		for _, pc := range storageBackendTestPermutations {
+			t.Run(tc.name+"-"+pc.name, func(t *testing.T) {
+				s, err := e2e.NewScenario("tempo-integration")
+				require.NoError(t, err)
+				defer s.Close()
 
-			// set up the backend
-			cfg := app.Config{}
-			buff, err := os.ReadFile(tc.configFile)
-			require.NoError(t, err)
-			err = yaml.UnmarshalStrict(buff, &cfg)
-			require.NoError(t, err)
-			hhh, err = e2eBackend.New(s, cfg)
-			require.NoError(t, err)
+				// set up the backend
+				cfg := app.Config{}
+				buff, err := os.ReadFile(tc.configFile)
+				require.NoError(t, err)
+				err = yaml.UnmarshalStrict(buff, &cfg)
+				require.NoError(t, err)
+				hhh, err = e2eBackend.New(s, cfg)
+				require.NoError(t, err)
 
-			err = hhh.WaitReady()
-			require.NoError(t, err)
+				err = hhh.WaitReady()
+				require.NoError(t, err)
 
-			err = hhh.Ready()
-			require.NoError(t, err)
+				err = hhh.Ready()
+				require.NoError(t, err)
 
-			// Give some time for startup
-			time.Sleep(1 * time.Second)
+				// Give some time for startup
+				time.Sleep(1 * time.Second)
 
-			t.Logf("backend: %s", hhh.Endpoint(hhh.HTTPPort()))
+				t.Logf("backend: %s", hhh.Endpoint(hhh.HTTPPort()))
 
-			require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
+				require.NoError(t, util.CopyFileToSharedDir(s, tc.configFile, "config.yaml"))
 
-			var rr backend.RawReader
-			var ww backend.RawWriter
-			var cc backend.Compactor
+				var rr backend.RawReader
+				var ww backend.RawWriter
+				var cc backend.Compactor
 
-			concurrency := 3
+				concurrency := 3
 
-			e := hhh.Endpoint(hhh.HTTPPort())
-			switch tc.name {
-			case "s3":
-				cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = concurrency
-				cfg.StorageConfig.Trace.S3.Endpoint = e
-				cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Endpoint = e
-				rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
-			case "gcs":
-				cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = concurrency
-				cfg.StorageConfig.Trace.GCS.Endpoint = e
-				cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Endpoint = e
-				rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
-			case "azure":
-				cfg.StorageConfig.Trace.Azure.Endpoint = e
-				cfg.Overrides.UserConfigurableOverridesConfig.Client.Azure.Endpoint = e
-				rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
-			}
-			require.NoError(t, err)
+				e := hhh.Endpoint(hhh.HTTPPort())
+				switch tc.name {
+				case "s3":
+					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = concurrency
+					cfg.StorageConfig.Trace.S3.Endpoint = e
+					cfg.StorageConfig.Trace.S3.Prefix = pc.prefix
+					cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Endpoint = e
+					rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
+				case "gcs":
+					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = concurrency
+					cfg.StorageConfig.Trace.GCS.Endpoint = e
+					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
+					cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Endpoint = e
+					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
+				case "azure":
+					cfg.StorageConfig.Trace.Azure.Endpoint = e
+					cfg.StorageConfig.Trace.Azure.Prefix = pc.prefix
+					cfg.Overrides.UserConfigurableOverridesConfig.Client.Azure.Endpoint = e
+					rr, ww, cc, err = azure.New(cfg.StorageConfig.Trace.Azure)
+				}
+				require.NoError(t, err)
 
-			r := backend.NewReader(rr)
-			w := backend.NewWriter(ww)
+				r := backend.NewReader(rr)
+				w := backend.NewWriter(ww)
 
-			blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
-				PollConcurrency:     3,
-				TenantIndexBuilders: 1,
-			}, OwnsEverythingSharder, r, cc, w, logger)
+				blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
+					PollConcurrency:     3,
+					TenantIndexBuilders: 1,
+				}, OwnsEverythingSharder, r, cc, w, logger)
 
-			// Use the block boundaries in the GCS and S3 implementation
-			bb := blockboundary.CreateBlockBoundaries(concurrency)
-			// Pick a boundary to use for this test
-			base := bb[1]
-			expected := []uuid.UUID{}
+				// Use the block boundaries in the GCS and S3 implementation
+				bb := blockboundary.CreateBlockBoundaries(concurrency)
+				// Pick a boundary to use for this test
+				base := bb[1]
+				expected := []uuid.UUID{}
 
-			expected = append(expected, uuid.MustParse("00000000-0000-0000-0000-000000000000"))
-			expected = append(expected, uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+				expected = append(expected, uuid.MustParse("00000000-0000-0000-0000-000000000000"))
+				expected = append(expected, uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
 
-			// Grab the one before the boundary
-			decrementUUIDBytes(base)
-			expected = append(expected, uuid.UUID(base))
+				// Grab the one before the boundary
+				decrementUUIDBytes(base)
+				expected = append(expected, uuid.UUID(base))
 
-			incrementUUIDBytes(base)
-			expected = append(expected, uuid.UUID(base))
+				incrementUUIDBytes(base)
+				expected = append(expected, uuid.UUID(base))
 
-			incrementUUIDBytes(base)
-			expected = append(expected, uuid.UUID(base))
+				incrementUUIDBytes(base)
+				expected = append(expected, uuid.UUID(base))
 
-			incrementUUIDBytes(base)
-			expected = append(expected, uuid.UUID(base))
+				incrementUUIDBytes(base)
+				expected = append(expected, uuid.UUID(base))
 
-			writeTenantBlocks(t, w, tenant, expected)
+				writeTenantBlocks(t, w, tenant, expected)
 
-			sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
-			t.Logf("expected: %v", expected)
+				sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
+				t.Logf("expected: %v", expected)
 
-			mmResults, cmResults, err := rr.ListBlocks(context.Background(), tenant)
-			require.NoError(t, err)
-			sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
-			t.Logf("mmResults: %s", mmResults)
-			t.Logf("cmResults: %s", cmResults)
+				mmResults, cmResults, err := rr.ListBlocks(context.Background(), tenant)
+				require.NoError(t, err)
+				sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
+				t.Logf("mmResults: %s", mmResults)
+				t.Logf("cmResults: %s", cmResults)
 
-			assert.Equal(t, expected, mmResults)
-			assert.Equal(t, len(expected), len(mmResults))
-			assert.Equal(t, 0, len(cmResults))
+				assert.Equal(t, expected, mmResults)
+				assert.Equal(t, len(expected), len(mmResults))
+				assert.Equal(t, 0, len(cmResults))
 
-			l := blocklist.New()
-			mm, cm, err := blocklistPoller.Do(l)
-			require.NoError(t, err)
-			t.Logf("mm: %v", mm)
-			t.Logf("cm: %v", cm)
+				l := blocklist.New()
+				mm, cm, err := blocklistPoller.Do(l)
+				require.NoError(t, err)
+				t.Logf("mm: %v", mm)
+				t.Logf("cm: %v", cm)
 
-			l.ApplyPollResults(mm, cm)
+				l.ApplyPollResults(mm, cm)
 
-			metas := l.Metas(tenant)
+				metas := l.Metas(tenant)
 
-			actual := []uuid.UUID{}
-			for _, m := range metas {
-				actual = append(actual, m.BlockID)
-			}
+				actual := []uuid.UUID{}
+				for _, m := range metas {
+					actual = append(actual, m.BlockID)
+				}
 
-			sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
+				sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
 
-			assert.Equal(t, expected, actual)
-			assert.Equal(t, len(expected), len(metas))
-			t.Logf("actual: %v", actual)
+				assert.Equal(t, expected, actual)
+				assert.Equal(t, len(expected), len(metas))
+				t.Logf("actual: %v", actual)
 
-			for _, e := range expected {
-				assert.True(t, found(e, metas))
-			}
-		})
+				for _, e := range expected {
+					assert.True(t, found(e, metas))
+				}
+			})
+		}
 	}
 }
 

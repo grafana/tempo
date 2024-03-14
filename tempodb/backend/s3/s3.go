@@ -333,20 +333,20 @@ func (rw *readerWriter) ListBlocks(
 				}
 
 				for _, c := range res.Contents {
-					// i.e: <tenantID/<blockID>/meta
-					parts := strings.Split(c.Key, "/")
-					if len(parts) != 3 {
+					// i.e: <blockID>/meta
+					parts := strings.Split(strings.TrimPrefix(c.Key, prefix), "/")
+					if len(parts) != 2 {
 						continue
 					}
 
-					switch parts[2] {
+					switch parts[1] {
 					case backend.MetaName:
 					case backend.CompactedMetaName:
 					default:
 						continue
 					}
 
-					id, err := uuid.Parse(parts[1])
+					id, err := uuid.Parse(parts[0])
 					if err != nil {
 						continue
 					}
@@ -363,7 +363,7 @@ func (rw *readerWriter) ListBlocks(
 					}
 
 					mtx.Lock()
-					switch parts[2] {
+					switch parts[1] {
 					case backend.MetaName:
 						blockIDs = append(blockIDs, id)
 					case backend.CompactedMetaName:
