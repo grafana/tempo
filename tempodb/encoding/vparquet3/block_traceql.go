@@ -57,6 +57,7 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
+// jpe - all attributes needs to return nested set info now?
 func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs))
 	for _, st := range s.traceAttrs {
@@ -76,6 +77,15 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 			continue
 		}
 		atts[st.a] = st.s
+	}
+	if s.nestedSetLeft > 0 {
+		atts[traceql.NewIntrinsic(traceql.IntrinsicNestedSetLeft)] = traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetLeft)}
+	}
+	if s.nestedSetRight > 0 {
+		atts[traceql.NewIntrinsic(traceql.IntrinsicNestedSetRight)] = traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetRight)}
+	}
+	if s.nestedSetParent != 0 {
+		atts[traceql.NewIntrinsic(traceql.IntrinsicNestedSetParent)] = traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetParent)}
 	}
 	return atts
 }
@@ -141,6 +151,16 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
+		if a.Intrinsic == traceql.IntrinsicNestedSetLeft {
+			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetLeft)}, true
+		}
+		if a.Intrinsic == traceql.IntrinsicNestedSetRight {
+			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetRight)}, true
+		}
+		if a.Intrinsic == traceql.IntrinsicNestedSetParent {
+			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetParent)}, true
+		}
+
 		// intrinsics are always on the span or trace ... for now
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
@@ -149,7 +169,6 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.traceAttrs); attr != nil {
 			return *attr, true
 		}
-
 	}
 
 	// name search in span and then resource to give precedence to span
@@ -511,6 +530,9 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicStructuralDescendant: {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 	traceql.IntrinsicStructuralChild:      {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 	traceql.IntrinsicStructuralSibling:    {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
+	traceql.IntrinsicNestedSetLeft:        {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetLeft},
+	traceql.IntrinsicNestedSetRight:       {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanNestedSetRight},
+	traceql.IntrinsicNestedSetParent:      {intrinsicScopeSpan, traceql.TypeInt, columnPathSpanParentID},
 
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
@@ -1209,6 +1231,32 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		case traceql.IntrinsicStructuralSibling:
 			selectColumnIfNotAlready(columnPathSpanParentID)
 			continue
+
+		case traceql.IntrinsicNestedSetLeft:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanNestedSetLeft, pred)
+			columnSelectAs[columnPathSpanNestedSetLeft] = columnPathSpanNestedSetLeft
+			continue
+		case traceql.IntrinsicNestedSetRight:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanNestedSetRight, pred)
+			columnSelectAs[columnPathSpanNestedSetRight] = columnPathSpanNestedSetRight
+			continue
+		case traceql.IntrinsicNestedSetParent:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanParentID, pred)
+			columnSelectAs[columnPathSpanParentID] = columnPathSpanParentID
+			continue
+
 		}
 
 		// Well-known attribute?

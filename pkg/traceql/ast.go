@@ -702,6 +702,12 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicTraceRootSpan:
 		return TypeString
+	case IntrinsicNestedSetLeft:
+		return TypeInt
+	case IntrinsicNestedSetRight:
+		return TypeInt
+	case IntrinsicNestedSetParent:
+		return TypeInt
 	}
 
 	return TypeAttribute
