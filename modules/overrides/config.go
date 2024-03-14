@@ -142,7 +142,8 @@ type ReadOverrides struct {
 	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query,omitempty" json:"max_blocks_per_tag_values_query,omitempty"`
 
 	// QueryFrontend enforced overrides
-	MaxSearchDuration model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
+	MaxSearchDuration  model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
+	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
 }

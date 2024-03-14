@@ -517,6 +517,26 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds.
         [duration_slo: <duration> | default = 0s ]
+
+    # Metrics query configuration
+    metrics:
+        # The number of concurrent jobs to execute when querying the backend.
+        [concurrent_jobs: <int> | default = 1000 ]
+
+        # The target number of bytes for each job to handle when querying the backend.
+        [target_bytes_per_job: <int> | default = 100MiB ]
+
+        # The maximum allowed time range for a metrics query.
+        # 0 disables this limit.
+        [max_duration: <duration> | default = 3h ]
+
+        # query_backend_after controls where the query-frontend searches for traces.
+        # Time ranges older than query_backend_after will be searched in the backend/object storage only.
+        # Time ranges between query_backend_after and now will be queried from the metrics-generators.
+        [query_backend_after: <duration> | default = 30m ]
+
+        # The target length of time for each job to handle when querying the backend. 
+        [interval: <duration> | default = 5m ]
 ```
 
 ## Querier
@@ -1247,6 +1267,10 @@ overrides:
       # Per-user max search duration. If this value is set to 0 (default), then max_duration
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
+
+      # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
+      #  in the front-end configuration is used.
+      [max_metrics_duration: <duration> | default = 0s]
 
     # Compaction related overrides
     compaction:
