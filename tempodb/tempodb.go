@@ -13,6 +13,10 @@ import (
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -30,9 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -542,12 +543,7 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 func (rw *readerWriter) pollBlocklist() {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
 	if err != nil {
-		switch {
-		case errors.Is(err, context.Canceled):
-		case errors.Is(err, context.DeadlineExceeded):
-		default:
-			level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
-		}
+		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 
 		return
 	}
