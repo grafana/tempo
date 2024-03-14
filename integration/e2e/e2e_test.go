@@ -110,6 +110,7 @@ func TestAllInOne(t *testing.T) {
 				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
 				// test echo
+				// nolint:goconst
 				assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
 				apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
