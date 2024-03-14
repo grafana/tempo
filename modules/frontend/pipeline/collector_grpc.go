@@ -36,6 +36,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	if err != nil {
 		return grpcError(err)
 	}
+	defer resps.NextComplete()
 
 	// stores any error that occurs during the streaming
 	//  the wg protects the store from concurrent writes/reads
@@ -99,6 +100,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	if err != nil {
 		return grpcError(err)
 	}
+
 	return nil
 }
 

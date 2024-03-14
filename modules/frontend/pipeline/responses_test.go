@@ -11,7 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"go.uber.org/goleak"
 )
 
 func TestNewSyncToAsyncResponse(t *testing.T) {
@@ -91,7 +95,7 @@ func TestAsyncResponseReturnsResponsesInOrder(t *testing.T) {
 		for _, r := range expected {
 			asyncR.Send(NewSyncToAsyncResponse(r))
 		}
-		asyncR.done()
+		asyncR.SendComplete()
 	}()
 
 	// confirm we get back what we put in
@@ -143,6 +147,8 @@ func TestAsyncResponseReturnsSentErrors(t *testing.T) {
 }
 
 func TestAsyncResponseFansIn(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
 	// create a random hierarchy of async responses and add a bunch of responses.
 	// count the added responses and confirm the number we pull is the same.
 	wg := sync.WaitGroup{}
@@ -152,7 +158,7 @@ func TestAsyncResponseFansIn(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer rootResp.done()
+		defer rootResp.SendComplete()
 
 		expected = addResponses(rootResp)
 	}()
@@ -161,6 +167,7 @@ func TestAsyncResponseFansIn(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer rootResp.NextComplete()
 
 		for {
 			resp, done, err := rootResp.Next(context.Background())
@@ -175,12 +182,14 @@ func TestAsyncResponseFansIn(t *testing.T) {
 
 	wg.Wait()
 	require.Equal(t, expected, actual)
+
+	goleak.VerifyNone(t, leakOpts)
 }
 
 func addResponses(r *asyncResponse) int {
 	responsesToAdd := rand.Intn(5)
 	childResponse := newAsyncResponse()
-	defer childResponse.done()
+	defer childResponse.SendComplete()
 
 	r.Send(childResponse)
 	for i := 0; i < responsesToAdd; i++ {
@@ -193,6 +202,225 @@ func addResponses(r *asyncResponse) int {
 	}
 
 	return responsesToAdd
+}
+
+func TestAsyncResponsesDoesNotLeak(t *testing.T) {
+	tcs := []struct {
+		name    string
+		finalRT func(requestCancel context.CancelFunc) RoundTripperFunc
+		cleanup func()
+	}{
+		{
+			name: "happy path",
+			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
+				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					return &http.Response{
+						Body: io.NopCloser(strings.NewReader("foo")),
+					}, nil
+				})
+			},
+		},
+		{
+			name: "error path",
+			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
+				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					return nil, errors.New("foo")
+				})
+			},
+		},
+		{
+			name: "combiner bails early",
+			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
+				responseCounter := atomic.Int32{}
+
+				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					counter := responseCounter.Add(1)
+					if counter == 2 {
+						return &http.Response{
+							StatusCode: http.StatusNotFound, // force the combiner to bail on the second response
+							Body:       io.NopCloser(strings.NewReader("foo")),
+						}, nil
+					}
+
+					return &http.Response{
+						Body: io.NopCloser(strings.NewReader("foo")),
+					}, nil
+				})
+			},
+		},
+		{
+			name: "context cancelled before returned responses",
+			finalRT: func(cancel context.CancelFunc) RoundTripperFunc {
+				go func() {
+					time.Sleep(1 * time.Second)
+					cancel()
+				}()
+
+				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					time.Sleep(3 * time.Second)
+
+					return &http.Response{
+						Body: io.NopCloser(strings.NewReader("foo")),
+					}, nil
+				})
+			},
+			cleanup: func() {
+				time.Sleep(5 * time.Second) // allow all responses to come through
+			},
+		},
+		{
+			name: "context cancelled in between returned responses",
+			finalRT: func(cancel context.CancelFunc) RoundTripperFunc {
+				responseCounter := atomic.Int32{}
+
+				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					counter := responseCounter.Add(1)
+					if counter == 2 {
+						cancel()
+					}
+
+					return &http.Response{
+						Body: io.NopCloser(strings.NewReader("foo")),
+					}, nil
+				})
+			},
+			cleanup: func() {
+				time.Sleep(2 * time.Second) // allow all responses to come through
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			// http
+			t.Run("http", func(t *testing.T) {
+				leakOpts := goleak.IgnoreCurrent()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+				require.NoError(t, err)
+
+				bridge := &pipelineBridge{
+					next: tc.finalRT(cancel),
+				}
+				httpCollector := NewHTTPCollector(sharder{next: bridge}, combiner.NewNoOp())
+
+				_, _ = httpCollector.RoundTrip(req)
+
+				if tc.cleanup != nil {
+					tc.cleanup()
+				}
+
+				goleak.VerifyNone(t, leakOpts)
+			})
+
+			//grpc
+			t.Run("grpc", func(t *testing.T) {
+				leakOpts := goleak.IgnoreCurrent()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+				require.NoError(t, err)
+
+				bridge := &pipelineBridge{
+					next: tc.finalRT(cancel),
+				}
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, combiner.NewNoOp().(combiner.GRPCCombiner[*tempopb.SearchResponse]), func(sr *tempopb.SearchResponse) error { return nil })
+
+				_ = grpcCollector.RoundTrip(req)
+
+				if tc.cleanup != nil {
+					tc.cleanup()
+				}
+
+				goleak.VerifyNone(t, leakOpts)
+			})
+
+			//multiple sharder tiers
+			t.Run("multiple sharder tiers", func(t *testing.T) {
+				leakOpts := goleak.IgnoreCurrent()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+				require.NoError(t, err)
+
+				bridge := &pipelineBridge{
+					next: tc.finalRT(cancel),
+				}
+
+				s := sharder{next: sharder{next: bridge}, funcSharder: true}
+				//s := sharder{next: sharder{next: bridge, funcSharder: true}}
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, combiner.NewNoOp().(combiner.GRPCCombiner[*tempopb.SearchResponse]), func(sr *tempopb.SearchResponse) error { return nil })
+
+				_ = grpcCollector.RoundTrip(req)
+
+				if tc.cleanup != nil {
+					tc.cleanup()
+				}
+
+				goleak.VerifyNone(t, leakOpts)
+			})
+		})
+	}
+}
+
+func TestNoLeaksWithCancelledContext(t *testing.T) {
+	leakOpts := goleak.IgnoreCurrent()
+
+	bridge := &pipelineBridge{
+		next: RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			time.Sleep(5 * time.Second) // give us time to cancel the context
+			return &http.Response{
+				Body: io.NopCloser(strings.NewReader("foo")),
+			}, nil
+		}),
+	}
+	sharder := sharder{next: bridge}
+	collector := NewHTTPCollector(sharder, combiner.NewNoOp())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+	require.NoError(t, err)
+
+	// cancel context while waiting for response the 10 second timeout above
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+
+	resp, err := collector.RoundTrip(req)
+	require.Error(t, err)
+	require.Nil(t, resp)
+
+	time.Sleep(10 * time.Second) // allow all responses to come through
+
+	goleak.VerifyNone(t, leakOpts)
+}
+
+type sharder struct {
+	next        AsyncRoundTripper[*http.Response]
+	funcSharder bool
+}
+
+func (s sharder) RoundTrip(r *http.Request) (Responses[*http.Response], error) {
+	total := 4
+	concurrent := 2
+
+	// execute requests
+	if s.funcSharder {
+		return NewAsyncSharderFunc(concurrent, total, func(i int) *http.Request {
+			return r
+		}, s.next), nil
+	}
+
+	reqCh := make(chan *http.Request)
+	go func() {
+		for i := 0; i < total; i++ {
+			reqCh <- r
+		}
+		close(reqCh)
+	}()
+	return NewAsyncSharderChan(concurrent, reqCh, nil, s.next), nil
 }
 
 func BenchmarkNewSyncToAsyncResponse(b *testing.B) {

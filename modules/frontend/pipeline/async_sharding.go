@@ -26,7 +26,7 @@ func NewAsyncSharderFunc(concurrentReqs, totalReqs int, reqFn func(i int) *http.
 	asyncResp := newAsyncResponse()
 
 	go func() {
-		defer asyncResp.done()
+		defer asyncResp.SendComplete()
 
 		for i := 0; i < totalReqs; i++ {
 			req := reqFn(i)
@@ -96,9 +96,8 @@ func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Re
 			asyncResp.Send(resps)
 		}
 
-		// and wait for all the workers to finish
 		wg.Wait()
-		asyncResp.done()
+		asyncResp.SendComplete()
 	}()
 
 	return asyncResp
