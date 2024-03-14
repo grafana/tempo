@@ -496,7 +496,6 @@ func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Over
 		}
 	}
 
-	fmt.Println("default overrides")
 	return o.defaultLimits
 }
 
