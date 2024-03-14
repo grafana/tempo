@@ -63,7 +63,6 @@ func TestOverrides(t *testing.T) {
 			_, err = backend.New(s, cfg)
 			require.NoError(t, err)
 
-			require.NoError(t, util.CopyFileToSharedDir(s, configFile, "config.yaml"))
 			tempo := util.NewTempoAllInOne()
 			require.NoError(t, s.StartAndWaitReady(tempo))
 

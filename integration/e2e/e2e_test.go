@@ -350,7 +350,6 @@ func TestShutdownDelay(t *testing.T) {
 	_, err = backend.New(s, cfg)
 	require.NoError(t, err)
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configFile, "config.yaml"))
 	tempo := util.NewTempoAllInOne("-shutdown-delay=5s")
 
 	// this line tests confirms that the readiness flag is up
