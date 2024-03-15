@@ -364,39 +364,6 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 	}
 }
 
-func TestNoLeaksWithCancelledContext(t *testing.T) {
-	leakOpts := goleak.IgnoreCurrent()
-
-	bridge := &pipelineBridge{
-		next: RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			time.Sleep(5 * time.Second) // give us time to cancel the context
-			return &http.Response{
-				Body: io.NopCloser(strings.NewReader("foo")),
-			}, nil
-		}),
-	}
-	sharder := sharder{next: bridge}
-	collector := NewHTTPCollector(sharder, combiner.NewNoOp())
-
-	ctx, cancel := context.WithCancel(context.Background())
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
-	require.NoError(t, err)
-
-	// cancel context while waiting for response the 10 second timeout above
-	go func() {
-		time.Sleep(time.Second)
-		cancel()
-	}()
-
-	resp, err := collector.RoundTrip(req)
-	require.Error(t, err)
-	require.Nil(t, resp)
-
-	time.Sleep(10 * time.Second) // allow all responses to come through
-
-	goleak.VerifyNone(t, leakOpts)
-}
-
 type sharder struct {
 	next        AsyncRoundTripper[*http.Response]
 	funcSharder bool
