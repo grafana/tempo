@@ -281,13 +281,15 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
 		limit := int(d.ingestionRateLimiter.Limit(now, userID))
+		var globalLimit int
 		if d.overrides.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
-			limit = limit * d.DistributorRing.InstancesCount()
+			globalLimit = limit * d.DistributorRing.InstancesCount()
 		}
 		return status.Errorf(codes.ResourceExhausted,
-			"%s: ingestion rate limit (%d bytes) exceeded while adding %d bytes for user %s",
+			"%s: ingestion rate limit (local: %d bytes, global: %d bytes) exceeded while adding %d bytes for user %s",
 			overrides.ErrorPrefixRateLimited,
 			limit,
+			globalLimit,
 			tracesSize, userID)
 	}
 
