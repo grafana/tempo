@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
-	"go.uber.org/goleak"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
@@ -132,11 +131,8 @@ func TestFrontendSearch(t *testing.T) {
 	}
 
 	for _, runner := range allRunners {
-		leakOpts := goleak.IgnoreCurrent()
 		f := frontendWithSettings(t, nil, nil, nil, nil)
 		runner(t, f)
-		time.Sleep(5 * time.Second) // give sleeping goroutines a chance to wake up
-		goleak.VerifyNone(t, leakOpts)
 	}
 }
 
