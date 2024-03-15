@@ -40,5 +40,8 @@ To configure a Grafana data source, use the URL `http://tempo-sample:3200` (avai
 ## CRD Specification
 A manifest with all available configuration options is available here: [tempo.grafana.com_tempomonolithics.yaml](https://github.com/grafana/tempo-operator/blob/main/docs/spec/tempo.grafana.com_tempomonolithics.yaml).
 
-**Note: This file is auto-generated and does not constitute a valid CR**.
+{{< admonition type="note" >}}
+This file is auto-generated and does not constitute a valid CR.
+{{< /admonition >}}
+
 It provides an overview of the structure, the available configuration options and help texts.
