@@ -67,7 +67,7 @@ type asyncResponse struct {
 	respChan chan Responses[*http.Response]
 	errChan  chan error
 	err      *atomic.Error
-	done     *atomic.Bool
+	//done     *atomic.Bool
 
 	curResponses Responses[*http.Response]
 }
@@ -77,15 +77,11 @@ func newAsyncResponse() *asyncResponse {
 		respChan: make(chan Responses[*http.Response]),
 		errChan:  make(chan error, 1),
 		err:      atomic.NewError(nil),
-		done:     atomic.NewBool(false),
+		//done:     atomic.NewBool(false),
 	}
 }
 
 func (a *asyncResponse) Send(r Responses[*http.Response]) {
-	if a.done.Load() {
-		return
-	}
-
 	a.respChan <- r
 }
 
@@ -93,10 +89,6 @@ func (a *asyncResponse) Send(r Responses[*http.Response]) {
 // we send on a channel to give errors the chance to unblock the select below. we also store in an atomic error so that
 // a Responses in error will always remain in error
 func (a *asyncResponse) SendError(err error) {
-	if a.done.Load() {
-		return
-	}
-
 	select {
 	case a.errChan <- err:
 		a.err.Store(err)
@@ -111,23 +103,12 @@ func (a *asyncResponse) SendComplete() {
 
 // NextComplete indicates the receiver is done. We drain all channels and subchannels to goroutines are orphaned
 func (a *asyncResponse) NextComplete() {
-	a.done.Store(true)
-
 	// drain the response channel?
-	for {
-		select {
-		case resps, ok := <-a.respChan:
-			if resps != nil {
-				resps.NextComplete()
-			}
-			if !ok {
-				goto Closed
-			}
-		default:
-			goto Closed
+	for resps := range a.respChan {
+		if resps != nil {
+			resps.NextComplete()
 		}
 	}
-Closed:
 
 	if a.curResponses != nil {
 		a.curResponses.NextComplete()

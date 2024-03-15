@@ -337,7 +337,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 			})
 
 			// multiple sharder tiers
-			t.Run("multiple sharder tiers", func(t *testing.T) {
+			t.Run("func -> chan sharder", func(t *testing.T) {
 				leakOpts := goleak.IgnoreCurrent()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -359,6 +359,30 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 
 				goleak.VerifyNone(t, leakOpts)
 			})
+
+			t.Run("chan -> func sharder", func(t *testing.T) {
+				leakOpts := goleak.IgnoreCurrent()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				req, err := http.NewRequestWithContext(ctx, "GET", "http://foo.com", nil)
+				require.NoError(t, err)
+
+				bridge := &pipelineBridge{
+					next: tc.finalRT(cancel),
+				}
+
+				s := sharder{next: sharder{next: bridge, funcSharder: true}}
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, combiner.NewNoOp().(combiner.GRPCCombiner[*tempopb.SearchResponse]), func(sr *tempopb.SearchResponse) error { return nil })
+
+				_ = grpcCollector.RoundTrip(req)
+
+				if tc.cleanup != nil {
+					tc.cleanup()
+				}
+
+				goleak.VerifyNone(t, leakOpts)
+			})
+
 		})
 	}
 }
