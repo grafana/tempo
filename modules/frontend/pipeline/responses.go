@@ -101,16 +101,18 @@ func (a *asyncResponse) SendComplete() {
 
 // NextComplete indicates the receiver is done. We drain all channels and subchannels to goroutines are orphaned
 func (a *asyncResponse) NextComplete() {
-	// drain the response channel?
-	for resps := range a.respChan {
-		if resps != nil {
-			resps.NextComplete()
+	go func() {
+		// drain the response channel?
+		for resps := range a.respChan {
+			if resps != nil {
+				resps.NextComplete()
+			}
 		}
-	}
 
-	if a.curResponses != nil {
-		a.curResponses.NextComplete()
-	}
+		if a.curResponses != nil {
+			a.curResponses.NextComplete()
+		}
+	}()
 }
 
 // Next returns the next http.Response or an error if one is available. It always prefers an error over a response.
