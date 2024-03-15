@@ -92,7 +92,6 @@
     ]) +
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
     $.util.podPriority('high') +
-    statefulset.mixin.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the group ID assigned to Tempo in the Dockerfile
     (if with_anti_affinity then $.util.antiAffinity else {}),
 
   tempo_metrics_generator_statefulset: $.newGeneratorStatefulSet(target_name, self.tempo_metrics_generator_container) + statefulset.mixin.spec.withReplicas($._config.metrics_generator.replicas),

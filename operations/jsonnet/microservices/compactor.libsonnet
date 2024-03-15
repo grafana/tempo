@@ -48,8 +48,7 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_compactor_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-    ]) +
-    deployment.mixin.spec.template.spec.securityContext.withFsGroup(10001),  // 10001 is the group ID assigned to Tempo in the Dockerfile
+    ]),
 
   tempo_compactor_service:
     k.util.serviceFor($.tempo_compactor_deployment),
