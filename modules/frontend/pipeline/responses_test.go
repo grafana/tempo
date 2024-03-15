@@ -314,7 +314,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				goleak.VerifyNone(t, leakOpts)
 			})
 
-			//grpc
+			// grpc
 			t.Run("grpc", func(t *testing.T) {
 				leakOpts := goleak.IgnoreCurrent()
 				ctx, cancel := context.WithCancel(context.Background())
@@ -336,7 +336,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				goleak.VerifyNone(t, leakOpts)
 			})
 
-			//multiple sharder tiers
+			// multiple sharder tiers
 			t.Run("multiple sharder tiers", func(t *testing.T) {
 				leakOpts := goleak.IgnoreCurrent()
 				ctx, cancel := context.WithCancel(context.Background())
@@ -349,7 +349,6 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				}
 
 				s := sharder{next: sharder{next: bridge}, funcSharder: true}
-				//s := sharder{next: sharder{next: bridge, funcSharder: true}}
 				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, combiner.NewNoOp().(combiner.GRPCCombiner[*tempopb.SearchResponse]), func(sr *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
