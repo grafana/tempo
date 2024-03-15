@@ -30,6 +30,8 @@
     + pvc.mixin.metadata.withLabels({ app: target_name })
     + pvc.mixin.metadata.withNamespace($._config.namespace),
 
+  tempo_metrics_generator_chown_container:: $.tempo_chown_container(tempo_data_volume, '10001'),
+
   tempo_metrics_generator_container::
     container.new(target_name, $._images.tempo) +
     container.withPorts($.tempo_metrics_generator_ports) +
@@ -90,6 +92,7 @@
     ]) +
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
     $.util.podPriority('high') +
+    statefulset.mixin.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the group ID assigned to Tempo in the Dockerfile
     (if with_anti_affinity then $.util.antiAffinity else {}),
 
   tempo_metrics_generator_statefulset: $.newGeneratorStatefulSet(target_name, self.tempo_metrics_generator_container) + statefulset.mixin.spec.withReplicas($._config.metrics_generator.replicas),
