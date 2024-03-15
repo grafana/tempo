@@ -55,6 +55,8 @@ spec:
           name: tempo-conf
         - mountPath: /overrides
           name: overrides
+      securityContext:
+        fsGroup: 10001
       volumes:
       - configMap:
           name: tempo-compactor
