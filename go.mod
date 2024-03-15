@@ -49,9 +49,9 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.18
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.18.0
+	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/prometheus/common v0.46.0
+	github.com/prometheus/common v0.48.0
 	github.com/prometheus/prometheus v0.48.1
 	github.com/prometheus/statsd_exporter v0.26.0
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
