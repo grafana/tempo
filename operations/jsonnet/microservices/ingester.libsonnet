@@ -69,7 +69,6 @@
     ]) +
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
     statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
-    statefulset.mixin.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the group ID assigned to Tempo in the Dockerfile
     $.util.podPriority('high') +
     (if with_anti_affinity then $.util.antiAffinity else {})
   ,
