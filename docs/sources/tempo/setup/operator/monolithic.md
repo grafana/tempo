@@ -9,13 +9,14 @@ aliases:
 
 # Monolithic deployment
 
-The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode](/docs/tempo/latest/setup/deployment/#monolithic-mode).
+The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode](https:grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/#monolithic-mode).
 In this mode, all components of the Tempo deployment (compactor, distributor, ingester, querier and query-frontend) are contained in a single container.
 
 This type of deployment is ideal for small deployments, demo and test setups, and supports storing traces in memory, in a Persistent Volume and in object storage.
 
-**Note:** The monolithic deployment of Tempo does not scale horizontally. If you require horizontal scaling, please use the `TempoStack` CR for a Tempo deployment in [Microservices mode](/docs/tempo/latest/setup/deployment/#microservices-mode).
-
+{{< admonition type="note" >}}
+The monolithic deployment of Tempo does not scale horizontally. If you require horizontal scaling, please use the `TempoStack` CR for a Tempo deployment in [Microservices mode](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/#microservices-mode).
+{{< /admonition >}}
 ## Quickstart
 
 The following manifest creates a Tempo monolithic deployment with trace ingestion over OTLP/gRPC and OTLP/HTTP, storing traces in a 2 GiB tmpfs volume (in-memory storage).
