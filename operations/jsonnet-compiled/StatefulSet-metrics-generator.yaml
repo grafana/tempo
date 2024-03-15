@@ -60,6 +60,8 @@ spec:
           name: metrics-generator-data
         - mountPath: /overrides
           name: overrides
+      securityContext:
+        fsGroup: 10001
       volumes:
       - configMap:
           name: tempo-metrics-generator
