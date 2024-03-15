@@ -57,7 +57,6 @@ type span struct {
 	cbSpanset      *traceql.Spanset
 }
 
-// jpe - all attributes needs to return nested set info now?
 func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs))
 	for _, st := range s.traceAttrs {
@@ -77,15 +76,6 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 			continue
 		}
 		atts[st.a] = st.s
-	}
-	if s.nestedSetLeft > 0 {
-		atts[traceql.NewIntrinsic(traceql.IntrinsicNestedSetLeft)] = traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetLeft)}
-	}
-	if s.nestedSetRight > 0 {
-		atts[traceql.NewIntrinsic(traceql.IntrinsicNestedSetRight)] = traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetRight)}
-	}
-	if s.nestedSetParent != 0 {
-		atts[traceql.NewIntrinsic(traceql.IntrinsicNestedSetParent)] = traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetParent)}
 	}
 	return atts
 }
@@ -1135,11 +1125,14 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 // one span each.  Spans are returned that match any of the given conditions.
 func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	var (
-		columnSelectAs    = map[string]string{}
-		columnPredicates  = map[string][]parquetquery.Predicate{}
-		iters             []parquetquery.Iterator
-		genericConditions []traceql.Condition
-		columnMapping     = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
+		columnSelectAs          = map[string]string{}
+		columnPredicates        = map[string][]parquetquery.Predicate{}
+		iters                   []parquetquery.Iterator
+		genericConditions       []traceql.Condition
+		columnMapping           = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
+		nestedSetLeftExplicit   = false
+		nestedSetRightExplicit  = false
+		nestedSetParentExplicit = false
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -1233,6 +1226,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			continue
 
 		case traceql.IntrinsicNestedSetLeft:
+			nestedSetLeftExplicit = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -1241,6 +1235,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			columnSelectAs[columnPathSpanNestedSetLeft] = columnPathSpanNestedSetLeft
 			continue
 		case traceql.IntrinsicNestedSetRight:
+			nestedSetRightExplicit = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -1249,6 +1244,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			columnSelectAs[columnPathSpanNestedSetRight] = columnPathSpanNestedSetRight
 			continue
 		case traceql.IntrinsicNestedSetParent:
+			nestedSetParentExplicit = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
@@ -1334,8 +1330,12 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		}
 		minCount = len(distinct)
 	}
+
 	spanCol := &spanCollector{
-		minAttributes: minCount,
+		minAttributes:           minCount,
+		nestedSetLeftExplicit:   nestedSetLeftExplicit,
+		nestedSetRightExplicit:  nestedSetRightExplicit,
+		nestedSetParentExplicit: nestedSetParentExplicit,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -1877,6 +1877,10 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 // This turns groups of span values into Span objects
 type spanCollector struct {
 	minAttributes int
+
+	nestedSetLeftExplicit   bool
+	nestedSetRightExplicit  bool
+	nestedSetParentExplicit bool
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -1960,10 +1964,19 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind))
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
+			if c.nestedSetParentExplicit {
+				sp.addSpanAttr(traceql.IntrinsicNestedSetParentAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+			}
 		case columnPathSpanNestedSetLeft:
 			sp.nestedSetLeft = kv.Value.Int32()
+			if c.nestedSetLeftExplicit {
+				sp.addSpanAttr(traceql.IntrinsicNestedSetLeftAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+			}
 		case columnPathSpanNestedSetRight:
 			sp.nestedSetRight = kv.Value.Int32()
+			if c.nestedSetRightExplicit {
+				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+			}
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
