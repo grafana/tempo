@@ -67,7 +67,6 @@ type asyncResponse struct {
 	respChan chan Responses[*http.Response]
 	errChan  chan error
 	err      *atomic.Error
-	//done     *atomic.Bool
 
 	curResponses Responses[*http.Response]
 }
@@ -77,7 +76,6 @@ func newAsyncResponse() *asyncResponse {
 		respChan: make(chan Responses[*http.Response]),
 		errChan:  make(chan error, 1),
 		err:      atomic.NewError(nil),
-		//done:     atomic.NewBool(false),
 	}
 }
 

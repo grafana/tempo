@@ -382,7 +382,6 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 
 				goleak.VerifyNone(t, leakOpts)
 			})
-
 		})
 	}
 }
