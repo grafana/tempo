@@ -32,6 +32,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -50,6 +52,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				groupTraceQLRunner,
 				traceQLStructural,
 				traceQLExistence,
+				nestedSet,
 				autoComplete,
 			)
 		})
@@ -819,6 +822,135 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		}
 		require.NoError(t, err, "search request: %+v", tc)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", tc)
+	}
+}
+
+func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
+	// nested set queries only supported in 3 or greater
+	if meta.Version == vparquet.VersionString ||
+		meta.Version == vparquet2.VersionString {
+		return
+	}
+
+	ctx := context.Background()
+	e := traceql.NewEngine()
+
+	type test struct {
+		req      *tempopb.SearchRequest
+		expected []*tempopb.TraceSearchMetadata
+	}
+
+	searchesThatMatch := []*test{
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } | select(nestedSetLeft)"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ name = `BrokenSpan` } | select(nestedSetRight, nestedSetLeft, nestedSetParent)"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000000000",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "BrokenSpan",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
+										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
+										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		// fun way to get the root span
+		{
+			req: &tempopb.SearchRequest{Query: "{ nestedSetParent = -1 } | select(name)"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "RootSpan",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: -1}}},
+									},
+								},
+							},
+							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, tc.req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", tc)
+
+		// copy the root stuff in directly, spansets defined in test cases above.
+		for _, ss := range tc.expected {
+			ss.DurationMs = wantMeta.DurationMs
+			ss.RootServiceName = wantMeta.RootServiceName
+			ss.RootTraceName = wantMeta.RootTraceName
+			ss.StartTimeUnixNano = wantMeta.StartTimeUnixNano
+			ss.TraceID = wantMeta.TraceID
+		}
+
+		// the actual spanset is impossible to predict since it's chosen randomly from the Spansets slice
+		// so set it to nil here and just test the slice using the testcases above
+		for _, tr := range res.Traces {
+			tr.SpanSet = nil
+
+			for _, ss := range tr.SpanSets {
+				sort.Slice(ss.Attributes, func(i, j int) bool {
+					return ss.Attributes[i].Key < ss.Attributes[j].Key
+				})
+			}
+		}
+
+		require.NotNil(t, res, "search request: %v", tc)
+		require.Equal(t, tc.expected, res.Traces, "search request:", tc.req)
 	}
 }
 
