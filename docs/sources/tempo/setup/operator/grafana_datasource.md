@@ -10,7 +10,7 @@ weight: 400
 
 You can use Grafana to query and visualize traces of the `TempoStack` instance by configuring a Tempo data source in Grafana.
 
-## Using Grafana Operator
+## Use Grafana Operator
 
 If your Grafana instance is managed by the [Grafana Operator](/docs/grafana-cloud/developer-resources/infrastructure-as-code/grafana-operator/), you can instruct the Tempo Operator to create a data source (`GrafanaDatasource` custom resource):
 
@@ -22,8 +22,9 @@ spec:
     grafana:
       createDatasource: true
 ```
-
-Note: The feature gate `featureGates.grafanaOperator` must be enabled in the Tempo Operator configuration.
+{{< admonition type="note" >}}
+The feature gate `featureGates.grafanaOperator` must be enabled in the Tempo Operator configuration.
+{{< /admonition >}}
 
 ## Manual data source configuration
 
