@@ -791,7 +791,7 @@ func TestTraceIDShardingQuality(t *testing.T) {
 	require.Equal(t, VersionString, meta.Version)
 
 	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+	pf, _, err := block.openForSearch(ctx, opts)
 	require.NoError(t, err)
 
 	fetchReq := traceql.FetchSpansRequest{
@@ -805,66 +805,80 @@ func TestTraceIDShardingQuality(t *testing.T) {
 		return block.Fetch(ctx, req, opts)
 	})
 
-	shardsToTest := []int{2, 5, 10 /*, 100, 500, 1000, 2000*/}
-	bitsToTest := []int{4, 8, 12 /*16, 20, 24 /*28, 32*/}
+	summarizeCounts := func(prefix string, cs []int) {
+		count := len(cs)
+		sum := 0
+		l := math.MaxInt
+		h := math.MinInt
+		for _, v := range cs {
+			sum += v
+			l = min(l, v)
+			h = max(h, v)
+		}
+		fmt.Printf("Shards:%d %s: Min:%d Max:%d Total:%d Avg:%.1f Quality:%.1f %%\n",
+			count, prefix, l, h, sum, float64(sum)/float64(count), float64(l)/float64(h)*100.0)
+	}
+
+	shardsToTest := []int{10, 100, 1000}
 
 	for _, shards := range shardsToTest {
 		t.Run(strconv.Itoa(shards), func(t *testing.T) {
-			for _, bits := range bitsToTest {
-				t.Run(strconv.Itoa(bits), func(t *testing.T) {
-					// Create all shard-ownership functions
-					counts := make([]int, shards)
-					funcs := make([]func([]byte) bool, shards)
-					for s := 1; s <= shards; s++ {
-						funcs[s-1], _ = traceidboundary.FuncsWithBitSharding(uint32(s), uint32(shards), bits)
-					}
+			var (
+				rgCounts = make([]int, shards)
+				trCounts = make([]int, shards)
+				pairs    = make([][]traceidboundary.Boundary, shards)
+				funcs    = make([]func([]byte) bool, shards)
+			)
 
-					resp, err := f.Fetch(ctx, fetchReq)
-					require.NoError(t, err)
-					defer resp.Results.Close()
+			for s := 1; s <= shards; s++ {
+				pairs[s-1], _ = traceidboundary.Pairs(uint32(s), uint32(shards))
+				funcs[s-1], _ = traceidboundary.Funcs(uint32(s), uint32(shards))
 
-					for {
-						ss, err := resp.Results.Next(ctx)
-						require.NoError(t, err)
-
-						if ss == nil {
-							break
-						}
-
-						// Match the trace ID against every shard
-						matches := 0
-						for i := 0; i < shards; i++ {
-							if funcs[i](ss.TraceID) {
-								counts[i]++
-								matches++
-								// fmt.Println("TraceID:", ss.TraceID, "is bucket", i)
-							}
-						}
-
-						if matches > 1 {
-							fmt.Println("TraceID matched mutiple shards:", ss.TraceID)
-							panic("trace matched multiple shards")
-						} else if matches == 0 {
-							fmt.Println("TraceID not matched by any shard:", ss.TraceID)
-							panic("trace id not matched by any shard")
-						}
-
-						ss.Release()
-					}
-
-					fmt.Println(counts)
-
-					sum := 0
-					minv := math.MaxInt
-					maxv := math.MinInt
-					for _, v := range counts {
-						sum += v
-						minv = min(minv, v)
-						maxv = max(maxv, v)
-					}
-					fmt.Printf("Shards:%d Bits:%d Total:%d spans Min:%d Max:%d Quality:%.1f %%\n", shards, bits, sum, minv, maxv, float64(minv)/float64(maxv)*100.0)
-				})
+				rgs, err := block.rowGroupsForShard(ctx, pf, *meta, uint32(s), uint32(shards))
+				require.NoError(t, err)
+				rgCounts[s-1] = len(rgs)
 			}
+
+			resp, err := f.Fetch(ctx, fetchReq)
+			require.NoError(t, err)
+			defer resp.Results.Close()
+
+			for {
+				ss, err := resp.Results.Next(ctx)
+				require.NoError(t, err)
+
+				if ss == nil {
+					break
+				}
+
+				// Match the trace ID against every shard
+				matched := []int{}
+				for i := 0; i < shards; i++ {
+					if funcs[i](ss.TraceID) {
+						trCounts[i]++
+						matched = append(matched, i)
+					}
+				}
+
+				// Check for missing or overlapping ranges
+				if len(matched) > 1 {
+					fmt.Printf("TraceID %X matched %d shards\n", ss.TraceID, len(matched))
+					for _, s := range matched {
+						for i, b := range pairs[s] {
+							fmt.Printf("  Bucket %d %d: %X %X\n", s, i, b.Min, b.Max)
+						}
+					}
+					panic("trace matched multiple shards")
+				} else if len(matched) == 0 {
+					fmt.Println("TraceID not matched by any shard:", ss.TraceID)
+					panic("trace id not matched by any shard")
+				}
+
+				ss.Release()
+			}
+
+			summarizeCounts("Traces", trCounts)
+			summarizeCounts("RowGroups", rgCounts)
 		})
 	}
 }
