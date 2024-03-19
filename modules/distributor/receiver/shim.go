@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -342,6 +343,12 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)
+
+		// Client disconnects are logged but not propogated back.
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+
 		err = wrapErrorIfRetryable(err, r.retryDelay)
 	}
 

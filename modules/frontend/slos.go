@@ -1,6 +1,8 @@
 package frontend
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -66,8 +68,10 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 
 		// most errors are SLO violations
 		if err != nil {
-			// however, if this is a grpc resource exhausted error (429) then we are within SLO
-			if status.Code(err) == codes.ResourceExhausted {
+			// However these errors are considered within SLO:
+			// * grpc resource exhausted error (429)
+			// * context canceled (client disconnected or canceled)
+			if status.Code(err) == codes.ResourceExhausted || errors.Is(err, context.Canceled) {
 				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
 			}
 			return

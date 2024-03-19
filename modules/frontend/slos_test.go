@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -31,6 +32,11 @@ func TestSLOHook(t *testing.T) {
 		{
 			name: "no slo fails : error",
 			err:  errors.New("foo"),
+		},
+		{
+			name:            "client disconnect (context canceled) passes",
+			err:             context.Canceled,
+			expectedWithSLO: 1.0,
 		},
 		{
 			name:            "no slo passes : resource exhausted grpc error",
