@@ -55,7 +55,7 @@ func TestReceivers(t *testing.T) {
 				otlpCfg := exporterCfg.(*otlpexporter.Config)
 				otlpCfg.ClientConfig = configgrpc.ClientConfig{
 					Endpoint: endpoint,
-					TLSSetting: configtls.ClientConfig{
+					TLSSetting: configtls.TLSClientSetting{
 						Insecure: true,
 					},
 				}
@@ -71,7 +71,7 @@ func TestReceivers(t *testing.T) {
 				zipkinCfg := exporterCfg.(*zipkinexporter.Config)
 				zipkinCfg.ClientConfig = confighttp.ClientConfig{
 					Endpoint: endpoint,
-					TLSSetting: configtls.ClientConfig{
+					TLSSetting: configtls.TLSClientSetting{
 						Insecure: true,
 					},
 				}
