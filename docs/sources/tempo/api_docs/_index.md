@@ -631,7 +631,7 @@ To enable the streaming service over the HTTP port for use with Grafana, set the
 stream_over_http_enabled: true
 ```
 
-The query frontend supports the following interface. For complete details of all objects [refer here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/tempo.proto)
+The query frontend supports the following interface. Refer to [`tempo.proto`](https://github.com/grafana/tempo/blob/main/pkg/tempopb/tempo.proto) for complete details of all objects.
 
 ```protobuf
 service StreamingQuerier {
