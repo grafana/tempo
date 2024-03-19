@@ -4,14 +4,13 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/binary"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/grafana/dskit/user"
-	"github.com/prometheus/prometheus/model/labels"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/grafana/e2e"
@@ -19,6 +18,11 @@ import (
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -88,6 +92,42 @@ func TestLimits(t *testing.T) {
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
 	)
 	require.NoError(t, err)
+}
+
+func TestOTLPLimits(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configLimits, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	protoSpans := test.MakeProtoSpans(100)
+
+	// gRPC
+	grpcClient := otlptracegrpc.NewClient(
+		otlptracegrpc.WithEndpoint(tempo.Endpoint(4317)),
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithRetry(otlptracegrpc.RetryConfig{Enabled: false}),
+	)
+	require.NoError(t, grpcClient.Start(context.Background()))
+
+	grpcErr := grpcClient.UploadTraces(context.Background(), protoSpans)
+	assert.Error(t, grpcErr)
+	require.Equal(t, codes.ResourceExhausted, status.Code(grpcErr))
+
+	// HTTP
+	httpClient := otlptracehttp.NewClient(
+		otlptracehttp.WithEndpoint(tempo.Endpoint(4318)),
+		otlptracehttp.WithInsecure(),
+		otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}),
+	)
+	require.NoError(t, httpClient.Start(context.Background()))
+
+	httpErr := httpClient.UploadTraces(context.Background(), protoSpans)
+	assert.Error(t, httpErr)
+	require.Contains(t, httpErr.Error(), http.StatusText(http.StatusInternalServerError)) // Should be 429
 }
 
 func TestQueryLimits(t *testing.T) {
