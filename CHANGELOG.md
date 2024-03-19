@@ -10,6 +10,7 @@
 * [BUGFIX] Add support for dashes, quotes and spaces in attribute names in autocomplete [#3458](https://github.com/grafana/tempo/pull/3458) (@mapno)
 * [BUGFIX] Correctly handle 429s in GRPC search streaming. [#3469](https://github.com/grafana/tempo/pull/3469) (@joe-ellitot)
 * [BUGFIX] Correctly cancel GRPC and HTTP contexts in the frontend to prevent having to rely on http write timeout. [#3443](https://github.com/grafana/tempo/pull/3443) (@joe-elliott)
+* [BUGFIX] Fix client disconnect errors to not count against SLOs or be returned to the client [#3505](https://github.com/grafana/tempo/pull/3505) (@mdisibio) 
 * [BUGFIX] Fix compaction/retention in AWS S3 and GCS when a prefix is configured. [#3465](https://github.com/grafana/tempo/issues/3465) (@bpfoster)
 
 ## v2.4.0
