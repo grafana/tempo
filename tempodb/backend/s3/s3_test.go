@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/grafana/dskit/flagext"
 	"github.com/minio/minio-go/v7"
@@ -445,6 +447,124 @@ func TestObjectWithPrefix(t *testing.T) {
 			ctx := context.Background()
 			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, nil)
 			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestListBlocksWithPrefix(t *testing.T) {
+	tests := []struct {
+		name              string
+		prefix            string
+		tenant            string
+		liveBlockIDs      []uuid.UUID
+		compactedBlockIDs []uuid.UUID
+		httpHandler       func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:              "with prefix",
+			prefix:            "a/b/c/",
+			tenant:            "single-tenant",
+			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, "a/b/c/single-tenant/", r.URL.Query().Get("prefix"))
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+							<Name>blerg</Name>
+							<Prefix>a/b/c</Prefix>
+							<ContinuationToken></ContinuationToken>
+							<KeyCount>2</KeyCount>
+							<MaxKeys>100</MaxKeys>
+							<EncodingType>url</EncodingType>
+							<IsTruncated>false</IsTruncated>
+							<Contents>
+								<Key>a/b/c/single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+							
+							<Contents>
+								<Key>a/b/c/single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+						</ListBucketResult>`))
+						return
+					}
+				}
+			},
+		},
+		{
+			name:              "without prefix",
+			prefix:            "",
+			liveBlockIDs:      []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+			compactedBlockIDs: []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+			tenant:            "single-tenant",
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == getMethod {
+						assert.Equal(t, "single-tenant/", r.URL.Query().Get("prefix"))
+
+						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+						<ListBucketResult>
+							<Name>blerg</Name>
+							<Prefix></Prefix>
+							<ContinuationToken></ContinuationToken>
+							<KeyCount>2</KeyCount>
+							<MaxKeys>100</MaxKeys>
+							<EncodingType>url</EncodingType>
+							<IsTruncated>false</IsTruncated>
+							<Contents>
+								<Key>single-tenant/00000000-0000-0000-0000-000000000000/meta.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+							
+							<Contents>
+								<Key>single-tenant/00000000-0000-0000-0000-000000000001/meta.compacted.json</Key>
+								<LastModified>2024-03-01T00:00:00.000Z</LastModified>
+								<ETag>&quot;d42a22ddd183f61924c661b1c026c1ef&quot;</ETag>
+								<Size>398</Size>
+								<StorageClass>STANDARD</StorageClass>
+							</Contents>
+						</ListBucketResult>`))
+						return
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			r, _, _, err := NewNoConfirm(&Config{
+				Region:                "blerg",
+				AccessKey:             "test",
+				SecretKey:             flagext.SecretWithValue("test"),
+				Bucket:                "blerg",
+				Prefix:                tc.prefix,
+				Insecure:              true,
+				Endpoint:              server.URL[7:],
+				ListBlocksConcurrency: 1,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			blockIDs, compactedBlockIDs, err := r.ListBlocks(ctx, tc.tenant)
+			assert.NoError(t, err)
+
+			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
+			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
 		})
 	}
 }
