@@ -38,9 +38,7 @@ For more information, refer for the [OpenTelemetry Instrumentation documentation
 These libraries capture telemetry
 information from a client application with minimal manual instrumentation of the codebase.
 
-* [OpenTelemetry Java auto-instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation) and [documentation](/docs/opentelemetry/instrumentation/java/)
-    - [Java auto-instrumentation with Java and OTel Java Agent](/docs/opentelemetry/instrumentation/java/javaagent/)
-    - [Automatic instrumentation of Spring Boot 3.x applications with Grafana OpenTelemetry Starter](/docs/opentelemetry/instrumentation/java/spring-starter/)
+* [OpenTelemetry Java auto-instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
 * [OpenTelemetry .NET auto-instrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
   * [How to configure OpenTelemetry .NET automatic instrumentation with Grafana Cloud](/blog/2023/10/31/how-to-configure-opentelemetry-.net-automatic-instrumentation-with-grafana-cloud)
 * [OpenTelemetry Python auto-instrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
@@ -48,8 +46,7 @@ information from a client application with minimal manual instrumentation of the
 
 ### Additional OTel resources
 
-- [Java HTTP Metrics from OpenTelemetry Traces](/docs/opentelemetry/instrumentation/java/metrics-from-traces/)
-- [OpenTelemetry documentation at Grafana](/docs/opentelemetry)
+- [Grafana Application Observability](/docs/grafana-cloud/monitor-applications/application-observability/)
 - [OpenTelemetry Go instrumentation examples](https://github.com/open-telemetry/opentelemetry-go/tree/main/example)
 - [OpenTelemetry Language Specific Instrumentation](https://opentelemetry.io/docs/instrumentation/)
 

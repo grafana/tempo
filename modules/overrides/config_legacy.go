@@ -56,6 +56,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
 		MaxSearchDuration:          c.Read.MaxSearchDuration,
+		UnsafeQueryHints:           c.Read.UnsafeQueryHints,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -116,7 +117,9 @@ type LegacyOverrides struct {
 	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxSearchDuration  model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
+	UnsafeQueryHints   bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -139,6 +142,8 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,
 			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
 			MaxSearchDuration:          l.MaxSearchDuration,
+			MaxMetricsDuration:         l.MaxMetricsDuration,
+			UnsafeQueryHints:           l.UnsafeQueryHints,
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:   l.BlockRetention,

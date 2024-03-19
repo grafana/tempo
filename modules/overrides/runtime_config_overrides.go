@@ -326,9 +326,17 @@ func (o *runtimeConfigOverridesManager) MaxBlocksPerTagValuesQuery(userID string
 	return o.getOverridesForUser(userID).Read.MaxBlocksPerTagValuesQuery
 }
 
+func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
+	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
+}
+
 // MaxSearchDuration is the duration of the max search duration for this tenant.
 func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Read.MaxSearchDuration)
+}
+
+func (o *runtimeConfigOverridesManager) MaxMetricsDuration(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).Read.MaxMetricsDuration)
 }
 
 // MetricsGeneratorIngestionSlack is the max amount of time passed since a span's end time

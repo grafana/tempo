@@ -5,11 +5,6 @@ function(noNewEmptyNameMixin) {
   core+: { v1+: {
     persistentVolumeClaim+: noNewEmptyNameMixin,
   } },
-  extensions+: {
-    v1beta1+: {
-      ingress+: noNewEmptyNameMixin,
-    },
-  },
   networking+: {
     v1beta1+: {
       ingress+: noNewEmptyNameMixin,

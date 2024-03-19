@@ -9,6 +9,8 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestSLOHook(t *testing.T) {
@@ -29,6 +31,11 @@ func TestSLOHook(t *testing.T) {
 		{
 			name: "no slo fails : error",
 			err:  errors.New("foo"),
+		},
+		{
+			name:            "no slo passes : resource exhausted grpc error",
+			err:             status.Error(codes.ResourceExhausted, "foo"),
+			expectedWithSLO: 1.0,
 		},
 		{
 			name:           "no slo fails : 5XX status code",
