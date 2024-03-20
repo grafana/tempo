@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
@@ -15,7 +16,7 @@ type waitGroup interface {
 
 // NewAsyncSharderFunc creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response]. It creates one
 // goroutine per concurrent request.
-func NewAsyncSharderFunc(concurrentReqs, totalReqs int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
+func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, reqFn func(i int) *http.Request, next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
 	var wg waitGroup
 	if concurrentReqs <= 0 {
 		wg = &sync.WaitGroup{}
@@ -50,7 +51,7 @@ func NewAsyncSharderFunc(concurrentReqs, totalReqs int, reqFn func(i int) *http.
 					return
 				}
 
-				asyncResp.Send(resp)
+				asyncResp.Send(ctx, resp)
 			}(req)
 		}
 
@@ -61,7 +62,7 @@ func NewAsyncSharderFunc(concurrentReqs, totalReqs int, reqFn func(i int) *http.
 }
 
 // NewAsyncSharderChan creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[*http.Response] using a limited number of goroutines.
-func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Responses[*http.Response], next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
+func NewAsyncSharderChan(ctx context.Context, concurrentReqs int, reqs <-chan *http.Request, resps Responses[*http.Response], next AsyncRoundTripper[*http.Response]) Responses[*http.Response] {
 	if concurrentReqs == 0 {
 		panic("NewAsyncSharderChan: concurrentReqs must be greater than 0")
 	}
@@ -85,7 +86,7 @@ func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Re
 					continue
 				}
 
-				asyncResp.Send(resp)
+				asyncResp.Send(ctx, resp)
 			}
 		}()
 	}
@@ -93,7 +94,7 @@ func NewAsyncSharderChan(concurrentReqs int, reqs <-chan *http.Request, resps Re
 	go func() {
 		// send any responses back the caller would like to send
 		if resps != nil {
-			asyncResp.Send(resps)
+			asyncResp.Send(ctx, resps)
 		}
 
 		wg.Wait()

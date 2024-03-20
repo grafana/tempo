@@ -12,9 +12,6 @@ import (
 type Responses[T any] interface {
 	// Next returns the next response or an error if one is available. It always prefers an error over a response.
 	Next(context.Context) (T, bool, error) // bool = done
-	// NextComplete indicates the receiver is done.
-	//  If a component calls Next() it must call NextComplete() when it is done with the response to cleanup resources.
-	NextComplete()
 }
 
 var _ Responses[*http.Response] = syncResponse{}
@@ -57,9 +54,6 @@ func (s syncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
 	return s.r, true, nil
 }
 
-func (s syncResponse) NextComplete() {
-}
-
 var _ Responses[*http.Response] = &asyncResponse{}
 
 // asyncResponse supports a fan in of a variable number of http.Responses.
@@ -79,8 +73,11 @@ func newAsyncResponse() *asyncResponse {
 	}
 }
 
-func (a *asyncResponse) Send(r Responses[*http.Response]) {
-	a.respChan <- r
+func (a *asyncResponse) Send(ctx context.Context, r Responses[*http.Response]) {
+	select {
+	case <-ctx.Done():
+	case a.respChan <- r:
+	}
 }
 
 // SendError sends an error to the asyncResponse. This will cause the asyncResponse to return the error on the next call to Next.
@@ -97,22 +94,6 @@ func (a *asyncResponse) SendError(err error) {
 // SendComplete indicates the sender is done. We close the channel to give a clear signal to the consumer
 func (a *asyncResponse) SendComplete() {
 	close(a.respChan)
-}
-
-// NextComplete indicates the receiver is done. We drain all channels and subchannels to goroutines are orphaned
-func (a *asyncResponse) NextComplete() {
-	go func() {
-		// drain the response channel?
-		for resps := range a.respChan {
-			if resps != nil {
-				resps.NextComplete()
-			}
-		}
-
-		if a.curResponses != nil {
-			a.curResponses.NextComplete()
-		}
-	}()
 }
 
 // Next returns the next http.Response or an error if one is available. It always prefers an error over a response.
@@ -144,7 +125,6 @@ func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) 
 		// get the next response from the current AsyncResponse
 		resp, done, err := a.curResponses.Next(ctx)
 		if done {
-			a.curResponses.NextComplete()
 			a.curResponses = nil
 		}
 

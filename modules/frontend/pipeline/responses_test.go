@@ -92,8 +92,9 @@ func TestAsyncResponseReturnsResponsesInOrder(t *testing.T) {
 
 	asyncR := newAsyncResponse()
 	go func() {
+		ctx := context.Background()
 		for _, r := range expected {
-			asyncR.Send(NewSyncToAsyncResponse(r))
+			asyncR.Send(ctx, NewSyncToAsyncResponse(r))
 		}
 		asyncR.SendComplete()
 	}()
@@ -131,7 +132,7 @@ func TestAsyncResponseReturnsSentErrors(t *testing.T) {
 		asyncR.SendError(expectedErr)
 	}()
 	go func() {
-		asyncR.Send(NewSuccessfulResponse("foo"))
+		asyncR.Send(context.Background(), NewSuccessfulResponse("foo"))
 	}()
 	time.Sleep(100 * time.Millisecond)
 	actual, done, actualErr := asyncR.Next(context.Background())
@@ -167,7 +168,7 @@ func TestAsyncResponseFansIn(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer rootResp.NextComplete()
+		// jpe - cancel?
 
 		for {
 			resp, done, err := rootResp.Next(context.Background())
@@ -191,9 +192,10 @@ func addResponses(r *asyncResponse) int {
 	childResponse := newAsyncResponse()
 	defer childResponse.SendComplete()
 
-	r.Send(childResponse)
+	ctx := context.Background()
+	r.Send(ctx, childResponse)
 	for i := 0; i < responsesToAdd; i++ {
-		childResponse.Send(NewSyncToAsyncResponse(&http.Response{}))
+		childResponse.Send(ctx, NewSyncToAsyncResponse(&http.Response{}))
 	}
 
 	recurse := rand.Intn(2)%2 == 0
@@ -397,7 +399,7 @@ func (s sharder) RoundTrip(r *http.Request) (Responses[*http.Response], error) {
 
 	// execute requests
 	if s.funcSharder {
-		return NewAsyncSharderFunc(concurrent, total, func(i int) *http.Request {
+		return NewAsyncSharderFunc(r.Context(), concurrent, total, func(i int) *http.Request {
 			return r
 		}, s.next), nil
 	}
@@ -409,7 +411,7 @@ func (s sharder) RoundTrip(r *http.Request) (Responses[*http.Response], error) {
 		}
 		close(reqCh)
 	}()
-	return NewAsyncSharderChan(concurrent, reqCh, nil, s.next), nil
+	return NewAsyncSharderChan(r.Context(), concurrent, reqCh, nil, s.next), nil
 }
 
 func BenchmarkNewSyncToAsyncResponse(b *testing.B) {
