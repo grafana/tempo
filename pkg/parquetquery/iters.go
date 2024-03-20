@@ -532,7 +532,6 @@ type SyncIterator struct {
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
-	selectAs   string
 	filter     *InstrumentedPredicate
 
 	// Status
@@ -549,6 +548,7 @@ type SyncIterator struct {
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
+	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
 	intern   bool
 	interner *intern.Interner
@@ -575,6 +575,17 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		"column":      columnName,
 	})
 
+	at := IteratorResult{}
+	if selectAs != "" {
+		// Preallocate 1 entry with the given name.
+		at.Entries = []struct {
+			Key   string
+			Value pq.Value
+		}{
+			{Key: selectAs},
+		}
+	}
+
 	// Create the iterator
 	i := &SyncIterator{
 		span:       span,
@@ -582,11 +593,11 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		columnName: columnName,
 		rgs:        rgs,
 		readSize:   readSize,
-		selectAs:   selectAs,
 		rgsMin:     rgsMin,
 		rgsMax:     rgsMax,
 		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
+		at:         at,
 	}
 
 	// Apply options
@@ -964,16 +975,17 @@ func (c *SyncIterator) closeCurrRowGroup() {
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
-	r := DefaultPool.Get()
-	r.RowNumber = t
-	if c.selectAs != "" {
+	// Use same static result instead of pooling
+	c.at.RowNumber = t
+	if len(c.at.Entries) == 1 {
 		if c.intern {
-			r.AppendValue(c.selectAs, c.interner.UnsafeClone(v))
+			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
 		} else {
-			r.AppendValue(c.selectAs, v.Clone())
+			c.at.Entries[0].Value = v.Clone()
 		}
 	}
-	return r
+
+	return &c.at
 }
 
 func (c *SyncIterator) Close() {

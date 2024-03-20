@@ -701,10 +701,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		// blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
-		// path = "/Users/marty/src/tmp/"
-		path = "/Users/mapno/workspace/testblock"
+		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		path    = "/Users/marty/src/tmp/"
+		// path = "/Users/mapno/workspace/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -727,7 +727,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+			for _, minutes := range []int{5, 7} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
 					st := meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)
