@@ -137,7 +137,7 @@ func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http
 	}
 
 	// execute requests
-	return pipeline.NewAsyncSharderChan(s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
+	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
