@@ -306,6 +306,11 @@ func (o *runtimeConfigOverridesManager) IngestionBurstSizeBytes(userID string) i
 	return o.getOverridesForUser(userID).Ingestion.BurstSizeBytes
 }
 
+// IngestionTenantShardSize is the shard size.
+func (o *runtimeConfigOverridesManager) IngestionTenantShardSize(userID string) int {
+	return o.getOverridesForUser(userID).Ingestion.TenantShardSize
+}
+
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.
 func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).Global.MaxBytesPerTrace

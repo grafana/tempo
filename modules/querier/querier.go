@@ -251,7 +251,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		// get responses from all ingesters in parallel
 		span.LogFields(ot_log.String("msg", "searching ingesters"))
-		responses, err := q.forIngesterRings(ctx, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+		responses, err := q.forIngesterRings(ctx, userID, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 			return client.FindTraceByID(funcCtx, req)
 		})
 		if err != nil {
@@ -321,7 +321,7 @@ type (
 )
 
 // forIngesterRings runs f, in parallel, for given ingesters
-func (q *Querier) forIngesterRings(ctx context.Context, getReplicationSet replicationSetFn, f forEachFn) ([]responseFromIngesters, error) {
+func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplicationSet replicationSetFn, f forEachFn) ([]responseFromIngesters, error) {
 	if ctx.Err() != nil {
 		_ = level.Debug(log.Logger).Log("forIngesterRings context error", "ctx.Err()", ctx.Err().Error())
 		return nil, ctx.Err()
@@ -346,6 +346,15 @@ func (q *Querier) forIngesterRings(ctx context.Context, getReplicationSet replic
 	var responseErr error
 
 	for i, ring := range q.ingesterRings {
+		if q.cfg.ShuffleShardingIngestersEnabled {
+			ring = ring.ShuffleShardWithLookback(
+				userID,
+				q.limits.IngestionTenantShardSize(userID),
+				q.cfg.ShuffleShardingLookbackPeriod,
+				time.Now(),
+			)
+		}
+
 		replicationSet, err := getReplicationSet(ring)
 		if err != nil {
 			return nil, fmt.Errorf("forIngesterRings: error getting replication set for ring (%d): %w", i, err)
@@ -453,12 +462,12 @@ func (q *Querier) forGivenGenerators(
 }
 
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	_, err := user.ExtractOrgID(ctx)
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.Search: %w", err)
 	}
 
-	responses, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	responses, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchRecent(ctx, req)
 	})
 	if err != nil {
@@ -493,7 +502,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
-	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTags(ctx, req)
 	})
 	if err != nil {
@@ -523,7 +532,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	// Get results from all ingesters
-	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagsV2(ctx, req)
 	})
 	if err != nil {
@@ -578,7 +587,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		distinctValues.Collect(v)
 	}
 
-	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagValues(ctx, req)
 	})
 	if err != nil {
@@ -623,7 +632,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	// Get results from all ingesters
-	lookupResults, err := q.forIngesterRings(ctx, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+	lookupResults, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagValuesV2(ctx, req)
 	})
 	if err != nil {

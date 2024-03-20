@@ -555,6 +555,14 @@ querier:
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
 
+    # If shuffle sharding is enabled, queriers fetch in-memory traces from the minimum set of required ingesters,
+    # selecting only ingesters which might have received series since now - <ingester flush period>. Otherwise, the
+    # request is sent to all ingesters.
+    [shuffle_sharding_ingesters_enabled: <bool> | default = true]
+
+    # TODO
+    [shuffle_sharding_lookback_period: <duration> | default = 1hr]
+
     # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
     # When true the querier will hash the trace id in the same way that distributors do and then
@@ -1247,6 +1255,9 @@ overrides:
       # Maximum number of active traces per user, across the cluster.
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
+
+      # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
+      [tenant_shard_size: <int> | default = 0]
 
     # Read related overrides
     read:
