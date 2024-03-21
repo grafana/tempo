@@ -1135,12 +1135,25 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		nestedSetParentExplicit = false
 	)
 
+	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
+	// nil predicate matches everything. what's the point of also evaluating a "real" predicate?
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	selectColumnIfNotAlready := func(path string) {
-		if columnPredicates[path] == nil {
+	addNilPredicateIfNotAlready := func(path string) {
+		preds := columnPredicates[path]
+		foundOpNone := false
+
+		// check to see if there is a nil predicate and only add if it doesn't exist
+		for _, pred := range preds {
+			if pred == nil {
+				foundOpNone = true
+				break
+			}
+		}
+
+		if !foundOpNone {
 			addPredicate(path, nil)
 			columnSelectAs[path] = path
 		}
@@ -1212,17 +1225,17 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			continue
 
 		case traceql.IntrinsicStructuralDescendant:
-			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
-			selectColumnIfNotAlready(columnPathSpanNestedSetRight)
+			addNilPredicateIfNotAlready(columnPathSpanNestedSetLeft)
+			addNilPredicateIfNotAlready(columnPathSpanNestedSetRight)
 			continue
 
 		case traceql.IntrinsicStructuralChild:
-			selectColumnIfNotAlready(columnPathSpanNestedSetLeft)
-			selectColumnIfNotAlready(columnPathSpanParentID)
+			addNilPredicateIfNotAlready(columnPathSpanNestedSetLeft)
+			addNilPredicateIfNotAlready(columnPathSpanParentID)
 			continue
 
 		case traceql.IntrinsicStructuralSibling:
-			selectColumnIfNotAlready(columnPathSpanParentID)
+			addNilPredicateIfNotAlready(columnPathSpanParentID)
 			continue
 
 		case traceql.IntrinsicNestedSetLeft:
