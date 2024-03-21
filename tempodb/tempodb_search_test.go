@@ -854,8 +854,8 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 									DurationNanos:     2000000000,
 									Name:              "",
 									Attributes: []*v1_common.KeyValue{
-										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
 							},
@@ -878,9 +878,9 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 									DurationNanos:     1000000000,
 									Name:              "BrokenSpan",
 									Attributes: []*v1_common.KeyValue{
-										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
 										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
 										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
+										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 0}}},
 									},
 								},
 							},
@@ -909,6 +909,73 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 								},
 							},
 							Matched: 1,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{nestedSetParent = -1} > {} | select(name)"}, // should select every span except root and disconnected spans
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+									},
+								},
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "nestedSetParent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{nestedSetLeft = 1} >> {} | select(name, nestedSetRight)"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "MySpan",
+									Attributes: []*v1_common.KeyValue{
+										// including the nestedSetLeft value may be a bug, but this occurs for all attributes and not just nested set attributes
+										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 2}}},
+										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 3}}},
+									},
+								},
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "nestedSetLeft", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 4}}},
+										{Key: "nestedSetRight", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 5}}},
+									},
+								},
+							},
+							Matched: 2,
 						},
 					},
 				},
@@ -943,9 +1010,11 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 			tr.SpanSet = nil
 
 			for _, ss := range tr.SpanSets {
-				sort.Slice(ss.Attributes, func(i, j int) bool {
-					return ss.Attributes[i].Key < ss.Attributes[j].Key
-				})
+				for _, span := range ss.Spans {
+					sort.Slice(span.Attributes, func(i, j int) bool {
+						return span.Attributes[i].Key < span.Attributes[j].Key
+					})
+				}
 			}
 		}
 
