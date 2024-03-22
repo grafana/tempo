@@ -1,13 +1,17 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	crand "crypto/rand"
 	"encoding/binary"
+	"fmt"
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"google.golang.org/grpc/codes"
@@ -128,6 +132,67 @@ func TestOTLPLimits(t *testing.T) {
 	httpErr := httpClient.UploadTraces(context.Background(), protoSpans)
 	assert.Error(t, httpErr)
 	require.Contains(t, httpErr.Error(), http.StatusText(http.StatusInternalServerError)) // Should be 429
+}
+
+func TestOTLPLimitsVanillaClient(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configLimits, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	trace := test.MakeTrace(10_000, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+
+	testCases := []struct {
+		name    string
+		payload func() []byte
+		headers map[string]string
+	}{
+		{
+			"JSON format",
+			func() []byte {
+				b := &bytes.Buffer{}
+				err := (&jsonpb.Marshaler{}).Marshal(b, trace)
+				require.NoError(t, err)
+				return b.Bytes()
+			},
+			map[string]string{
+				"Content-Type": "application/json",
+			},
+		},
+		{
+			"Proto format",
+			func() []byte {
+				b, err := trace.Marshal()
+				require.NoError(t, err)
+				return b
+			},
+			map[string]string{
+				"Content-Type": "application/x-protobuf",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, "http://"+tempo.Endpoint(4318)+"/v1/traces", bytes.NewReader(tc.payload()))
+			require.NoError(t, err)
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+			bodyBytes, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			fmt.Println(string(bodyBytes))
+
+			assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+		})
+	}
 }
 
 func TestQueryLimits(t *testing.T) {
