@@ -125,7 +125,7 @@ func (cfg *Config) Unmarshal(componentParser *confmap.Conf) error {
 
 	// UnmarshalExact will not set struct properties to nil even if no key is provided,
 	// so set the protocol structs to nil where the keys were omitted.
-	err := componentParser.Unmarshal(cfg, confmap.WithErrorUnused())
+	err := componentParser.Unmarshal(cfg)
 	if err != nil {
 		return err
 	}
