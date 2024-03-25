@@ -45,7 +45,7 @@ Finally, we get the following cardinality estimation:
 ```
 
 {{% admonition type="note" %}}
-If `enable_messaging_system_latency_histogram` configuration is set to `true`, another histogram will be produced:
+If `enable_messaging_system_latency_histogram` configuration is set to `true`, another histogram is produced:
 
 ```
   traces_service_graph_request_messaging_system_seconds: #hb * #hops
