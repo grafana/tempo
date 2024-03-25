@@ -101,9 +101,12 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	metricsMiddleware := MergeMiddlewares(
-		newMultiTenantUnsupportedMiddleware(cfg, logger),
-		newMetricsMiddleware(), retryWare)
+	metricsPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantUnsupportedMiddleware(cfg, logger),
+		},
+		[]pipeline.Middleware{statusCodeWare, retryWare},
+		next)
 
 	queryRangeMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
@@ -115,8 +118,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
 	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
 	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
+	metrics := newMetricsHandler(metricsPipeline, logger)
 
-	metrics := metricsMiddleware.Wrap(next)
 	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
 		// http/discrete
@@ -252,19 +255,33 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsMiddleware() pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		generatorRT := next
+func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		tenant, err := user.ExtractOrgID(req.Context())
+		if err != nil {
+			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
+		prepareRequestForDownstream(req, tenant, req.RequestURI, nil)
 
-		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// ingester search queries only need to be proxied to a single querier
-			orgID, _ := user.ExtractOrgID(r.Context()) // jpe - test err?
-			// jpe - make this generic? all it does it propagate forward
+		level.Info(logger).Log(
+			"msg", "metrics summary request",
+			"tenant", tenant,
+			"path", req.URL.Path)
 
-			prepareRequestForDownstream(r, orgID, r.RequestURI, nil)
+		resps, err := next.RoundTrip(req)
+		resp, _, err := resps.Next(req.Context()) // metrics path will only ever have one response
 
-			return generatorRT.RoundTrip(r)
-		})
+		level.Info(logger).Log(
+			"msg", "search tag response",
+			"tenant", tenant,
+			"path", req.URL.Path)
+
+		return resp, err
 	})
 }
 
@@ -306,9 +323,6 @@ func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddlewa
 	return pipeline.NewNoopMiddleware()
 }
 
-/*
-// nolint:unused was not working so i'm commenting this out. we are not using this function now, but will use it
-// when we migrate all endpoints to the new middleware
 func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
@@ -316,4 +330,3 @@ func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.As
 
 	return pipeline.NewNoopMiddleware()
 }
-*/
