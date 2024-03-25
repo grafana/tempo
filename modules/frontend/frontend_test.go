@@ -16,7 +16,7 @@ var testSLOcfg = SLOConfig{
 }
 
 func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
-	next := &mockSearchQuerierResponse{}
+	next := &mockRoundTripper{}
 	f, err := New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: minQueryShards,

@@ -80,7 +80,7 @@ tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b
 Call the Tempo API and search using TraceQL.
 
 ```bash
-tempo-cli query api search <host-port> <trace-ql> <start> <end>
+tempo-cli query api search <host-port> <trace-ql> [<start> <end>]
 ```
 Arguments:
 - `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
@@ -99,6 +99,46 @@ Options:
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
+### Search tags
+Call the Tempo API and search attribute names.
+
+```bash
+tempo-cli query api search-tags <host-port> [<start> <end>]
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use GRPC streaming
+- `--path-prefix <value>` String to prefix search paths with
+
+{{% admonition type="note" %}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
+
+### Search tag values
+Call the Tempo API and search attribute values.
+
+```bash
+tempo-cli query api search-tag-values <tag> <host-port> [<start> <end>]
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `tag` The fully qualified traceql tag to search for. e.g. `resource.service.name`
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use GRPC streaming
+- `--path-prefix <value>` String to prefix search paths with
+
+{{% admonition type="note" %}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
 
 ## Query blocks command
 

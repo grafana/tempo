@@ -7,6 +7,7 @@ import (
 
 type DistinctStringCollector struct {
 	values   map[string]struct{}
+	new      map[string]struct{}
 	maxLen   int
 	currLen  int
 	totalLen int
@@ -18,6 +19,7 @@ type DistinctStringCollector struct {
 func NewDistinctStringCollector(maxDataSize int) *DistinctStringCollector {
 	return &DistinctStringCollector{
 		values: make(map[string]struct{}),
+		new:    make(map[string]struct{}),
 		maxLen: maxDataSize,
 	}
 }
@@ -40,6 +42,7 @@ func (d *DistinctStringCollector) Collect(s string) {
 	// Clone instead of referencing original
 	s = strings.Clone(s)
 
+	d.new[s] = struct{}{}
 	d.values[s] = struct{}{}
 	d.currLen += len(s)
 }
@@ -64,4 +67,17 @@ func (d *DistinctStringCollector) Exceeded() bool {
 // TotalDataSize is the total size of all distinct strings encountered.
 func (d *DistinctStringCollector) TotalDataSize() int {
 	return d.totalLen
+}
+
+// Diff returns all new strings collected since the last time diff was called
+func (d *DistinctStringCollector) Diff() []string {
+	ss := make([]string, 0, len(d.new))
+
+	for k := range d.new {
+		ss = append(ss, k)
+	}
+
+	clear(d.new)
+	sort.Strings(ss)
+	return ss
 }

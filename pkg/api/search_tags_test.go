@@ -59,7 +59,7 @@ func TestParseSearchTagValuesRequest(t *testing.T) {
 		}
 
 		httpReq := httptest.NewRequest("GET", url, nil)
-		r := mux.SetURLVars(httpReq, map[string]string{muxVarTagName: tc.tagName})
+		r := mux.SetURLVars(httpReq, map[string]string{MuxVarTagName: tc.tagName})
 
 		req, err := parseSearchTagValuesRequest(r, tc.enforceTraceQL)
 		if tc.expectError {

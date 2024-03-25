@@ -38,6 +38,7 @@ storage:
       access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
       secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
       insecure: true
+      prefix: {{ .Prefix }}
     pool:
       max_workers: 10
       queue_depth: 100

@@ -70,6 +70,14 @@ func TestLexerAttributes(t *testing.T) {
 	}))
 }
 
+func TestLexerIntrinsics(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		{`nestedSetLeft`, []int{NESTEDSETLEFT}},
+		{`nestedSetRight`, []int{NESTEDSETRIGHT}},
+		{`duration`, []int{IDURATION}},
+	}))
+}
+
 func TestLexerMultitokens(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		// attributes

@@ -85,7 +85,7 @@ import (
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
-                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION
+                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
                         PARENT_DOT RESOURCE_DOT SPAN_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
@@ -345,6 +345,9 @@ intrinsicField:
   | ROOTNAME        { $$ = NewIntrinsic(IntrinsicTraceRootSpan)    }
   | ROOTSERVICENAME { $$ = NewIntrinsic(IntrinsicTraceRootService) }
   | TRACEDURATION   { $$ = NewIntrinsic(IntrinsicTraceDuration)    }
+  | NESTEDSETLEFT   { $$ = NewIntrinsic(IntrinsicNestedSetLeft)    }
+  | NESTEDSETRIGHT  { $$ = NewIntrinsic(IntrinsicNestedSetRight)   }
+  | NESTEDSETPARENT { $$ = NewIntrinsic(IntrinsicNestedSetParent)  }
   ;
 
 attributeField:

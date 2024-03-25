@@ -6,6 +6,7 @@ import (
 
 type DistinctValueCollector[T comparable] struct {
 	values   map[T]struct{}
+	new      map[T]struct{}
 	len      func(T) int
 	maxLen   int
 	currLen  int
@@ -19,6 +20,7 @@ type DistinctValueCollector[T comparable] struct {
 func NewDistinctValueCollector[T comparable](maxDataSize int, len func(T) int) *DistinctValueCollector[T] {
 	return &DistinctValueCollector[T]{
 		values: make(map[T]struct{}),
+		new:    make(map[T]struct{}),
 		maxLen: maxDataSize,
 		len:    len,
 	}
@@ -51,6 +53,7 @@ func (d *DistinctValueCollector[T]) Collect(v T) (exceeded bool) {
 		return true
 	}
 
+	d.new[v] = struct{}{}
 	d.values[v] = struct{}{}
 	d.currLen += valueLen
 	return false
@@ -82,4 +85,19 @@ func (d *DistinctValueCollector[T]) TotalDataSize() int {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 	return d.totalLen
+}
+
+// Diff returns all new strings collected since the last time diff was called
+func (d *DistinctValueCollector[T]) Diff() []T {
+	ss := make([]T, 0, len(d.new))
+
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	for k := range d.new {
+		ss = append(ss, k)
+	}
+
+	clear(d.new)
+	return ss
 }

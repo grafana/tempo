@@ -59,6 +59,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*
 			return srv.Send(sr)
 		})
 
+		logRequest(logger, tenant, req)
 		err = collector.RoundTrip(httpReq)
 
 		duration := time.Since(start)
@@ -67,7 +68,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logShardedResults(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		logResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
 		return err
 	}
 }
@@ -102,6 +103,8 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Resp
 			}, nil
 		}
 
+		logRequest(logger, tenant, searchReq)
+
 		// build and use roundtripper
 		combiner := combiner.NewTypedSearch(int(limit))
 		rt := pipeline.NewHTTPCollector(next, combiner)
@@ -117,7 +120,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Resp
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logShardedResults(logger, tenant, duration.Seconds(), searchReq, searchResp, err)
+		logResult(logger, tenant, duration.Seconds(), searchReq, searchResp, err)
 		return resp, err
 	})
 }
@@ -135,10 +138,10 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) (uint32, error) {
 	return limit, nil
 }
 
-func logShardedResults(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, err error) {
+func logResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, err error) {
 	if resp == nil {
 		level.Info(logger).Log(
-			"msg", "sharded search query request stats - no resp",
+			"msg", "search results - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
 			"error", err)
@@ -148,7 +151,7 @@ func logShardedResults(logger log.Logger, tenantID string, durationSeconds float
 
 	if resp.Metrics == nil {
 		level.Info(logger).Log(
-			"msg", "sharded search query request stats - no metrics",
+			"msg", "search results - no metrics",
 			"tenant", tenantID,
 			"query", req.Query,
 			"range_seconds", req.End-req.Start,
@@ -158,7 +161,7 @@ func logShardedResults(logger log.Logger, tenantID string, durationSeconds float
 	}
 
 	level.Info(logger).Log(
-		"msg", "sharded search query request stats",
+		"msg", "search results",
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
@@ -172,4 +175,14 @@ func logShardedResults(logger log.Logger, tenantID string, durationSeconds float
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
 		"error", err)
+}
+
+func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) {
+	level.Info(logger).Log(
+		"msg", "search request",
+		"tenant", tenantID,
+		"query", req.Query,
+		"range_seconds", req.End-req.Start,
+		"limit", req.Limit,
+		"spans_per_spanset", req.SpansPerSpanSet)
 }

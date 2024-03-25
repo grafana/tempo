@@ -66,6 +66,9 @@ var tokens = map[string]int{
 	"rootName":        ROOTNAME,
 	"rootServiceName": ROOTSERVICENAME,
 	"traceDuration":   TRACEDURATION,
+	"nestedSetLeft":   NESTEDSETLEFT,
+	"nestedSetRight":  NESTEDSETRIGHT,
+	"nestedSetParent": NESTEDSETPARENT,
 	"parent":          PARENT,
 	"parent.":         PARENT_DOT,
 	"resource.":       RESOURCE_DOT,
@@ -185,7 +188,6 @@ func (l *lexer) Lex(lval *yySymType) int {
 			l.Next()
 			continue
 		}
-
 		break
 	}
 

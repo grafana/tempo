@@ -99,6 +99,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	if err != nil {
 		return grpcError(err)
 	}
+
 	return nil
 }
 

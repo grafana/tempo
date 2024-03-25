@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	muxVarTagName = "tagName"
+	MuxVarTagName = "tagName"
 
 	ParamScopeIntrinsic = "intrinsic"
 )
@@ -373,7 +373,7 @@ func ParseSearchTagValuesRequestV2(r *http.Request) (*tempopb.SearchTagValuesReq
 
 func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb.SearchTagValuesRequest, error) {
 	vars := mux.Vars(r)
-	escapedTagName, ok := vars[muxVarTagName]
+	escapedTagName, ok := vars[MuxVarTagName]
 	if !ok {
 		return nil, errors.New("please provide a tagName")
 	}

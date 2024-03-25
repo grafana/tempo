@@ -374,6 +374,7 @@ func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempop
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
 
+	// -- assert search
 	resp, err := client.Search(ctx, &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(start),
@@ -381,12 +382,12 @@ func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempop
 	})
 	require.NoError(t, err)
 
-	// drain the stream until everything is returned
+	// drain the stream until everything is returned while watching for the trace in question
 	found := false
 	for {
-		searchResp, err := resp.Recv()
-		if searchResp != nil {
-			found = traceIDInResults(t, info.HexID(), searchResp)
+		resp, err := resp.Recv()
+		if resp != nil {
+			found = traceIDInResults(t, info.HexID(), resp)
 			if found {
 				break
 			}

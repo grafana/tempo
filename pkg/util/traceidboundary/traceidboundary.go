@@ -3,11 +3,8 @@ package traceidboundary
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/grafana/tempo/pkg/blockboundary"
+	"math"
 )
-
-const defaultBitSharding = 12
 
 type Boundary struct {
 	Min, Max []byte
@@ -23,27 +20,24 @@ type Boundary struct {
 //   - Trace IDs can be 16 or 8 bytes.  If we naively sharded only in 16-byte space it would
 //     be unbalanced because all 8-byte IDs would land in the first shard. Therefore we
 //     divide in both 16- and 8-byte spaces and a single shard covers a range in each.
+//   - There are different regimes of 8-byte ID generation and they are not uniformly
+//     distributed. So there are several sub-shards within 8-byte space to compensate.
 func Pairs(shard, of uint32) (boundaries []Boundary, upperInclusive bool) {
-	return PairsWithBitSharding(shard, of, defaultBitSharding)
-}
-
-// PairsWithBitSharding allows choosing a specific level of sub-sharding.
-func PairsWithBitSharding(shard, of uint32, bits int) (boundaries []Boundary, upperInclusive bool) {
-	if bits > 0 {
-		boundaries = append(boundaries, complicatedShardingFor8ByteIDs(shard, of, bits)...)
-	}
+	boundaries = append(boundaries, complicatedShardingFor8ByteIDs(shard, of)...)
 
 	// Final pair is the normal full precision 16-byte IDs.
-	int128bounds := blockboundary.CreateBlockBoundaries(int(of))
-	if bits > 0 {
-		// Avoid overlap with the 64-bit precision ones. I.e. a minimum of 0x0000.... would
-		// unintentionally include all 64-bit IDs. The first 65-bit ID starts here:
-		int128bounds[0] = []byte{0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0, 0}
-	}
+	b := bounds(of, 0, math.MaxUint64, 0)
+
+	// Avoid overlap with the 64-bit precision ones. I.e. a minimum of 0x0000.... would
+	// unintentionally include all 64-bit IDs. The first 65-bit ID starts here:
+	b[0] = []byte{0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0, 0}
+
+	// Adjust max to be full 16-byte max
+	b[of] = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 	boundaries = append(boundaries, Boundary{
-		Min: int128bounds[shard-1],
-		Max: int128bounds[shard],
+		Min: b[shard-1],
+		Max: b[shard],
 	})
 
 	// Top most 0xFFFFF... boundary is inclusive
@@ -54,12 +48,7 @@ func PairsWithBitSharding(shard, of uint32, bits int) (boundaries []Boundary, up
 
 // Funcs returns helper functions that match trace IDs in the given shard.
 func Funcs(shard, of uint32) (testSingle func([]byte) bool, testRange func([]byte, []byte) bool) {
-	return FuncsWithBitSharding(shard, of, defaultBitSharding)
-}
-
-// FuncsWithBitSharding is like Funcs but allows choosing a specific level of sub-sharding.
-func FuncsWithBitSharding(shard, of uint32, bits int) (testSingle func([]byte) bool, testRange func([]byte, []byte) bool) {
-	pairs, upperInclusive := PairsWithBitSharding(shard, of, bits)
+	pairs, upperInclusive := Pairs(shard, of)
 
 	upper := -1
 	if upperInclusive {
@@ -88,53 +77,60 @@ func FuncsWithBitSharding(shard, of uint32, bits int) (testSingle func([]byte) b
 }
 
 // complicatedShardingFor8ByteIDs generates a list of trace ID boundaries that is subdividing
-// the 64-bit space by the given number of bits. This seems like overkill but in practice
+// the 64-bit space. Not optimal or universal rules. This seems like overkill but in practice
 // 8-byte IDs are unevenly weighted towards lower values starting with zeros.  The benefit of
 // this approach is better fairness across shards, and also *invariance* across workloads,
 // no matter if your instrumentation is generating 8-byte or 16-byte trace IDs.
-func complicatedShardingFor8ByteIDs(shard, of uint32, bits int) []Boundary {
-	// This function takes a trace ID boundary and shifts it down to the
-	// same space by the given number of bits.
-	// For example shard 2 of 4 has the boundary:
-	//		0x40	b0100
-	//		0x80	b1000
-	// Shifting by 1 bit gives shard 2 of 4 in 64-bit-only space:
-	//				 |
-	//				 v
-	//		0xA0	b1010
-	//		0xC0	b1100
-	// Shifting by 2 bits gives shard 2 of 4 in 63-bit-only space:
-	//				  |
-	// 				  v
-	//      0x50	b0101
-	//      0x60	b0110
-	// ... and so on
-	cloneRotateAndSet := func(v []byte, right int) []byte {
-		v2 := binary.BigEndian.Uint64(v)
-		v2 >>= right
-		v2 |= 0x01 << (64 - right)
+func complicatedShardingFor8ByteIDs(shard, of uint32) []Boundary {
+	var results []Boundary
 
-		buf := make([]byte, 8)
-		binary.BigEndian.PutUint64(buf, v2)
-		return buf
+	regions := []struct {
+		min, max uint64
+	}{
+		{0x0000000000000000, 0x00FFFFFFFFFFFFFF}, // Region with upper byte = 0
+		{0x0100000000000000, 0x0FFFFFFFFFFFFFFF}, // Region with upper nibble = 0
+		{0x1000000000000000, 0x7FFFFFFFFFFFFFFF}, // Region for 63-bit IDs (upper bit = 0)
+		{0x8000000000000000, 0xFFFFFFFFFFFFFFFF}, // Region for true 64-bit IDs
 	}
 
-	var boundaries []Boundary
-	original := blockboundary.CreateBlockBoundaries(int(of))
-
-	for i := bits; i >= 1; i-- {
-		min := cloneRotateAndSet(original[shard-1], i)
-		max := cloneRotateAndSet(original[shard], i)
-
-		if i == bits && shard == 1 {
-			// We don't shard below this, so its minimum is absolute zero.
-			clear(min)
-		}
-		boundaries = append(boundaries, Boundary{
-			Min: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, min[0:8]...),
-			Max: append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, max[0:8]...),
+	for _, r := range regions {
+		b := bounds(of, r.min, r.max, 8)
+		results = append(results, Boundary{
+			Min: b[shard-1],
+			Max: b[shard],
 		})
 	}
 
-	return boundaries
+	return results
+}
+
+func bounds(shards uint32, min, max uint64, dest int) [][]byte {
+	if shards == 0 {
+		return nil
+	}
+
+	bounds := make([][]byte, shards+1)
+	for i := uint32(0); i < shards+1; i++ {
+		bounds[i] = make([]byte, 16)
+	}
+
+	bucketSz := (max - min) / uint64(shards)
+
+	// numLarger is the number of buckets that have to be bumped by 1
+	numLarger := max % bucketSz
+
+	boundary := min
+	for i := uint32(0); i < shards; i++ {
+		binary.BigEndian.PutUint64(bounds[i][dest:], boundary)
+
+		boundary += bucketSz
+		if numLarger != 0 {
+			numLarger--
+			boundary++
+		}
+	}
+
+	binary.BigEndian.PutUint64(bounds[shards][dest:], max)
+
+	return bounds
 }

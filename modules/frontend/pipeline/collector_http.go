@@ -58,5 +58,6 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	resp, err := r.combiner.HTTPFinal()
+
 	return resp, err
 }

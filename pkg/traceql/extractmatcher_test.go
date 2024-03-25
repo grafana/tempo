@@ -90,6 +90,16 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ kind = server }`,
 			expected: `{kind = server}`,
 		},
+		{
+			name:     "attribute with dashes",
+			query:    `{ span.foo-bar = "baz" }`,
+			expected: `{span.foo-bar = "baz"}`,
+		},
+		{
+			name:     "attribute with quotes and spaces",
+			query:    `{ span."foo bar" = "baz" }`,
+			expected: `{span."foo bar" = "baz"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

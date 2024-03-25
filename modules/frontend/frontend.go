@@ -26,13 +26,25 @@ import (
 	"github.com/grafana/tempo/tempodb"
 )
 
-type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
+// these handler funcs could likely be removed and the code written directly into the respective
+// gRPC functions
+type (
+	streamingSearchHandler      func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
+	streamingTagsHandler        func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error
+	streamingTagsV2Handler      func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error
+	streamingTagValuesHandler   func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error
+	streamingTagValuesV2Handler func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error
+)
 
 type QueryFrontend struct {
 	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler, QueryRangeHandler              http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
+	streamingTags                                                                              streamingTagsHandler
+	streamingTagsV2                                                                            streamingTagsV2Handler
+	streamingTagValues                                                                         streamingTagValuesHandler
+	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
 	logger                                                                                     log.Logger
 }
 
@@ -73,21 +85,21 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	searchTagsMiddleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewSearchTags, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagsResultHandlerFactory, parseTagsRequest), retryWare)
+	searchTagsPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantMiddleware(cfg, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
 
-	searchTagsV2Middleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewSearchTagsV2, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagsV2ResultHandlerFactory, parseTagsRequest), retryWare)
-
-	searchTagsValuesMiddleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValues, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesResultHandlerFactory, parseTagValuesRequest), retryWare)
-
-	searchTagsValuesV2Middleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewSearchTagValuesV2, logger),
-		newSearchTagsMiddleware(cfg, o, reader, logger, tagValuesV2ResultHandlerFactory, parseTagValuesRequest), retryWare)
+	searchTagValuesPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantMiddleware(cfg, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
 
 	metricsMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
@@ -99,14 +111,15 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := searchTagsMiddleware.Wrap(next)
-	searchTagsV2 := searchTagsV2Middleware.Wrap(next)
-	searchTagValues := searchTagsValuesMiddleware.Wrap(next)
-	searchTagValuesV2 := searchTagsValuesV2Middleware.Wrap(next)
+	searchTags := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTags, logger)
+	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
+	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
+	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
 
 	metrics := metricsMiddleware.Wrap(next)
 	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
+		// http/discrete
 		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
 		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, nil, logger),
 		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, nil, logger),
@@ -115,15 +128,38 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, nil, logger),
 		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, nil, logger),
 		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, nil, logger),
-		cacheProvider:             cacheProvider,
-		streamingSearch:           newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		logger:                    logger,
+
+		// grpc/streaming
+		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
+		streamingTags:        newTagStreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagsV2:      newTagV2StreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagValues:   newTagValuesStreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
+
+		cacheProvider: cacheProvider,
+		logger:        logger,
 	}, nil
 }
 
 // Search implements StreamingQuerierServer interface for streaming search
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 	return q.streamingSearch(req, srv)
+}
+
+func (q *QueryFrontend) SearchTags(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
+	return q.streamingTags(req, srv)
+}
+
+func (q *QueryFrontend) SearchTagsV2(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
+	return q.streamingTagsV2(req, srv)
+}
+
+func (q *QueryFrontend) SearchTagValues(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
+	return q.streamingTagValues(req, srv)
+}
+
+func (q *QueryFrontend) SearchTagValuesV2(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
+	return q.streamingTagValuesV2(req, srv)
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
@@ -212,15 +248,6 @@ func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger
 
 			return resp, err
 		})
-	})
-}
-
-// newSearchTagsMiddleware creates a new frontend middleware to handle search tags requests.
-func newSearchTagsMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger,
-	resultsHandlerFactory tagResultHandlerFactory, parseRequest parseRequestFunction,
-) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(next, newTagsSharding(reader, o, cfg.Search.Sharder, resultsHandlerFactory, logger, parseRequest))
 	})
 }
 

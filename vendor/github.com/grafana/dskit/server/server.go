@@ -130,6 +130,7 @@ type Config struct {
 	LogLevel                     log.Level        `yaml:"log_level"`
 	Log                          gokit_log.Logger `yaml:"-"`
 	LogSourceIPs                 bool             `yaml:"log_source_ips_enabled"`
+	LogSourceIPsFull             bool             `yaml:"log_source_ips_full"`
 	LogSourceIPsHeader           string           `yaml:"log_source_ips_header"`
 	LogSourceIPsRegex            string           `yaml:"log_source_ips_regex"`
 	LogRequestHeaders            bool             `yaml:"log_request_headers"`
@@ -194,6 +195,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&cfg.LogFormat, "log.format", log.LogfmtFormat, "Output log messages in the given format. Valid formats: [logfmt, json]")
 	cfg.LogLevel.RegisterFlags(f)
 	f.BoolVar(&cfg.LogSourceIPs, "server.log-source-ips-enabled", false, "Optionally log the source IPs.")
+	f.BoolVar(&cfg.LogSourceIPsFull, "server.log-source-ips-full", false, "Log all source IPs instead of only the originating one. Only used if server.log-source-ips-enabled is true")
 	f.StringVar(&cfg.LogSourceIPsHeader, "server.log-source-ips-header", "", "Header field storing the source IPs. Only used if server.log-source-ips-enabled is true. If not set the default Forwarded, X-Real-IP and X-Forwarded-For headers are used")
 	f.StringVar(&cfg.LogSourceIPsRegex, "server.log-source-ips-regex", "", "Regex for matching the source IPs. Only used if server.log-source-ips-enabled is true. If not set the default Forwarded, X-Real-IP and X-Forwarded-For headers are used")
 	f.BoolVar(&cfg.LogRequestHeaders, "server.log-request-headers", false, "Optionally log request headers.")
@@ -470,7 +472,7 @@ func RegisterInstrumentationWithGatherer(router *mux.Router, gatherer prometheus
 }
 
 func BuildHTTPMiddleware(cfg Config, router *mux.Router, metrics *Metrics, logger gokit_log.Logger) ([]middleware.Interface, error) {
-	sourceIPs, err := middleware.NewSourceIPs(cfg.LogSourceIPsHeader, cfg.LogSourceIPsRegex)
+	sourceIPs, err := middleware.NewSourceIPs(cfg.LogSourceIPsHeader, cfg.LogSourceIPsRegex, cfg.LogSourceIPsFull)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up source IP extraction: %w", err)
 	}

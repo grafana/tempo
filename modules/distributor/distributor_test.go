@@ -1510,3 +1510,11 @@ func (r mockRing) CleanupShuffleShardCache(string) {
 func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 	return ring.ACTIVE, nil
 }
+
+func (r mockRing) InstancesInZoneCount(string) int {
+	return 0
+}
+
+func (r mockRing) ZonesCount() int {
+	return 0
+}
