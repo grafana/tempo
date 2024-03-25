@@ -44,8 +44,8 @@ Finally, we get the following cardinality estimation:
   Sum: [([2 * #hb] + 2) * #hops] + [2 * #services]
 ```
 
-{{< admonition type="note" >}}
-If `enable_messaging_system_latency_histogram` configuration is set to `true`, another histogram will be produced:
+{{% admonition type="note" %}}
+If `enable_messaging_system_latency_histogram` configuration is set to `true`, another histogram is produced:
 
 ```
   traces_service_graph_request_messaging_system_seconds: #hb * #hops
