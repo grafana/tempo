@@ -335,7 +335,7 @@ func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
 		return 0
 	}
 	// Safe subtraction.
-	return float64(unixNanoEnd-unixNanoStart) / 1e9
+	return float64(unixNanoEnd-unixNanoStart) / float64(time.Second)
 }
 
 func spanDurationSec(span *v1_trace.Span) float64 {
