@@ -139,7 +139,7 @@ Replace these appropriately if you have altered the endpoint targets for the fol
   ```bash
   kubectl port-forward services/grafana-agent 4317:4317 --namespace grafana-agent
   ```
-3. Alertnatively a cronjob can be created to send traces periodically based on this template
+3. Alternatively a cronjob can be created to send traces periodically based on this template
 
 ```
 apiVersion: batch/v1
