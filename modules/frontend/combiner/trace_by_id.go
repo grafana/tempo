@@ -12,12 +12,10 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 const (
 	internalErrorMsg = "internal error"
-	tenantLabel      = "tenant"
 )
 
 type traceByIDCombiner struct {
@@ -29,15 +27,14 @@ type traceByIDCombiner struct {
 	statusMessage string
 }
 
-func NewTraceByID(maxBytes int) Combiner { // jpe test max bytes
+func NewTraceByID(maxBytes int) Combiner {
 	return &traceByIDCombiner{
 		c:    trace.NewCombiner(maxBytes),
 		code: http.StatusNotFound,
 	}
 }
 
-// jpe - tenant injection?
-func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error {
+func (c *traceByIDCombiner) AddResponse(res *http.Response) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -76,9 +73,6 @@ func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error
 		return fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
-	// inject tenant label as resource in trace jpe - does this work?
-	//	InjectTenantResource(tenant, resp.Trace)
-
 	// Consume the trace
 	_, err = c.c.Consume(resp.Trace)
 	return err
@@ -101,7 +95,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 
 	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
 		Trace: traceResult,
-	}) // jpe - this is marshalling to proto. may be done for us
+	})
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response to proto: %w", err)
 	}
@@ -146,22 +140,4 @@ func (c *traceByIDCombiner) shouldQuit() bool {
 
 	// 2xx and 404 are OK
 	return false
-}
-
-// InjectTenantResource will add tenantLabel attribute into response to show which tenant the response came from
-func InjectTenantResource(tenant string, t *tempopb.Trace) {
-	if t == nil || t.Batches == nil {
-		return
-	}
-
-	for _, b := range t.Batches {
-		b.Resource.Attributes = append(b.Resource.Attributes, &v1.KeyValue{
-			Key: tenantLabel,
-			Value: &v1.AnyValue{
-				Value: &v1.AnyValue_StringValue{
-					StringValue: tenant,
-				},
-			},
-		})
-	}
 }

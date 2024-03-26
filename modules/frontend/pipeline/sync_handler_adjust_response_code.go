@@ -9,6 +9,9 @@ type statusCodeAdjustWare struct {
 	allowedCode int
 }
 
+// NewStatusCodeAdjustWare exists to adjust status codes from the queriers for the rest of the pipeline to consume.
+// This is necessary because the queriers may return 4xx status codes for bad requests, but we want to represent
+// these as 500s to the rest of the pipeline. This also allows the rest of the pipeline to return 4xxs that can be trusted.
 func NewStatusCodeAdjustWare() Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return statusCodeAdjustWare{
@@ -17,7 +20,7 @@ func NewStatusCodeAdjustWare() Middleware {
 	})
 }
 
-func NewStatusCodeAdjustWareWithAllowedCode(code int) Middleware { // jpe test
+func NewStatusCodeAdjustWareWithAllowedCode(code int) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return statusCodeAdjustWare{
 			next:        next,

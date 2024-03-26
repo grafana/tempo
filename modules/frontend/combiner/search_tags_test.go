@@ -137,10 +137,10 @@ func TestTagsCombiner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			combiner := tc.factory(tc.limit)
 
-			err := combiner.AddResponse(toHTTPResponse(t, tc.result1, 200), "")
+			err := combiner.AddResponse(toHTTPResponse(t, tc.result1, 200))
 			assert.NoError(t, err)
 
-			err = combiner.AddResponse(toHTTPResponse(t, tc.result2, 200), "")
+			err = combiner.AddResponse(toHTTPResponse(t, tc.result2, 200))
 			assert.NoError(t, err)
 
 			res, err := combiner.HTTPFinal()
@@ -210,7 +210,7 @@ func TestTagValuesV2GRPCCombiner(t *testing.T) {
 }
 
 func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], result1 T, result2 T, diff1 T, diff2 T, expectedFinal T, sort func(T)) {
-	err := combiner.AddResponse(toHTTPResponse(t, result1, 200), "")
+	err := combiner.AddResponse(toHTTPResponse(t, result1, 200))
 	require.NoError(t, err)
 
 	actualDiff1, err := combiner.GRPCDiff()
@@ -218,7 +218,7 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	sort(actualDiff1)
 	require.Equal(t, diff1, actualDiff1)
 
-	err = combiner.AddResponse(toHTTPResponse(t, result2, 200), "")
+	err = combiner.AddResponse(toHTTPResponse(t, result2, 200))
 	assert.NoError(t, err)
 
 	actualDiff2, err := combiner.GRPCDiff()

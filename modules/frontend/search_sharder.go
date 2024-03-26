@@ -304,7 +304,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				continue
 			}
 
-			prepareRequestForDownstream(subR, tenantID, subR.URL.Path, subR.URL.Query())
+			prepareRequestForUpstream(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			key := searchJobCacheKey(queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			if len(key) > 0 {
 				subR = pipeline.AddCacheKey(key, subR)
@@ -366,6 +366,6 @@ func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Req
 		return nil, err
 	}
 
-	prepareRequestForDownstream(subR, tenantID, subR.URL.Path, subR.URL.Query())
+	prepareRequestForUpstream(subR, tenantID, subR.URL.Path, subR.URL.Query())
 	return subR, nil
 }

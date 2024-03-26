@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -25,9 +26,9 @@ import (
 // repeatedly unmarshals/marshals the trace data. Note that it occurs once here
 // to marshal into the proto format and again in the deduper middleware. we should
 // collapse this into the combiner where the data is already unmarshalled
-//
-//	jpe - can i get one of these?
 func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
+
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
@@ -67,7 +68,7 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-		prepareRequestForDownstream(req, tenant, req.RequestURI, nil)
+		prepareRequestForUpstream(req, tenant, req.RequestURI, nil)
 
 		level.Info(logger).Log(
 			"msg", "trace id request",
@@ -76,6 +77,8 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		combiner := combiner.NewTraceByID(o.MaxBytesPerTrace(tenant))
 		rt := pipeline.NewHTTPCollector(next, combiner)
+
+		start := time.Now()
 
 		// wrap the round tripper with the deduper middleware
 		deduperMW := newDeduper(logger)
@@ -99,7 +102,6 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 				responseObject.Trace = &tempopb.Trace{}
 			}
 
-			// jpe - response should be in proto b/c that's what the combiner does
 			if marshallingFormat == api.HeaderAcceptJSON {
 				var jsonTrace bytes.Buffer
 				marshaller := &jsonpb.Marshaler{}
@@ -121,10 +123,14 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 			}
 		}
 
+		elapsed := time.Since(start)
+		postSLOHook(resp, tenant, 0, elapsed, err)
+
 		level.Info(logger).Log(
 			"msg", "trace id response",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"duration_seconds", elapsed.Seconds(),
 			"err", err)
 
 		return resp, err

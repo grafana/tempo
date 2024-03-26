@@ -83,7 +83,7 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *ht
 			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
 		}
 
-		prepareRequestForDownstream(reqs[i], userID, reqs[i].URL.Path, q)
+		prepareRequestForUpstream(reqs[i], userID, reqs[i].URL.Path, q)
 	}
 
 	return reqs, nil

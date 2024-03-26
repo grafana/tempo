@@ -9,7 +9,7 @@ import (
 // Implementations must be thread-safe.
 // TODO: StatusCode() and the tenant parameter on AddRequest are only used in for multi-tenant support. Can we remove them?
 type Combiner interface {
-	AddResponse(r *http.Response, tenant string) error
+	AddResponse(r *http.Response) error
 	StatusCode() int
 	ShouldQuit() bool
 

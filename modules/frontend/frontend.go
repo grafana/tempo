@@ -72,7 +72,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	traceIdStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 
 	tracePipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{ // jpe - add other middleware from newTraceByIDMiddleware
+		[]pipeline.AsyncMiddleware[*http.Response]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
@@ -125,14 +125,14 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
 		// http/discrete
-		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger), // jpe move param and move traceByIDSLOPostHook
-		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, nil, logger),
-		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, nil, logger),
-		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, nil, logger),
-		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, nil, logger),
-		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, nil, logger),
-		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, nil, logger),
-		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, nil, logger),
+		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
+		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
+		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
+		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
+		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
+		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
+		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
+		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
 
 		// grpc/streaming
 		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, logger),
@@ -179,7 +179,7 @@ func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger l
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
-		prepareRequestForDownstream(req, tenant, req.RequestURI, nil)
+		prepareRequestForUpstream(req, tenant, req.RequestURI, nil)
 
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
@@ -203,10 +203,10 @@ func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger l
 	})
 }
 
-// prepareRequestForDownstream modifies the request for downstream functionality
+// prepareRequestForUpstream modifies the request for downstream functionality
 //   - adds the tenant header
 //   - sets the requesturi (see below for details)
-func prepareRequestForDownstream(req *http.Request, tenant string, originalURI string, params url.Values) { // jpe do we need to take originalURI and parms? can we just get that from req?
+func prepareRequestForUpstream(req *http.Request, tenant string, originalURI string, params url.Values) {
 	// set the tenant header
 	req.Header.Set(user.OrgIDHeaderName, tenant)
 
