@@ -970,6 +970,11 @@ func (c *SyncIterator) closeCurrRowGroup() {
 func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	// Use same static result instead of pooling
 	c.at.RowNumber = t
+
+	// The length of the Entries slice indicates if we should return the
+	// value or just the row number. This has already been checked during
+	// creation. SyncIterator reads a single column so the slice will
+	// always have length 0 or 1.
 	if len(c.at.Entries) == 1 {
 		if c.intern {
 			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
