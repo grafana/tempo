@@ -17,6 +17,7 @@ This type of deployment is ideal for small deployments, demo and test setups, an
 {{< admonition type="note" >}}
 The monolithic deployment of Tempo does not scale horizontally. If you require horizontal scaling, please use the `TempoStack` CR for a Tempo deployment in [Microservices mode](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/#microservices-mode).
 {{< /admonition >}}
+
 ## Quickstart
 
 The following manifest creates a Tempo monolithic deployment with trace ingestion over OTLP/gRPC and OTLP/HTTP, storing traces in a 2 GiB tmpfs volume (in-memory storage).
