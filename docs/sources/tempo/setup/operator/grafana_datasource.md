@@ -22,6 +22,7 @@ spec:
     grafana:
       createDatasource: true
 ```
+
 {{< admonition type="note" >}}
 The feature gate `featureGates.grafanaOperator` must be enabled in the Tempo Operator configuration.
 {{< /admonition >}}
