@@ -301,8 +301,6 @@ query_frontend:
         query_ingesters_until: 30m0s
     trace_by_id:
         query_shards: 50
-        hedge_requests_at: 2s
-        hedge_requests_up_to: 2
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600

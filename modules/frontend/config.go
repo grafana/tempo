@@ -37,19 +37,13 @@ type SearchConfig struct {
 }
 
 type TraceByIDConfig struct {
-	QueryShards      int           `yaml:"query_shards,omitempty"`
-	ConcurrentShards int           `yaml:"concurrent_shards,omitempty"`
-	Hedging          HedgingConfig `yaml:",inline"` // jpe - remove
-	SLO              SLOConfig     `yaml:",inline"`
+	QueryShards      int       `yaml:"query_shards,omitempty"`
+	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
+	SLO              SLOConfig `yaml:",inline"`
 }
 
 type MetricsConfig struct {
 	Sharder QueryRangeSharderConfig `yaml:",inline"`
-}
-
-type HedgingConfig struct {
-	HedgeRequestsAt   time.Duration `yaml:"hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to"`
 }
 
 type SLOConfig struct {
@@ -81,10 +75,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.TraceByID = TraceByIDConfig{
 		QueryShards: 50,
 		SLO:         slo,
-		Hedging: HedgingConfig{
-			HedgeRequestsAt:   2 * time.Second,
-			HedgeRequestsUpTo: 2,
-		},
 	}
 	cfg.Metrics = MetricsConfig{
 		Sharder: QueryRangeSharderConfig{
