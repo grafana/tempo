@@ -56,7 +56,7 @@ func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 
 	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) *http.Request {
 		return reqs[i]
-	}, s), nil
+	}, s.next), nil
 }
 
 // buildShardedRequests returns a slice of requests sharded on the precalculated

@@ -38,7 +38,6 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
-		prepareRequestForDownstream(req, tenant, req.RequestURI, nil)
 
 		// validate traceID
 		_, err = api.ParseTraceID(req)
@@ -68,6 +67,7 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
+		prepareRequestForDownstream(req, tenant, req.RequestURI, nil)
 
 		level.Info(logger).Log(
 			"msg", "trace id request",
@@ -92,16 +92,17 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 				return nil, err
 			}
 
+			// jpe - response should be in proto b/c that's what the combiner does
 			if marshallingFormat == api.HeaderAcceptJSON {
 				var jsonTrace bytes.Buffer
 				marshaller := &jsonpb.Marshaler{}
-				err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
+				err = marshaller.Marshal(&jsonTrace, responseObject.Trace) // jpe - how does this work? deduper expects a TraceByIDResponse?
 				if err != nil {
 					return nil, err
 				}
 				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			} else {
-				traceBuffer, err := proto.Marshal(responseObject.Trace)
+				traceBuffer, err := proto.Marshal(responseObject.Trace) // jpe - how does this work? deduper expects a TraceByIDResponse?
 				if err != nil {
 					return nil, err
 				}

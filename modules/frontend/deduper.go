@@ -59,13 +59,13 @@ func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
 		body, err := io.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deduper failed to read body: %w", err)
 		}
 
 		responseObject := &tempopb.TraceByIDResponse{}
 		err = proto.Unmarshal(body, responseObject)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deduper failed to unmarshal: %w", err)
 		}
 
 		s.trace = responseObject.Trace
@@ -74,7 +74,7 @@ func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
 		responseObject.Trace = s.trace
 		responseBytes, err := proto.Marshal(responseObject)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("deduper failed to marshal: %w", err)
 		}
 
 		return &http.Response{

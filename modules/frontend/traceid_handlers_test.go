@@ -1,7 +1,26 @@
 package frontend
 
-/* jpe - restore
-func TestShardingWareDoRequest(t *testing.T) {
+import (
+	"bytes"
+	"errors"
+	"io"
+	"math/rand"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/mux"
+	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestTraceIDHandler(t *testing.T) {
 	// create and split a splitTrace
 	splitTrace := test.MakeTrace(10, []byte{0x01, 0x02})
 	trace1 := &tempopb.Trace{}
@@ -16,18 +35,15 @@ func TestShardingWareDoRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		status1             int
-		status2             int
-		trace1              *tempopb.Trace
-		trace2              *tempopb.Trace
-		err1                error
-		err2                error
-		failedBlockQueries1 int
-		failedBlockQueries2 int
-		expectedStatus      int
-		expectedTrace       *tempopb.Trace
-		expectedError       error
+		name           string
+		status1        int
+		status2        int
+		trace1         *tempopb.Trace
+		trace2         *tempopb.Trace
+		err1           error
+		err2           error
+		expectedStatus int
+		expectedTrace  *tempopb.Trace
 	}{
 		{
 			name:           "empty returns",
@@ -121,34 +137,16 @@ func TestShardingWareDoRequest(t *testing.T) {
 			expectedTrace:  splitTrace,
 		},
 		{
-			name:          "200+err",
-			status1:       200,
-			trace1:        trace1,
-			err2:          errors.New("booo"),
-			expectedError: errors.New("booo"),
-		},
-		{
-			name:          "err+200",
-			err1:          errors.New("booo"),
-			status2:       200,
-			trace2:        trace1,
-			expectedError: errors.New("booo"),
-		},
-		{
-			name:          "500+err",
-			status1:       500,
-			trace1:        trace1,
-			err2:          errors.New("booo"),
-			expectedError: errors.New("booo"),
+			name:           "200+err",
+			status1:        200,
+			trace1:         trace1,
+			err2:           errors.New("booo"),
+			expectedStatus: 500,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := newAsyncTraceIDSharder(&TraceByIDConfig{
-				QueryShards: 2,
-			}, log.NewNopLogger())
-
 			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
 				var statusCode int
@@ -189,20 +187,37 @@ func TestShardingWareDoRequest(t *testing.T) {
 				}, nil
 			})
 
-			testRT := NewRoundTripper(next, sharder)
+			// queriers will return one err
+			f := frontendWithSettings(t, next, nil, &Config{
+				MultiTenantQueriesEnabled: true,
+				MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
+				TraceByID: TraceByIDConfig{
+					QueryShards: 2,
+					SLO:         testSLOcfg,
+				},
+				Search: SearchConfig{
+					Sharder: SearchSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					},
+					SLO: testSLOcfg,
+				},
+			}, nil)
 
 			req := httptest.NewRequest("GET", "/api/traces/1234", nil)
 			ctx := req.Context()
 			ctx = user.InjectOrgID(ctx, "blerg")
 			req = req.WithContext(ctx)
+			req = mux.SetURLVars(req, map[string]string{"traceID": "1234"})
 
-			resp, err := testRT.RoundTrip(req)
-			if tc.expectedError != nil {
-				assert.Equal(t, tc.expectedError, err)
-				return
+			httpResp := httptest.NewRecorder()
+			f.TraceByIDHandler.ServeHTTP(httpResp, req)
+			resp := httpResp.Result()
+
+			if tc.expectedStatus != resp.StatusCode {
+				body, _ := io.ReadAll(resp.Body)
+				require.Fail(t, "unexpected status code", "expected %d, got %d. body: %s", tc.expectedStatus, resp.StatusCode, body)
 			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 			if tc.expectedStatus == http.StatusOK {
 				assert.Equal(t, "application/protobuf", resp.Header.Get("Content-Type"))
 			}
@@ -220,4 +235,3 @@ func TestShardingWareDoRequest(t *testing.T) {
 		})
 	}
 }
-*/

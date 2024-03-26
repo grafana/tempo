@@ -37,6 +37,7 @@ func NewTraceByID(maxBytes int) Combiner { // jpe test max bytes
 	}
 }
 
+// jpe - tenant injection?
 func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -99,7 +100,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		}, nil
 	}
 
-	buff, err := proto.Marshal(traceResult)
+	buff, err := proto.Marshal(traceResult) // jpe - this is marshalling to proto. may be done for us
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response to proto: %w", err)
 	}
