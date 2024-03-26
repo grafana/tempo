@@ -69,7 +69,9 @@ func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 
 		s.trace = responseObject.Trace
-		s.dedupe()
+		if s.trace != nil {
+			s.dedupe()
+		}
 
 		responseObject.Trace = s.trace
 		responseBytes, err := proto.Marshal(responseObject)

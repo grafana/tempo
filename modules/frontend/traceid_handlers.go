@@ -28,7 +28,7 @@ import (
 //
 //	jpe - can i get one of these?
 func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
-	traceIDRT := pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "trace id: failed to extract tenant id", "err", err)
@@ -77,7 +77,9 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 		combiner := combiner.NewTraceByID(o.MaxBytesPerTrace(tenant))
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
-		resp, err := rt.RoundTrip(req)
+		// wrap the round tripper with the deduper middleware
+		deduperMW := newDeduper(logger)
+		resp, err := deduperMW.Wrap(rt).RoundTrip(req)
 
 		// marshal/unmarshal into requested format
 		if resp != nil && resp.StatusCode == http.StatusOK {
@@ -92,17 +94,22 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 				return nil, err
 			}
 
+			// below marshalling logic fails on an empty trace
+			if responseObject.Trace == nil {
+				responseObject.Trace = &tempopb.Trace{}
+			}
+
 			// jpe - response should be in proto b/c that's what the combiner does
 			if marshallingFormat == api.HeaderAcceptJSON {
 				var jsonTrace bytes.Buffer
 				marshaller := &jsonpb.Marshaler{}
-				err = marshaller.Marshal(&jsonTrace, responseObject.Trace) // jpe - how does this work? deduper expects a TraceByIDResponse?
+				err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
 				if err != nil {
 					return nil, err
 				}
 				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
 			} else {
-				traceBuffer, err := proto.Marshal(responseObject.Trace) // jpe - how does this work? deduper expects a TraceByIDResponse?
+				traceBuffer, err := proto.Marshal(responseObject.Trace)
 				if err != nil {
 					return nil, err
 				}
@@ -122,8 +129,4 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		return resp, err
 	})
-
-	// wrap the round tripper with the deduper middleware
-	deduperMW := newDeduper(logger)
-	return deduperMW.Wrap(traceIDRT)
 }

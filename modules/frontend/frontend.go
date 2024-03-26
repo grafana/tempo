@@ -69,18 +69,14 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
-
-	// inject multi-tenant middleware in multi-tenant routes
-	// traceByIDMiddleware := MergeMiddlewares( // jpe delete
-	// 	newMultiTenantMiddleware(cfg, combiner.NewTraceByID, logger),
-	// 	newTraceByIDMiddleware(cfg, o, logger), retryWare)
+	traceIdStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[*http.Response]{ // jpe - add other middleware from newTraceByIDMiddleware
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		[]pipeline.Middleware{cacheWare, traceIdStatusCodeWare, retryWare},
 		next)
 
 	searchPipeline := pipeline.Build(

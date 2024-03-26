@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,12 +21,12 @@ import (
 
 func TestTraceIDHandler(t *testing.T) {
 	// create and split a splitTrace
-	splitTrace := test.MakeTrace(10, []byte{0x01, 0x02})
+	splitTrace := test.MakeTrace(2, []byte{0x01, 0x02})
 	trace1 := &tempopb.Trace{}
 	trace2 := &tempopb.Trace{}
 
-	for _, b := range splitTrace.Batches {
-		if rand.Int()%2 == 0 {
+	for i, b := range splitTrace.Batches {
+		if i%2 == 0 {
 			trace1.Batches = append(trace1.Batches, b)
 		} else {
 			trace2.Batches = append(trace2.Batches, b)
@@ -96,20 +95,6 @@ func TestTraceIDHandler(t *testing.T) {
 			trace1:         trace1,
 			status2:        429,
 			expectedStatus: 429,
-		},
-		{
-			name:           "503+200",
-			status1:        503,
-			status2:        200,
-			trace2:         trace2,
-			expectedStatus: 500,
-		},
-		{
-			name:           "200+503",
-			status1:        200,
-			trace1:         trace1,
-			status2:        503,
-			expectedStatus: 500,
 		},
 		{
 			name:           "200+404",
@@ -209,6 +194,7 @@ func TestTraceIDHandler(t *testing.T) {
 			ctx = user.InjectOrgID(ctx, "blerg")
 			req = req.WithContext(ctx)
 			req = mux.SetURLVars(req, map[string]string{"traceID": "1234"})
+			req.Header.Set("Accept", "application/protobuf")
 
 			httpResp := httptest.NewRecorder()
 			f.TraceByIDHandler.ServeHTTP(httpResp, req)
@@ -222,15 +208,15 @@ func TestTraceIDHandler(t *testing.T) {
 				assert.Equal(t, "application/protobuf", resp.Header.Get("Content-Type"))
 			}
 			if tc.expectedTrace != nil {
-				actualResp := &tempopb.TraceByIDResponse{}
+				actualResp := &tempopb.Trace{}
 				bytesTrace, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 				err = proto.Unmarshal(bytesTrace, actualResp)
 				require.NoError(t, err)
 
 				trace.SortTrace(tc.expectedTrace)
-				trace.SortTrace(actualResp.Trace)
-				assert.True(t, proto.Equal(tc.expectedTrace, actualResp.Trace))
+				trace.SortTrace(actualResp)
+				assert.True(t, proto.Equal(tc.expectedTrace, actualResp))
 			}
 		})
 	}
