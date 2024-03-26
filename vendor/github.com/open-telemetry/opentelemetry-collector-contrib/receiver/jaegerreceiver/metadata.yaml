@@ -13,5 +13,11 @@ status:
   - redhat
   - splunk
   - sumo
+  - liatrio
   codeowners:
     active: [yurishkuro]
+
+tests:
+  config:
+    protocols:
+      grpc:

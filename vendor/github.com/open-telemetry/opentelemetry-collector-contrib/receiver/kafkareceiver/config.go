@@ -48,7 +48,7 @@ type Config struct {
 	ResolveCanonicalBootstrapServersOnly bool `mapstructure:"resolve_canonical_bootstrap_servers_only"`
 	// Kafka protocol version
 	ProtocolVersion string `mapstructure:"protocol_version"`
-	// The name of the kafka topic to consume from (default "otlp_spans")
+	// The name of the kafka topic to consume from (default "otlp_spans" for traces, "otlp_metrics" for metrics, "otlp_logs" for logs)
 	Topic string `mapstructure:"topic"`
 	// Encoding of the messages (default "otlp_proto")
 	Encoding string `mapstructure:"encoding"`

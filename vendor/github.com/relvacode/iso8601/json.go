@@ -19,7 +19,7 @@ func null(b []byte) bool {
 
 var _ json.Unmarshaler = &Time{}
 
-// Time is a helper object for parsing ISO8061 dates as a JSON string.
+// Time is a helper object for parsing ISO8601 dates as a JSON string.
 type Time struct {
 	time.Time
 }

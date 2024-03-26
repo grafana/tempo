@@ -42,8 +42,8 @@ import (
 // configuration defines the behavior and the ports that
 // the Jaeger receiver will use.
 type configuration struct {
-	CollectorHTTPSettings       confighttp.HTTPServerSettings
-	CollectorGRPCServerSettings configgrpc.GRPCServerSettings
+	HTTPServerConfig confighttp.ServerConfig
+	GRPCServerConfig configgrpc.ServerConfig
 
 	AgentCompactThrift ProtocolUDP
 	AgentBinaryThrift  ProtocolUDP
@@ -124,12 +124,12 @@ func newJaegerReceiver(
 	}, nil
 }
 
-func (jr *jReceiver) Start(_ context.Context, host component.Host) error {
-	if err := jr.startAgent(host); err != nil {
+func (jr *jReceiver) Start(ctx context.Context, host component.Host) error {
+	if err := jr.startAgent(); err != nil {
 		return err
 	}
 
-	return jr.startCollector(host)
+	return jr.startCollector(ctx, host)
 }
 
 func (jr *jReceiver) Shutdown(ctx context.Context) error {
@@ -222,7 +222,7 @@ func (jr *jReceiver) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) 
 	return &api_v2.PostSpansResponse{}, nil
 }
 
-func (jr *jReceiver) startAgent(host component.Host) error {
+func (jr *jReceiver) startAgent() error {
 	if jr.config == nil {
 		return nil
 	}
@@ -283,7 +283,7 @@ func (jr *jReceiver) startAgent(host component.Host) error {
 		go func() {
 			defer jr.goroutines.Done()
 			if err := jr.agentServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) && err != nil {
-				host.ReportFatalError(fmt.Errorf("jaeger agent server error: %w", err))
+				jr.settings.ReportStatus(component.NewFatalErrorEvent(fmt.Errorf("jaeger agent server error: %w", err)))
 			}
 		}()
 	}
@@ -368,21 +368,21 @@ func (jr *jReceiver) HandleThriftHTTPBatch(w http.ResponseWriter, r *http.Reques
 	jr.httpObsrecv.EndTracesOp(ctx, thriftFormat, numSpans, err)
 }
 
-func (jr *jReceiver) startCollector(host component.Host) error {
+func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) error {
 	if jr.config == nil {
 		return nil
 	}
 
-	if jr.config.CollectorHTTPSettings.Endpoint != "" {
-		cln, err := jr.config.CollectorHTTPSettings.ToListener()
+	if jr.config.HTTPServerConfig.Endpoint != "" {
+		cln, err := jr.config.HTTPServerConfig.ToListener()
 		if err != nil {
 			return fmt.Errorf("failed to bind to Collector address %q: %w",
-				jr.config.CollectorHTTPSettings.Endpoint, err)
+				jr.config.HTTPServerConfig.Endpoint, err)
 		}
 
 		nr := mux.NewRouter()
 		nr.HandleFunc("/api/traces", jr.HandleThriftHTTPBatch).Methods(http.MethodPost)
-		jr.collectorServer, err = jr.config.CollectorHTTPSettings.ToServer(host, jr.settings.TelemetrySettings, nr)
+		jr.collectorServer, err = jr.config.HTTPServerConfig.ToServer(host, jr.settings.TelemetrySettings, nr)
 		if err != nil {
 			return err
 		}
@@ -391,21 +391,21 @@ func (jr *jReceiver) startCollector(host component.Host) error {
 		go func() {
 			defer jr.goroutines.Done()
 			if errHTTP := jr.collectorServer.Serve(cln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-				host.ReportFatalError(errHTTP)
+				jr.settings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
 			}
 		}()
 	}
 
-	if jr.config.CollectorGRPCServerSettings.NetAddr.Endpoint != "" {
+	if jr.config.GRPCServerConfig.NetAddr.Endpoint != "" {
 		var err error
-		jr.grpc, err = jr.config.CollectorGRPCServerSettings.ToServer(host, jr.settings.TelemetrySettings)
+		jr.grpc, err = jr.config.GRPCServerConfig.ToServer(host, jr.settings.TelemetrySettings)
 		if err != nil {
 			return fmt.Errorf("failed to build the options for the Jaeger gRPC Collector: %w", err)
 		}
 
-		ln, err := jr.config.CollectorGRPCServerSettings.ToListener()
+		ln, err := jr.config.GRPCServerConfig.ToListenerContext(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to bind to gRPC address %q: %w", jr.config.CollectorGRPCServerSettings.NetAddr, err)
+			return fmt.Errorf("failed to bind to gRPC address %q: %w", jr.config.GRPCServerConfig.NetAddr, err)
 		}
 
 		api_v2.RegisterCollectorServiceServer(jr.grpc, jr)
@@ -414,7 +414,7 @@ func (jr *jReceiver) startCollector(host component.Host) error {
 		go func() {
 			defer jr.goroutines.Done()
 			if errGrpc := jr.grpc.Serve(ln); !errors.Is(errGrpc, grpc.ErrServerStopped) && errGrpc != nil {
-				host.ReportFatalError(errGrpc)
+				jr.settings.ReportStatus(component.NewFatalErrorEvent(errGrpc))
 			}
 		}()
 	}

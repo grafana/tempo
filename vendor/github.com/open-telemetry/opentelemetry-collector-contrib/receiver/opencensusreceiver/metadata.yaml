@@ -13,3 +13,6 @@ status:
   - sumo
   codeowners:
     active: [open-telemetry/collector-approvers]
+tests:
+  config:
+  skip_lifecycle: true

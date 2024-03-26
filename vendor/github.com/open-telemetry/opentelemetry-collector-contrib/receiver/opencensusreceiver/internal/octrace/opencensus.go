@@ -131,8 +131,9 @@ func (ocr *Receiver) processReceivedMsg(
 func (ocr *Receiver) sendToNextConsumer(longLivedRPCCtx context.Context, td ptrace.Traces) error {
 	ctx := ocr.obsrecv.StartTracesOp(longLivedRPCCtx)
 
+	numReceivedSpans := td.SpanCount()
 	err := ocr.nextConsumer.ConsumeTraces(ctx, td)
-	ocr.obsrecv.EndTracesOp(ctx, receiverDataFormat, td.SpanCount(), err)
+	ocr.obsrecv.EndTracesOp(ctx, receiverDataFormat, numReceivedSpans, err)
 
 	return err
 }

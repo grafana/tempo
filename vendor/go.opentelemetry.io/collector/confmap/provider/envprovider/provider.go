@@ -21,17 +21,8 @@ type provider struct{}
 //
 // This Provider supports "env" scheme, and can be called with a selector:
 // `env:NAME_OF_ENVIRONMENT_VARIABLE`
-func NewWithSettings(_ confmap.ProviderSettings) confmap.Provider {
+func NewWithSettings(confmap.ProviderSettings) confmap.Provider {
 	return &provider{}
-}
-
-// New returns a new confmap.Provider that reads the configuration from the given environment variable.
-//
-// This Provider supports "env" scheme, and can be called with a selector:
-// `env:NAME_OF_ENVIRONMENT_VARIABLE`
-// Deprecated: [v0.94.0] Use NewWithSettings instead.
-func New() confmap.Provider {
-	return NewWithSettings(confmap.ProviderSettings{})
 }
 
 func (emp *provider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (*confmap.Retrieved, error) {

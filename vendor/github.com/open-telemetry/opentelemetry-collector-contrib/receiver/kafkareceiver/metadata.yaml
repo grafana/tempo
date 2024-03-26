@@ -5,6 +5,7 @@ status:
   stability:
     beta: [metrics, logs, traces]
   distributions:
+  - core
   - contrib
   - aws
   - grafana
@@ -13,3 +14,7 @@ status:
   - sumo
   codeowners:
     active: [pavolloffay, MovieStoreGuy]
+
+tests:
+  config:
+  skip_lifecycle: true
