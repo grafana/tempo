@@ -135,11 +135,11 @@ Replace these appropriately if you have altered the endpoint targets for the fol
   telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint tempo-cluster-distributor.tempo.svc.cluster.local:4317
   ```
 
-  If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Agent or Tempo distributor service, eg:
+  If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Agent or Tempo distributor service, for example:
   ```bash
   kubectl port-forward services/grafana-agent 4317:4317 --namespace grafana-agent
   ```
-3. Alternatively a cronjob can be created to send traces periodically based on this template
+3. Alternatively, a cronjob can be created to send traces periodically based on this template:
 
 ```
 apiVersion: batch/v1
