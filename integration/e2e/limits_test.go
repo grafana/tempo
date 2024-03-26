@@ -90,6 +90,7 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// jpe - test 429 response from tempo
 func TestQueryLimits(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)

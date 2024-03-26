@@ -39,7 +39,7 @@ type SearchConfig struct {
 type TraceByIDConfig struct {
 	QueryShards      int           `yaml:"query_shards,omitempty"`
 	ConcurrentShards int           `yaml:"concurrent_shards,omitempty"`
-	Hedging          HedgingConfig `yaml:",inline"`
+	Hedging          HedgingConfig `yaml:",inline"` // jpe - remove
 	SLO              SLOConfig     `yaml:",inline"`
 }
 

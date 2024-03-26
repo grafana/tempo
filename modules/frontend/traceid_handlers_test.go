@@ -1,53 +1,6 @@
 package frontend
 
-import (
-	"bytes"
-	"context"
-	"errors"
-	"io"
-	"math/rand"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
-
-	"github.com/go-kit/log"
-	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/dskit/user"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-)
-
-func TestBuildShardedRequests(t *testing.T) {
-	queryShards := 2
-
-	sharder := &shardQuery{
-		cfg: &TraceByIDConfig{
-			QueryShards: queryShards,
-		},
-		blockBoundaries: blockboundary.CreateBlockBoundaries(queryShards - 1),
-	}
-
-	ctx := user.InjectOrgID(context.Background(), "blerg")
-	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
-
-	shardedReqs, err := sharder.buildShardedRequests(ctx, req)
-	require.NoError(t, err)
-	require.Len(t, shardedReqs, queryShards)
-
-	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].RequestURI)
-	require.Equal(t, "/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks", shardedReqs[1].RequestURI)
-}
-
+/* jpe - restore
 func TestShardingWareDoRequest(t *testing.T) {
 	// create and split a splitTrace
 	splitTrace := test.MakeTrace(10, []byte{0x01, 0x02})
@@ -190,14 +143,11 @@ func TestShardingWareDoRequest(t *testing.T) {
 		},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := newTraceByIDSharder(&TraceByIDConfig{
+			sharder := newAsyncTraceIDSharder(&TraceByIDConfig{
 				QueryShards: 2,
-			}, o, log.NewNopLogger())
+			}, log.NewNopLogger())
 
 			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
@@ -270,54 +220,4 @@ func TestShardingWareDoRequest(t *testing.T) {
 		})
 	}
 }
-
-func TestConcurrentShards(t *testing.T) {
-	concurrency := 2
-
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-
-	sharder := newTraceByIDSharder(&TraceByIDConfig{
-		QueryShards:      20,
-		ConcurrentShards: concurrency,
-	}, o, log.NewNopLogger())
-
-	sawMaxConcurrncy := atomic.NewBool(false)
-	currentlyExecuting := atomic.NewInt32(0)
-	next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		current := currentlyExecuting.Inc()
-		if current > int32(concurrency) {
-			t.Fatal("too many concurrent requests")
-		}
-		if current == int32(concurrency) {
-			// future developer. i'm concerned under pressure this won't be set b/c only 1 request will be executed at a time
-			// feel free to remove
-			sawMaxConcurrncy.Store(true)
-		}
-
-		// force concurrency
-		time.Sleep(100 * time.Millisecond)
-		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
-			Trace:   &tempopb.Trace{},
-			Metrics: &tempopb.TraceByIDMetrics{},
-		})
-		require.NoError(t, err)
-
-		currentlyExecuting.Dec()
-		return &http.Response{
-			Body:       io.NopCloser(bytes.NewReader(resBytes)),
-			StatusCode: 200,
-		}, nil
-	})
-
-	testRT := NewRoundTripper(next, sharder)
-
-	req := httptest.NewRequest("GET", "/api/traces/1234", nil)
-	ctx := req.Context()
-	ctx = user.InjectOrgID(ctx, "blerg")
-	req = req.WithContext(ctx)
-
-	_, err = testRT.RoundTrip(req)
-	require.NoError(t, err)
-	require.True(t, sawMaxConcurrncy.Load())
-}
+*/

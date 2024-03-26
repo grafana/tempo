@@ -30,9 +30,9 @@ type traceByIDCombiner struct {
 	statusMessage string
 }
 
-func NewTraceByID() Combiner {
+func NewTraceByID(maxBytes int) Combiner { // jpe test max bytes
 	return &traceByIDCombiner{
-		c:    trace.NewCombiner(0),
+		c:    trace.NewCombiner(maxBytes),
 		code: http.StatusNotFound,
 	}
 }
