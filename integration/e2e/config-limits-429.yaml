@@ -1,0 +1,42 @@
+target: all
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+overrides:
+  defaults:
+    ingestion:
+      max_traces_per_user: 1
+      rate_limit_bytes: 500
+      burst_size_bytes: 500
+    global:
+      max_bytes_per_trace: 130
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  trace_idle_period: 3600s
+
+query_frontend:
+  max_outstanding_per_tenant: 0 # forces everything to 429
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo
+    pool:
+      max_workers: 10
+      queue_depth: 100
