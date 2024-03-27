@@ -124,7 +124,7 @@ func collectFieldIndexes(s reflect.Type) (out [][]int, err error) {
 	for i := 0; i < s.NumField(); i++ {
 		f := s.Field(i)
 		switch {
-		case f.Anonymous: // nolint: gocritic
+		case f.Anonymous && f.Type.Kind() == reflect.Struct: // Embedded struct.
 			children, err := collectFieldIndexes(f.Type)
 			if err != nil {
 				return nil, err

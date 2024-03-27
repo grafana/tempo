@@ -24,7 +24,7 @@ const (
 	charStart uint = '0'
 )
 
-// ParseISOZone parses the 5 character zone information in an ISO8061 date string.
+// ParseISOZone parses the 5 character zone information in an ISO8601 date string.
 // This function expects input that matches:
 //
 //	-0100
@@ -211,6 +211,10 @@ parse:
 	// Sometimes a date can end without a non-integer character
 	if c > 0 {
 		switch p {
+		case year:
+			Y = c
+			M = 1
+			d = 1
 		case day:
 			d = c
 		case hour:

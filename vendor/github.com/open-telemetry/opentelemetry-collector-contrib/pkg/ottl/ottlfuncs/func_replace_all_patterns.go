@@ -19,15 +19,12 @@ const (
 )
 
 type ReplaceAllPatternsArguments[K any] struct {
-	Target       ottl.PMapGetter[K]
-	Mode         string
-	RegexPattern string
-	Replacement  ottl.StringGetter[K]
-	Function     ottl.Optional[ottl.FunctionGetter[K]]
-}
-
-type replaceAllPatternFuncArgs[K any] struct {
-	Input ottl.StringGetter[K]
+	Target            ottl.PMapGetter[K]
+	Mode              string
+	RegexPattern      string
+	Replacement       ottl.StringGetter[K]
+	Function          ottl.Optional[ottl.FunctionGetter[K]]
+	ReplacementFormat ottl.Optional[ottl.StringGetter[K]]
 }
 
 func NewReplaceAllPatternsFactory[K any]() ottl.Factory[K] {
@@ -41,10 +38,10 @@ func createReplaceAllPatternsFunction[K any](_ ottl.FunctionContext, oArgs ottl.
 		return nil, fmt.Errorf("ReplaceAllPatternsFactory args must be of type *ReplaceAllPatternsArguments[K]")
 	}
 
-	return replaceAllPatterns(args.Target, args.Mode, args.RegexPattern, args.Replacement, args.Function)
+	return replaceAllPatterns(args.Target, args.Mode, args.RegexPattern, args.Replacement, args.Function, args.ReplacementFormat)
 }
 
-func replaceAllPatterns[K any](target ottl.PMapGetter[K], mode string, regexPattern string, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]]) (ottl.ExprFunc[K], error) {
+func replaceAllPatterns[K any](target ottl.PMapGetter[K], mode string, regexPattern string, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {
 	compiledPattern, err := regexp.Compile(regexPattern)
 	if err != nil {
 		return nil, fmt.Errorf("the regex pattern supplied to replace_all_patterns is not a valid pattern: %w", err)
@@ -59,26 +56,9 @@ func replaceAllPatterns[K any](target ottl.PMapGetter[K], mode string, regexPatt
 		if err != nil {
 			return nil, err
 		}
-		if fn.IsEmpty() {
-			replacementVal, err = replacement.Get(ctx, tCtx)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			fnVal := fn.Get()
-			replacementExpr, errNew := fnVal.Get(&replaceAllPatternFuncArgs[K]{Input: replacement})
-			if errNew != nil {
-				return nil, errNew
-			}
-			replacementValRaw, errNew := replacementExpr.Eval(ctx, tCtx)
-			if errNew != nil {
-				return nil, errNew
-			}
-			replacementValStr, ok := replacementValRaw.(string)
-			if !ok {
-				return nil, fmt.Errorf("replacement value is not a string")
-			}
-			replacementVal = replacementValStr
+		replacementVal, err = replacement.Get(ctx, tCtx)
+		if err != nil {
+			return nil, err
 		}
 		updated := pcommon.NewMap()
 		updated.EnsureCapacity(val.Len())
@@ -86,15 +66,31 @@ func replaceAllPatterns[K any](target ottl.PMapGetter[K], mode string, regexPatt
 			switch mode {
 			case modeValue:
 				if compiledPattern.MatchString(originalValue.Str()) {
-					updatedString := compiledPattern.ReplaceAllString(originalValue.Str(), replacementVal)
-					updated.PutStr(key, updatedString)
+					if !fn.IsEmpty() {
+						updatedString, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, originalValue.Str(), replacementVal, replacementFormat)
+						if err != nil {
+							return false
+						}
+						updated.PutStr(key, updatedString)
+					} else {
+						updatedString := compiledPattern.ReplaceAllString(originalValue.Str(), replacementVal)
+						updated.PutStr(key, updatedString)
+					}
 				} else {
 					originalValue.CopyTo(updated.PutEmpty(key))
 				}
 			case modeKey:
 				if compiledPattern.MatchString(key) {
-					updatedKey := compiledPattern.ReplaceAllString(key, replacementVal)
-					originalValue.CopyTo(updated.PutEmpty(updatedKey))
+					if !fn.IsEmpty() {
+						updatedString, err := applyOptReplaceFunction(ctx, tCtx, compiledPattern, fn, key, replacementVal, replacementFormat)
+						if err != nil {
+							return false
+						}
+						updated.PutStr(key, updatedString)
+					} else {
+						updatedKey := compiledPattern.ReplaceAllString(key, replacementVal)
+						originalValue.CopyTo(updated.PutEmpty(updatedKey))
+					}
 				} else {
 					originalValue.CopyTo(updated.PutEmpty(key))
 				}

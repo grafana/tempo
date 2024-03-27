@@ -15,29 +15,29 @@ import (
 // values of type any, which for the purposes of OTTL mean values that are one of
 // int, float, string, bool, or pointers to those, or []byte, or nil.
 
-// invalidComparison returns false for everything except NE (where it returns true to indicate that the
+// invalidComparison returns false for everything except ne (where it returns true to indicate that the
 // objects were definitely not equivalent).
 // It also gives us an opportunity to log something.
 func (p *Parser[K]) invalidComparison(msg string, op compareOp) bool {
 	p.telemetrySettings.Logger.Debug(msg, zap.Any("op", op))
-	return op == NE
+	return op == ne
 }
 
 // comparePrimitives implements a generic comparison helper for all Ordered types (derived from Float, Int, or string).
 // According to benchmarks, it's faster than explicit comparison functions for these types.
 func comparePrimitives[T constraints.Ordered](a T, b T, op compareOp) bool {
 	switch op {
-	case EQ:
+	case eq:
 		return a == b
-	case NE:
+	case ne:
 		return a != b
-	case LT:
+	case lt:
 		return a < b
-	case LTE:
+	case lte:
 		return a <= b
-	case GTE:
+	case gte:
 		return a >= b
-	case GT:
+	case gt:
 		return a > b
 	default:
 		return false
@@ -46,17 +46,17 @@ func comparePrimitives[T constraints.Ordered](a T, b T, op compareOp) bool {
 
 func compareBools(a bool, b bool, op compareOp) bool {
 	switch op {
-	case EQ:
+	case eq:
 		return a == b
-	case NE:
+	case ne:
 		return a != b
-	case LT:
+	case lt:
 		return !a && b
-	case LTE:
+	case lte:
 		return !a || b
-	case GTE:
+	case gte:
 		return a || !b
-	case GT:
+	case gt:
 		return a && !b
 	default:
 		return false
@@ -65,17 +65,17 @@ func compareBools(a bool, b bool, op compareOp) bool {
 
 func compareBytes(a []byte, b []byte, op compareOp) bool {
 	switch op {
-	case EQ:
+	case eq:
 		return bytes.Equal(a, b)
-	case NE:
+	case ne:
 		return !bytes.Equal(a, b)
-	case LT:
+	case lt:
 		return bytes.Compare(a, b) < 0
-	case LTE:
+	case lte:
 		return bytes.Compare(a, b) <= 0
-	case GTE:
+	case gte:
 		return bytes.Compare(a, b) >= 0
-	case GT:
+	case gt:
 		return bytes.Compare(a, b) > 0
 	default:
 		return false
@@ -103,10 +103,10 @@ func (p *Parser[K]) compareString(a string, b any, op compareOp) bool {
 func (p *Parser[K]) compareByte(a []byte, b any, op compareOp) bool {
 	switch v := b.(type) {
 	case nil:
-		return op == NE
+		return op == ne
 	case []byte:
 		if v == nil {
-			return op == NE
+			return op == ne
 		}
 		return compareBytes(a, v, op)
 	default:
@@ -151,17 +151,17 @@ func (p *Parser[K]) compareTime(a time.Time, b any, op compareOp) bool {
 	switch v := b.(type) {
 	case time.Time:
 		switch op {
-		case EQ:
+		case eq:
 			return a.Equal(v)
-		case NE:
+		case ne:
 			return !a.Equal(v)
-		case LT:
+		case lt:
 			return a.Before(v)
-		case LTE:
+		case lte:
 			return a.Before(v) || a.Equal(v)
-		case GTE:
+		case gte:
 			return a.After(v) || a.Equal(v)
-		case GT:
+		case gt:
 			return a.After(v)
 		default:
 			return p.invalidComparison("invalid comparison operator", op)
@@ -177,7 +177,7 @@ func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
 	// nils are equal to each other and never equal to anything else,
 	// so if they're both nil, report equality.
 	if a == nil && b == nil {
-		return op == EQ || op == LTE || op == GTE
+		return op == eq || op == lte || op == gte
 	}
 	// Anything else, we switch on the left side first.
 	switch v := a.(type) {
@@ -206,9 +206,9 @@ func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
 		// If we don't know what type it is, we can't do inequalities yet. So we can fall back to the old behavior where we just
 		// use Go's standard equality.
 		switch op {
-		case EQ:
+		case eq:
 			return a == b
-		case NE:
+		case ne:
 			return a != b
 		default:
 			return p.invalidComparison("unsupported type for inequality on left", op)

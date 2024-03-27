@@ -1,4 +1,5 @@
 type: zipkin
+scope_name: otelcol/zipkin
 
 status:
   class: exporter
@@ -7,6 +8,3 @@ status:
   distributions: [core, contrib, observiq, liatrio]
   codeowners:
     active: [MovieStoreGuy, astencel-sumo, crobert-1]
-
-tests:
-  config:
