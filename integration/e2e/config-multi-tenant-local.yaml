@@ -69,4 +69,4 @@ overrides:
     client:
       backend: local
       local:
-        path: /var/tempo_overrides
+        path: /var/tempo/overrides
