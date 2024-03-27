@@ -48,4 +48,5 @@ To learn how to set up a Tempo cluster, see [Deploy on Kubernetes with Tanka]({{
 
 The [Introduction to Metrics, Logs and Traces in Grafana](https://github.com/grafana/intro-to-mlt) provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana. It includes detailed explanations of each compononent, annotated configurations for each component.
 
-The README.md file has full details on how to quickly download and [start the environment](https://github.com/grafana/intro-to-mlt#running-the-demonstration-environment). Additionally, you can use the [`ctl.sh`](https://github.com/grafana/intro-to-mlt#grafana-cloud) script to alter the environment to send metrics, logs, and traces to Grafana Cloud.
+The README.md file has full details on how to quickly download and [start the environment](https://github.com/grafana/intro-to-mlt#running-the-demonstration-environment), including instructions for using Grafana Cloud and the OpenTelemetry Agent.
+
