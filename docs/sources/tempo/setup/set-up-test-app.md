@@ -124,7 +124,7 @@ Replace these appropriately if you have altered the endpoint targets for the fol
 1. Install `telemetrygen` using the [installation procedure](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen).
    **NOTE**: You don't need to configure an OpenTelemetry Collector as we are using the Grafana Agent.
 
-2. Generate traces using `telemtrygen`:
+2. Generate traces using `telemetrygen`:
    ```bash
    telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint grafana-agent.grafana-agent.svc.cluster.local:4317
    ```
