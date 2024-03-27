@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -32,6 +33,12 @@ type Config struct {
 
 	GRPCClientConfig grpcclient.Config `yaml:"grpc_client_config"`
 }
+
+var metricConcurrency = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "tempo",
+	Name:      "querier_actual_concurrency",
+	Help:      "The actual value of concurrency.",
+})
 
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&cfg.FrontendAddress, "querier.frontend-address", "", "Address of query frontend service, in host:port format. If -querier.scheduler-address is set as well, querier will use scheduler instead. Only one of -querier.frontend-address or -querier.scheduler-address can be set. If neither is set, queries are only received via HTTP endpoint.")
@@ -242,6 +249,9 @@ func (w *querierWorker) resetConcurrency() {
 	if totalConcurrency > w.cfg.MaxConcurrentRequests {
 		level.Warn(w.log).Log("msg", "total worker concurrency is greater than promql max concurrency. Queries may be queued in the querier which reduces QOS")
 	}
+
+	// capture the current concurrency metric
+	metricConcurrency.Set(float64(totalConcurrency))
 }
 
 func (w *querierWorker) connect(ctx context.Context, address string) (*grpc.ClientConn, error) {
