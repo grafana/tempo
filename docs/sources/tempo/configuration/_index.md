@@ -4,7 +4,7 @@ menuTitle: Configure
 description: Learn about Tempo's available options and how to configure them.
 weight: 400
 aliases:
-- /docs/tempo/latest/configuration/
+  - /docs/tempo/latest/configuration/
 ---
 
 # Configure Tempo
@@ -279,8 +279,6 @@ Metrics-generator processors are disabled by default. To enable it for a specifi
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
-
-
 ```yaml
 # Metrics-generator configuration block
 metrics_generator:
@@ -318,6 +316,11 @@ metrics_generator:
             # Prefix additional dimensions with "client_" and "_server". Adds two labels
             # per additional dimension instead of one.
             [enable_client_server_prefix: <bool> | default = false]
+
+            # If enabled another histogram will be produced for interactions over messaging systems middlewares
+            # If this feature is relevant over long time ranges (high latencies) - consider increasing
+            # `wait` value for this processor.
+            [enable_messaging_system_latency_histogram: <bool> | default = false]
 
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
@@ -535,7 +538,7 @@ query_frontend:
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.
         [query_backend_after: <duration> | default = 30m ]
 
-        # The target length of time for each job to handle when querying the backend. 
+        # The target length of time for each job to handle when querying the backend.
         [interval: <duration> | default = 5m ]
 ```
 
@@ -613,14 +616,14 @@ querier:
         [frontend_address: <string>]
 ```
 
-It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
+It also queries compacted blocks that fall within the (2 \* BlocklistPoll) range where the value of Blocklist poll duration
 is defined in the storage section below.
 
 ## Compactor
 
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
-Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
+Compactors stream blocks from the storage backend, combine them and write them back. Values shown below are the defaults.
 
 ```yaml
 compactor:
@@ -690,7 +693,7 @@ Tempo is designed for object storage more than local storage.
 
 At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested.
 
-How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
+How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day _times_ retention days = stored bytes.
 
 You can not use both local and object storage in the same Tempo deployment.
 
@@ -699,10 +702,10 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "./hosted-storage/gcs" >}})
-* [S3]({{< relref "./hosted-storage/s3" >}})
-* [Azure]({{< relref "./hosted-storage/azure" >}})
-* [Parquet]({{< relref "./parquet" >}})
+- [GCS]({{< relref "./hosted-storage/gcs" >}})
+- [S3]({{< relref "./hosted-storage/s3" >}})
+- [Azure]({{< relref "./hosted-storage/azure" >}})
+- [Parquet]({{< relref "./parquet" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -1347,6 +1350,7 @@ overrides:
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
+          [enable_messaging_system_latency_histogram: <bool>]
 
         # Configuration for the span-metrics processor
         span_metrics:
@@ -1414,16 +1418,16 @@ overrides:
   # Tenant-specific overrides settings configuration file. The empty string (default
   # value) disables using an overrides file.
   [per_tenant_override_config: <string> | default = ""]
-        
+
   # How frequent tenant-specific overrides are read from the configuration file.
   [per_tenant_override_period: <druation> | default = 10s]
 
   # User-configurable overrides configuration
   user_configurable_overrides:
-    
+
     # Enable the user-configurable overrides module
     [enabled: <bool> | default = false]
-    
+
     # How often to poll the backend for new user-configurable overrides
     [poll_interval: <duration> | default = 60s]
 
@@ -1452,6 +1456,7 @@ overrides:
 #### Tenant-specific overrides
 
 There are two types of tenant-specific overrides:
+
 - runtime overrides
 - user-configurable overrides
 
@@ -1513,8 +1518,7 @@ The global limit is averaged across all distributors by using the distributor ri
 # /conf/tempo.yaml
 overrides:
   defaults:
-    ingestion:
-      [rate_strategy: <global|local> | default = local]
+    ingestion: [rate_strategy: <global|local> | default = local]
 ```
 
 For example, this configuration specifies that each instance of the distributor will apply a limit of `15MB/s`.
@@ -1718,14 +1722,14 @@ cache:
   background:
     writeback_goroutines: 5
   caches:
-  - roles:
-    - parquet-footer
-    - parquet-column-idx
-    - parquet-offset-idx
-    memcached:
-      host: memcached-instance
-  - roles:
-    - bloom
-    redis:
-      endpoint: redis-instance
+    - roles:
+        - parquet-footer
+        - parquet-column-idx
+        - parquet-offset-idx
+      memcached:
+        host: memcached-instance
+    - roles:
+        - bloom
+      redis:
+        endpoint: redis-instance
 ```

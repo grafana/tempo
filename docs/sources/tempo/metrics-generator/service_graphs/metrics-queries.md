@@ -71,3 +71,9 @@ These queries will give us latency quantiles for the above rate. If we were inte
 ```promql
 histogram_quantile(.9, sum(rate(traces_service_graph_request_server_seconds_bucket{client="foo"}[5m])) by (server, le))
 ```
+
+Using the optional metric for latency of a messaging system to see potential middleware latencies:
+
+```promql
+histogram_quantile(.9, sum(rate(traces_service_graph_request_messaging_system_seconds_bucket{}[5m])) by (client, server, le))
+```

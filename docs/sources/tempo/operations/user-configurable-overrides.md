@@ -62,6 +62,7 @@ metrics_generator:
       [dimensions: <list of string>]
       [peer_attributes: <list of string>]
       [enable_client_server_prefix: <bool>]
+      [enable_messaging_system_latency_histogram: <bool>]
 
     span_metrics:
       [histogram_buckets: <list of float>]
