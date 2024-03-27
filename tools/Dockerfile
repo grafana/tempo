@@ -1,3 +1,10 @@
-FROM golang:1.21.5-alpine3.19
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine3.19
 
-RUN apk --update add --no-cache make git
+ARG TARGETOS
+ARG TARGETARCH
+ENV GOOS=$TARGETOS GOARCH=$TARGETARCH
+RUN apk --update add --no-cache make git bash
+
+WORKDIR /tools
+COPY tools /tools
+RUN /tools/install.sh
