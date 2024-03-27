@@ -131,6 +131,7 @@ func TestTraceIDHandler(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc // copy the test case to prevent race on the loop variable
 		t.Run(tc.name, func(t *testing.T) {
 			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
