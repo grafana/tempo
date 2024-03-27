@@ -49,7 +49,7 @@ func TestRunRequests(t *testing.T) {
 	}
 
 	// check that counter metric is working
-	var m = &dto.Metric{}
+	m := &dto.Metric{}
 	err := metricWorkerRequests.Write(m)
 	require.NoError(t, err)
 	require.Equal(t, float64(totalRequests), m.Counter.GetValue())
