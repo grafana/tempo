@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/httpgrpc"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +47,12 @@ func TestRunRequests(t *testing.T) {
 	for i, resp := range resps {
 		require.Equal(t, []byte{byte(i)}, resp.Body)
 	}
+
+	// check that counter metric is working
+	m := &dto.Metric{}
+	err := metricWorkerRequests.Write(m)
+	require.NoError(t, err)
+	require.Equal(t, float64(totalRequests), m.Counter.GetValue())
 }
 
 func TestHandleSendError(t *testing.T) {

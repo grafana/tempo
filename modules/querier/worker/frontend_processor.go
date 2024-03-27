@@ -15,6 +15,8 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,6 +28,12 @@ var processorBackoffConfig = backoff.Config{
 	MinBackoff: 50 * time.Millisecond,
 	MaxBackoff: 1 * time.Second,
 }
+
+var metricWorkerRequests = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "querier_worker_request_executed_total",
+	Help:      "The total number of requests executed by the querier worker.",
+})
 
 func newFrontendProcessor(cfg Config, handler RequestHandler, log log.Logger) processor {
 	return &frontendProcessor{
@@ -184,6 +192,8 @@ func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.H
 		}
 		level.Error(fp.log).Log("msg", "error processing query", "err", errMsg)
 	}
+
+	metricWorkerRequests.Inc()
 
 	return response
 }
