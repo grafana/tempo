@@ -74,9 +74,9 @@ func createDefaultConfig() component.Config {
 	return &Config{
 		Protocols: Protocols{
 			GRPC: &configgrpc.ServerConfig{
-				NetAddr: confignet.NetAddr{
+				NetAddr: confignet.AddrConfig{
 					Endpoint:  localhostgate.EndpointForPort(defaultGRPCPort),
-					Transport: "tcp",
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 			ThriftHTTP: &confighttp.ServerConfig{

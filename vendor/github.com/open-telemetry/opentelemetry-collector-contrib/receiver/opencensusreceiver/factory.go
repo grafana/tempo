@@ -31,9 +31,9 @@ func NewFactory() receiver.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		ServerConfig: configgrpc.ServerConfig{
-			NetAddr: confignet.NetAddr{
+			NetAddr: confignet.AddrConfig{
 				Endpoint:  localhostgate.EndpointForPort(grpcPort),
-				Transport: "tcp",
+				Transport: confignet.TransportTypeTCP,
 			},
 			// We almost write 0 bytes, so no need to tune WriteBufferSize.
 			ReadBufferSize: 512 * 1024,
@@ -47,16 +47,10 @@ func createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
-	var err error
 	r := receivers.GetOrAdd(cfg, func() component.Component {
 		rCfg := cfg.(*Config)
-		var recv *ocReceiver
-		recv, err = newOpenCensusReceiver(rCfg.NetAddr.Transport, rCfg.NetAddr.Endpoint, nil, nil, set, rCfg.buildOptions()...)
-		return recv
+		return newOpenCensusReceiver(rCfg, nil, nil, set, rCfg.buildOptions()...)
 	})
-	if err != nil {
-		return nil, err
-	}
 	r.Unwrap().(*ocReceiver).traceConsumer = nextConsumer
 
 	return r, nil
@@ -68,16 +62,10 @@ func createMetricsReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (receiver.Metrics, error) {
-	var err error
 	r := receivers.GetOrAdd(cfg, func() component.Component {
 		rCfg := cfg.(*Config)
-		var recv *ocReceiver
-		recv, err = newOpenCensusReceiver(rCfg.NetAddr.Transport, rCfg.NetAddr.Endpoint, nil, nil, set, rCfg.buildOptions()...)
-		return recv
+		return newOpenCensusReceiver(rCfg, nil, nil, set, rCfg.buildOptions()...)
 	})
-	if err != nil {
-		return nil, err
-	}
 	r.Unwrap().(*ocReceiver).metricsConsumer = nextConsumer
 
 	return r, nil

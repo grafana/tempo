@@ -5,8 +5,20 @@ interact with OTel data via the Collector's internal data model, [pdata](https:/
 
 This document contains documentation for both types of OTTL functions:
 
-- [Functions](#functions) that transform telemetry.
+- [Editors](#editors) that transform telemetry.
 - [Converters](#converters) that provide utilities for transforming telemetry.
+
+## Design principles
+
+For the standard OTTL functions described in this document, we specify design principles to ensure they are always
+secure and safe for use:
+
+- Built-in OTTL functions may not access the file system, network, or any other I/O devices.
+- Built-in OTTL functions may share information only through their parameters and results.
+- Built-in OTTL functions must be terminating; they must not loop forever.
+
+OTTL functions are implemented in Go, and so are only limited by what can be implemented in a Go program.
+User-defined OTTL functions may therefore not adhere the above principles.
 
 ## Working with functions
 
@@ -35,6 +47,7 @@ Available Editors:
 
 - [delete_key](#delete_key)
 - [delete_matching_keys](#delete_matching_keys)
+- [flatten](#flatten)
 - [keep_keys](#keep_keys)
 - [limit](#limit)
 - [merge_maps](#merge_maps)
@@ -49,9 +62,9 @@ Available Editors:
 
 `delete_key(target, key)`
 
-The `delete_key` function removes a key from a `pdata.Map`
+The `delete_key` function removes a key from a `pcommon.Map`
 
-`target` is a path expression to a `pdata.Map` type field. `key` is a string that is a key in the map.
+`target` is a path expression to a `pcommon.Map` type field. `key` is a string that is a key in the map.
 
 The key will be deleted from the map.
 
@@ -66,9 +79,9 @@ Examples:
 
 `delete_matching_keys(target, pattern)`
 
-The `delete_matching_keys` function removes all keys from a `pdata.Map` that match a regex pattern.
+The `delete_matching_keys` function removes all keys from a `pcommon.Map` that match a regex pattern.
 
-`target` is a path expression to a `pdata.Map` type field. `pattern` is a regex string.
+`target` is a path expression to a `pcommon.Map` type field. `pattern` is a regex string.
 
 All keys that match the pattern will be deleted from the map.
 
@@ -79,13 +92,99 @@ Examples:
 
 - `delete_matching_keys(resource.attributes, "(?i).*password.*")`
 
+### flatten
+
+`flatten(target, Optional[prefix], Optional[depth])`
+
+The `flatten` function flattens a `pcommon.Map` by moving items from nested maps to the root. 
+
+`target` is a path expression to a `pcommon.Map` type field. `prefix` is an optional string. `depth` is an optional non-negative int.
+
+For example, the following map
+
+```json
+{
+  "name": "test",
+  "address": {
+    "street": "first",
+    "house": 1234
+  },
+  "occupants": ["user 1", "user 2"]
+}
+```
+
+is converted to 
+
+```json
+{
+    "name": "test",
+    "address.street": "first",
+    "address.house": 1234,
+    "occupants.0": "user 1",
+    "occupants.1": "user 2"
+}
+```
+
+If `prefix` is supplied, it will be appended to the start of the new keys. This can help you namespace the changes. For example, if in the above example a `prefix` of `app` was configured, the result would be
+
+```json
+{
+    "app.name": "test",
+    "app.address.street": "first",
+    "app.address.house": 1234,
+    "app.occupants.0": "user 1",
+    "app.occupants.1": "user 2"
+}
+```
+
+If `depth` is supplied, the function will only flatten nested maps up to that depth. For example, if a `depth` of `2` was configured, the following map
+
+```json
+{
+  "0": {
+    "1": {
+      "2": {
+        "3": {
+          "4": "value"
+        }
+      }
+    }
+  }
+}
+```
+
+the result would be
+
+```json
+{
+  "0.1.2": {
+    "3": {
+      "4": "value"
+    }
+  }
+}
+```
+
+A `depth` of `0` means that no flattening will occur.
+
+Examples:
+
+- `flatten(attributes)`
+
+
+- `flatten(cache, "k8s", 4)`
+
+
+- `flatten(body, depth=2)`
+
+
 ### keep_keys
 
 `keep_keys(target, keys[])`
 
-The `keep_keys` function removes all keys from the `pdata.Map` that do not match one of the supplied keys.
+The `keep_keys` function removes all keys from the `pcommon.Map` that do not match one of the supplied keys.
 
-`target` is a path expression to a `pdata.Map` type field. `keys` is a slice of one or more strings.
+`target` is a path expression to a `pcommon.Map` type field. `keys` is a slice of one or more strings.
 
 The map will be changed to only contain the keys specified by the list of strings.
 
@@ -100,9 +199,9 @@ Examples:
 
 `limit(target, limit, priority_keys[])`
 
-The `limit` function reduces the number of elements in a `pdata.Map` to be no greater than the limit.
+The `limit` function reduces the number of elements in a `pcommon.Map` to be no greater than the limit.
 
-`target` is a path expression to a `pdata.Map` type field. `limit` is a non-negative integer.
+`target` is a path expression to a `pcommon.Map` type field. `limit` is a non-negative integer.
 `priority_keys` is a list of strings of attribute keys that won't be dropped during limiting.
 
 The number of priority keys must be less than the supplied `limit`.
@@ -125,7 +224,7 @@ Examples:
 
 The `merge_maps` function merges the source map into the target map using the supplied strategy to handle conflicts.
 
-`target` is a `pdata.Map` type field. `source` is a `pdata.Map` type field. `strategy` is a string that must be one of `insert`, `update`, or `upsert`.
+`target` is a `pcommon.Map` type field. `source` is a `pcommon.Map` type field. `strategy` is a string that must be one of `insert`, `update`, or `upsert`.
 
 If strategy is:
 
@@ -147,48 +246,43 @@ Examples:
 
 ### replace_all_matches
 
-`replace_all_matches(target, pattern, replacement, function)`
+`replace_all_matches(target, pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_matches` function replaces any matching string value with the replacement string.
 
-`target` is a path expression to a `pdata.Map` type field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string. `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching string with the hash value of `replacement`.
+`target` is a path expression to a `pcommon.Map` type field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string. `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching string with the hash value of `replacement`.
+`replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 Each string value in `target` that matches `pattern` will get replaced with `replacement`. Non-string values are ignored.
-
-There is currently a bug with OTTL that does not allow the pattern to end with `\\"`.
-[See Issue 23238 for details](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/23238).
 
 Examples:
 
 - `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}")`
-- `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256)`
+- `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256, "/user/%s")`
 
 ### replace_all_patterns
 
-`replace_all_patterns(target, mode, regex, replacement, function)`
+`replace_all_patterns(target, mode, regex, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_patterns` function replaces any segments in a string value or key that match the regex pattern with the replacement string.
 
-`target` is a path expression to a `pdata.Map` type field. `regex` is a regex string indicating a segment to replace. `replacement` is either a path expression to a string telemetry field or a literal string.
+`target` is a path expression to a `pcommon.Map` type field. `regex` is a regex string indicating a segment to replace. `replacement` is either a path expression to a string telemetry field or a literal string.
 
 `mode` determines whether the match and replace will occur on the map's value or key. Valid values are `key` and `value`.
 
 If one or more sections of `target` match `regex` they will get replaced with `replacement`.
 
-The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand).
+The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching regex pattern with the hash value of `replacement`.
-
-There is currently a bug with OTTL that does not allow the pattern to end with `\\"`.
-If your pattern needs to end with backslashes, add something inconsequential to the end of the pattern such as `{1}`, `$`, or `.*`.
-[See Issue 23238 for details](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/23238).
 
 Examples:
 
 - `replace_all_patterns(attributes, "value", "/account/\\d{4}", "/account/{accountId}")`
 - `replace_all_patterns(attributes, "key", "/account/\\d{4}", "/account/{accountId}")`
 - `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "k8s.$$1.")`
-- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "k8s.$$1.", SHA256)`
+- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "$$1.")`
+- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "$$1.", SHA256, "k8s.%s")`
 
 Note that when using OTTL within the collector's configuration file, `$` must be escaped to `$$` to bypass
 environment variable substitution logic. To input a literal `$` from the configuration file, use `$$$`.
@@ -196,27 +290,25 @@ If using OTTL outside of collector configuration, `$` should not be escaped and 
 
 ### replace_match
 
-`replace_match(target, pattern, replacement, function)`
+`replace_match(target, pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_match` function allows replacing entire strings if they match a glob pattern.
 
 `target` is a path expression to a telemetry field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string.
+`replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 If `target` matches `pattern` it will get replaced with `replacement`.
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching glob pattern with the hash value of `replacement`.
 
-There is currently a bug with OTTL that does not allow the pattern to end with `\\"`.
-[See Issue 23238 for details](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/23238).
-
 Examples:
 
 - `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}")`
-- `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256)`
+- `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256, "/user/%s")`
 
 ### replace_pattern
 
-`replace_pattern(target, regex, replacement, function)`
+`replace_pattern(target, regex, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_pattern` function allows replacing all string sections that match a regex pattern with a new value.
 
@@ -224,19 +316,15 @@ The `replace_pattern` function allows replacing all string sections that match a
 
 If one or more sections of `target` match `regex` they will get replaced with `replacement`.
 
-The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand).
+The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces a matching regex pattern with the hash value of `replacement`.
-
-There is currently a bug with OTTL that does not allow the pattern to end with `\\"`.
-If your pattern needs to end with backslashes, add something inconsequential to the end of the pattern such as `{1}`, `$`, or `.*`.
-[See Issue 23238 for details](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/23238).
 
 Examples:
 
 - `replace_pattern(resource.attributes["process.command_line"], "password\\=[^\\s]*(\\s?)", "password=***")`
 - `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "k8s.$$1.")`
-- `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "k8s.$$1.", SHA256)`
+- `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "$$1.", SHA256, "k8s.%s")`
 
 Note that when using OTTL within the collector's configuration file, `$` must be escaped to `$$` to bypass
 environment variable substitution logic. To input a literal `$` from the configuration file, use `$$$`.
@@ -269,9 +357,9 @@ Examples:
 
 `truncate_all(target, limit)`
 
-The `truncate_all` function truncates all string values in a `pdata.Map` so that none are longer than the limit.
+The `truncate_all` function truncates all string values in a `pcommon.Map` so that none are longer than the limit.
 
-`target` is a path expression to a `pdata.Map` type field. `limit` is a non-negative integer.
+`target` is a path expression to a `pcommon.Map` type field. `limit` is a non-negative integer.
 
 The map will be mutated such that the number of characters in all string values is less than or equal to the limit. Non-string values are ignored.
 
@@ -289,15 +377,19 @@ Unlike functions, they do not modify any input telemetry and always return a val
 
 Available Converters:
 
+- [Base64Decode](#base64decode)
 - [Concat](#concat)
 - [ConvertCase](#convertcase)
 - [ExtractPatterns](#extractpatterns)
 - [FNV](#fnv)
+- [Hour](#hour)
 - [Hours](#hours)
 - [Double](#double)
 - [Duration](#duration)
 - [Int](#int)
 - [IsBool](#isbool)
+- [IsDouble](#isdouble)
+- [IsInt](#isint)
 - [IsMap](#ismap)
 - [IsMatch](#ismatch)
 - [IsString](#isstring)
@@ -308,7 +400,10 @@ Available Converters:
 - [Minutes](#minutes)
 - [Nanoseconds](#nanoseconds)
 - [Now](#now)
+- [ParseCSV](#parsecsv)
 - [ParseJSON](#parsejson)
+- [ParseKeyValue](#parsekeyvalue)
+- [ParseXML](#parsexml)
 - [Seconds](#seconds)
 - [SHA1](#sha1)
 - [SHA256](#sha256)
@@ -323,6 +418,21 @@ Available Converters:
 - [UnixNano](#unixnano)
 - [UnixSeconds](#unixseconds)
 - [UUID](#UUID)
+
+### Base64Decode
+
+`Base64Decode(value)`
+
+The `Base64Decode` Converter takes a base64 encoded string and returns the decoded string.
+
+`value` is a valid base64 encoded string.
+
+Examples:
+
+- `Base64Decode("aGVsbG8gd29ybGQ=")`
+
+
+- `Base64Decode(attributes["encoded field"])`
 
 ### Concat
 
@@ -441,6 +551,20 @@ Examples:
 
 - `FNV("name")`
 
+### Hour
+
+`Hour(value)`
+
+The `Hour` Converter returns the hour from the specified time.  The Converter [uses the `time.Hour` function](https://pkg.go.dev/time#Time.Hour).
+
+`value` is a `time.Time`. If `value` is another type an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Hour(Now())`
+
 ### Hours
 
 `Hours(value)`
@@ -507,6 +631,38 @@ Examples:
 
 - `IsBool(attributes["any key"])`
 
+### IsDouble
+
+`IsDouble(value)`
+
+The `IsDouble` Converter returns true if the given value is a double.
+
+The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+
+If `value` is a `float64` or a `pcommon.ValueTypeDouble` then returns `true`, otherwise returns `false`.
+
+Examples:
+
+- `IsDouble(body)`
+
+- `IsDouble(attributes["maybe a double"])`
+
+### IsInt
+
+`IsInt(value)`
+
+The `IsInt` Converter returns true if the given value is a int.
+
+The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+
+If `value` is a `int64` or a `pcommon.ValueTypeInt` then returns `true`, otherwise returns `false`.
+
+Examples:
+
+- `IsInt(body)`
+
+- `IsInt(attributes["maybe a int"])`
+
 ### IsMap
 
 `IsMap(value)`
@@ -542,9 +698,6 @@ If target is not a string, it will be converted to one:
 - other OTLP Values will use their canonical string representation via `AsString`
 
 If target is nil, false is always returned.
-
-There is currently a bug with OTTL that does not allow the target string to end with `\\"`.
-[See Issue 23238 for details](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/23238).
 
 Examples:
 
@@ -587,7 +740,7 @@ Examples:
 
 `Log(value)`
 
-The `Log` Converter returns the logarithm of the `target`.
+The `Log` Converter returns a `float64` that is the logarithm of the `target`.
 
 `target` is either a path expression to a telemetry field to retrieve or a literal.
 
@@ -678,6 +831,38 @@ Examples:
 - `UnixSeconds(Now())`
 - `set(start_time, Now())`
 
+### ParseCSV
+
+`ParseCSV(target, headers, Optional[delimiter], Optional[headerDelimiter], Optional[mode])`
+
+The `ParseCSV` Converter returns a `pcommon.Map` struct that contains the result of parsing the `target` string as CSV. The resultant map is structured such that it is a mapping of field name -> field value.
+
+`target` is a Getter that returns a string. This string should be a CSV row. if `target` is not a properly formatted CSV row, or if the number of fields in `target` does not match the number of fields in `headers`, `ParseCSV` will return an error. Leading and trailing newlines in `target` will be stripped. Newlines elswhere in `target` are not treated as row delimiters during parsing, and will be treated as though they are part of the field that are placed in.
+
+`headers` is a Getter that returns a string. This string should be a CSV header, specifying the names of the CSV fields.
+
+`delimiter` is an optional string parameter that specifies the delimiter used to split `target` into fields. By default, it is set to `,`.
+
+`headerDelimiter` is an optional string parameter that specified the delimiter used to split `headers` into fields. By default, it is set to the value of `delimiter`.
+
+`mode` is an optional string paramater that specifies the parsing mode. Valid values are `strict`, `lazyQuotes`, and `ignoreQuotes`. By default, it is set to `strict`.
+- The `strict` mode provides typical CSV parsing.
+- The `lazyQotes` mode provides a relaxed version of CSV parsing where a quote may appear in the middle of a unquoted field.
+- The `ignoreQuotes` mode completely ignores any quoting rules for CSV and just splits the row on the delimiter.
+
+Examples:
+
+- `ParseCSV("999-999-9999,Joe Smith,joe.smith@example.com", "phone,name,email")`
+
+
+- `ParseCSV(body, "phone|name|email", delimiter="|")`
+
+
+- `ParseCSV(attributes["csv_line"], attributes["csv_headers"], delimiter="|", headerDelimiter=",", mode="lazyQuotes")`
+
+
+- `ParseCSV("\"555-555-5556,Joe Smith\",joe.smith@example.com", "phone,name,email", mode="ignoreQuotes")`
+
 ### ParseJSON
 
 `ParseJSON(target)`
@@ -708,6 +893,98 @@ Examples:
 
 
 - `ParseJSON(body)`
+
+### ParseKeyValue
+
+`ParseKeyValue(target, Optional[delimiter], Optional[pair_delimiter])`
+
+The `ParseKeyValue` Converter returns a `pcommon.Map` that is a result of parsing the target string for key value pairs.
+
+`target` is a Getter that returns a string. If the returned string is empty, an error will be returned. `delimiter` is an optional string that is used to split the key and value in a pair, the default is `=`. `pair_delimiter` is an optional string that is used to split key value pairs, the default is a single space (` `).
+
+For example, the following target `"k1=v1 k2=v2 k3=v3"` will use default delimiters and be parsed into the following map:
+```
+{ "k1": "v1", "k2": "v2", "k3": "v3" }
+```
+
+Examples:
+
+- `ParseKeyValue("k1=v1 k2=v2 k3=v3")`
+- `ParseKeyValue("k1!v1_k2!v2_k3!v3", "!", "_")`
+- `ParseKeyValue(attributes["pairs"])`
+
+
+### ParseXML
+
+`ParseXML(target)`
+
+The `ParseXML` Converter returns a `pcommon.Map` struct that is the result of parsing the target string as an XML document.
+
+`target` is a Getter that returns a string. This string should be in XML format.
+If `target` is not a string, nil, or cannot be parsed as XML, `ParseXML` will return an error.
+
+Unmarshalling XML is done using the following rules:
+1. All character data for an XML element is trimmed, joined, and placed into the `content` field.
+2. The tag for an XML element is trimmed, and placed into the `tag` field.
+3. The attributes for an XML element is placed as a `pcommon.Map` into the `attribute` field.
+4. Processing instructions, directives, and comments are ignored and not represented in the resultant map.
+5. All child elements are parsed as above, and placed in a `pcommon.Slice`, which is then placed into the `children` field.
+
+For example, the following XML document:
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<Log>
+  <User>
+    <ID>00001</ID>
+    <Name type="first">Joe</Name>
+    <Email>joe.smith@example.com</Email>
+  </User>
+  <Text>User fired alert A</Text>
+</Log>
+```
+
+will be parsed as:
+```json
+{
+  "tag": "Log",
+  "children": [
+    {
+      "tag": "User",
+      "children": [
+        {
+          "tag": "ID",
+          "content": "00001"
+        },
+        {
+          "tag": "Name",
+          "content": "Joe",
+          "attributes": {
+            "type": "first"
+          }
+        },
+        {
+          "tag": "Email",
+          "content": "joe.smith@example.com"
+        }
+      ]
+    },
+    {
+      "tag": "Text",
+      "content": "User fired alert A"
+    }
+  ]
+}
+```
+
+Examples:
+
+- `ParseXML(body)`
+
+- `ParseXML(attributes["xml"])`
+
+- `ParseXML("<HostInfo hostname=\"example.com\" zone=\"east-1\" cloudprovider=\"aws\" />")`
+
+
 
 ### Seconds
 
@@ -786,9 +1063,6 @@ The `Split` Converter separates a string by the delimiter, and returns an array 
 `target` is a string. `delimiter` is a string.
 
 If the `target` is not a string or does not exist, the `Split` Converter will return an error.
-
-There is currently a bug with OTTL that does not allow the target string to end with `\\"`.
-[See Issue 23238 for details](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/23238).
 
 Examples:
 

@@ -1,4 +1,5 @@
 type: jaeger
+scope_name: otelcol/jaegerreceiver
 
 status:
   class: receiver

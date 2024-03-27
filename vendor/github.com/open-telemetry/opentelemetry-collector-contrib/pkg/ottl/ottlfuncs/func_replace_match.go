@@ -13,10 +13,11 @@ import (
 )
 
 type ReplaceMatchArguments[K any] struct {
-	Target      ottl.GetSetter[K]
-	Pattern     string
-	Replacement ottl.StringGetter[K]
-	Function    ottl.Optional[ottl.FunctionGetter[K]]
+	Target            ottl.GetSetter[K]
+	Pattern           string
+	Replacement       ottl.StringGetter[K]
+	Function          ottl.Optional[ottl.FunctionGetter[K]]
+	ReplacementFormat ottl.Optional[ottl.StringGetter[K]]
 }
 
 type replaceMatchFuncArgs[K any] struct {
@@ -34,10 +35,10 @@ func createReplaceMatchFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argume
 		return nil, fmt.Errorf("ReplaceMatchFactory args must be of type *ReplaceMatchArguments[K]")
 	}
 
-	return replaceMatch(args.Target, args.Pattern, args.Replacement, args.Function)
+	return replaceMatch(args.Target, args.Pattern, args.Replacement, args.Function, args.ReplacementFormat)
 }
 
-func replaceMatch[K any](target ottl.GetSetter[K], pattern string, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]]) (ottl.ExprFunc[K], error) {
+func replaceMatch[K any](target ottl.GetSetter[K], pattern string, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {
 	glob, err := glob.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("the pattern supplied to replace_match is not a valid pattern: %w", err)
@@ -67,7 +68,10 @@ func replaceMatch[K any](target ottl.GetSetter[K], pattern string, replacement o
 			if !ok {
 				return nil, fmt.Errorf("replacement value is not a string")
 			}
-			replacementVal = replacementValStr
+			replacementVal, err = applyReplaceFormat(ctx, tCtx, replacementFormat, replacementValStr)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if err != nil {
 			return nil, err
