@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -22,12 +23,13 @@ import (
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, logger log.Logger) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		httpReq, err := api.BuildSearchRequest(&http.Request{
-			URL:    &url.URL{Path: api.PathSearch},
+			URL:    &url.URL{Path: downstreamPath}, // jpe - right here - add support for prefix
 			Header: http.Header{},
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
 		}, req)
