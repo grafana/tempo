@@ -135,7 +135,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
 
 		// grpc/streaming
-		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, logger),
+		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
 		streamingTags:        newTagStreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagsV2:      newTagV2StreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:   newTagValuesStreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
