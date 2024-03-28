@@ -44,7 +44,7 @@ var (
 		Namespace: "tempo",
 		Name:      "query_frontend_bytes_processed_per_second",
 		Help:      "Bytes processed per second in the query per tenant",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 14), // from 1MB up to 16GB
 	}, []string{"tenant", "op"})
 
 	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
