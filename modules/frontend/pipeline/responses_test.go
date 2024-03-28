@@ -168,7 +168,6 @@ func TestAsyncResponseFansIn(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// jpe - cancel?
 
 		for {
 			resp, done, err := rootResp.Next(context.Background())

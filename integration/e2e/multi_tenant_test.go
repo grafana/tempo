@@ -122,15 +122,8 @@ func TestMultiTenantSearch(t *testing.T) {
 			resp, err := apiClient.QueryTrace(info.HexID())
 			require.NoError(t, err)
 			respTm := getAttrsAndSpanNames(resp)
-			if tc.tenantSize > 1 {
-				// resource keys should contain tenant key in case of a multi-tenant query
-				traceMap.rKeys = append(traceMap.rKeys, "tenant")
-				// resource values will contain at-least one of tenant ids for multi-tenant query
-				// or exactly match in case of single tenant query
-				assert.Subset(t, append(traceMap.rValues, tenants...), respTm.rValues)
-			} else {
-				assert.ElementsMatch(t, traceMap.rValues, respTm.rValues)
-			}
+
+			assert.ElementsMatch(t, traceMap.rValues, respTm.rValues)
 			assert.ElementsMatch(t, respTm.rKeys, traceMap.rKeys)
 			assert.ElementsMatch(t, traceMap.spanNames, respTm.spanNames)
 

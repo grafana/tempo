@@ -29,12 +29,9 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		httpReq, err := api.BuildSearchRequest(&http.Request{
-			URL: &url.URL{
-				Path: downstreamPath,
-			},
-			Header:     http.Header{},
-			Body:       io.NopCloser(bytes.NewReader([]byte{})),
-			RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
+			URL:    &url.URL{Path: downstreamPath}, // jpe - right here - add support for prefix
+			Header: http.Header{},
+			Body:   io.NopCloser(bytes.NewReader([]byte{})),
 		}, req)
 		if err != nil {
 			level.Error(logger).Log("msg", "search streaming: build search request failed", "err", err)

@@ -50,6 +50,10 @@ var (
 	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
+type (
+	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
+)
+
 // todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(traceByIDCounter, sloTraceByIDCounter, cfg)

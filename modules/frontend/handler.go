@@ -33,26 +33,20 @@ var (
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
-type (
-	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
-)
-
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
 	roundTripper           http.RoundTripper
 	logger                 log.Logger
-	post                   handlerPostHook
 	logQueryRequestHeaders flagext.StringSliceCSV
 }
 
 // newHandler creates a handler
-func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, post handlerPostHook, logger log.Logger) http.Handler {
+func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
 	return &handler{
 		logQueryRequestHeaders: LogQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
-		post:                   post,
 	}
 }
 
@@ -75,9 +69,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := f.roundTripper.RoundTrip(r)
 	elapsed := time.Since(start)
-	if f.post != nil {
-		f.post(resp, orgID, 0, elapsed, err)
-	}
 
 	logMessage := []interface{}{
 		"tenant", orgID,

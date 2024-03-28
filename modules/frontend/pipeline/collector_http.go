@@ -42,7 +42,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 
 		if resp != nil {
-			err := r.combiner.AddResponse(resp, "")
+			err := r.combiner.AddResponse(resp)
 			if err != nil {
 				return nil, err
 			}

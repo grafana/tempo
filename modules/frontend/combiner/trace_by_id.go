@@ -2,7 +2,6 @@ package combiner
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,12 +12,10 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 const (
 	internalErrorMsg = "internal error"
-	tenantLabel      = "tenant"
 )
 
 type traceByIDCombiner struct {
@@ -30,14 +27,14 @@ type traceByIDCombiner struct {
 	statusMessage string
 }
 
-func NewTraceByID() Combiner {
+func NewTraceByID(maxBytes int) Combiner {
 	return &traceByIDCombiner{
-		c:    trace.NewCombiner(0),
+		c:    trace.NewCombiner(maxBytes),
 		code: http.StatusNotFound,
 	}
 }
 
-func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error {
+func (c *traceByIDCombiner) AddResponse(res *http.Response) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -57,7 +54,7 @@ func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error
 			return fmt.Errorf("error reading response body: %w", err)
 		}
 		c.statusMessage = string(bytesMsg)
-		return errors.New(c.statusMessage)
+		return nil
 	}
 
 	// Read the body
@@ -69,18 +66,15 @@ func (c *traceByIDCombiner) AddResponse(res *http.Response, tenant string) error
 	_ = res.Body.Close()
 
 	// Unmarshal the body
-	trace := &tempopb.Trace{}
-	err = trace.Unmarshal(buff)
+	resp := &tempopb.TraceByIDResponse{}
+	err = resp.Unmarshal(buff)
 	if err != nil {
 		c.statusMessage = internalErrorMsg
 		return fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
-	// inject tenant label as resource in trace
-	InjectTenantResource(tenant, trace)
-
 	// Consume the trace
-	_, err = c.c.Consume(trace)
+	_, err = c.c.Consume(resp.Trace)
 	return err
 }
 
@@ -88,7 +82,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	statusCode := c.getStatusCode()
+	statusCode := c.code
 	traceResult, _ := c.c.Result()
 
 	if traceResult == nil || statusCode != http.StatusOK {
@@ -99,7 +93,9 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		}, nil
 	}
 
-	buff, err := proto.Marshal(traceResult)
+	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
+		Trace: traceResult,
+	})
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response to proto: %w", err)
 	}
@@ -117,19 +113,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 func (c *traceByIDCombiner) StatusCode() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.getStatusCode()
-}
-
-func (c *traceByIDCombiner) getStatusCode() int {
-	statusCode := c.code
-	// Translate non-404s 4xx into 500s. If, for instance, we get a 400 back from an internal component
-	// it means that we created a bad request. 400 should not be propagated back to the user b/c
-	// the bad request was due to a bug on our side, so return 500 instead.
-	if statusCode/100 == 4 && statusCode != http.StatusNotFound {
-		statusCode = 500
-	}
-
-	return statusCode
+	return c.code
 }
 
 // ShouldQuit returns true if the response should be returned early.
@@ -140,28 +124,20 @@ func (c *traceByIDCombiner) ShouldQuit() bool {
 }
 
 func (c *traceByIDCombiner) shouldQuit() bool {
-	if c.getStatusCode()/100 == 5 { // Bail on 5xx
+	if c.code/100 == 5 { // Bail on 5xx
+		return true
+	}
+
+	// test special case for 404
+	if c.code == http.StatusNotFound {
+		return false
+	}
+
+	// bail on other 400s
+	if c.code/100 == 4 {
 		return true
 	}
 
 	// 2xx and 404 are OK
 	return false
-}
-
-// InjectTenantResource will add tenantLabel attribute into response to show which tenant the response came from
-func InjectTenantResource(tenant string, t *tempopb.Trace) {
-	if t == nil || t.Batches == nil {
-		return
-	}
-
-	for _, b := range t.Batches {
-		b.Resource.Attributes = append(b.Resource.Attributes, &v1.KeyValue{
-			Key: tenantLabel,
-			Value: &v1.AnyValue{
-				Value: &v1.AnyValue_StringValue{
-					StringValue: tenant,
-				},
-			},
-		})
-	}
 }

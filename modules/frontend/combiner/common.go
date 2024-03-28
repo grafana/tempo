@@ -35,7 +35,7 @@ type genericCombiner[T TResponse] struct {
 }
 
 // AddResponse is used to add a http response to the combiner.
-func (c *genericCombiner[T]) AddResponse(res *http.Response, _ string) error {
+func (c *genericCombiner[T]) AddResponse(res *http.Response) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
