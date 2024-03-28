@@ -17,13 +17,13 @@ type Config struct {
 	TraceByID TraceByIDConfig `yaml:"trace_by_id"`
 	Metrics   MetricsConfig   `yaml:"metrics"`
 
-	ExtraQueryDelay                 time.Duration `yaml:"extra_query_delay,omitempty"`
-	MaxConcurrentQueries            int           `yaml:"max_concurrent_queries"`
-	Worker                          worker.Config `yaml:"frontend_worker"`
-	ShuffleShardingIngestersEnabled bool          `yaml:"shuffle_sharding_ingesters_enabled"`
-	ShuffleShardingLookbackPeriod   time.Duration `yaml:"shuffle_sharding_lookback_period"`
-	QueryRelevantIngesters          bool          `yaml:"query_relevant_ingesters"`
-	SecondaryIngesterRing           string        `yaml:"secondary_ingester_ring,omitempty"`
+	ExtraQueryDelay                        time.Duration `yaml:"extra_query_delay,omitempty"`
+	MaxConcurrentQueries                   int           `yaml:"max_concurrent_queries"`
+	Worker                                 worker.Config `yaml:"frontend_worker"`
+	ShuffleShardingIngestersEnabled        bool          `yaml:"shuffle_sharding_ingesters_enabled"`
+	ShuffleShardingIngestersLookbackPeriod time.Duration `yaml:"shuffle_sharding_ingesters_lookback_period"`
+	QueryRelevantIngesters                 bool          `yaml:"query_relevant_ingesters"`
+	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
 
 	AutocompleteFilteringEnabled bool `yaml:"-"`
 }
@@ -87,7 +87,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		},
 		DNSLookupPeriod: 10 * time.Second,
 	}
-	cfg.ShuffleShardingLookbackPeriod = 1 * time.Hour
+	cfg.ShuffleShardingIngestersLookbackPeriod = 1 * time.Hour
 
 	f.StringVar(&cfg.Worker.FrontendAddress, prefix+".frontend-address", "", "Address of query frontend service, in host:port format.")
 }

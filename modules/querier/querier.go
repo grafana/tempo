@@ -350,7 +350,7 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 			ring = ring.ShuffleShardWithLookback(
 				userID,
 				q.limits.IngestionTenantShardSize(userID),
-				q.cfg.ShuffleShardingLookbackPeriod,
+				q.cfg.ShuffleShardingIngestersLookbackPeriod,
 				time.Now(),
 			)
 		}

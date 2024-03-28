@@ -560,8 +560,8 @@ querier:
     # request is sent to all ingesters.
     [shuffle_sharding_ingesters_enabled: <bool> | default = true]
 
-    # TODO
-    [shuffle_sharding_lookback_period: <duration> | default = 1hr]
+    # Lookback period to include ingesters that were part of the shuffle sharded subring.
+    [shuffle_sharding_ingesters_lookback_period: <duration> | default = 1hr]
 
     # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
@@ -1257,6 +1257,7 @@ overrides:
       [max_global_traces_per_user: <int> | default = 0]
 
       # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
+      # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
 
     # Read related overrides
