@@ -301,7 +301,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides, perTenantOverr
 		baseCfg.PerTenantOverridePeriod = model.Duration(time.Hour)
 	}
 
-	baseOverrides, err := NewOverrides(baseCfg, prometheus.NewRegistry())
+	baseOverrides, err := NewOverrides(baseCfg, &mockValidator{}, prometheus.NewRegistry())
 	assert.NoError(t, err)
 
 	// have to overwrite the registry or test panics with multiple metric reg

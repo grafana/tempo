@@ -7,10 +7,34 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/grafana/tempo/modules/generator"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
+
+type runtimeConfigValidator struct {
+	cfg *Config
+}
+
+var _ overrides.Validator = (*runtimeConfigValidator)(nil)
+
+func newRuntimeConfigValidator(cfg *Config) overrides.Validator {
+	return &runtimeConfigValidator{
+		cfg: cfg,
+	}
+}
+
+func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
+	if config.Ingestion.TenantShardSize != 0 {
+		ingesterReplicationFactor := r.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor
+		if config.Ingestion.TenantShardSize < ingesterReplicationFactor {
+			return fmt.Errorf("ingester.tenant.shard_size is lower than replication factor (%d < %d)", config.Ingestion.TenantShardSize, ingesterReplicationFactor)
+		}
+	}
+
+	return nil
+}
 
 type overridesValidator struct {
 	cfg *Config
@@ -20,7 +44,7 @@ type overridesValidator struct {
 
 var _ api.Validator = (*overridesValidator)(nil)
 
-func NewOverridesValidator(cfg *Config) api.Validator {
+func newOverridesValidator(cfg *Config) api.Validator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
 		validForwarders[f.Name] = struct{}{}

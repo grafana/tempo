@@ -3,6 +3,7 @@ package overrides
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,37 @@ import (
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/tempodb/backend"
 )
+
+func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
+	validator := &mockValidator{}
+
+	loader := loadPerTenantOverrides(validator, ConfigTypeNew, false)
+
+	perTenantOverrides := perTenantOverrides{
+		TenantLimits: map[string]*Overrides{
+			"foo": {Ingestion: IngestionOverrides{TenantShardSize: 6}},
+			"bar": {Ingestion: IngestionOverrides{TenantShardSize: 1}},
+			"bzz": {Ingestion: IngestionOverrides{TenantShardSize: 3}},
+		},
+	}
+	overridesBytes, err := yaml.Marshal(&perTenantOverrides)
+	assert.NoError(t, err)
+
+	// load overrides - validator should pass
+	_, err = loader(bytes.NewReader(overridesBytes))
+	assert.NoError(t, err)
+
+	// load overrides - validator should reject bar
+	validator.f = func(overrides *Overrides) error {
+		if overrides.Ingestion.TenantShardSize == 1 {
+			return errors.New("no")
+		}
+		return nil
+	}
+
+	_, err = loader(bytes.NewReader(overridesBytes))
+	assert.ErrorContains(t, err, "validating overrides for bar failed: no")
+}
 
 func TestRuntimeConfigOverrides(t *testing.T) {
 	tests := []struct {
@@ -195,7 +227,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := newRuntimeConfigOverrides(cfg, prometheus.DefaultRegisterer)
+			overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)
@@ -507,7 +539,7 @@ func TestRemoteWriteHeaders(t *testing.T) {
 		},
 	}
 
-	overrides, err := newRuntimeConfigOverrides(cfg, prometheus.NewRegistry())
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
 
@@ -551,7 +583,7 @@ overrides:
 	cfg.PerTenantOverrideConfig = overridesFile
 	cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
 
-	overrides, err := newRuntimeConfigOverrides(cfg, prometheus.NewRegistry())
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.NewRegistry())
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
 
@@ -582,7 +614,7 @@ func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Over
 	}
 
 	prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-	overrides, err := newRuntimeConfigOverrides(cfg, prometheus.DefaultRegisterer)
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	err = services.StartAndAwaitRunning(context.TODO(), overrides)
@@ -598,4 +630,15 @@ func toYamlBytes(t *testing.T, perTenantOverrides *perTenantOverrides) []byte {
 	buff, err := yaml.Marshal(perTenantOverrides)
 	require.NoError(t, err)
 	return buff
+}
+
+type mockValidator struct {
+	f func(*Overrides) error
+}
+
+func (m mockValidator) Validate(config *Overrides) error {
+	if m.f != nil {
+		return m.f(config)
+	}
+	return nil
 }
