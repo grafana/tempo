@@ -24,7 +24,7 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	DefaultCompactionShards = 8
+	DefaultCompactionShards = 4
 	DefaultCompactionCycle  = 30 * time.Second
 
 	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
