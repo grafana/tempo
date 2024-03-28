@@ -124,20 +124,52 @@ Replace these appropriately if you have altered the endpoint targets for the fol
 1. Install `telemetrygen` using the [installation procedure](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen).
    **NOTE**: You don't need to configure an OpenTelemetry Collector as we are using the Grafana Agent.
 
-1. Generate traces using `telemtrygen`:
+2. Generate traces using `telemetrygen`:
    ```bash
-   telemetrygen traces --otlp-insecure --rate 20 --duration 5s grafana-agent.grafana-agent.svc.cluster.local:4317
+   telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint grafana-agent.grafana-agent.svc.cluster.local:4317
    ```
   This configuration sends traces to Grafana Agent for 5 seconds, at a rate of 20 traces per second.
 
   Optionally, you can also send the trace directly to the Tempo database without using Grafana Agent as a collector by using the following:
   ```bash
-  telemetrygen traces --otlp-insecure --rate 20 --duration 5s tempo-cluster-distributor.tempo.svc.cluster.local:4317
+  telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint tempo-cluster-distributor.tempo.svc.cluster.local:4317
   ```
 
-If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Agent or Tempo distributor service, eg:
-```bash
-kubectl port-forward services/grafana-agent 4317:4317 --namespace grafana-agent
+  If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Agent or Tempo distributor service, for example:
+  ```bash
+  kubectl port-forward services/grafana-agent 4317:4317 --namespace grafana-agent
+  ```
+3. Alternatively, a cronjob can be created to send traces periodically based on this template:
+
+```
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sample-traces
+spec:
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          containers:
+          - name: traces
+            image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.96.0
+            args:
+              - traces
+              - --otlp-insecure
+              - --rate
+              - "20"
+              - --duration
+              - 5s
+              - --otlp-endpoint
+              - grafana-agent.grafana-agent.svc.cluster.local:4317
+          restartPolicy: Never
 ```
 
 To view the tracing data:
