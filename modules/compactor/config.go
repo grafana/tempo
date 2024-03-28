@@ -30,6 +30,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		IteratorBufferSize:      tempodb.DefaultIteratorBufferSize,
 		MaxTimePerTenant:        tempodb.DefaultMaxTimePerTenant,
 		CompactionCycle:         tempodb.DefaultCompactionCycle,
+		ShardCount:              tempodb.DefaultCompactionShards,
 	}
 
 	flagext.DefaultValues(&cfg.ShardingRing)

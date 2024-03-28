@@ -20,6 +20,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockCompaction struct {
+	blocks []*backend.BlockMeta
+}
+
+func (m *mockCompaction) Blocks() []*backend.BlockMeta              { return m.blocks }
+func (*mockCompaction) Ownership() string                           { return "" }
+func (*mockCompaction) CutBlock(*backend.BlockMeta, common.ID) bool { return false }
+
+var _ (common.Compaction) = (*mockCompaction)(nil)
+
 func BenchmarkCompactor(b *testing.B) {
 	b.Run("Small", func(b *testing.B) {
 		benchmarkCompactor(b, 1000, 100, 100) // 10M spans
@@ -63,7 +73,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 			MaxBytesPerTrace: 50_000_000,
 		})
 
-		_, err = c.Compact(ctx, l, r, w, inputs)
+		_, err = c.Compact(ctx, l, r, w, &mockCompaction{blocks: inputs})
 		require.NoError(b, err)
 	}
 }
@@ -101,7 +111,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 			SpansDiscarded:   func(traceID, rootSpanName string, rootServiceName string, spans int) {},
 		})
 
-		_, err = c.Compact(ctx, l, r, w, inputs)
+		_, err = c.Compact(ctx, l, r, w, &mockCompaction{blocks: inputs})
 		require.NoError(b, err)
 	}
 }

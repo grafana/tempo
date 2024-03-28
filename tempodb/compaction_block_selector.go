@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
-	BlocksToCompact() ([]*backend.BlockMeta, string)
+	BlocksToCompact() common.Compaction
 }
 
 const (
@@ -43,7 +44,28 @@ type timeWindowBlockEntry struct {
 	hash  string // hash string used for sharding ownership, preserves backwards compatibility
 }
 
-var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
+type timeWindowCompaction struct {
+	blocks               []*backend.BlockMeta
+	hash                 string
+	maxCompactionObjects int
+}
+
+func (c *timeWindowCompaction) Blocks() []*backend.BlockMeta {
+	return c.blocks
+}
+
+func (c *timeWindowCompaction) Ownership() string {
+	return c.hash
+}
+
+func (c *timeWindowCompaction) CutBlock(currBlock *backend.BlockMeta, _ common.ID) bool {
+	return c.maxCompactionObjects > 0 && currBlock.TotalObjects >= c.maxCompactionObjects
+}
+
+var (
+	_ (common.Compaction)       = (*timeWindowCompaction)(nil)
+	_ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
+)
 
 func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
@@ -116,7 +138,7 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	return twbs
 }
 
-func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, string) {
+func (twbs *timeWindowBlockSelector) BlocksToCompact() common.Compaction {
 	for len(twbs.entries) > 0 {
 		var chosen []timeWindowBlockEntry
 
@@ -149,16 +171,17 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 
 		// did we find enough blocks?
 		if len(chosen) >= twbs.MinInputBlocks {
-
-			compactBlocks := make([]*backend.BlockMeta, 0)
-			for _, e := range chosen {
-				compactBlocks = append(compactBlocks, e.meta)
+			res := timeWindowCompaction{
+				hash:                 chosen[0].hash,
+				maxCompactionObjects: twbs.MaxCompactionObjects,
 			}
-
-			return compactBlocks, chosen[0].hash
+			for _, e := range chosen {
+				res.blocks = append(res.blocks, e.meta)
+			}
+			return &res
 		}
 	}
-	return nil, ""
+	return &timeWindowCompaction{}
 }
 
 func totalObjects(entries []timeWindowBlockEntry) int {

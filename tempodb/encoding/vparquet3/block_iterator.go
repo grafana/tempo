@@ -75,6 +75,7 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	}
 
 	if errors.Is(err, io.EOF) {
+		i.pool.Put(rows[0])
 		return nil, nil, nil
 	}
 

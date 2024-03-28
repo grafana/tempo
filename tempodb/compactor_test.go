@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -62,6 +63,16 @@ func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
 func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
 	return m.maxCompactionWindow
 }
+
+type mockCompaction struct {
+	blocks []*backend.BlockMeta
+}
+
+func (m *mockCompaction) Blocks() []*backend.BlockMeta              { return m.blocks }
+func (*mockCompaction) Ownership() string                           { return "" }
+func (*mockCompaction) CutBlock(*backend.BlockMeta, common.ID) bool { return false }
+
+var _ (common.Compaction) = (*mockCompaction)(nil)
 
 func TestCompactionRoundtrip(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
@@ -159,14 +170,15 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
 	for {
-		blocks, _ := blockSelector.BlocksToCompact()
+		c := blockSelector.BlocksToCompact()
+		blocks := c.Blocks()
 		if len(blocks) == 0 {
 			break
 		}
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(context.Background(), blocks, testTenantID)
+		err := rw.compact(context.Background(), c, testTenantID)
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -322,13 +334,14 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
-	blocks, _ = blockSelector.BlocksToCompact()
+	comp := blockSelector.BlocksToCompact()
+	blocks = comp.Blocks()
 	require.Len(t, blocks, blockCount)
 
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.compact(ctx, blocks, testTenantID)
+	err = rw.compact(ctx, comp, testTenantID)
 	require.NoError(t, err)
 
 	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
@@ -412,7 +425,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	cmd := &mockCompaction{blocks: rw.blocklist.Metas(testTenantID)}
+	err = rw.compact(ctx, cmd, testTenantID)
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -493,7 +507,8 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	cmd := &mockCompaction{blocks: rw.blocklist.Metas(testTenantID)}
+	err = rw.compact(ctx, cmd, testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -635,7 +650,8 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	cmd := &mockCompaction{blocks: rw.blocklist.Metas(testTenantID)}
+	err = rw.compact(ctx, cmd, testTenantID)
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -704,7 +720,7 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	for _, enc := range encoding.AllEncodings() {
+	for _, enc := range /*encoding.AllEncodings()*/ []encoding.VersionedEncoding{vparquet3.Encoding{}} {
 		version := enc.Version()
 		b.Run(version, func(b *testing.B) {
 			benchmarkCompaction(b, version)
@@ -713,7 +729,11 @@ func BenchmarkCompaction(b *testing.B) {
 }
 
 func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
-	tempDir := b.TempDir()
+	var (
+		tempDir = b.TempDir()
+		l       = log.NewNopLogger()
+		ctx     = context.Background()
+	)
 
 	_, w, c, err := New(&Config{
 		Backend: backend.Local,
@@ -736,32 +756,60 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
 		},
-		BlocklistPoll: 0,
-	}, nil, log.NewNopLogger())
+	}, nil, l)
 	require.NoError(b, err)
 
 	rw := c.(*readerWriter)
 
-	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
+	var (
+		traceCount       = 2000
+		blockCount       = 8
+		compactionWindow = time.Hour
+		maxObjects       = 100_000
+		maxSize          = uint64(100_000_000)
+	)
+
+	enc, err := encoding.FromVersion(targetBlockVersion)
+	require.NoError(b, err)
+
+	compactor := enc.NewCompactor(common.CompactionOptions{
+		OutputBlocks:       1,
 		ChunkSizeBytes:     10_000_000,
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(b, err)
-
-	traceCount := 20_000
-	blockCount := 8
+		BlockConfig:        *rw.cfg.Block,
+	})
 
 	// Cut input blocks
 	blocks := cutTestBlocks(b, w, testTenantID, blockCount, traceCount)
-	metas := make([]*backend.BlockMeta, 0)
+
+	// Create selector
+	var metas []*backend.BlockMeta
 	for _, b := range blocks {
 		metas = append(metas, b.BlockMeta())
 	}
 
 	b.ResetTimer()
 
-	err = rw.compact(ctx, metas, testTenantID)
-	require.NoError(b, err)
+	traces := 0
+	bytes := 0
+	for i := 0; i < b.N; i++ {
+		// selector := newTimeWindowBlockSelector(metas, compactionWindow, maxObjects, maxSize, blockCount, blockCount)
+		selector := newShardingBlockSelector(8, metas, compactionWindow, maxObjects, maxSize, blockCount, blockCount)
+
+		// Verify select chose all of the blocks
+		cmd := selector.BlocksToCompact()
+		require.Equal(b, blockCount, len(cmd.Blocks()))
+
+		newBlocks, err := compactor.Compact(ctx, l, rw.r, rw.w, cmd)
+		require.NoError(b, err)
+
+		for _, b := range newBlocks {
+			traces += b.TotalObjects
+			bytes += int(b.Size)
+		}
+	}
+
+	b.ReportMetric(float64(traces)/b.Elapsed().Seconds(), "traces/s")
+	b.SetBytes(int64(bytes / b.N))
 }

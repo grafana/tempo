@@ -24,7 +24,8 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	DefaultCompactionCycle = 30 * time.Second
+	DefaultCompactionShards = 8
+	DefaultCompactionCycle  = 30 * time.Second
 
 	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
 	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
@@ -119,12 +120,25 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	//   Favoring lower compaction levels, and compacting blocks only from the same tenant.
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
-	blockSelector := newTimeWindowBlockSelector(blocklist,
-		window,
-		rw.compactorCfg.MaxCompactionObjects,
-		rw.compactorCfg.MaxBlockBytes,
-		defaultMinInputBlocks,
-		defaultMaxInputBlocks)
+	var blockSelector CompactionBlockSelector
+	if rw.compactorCfg.ShardCount > 0 {
+		blockSelector = newShardingBlockSelector(
+			rw.compactorCfg.ShardCount,
+			blocklist,
+			window,
+			rw.compactorCfg.MaxCompactionObjects,
+			rw.compactorCfg.MaxBlockBytes,
+			defaultMinInputBlocks,
+			defaultMaxInputBlocks)
+	} else {
+		blockSelector = newTimeWindowBlockSelector(
+			blocklist,
+			window,
+			rw.compactorCfg.MaxCompactionObjects,
+			rw.compactorCfg.MaxBlockBytes,
+			defaultMinInputBlocks,
+			defaultMaxInputBlocks)
+	}
 
 	start := time.Now()
 
@@ -135,20 +149,20 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 			return
 		default:
 			// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
-			toBeCompacted, hashString := blockSelector.BlocksToCompact()
-			if len(toBeCompacted) == 0 {
+			res := blockSelector.BlocksToCompact()
+			if len(res.Blocks()) == 0 {
 				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
 				level.Debug(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 				return
 			}
-			if !rw.compactorSharder.Owns(hashString) {
+			if !rw.compactorSharder.Owns(res.Ownership()) {
 				// continue on this tenant until we find something we own
 				continue
 			}
-			level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+			level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", res.Ownership())
 			// Compact selected blocks into a larger one
-			err := rw.compact(ctx, toBeCompacted, tenantID)
+			err := rw.compact(ctx, res, tenantID)
 
 			if errors.Is(err, backend.ErrDoesNotExist) {
 				level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
@@ -168,7 +182,8 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	}
 }
 
-func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(ctx context.Context, cmd common.Compaction, tenantID string) error {
+	blockMetas := cmd.Blocks()
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
@@ -241,7 +256,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 	compactor := enc.NewCompactor(opts)
 
 	// Compact selected blocks into a larger one
-	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, blockMetas)
+	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, cmd)
 	if err != nil {
 		return err
 	}
@@ -302,7 +317,8 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 	// count number of per-tenant outstanding blocks before next maintenance cycle
 	var totalOutstandingBlocks int
 	for {
-		leftToBeCompacted, hashString := blockSelector.BlocksToCompact()
+		res := blockSelector.BlocksToCompact()
+		leftToBeCompacted, hashString := res.Blocks(), res.Ownership()
 		if len(leftToBeCompacted) == 0 {
 			break
 		}

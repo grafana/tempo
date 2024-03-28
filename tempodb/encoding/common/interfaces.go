@@ -61,8 +61,14 @@ func DefaultSearchOptionsWithMaxBytes(maxBytes int) SearchOptions {
 	}
 }
 
+type Compaction interface {
+	Blocks() []*backend.BlockMeta
+	Ownership() string
+	CutBlock(*backend.BlockMeta, ID) bool
+}
+
 type Compactor interface {
-	Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
+	Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, cmd Compaction) ([]*backend.BlockMeta, error)
 }
 
 type CompactionOptions struct {

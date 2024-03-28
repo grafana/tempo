@@ -25,7 +25,8 @@ func NewCompactor(opts common.CompactionOptions) *Compactor {
 	return &Compactor{opts}
 }
 
-func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, cmd common.Compaction) (newCompactedBlocks []*backend.BlockMeta, err error) {
+	inputs := cmd.Blocks()
 	tenantID := inputs[0].TenantID
 	dataEncoding := inputs[0].DataEncoding // blocks chosen for compaction always have the same data encoding
 
@@ -87,6 +88,16 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
+		// ship block to backend if done
+		if currentBlock != nil && cmd.CutBlock(currentBlock.meta, id) {
+			err = c.finishBlock(ctx, w, tracker, currentBlock, l)
+			if err != nil {
+				return nil, fmt.Errorf("error shipping block to backend: %w", err)
+			}
+			currentBlock = nil
+			tracker = nil
+		}
+
 		// make a new block if necessary
 		if currentBlock == nil {
 			currentBlock, err = NewStreamingBlock(&c.opts.BlockConfig, uuid.New(), tenantID, inputs, recordsPerBlock)
@@ -109,16 +120,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			if err != nil {
 				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
-		}
-
-		// ship block to backend if done
-		if currentBlock.Length() >= recordsPerBlock {
-			err = c.finishBlock(ctx, w, tracker, currentBlock, l)
-			if err != nil {
-				return nil, fmt.Errorf("error shipping block to backend: %w", err)
-			}
-			currentBlock = nil
-			tracker = nil
 		}
 	}
 

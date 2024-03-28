@@ -126,6 +126,7 @@ type CompactorConfig struct {
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
 	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
 	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
+	ShardCount              int           `yaml:"shard_count"`
 }
 
 func (compactorConfig CompactorConfig) validate() error {

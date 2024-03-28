@@ -570,9 +570,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	}
 
 	// compact
-	var blockMetas []*backend.BlockMeta
-	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
+	cmd := &mockCompaction{blocks: []*backend.BlockMeta{complete.BlockMeta()}}
+	require.NoError(t, rw.compact(ctx, cmd, testTenantID))
 
 	// poll
 	rw.pollBlocklist()

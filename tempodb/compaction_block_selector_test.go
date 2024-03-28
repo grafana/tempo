@@ -786,13 +786,13 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 
 			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)
 
-			actual, hash := selector.BlocksToCompact()
-			assert.Equal(t, tt.expected, actual)
-			assert.Equal(t, tt.expectedHash, hash)
+			actual := selector.BlocksToCompact()
+			assert.Equal(t, tt.expected, actual.Blocks())
+			assert.Equal(t, tt.expectedHash, actual.Ownership())
 
-			actual, hash = selector.BlocksToCompact()
-			assert.Equal(t, tt.expectedSecond, actual)
-			assert.Equal(t, tt.expectedHash2, hash)
+			actual = selector.BlocksToCompact()
+			assert.Equal(t, tt.expectedSecond, actual.Blocks())
+			assert.Equal(t, tt.expectedHash2, actual.Ownership())
 		})
 	}
 }

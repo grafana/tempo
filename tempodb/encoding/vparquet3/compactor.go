@@ -29,12 +29,13 @@ type Compactor struct {
 	opts common.CompactionOptions
 }
 
-func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, cmd common.Compaction) (newCompactedBlocks []*backend.BlockMeta, err error) {
 	var (
 		compactionLevel uint8
 		totalRecords    int
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
+		inputs          = cmd.Blocks()
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
 		// MaxBytesPerTrace is the largest trace that can be expected, and assumes 1 byte per value on average (same as flushing).
 		// Divide by 4 to presumably require 2 slice allocations if we ever see a trace this large
@@ -146,6 +147,18 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
+		// ship block to backend if done
+		if currentBlock != nil && cmd.CutBlock(currentBlock.meta, lowestID) {
+			currentBlockPtrCopy := currentBlock
+			currentBlockPtrCopy.meta.StartTime = minBlockStart
+			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
+			err := c.finishBlock(ctx, currentBlockPtrCopy, l)
+			if err != nil {
+				return nil, fmt.Errorf("error shipping block to backend, blockID %s: %w", currentBlockPtrCopy.meta.BlockID.String(), err)
+			}
+			currentBlock = nil
+		}
+
 		// make a new block if necessary
 		if currentBlock == nil {
 			// Start with a copy and then customize
@@ -189,18 +202,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		pool.Put(lowestObject)
-
-		// ship block to backend if done
-		if currentBlock.meta.TotalObjects >= recordsPerBlock {
-			currentBlockPtrCopy := currentBlock
-			currentBlockPtrCopy.meta.StartTime = minBlockStart
-			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
-			err := c.finishBlock(ctx, currentBlockPtrCopy, l)
-			if err != nil {
-				return nil, fmt.Errorf("error shipping block to backend, blockID %s: %w", currentBlockPtrCopy.meta.BlockID.String(), err)
-			}
-			currentBlock = nil
-		}
 	}
 
 	// ship final block to backend
