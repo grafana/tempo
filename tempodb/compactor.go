@@ -105,40 +105,8 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 
 	// Select the next tenant to run compaction for
 	tenantID := tenants[rw.compactorTenantOffset]
-	// Get the meta file of all non-compacted blocks for the given tenant
-	blocklist := rw.blocklist.Metas(tenantID)
 
-	window := rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID)
-	if window == 0 {
-		window = rw.compactorCfg.MaxCompactionRange
-	}
-
-	// Select which blocks to compact.
-	//
-	// Blocks are firstly divided by the active compaction window (default: most recent 24h)
-	//  1. If blocks are inside the active window, they're grouped by compaction level (how many times they've been compacted).
-	//   Favoring lower compaction levels, and compacting blocks only from the same tenant.
-	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
-	//   It picks more recent windows first, and compacting blocks only from the same tenant.
-	var blockSelector CompactionBlockSelector
-	if rw.compactorCfg.ShardCount > 0 {
-		blockSelector = newShardingBlockSelector(
-			rw.compactorCfg.ShardCount,
-			blocklist,
-			window,
-			rw.compactorCfg.MaxCompactionObjects,
-			rw.compactorCfg.MaxBlockBytes,
-			defaultMinInputBlocks,
-			defaultMaxInputBlocks)
-	} else {
-		blockSelector = newTimeWindowBlockSelector(
-			blocklist,
-			window,
-			rw.compactorCfg.MaxCompactionObjects,
-			rw.compactorCfg.MaxBlockBytes,
-			defaultMinInputBlocks,
-			defaultMaxInputBlocks)
-	}
+	blockSelector := rw.blockSelector(tenantID)
 
 	start := time.Now()
 
@@ -148,7 +116,6 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
 			res := blockSelector.BlocksToCompact()
 			if len(res.Blocks()) == 0 {
 				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
@@ -280,6 +247,35 @@ func (rw *readerWriter) compact(ctx context.Context, cmd common.Compaction, tena
 	level.Info(rw.logger).Log(logArgs...)
 
 	return nil
+}
+
+func (rw *readerWriter) blockSelector(tenantID string) CompactionBlockSelector {
+	// Get the meta file of all non-compacted blocks for the given tenant
+	blocklist := rw.blocklist.Metas(tenantID)
+
+	window := rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID)
+	if window == 0 {
+		window = rw.compactorCfg.MaxCompactionRange
+	}
+
+	if rw.compactorCfg.ShardCount > 0 {
+		return newShardingBlockSelector(
+			rw.compactorCfg.ShardCount,
+			blocklist,
+			window,
+			rw.compactorCfg.MaxCompactionObjects,
+			rw.compactorCfg.MaxBlockBytes,
+			defaultMinInputBlocks,
+			defaultMaxInputBlocks)
+	}
+
+	return newTimeWindowBlockSelector(
+		blocklist,
+		window,
+		rw.compactorCfg.MaxCompactionObjects,
+		rw.compactorCfg.MaxBlockBytes,
+		defaultMinInputBlocks,
+		defaultMaxInputBlocks)
 }
 
 func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {

@@ -28,7 +28,7 @@ type shardingBlockEntry struct {
 	meta  *backend.BlockMeta
 	group string // Blocks in the same group will be compacted together. Sort order also determines group priority.
 	order string // Individual block priority within the group.
-	hash  string // hash string used for sharding ownership, preserves backwards compatibility
+	hash  string // hash string used for sharding ownership
 	split bool
 }
 
@@ -55,7 +55,7 @@ func (c *shardedCompaction) CutBlock(currBlock *backend.BlockMeta, nextTraceID c
 	}
 
 	if c.split {
-		// TODO this is too slow, need to switch to bytes.Compare maybe
+		// If the shard of the next trace is higher, then it's time to cut the block.
 		if shard := c.shardOf(nextTraceID); shard > c.shard {
 			c.shard = shard
 			return true
@@ -82,6 +82,7 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 
 	var (
 		now          = time.Now()
+		currWindow   = twbs.windowForTime(now)
 		activeWindow = twbs.windowForTime(now.Add(-activeWindowDuration))
 	)
 
@@ -103,7 +104,8 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 			shardMax = fmt.Sprintf("%03d", twbs.shardOf(b.MaxID))
 			columns  = fmt.Sprintf("%016X", b.DedicatedColumnsHash())
 			level    = fmt.Sprintf("%03d", b.CompactionLevel)
-			window   = fmt.Sprintf("%016X", w)
+			window   = fmt.Sprintf("%v", w)
+			age      = fmt.Sprintf("%016X", currWindow-w)
 			min      = fmt.Sprintf("%X", b.MinID)
 		)
 
@@ -114,26 +116,27 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 
 		entry := shardingBlockEntry{
 			meta: b,
-
 			// Within group order by lowest trace ID to try to co-locate traces even further
 			// This is the same for all cases.
 			order: min,
 		}
+
 		switch {
 		case b.CompactionLevel > 0 && shardMin == shardMax:
-			// This block is within a single shard.
+			// This is a previously split block that contains only a single shard.
 			entry.group = join(
 				"A",            // Highest priority is recombining sharded blocks
+				level,          // prioritize lower levels
+				age,            // prioritize newer windows
 				shardMin,       // same shard
-				level,          // same level
-				window,         // same window
 				b.Version,      //
 				b.DataEncoding, // same block format and column config
 				columns,        //
 			)
 			entry.hash = join(
-				b.TenantID, // Work sharding by tenant
-				window,     // window
+				b.TenantID, // Work sharding by tenant, level, window
+				level,      //
+				window,     //
 				shardMin,   // and shard
 			)
 
@@ -142,15 +145,16 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 			entry.split = true
 			entry.group = join(
 				"B",            // Second priority is splitting blocks
-				level,          // same level
-				window,         // same window
+				level,          // proritize lower levels
+				age,            // proritize newer windows
 				b.Version,      //
 				b.DataEncoding, // same block format and column config
 				columns,        //
 			)
 			entry.hash = join(
-				b.TenantID, // Work sharding by tenant
-				window,     // window
+				b.TenantID, // Work sharding by tenant, level, window
+				level,      //
+				window,     //
 			)
 
 		default:
@@ -158,15 +162,16 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 			// Let's go ahead and resplit/combine exsting blocks, but with the lowest priority
 			entry.split = true
 			entry.group = join(
-				"C",
-				level,          // same level
-				window,         // same window
+				"C",            // lowest priority
+				level,          // proritize lower levels
+				age,            // prioritize newer windows
 				b.Version,      //
 				b.DataEncoding, // same block format and column config
 				columns,        //
 			)
 			entry.hash = join(
-				b.TenantID, // Work sharding by tenant
+				b.TenantID, // Work sharding by tenant, level, window
+				level,      //
 				window,     // window
 			)
 		}
@@ -224,8 +229,8 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 		// did we find enough blocks?
 		if len(chosen) >= twbs.MinInputBlocks {
 			res := shardedCompaction{
-				hash:                 chosen[0].hash,
 				maxCompactionObjects: twbs.MaxCompactionObjects,
+				hash:                 chosen[0].hash,
 				split:                chosen[0].split,
 				shardOf:              twbs.shardOf,
 			}
@@ -237,6 +242,14 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 		}
 	}
 	return &shardedCompaction{}
+}
+
+func (twbs *shardingBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
+	return twbs.windowForTime(meta.EndTime)
+}
+
+func (twbs *shardingBlockSelector) windowForTime(t time.Time) int64 {
+	return t.Unix() / int64(twbs.MaxCompactionRange/time.Second)
 }
 
 func totalObjects2(entries []shardingBlockEntry) int {
@@ -255,14 +268,7 @@ func totalSize2(entries []shardingBlockEntry) uint64 {
 	return sz
 }
 
+// join is a minimum syntax wrapper for strings.Join
 func join(ss ...string) string {
 	return strings.Join(ss, "-")
-}
-
-func (twbs *shardingBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
-	return twbs.windowForTime(meta.EndTime)
-}
-
-func (twbs *shardingBlockSelector) windowForTime(t time.Time) int64 {
-	return t.Unix() / int64(twbs.MaxCompactionRange/time.Second)
 }
