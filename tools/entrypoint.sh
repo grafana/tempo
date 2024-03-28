@@ -8,4 +8,6 @@ if [ -n "${GITHUB_NAME+x}" ]; then
 	git config --global user.name "${GITHUB_NAME}"
 fi
 
+git config --global --add safe.directory /tools
+
 exec "$@"
