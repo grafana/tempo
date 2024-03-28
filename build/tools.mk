@@ -11,7 +11,25 @@ GO_MOD_OUTDATED  ?= go-mod-outdated
 TOOL_DIR     ?= tools
 TOOL_CONFIG  ?= $(TOOL_DIR)/tools.go
 
+TOOLS_IMAGE ?= zalegrala/tempo-ci-tools
+
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
+
+TOOLS_CMD = docker run -v ${PWD}:/tools $(TOOLS_IMAGE)
+
+.PHONY: tools-image-build
+tools-image-build:
+	@echo "=== [ tools-image-build]: Building tools image..."
+	@docker build -t $(TOOLS_IMAGE) -f ./tools/Dockerfile .
+
+.PHONY: tools-docker
+tools-docker:
+	@echo "=== [ tools-docker     ]: Running tools in docker..."
+	@docker run -it -v $(shell pwd):/var/tempo $(TOOLS_IMAGE_NAME) make -C /var/tempo tools
+
+tools-image:
+	@echo "=== [ tools-image     ]: Running tools in docker..."
+	@docker pull ${TOOLS_IMAGE}
 
 tools:
 	@echo "=== [ tools            ]: Installing tools required by the project..."

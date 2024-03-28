@@ -171,6 +171,102 @@ trigger:
   - refs/heads/r??
   - refs/heads/r???
 ---
+depends_on: []
+kind: pipeline
+name: docker-ci-tools-amd64
+platform:
+  arch: amd64
+  os: linux
+steps:
+- commands:
+  - apk --update --no-cache add bash
+  - git fetch origin --tags
+  - echo $(./tools/image-tag)-amd64 > .tags
+  image: alpine/git:v2.30.2
+  name: image-tag
+- image: plugins/docker
+  name: build-tempo-ci-tools-image
+  settings:
+    build_args:
+    - TARGETARCH=amd64
+    dockerfile: tools/Dockerfile
+    password:
+      from_secret: docker_password
+    repo: grafana/tempo-ci-tools
+    username:
+      from_secret: docker_username
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
+  - refs/heads/r?
+  - refs/heads/r??
+  - refs/heads/r???
+---
+depends_on: []
+kind: pipeline
+name: docker-ci-tools-arm64
+platform:
+  arch: arm64
+  os: linux
+steps:
+- commands:
+  - apk --update --no-cache add bash
+  - git fetch origin --tags
+  - echo $(./tools/image-tag)-arm64 > .tags
+  image: alpine/git:v2.30.2
+  name: image-tag
+- image: plugins/docker
+  name: build-tempo-ci-tools-image
+  settings:
+    build_args:
+    - TARGETARCH=arm64
+    dockerfile: tools/Dockerfile
+    password:
+      from_secret: docker_password
+    repo: grafana/tempo-ci-tools
+    username:
+      from_secret: docker_username
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
+  - refs/heads/r?
+  - refs/heads/r??
+  - refs/heads/r???
+---
+depends_on:
+- docker-ci-tools-amd64
+- docker-ci-tools-arm64
+kind: pipeline
+name: manifest-ci-tools
+platform:
+  arch: amd64
+  os: linux
+steps:
+- commands:
+  - apk --update --no-cache add bash
+  - git fetch origin --tags
+  - echo $(./tools/image-tag) > .tags
+  image: alpine/git:v2.30.2
+  name: image-tag
+- image: plugins/manifest:1.4.0
+  name: manifest-tempo-ci-tools
+  settings:
+    password:
+      from_secret: docker_password
+    spec: .drone/docker-manifest.tmpl
+    target: tempo-ci-tools
+    username:
+      from_secret: docker_username
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
+  - refs/heads/r?
+  - refs/heads/r??
+  - refs/heads/r???
+---
 depends_on:
 - manifest
 image_pull_secrets:
@@ -426,6 +522,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: cdf6fce5bd5110303ec64ef2bb1d6aae70ed4b4df0f8de0a9eb7e3566a277c15
+hmac: 01adf0a8a3952d45aca5575e624a63a088167173e18c07b3dfe1950dcb3e069b
 
 ...
