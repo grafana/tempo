@@ -428,11 +428,12 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	}, rdr, nil, p)
 
 	// setup query
+	tenant := "foo"
 	scope := "resource"
 	hash := fnv1a.HashString64(scope)
 	start := uint32(10)
 	end := uint32(20)
-	cacheKey := cacheKey(cacheKeyPrefixSearchTag, hash, int64(start), int64(end), meta, 0, 1)
+	cacheKey := cacheKey(cacheKeyPrefixSearchTag, tenant, hash, int64(start), int64(end), meta, 0, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
@@ -442,7 +443,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	path := fmt.Sprintf("/?start=%d&end=%d&scope=%s", start, end, scope) // encapsulates block above
 	req := httptest.NewRequest("GET", path, nil)
 	ctx := req.Context()
-	ctx = user.InjectOrgID(ctx, "blerg")
+	ctx = user.InjectOrgID(ctx, tenant)
 	req = req.WithContext(ctx)
 
 	respWriter := httptest.NewRecorder()

@@ -16,10 +16,10 @@ import (
 
 // Authentication defines authentication.
 type Authentication struct {
-	PlainText *PlainTextConfig            `mapstructure:"plain_text"`
-	SASL      *SASLConfig                 `mapstructure:"sasl"`
-	TLS       *configtls.TLSClientSetting `mapstructure:"tls"`
-	Kerberos  *KerberosConfig             `mapstructure:"kerberos"`
+	PlainText *PlainTextConfig        `mapstructure:"plain_text"`
+	SASL      *SASLConfig             `mapstructure:"sasl"`
+	TLS       *configtls.ClientConfig `mapstructure:"tls"`
+	Kerberos  *KerberosConfig         `mapstructure:"kerberos"`
 }
 
 // PlainTextConfig defines plaintext authentication.
@@ -134,7 +134,7 @@ func configureSASL(config SASLConfig, saramaConfig *sarama.Config) error {
 	return nil
 }
 
-func configureTLS(config configtls.TLSClientSetting, saramaConfig *sarama.Config) error {
+func configureTLS(config configtls.ClientConfig, saramaConfig *sarama.Config) error {
 	tlsConfig, err := config.LoadTLSConfig()
 	if err != nil {
 		return fmt.Errorf("error loading tls config: %w", err)

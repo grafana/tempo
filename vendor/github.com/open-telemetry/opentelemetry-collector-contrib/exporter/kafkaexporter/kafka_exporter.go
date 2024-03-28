@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -23,6 +24,7 @@ var errUnrecognizedEncoding = fmt.Errorf("unrecognized encoding")
 
 // kafkaTracesProducer uses sarama to produce trace messages to Kafka.
 type kafkaTracesProducer struct {
+	cfg       Config
 	producer  sarama.SyncProducer
 	topic     string
 	marshaler TracesMarshaler
@@ -57,11 +59,24 @@ func (e *kafkaTracesProducer) tracesPusher(_ context.Context, td ptrace.Traces) 
 }
 
 func (e *kafkaTracesProducer) Close(context.Context) error {
+	if e.producer == nil {
+		return nil
+	}
 	return e.producer.Close()
+}
+
+func (e *kafkaTracesProducer) start(_ context.Context, _ component.Host) error {
+	producer, err := newSaramaProducer(e.cfg)
+	if err != nil {
+		return err
+	}
+	e.producer = producer
+	return nil
 }
 
 // kafkaMetricsProducer uses sarama to produce metrics messages to kafka
 type kafkaMetricsProducer struct {
+	cfg       Config
 	producer  sarama.SyncProducer
 	topic     string
 	marshaler MetricsMarshaler
@@ -87,11 +102,24 @@ func (e *kafkaMetricsProducer) metricsDataPusher(_ context.Context, md pmetric.M
 }
 
 func (e *kafkaMetricsProducer) Close(context.Context) error {
+	if e.producer == nil {
+		return nil
+	}
 	return e.producer.Close()
+}
+
+func (e *kafkaMetricsProducer) start(_ context.Context, _ component.Host) error {
+	producer, err := newSaramaProducer(e.cfg)
+	if err != nil {
+		return err
+	}
+	e.producer = producer
+	return nil
 }
 
 // kafkaLogsProducer uses sarama to produce logs messages to kafka
 type kafkaLogsProducer struct {
+	cfg       Config
 	producer  sarama.SyncProducer
 	topic     string
 	marshaler LogsMarshaler
@@ -117,7 +145,19 @@ func (e *kafkaLogsProducer) logsDataPusher(_ context.Context, ld plog.Logs) erro
 }
 
 func (e *kafkaLogsProducer) Close(context.Context) error {
+	if e.producer == nil {
+		return nil
+	}
 	return e.producer.Close()
+}
+
+func (e *kafkaLogsProducer) start(_ context.Context, _ component.Host) error {
+	producer, err := newSaramaProducer(e.cfg)
+	if err != nil {
+		return err
+	}
+	e.producer = producer
+	return nil
 }
 
 func newSaramaProducer(config Config) (sarama.SyncProducer, error) {
@@ -171,13 +211,8 @@ func newMetricsExporter(config Config, set exporter.CreateSettings, marshalers m
 	if marshaler == nil {
 		return nil, errUnrecognizedEncoding
 	}
-	producer, err := newSaramaProducer(config)
-	if err != nil {
-		return nil, err
-	}
-
 	return &kafkaMetricsProducer{
-		producer:  producer,
+		cfg:       config,
 		topic:     config.Topic,
 		marshaler: marshaler,
 		logger:    set.Logger,
@@ -196,12 +231,9 @@ func newTracesExporter(config Config, set exporter.CreateSettings, marshalers ma
 			keyableMarshaler.Key()
 		}
 	}
-	producer, err := newSaramaProducer(config)
-	if err != nil {
-		return nil, err
-	}
+
 	return &kafkaTracesProducer{
-		producer:  producer,
+		cfg:       config,
 		topic:     config.Topic,
 		marshaler: marshaler,
 		logger:    set.Logger,
@@ -213,13 +245,9 @@ func newLogsExporter(config Config, set exporter.CreateSettings, marshalers map[
 	if marshaler == nil {
 		return nil, errUnrecognizedEncoding
 	}
-	producer, err := newSaramaProducer(config)
-	if err != nil {
-		return nil, err
-	}
 
 	return &kafkaLogsProducer{
-		producer:  producer,
+		cfg:       config,
 		topic:     config.Topic,
 		marshaler: marshaler,
 		logger:    set.Logger,

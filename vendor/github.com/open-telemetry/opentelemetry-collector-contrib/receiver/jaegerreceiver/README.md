@@ -4,7 +4,7 @@
 | Status        |           |
 | ------------- |-----------|
 | Stability     | [beta]: traces   |
-| Distributions | [core], [contrib], [aws], [grafana], [observiq], [redhat], [splunk], [sumo] |
+| Distributions | [core], [contrib], [aws], [grafana], [liatrio], [observiq], [redhat], [splunk], [sumo] |
 | Issues        | [![Open issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aopen%20label%3Areceiver%2Fjaeger%20&label=open&color=orange&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aopen+is%3Aissue+label%3Areceiver%2Fjaeger) [![Closed issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aclosed%20label%3Areceiver%2Fjaeger%20&label=closed&color=blue&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aclosed+is%3Aissue+label%3Areceiver%2Fjaeger) |
 | [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@yurishkuro](https://www.github.com/yurishkuro) |
 
@@ -13,6 +13,7 @@
 [contrib]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib
 [aws]: https://github.com/aws-observability/aws-otel-collector
 [grafana]: https://github.com/grafana/agent
+[liatrio]: https://github.com/liatrio/liatrio-otel-collector
 [observiq]: https://github.com/observIQ/observiq-otel-collector
 [redhat]: https://github.com/os-observability/redhat-opentelemetry-collector
 [splunk]: https://github.com/signalfx/splunk-otel-collector
@@ -32,6 +33,9 @@ object configuration parameter.
 - `thrift_binary` (default `endpoint` = 0.0.0.0:6832)
 - `thrift_compact` (default `endpoint` = 0.0.0.0:6831)
 - `thrift_http` (default `endpoint` = 0.0.0.0:14268)
+
+The `component.UseLocalHostAsDefaultHost` feature gate changes these endpoints to localhost:14250, localhost:6832, 
+localhost:6831 and localhost:14268. This will become the default in a future release.
 
 Examples:
 
