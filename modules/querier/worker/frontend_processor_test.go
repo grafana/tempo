@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +33,8 @@ func TestRunRequests(t *testing.T) {
 
 	inf := newFrontendProcessor(Config{GRPCClientConfig: grpcclient.Config{MaxSendMsgSize: 10}}, RequestHandlerFunc(handler), log.NewNopLogger())
 	fp := inf.(*frontendProcessor)
+	// unregister metric in test avoid panic due to registering it twice in tests
+	defer prometheus.Unregister(fp.metricRequestsTotal)
 
 	totalRequests := byte(10)
 	reqs := []*httpgrpc.HTTPRequest{}
@@ -50,7 +53,7 @@ func TestRunRequests(t *testing.T) {
 
 	// check that counter metric is working
 	m := &dto.Metric{}
-	err := metricWorkerRequests.Write(m)
+	err := fp.metricRequestsTotal.Write(m)
 	require.NoError(t, err)
 	require.Equal(t, float64(totalRequests), m.Counter.GetValue())
 }
@@ -58,6 +61,8 @@ func TestRunRequests(t *testing.T) {
 func TestHandleSendError(t *testing.T) {
 	inf := newFrontendProcessor(Config{}, nil, log.NewNopLogger())
 	fp := inf.(*frontendProcessor)
+	// unregister metric in test avoid panic due to registering it twice in tests
+	defer prometheus.Unregister(fp.metricRequestsTotal)
 
 	err := fp.handleSendError(nil)
 	require.NoError(t, err)

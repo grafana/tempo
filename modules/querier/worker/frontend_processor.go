@@ -29,18 +29,18 @@ var processorBackoffConfig = backoff.Config{
 	MaxBackoff: 1 * time.Second,
 }
 
-var metricWorkerRequests = promauto.NewCounter(prometheus.CounterOpts{
-	Namespace: "tempo",
-	Name:      "querier_worker_request_executed_total",
-	Help:      "The total number of requests executed by the querier worker.",
-})
-
 func newFrontendProcessor(cfg Config, handler RequestHandler, log log.Logger) processor {
+	metricWorkerRequests := promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "querier_worker_request_executed_total",
+		Help:      "The total number of requests executed by the querier worker.",
+	})
 	return &frontendProcessor{
-		log:            log,
-		handler:        handler,
-		maxMessageSize: cfg.GRPCClientConfig.MaxSendMsgSize,
-		querierID:      cfg.QuerierID,
+		log:                 log,
+		handler:             handler,
+		maxMessageSize:      cfg.GRPCClientConfig.MaxSendMsgSize,
+		querierID:           cfg.QuerierID,
+		metricRequestsTotal: metricWorkerRequests,
 	}
 }
 
@@ -50,7 +50,8 @@ type frontendProcessor struct {
 	maxMessageSize int
 	querierID      string
 
-	log log.Logger
+	metricRequestsTotal prometheus.Counter
+	log                 log.Logger
 }
 
 // notifyShutdown implements processor.
@@ -193,7 +194,7 @@ func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.H
 		level.Error(fp.log).Log("msg", "error processing query", "err", errMsg)
 	}
 
-	metricWorkerRequests.Inc()
+	fp.metricRequestsTotal.Inc()
 
 	return response
 }
