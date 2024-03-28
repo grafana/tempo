@@ -301,7 +301,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 			}
 			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
 
-			key := cacheKey(keyPrefix, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
+			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
 			if len(key) > 0 {
 				subR = pipeline.AddCacheKey(key, subR)
 			}
