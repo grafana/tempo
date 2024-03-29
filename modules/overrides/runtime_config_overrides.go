@@ -119,7 +119,6 @@ type runtimeConfigOverridesManager struct {
 
 	defaultLimits    *Overrides
 	runtimeConfigMgr *runtimeconfig.Manager
-	validator        Validator
 
 	// Manager for subservices
 	subservices        *services.Manager
