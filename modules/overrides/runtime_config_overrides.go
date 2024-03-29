@@ -101,10 +101,12 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool)
 			)
 		}
 
-		for tenant, tenantOverrides := range overrides.TenantLimits {
-			err := validator.Validate(tenantOverrides)
-			if err != nil {
-				return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+		if validator != nil {
+			for tenant, tenantOverrides := range overrides.TenantLimits {
+				err := validator.Validate(tenantOverrides)
+				if err != nil {
+					return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+				}
 			}
 		}
 

@@ -58,7 +58,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			// Init limits overrides
 			o, err := overrides.NewOverrides(overrides.Config{
 				Defaults: testData.limits,
-			}, prometheus.DefaultRegisterer)
+			}, nil, prometheus.DefaultRegisterer)
 			require.NoError(t, err)
 
 			// Instance the strategy

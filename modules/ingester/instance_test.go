@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
-	prometheus "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -221,7 +221,7 @@ func TestInstanceLimits(t *testing.T) {
 				MaxLocalTracesPerUser: 4,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -538,7 +538,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 				MaxBytesPerTrace: maxTraceBytes,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -591,7 +591,7 @@ func TestInstancePartialSuccess(t *testing.T) {
 				MaxLocalTracesPerUser: 2,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 

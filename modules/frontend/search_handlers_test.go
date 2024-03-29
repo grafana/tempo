@@ -692,7 +692,7 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 		}
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	f, err := New(*cfg, next, o, rdr, cacheProvider, "", log.NewNopLogger(), nil)

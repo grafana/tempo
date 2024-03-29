@@ -15,21 +15,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
-	"go.uber.org/atomic"
-
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type faceReq struct {
@@ -440,7 +440,7 @@ func TestTagsSearchSharderRoundTrip(t *testing.T) {
 				}, nil
 			})
 
-			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 			require.NoError(t, err)
 
 			sharder := newTagsSharding(&mockReader{
@@ -546,7 +546,7 @@ func TestTagsSearchSubRequestsCancelled(t *testing.T) {
 		return httptest.NewRecorder().Result(), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder := newTagsSharding(&mockReader{
@@ -620,7 +620,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder := newTagsSharding(&mockReader{}, o, SearchSharderConfig{
@@ -654,7 +654,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 				MaxSearchDuration: model.Duration(time.Minute),
 			},
 		},
-	}, prometheus.NewRegistry())
+	}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder = newTagsSharding(&mockReader{}, o, SearchSharderConfig{
