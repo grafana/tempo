@@ -39,7 +39,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		return fmt.Errorf("failed to parse configFile %s: %w", cmd.ConfigFile, err)
 	}
 
-	o, err := overrides.NewOverrides(cfg.Overrides, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(cfg.Overrides, noopValidator{}, prometheus.DefaultRegisterer)
 	if err != nil {
 		return fmt.Errorf("failed to load overrides module: %w", err)
 	}
@@ -98,5 +98,11 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 		fmt.Println(string(overridesBytes))
 	}
 
+	return nil
+}
+
+type noopValidator struct{}
+
+func (n noopValidator) Validate(*overrides.Overrides) error {
 	return nil
 }

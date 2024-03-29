@@ -55,7 +55,14 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			validator := newRuntimeConfigValidator(&tc.cfg)
 
+			err := validator.Validate(&tc.overrides)
+			if tc.expErr != "" {
+				assert.EqualError(t, err, tc.expErr)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
