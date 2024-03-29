@@ -123,22 +123,22 @@ type compareOp int
 
 // These are the allowed values of a compareOp
 const (
-	EQ compareOp = iota
-	NE
-	LT
-	LTE
-	GTE
-	GT
+	eq compareOp = iota
+	ne
+	lt
+	lte
+	gte
+	gt
 )
 
 // a fast way to get from a string to a compareOp
 var compareOpTable = map[string]compareOp{
-	"==": EQ,
-	"!=": NE,
-	"<":  LT,
-	"<=": LTE,
-	">":  GT,
-	">=": GTE,
+	"==": eq,
+	"!=": ne,
+	"<":  lt,
+	"<=": lte,
+	">":  gt,
+	">=": gte,
 }
 
 // Capture is how the parser converts an operator string to a compareOp.
@@ -154,18 +154,18 @@ func (c *compareOp) Capture(values []string) error {
 // String() for compareOp gives us more legible test results and error messages.
 func (c *compareOp) String() string {
 	switch *c {
-	case EQ:
-		return "EQ"
-	case NE:
-		return "NE"
-	case LT:
-		return "LT"
-	case LTE:
-		return "LTE"
-	case GTE:
-		return "GTE"
-	case GT:
-		return "GT"
+	case eq:
+		return "eq"
+	case ne:
+		return "ne"
+	case lt:
+		return "lt"
+	case lte:
+		return "lte"
+	case gte:
+		return "gte"
+	case gt:
+		return "gt"
 	default:
 		return "UNKNOWN OP!"
 	}
@@ -192,7 +192,7 @@ type editor struct {
 	Function  string     `parser:"@(Lowercase(Uppercase | Lowercase)*)"`
 	Arguments []argument `parser:"'(' ( @@ ( ',' @@ )* )? ')'"`
 	// If keys are matched return an error
-	Keys []Key `parser:"( @@ )*"`
+	Keys []key `parser:"( @@ )*"`
 }
 
 func (i *editor) checkForCustomError() error {
@@ -214,7 +214,7 @@ func (i *editor) checkForCustomError() error {
 type converter struct {
 	Function  string     `parser:"@(Uppercase(Uppercase | Lowercase)*)"`
 	Arguments []argument `parser:"'(' ( @@ ( ',' @@ )* )? ')'"`
-	Keys      []Key      `parser:"( @@ )*"`
+	Keys      []key      `parser:"( @@ )*"`
 }
 
 type argument struct {
@@ -235,7 +235,7 @@ type value struct {
 	Bytes          *byteSlice       `parser:"| @Bytes"`
 	String         *string          `parser:"| @String"`
 	Bool           *boolean         `parser:"| @Boolean"`
-	Enum           *EnumSymbol      `parser:"| @Uppercase (?! Lowercase)"`
+	Enum           *enumSymbol      `parser:"| @Uppercase (?! Lowercase)"`
 	FunctionName   *string          `parser:"| @(Uppercase(Uppercase | Lowercase)*)"`
 	List           *list            `parser:"| @@)"`
 }
@@ -250,18 +250,18 @@ func (v *value) checkForCustomError() error {
 	return nil
 }
 
-// Path represents a telemetry path mathExpression.
-type Path struct {
-	Fields []Field `parser:"@@ ( '.' @@ )*"`
+// path represents a telemetry path mathExpression.
+type path struct {
+	Fields []field `parser:"@@ ( '.' @@ )*"`
 }
 
-// Field is an item within a Path.
-type Field struct {
+// field is an item within a path.
+type field struct {
 	Name string `parser:"@Lowercase"`
-	Keys []Key  `parser:"( @@ )*"`
+	Keys []key  `parser:"( @@ )*"`
 }
 
-type Key struct {
+type key struct {
 	String *string `parser:"'[' (@String "`
 	Int    *int64  `parser:"| @Int) ']'"`
 }
@@ -305,7 +305,7 @@ type mathExprLiteral struct {
 	Converter *converter `parser:"| @@"`
 	Float     *float64   `parser:"| @Float"`
 	Int       *int64     `parser:"| @Int"`
-	Path      *Path      `parser:"| @@ )"`
+	Path      *path      `parser:"| @@ )"`
 }
 
 func (m *mathExprLiteral) checkForCustomError() error {
@@ -386,17 +386,17 @@ func (m *mathExpression) checkForCustomError() error {
 type mathOp int
 
 const (
-	ADD mathOp = iota
-	SUB
-	MULT
-	DIV
+	add mathOp = iota
+	sub
+	mult
+	div
 )
 
 var mathOpTable = map[string]mathOp{
-	"+": ADD,
-	"-": SUB,
-	"*": MULT,
-	"/": DIV,
+	"+": add,
+	"-": sub,
+	"*": mult,
+	"/": div,
 }
 
 func (m *mathOp) Capture(values []string) error {
@@ -410,20 +410,20 @@ func (m *mathOp) Capture(values []string) error {
 
 func (m *mathOp) String() string {
 	switch *m {
-	case ADD:
+	case add:
 		return "+"
-	case SUB:
+	case sub:
 		return "-"
-	case MULT:
+	case mult:
 		return "*"
-	case DIV:
+	case div:
 		return "/"
 	default:
 		return "UNKNOWN OP!"
 	}
 }
 
-type EnumSymbol string
+type enumSymbol string
 
 // buildLexer constructs a SimpleLexer definition.
 // Note that the ordering of these rules matters.
@@ -433,7 +433,7 @@ func buildLexer() *lexer.StatefulDefinition {
 		{Name: `Bytes`, Pattern: `0x[a-fA-F0-9]+`},
 		{Name: `Float`, Pattern: `[-+]?\d*\.\d+([eE][-+]?\d+)?`},
 		{Name: `Int`, Pattern: `[-+]?\d+`},
-		{Name: `String`, Pattern: `"(\\"|[^"])*"`},
+		{Name: `String`, Pattern: `"(\\.|[^\\"])*"`},
 		{Name: `OpNot`, Pattern: `\b(not)\b`},
 		{Name: `OpOr`, Pattern: `\b(or)\b`},
 		{Name: `OpAnd`, Pattern: `\b(and)\b`},

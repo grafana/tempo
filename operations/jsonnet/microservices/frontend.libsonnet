@@ -61,7 +61,7 @@
         app: target_name,
       }
     ) +
-    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
+    deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(0) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     deployment.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_query_frontend_configmap.data['tempo.yaml'])),

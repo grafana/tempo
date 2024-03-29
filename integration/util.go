@@ -83,6 +83,7 @@ func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...stri
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
 		4317,  // otlp grpc
+		4318,  // OTLP HTTP
 	)
 
 	s.SetBackoff(TempoBackoff())
@@ -284,7 +285,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	factory := otlpexporter.NewFactory()
 	exporterCfg := factory.CreateDefaultConfig()
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
-	otlpCfg.ClientConfig = configgrpc.GRPCClientSettings{
+	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
 		TLSSetting: configtls.TLSClientSetting{
 			Insecure: true,
@@ -374,6 +375,7 @@ func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempop
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
 
+	// -- assert search
 	resp, err := client.Search(ctx, &tempopb.SearchRequest{
 		Query: query,
 		Start: uint32(start),
@@ -381,12 +383,12 @@ func SearchStreamAndAssertTrace(t *testing.T, ctx context.Context, client tempop
 	})
 	require.NoError(t, err)
 
-	// drain the stream until everything is returned
+	// drain the stream until everything is returned while watching for the trace in question
 	found := false
 	for {
-		searchResp, err := resp.Recv()
-		if searchResp != nil {
-			found = traceIDInResults(t, info.HexID(), searchResp)
+		resp, err := resp.Recv()
+		if resp != nil {
+			found = traceIDInResults(t, info.HexID(), resp)
 			if found {
 				break
 			}

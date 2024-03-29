@@ -1,4 +1,5 @@
 type: jaeger
+scope_name: otelcol/jaegerreceiver
 
 status:
   class: receiver
@@ -13,5 +14,11 @@ status:
   - redhat
   - splunk
   - sumo
+  - liatrio
   codeowners:
     active: [yurishkuro]
+
+tests:
+  config:
+    protocols:
+      grpc:

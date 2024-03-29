@@ -95,3 +95,19 @@ func (s *mockService) PushBytesV2(ctx context.Context, _ *tempopb.PushBytesReque
 
 	return &tempopb.PushResponse{}, nil
 }
+
+func (s *mockService) SearchTags(*tempopb.SearchTagsRequest, tempopb.StreamingQuerier_SearchTagsServer) error {
+	return nil
+}
+
+func (s *mockService) SearchTagsV2(*tempopb.SearchTagsRequest, tempopb.StreamingQuerier_SearchTagsV2Server) error {
+	return nil
+}
+
+func (s *mockService) SearchTagValues(*tempopb.SearchTagValuesRequest, tempopb.StreamingQuerier_SearchTagValuesServer) error {
+	return nil
+}
+
+func (s *mockService) SearchTagValuesV2(*tempopb.SearchTagValuesRequest, tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
+	return nil
+}

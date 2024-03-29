@@ -5,7 +5,6 @@ package internal // import "github.com/open-telemetry/opentelemetry-collector-co
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -16,27 +15,26 @@ type InstrumentationScopeContext interface {
 	GetInstrumentationScope() pcommon.InstrumentationScope
 }
 
-func ScopePathGetSetter[K InstrumentationScopeContext](path []ottl.Field) (ottl.GetSetter[K], error) {
-	if len(path) == 0 {
+func ScopePathGetSetter[K InstrumentationScopeContext](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+	if path == nil {
 		return accessInstrumentationScope[K](), nil
 	}
-
-	switch path[0].Name {
+	switch path.Name() {
 	case "name":
 		return accessInstrumentationScopeName[K](), nil
 	case "version":
 		return accessInstrumentationScopeVersion[K](), nil
 	case "attributes":
-		mapKeys := path[0].Keys
+		mapKeys := path.Keys()
 		if mapKeys == nil {
 			return accessInstrumentationScopeAttributes[K](), nil
 		}
 		return accessInstrumentationScopeAttributesKey[K](mapKeys), nil
 	case "dropped_attributes_count":
 		return accessInstrumentationScopeDroppedAttributesCount[K](), nil
+	default:
+		return nil, FormatDefaultErrorMessage(path.Name(), path.String(), "Instrumentation Scope", InstrumentationScopeRef)
 	}
-
-	return nil, fmt.Errorf("invalid scope path expression %v", path)
 }
 
 func accessInstrumentationScope[K InstrumentationScopeContext]() ottl.StandardGetSetter[K] {
@@ -67,13 +65,13 @@ func accessInstrumentationScopeAttributes[K InstrumentationScopeContext]() ottl.
 	}
 }
 
-func accessInstrumentationScopeAttributesKey[K InstrumentationScopeContext](keys []ottl.Key) ottl.StandardGetSetter[K] {
+func accessInstrumentationScopeAttributesKey[K InstrumentationScopeContext](keys []ottl.Key[K]) ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(ctx context.Context, tCtx K) (any, error) {
-			return GetMapValue(tCtx.GetInstrumentationScope().Attributes(), keys)
+			return GetMapValue[K](ctx, tCtx, tCtx.GetInstrumentationScope().Attributes(), keys)
 		},
 		Setter: func(ctx context.Context, tCtx K, val any) error {
-			return SetMapValue(tCtx.GetInstrumentationScope().Attributes(), keys, val)
+			return SetMapValue[K](ctx, tCtx, tCtx.GetInstrumentationScope().Attributes(), keys, val)
 		},
 	}
 }

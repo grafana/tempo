@@ -16,6 +16,10 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
 )
 
+const (
+	contextName = "DataPoint"
+)
+
 var _ internal.ResourceContext = TransformContext{}
 var _ internal.InstrumentationScopeContext = TransformContext{}
 
@@ -66,10 +70,10 @@ func (tCtx TransformContext) getCache() pcommon.Map {
 }
 
 func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySettings component.TelemetrySettings, options ...Option) (ottl.Parser[TransformContext], error) {
-	pathExpressionParser := pathExpressionParser{telemetrySettings}
+	pep := pathExpressionParser{telemetrySettings}
 	p, err := ottl.NewParser[TransformContext](
 		functions,
-		pathExpressionParser.parsePath,
+		pep.parsePath,
 		telemetrySettings,
 		ottl.WithEnumParser[TransformContext](parseEnum),
 	)
@@ -82,20 +86,36 @@ func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySet
 	return p, nil
 }
 
-type StatementsOption func(*ottl.Statements[TransformContext])
+type StatementSequenceOption func(*ottl.StatementSequence[TransformContext])
 
-func WithErrorMode(errorMode ottl.ErrorMode) StatementsOption {
-	return func(s *ottl.Statements[TransformContext]) {
-		ottl.WithErrorMode[TransformContext](errorMode)(s)
+func WithStatementSequenceErrorMode(errorMode ottl.ErrorMode) StatementSequenceOption {
+	return func(s *ottl.StatementSequence[TransformContext]) {
+		ottl.WithStatementSequenceErrorMode[TransformContext](errorMode)(s)
 	}
 }
 
-func NewStatements(statements []*ottl.Statement[TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementsOption) ottl.Statements[TransformContext] {
-	s := ottl.NewStatements(statements, telemetrySettings)
+func NewStatementSequence(statements []*ottl.Statement[TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementSequenceOption) ottl.StatementSequence[TransformContext] {
+	s := ottl.NewStatementSequence(statements, telemetrySettings)
 	for _, op := range options {
 		op(&s)
 	}
 	return s
+}
+
+type ConditionSequenceOption func(*ottl.ConditionSequence[TransformContext])
+
+func WithConditionSequenceErrorMode(errorMode ottl.ErrorMode) ConditionSequenceOption {
+	return func(c *ottl.ConditionSequence[TransformContext]) {
+		ottl.WithConditionSequenceErrorMode[TransformContext](errorMode)(c)
+	}
+}
+
+func NewConditionSequence(conditions []*ottl.Condition[TransformContext], telemetrySettings component.TelemetrySettings, options ...ConditionSequenceOption) ottl.ConditionSequence[TransformContext] {
+	c := ottl.NewConditionSequence(conditions, telemetrySettings)
+	for _, op := range options {
+		op(&c)
+	}
+	return c
 }
 
 var symbolTable = map[ottl.EnumSymbol]ottl.Enum{
@@ -123,33 +143,27 @@ type pathExpressionParser struct {
 	telemetrySettings component.TelemetrySettings
 }
 
-func (pep *pathExpressionParser) parsePath(val *ottl.Path) (ottl.GetSetter[TransformContext], error) {
-	if val != nil && len(val.Fields) > 0 {
-		return newPathGetSetter(val.Fields)
+func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ottl.GetSetter[TransformContext], error) {
+	if path == nil {
+		return nil, fmt.Errorf("path cannot be nil")
 	}
-	return nil, fmt.Errorf("bad path %v", val)
-}
-
-func newPathGetSetter(path []ottl.Field) (ottl.GetSetter[TransformContext], error) {
-	switch path[0].Name {
+	switch path.Name() {
 	case "cache":
-		mapKey := path[0].Keys
-		if mapKey == nil {
+		if path.Keys() == nil {
 			return accessCache(), nil
 		}
-		return accessCacheKey(mapKey), nil
+		return accessCacheKey(path.Keys()), nil
 	case "resource":
-		return internal.ResourcePathGetSetter[TransformContext](path[1:])
+		return internal.ResourcePathGetSetter[TransformContext](path.Next())
 	case "instrumentation_scope":
-		return internal.ScopePathGetSetter[TransformContext](path[1:])
+		return internal.ScopePathGetSetter[TransformContext](path.Next())
 	case "metric":
-		return internal.MetricPathGetSetter[TransformContext](path[1:])
+		return internal.MetricPathGetSetter[TransformContext](path.Next())
 	case "attributes":
-		mapKey := path[0].Keys
-		if mapKey == nil {
+		if path.Keys() == nil {
 			return accessAttributes(), nil
 		}
-		return accessAttributesKey(mapKey), nil
+		return accessAttributesKey(path.Keys()), nil
 	case "start_time_unix_nano":
 		return accessStartTimeUnixNano(), nil
 	case "time_unix_nano":
@@ -179,29 +193,36 @@ func newPathGetSetter(path []ottl.Field) (ottl.GetSetter[TransformContext], erro
 	case "zero_count":
 		return accessZeroCount(), nil
 	case "positive":
-		if len(path) == 1 {
-			return accessPositive(), nil
+		nextPath := path.Next()
+		if nextPath != nil {
+			switch nextPath.Name() {
+			case "offset":
+				return accessPositiveOffset(), nil
+			case "bucket_counts":
+				return accessPositiveBucketCounts(), nil
+			default:
+				return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextName, internal.DataPointRef)
+			}
 		}
-		switch path[1].Name {
-		case "offset":
-			return accessPositiveOffset(), nil
-		case "bucket_counts":
-			return accessPositiveBucketCounts(), nil
-		}
+		return accessPositive(), nil
 	case "negative":
-		if len(path) == 1 {
-			return accessNegative(), nil
+		nextPath := path.Next()
+		if nextPath != nil {
+			switch nextPath.Name() {
+			case "offset":
+				return accessNegativeOffset(), nil
+			case "bucket_counts":
+				return accessNegativeBucketCounts(), nil
+			default:
+				return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextName, internal.DataPointRef)
+			}
 		}
-		switch path[1].Name {
-		case "offset":
-			return accessNegativeOffset(), nil
-		case "bucket_counts":
-			return accessNegativeBucketCounts(), nil
-		}
+		return accessNegative(), nil
 	case "quantile_values":
 		return accessQuantileValues(), nil
+	default:
+		return nil, internal.FormatDefaultErrorMessage(path.Name(), path.String(), contextName, internal.DataPointRef)
 	}
-	return nil, fmt.Errorf("invalid path expression %v", path)
 }
 
 func accessCache() ottl.StandardGetSetter[TransformContext] {
@@ -218,13 +239,13 @@ func accessCache() ottl.StandardGetSetter[TransformContext] {
 	}
 }
 
-func accessCacheKey(keys []ottl.Key) ottl.StandardGetSetter[TransformContext] {
+func accessCacheKey(key []ottl.Key[TransformContext]) ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
 		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
-			return internal.GetMapValue(tCtx.getCache(), keys)
+			return internal.GetMapValue[TransformContext](ctx, tCtx, tCtx.getCache(), key)
 		},
 		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
-			return internal.SetMapValue(tCtx.getCache(), keys, val)
+			return internal.SetMapValue[TransformContext](ctx, tCtx, tCtx.getCache(), key, val)
 		},
 	}
 }
@@ -268,31 +289,31 @@ func accessAttributes() ottl.StandardGetSetter[TransformContext] {
 	}
 }
 
-func accessAttributesKey(keys []ottl.Key) ottl.StandardGetSetter[TransformContext] {
+func accessAttributesKey(key []ottl.Key[TransformContext]) ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
 		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
 			switch tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return internal.GetMapValue(tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), keys)
+				return internal.GetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), key)
 			case pmetric.HistogramDataPoint:
-				return internal.GetMapValue(tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), keys)
+				return internal.GetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), key)
 			case pmetric.ExponentialHistogramDataPoint:
-				return internal.GetMapValue(tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), keys)
+				return internal.GetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), key)
 			case pmetric.SummaryDataPoint:
-				return internal.GetMapValue(tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), keys)
+				return internal.GetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), key)
 			}
 			return nil, nil
 		},
 		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
 			switch tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				return internal.SetMapValue(tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), keys, val)
+				return internal.SetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.NumberDataPoint).Attributes(), key, val)
 			case pmetric.HistogramDataPoint:
-				return internal.SetMapValue(tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), keys, val)
+				return internal.SetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.HistogramDataPoint).Attributes(), key, val)
 			case pmetric.ExponentialHistogramDataPoint:
-				return internal.SetMapValue(tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), keys, val)
+				return internal.SetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.ExponentialHistogramDataPoint).Attributes(), key, val)
 			case pmetric.SummaryDataPoint:
-				return internal.SetMapValue(tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), keys, val)
+				return internal.SetMapValue[TransformContext](ctx, tCtx, tCtx.GetDataPoint().(pmetric.SummaryDataPoint).Attributes(), key, val)
 			}
 			return nil
 		},

@@ -19,7 +19,7 @@ When adding new values to the grammar you must:
 
 All new functions must be added via a new file.  Function files must start with `func_`.  Functions must be placed in `ottlfuncs`.
 
-Unit tests must be added for all new functions.  Unit test files must start with `func_` and end in `_test`.  Unit tests must be placed in the same directory as the function.  Functions that are not specific to a pipeline should be tested independently of any specific pipeline. Functions that are specific to a pipeline should be tests against that pipeline.
+Unit tests must be added for all new functions.  Unit test files must start with `func_` and end in `_test`.  Unit tests must be placed in the same directory as the function.  Functions that are not specific to a pipeline should be tested independently of any specific pipeline. Functions that are specific to a pipeline should be tests against that pipeline. End-to-end tests must be added in the `e2e` directory.
 
 Function names should follow the [Function Syntax Guidelines](ottlfuncs/README.md#function-syntax)
 

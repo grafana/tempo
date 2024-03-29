@@ -27,14 +27,20 @@ func (e Expr[K]) Eval(ctx context.Context, tCtx K) (any, error) {
 	return e.exprFunc(ctx, tCtx)
 }
 
+// Getter resolves a value at runtime without performing any type checking on the value that is returned.
 type Getter[K any] interface {
+	// Get retrieves a value of type 'Any' and returns an error if there are any issues during retrieval.
 	Get(ctx context.Context, tCtx K) (any, error)
 }
 
+// Setter allows setting an untyped value on a predefined field within some data at runtime.
 type Setter[K any] interface {
+	// Set sets a value of type 'Any' and returns an error if there are any issues during the setting process.
 	Set(ctx context.Context, tCtx K, val any) error
 }
 
+// GetSetter is an interface that combines the Getter and Setter interfaces.
+// It should be used to represent the ability to both get and set a value.
 type GetSetter[K any] interface {
 	Getter[K]
 	Setter[K]
@@ -63,7 +69,7 @@ func (l literal[K]) Get(context.Context, K) (any, error) {
 
 type exprGetter[K any] struct {
 	expr Expr[K]
-	keys []Key
+	keys []key
 }
 
 func (g exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
@@ -284,6 +290,7 @@ func (g StandardBoolGetter[K]) Get(ctx context.Context, tCtx K) (bool, error) {
 
 // FunctionGetter uses a function factory to return an instantiated function as an Expr.
 type FunctionGetter[K any] interface {
+	// Get returns a function as an Expr[K] built with the provided Arguments
 	Get(args Arguments) (Expr[K], error)
 }
 
@@ -616,7 +623,7 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 	}
 
 	if val.Enum != nil {
-		enum, err := p.enumParser(val.Enum)
+		enum, err := p.enumParser((*EnumSymbol)(val.Enum))
 		if err != nil {
 			return nil, err
 		}
@@ -631,7 +638,11 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 			return &literal[K]{value: *i}, nil
 		}
 		if eL.Path != nil {
-			return p.pathParser(eL.Path)
+			np, err := newPath[K](eL.Path.Fields)
+			if err != nil {
+				return nil, err
+			}
+			return p.parsePath(np)
 		}
 		if eL.Converter != nil {
 			return p.newGetterFromConverter(*eL.Converter)

@@ -12,9 +12,12 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/localhostgate"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/metadata"
 )
+
+const grpcPort = 55678
 
 // NewFactory creates a new OpenCensus receiver factory.
 func NewFactory() receiver.Factory {
@@ -27,10 +30,10 @@ func NewFactory() receiver.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		GRPCServerSettings: configgrpc.GRPCServerSettings{
-			NetAddr: confignet.NetAddr{
-				Endpoint:  "0.0.0.0:55678",
-				Transport: "tcp",
+		ServerConfig: configgrpc.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  localhostgate.EndpointForPort(grpcPort),
+				Transport: confignet.TransportTypeTCP,
 			},
 			// We almost write 0 bytes, so no need to tune WriteBufferSize.
 			ReadBufferSize: 512 * 1024,
@@ -44,16 +47,10 @@ func createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
-	var err error
 	r := receivers.GetOrAdd(cfg, func() component.Component {
 		rCfg := cfg.(*Config)
-		var recv *ocReceiver
-		recv, err = newOpenCensusReceiver(rCfg.NetAddr.Transport, rCfg.NetAddr.Endpoint, nil, nil, set, rCfg.buildOptions()...)
-		return recv
+		return newOpenCensusReceiver(rCfg, nil, nil, set, rCfg.buildOptions()...)
 	})
-	if err != nil {
-		return nil, err
-	}
 	r.Unwrap().(*ocReceiver).traceConsumer = nextConsumer
 
 	return r, nil
@@ -65,16 +62,10 @@ func createMetricsReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (receiver.Metrics, error) {
-	var err error
 	r := receivers.GetOrAdd(cfg, func() component.Component {
 		rCfg := cfg.(*Config)
-		var recv *ocReceiver
-		recv, err = newOpenCensusReceiver(rCfg.NetAddr.Transport, rCfg.NetAddr.Endpoint, nil, nil, set, rCfg.buildOptions()...)
-		return recv
+		return newOpenCensusReceiver(rCfg, nil, nil, set, rCfg.buildOptions()...)
 	})
-	if err != nil {
-		return nil, err
-	}
 	r.Unwrap().(*ocReceiver).metricsConsumer = nextConsumer
 
 	return r, nil

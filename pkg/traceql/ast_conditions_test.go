@@ -150,6 +150,55 @@ func TestScalarFilter_extractConditions(t *testing.T) {
 	}
 }
 
+func TestStructuralNestedSet_extractConditions(t *testing.T) {
+	tests := []struct {
+		query         string
+		conditions    []Condition
+		allConditions bool
+	}{
+		{
+			query: `{} >> {}`,
+			conditions: []Condition{
+				newCondition(NewIntrinsic(IntrinsicStructuralDescendant), OpNone),
+			},
+			allConditions: false,
+		},
+		{
+			query: `{ nestedSetRight = 2 }`,
+			conditions: []Condition{
+				newCondition(NewIntrinsic(IntrinsicNestedSetRight), OpEqual, NewStaticInt(2)),
+			},
+			allConditions: true,
+		},
+
+		{
+			query: `{ nestedSetParent = 1 } > { nestedSetLeft < 3 }`,
+			conditions: []Condition{
+				newCondition(NewIntrinsic(IntrinsicStructuralChild), OpNone),
+				newCondition(NewIntrinsic(IntrinsicNestedSetParent), OpEqual, NewStaticInt(1)),
+				newCondition(NewIntrinsic(IntrinsicNestedSetLeft), OpLess, NewStaticInt(3)),
+			},
+			allConditions: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := Parse(tt.query)
+			require.NoError(t, err)
+
+			req := &FetchSpansRequest{
+				Conditions:    []Condition{},
+				AllConditions: true,
+			}
+			expr.Pipeline.extractConditions(req)
+
+			assert.Equal(t, tt.conditions, req.Conditions)
+			assert.Nil(t, req.SecondPassConditions)
+			assert.Equal(t, tt.allConditions, req.AllConditions, "FetchSpansRequest.AllConditions")
+		})
+	}
+}
+
 func TestSelect_extractConditions(t *testing.T) {
 	tests := []struct {
 		query                string

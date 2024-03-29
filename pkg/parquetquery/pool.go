@@ -8,11 +8,6 @@ import (
 
 var DefaultPool = NewResultPool(10)
 
-type (
-	PoolFn    func() *IteratorResult
-	ReleaseFn func(*IteratorResult)
-)
-
 type ResultPool struct {
 	pool *sync.Pool
 	cap  int
@@ -42,7 +37,6 @@ func (p *ResultPool) Get() *IteratorResult {
 			Key   string
 			Value any
 		}, 0, p.cap),
-		ReleaseFn: p.Release,
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 )
 
 type Responses[T any] interface {
+	// Next returns the next response or an error if one is available. It always prefers an error over a response.
 	Next(context.Context) (T, bool, error) // bool = done
 }
 
@@ -72,8 +73,11 @@ func newAsyncResponse() *asyncResponse {
 	}
 }
 
-func (a *asyncResponse) Send(r Responses[*http.Response]) {
-	a.respChan <- r
+func (a *asyncResponse) Send(ctx context.Context, r Responses[*http.Response]) {
+	select {
+	case <-ctx.Done():
+	case a.respChan <- r:
+	}
 }
 
 // SendError sends an error to the asyncResponse. This will cause the asyncResponse to return the error on the next call to Next.
@@ -87,7 +91,8 @@ func (a *asyncResponse) SendError(err error) {
 	}
 }
 
-func (a *asyncResponse) done() {
+// SendComplete indicates the sender is done. We close the channel to give a clear signal to the consumer
+func (a *asyncResponse) SendComplete() {
 	close(a.respChan)
 }
 

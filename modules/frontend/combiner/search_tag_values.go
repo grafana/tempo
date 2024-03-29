@@ -10,9 +10,9 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagValuesV2Response] = (*genericCombiner[*tempopb.SearchTagValuesV2Response])(nil)
 )
 
-func NewSearchTagValues() Combiner {
+func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
+	d := util.NewDistinctStringCollector(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
@@ -25,15 +25,26 @@ func NewSearchTagValues() Combiner {
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
-			final.TagValues = d.Values()
+			final.TagValues = d.Strings()
 			return final, nil
+		},
+		quit: func(_ *tempopb.SearchTagValuesResponse) bool {
+			return d.Exceeded()
+		},
+		diff: func(response *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
+			response.TagValues = d.Diff()
+			return response, nil
 		},
 	}
 }
 
-func NewSearchTagValuesV2() Combiner {
+func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesResponse] {
+	return NewSearchTagValues(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesResponse])
+}
+
+func NewSearchTagValuesV2(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ tempopb.TagValue) int { return 0 })
+	d := util.NewDistinctValueCollector(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		current: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
@@ -45,13 +56,29 @@ func NewSearchTagValuesV2() Combiner {
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagValuesV2Response) (*tempopb.SearchTagValuesV2Response, error) {
-			final.TagValues = make([]*tempopb.TagValue, 0, len(d.Values()))
 			values := d.Values()
+			final.TagValues = make([]*tempopb.TagValue, 0, len(values))
 			for _, v := range values {
 				v2 := v
 				final.TagValues = append(final.TagValues, &v2)
 			}
 			return final, nil
 		},
+		quit: func(_ *tempopb.SearchTagValuesV2Response) bool {
+			return d.Exceeded()
+		},
+		diff: func(response *tempopb.SearchTagValuesV2Response) (*tempopb.SearchTagValuesV2Response, error) {
+			diff := d.Diff()
+			response.TagValues = make([]*tempopb.TagValue, 0, len(diff))
+			for _, v := range diff {
+				v2 := v
+				response.TagValues = append(response.TagValues, &v2)
+			}
+			return response, nil
+		},
 	}
+}
+
+func NewTypedSearchTagValuesV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesV2Response] {
+	return NewSearchTagValuesV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
 }

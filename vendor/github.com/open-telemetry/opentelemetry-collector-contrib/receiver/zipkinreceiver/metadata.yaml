@@ -1,4 +1,5 @@
 type: zipkin
+scope_name: otelcol/zipkinreceiver
 
 status:
   class: receiver
@@ -16,6 +17,3 @@ status:
   - liatrio
   codeowners:
     active: [MovieStoreGuy, astencel-sumo, crobert-1]
-
-tests:
-  config:
