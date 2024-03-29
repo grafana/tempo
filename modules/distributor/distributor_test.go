@@ -1393,7 +1393,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distr
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(limits, prometheus.DefaultRegisterer)
+	overrides, err := overrides.NewOverrides(limits, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring

@@ -5,14 +5,67 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/ring"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/generator"
+	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
+
+func Test_runtimeOverridesValidator(t *testing.T) {
+	testCases := []struct {
+		name      string
+		cfg       Config
+		overrides overrides.Overrides
+		expErr    string
+	}{
+		{
+			name: "ingestion.tenant_shard_size smaller than RF",
+			cfg: Config{
+				Ingester: ingester.Config{
+					LifecyclerConfig: ring.LifecyclerConfig{
+						RingConfig: ring.Config{
+							ReplicationFactor: 3,
+						},
+					},
+				},
+			},
+			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 2}},
+			expErr:    "ingester.tenant.shard_size is lower than replication factor (2 < 3)",
+		},
+		{
+			name: "ingestion.tenant_shard_size equal to RF",
+			cfg: Config{
+				Ingester: ingester.Config{
+					LifecyclerConfig: ring.LifecyclerConfig{
+						RingConfig: ring.Config{
+							ReplicationFactor: 3,
+						},
+					},
+				},
+			},
+			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 3}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			validator := newRuntimeConfigValidator(&tc.cfg)
+
+			err := validator.Validate(&tc.overrides)
+			if tc.expErr != "" {
+				assert.EqualError(t, err, tc.expErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
 func Test_overridesValidator(t *testing.T) {
 	testCases := []struct {
@@ -130,7 +183,7 @@ func Test_overridesValidator(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			validator := NewOverridesValidator(&tc.cfg)
+			validator := newOverridesValidator(&tc.cfg)
 
 			err := validator.Validate(&tc.limits)
 			if tc.expErr != "" {
