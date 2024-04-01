@@ -172,6 +172,7 @@ spec:
           restartPolicy: Never
 ```
 
+
 To view the tracing data:
 
 1. Go to Grafana and select **Explore**.
