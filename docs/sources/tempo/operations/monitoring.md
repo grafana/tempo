@@ -330,7 +330,8 @@ To install the mixins in Grafana, you will:
    ```bash
    git clone git+ssh://github.com/grafana/tempo
    ```
-2. Once you have a local copy of the repository, navigate to the `operations/tempo-mixin-compiled` directory.
+
+1. Once you have a local copy of the repository, navigate to the `operations/tempo-mixin-compiled` directory.
    ```bash
    cd operations/tempo-mixin-compiled
    ```
@@ -357,9 +358,7 @@ To create a folder:
 
 1. Select **New folder** from the **New** drop-down.
 
-
 ![alt_text](images/image1.png "image_tooltip")
-
 
 1. Name your folder, for example, “Tempo Monitoring”.
 
@@ -377,13 +376,13 @@ To import a dashboard:
 
 1. On the **Import dashboard** screen, select **Upload.**
 
-1. Browse to `operations/tempo-mixin-compiled/dashboards` and select the dashboard that you wish to import.
+1. Browse to `operations/tempo-mixin-compiled/dashboards` and select the dashboard to import.
 
 1. Drag the dashboard file, for example, `tempo-operational.json`, onto the **Upload** area of the **Import dashboard** screen. Alternatively, you can browse to and select a file.
 
 ![alt_text](images/image3.png "image_tooltip")
 
-1. Select a folder in the **Folder** drop-down where you want to save the imported dashboard. For example, select Tempo Monitoring** **created in the earlier steps.
+1. Select a folder in the **Folder** drop-down where you want to save the imported dashboard. For example, select Tempo Monitoring created in the earlier steps.
 
 1. Select **Import**.
 
@@ -404,7 +403,7 @@ The ‘Tempo Operational’ dashboard shows read (query) information:
 #### Add alerts and rules to Prometheus or Mimir
 
 The rules and alerts need to be installed into your Mimir or Prometheus instance.
-To do this in Prometheus, refer to the documentation for [recording rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) and [alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/).
+To do this in Prometheus, refer to the [recording rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) and [alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/) documentation.
 
 For Mimir, you can use `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` to upload [rule](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#rules) and [alert](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#alertmanager) configuration.
 Using a default installation of Mimir used as the metrics store for the Agent configuration above, you might run the following:
@@ -415,4 +414,4 @@ mimirtool rules load operations/tempo-mixin-compiles/rules.yml --address=https:/
 mimirtool alertmanager load operations/tempo-mixin-compiles/alerts.yml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
 ```
 
-For Grafana Cloud, you will need to add the username and API key as well. Refer to the `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` documentation for more information.
+For Grafana Cloud, you need to add the username and API key as well. Refer to the `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` documentation for more information.
