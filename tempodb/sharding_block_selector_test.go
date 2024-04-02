@@ -750,3 +750,29 @@ func TestShardingBlockSelector(t *testing.T) {
 		})
 	}
 }
+
+/*
+func TestRealIndex(t *testing.T) {
+	x, err := os.ReadFile("/Users/marty/src/deployment_tools/index.json")
+	require.NoError(t, err)
+
+	i := backend.TenantIndex{}
+
+	err = json.Unmarshal(x, &i)
+	require.NoError(t, err)
+
+	window := 8 * time.Minute
+	maxObjs := 3_000_000
+	maxSize := uint64(107374182400)
+	selector := newShardingBlockSelector(8, i.Meta, window, maxObjs, maxSize, 2, 4)
+
+	for {
+		cmd := selector.BlocksToCompact()
+		if len(cmd.Blocks()) == 0 {
+			break
+		}
+
+		// fmt.Println("Compaction command:", blockIDs, cmd.Ownership())
+	}
+}
+*/
