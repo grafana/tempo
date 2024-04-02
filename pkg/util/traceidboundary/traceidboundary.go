@@ -10,6 +10,15 @@ type Boundary struct {
 	Min, Max []byte
 }
 
+var _8byteRegions = []struct {
+	min, max uint64
+}{
+	{0x0000000000000000, 0x00FFFFFFFFFFFFFF}, // Region with upper byte = 0
+	{0x0100000000000000, 0x0FFFFFFFFFFFFFFF}, // Region with upper nibble = 0
+	{0x1000000000000000, 0x7FFFFFFFFFFFFFFF}, // Region for 63-bit IDs (upper bit = 0)
+	{0x8000000000000000, 0xFFFFFFFFFFFFFFFF}, // Region for true 64-bit IDs
+}
+
 // Pairs returns the boundaries that match trace IDs in that shard.  Internally this is
 // similar to how queriers divide the block ID-space, but here it's trace IDs instead.
 // The inputs are 1-based because it seems more readable: shard 1 of 10.  Most boundaries
@@ -84,16 +93,7 @@ func Funcs(shard, of uint32) (testSingle func([]byte) bool, testRange func([]byt
 func complicatedShardingFor8ByteIDs(shard, of uint32) []Boundary {
 	var results []Boundary
 
-	regions := []struct {
-		min, max uint64
-	}{
-		{0x0000000000000000, 0x00FFFFFFFFFFFFFF}, // Region with upper byte = 0
-		{0x0100000000000000, 0x0FFFFFFFFFFFFFFF}, // Region with upper nibble = 0
-		{0x1000000000000000, 0x7FFFFFFFFFFFFFFF}, // Region for 63-bit IDs (upper bit = 0)
-		{0x8000000000000000, 0xFFFFFFFFFFFFFFFF}, // Region for true 64-bit IDs
-	}
-
-	for _, r := range regions {
+	for _, r := range _8byteRegions {
 		b := bounds(of, r.min, r.max, 8)
 		results = append(results, Boundary{
 			Min: b[shard-1],
@@ -133,4 +133,22 @@ func bounds(shards uint32, min, max uint64, dest int) [][]byte {
 	binary.BigEndian.PutUint64(bounds[shards][dest:], max)
 
 	return bounds
+}
+
+func All(of uint32) [][]byte {
+	var boundaries [][]byte
+
+	for _, r := range _8byteRegions {
+		b := bounds(of, r.min, r.max, 8)
+		boundaries = append(boundaries, b[1:]...) // Drop the starting value, we just need the upper cutoffs
+	}
+
+	b := bounds(of, 0, math.MaxUint64, 0)
+
+	// Adjust max to be full 16-byte max
+	b[of] = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
+	boundaries = append(boundaries, b[1:]...) // Drop the starting value, we just need the upper cutoffs
+
+	return boundaries
 }
