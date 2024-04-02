@@ -13,6 +13,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
@@ -64,16 +65,25 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	// Get blocks that overlap this time range
+	checkShard := func(min, max []byte) bool {
+		return true
+	}
+	if req.ShardCount > 1 {
+		_, checkShard = traceidboundary.Funcs(req.ShardID, req.ShardCount)
+	}
+
+	// Get blocks that overlap this time range and shard
 	metas := q.store.BlockMetas(tenantID)
-	withinTimeRange := metas[:0]
+	matchingBlocks := metas[:0]
 	for _, m := range metas {
-		if m.StartTime.UnixNano() <= int64(req.End) && m.EndTime.UnixNano() > int64(req.Start) {
-			withinTimeRange = append(withinTimeRange, m)
+		if m.StartTime.UnixNano() <= int64(req.End) &&
+			m.EndTime.UnixNano() > int64(req.Start) &&
+			checkShard(m.MinID, m.MaxID) {
+			matchingBlocks = append(matchingBlocks, m)
 		}
 	}
 
-	if len(withinTimeRange) == 0 {
+	if len(matchingBlocks) == 0 {
 		return nil, nil
 	}
 
@@ -81,7 +91,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 
 	// Optimization
 	// If there's only 1 block then dedupe not needed.
-	dedupe := len(withinTimeRange) > 1
+	dedupe := len(matchingBlocks) > 1
 
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
@@ -106,7 +116,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 	wg := boundedwaitgroup.New(uint(concurrency))
 	jobErr := atomic.Error{}
 
-	for _, m := range withinTimeRange {
+	for _, m := range matchingBlocks {
 		// If a job errored then quit immediately.
 		if err := jobErr.Load(); err != nil {
 			return nil, err
