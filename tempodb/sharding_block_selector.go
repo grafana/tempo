@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"golang.org/x/exp/slices"
@@ -25,11 +25,12 @@ type shardingBlockSelector struct {
 }
 
 type shardingBlockEntry struct {
-	meta  *backend.BlockMeta
-	group string // Blocks in the same group will be compacted together. Sort order also determines group priority.
-	order string // Individual block priority within the group.
-	hash  string // hash string used for sharding ownership
-	split bool
+	meta      *backend.BlockMeta
+	group     string // Blocks in the same group will be compacted together. Sort order also determines group priority.
+	order     string // Individual block priority within the group.
+	hash      string // hash string used for sharding ownership
+	split     bool
+	minBlocks int
 }
 
 type shardedCompaction struct {
@@ -77,7 +78,7 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
 		MaxBlockBytes:        maxBlockBytes,
-		boundaries:           blockboundary.CreateBlockBoundaries(shards)[1:], // Remove the starting 00... boundary
+		boundaries:           traceidboundary.All(uint32(shards)),
 	}
 
 	var (
@@ -103,22 +104,23 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 			shardMin = fmt.Sprintf("%03d", shard)
 			shardMax = fmt.Sprintf("%03d", twbs.shardOf(b.MaxID))
 			columns  = fmt.Sprintf("%016X", b.DedicatedColumnsHash())
-			level    = fmt.Sprintf("%03d", b.CompactionLevel)
-			window   = fmt.Sprintf("%v", w)
-			age      = fmt.Sprintf("%016X", currWindow-w)
-			min      = fmt.Sprintf("%X", b.MinID)
+			// level    = fmt.Sprintf("%03d", b.CompactionLevel)
+			window = fmt.Sprintf("%v", w)
+			age    = fmt.Sprintf("%016X", currWindow-w)
+			min    = fmt.Sprintf("%X", b.MinID)
 		)
 
-		if w < activeWindow {
-			// Outside active window. We no longer care about compaction level
-			level = ""
-		}
+		// if w < activeWindow {
+		// Outside active window. We no longer care about compaction level
+		level := ""
+		//}
 
 		entry := shardingBlockEntry{
 			meta: b,
 			// Within group order by lowest trace ID to try to co-locate traces even further
 			// This is the same for all cases.
-			order: min,
+			order:     min,
+			minBlocks: twbs.MinInputBlocks,
 		}
 
 		switch {
@@ -143,6 +145,7 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 		case b.CompactionLevel == 0:
 			// Unsharded new block that needs to be split
 			entry.split = true
+			entry.minBlocks = 1
 			entry.group = join(
 				"B",            // Second priority is splitting blocks
 				level,          // proritize lower levels
@@ -161,6 +164,7 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 			// Existing block without sharding, or sharded under different settings.
 			// Let's go ahead and resplit/combine exsting blocks, but with the lowest priority
 			entry.split = true
+			entry.minBlocks = 1
 			entry.group = join(
 				"C",            // lowest priority
 				level,          // proritize lower levels
@@ -206,6 +210,7 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 		// Gather contiguous blocks while staying within limits
 		i := 0
 		for ; i < len(twbs.entries); i++ {
+			chosen = twbs.entries[i:1]
 			for j := i + 1; j < len(twbs.entries); j++ {
 				stripe := twbs.entries[i : j+1]
 				if twbs.entries[i].group == twbs.entries[j].group &&
@@ -227,7 +232,7 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 		twbs.entries = twbs.entries[i+len(chosen):]
 
 		// did we find enough blocks?
-		if len(chosen) >= twbs.MinInputBlocks {
+		if len(chosen) > 0 && len(chosen) >= chosen[0].minBlocks {
 			res := shardedCompaction{
 				maxCompactionObjects: twbs.MaxCompactionObjects,
 				hash:                 chosen[0].hash,
@@ -237,7 +242,6 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 			for _, e := range chosen {
 				res.blocks = append(res.blocks, e.meta)
 			}
-
 			return &res
 		}
 	}
