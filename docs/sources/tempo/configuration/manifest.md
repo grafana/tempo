@@ -366,6 +366,7 @@ compactor:
         retention_concurrency: 10
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
+        shards: 0
     override_ring_key: compactor
 ingester:
     lifecycler:

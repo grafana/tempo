@@ -666,6 +666,9 @@ compactor:
         # Note: The default will be used if the value is set to 0.
         [compaction_cycle: <duration>]
 
+        # Optional. The number of shards to split compacted blocks into. Set to 2 or higher to enable.  Default is 0 (disabled).
+        [shards: <int>]
+
         # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
         [v2_in_buffer_bytes: <int>]
 
@@ -1280,6 +1283,9 @@ overrides:
       # Per-user compaction window. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
+      # Per-user compaction shard count. If this value is set to 0 (default),
+      # then shards in the compactor configuration is used.
+      [shards: <int> | default = 0]
 
     # Metrics-generator related overrides
     metrics_generator:
