@@ -1,5 +1,5 @@
 ---
-title: Set up monitoring
+title: Set up monitoringfor Tempo
 menuTitle: Set up monitoring
 description: Set up monitoring for Tempo
 weight: 20
