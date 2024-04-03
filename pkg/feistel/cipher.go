@@ -14,10 +14,8 @@ const (
 	rounds = 4 // TODO(mapno): How many rounds should we use?
 )
 
-var (
-	// TODO(mapno): What makes for a good key?
-	key = []byte{73, 116, 39, 115, 32, 109, 101, 44, 32, 77, 97, 114, 105, 111, 33} // Random key
-)
+// TODO(mapno): What makes for a good key?
+var key = []byte{73, 116, 39, 115, 32, 109, 101, 44, 32, 77, 97, 114, 105, 111, 33} // Random key
 
 // Encrypt function encrypts the given data using the Feistel cipher.
 // If `inPlace` is true, it modifies the input data directly (in-place encryption).
