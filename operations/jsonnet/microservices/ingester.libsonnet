@@ -30,9 +30,6 @@
     + pvc.mixin.metadata.withLabels({ app: target_name })
     + pvc.mixin.metadata.withNamespace($._config.namespace),
 
-
-  tempo_ingester_chown_container:: $.tempo_chown_container(tempo_data_volume, '10001'),
-
   tempo_ingester_container::
     container.new(target_name, $._images.tempo) +
     container.withPorts($.tempo_ingester_ports) +

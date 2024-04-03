@@ -7,16 +7,16 @@
   local volumeMount = k.core.v1.volumeMount,
   local statefulset = k.apps.v1.statefulSet,
 
-  tempo_chown_container(data_volume, uid)::
+  tempo_chown_container(data_volume, uid='10001', gid='10001', dir='/var/tempo')::
     container.new('chown-' + data_volume, $._images.tempo) +
     container.withCommand('chown') +
     container.withArgs([
       '-R',
-      uid,
-      '/var/tempo',
+      '%s:%s' % [uid, gid],
+      dir,
     ]) +
     container.withVolumeMounts([
-      volumeMount.new(data_volume, '/var/tempo'),
+      volumeMount.new(data_volume, dir),
     ]) +
     container.securityContext.withRunAsUser(0) +
     container.securityContext.withRunAsGroup(0) +
@@ -89,12 +89,12 @@
     withInitChown():: {
       tempo_metrics_generator_statefulset+:
         statefulset.spec.template.spec.withInitContainers([
-          self.tempo_metrics_generator_chown_container,
+          $.tempo_chown_container('metrics-generator-data'),
         ]),
 
       tempo_ingester_statefulset+:
         statefulset.spec.template.spec.withInitContainers([
-          self.tempo_ingester_chown_container,
+          $.tempo_chown_container('ingester-data'),
         ]),
     },
   },
