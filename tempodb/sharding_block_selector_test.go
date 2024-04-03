@@ -58,7 +58,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 		{
 			name: "choose two with lowest trace ID",
@@ -92,7 +92,15 @@ func TestShardingBlockSelector(t *testing.T) {
 					MinID:   []byte{1},
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
+			expectedSecond: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					MinID:   []byte{2},
+				},
+			},
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 		{
 			name: "different windows",
@@ -124,7 +132,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
@@ -135,7 +143,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					EndTime: now.Add(-timeWindow),
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Add(-timeWindow).Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Add(-timeWindow).Unix()),
 		},
 		{
 			// All of these blocks fall within the same shard.
@@ -176,7 +184,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					MinID:   []byte{1},
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -189,7 +197,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					MinID:   []byte{4},
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 		{
 			// The two blocks that are already compacted and within a single shard (min/max=0)
@@ -227,7 +235,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					CompactionLevel: 1,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v-%03d", tenantID, 1, now.Unix(), 0), // CompactionLevel=1 and shard=0
+			expectedHash: fmt.Sprintf("%v-%v-%03d", tenantID, now.Unix(), 0), // CompactionLevel=1 and shard=0
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
@@ -238,73 +246,20 @@ func TestShardingBlockSelector(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 		{
-			// Blocks older than active time window allow combining across compaction levels
-			// First pass chooses the already-compacted/sharded blocks
-			// Second pass chooses the new blocks that need to be split
-			name: "active time window vs not",
+			name: "doesn't choose across time windows for already sharded blocks",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime:         now.Add(-activeWindowDuration - time.Minute),
-					CompactionLevel: 2,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:         now.Add(-activeWindowDuration - time.Minute),
-					CompactionLevel: 3,
-				},
-			},
-			expected: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime:         now.Add(-activeWindowDuration - time.Minute),
-					CompactionLevel: 2,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:         now.Add(-activeWindowDuration - time.Minute),
-					CompactionLevel: 3,
-				},
-			},
-			expectedHash: fmt.Sprintf("%v--%v-%03d", tenantID, now.Add(-activeWindowDuration-time.Minute).Unix(), 0), // No compaction level, and shard=0
-			expectedSecond: []*backend.BlockMeta{
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime: now,
-				},
-			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
-		},
-		{
-			name: "doesn't choose across time windows",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now,
-				},
-				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now.Add(-timeWindow),
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:         now.Add(-timeWindow),
+					CompactionLevel: 1,
 				},
 			},
 			expected:       nil,
@@ -316,14 +271,16 @@ func TestShardingBlockSelector(t *testing.T) {
 			name: "doesn't exceed max compaction objects",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 99,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects:    99,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 2,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects:    2,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
 			expected:       nil,
@@ -335,14 +292,16 @@ func TestShardingBlockSelector(t *testing.T) {
 			name: "doesn't exceed max block size",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					Size:    50,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:            50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					Size:    51,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:            51,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
 			maxBlockBytes:  100,
@@ -355,34 +314,39 @@ func TestShardingBlockSelector(t *testing.T) {
 			name: "Returns as many blocks as possible without exceeding max compaction objects",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 50,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects:    50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 50,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects:    50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					TotalObjects: 50,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					TotalObjects:    50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					TotalObjects: 50,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					TotalObjects:    50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					TotalObjects: 50,
-					EndTime:      now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					TotalObjects:    50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
-			expectedHash:   fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash:   fmt.Sprintf("%v-%v-%03d", tenantID, now.Unix(), 0), // shard=0
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
@@ -391,34 +355,39 @@ func TestShardingBlockSelector(t *testing.T) {
 			maxBlockBytes: 100,
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					Size:    50,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:            50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					Size:    50,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:            50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					Size:    1,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					Size:            1,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					Size:    50,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Size:            50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					Size:    50,
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					Size:            50,
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
-			expectedHash:   fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash:   fmt.Sprintf("%v-%v-%03d", tenantID, now.Unix(), 0), // shard=0
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
@@ -470,7 +439,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					TotalObjects: 3,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
@@ -483,18 +452,20 @@ func TestShardingBlockSelector(t *testing.T) {
 					TotalObjects: 5,
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 		{
-			name: "honors minimum block count",
+			name: "honors minimum block count for sharded blocks",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:         now,
+					CompactionLevel: 1,
 				},
 			},
 			minInputBlocks: 3,
@@ -505,95 +476,37 @@ func TestShardingBlockSelector(t *testing.T) {
 			expectedHash2:  "",
 		},
 		{
-			name: "can choose blocks not at the lowest compaction level",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:         now,
-					CompactionLevel: 0,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime:         now,
-					CompactionLevel: 1,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime:         now,
-					CompactionLevel: 1,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					EndTime:         now,
-					CompactionLevel: 1,
-				},
-			},
-			minInputBlocks: 3,
-			maxInputBlocks: 3,
-			expected: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime:         now,
-					CompactionLevel: 1,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-					EndTime:         now,
-					CompactionLevel: 1,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
-					EndTime:         now,
-					CompactionLevel: 1,
-				},
-			},
-			expectedHash:   fmt.Sprintf("%v-%03d-%v-%03d", tenantID, 1, now.Unix(), 0), // CompactionLevel=1, shard=0
-			expectedSecond: nil,
-			expectedHash2:  "",
-		},
-		{
-			name: "doesn't select blocks in last active window",
-			blocklist: []*backend.BlockMeta{
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:         now.Add(-activeWindowDuration),
-					CompactionLevel: 0,
-				},
-				{
-					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime:         now.Add(-activeWindowDuration),
-					CompactionLevel: 0,
-				},
-			},
-		},
-		{
 			name: "don't compact across dataEncodings",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-					EndTime:      now,
-					DataEncoding: "bar",
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					EndTime:         now,
+					DataEncoding:    "bar",
+					CompactionLevel: 1,
 				},
 				{
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime:      now,
-					DataEncoding: "foo",
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now,
+					DataEncoding:    "foo",
+					CompactionLevel: 1,
 				},
 			},
 			expected: nil,
 		},
 		{
-			name: "ensures blocks of different versions are not compacted",
+			name: "don't compact across versions",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-					EndTime: now,
-					Version: "v2",
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:         now,
+					Version:         "v2",
+					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-					EndTime: now,
-					Version: "vParquet",
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:         now,
+					Version:         "vParquet",
+					CompactionLevel: 1,
 				},
 			},
 			expected:       nil,
@@ -637,7 +550,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					Version: "v2",
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -650,7 +563,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					Version: "vParquet",
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 		{
 			name: "blocks with different dedicated columns are not selected together",
@@ -700,7 +613,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					},
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -717,7 +630,7 @@ func TestShardingBlockSelector(t *testing.T) {
 					},
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%03d-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Unix()),
 		},
 	}
 

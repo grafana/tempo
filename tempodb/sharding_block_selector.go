@@ -82,101 +82,87 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 	}
 
 	var (
-		now          = time.Now()
-		currWindow   = twbs.windowForTime(now)
-		activeWindow = twbs.windowForTime(now.Add(-activeWindowDuration))
+		now        = time.Now()
+		currWindow = twbs.windowForTime(now)
 	)
 
 	for _, b := range blocklist {
-		w := twbs.windowForBlock(b)
 
-		// exclude blocks that fall in last window from active -> inactive cut-over
-		// blocks in this window will not be compacted in order to avoid
-		// ownership conflicts where two compactors process the same block
-		// at the same time as it transitions from last active window to first inactive window.
-		if w == activeWindow {
-			continue
-		}
-
-		// These are all of the numeric values that we can group and order by,
 		var (
-			shard    = twbs.shardOf(b.MinID)
+			w     = twbs.windowForBlock(b)
+			shard = twbs.shardOf(b.MinID)
+
+			// These are all of the numeric values that we can group and order by,
 			shardMin = fmt.Sprintf("%03d", shard)
 			shardMax = fmt.Sprintf("%03d", twbs.shardOf(b.MaxID))
 			columns  = fmt.Sprintf("%016X", b.DedicatedColumnsHash())
-			// level    = fmt.Sprintf("%03d", b.CompactionLevel)
-			window = fmt.Sprintf("%v", w)
-			age    = fmt.Sprintf("%016X", currWindow-w)
-			min    = fmt.Sprintf("%X", b.MinID)
+			level    = fmt.Sprintf("%03d", b.CompactionLevel)
+			window   = fmt.Sprintf("%v", w)
+			age      = fmt.Sprintf("%016X", currWindow-w)
+			min      = fmt.Sprintf("%X", b.MinID)
 		)
 
-		// if w < activeWindow {
-		// Outside active window. We no longer care about compaction level
-		level := ""
-		//}
-
 		entry := shardingBlockEntry{
-			meta: b,
-			// Within group order by lowest trace ID to try to co-locate traces even further
-			// This is the same for all cases.
-			order:     min,
+			meta:      b,
 			minBlocks: twbs.MinInputBlocks,
+			// Within group order by lowest compaction level first,
+			// then lowest trace ID to try to co-locate traces even further.
+			// This is the same for all cases.
+			order: join(level, min),
 		}
 
 		switch {
 		case b.CompactionLevel > 0 && shardMin == shardMax:
 			// This is a previously split block that contains only a single shard.
+			// Combine/dedupe with other blocks in the same window and shard.
+			// This is prioritized over splitting new blocks to keep the block count down.
 			entry.group = join(
-				"A",            // Highest priority is recombining sharded blocks
-				level,          // prioritize lower levels
-				age,            // prioritize newer windows
+				"A",            // Highest priority
+				age,            // prioritize newer windows (more recent data)
 				shardMin,       // same shard
 				b.Version,      //
 				b.DataEncoding, // same block format and column config
 				columns,        //
 			)
 			entry.hash = join(
-				b.TenantID, // Work sharding by tenant, level, window
-				level,      //
+				b.TenantID, // Work sharding by tenant, window
 				window,     //
 				shardMin,   // and shard
 			)
 
 		case b.CompactionLevel == 0:
-			// Unsharded new block that needs to be split
+			// Unsharded new block that needs to be split. This step generates work
+			// for the above step. MinBlocks=1 allows stray single blocks to still be split.
 			entry.split = true
 			entry.minBlocks = 1
 			entry.group = join(
-				"B",            // Second priority is splitting blocks
-				level,          // proritize lower levels
-				age,            // proritize newer windows
+				"B",            // Second priority
+				age,            //
 				b.Version,      //
-				b.DataEncoding, // same block format and column config
+				b.DataEncoding, //
 				columns,        //
 			)
 			entry.hash = join(
-				b.TenantID, // Work sharding by tenant, level, window
-				level,      //
+				b.TenantID, // Work sharding by tenant and window
 				window,     //
 			)
 
 		default:
 			// Existing block without sharding, or sharded under different settings.
-			// Let's go ahead and resplit/combine exsting blocks, but with the lowest priority
+			// Retroactively upgrade them but only if there is spare compactor
+			// capacity, by assigning them the lowest priority.
 			entry.split = true
 			entry.minBlocks = 1
 			entry.group = join(
 				"C",            // lowest priority
-				level,          // proritize lower levels
-				age,            // prioritize newer windows
+				age,            //
 				b.Version,      //
-				b.DataEncoding, // same block format and column config
+				b.DataEncoding, //
 				columns,        //
 			)
 			entry.hash = join(
-				b.TenantID, // Work sharding by tenant, level, window
-				level,      //
-				window,     // window
+				b.TenantID, // Work sharding by tenant and window
+				window,     //
 			)
 		}
 
