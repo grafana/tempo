@@ -258,7 +258,7 @@ func (rw *readerWriter) blockSelector(tenantID string) CompactionBlockSelector {
 		window = rw.compactorCfg.MaxCompactionRange
 	}
 
-	if rw.compactorCfg.ShardCount > 0 {
+	if rw.compactorCfg.ShardCount > 1 {
 		return newShardingBlockSelector(
 			rw.compactorCfg.ShardCount,
 			blocklist,
