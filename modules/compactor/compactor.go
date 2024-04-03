@@ -262,6 +262,10 @@ func (c *Compactor) MaxCompactionRangeForTenant(tenantID string) time.Duration {
 	return c.overrides.MaxCompactionRange(tenantID)
 }
 
+func (c *Compactor) ShardsForTenant(tenantID string) int {
+	return c.overrides.CompactionShards(tenantID)
+}
+
 func (c *Compactor) isSharded() bool {
 	return c.cfg.ShardingRing.KVStore.Store != ""
 }

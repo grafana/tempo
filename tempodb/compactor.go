@@ -24,8 +24,7 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	DefaultCompactionShards = 4
-	DefaultCompactionCycle  = 30 * time.Second
+	DefaultCompactionCycle = 30 * time.Second
 
 	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
 	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
@@ -258,9 +257,14 @@ func (rw *readerWriter) blockSelector(tenantID string) CompactionBlockSelector {
 		window = rw.compactorCfg.MaxCompactionRange
 	}
 
-	if rw.compactorCfg.ShardCount > 1 {
+	shards := rw.compactorOverrides.ShardsForTenant(tenantID)
+	if shards == 0 {
+		shards = rw.compactorCfg.Shards
+	}
+
+	if shards > 1 {
 		return newShardingBlockSelector(
-			rw.compactorCfg.ShardCount,
+			shards,
 			blocklist,
 			window,
 			rw.compactorCfg.MaxCompactionObjects,

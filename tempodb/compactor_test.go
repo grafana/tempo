@@ -50,6 +50,7 @@ type mockOverrides struct {
 	blockRetention      time.Duration
 	maxBytesPerTrace    int
 	maxCompactionWindow time.Duration
+	shards              int
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
@@ -62,6 +63,10 @@ func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
 
 func (m *mockOverrides) MaxCompactionRangeForTenant(_ string) time.Duration {
 	return m.maxCompactionWindow
+}
+
+func (m *mockOverrides) ShardsForTenant(_ string) int {
+	return m.shards
 }
 
 type mockCompaction struct {

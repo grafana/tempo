@@ -296,6 +296,10 @@ func (o *runtimeConfigOverridesManager) MaxCompactionRange(userID string) time.D
 	return time.Duration(o.getOverridesForUser(userID).Compaction.CompactionWindow)
 }
 
+func (o *runtimeConfigOverridesManager) CompactionShards(userID string) int {
+	return o.getOverridesForUser(userID).Compaction.Shards
+}
+
 // IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
 func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(userID string) float64 {
 	return float64(o.getOverridesForUser(userID).Ingestion.RateLimitBytes)

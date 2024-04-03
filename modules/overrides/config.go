@@ -152,6 +152,7 @@ type CompactionOverrides struct {
 	// Compactor enforced overrides.
 	BlockRetention   model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
 	CompactionWindow model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
+	Shards           int            `yaml:"shards,omitempty" json:"shards,omitempty"`
 }
 
 type GlobalOverrides struct {

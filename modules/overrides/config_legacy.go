@@ -111,6 +111,7 @@ type LegacyOverrides struct {
 	// Compactor enforced limits.
 	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
 	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
+	CompactionShards int            `yaml:"compaction_shards" json:"compaction_shards"`
 
 	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
@@ -148,6 +149,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 		Compaction: CompactionOverrides{
 			BlockRetention:   l.BlockRetention,
 			CompactionWindow: l.CompactionWindow,
+			Shards:           l.CompactionShards,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
 			RingSize:           l.MetricsGeneratorRingSize,

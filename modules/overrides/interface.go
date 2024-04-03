@@ -71,6 +71,7 @@ type Interface interface {
 	MaxMetricsDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	UnsafeQueryHints(userID string) bool
+	CompactionShards(userID string) int
 
 	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error

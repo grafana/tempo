@@ -105,6 +105,7 @@ type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
 	MaxBytesPerTraceForTenant(tenantID string) int
 	MaxCompactionRangeForTenant(tenantID string) time.Duration
+	ShardsForTenant(tenantID string) int
 }
 
 type WriteableBlock interface {
