@@ -35,7 +35,7 @@ storage:
         [blocklist_poll_stale_tenant_index: <duration>]
 ```
 
-Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}), the blocklist will be stale by
+Due to the mechanics of the [tenant index]({{< relref "../operations/monitor/polling" >}}), the blocklist will be stale by
 at most 2 times the configured `blocklist_poll` duration. There are two configuration options that need to be balanced
 against the `blockist_poll` to handle this:
 

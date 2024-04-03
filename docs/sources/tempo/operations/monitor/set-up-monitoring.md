@@ -1,112 +1,16 @@
 ---
-title: Monitor Tempo
-menuTitle: Monitor Tempo
-description: Use alerts and dashboards to monitor Tempo in production.
+title: Set up monitoring
+menuTitle: Set up monitoring
+description: Set up monitoring for Tempo
 weight: 20
 ---
 
-# Monitor Tempo
+# Set up monitoring for Tempo
 
-Tempo is instrumented to expose metrics, logs, and traces.
-Furthermore, the Tempo repository has a [mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) that includes a
-set of dashboards, rules, and alerts.
-Together, these can be used to monitor Tempo in production.
+You can set up monitoring for Tempo using an existing or new cluster.
+If you don't have a cluster available, you can use the linked documentation to set up the Tempo, Mimir, and Grafana using Helm or you can use Grafana Cloud.
 
-## Instrumentation
-
-Metrics, logs, and traces from Tempo can be collected to observe its services and functions.
-
-### Metrics
-
-Tempo is instrumented with [Prometheus metrics](https://prometheus.io/) and emits RED metrics for most services and backends.
-RED metrics are a standardized format for monitoring microservices, where R stands for requests, E stands for errors, and D stands for duration.
-
-The [Tempo mixin](#dashboards) provides several dashboards using these metrics.
-
-### Logs
-
-Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) format.
-
-### Traces
-
-Tempo uses the [Jaeger Golang SDK](https://github.com/jaegertracing/jaeger-client-go) for tracing instrumentation.
-The complete read path and some parts of the write path of Tempo are instrumented for tracing.
-
-You can configure the tracer [using environment variables](https://github.com/jaegertracing/jaeger-client-go#environment-variables).
-To enable tracing, set one of the following: `JAEGER_AGENT_HOST` and `JAEGER_AGENT_PORT`, or `JAEGER_ENDPOINT`.
-
-The Jaeger client uses remote sampling by default, if the management server is not available no traces are sent.
-To always send traces (no sampling), set the following environment variables:
-
-```
-JAEGER_SAMPLER_TYPE=const
-JAEGER_SAMPLER_PARAM=1
-```
-
-## Dashboards
-
-The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has four Grafana dashboards in the `yamls` folder that you can download and import into your Grafana UI.
-These dashboards work well when you run Tempo in a Kubernetes (k8s) environment and metrics scraped have the
-`cluster` and `namespace` labels.
-
-### Tempo Reads dashboard
-
-> This is available as `tempo-reads.json`.
-
-The Reads dashboard gives information on Requests, Errors, and Duration (RED) on the query path of Tempo.
-Each query touches the Gateway, Tempo-Query, Query-Frontend, Queriers, Ingesters, the backend, and Cache, if present.
-
-Use this dashboard to monitor the performance of each of the mentioned components and to decide the number of
-replicas in each deployment.
-
-### Tempo Writes dashboard
-
-> This is available as `tempo-writes.json`.
-
-The Writes dashboard gives information on RED on the write/ingest path of Tempo.
-A write query touches the Gateway, Distributors, Ingesters, and the backend.
-This dashboard also gives information
-on the number of operations performed by the Compactor to the backend.
-
-Use this dashboard to monitor the performance of each of the mentioned components and to decide the number of
-replicas in each deployment.
-
-### Tempo Resources dashboard
-
-> This is available as `tempo-resources.json`.
-
-The Resources dashboard provides information on `CPU`, `Container Memory`, and `Go Heap Inuse`.
-This dashboard is useful for resource provisioning for the different Tempo components.
-
-Use this dashboard to see if any components are running close to their assigned limits.
-
-### Tempo Operational dashboard
-
-> This is available as `tempo-operational.json`.
-
-The Tempo Operational dashboard deserves special mention because it is probably a stack of dashboard anti-patterns.
-It's big and complex, doesn't use `jsonnet`, and displays far too many metrics in one place.
-For just getting started, the RED dashboards are great places to learn how to monitor Tempo in an opaque way.
-
-This dashboard is included in the Tempo repository for two reasons:
-
-- The dashboard provides a stack of metrics for other operators to consider monitoring while running Tempo.
-- We want the dashboard in our internal infrastructure and we vendor the `tempo-mixin` to do this.
-
-## Rules and alerts
-
-The Rules and Alerts are available as [YAML files in the compiled mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin-compiled) on the repository.
-
-To set up alerting, download the provided JSON files and configure them for use on your Prometheus monitoring server.
-
-Check the [runbook](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) to understand the
-various steps that can be taken to fix firing alerts.
-
-## Set up monitoring for Tempo
-
-You can set up monitoring for Tempo using an existing or new cluster. If you do not have a cluster available, you can use the linked documentation to set up the Tempo, Mimir, and Grafana using Helm or you can use Grafana Cloud.
-
-In this section, you will:
+To set up monitoring, you will:
 
 * Use Grafana Agent Flow to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 * Update your Grafana Agent Flow configuration to scrape metrics to monitor for your Tempo data.
@@ -114,12 +18,13 @@ In this section, you will:
 This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/latest/setup/helm-chart/) and with [Grafana Agent](https://grafana.com/docs/agent/latest/flow/).
 The steps outlined below use the Grafana Agent Flow configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 
+{{% admonition type="note" %}}
 Update any instructions in this document for your own deployment.
 
-**NOTE**: If you use the [Kubernetes integration Grafana Agent Helm chart](https://grafana.com/docs/agent/latest/flow/get-started/install/kubernetes/), you’ll be able to use the Kubernetes scrap annotations to automatically scrap Tempo. You’ll need to add the labels to all of the deployed components.
+If you use the [Kubernetes integration Grafana Agent Helm chart](https://grafana.com/docs/agent/latest/flow/get-started/install/kubernetes/), you’ll be able to use the Kubernetes scrap annotations to automatically scrap Tempo. You’ll need to add the labels to all of the deployed components.
+{{% /admonition %}}
 
-
-### Before you begin
+## Before you begin
 
 To configure monitoring using the examples on this page, you’ll need the following running in your Kubernetes environment:
 
@@ -131,39 +36,43 @@ You can use Grafana Agent or the OpenTelemetry Collector. This procedure provide
 
 The rest of this documentation assumes that the Tempo, Grafana, and Mimir instances use the same Kubernetes cluster.
 
-If you are using Grafana Cloud, you can skip the installation sections and set up the Mimir (Prometheus) and Tempo data sources in your Grafana instance.
+If you are using Grafana Cloud, you can skip the installation sections and set up the [Mimir (Prometheus)](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/prometheus/) and [Tempo data sources](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/) in your Grafana instance.
 
-### Use a test app for Tempo to send data to Grafana
+## Use a test app for Tempo to send data to Grafana
 
 Before you can monitor Tempo data, you need to configure the Grafana Agent to send traces to Tempo.
 
 Use [these instructions to create a test application](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/) in your Tempo cluster. These steps configure Grafana Agent Flow to `remote-write` to Tempo. In addition, the test app instructions explain how to configure a Tempo data source in Grafana and view the tracing data.
 
-**NOTE**: If you already have a Tempo environment, then you do not need to create a test app. This guide assumes that the Tempo and Grafana Agent configurations are the same as or based on [these instructions to create a test application](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/), as we will be augmenting those configurations to enable Tempo metrics monitoring.
+{{% admonition type="note" %}}
+If you already have a Tempo environment, then you do not need to create a test app.
+This guide assumes that the Tempo and Grafana Agent configurations are the same as or based on [these instructions to create a test application](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/), as you'll augment those configurations to enable Tempo metrics monitoring.
+{{% /admonition %}}
 
-In these examples, Tempo is installed in a namespace called `tempo`. Change this namespace name in the examples as needed to fit your own environment.
+In these examples, Tempo is installed in a namespace called `tempo`.
+Change this namespace name in the examples as needed to fit your own environment.
 
+## Configure Grafana
 
-### Grafana
-
-In your Grafana instance:
-
-
+In your Grafana instance, you'll need:
 
 * [A Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/configure-tempo-data-source/) (created in the previous section)
 * A [Mimir (Prometheus) data source](https://grafana.com/docs/grafana/latest/datasources/prometheus/)
 
+## Enable Tempo metrics scraping
 
-### Enable Tempo metrics scraping
+Tempo exposes Prometheus metrics from all of its components to allow meta-monitoring.
+To retrieve these metrics, a suitable scraper needs to be configured.
+Grafana Agent can collect traces and act as a Prometheus scraper. To use this capability, you need to configure the Agent to scrape from all of the components.
 
-Tempo exposes Prometheus metrics from all of its components to allow meta-monitoring. To retrieve these metrics, a suitable scraper needs to be configured. Grafana Agent can collect traces and act as a Prometheus scraper. To use this capability, you need to configure the Agent to scrape from all of the components.
+Grafana Agent lets you discover targets to scrape in a cluster via a variety of ways.
+Usually for Prometheus metrics scraping, you would annotate the pods, services, and others, to signal that Grafana Agent should scrape metrics from those objects using annotations such as `prometheus/scrape: true` as well as a port and path.
 
-Grafana Agent lets you discover targets to scrape in a cluster via a variety of ways. Usually for Prometheus metrics scraping, you would annotate the pods, services, etc. to signal that Grafana Agent should scrape metrics from those objects using annotations such as `prometheus/scrape: true` as well as a port and path.
+However, the Tempo objects already have some convenient annotations supplied under the `app.kubernetes.io` prefixes.
+The Helm deployment includes these annotations.
+For example, the label annotations for Tempo’s distributor component contain:
 
-However, the Tempo objects already have some convenient annotations supplied under the `app.kubernetes.io` prefixes. The Helm deployment includes these annotations.
-For example, taking a look at the label annotations for Tempo’s distributor component you can see:
-
-```
+```yaml
 app.kubernetes.io/component=distributor
 app.kubernetes.io/instance=tempo
 app.kubernetes.io/managed-by=Helm
@@ -172,7 +81,9 @@ app.kubernetes.io/part-of=memberlist
 app.kubernetes.io/version=2.4.1
 ```
 
-Because of this, you can use Kubernetes service discovery in Grafana Agent via the above annotations to ensure that metrics are scraped from each Tempo component. Using the [`discovery.kubernetes` Flow component](https://grafana.com/docs/agent/latest/flow/reference/components/discovery.kubernetes/), you can include selectors to scrape from targets based on labels, for example. As there are Tempo-specific component labels, you can specify a rule that covers all of the Tempo components.
+Because of this, you can use Kubernetes service discovery in Grafana Agent using these annotations to ensure that metrics are scraped from each Tempo component.
+Using the [`discovery.kubernetes` Flow component](https://grafana.com/docs/agent/latest/flow/reference/components/discovery.kubernetes/), you can include selectors to scrape from targets based on labels, for example.
+As there are Tempo-specific component labels, you can specify a rule that covers all of the Tempo components.
 
 ```yaml
 discovery.kubernetes "k8s_pods" {
@@ -186,7 +97,7 @@ discovery.kubernetes "k8s_pods" {
 }
 ```
 
-This lets Grafana Agent know that only pods that include an annotation of `app.kubernetes.io/name=tempo` should have their metrics scraped.
+This rule lets Grafana Agent know that only pods that include an annotation of `app.kubernetes.io/name=tempo` should have their metrics scraped.
 
 Something to note is that the dashboards for Tempo expect the specific namespace, cluster name, and job name for labels included with the scraped Tempo metrics, where the job nomenclature is `<namespace>>app.kubernetes.io/component>`.
 The latter expands to `distributor`, `compactor`, `ingester`, and so on.
@@ -307,15 +218,17 @@ prometheus.remote_write "tempo" {
 This example doesn’t include ingestion for any other data such as traces for sending to Tempo, but can be included with some configuration updates.
 Refer to [Configure Grafana Agent Flow to remote-write to Tempo](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/) for more information.
 
-### Install Tempo dashboards in Grafana
+## Install Tempo dashboards in Grafana
 
-After metrics from Tempo are scraped by Grafana Agent and stored in Mimir (or another Prometheus compatible time-series database), it would be useful to be able to easily monitor Tempo’s operation. Tempo ships with a mixin that includes:
+After metrics from Tempo are scraped by Grafana Agent and stored in Mimir or another Prometheus compatible time-series database, you can monitor Tempo’s operation using the mixin.
+
+Tempo ships with a mixin that includes:
 
 * Relevant dashboards for overseeing the health of Tempo as a whole, as well as its individual components
-* Recording rules that simplify the generation of metrics for dashboards and ad-hoc queries
+* Recording rules that simplify the generation of metrics for dashboards and free-form queries
 * Alerts that trigger when Tempo falls out of operational parameters
 
-To install the mixins in Grafana, you will:
+To install the mixins in Grafana, you need to:
 
 1. Download the mixin dashboards from the Tempo repository.
 
@@ -323,8 +236,7 @@ To install the mixins in Grafana, you will:
 
 1. Upload `alerts.yaml` and `rules.yaml` files for Mimir or Prometheus
 
-#### Download the tempo-mixin dashboards
-
+### Download the `tempo-mixin` dashboards
 
 1. First, clone the Tempo repository from Github:
    ```bash
@@ -341,54 +253,40 @@ This contains a compiled version of the alert and recording rules, as well as th
 {{% admonition type="note" %}}
 If you want to change any of the mixins, make your updates in the `operations/tempo-mixin` directory.
 Use the instructions in the [README](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) in that directory to regenerate the files.
-The mixins will be generated in the `operations/tempo-mixin-compiled` directory.
+The mixins are generated in the `operations/tempo-mixin-compiled` directory.
 {{% /admonition %}}
 
-#### Import the dashboards to Grafana
+### Import the dashboards to Grafana
 
-The `dashboards` directory includes the six monitoring dashboards that can be installed into your Grafana instance. Refer to [Import a dashboard ](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/import-dashboards/)in the Grafana documentation.
+The `dashboards` directory includes the six monitoring dashboards that can be installed into your Grafana instance.
+Refer to [Import a dashboard ](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/import-dashboards/)in the Grafana documentation.
 
-TIP: Install all six dashboards. You can only import one dashboard at a time. Create a new folder in the Dashboards area, for example “Tempo Monitoring”, in which to import the dashboards.
+{{% admonition type="tip" %}}
+Install all six dashboards.
+You can only import one dashboard at a time.
+Create a new folder in the Dashboards area, for example “Tempo Monitoring”, as an easy location to save the imported dashboards.
+{{% /admonition %}}
 
 To create a folder:
 
 1. Open your Grafana instance and select **Dashboards**.
-
 1. Select **New** in the right corner.
-
 1. Select **New folder** from the **New** drop-down.
-
-![alt_text](images/image1.png "image_tooltip")
-
 1. Name your folder, for example, “Tempo Monitoring”.
-
 1. Select **Create**.
 
 To import a dashboard:
 
 1. Open your Grafana instance and select **Dashboards**.
-
 1. Select **New** in the right corner.
-
 1. Select **Import**.
-
-![alt_text](images/image2.png "image_tooltip")
-
 1. On the **Import dashboard** screen, select **Upload.**
-
 1. Browse to `operations/tempo-mixin-compiled/dashboards` and select the dashboard to import.
-
 1. Drag the dashboard file, for example, `tempo-operational.json`, onto the **Upload** area of the **Import dashboard** screen. Alternatively, you can browse to and select a file.
-
-![alt_text](images/image3.png "image_tooltip")
-
 1. Select a folder in the **Folder** drop-down where you want to save the imported dashboard. For example, select Tempo Monitoring created in the earlier steps.
-
 1. Select **Import**.
 
-The imported files are listed in the Tempo Monitoring’ dashboard folder.
-
-![alt_text](images/image4.png "image_tooltip")
+The imported files are listed in the Tempo Monitoring dashboard folder.
 
 To view the dashboards in Grafana:
 
@@ -398,15 +296,15 @@ To view the dashboards in Grafana:
 
 The ‘Tempo Operational’ dashboard shows read (query) information:
 
-![alt_text](images/image5.png "image_tooltip")
+![Tempo Operational dashboard](/media/docs/tempo/screenshot-tempo-ops-dashboard.png "Tempo Operational dashboard")
 
-#### Add alerts and rules to Prometheus or Mimir
+### Add alerts and rules to Prometheus or Mimir
 
 The rules and alerts need to be installed into your Mimir or Prometheus instance.
 To do this in Prometheus, refer to the [recording rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) and [alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/) documentation.
 
 For Mimir, you can use `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` to upload [rule](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#rules) and [alert](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/#alertmanager) configuration.
-Using a default installation of Mimir used as the metrics store for the Agent configuration above, you might run the following:
+Using a default installation of Mimir used as the metrics store for the Agent configuration, you might run the following:
 
 ```bash
 mimirtool rules load operations/tempo-mixin-compiles/rules.yml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
@@ -414,4 +312,5 @@ mimirtool rules load operations/tempo-mixin-compiles/rules.yml --address=https:/
 mimirtool alertmanager load operations/tempo-mixin-compiles/alerts.yml --address=https://mimir-cluster.distributor.mimir.svc.cluster.local:9001
 ```
 
-For Grafana Cloud, you need to add the username and API key as well. Refer to the `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` documentation for more information.
+For Grafana Cloud, you need to add the username and API key as well.
+Refer to the `[mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/)` documentation for more information.
