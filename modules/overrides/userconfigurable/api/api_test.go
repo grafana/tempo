@@ -31,7 +31,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 		Local:   &local.Config{Path: t.TempDir()},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	validator := &mockValidator{}
@@ -179,7 +179,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 			assert.NoError(t, err)
 
 			overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &client.Config{
@@ -214,7 +214,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &client.Config{
@@ -255,7 +255,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 }
 
 func TestUserConfigOverridesAPI_patchOverridesHandler_versionConflict(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	overridesAPI, err := New(&overrides.UserConfigurableOverridesAPIConfig{}, &client.Config{
@@ -439,7 +439,7 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 				},
 				ConfigType: "",
 			}
-			o, err := overrides.NewOverrides(cfg, prometheus.DefaultRegisterer)
+			o, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 			assert.NoError(t, err)
 
 			overridesAPI, err := New(&cfg.UserConfigurableOverridesConfig.API, &cfg.UserConfigurableOverridesConfig.Client, o, &mockValidator{})

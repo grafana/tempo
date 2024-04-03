@@ -190,7 +190,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 		},
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	for _, tc := range tests {
@@ -274,7 +274,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 func TestConcurrentShards(t *testing.T) {
 	concurrency := 2
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder := newTraceByIDSharder(&TraceByIDConfig{

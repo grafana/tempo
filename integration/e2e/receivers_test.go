@@ -53,7 +53,7 @@ func TestReceivers(t *testing.T) {
 			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				otlpCfg := exporterCfg.(*otlpexporter.Config)
-				otlpCfg.ClientConfig = configgrpc.GRPCClientSettings{
+				otlpCfg.ClientConfig = configgrpc.ClientConfig{
 					Endpoint: endpoint,
 					TLSSetting: configtls.TLSClientSetting{
 						Insecure: true,
@@ -69,7 +69,7 @@ func TestReceivers(t *testing.T) {
 			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				zipkinCfg := exporterCfg.(*zipkinexporter.Config)
-				zipkinCfg.ClientConfig = confighttp.HTTPClientSettings{
+				zipkinCfg.ClientConfig = confighttp.ClientConfig{
 					Endpoint: endpoint,
 					TLSSetting: configtls.TLSClientSetting{
 						Insecure: true,

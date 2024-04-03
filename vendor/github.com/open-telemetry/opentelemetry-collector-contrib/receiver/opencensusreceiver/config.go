@@ -11,7 +11,7 @@ import (
 // Config defines configuration for OpenCensus receiver.
 type Config struct {
 	// Configures the receiver server protocol.
-	configgrpc.GRPCServerSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
+	configgrpc.ServerConfig `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
 
 	// CorsOrigins are the allowed CORS origins for HTTP/JSON requests to grpc-gateway adapter
 	// for the OpenCensus receiver. See github.com/rs/cors
@@ -26,7 +26,7 @@ func (cfg *Config) buildOptions() []ocOption {
 		opts = append(opts, withCorsOrigins(cfg.CorsOrigins))
 	}
 
-	opts = append(opts, withGRPCServerSettings(cfg.GRPCServerSettings))
+	opts = append(opts, withGRPCServerSettings(cfg.ServerConfig))
 
 	return opts
 }

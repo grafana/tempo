@@ -95,6 +95,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 	}
 }
 
+// nolint: goconst // goconst wants us to make http:// a const
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathSearch), nil)
 	if err != nil {

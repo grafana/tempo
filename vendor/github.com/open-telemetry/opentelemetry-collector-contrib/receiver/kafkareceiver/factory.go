@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	defaultTopic         = "otlp_spans"
+	defaultTracesTopic   = "otlp_spans"
+	defaultMetricsTopic  = "otlp_metrics"
+	defaultLogsTopic     = "otlp_logs"
 	defaultEncoding      = "otlp_proto"
 	defaultBroker        = "localhost:9092"
 	defaultClientID      = "otel-collector"
@@ -94,7 +96,6 @@ func NewFactory(options ...FactoryOption) receiver.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Topic:         defaultTopic,
 		Encoding:      defaultEncoding,
 		Brokers:       []string{defaultBroker},
 		ClientID:      defaultClientID,
@@ -137,13 +138,16 @@ func (f *kafkaReceiverFactory) createTracesReceiver(
 		f.tracesUnmarshalers[encoding] = unmarshal
 	}
 
-	c := cfg.(*Config)
-	unmarshaler := f.tracesUnmarshalers[c.Encoding]
+	oCfg := *(cfg.(*Config))
+	if oCfg.Topic == "" {
+		oCfg.Topic = defaultTracesTopic
+	}
+	unmarshaler := f.tracesUnmarshalers[oCfg.Encoding]
 	if unmarshaler == nil {
 		return nil, errUnrecognizedEncoding
 	}
 
-	r, err := newTracesReceiver(*c, set, unmarshaler, nextConsumer)
+	r, err := newTracesReceiver(oCfg, set, unmarshaler, nextConsumer)
 	if err != nil {
 		return nil, err
 	}
@@ -160,13 +164,16 @@ func (f *kafkaReceiverFactory) createMetricsReceiver(
 		f.metricsUnmarshalers[encoding] = unmarshal
 	}
 
-	c := cfg.(*Config)
-	unmarshaler := f.metricsUnmarshalers[c.Encoding]
+	oCfg := *(cfg.(*Config))
+	if oCfg.Topic == "" {
+		oCfg.Topic = defaultMetricsTopic
+	}
+	unmarshaler := f.metricsUnmarshalers[oCfg.Encoding]
 	if unmarshaler == nil {
 		return nil, errUnrecognizedEncoding
 	}
 
-	r, err := newMetricsReceiver(*c, set, unmarshaler, nextConsumer)
+	r, err := newMetricsReceiver(oCfg, set, unmarshaler, nextConsumer)
 	if err != nil {
 		return nil, err
 	}
@@ -183,13 +190,16 @@ func (f *kafkaReceiverFactory) createLogsReceiver(
 		f.logsUnmarshalers[encoding] = unmarshaler
 	}
 
-	c := cfg.(*Config)
-	unmarshaler, err := getLogsUnmarshaler(c.Encoding, f.logsUnmarshalers)
+	oCfg := *(cfg.(*Config))
+	if oCfg.Topic == "" {
+		oCfg.Topic = defaultLogsTopic
+	}
+	unmarshaler, err := getLogsUnmarshaler(oCfg.Encoding, f.logsUnmarshalers)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := newLogsReceiver(*c, set, unmarshaler, nextConsumer)
+	r, err := newLogsReceiver(oCfg, set, unmarshaler, nextConsumer)
 	if err != nil {
 		return nil, err
 	}

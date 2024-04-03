@@ -24,7 +24,7 @@ func TestCombineLimitsNotHit(t *testing.T) {
 				MaxBytesPerTrace: math.MaxInt,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -58,7 +58,7 @@ func TestCombineLimitsHit(t *testing.T) {
 				MaxBytesPerTrace: 1,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -92,7 +92,7 @@ func TestCombineDoesntEnforceZero(t *testing.T) {
 				MaxBytesPerTrace: math.MaxInt,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -147,7 +147,7 @@ func TestDedicatedColumns(t *testing.T) {
 				},
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	c := &Compactor{overrides: o}

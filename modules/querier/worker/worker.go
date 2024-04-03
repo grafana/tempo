@@ -242,6 +242,8 @@ func (w *querierWorker) resetConcurrency() {
 	if totalConcurrency > w.cfg.MaxConcurrentRequests {
 		level.Warn(w.log).Log("msg", "total worker concurrency is greater than promql max concurrency. Queries may be queued in the querier which reduces QOS")
 	}
+
+	level.Info(w.log).Log("msg", "total worker concurrency updated", "totalConcurrency", totalConcurrency)
 }
 
 func (w *querierWorker) connect(ctx context.Context, address string) (*grpc.ClientConn, error) {

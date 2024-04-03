@@ -17,6 +17,11 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -26,10 +31,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var _ tempodb.Reader = (*mockReader)(nil)
@@ -521,7 +522,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		}), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	now := time.Now().Add(-10 * time.Minute).Unix()
@@ -581,7 +582,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -614,7 +615,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 				MaxSearchDuration: model.Duration(time.Minute),
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder = newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -668,7 +669,7 @@ func TestAdjustLimit(t *testing.T) {
 
 func TestMaxDuration(t *testing.T) {
 	//
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	sharder := asyncSearchSharder{
 		cfg: SearchSharderConfig{
@@ -685,7 +686,7 @@ func TestMaxDuration(t *testing.T) {
 				MaxSearchDuration: model.Duration(10 * time.Minute),
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	sharder = asyncSearchSharder{
 		cfg: SearchSharderConfig{
@@ -723,156 +724,4 @@ func TestHashTraceQLQuery(t *testing.T) {
 
 	h1 = hashForTraceQLQuery("")
 	require.Equal(t, uint64(0), h1)
-}
-
-func TestCacheKeyForJob(t *testing.T) {
-	tcs := []struct {
-		name          string
-		queryHash     uint64
-		req           *tempopb.SearchRequest
-		meta          *backend.BlockMeta
-		searchPage    int
-		pagesToSearch int
-
-		expected string
-	}{
-		{
-			name:      "valid!",
-			queryHash: 42,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(15, 0),
-				EndTime:   time.Unix(16, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "sj:42:00000000-0000-0000-0000-000000000123:1:2",
-		},
-		{
-			name:      "no query hash means no query cache",
-			queryHash: 0,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(15, 0),
-				EndTime:   time.Unix(16, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "",
-		},
-		{
-			name:      "meta before start time",
-			queryHash: 42,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(5, 0),
-				EndTime:   time.Unix(6, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "",
-		},
-		{
-			name:      "meta overlaps search start",
-			queryHash: 42,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(5, 0),
-				EndTime:   time.Unix(15, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "",
-		},
-		{
-			name:      "meta overlaps search end",
-			queryHash: 42,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(15, 0),
-				EndTime:   time.Unix(25, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "",
-		},
-		{
-			name:      "meta after search range",
-			queryHash: 42,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(25, 0),
-				EndTime:   time.Unix(30, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "",
-		},
-		{
-			name:      "meta encapsulates search range",
-			queryHash: 42,
-			req: &tempopb.SearchRequest{
-				Start: 10,
-				End:   20,
-			},
-			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-				StartTime: time.Unix(5, 0),
-				EndTime:   time.Unix(30, 0),
-			},
-			searchPage:    1,
-			pagesToSearch: 2,
-			expected:      "",
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			actual := cacheKeyForJob(tc.queryHash, tc.req, tc.meta, tc.searchPage, tc.pagesToSearch)
-			require.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func BenchmarkCacheKeyForJob(b *testing.B) {
-	req := &tempopb.SearchRequest{
-		Start: 10,
-		End:   20,
-	}
-	meta := &backend.BlockMeta{
-		BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
-		StartTime: time.Unix(15, 0),
-		EndTime:   time.Unix(16, 0),
-	}
-
-	for i := 0; i < b.N; i++ {
-		s := cacheKeyForJob(10, req, meta, 1, 2)
-		if len(s) == 0 {
-			b.Fatalf("expected non-empty string")
-		}
-	}
 }

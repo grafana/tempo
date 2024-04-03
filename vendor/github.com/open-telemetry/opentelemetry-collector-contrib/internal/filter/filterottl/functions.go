@@ -20,15 +20,15 @@ import (
 )
 
 func StandardSpanFuncs() map[string]ottl.Factory[ottlspan.TransformContext] {
-	return standardFuncs[ottlspan.TransformContext]()
+	return ottlfuncs.StandardConverters[ottlspan.TransformContext]()
 }
 
 func StandardSpanEventFuncs() map[string]ottl.Factory[ottlspanevent.TransformContext] {
-	return standardFuncs[ottlspanevent.TransformContext]()
+	return ottlfuncs.StandardConverters[ottlspanevent.TransformContext]()
 }
 
 func StandardMetricFuncs() map[string]ottl.Factory[ottlmetric.TransformContext] {
-	m := standardFuncs[ottlmetric.TransformContext]()
+	m := ottlfuncs.StandardConverters[ottlmetric.TransformContext]()
 	hasAttributeOnDatapointFactory := newHasAttributeOnDatapointFactory()
 	hasAttributeKeyOnDatapointFactory := newHasAttributeKeyOnDatapointFactory()
 	m[hasAttributeOnDatapointFactory.Name()] = hasAttributeOnDatapointFactory
@@ -37,36 +37,15 @@ func StandardMetricFuncs() map[string]ottl.Factory[ottlmetric.TransformContext] 
 }
 
 func StandardDataPointFuncs() map[string]ottl.Factory[ottldatapoint.TransformContext] {
-	return standardFuncs[ottldatapoint.TransformContext]()
+	return ottlfuncs.StandardConverters[ottldatapoint.TransformContext]()
 }
 
 func StandardLogFuncs() map[string]ottl.Factory[ottllog.TransformContext] {
-	return standardFuncs[ottllog.TransformContext]()
+	return ottlfuncs.StandardConverters[ottllog.TransformContext]()
 }
 
 func StandardResourceFuncs() map[string]ottl.Factory[ottlresource.TransformContext] {
-	return standardFuncs[ottlresource.TransformContext]()
-}
-
-func standardFuncs[K any]() map[string]ottl.Factory[K] {
-	m := ottlfuncs.StandardConverters[K]()
-	f := newMatchFactory[K]()
-	m[f.Name()] = f
-	return m
-}
-
-func newMatchFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("match", nil, createMatchFunction[K])
-}
-
-func createMatchFunction[K any](_ ottl.FunctionContext, _ ottl.Arguments) (ottl.ExprFunc[K], error) {
-	return matchFn[K]()
-}
-
-func matchFn[K any]() (ottl.ExprFunc[K], error) {
-	return func(context.Context, K) (any, error) {
-		return true, nil
-	}, nil
+	return ottlfuncs.StandardConverters[ottlresource.TransformContext]()
 }
 
 type hasAttributeOnDatapointArguments struct {

@@ -1,4 +1,5 @@
 type: kafka
+scope_name: otelcol/kafka
 
 status:
   class: exporter
@@ -7,3 +8,7 @@ status:
   distributions: [core, contrib, observiq, splunk, sumo, aws]
   codeowners:
     active: [pavolloffay, MovieStoreGuy]
+
+tests:
+  config:
+  skip_lifecycle: true

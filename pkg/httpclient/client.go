@@ -16,6 +16,7 @@ import (
 	"github.com/klauspost/compress/gzhttp"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/pkg/api"
 	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 
@@ -156,6 +157,16 @@ func (c *Client) SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTag
 	return m, nil
 }
 
+func (c *Client) SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error) {
+	m := &tempopb.SearchTagsV2Response{}
+	_, err := c.getFor(c.buildTagsV2QueryURL(start, end), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func (c *Client) SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error) {
 	m := &tempopb.SearchTagValuesResponse{}
 	_, err := c.getFor(c.BaseURL+"/api/search/tag/"+key+"/values", m)
@@ -171,6 +182,16 @@ func (c *Client) SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV
 	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values?q=%s`, key, url.QueryEscape(query))
 
 	_, err := c.getFor(c.BaseURL+urlPath, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error) {
+	m := &tempopb.SearchTagValuesV2Response{}
+	_, err := c.getFor(c.buildTagValuesV2QueryURL(tag, start, end), m)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +289,32 @@ func (c *Client) buildSearchQueryURL(queryType string, query string, start int64
 }
 
 func (c *Client) buildTagsQueryURL(start int64, end int64) string {
-	joinURL, _ := url.Parse(c.BaseURL + "/api/search/tags?")
+	joinURL, _ := url.Parse(c.BaseURL + api.PathSearchTags + "?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) buildTagsV2QueryURL(start int64, end int64) string {
+	joinURL, _ := url.Parse(c.BaseURL + api.PathSearchTagsV2 + "?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) buildTagValuesV2QueryURL(key string, start int64, end int64) string {
+	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values`, key)
+	joinURL, _ := url.Parse(c.BaseURL + urlPath + "?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
