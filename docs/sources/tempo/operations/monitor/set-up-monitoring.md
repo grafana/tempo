@@ -10,7 +10,7 @@ weight: 20
 You can set up monitoring for Tempo using an existing or new cluster.
 If you don't have a cluster available, you can use the linked documentation to set up the Tempo, Mimir, and Grafana using Helm or you can use Grafana Cloud.
 
-To set up monitoring, you will:
+To set up monitoring, you need to:
 
 * Use Grafana Agent Flow to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 * Update your Grafana Agent Flow configuration to scrape metrics to monitor for your Tempo data.
