@@ -13,7 +13,7 @@ spec:
       name: query-frontend
   strategy:
     rollingUpdate:
-      maxSurge: 3
+      maxSurge: 0
       maxUnavailable: 1
   template:
     metadata:

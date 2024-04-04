@@ -4,11 +4,12 @@
 | Status        |           |
 | ------------- |-----------|
 | Stability     | [beta]: metrics, logs, traces   |
-| Distributions | [contrib], [aws], [grafana], [observiq], [splunk], [sumo] |
+| Distributions | [core], [contrib], [aws], [grafana], [observiq], [splunk], [sumo] |
 | Issues        | [![Open issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aopen%20label%3Areceiver%2Fkafka%20&label=open&color=orange&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aopen+is%3Aissue+label%3Areceiver%2Fkafka) [![Closed issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aclosed%20label%3Areceiver%2Fkafka%20&label=closed&color=blue&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aclosed+is%3Aissue+label%3Areceiver%2Fkafka) |
 | [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@pavolloffay](https://www.github.com/pavolloffay), [@MovieStoreGuy](https://www.github.com/MovieStoreGuy) |
 
 [beta]: https://github.com/open-telemetry/opentelemetry-collector#beta
+[core]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol
 [contrib]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib
 [aws]: https://github.com/aws-observability/aws-otel-collector
 [grafana]: https://github.com/grafana/agent
@@ -31,7 +32,7 @@ The following settings can be optionally configured:
 
 - `brokers` (default = localhost:9092): The list of kafka brokers
 - `resolve_canonical_bootstrap_servers_only` (default = false): Whether to resolve then reverse-lookup broker IPs during startup
-- `topic` (default = otlp_spans): The name of the kafka topic to read from
+- `topic` (default = otlp_spans for traces, otlp_metrics for metrics, otlp_logs for logs): The name of the kafka topic to read from
 - `encoding` (default = otlp_proto): The encoding of the payload received from kafka. Available encodings:
   - `otlp_proto`: the payload is deserialized to `ExportTraceServiceRequest`, `ExportLogsServiceRequest` or `ExportMetricsServiceRequest` respectively.
   - `jaeger_proto`: the payload is deserialized to a single Jaeger proto `Span`.

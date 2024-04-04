@@ -30,12 +30,12 @@ func withCorsOrigins(origins []string) ocOption {
 	return &corsOrigins{origins: origins}
 }
 
-type grpcServerSettings configgrpc.GRPCServerSettings
+type grpcServerSettings configgrpc.ServerConfig
 
-func withGRPCServerSettings(settings configgrpc.GRPCServerSettings) ocOption {
+func withGRPCServerSettings(settings configgrpc.ServerConfig) ocOption {
 	gsvOpts := grpcServerSettings(settings)
 	return gsvOpts
 }
 func (gsvo grpcServerSettings) withReceiver(ocr *ocReceiver) {
-	ocr.grpcServerSettings = configgrpc.GRPCServerSettings(gsvo)
+	ocr.grpcServerSettings = configgrpc.ServerConfig(gsvo)
 }

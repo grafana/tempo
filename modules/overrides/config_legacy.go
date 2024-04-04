@@ -4,21 +4,22 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/util/listtomap"
-
 	"github.com/grafana/tempo/tempodb/backend"
+
+	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/prometheus/common/model"
 )
 
 func (c *Overrides) toLegacy() LegacyOverrides {
 	return LegacyOverrides{
-		IngestionRateStrategy:   c.Ingestion.RateStrategy,
-		IngestionRateLimitBytes: c.Ingestion.RateLimitBytes,
-		IngestionBurstSizeBytes: c.Ingestion.BurstSizeBytes,
-		MaxLocalTracesPerUser:   c.Ingestion.MaxLocalTracesPerUser,
-		MaxGlobalTracesPerUser:  c.Ingestion.MaxGlobalTracesPerUser,
+		IngestionRateStrategy:    c.Ingestion.RateStrategy,
+		IngestionRateLimitBytes:  c.Ingestion.RateLimitBytes,
+		IngestionBurstSizeBytes:  c.Ingestion.BurstSizeBytes,
+		IngestionTenantShardSize: c.Ingestion.TenantShardSize,
+		MaxLocalTracesPerUser:    c.Ingestion.MaxLocalTracesPerUser,
+		MaxGlobalTracesPerUser:   c.Ingestion.MaxGlobalTracesPerUser,
 
 		Forwarders: c.Forwarders,
 
@@ -68,9 +69,10 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 // limits via flags, or per-user limits via yaml config.
 type LegacyOverrides struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy   string `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes int    `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes int    `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
+	IngestionRateStrategy    string `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
+	IngestionRateLimitBytes  int    `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
+	IngestionBurstSizeBytes  int    `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
+	IngestionTenantShardSize int    `yaml:"ingestion_tenant_shard_size" json:"ingestion_tenant_shard_size"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
@@ -138,6 +140,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			BurstSizeBytes:         l.IngestionBurstSizeBytes,
 			MaxLocalTracesPerUser:  l.MaxLocalTracesPerUser,
 			MaxGlobalTracesPerUser: l.MaxGlobalTracesPerUser,
+			TenantShardSize:        l.IngestionTenantShardSize,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:  l.MaxBytesPerTagValuesQuery,

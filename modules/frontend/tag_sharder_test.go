@@ -15,13 +15,14 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type fakeReq struct {
@@ -285,7 +286,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.NewRegistry())
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder := newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{
@@ -319,7 +320,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 				MaxSearchDuration: model.Duration(time.Minute),
 			},
 		},
-	}, prometheus.NewRegistry())
+	}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	sharder = newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{

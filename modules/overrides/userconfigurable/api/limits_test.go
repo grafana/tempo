@@ -52,7 +52,7 @@ func Test_limitsFromOverrides(t *testing.T) {
 			},
 		},
 	}
-	overridesInt, err := overrides.NewOverrides(cfg, prometheus.DefaultRegisterer)
+	overridesInt, err := overrides.NewOverrides(cfg, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err)
 
 	limits := limitsFromOverrides(overridesInt, userID)

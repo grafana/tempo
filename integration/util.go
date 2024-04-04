@@ -83,6 +83,7 @@ func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...stri
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
 		4317,  // otlp grpc
+		4318,  // OTLP HTTP
 	)
 
 	s.SetBackoff(TempoBackoff())
@@ -284,7 +285,7 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 	factory := otlpexporter.NewFactory()
 	exporterCfg := factory.CreateDefaultConfig()
 	otlpCfg := exporterCfg.(*otlpexporter.Config)
-	otlpCfg.ClientConfig = configgrpc.GRPCClientSettings{
+	otlpCfg.ClientConfig = configgrpc.ClientConfig{
 		Endpoint: endpoint,
 		TLSSetting: configtls.TLSClientSetting{
 			Insecure: true,

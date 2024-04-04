@@ -526,6 +526,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 }
 
 func TestSearchAccessesCache(t *testing.T) {
+	tenant := "foo"
 	meta := &backend.BlockMeta{
 		StartTime:    time.Unix(15, 0),
 		EndTime:      time.Unix(16, 0),
@@ -550,7 +551,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	hash := hashForTraceQLQuery(query)
 	start := uint32(10)
 	end := uint32(20)
-	cacheKey := searchJobCacheKey(hash, int64(start), int64(end), meta, 0, 1)
+	cacheKey := searchJobCacheKey(tenant, hash, int64(start), int64(end), meta, 0, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
@@ -560,7 +561,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	path := fmt.Sprintf("/?start=%d&end=%d&q=%s", start, end, query) // encapsulates block above
 	req := httptest.NewRequest("GET", path, nil)
 	ctx := req.Context()
-	ctx = user.InjectOrgID(ctx, "blerg")
+	ctx = user.InjectOrgID(ctx, tenant)
 	req = req.WithContext(ctx)
 
 	respWriter := httptest.NewRecorder()
@@ -692,7 +693,7 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 		}
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	f, err := New(*cfg, next, o, rdr, cacheProvider, "", log.NewNopLogger(), nil)

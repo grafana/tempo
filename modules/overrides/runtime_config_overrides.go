@@ -24,6 +24,10 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+type Validator interface {
+	Validate(config *Overrides) error
+}
+
 // perTenantOverrides represents the overrides config file
 type perTenantOverrides struct {
 	TenantLimits map[string]*Overrides `yaml:"overrides"`
@@ -63,7 +67,7 @@ func (o *perTenantOverrides) forUser(userID string) *Overrides {
 }
 
 // loadPerTenantOverrides is of type runtimeconfig.Loader
-func loadPerTenantOverrides(typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
+func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool) func(r io.Reader) (interface{}, error) {
 	return func(r io.Reader) (interface{}, error) {
 		overrides := &perTenantOverrides{}
 
@@ -97,6 +101,15 @@ func loadPerTenantOverrides(typ ConfigType, expandEnv bool) func(r io.Reader) (i
 			)
 		}
 
+		if validator != nil {
+			for tenant, tenantOverrides := range overrides.TenantLimits {
+				err := validator.Validate(tenantOverrides)
+				if err != nil {
+					return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+				}
+			}
+		}
+
 		return overrides, nil
 	}
 }
@@ -116,7 +129,7 @@ type runtimeConfigOverridesManager struct {
 
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
-func newRuntimeConfigOverrides(cfg Config, registerer prometheus.Registerer) (Service, error) {
+func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prometheus.Registerer) (Service, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -124,7 +137,7 @@ func newRuntimeConfigOverrides(cfg Config, registerer prometheus.Registerer) (Se
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(cfg.PerTenantOverridePeriod),
-			Loader:       loadPerTenantOverrides(cfg.ConfigType, cfg.ExpandEnv),
+			Loader:       loadPerTenantOverrides(validator, cfg.ConfigType, cfg.ExpandEnv),
 		}
 		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, "overrides", prometheus.WrapRegistererWithPrefix("tempo_", registerer), log.Logger)
 		if err != nil {
@@ -308,6 +321,11 @@ func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(userID string) f
 // IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
 func (o *runtimeConfigOverridesManager) IngestionBurstSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).Ingestion.BurstSizeBytes
+}
+
+// IngestionTenantShardSize is the shard size.
+func (o *runtimeConfigOverridesManager) IngestionTenantShardSize(userID string) int {
+	return o.getOverridesForUser(userID).Ingestion.TenantShardSize
 }
 
 // MaxBytesPerTrace returns the maximum size of a single trace in bytes allowed for a user.

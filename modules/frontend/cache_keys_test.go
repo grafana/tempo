@@ -13,6 +13,7 @@ import (
 func TestCacheKeyForJob(t *testing.T) {
 	tcs := []struct {
 		name          string
+		tenant        string
 		queryHash     uint64
 		req           *tempopb.SearchRequest
 		meta          *backend.BlockMeta
@@ -23,6 +24,7 @@ func TestCacheKeyForJob(t *testing.T) {
 	}{
 		{
 			name:      "valid!",
+			tenant:    "foo",
 			queryHash: 42,
 			req: &tempopb.SearchRequest{
 				Start: 10,
@@ -35,7 +37,7 @@ func TestCacheKeyForJob(t *testing.T) {
 			},
 			searchPage:    1,
 			pagesToSearch: 2,
-			expected:      "sj:42:00000000-0000-0000-0000-000000000123:1:2",
+			expected:      "sj:foo:42:00000000-0000-0000-0000-000000000123:1:2",
 		},
 		{
 			name:      "no query hash means no query cache",
@@ -137,7 +139,7 @@ func TestCacheKeyForJob(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := searchJobCacheKey(tc.queryHash, int64(tc.req.Start), int64(tc.req.End), tc.meta, tc.searchPage, tc.pagesToSearch)
+			actual := searchJobCacheKey(tc.tenant, tc.queryHash, int64(tc.req.Start), int64(tc.req.End), tc.meta, tc.searchPage, tc.pagesToSearch)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -155,7 +157,7 @@ func BenchmarkCacheKeyForJob(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		s := searchJobCacheKey(10, int64(req.Start), int64(req.End), meta, 1, 2)
+		s := searchJobCacheKey("foo", 10, int64(req.Start), int64(req.End), meta, 1, 2)
 		if len(s) == 0 {
 			b.Fatalf("expected non-empty string")
 		}
