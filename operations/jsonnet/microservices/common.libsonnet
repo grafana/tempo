@@ -1,4 +1,27 @@
 {
+
+  local k = import 'k.libsonnet',
+  local kausal = import 'ksonnet-util/kausal.libsonnet',
+
+  local container = k.core.v1.container,
+  local volumeMount = k.core.v1.volumeMount,
+  local statefulset = k.apps.v1.statefulSet,
+
+  tempo_chown_container(data_volume, uid='10001', gid='10001', dir='/var/tempo')::
+    container.new('chown-' + data_volume, $._images.tempo) +
+    container.withCommand('chown') +
+    container.withArgs([
+      '-R',
+      '%s:%s' % [uid, gid],
+      dir,
+    ]) +
+    container.withVolumeMounts([
+      volumeMount.new(data_volume, dir),
+    ]) +
+    container.securityContext.withRunAsUser(0) +
+    container.securityContext.withRunAsGroup(0) +
+    {},
+
   util+:: {
     local k = import 'ksonnet-util/kausal.libsonnet',
     local container = k.core.v1.container,
@@ -61,6 +84,18 @@
           },
         },
       },
+    },
+
+    withInitChown():: {
+      tempo_metrics_generator_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('metrics-generator-data'),
+        ]),
+
+      tempo_ingester_statefulset+:
+        statefulset.spec.template.spec.withInitContainers([
+          $.tempo_chown_container('ingester-data'),
+        ]),
     },
   },
 }
