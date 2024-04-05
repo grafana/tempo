@@ -114,11 +114,11 @@ local build_binaries(arch) = {
   ],
 };
 
-local docker_build(arch, app) = {
+local docker_build(arch, app, dockerfile='') = {
   name: 'build-%s-image' % app,
   image: 'plugins/docker',
   settings: {
-    dockerfile: 'cmd/%s/Dockerfile' % app,
+    dockerfile: if dockerfile != '' then dockerfile else 'cmd/%s/Dockerfile' % app,
     repo: 'grafana/%s' % app,
     username: { from_secret: docker_username_secret.name },
     password: { from_secret: docker_password_secret.name },
@@ -196,6 +196,29 @@ local deploy_to_dev() = {
     ],
     depends_on+: [
       'docker-%s' % arch
+      for arch in archs
+    ],
+  },
+] + [
+  // Publish tools Docker manifests
+  (
+    pipeline('docker-ci-tools-%s' % arch, arch) {
+      steps+: [
+        image_tag(arch),
+        docker_build(arch, 'tempo-ci-tools', dockerfile='tools/Dockerfile'),
+      ],
+    }
+  )
+  for arch in archs
+] + [
+  // Publish Docker manifests
+  pipeline('manifest-ci-tools') {
+    steps+: [
+      image_tag(),
+      docker_manifest('tempo-ci-tools'),
+    ],
+    depends_on+: [
+      'docker-ci-tools-%s' % arch
       for arch in archs
     ],
   },
