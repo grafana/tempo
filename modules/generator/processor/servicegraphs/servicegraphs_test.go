@@ -228,6 +228,87 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
 }
 
+func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.EnableExtraUninstrumentedServicesLabels = true
+	cfg.Wait = time.Nanosecond
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	p.(*Processor).store.Expire()
+
+	userToServerLabels := labels.FromMap(map[string]string{
+		"client":          "user",
+		"server":          "mythical-server",
+		"connection_type": "virtual_node",
+		"virtual_node":    "client",
+	})
+
+	clientToVirtualPeerLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "external-payments-platform",
+		"connection_type": "virtual_node",
+		"virtual_node":    "server",
+	})
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, userToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, userToServerLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_enableExtraLabelsForUninstrumentedServicesWithQueueAndDatabase(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.EnableExtraUninstrumentedServicesLabels = true
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	serverDbSystemLabels := labels.FromMap(map[string]string{
+		"client":           "mythical-server",
+		"connection_type":  "database",
+		"server":           "postgres",
+		"server_db_system": "postgres",
+	})
+
+	serverMsgSystemLabels := labels.FromMap(map[string]string{
+		"client":                  "mythical-requester",
+		"connection_type":         "messaging_system",
+		"server":                  "mythical-recorder",
+		"server_messaging_system": "rabbitmq",
+	})
+
+	fmt.Println(testRegistry)
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverDbSystemLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverDbSystemLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverMsgSystemLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverMsgSystemLabels))
+}
+
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
 	f, err := os.Open(path)
 	if err != nil {

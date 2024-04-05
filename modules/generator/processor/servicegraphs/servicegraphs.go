@@ -190,6 +190,17 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 							e.ServerService = dbName
 							e.ServerLatencySec = spanDurationSec(span)
 						}
+
+						if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+							switch e.ConnectionType {
+							case store.Database:
+								e.ServerDbSystem = e.ServerService
+							case store.MessagingSystem:
+								if messagingSystem, ok := processor_util.FindAttributeValue("messaging.system", rs.Resource.Attributes, span.Attributes); ok {
+									e.ServerMessagingSystem = messagingSystem
+								}
+							}
+						}
 					})
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
@@ -207,6 +218,15 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
+
+						if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+							switch e.ConnectionType {
+							case store.MessagingSystem:
+								if messagingSystem, ok := processor_util.FindAttributeValue("messaging.system", rs.Resource.Attributes, span.Attributes); ok {
+									e.ClientMessagingSystem = messagingSystem
+								}
+							}
+						}
 					})
 				default:
 					// this span is not part of an edge
@@ -266,7 +286,12 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
-	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
+	var labelValues []string
+	if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+		labelValues = make([]string, 0, 7+len(p.Cfg.Dimensions))
+	} else {
+		labelValues = make([]string, 0, 2+len(p.Cfg.Dimensions))
+	}
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
 
 	for _, dimension := range p.Cfg.Dimensions {
@@ -277,7 +302,31 @@ func (p *Processor) onComplete(e *store.Edge) {
 		}
 	}
 
-	registryLabelValues := p.registry.NewLabelValueCombo(p.labels, labelValues)
+	labels := append([]string{}, p.labels...)
+	if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+		if e.VirtualNode != "" {
+			labelValues = append(labelValues, e.VirtualNode)
+			labels = append(p.labels, "virtual_node")
+		}
+		if e.ClientDbSystem != "" {
+			labelValues = append(labelValues, e.ClientDbSystem)
+			labels = append(p.labels, "client_db_system")
+		}
+		if e.ClientMessagingSystem != "" {
+			labelValues = append(labelValues, e.ClientMessagingSystem)
+			labels = append(p.labels, "client_messaging_system")
+		}
+		if e.ServerDbSystem != "" {
+			labelValues = append(labelValues, e.ServerDbSystem)
+			labels = append(p.labels, "server_db_system")
+		}
+		if e.ServerMessagingSystem != "" {
+			labelValues = append(labelValues, e.ServerMessagingSystem)
+			labels = append(p.labels, "server_messaging_system")
+		}
+	}
+
+	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {
@@ -301,12 +350,22 @@ func (p *Processor) onExpire(e *store.Edge) {
 		// We check if the span we have is the root span, and if so, we set the client service to "user".
 		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
 			e.ClientService = "user"
+
+			if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+				e.VirtualNode = "client"
+			}
+
 			p.onComplete(e)
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
 		// we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
 		e.ServerService = e.PeerNode
+
+		if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+			e.VirtualNode = "server"
+		}
+
 		p.onComplete(e)
 	}
 }

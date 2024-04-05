@@ -39,6 +39,9 @@ type Config struct {
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+
+	// EnableExtraUninstrumentedServicesLabels enables additional labels for uninstrumented services
+	EnableExtraUninstrumentedServicesLabels bool `yaml:"enable_extra_uninstrumented_services_labels"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
