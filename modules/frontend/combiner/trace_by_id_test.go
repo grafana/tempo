@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
@@ -15,40 +17,40 @@ import (
 
 func TestTraceByIDShouldQuit(t *testing.T) {
 	// new combiner should not quit
-	c := NewTraceByID(0)
+	c := NewTraceByID(0, api.HeaderAcceptJSON)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewTraceByID(0)
+	c = NewTraceByID(0, api.HeaderAcceptJSON)
 	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewTraceByID(0)
+	c = NewTraceByID(0, api.HeaderAcceptJSON)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.SearchResponse{}, 429))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 404 response should not quit
-	c = NewTraceByID(0)
+	c = NewTraceByID(0, api.HeaderAcceptJSON)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.SearchResponse{}, 404))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewTraceByID(0)
+	c = NewTraceByID(0, api.HeaderAcceptJSON)
 	err = c.AddResponse(&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// trace too large, should not quit but should return an error
-	c = NewTraceByID(1)
+	c = NewTraceByID(1, api.HeaderAcceptJSON)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(1, nil),
 		Metrics: &tempopb.TraceByIDMetrics{},
@@ -56,6 +58,37 @@ func TestTraceByIDShouldQuit(t *testing.T) {
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
+}
+
+func TestTraceByIDHonorsContentType(t *testing.T) {
+	expected := test.MakeTrace(2, nil)
+
+	// json
+	c := NewTraceByID(0, api.HeaderAcceptJSON)
+	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected}, 200))
+	require.NoError(t, err)
+
+	resp, err := c.HTTPFinal()
+	require.NoError(t, err)
+
+	actual := &tempopb.Trace{}
+	err = jsonpb.Unmarshal(resp.Body, actual)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+
+	// proto
+	c = NewTraceByID(0, api.HeaderAcceptProtobuf)
+	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected}, 200))
+	require.NoError(t, err)
+
+	resp, err = c.HTTPFinal()
+	require.NoError(t, err)
+
+	actual = &tempopb.Trace{}
+	buff, err := io.ReadAll(resp.Body)
+	proto.Unmarshal(buff, actual)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }
 
 func toHTTPProtoResponse(t *testing.T, pb proto.Message, statusCode int) *http.Response {

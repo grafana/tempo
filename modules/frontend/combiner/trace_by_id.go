@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -21,7 +22,8 @@ const (
 type traceByIDCombiner struct {
 	mu sync.Mutex
 
-	c *trace.Combiner
+	c           *trace.Combiner
+	contentType string
 
 	code          int
 	statusMessage string
@@ -32,10 +34,11 @@ type traceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int) Combiner {
+func NewTraceByID(maxBytes int, contentType string) Combiner {
 	return &traceByIDCombiner{
-		c:    trace.NewCombiner(maxBytes),
-		code: http.StatusNotFound,
+		c:           trace.NewCombiner(maxBytes),
+		code:        http.StatusNotFound,
+		contentType: contentType,
 	}
 }
 
@@ -90,7 +93,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	statusCode := c.code
 	traceResult, _ := c.c.Result()
 
-	if traceResult == nil || statusCode != http.StatusOK {
+	if statusCode != http.StatusOK {
 		return &http.Response{
 			StatusCode: statusCode,
 			Body:       io.NopCloser(strings.NewReader(c.statusMessage)),
@@ -98,21 +101,36 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		}, nil
 	}
 
+	// if we have no trace result just substitute and return an empty trace
+	if traceResult == nil {
+		traceResult = &tempopb.Trace{}
+	}
+
 	// dedupe duplicate span ids
 	deduper := newDeduper()
 	traceResult = deduper.dedupe(traceResult)
 
-	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
-		Trace: traceResult,
-	})
+	// marshal in the requested format
+	var buff []byte
+	var err error
+
+	if c.contentType == api.HeaderAcceptProtobuf {
+		buff, err = proto.Marshal(traceResult)
+	} else {
+		var jsonStr string
+
+		marshaler := &jsonpb.Marshaler{}
+		jsonStr, err = marshaler.MarshalToString(traceResult)
+		buff = []byte(jsonStr)
+	}
 	if err != nil {
-		return &http.Response{}, fmt.Errorf("error marshalling response to proto: %w", err)
+		return &http.Response{}, fmt.Errorf("error marshalling response: %w content type: %s", err, c.contentType)
 	}
 
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
-			api.HeaderContentType: {api.HeaderAcceptProtobuf},
+			api.HeaderContentType: {c.contentType},
 		},
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),

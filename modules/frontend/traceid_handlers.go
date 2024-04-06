@@ -1,23 +1,18 @@
 package frontend
 
 import (
-	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto" //nolint:all //deprecated
+	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
@@ -75,50 +70,11 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		combiner := combiner.NewTraceByID(o.MaxBytesPerTrace(tenant))
+		combiner := combiner.NewTraceByID(o.MaxBytesPerTrace(tenant), marshallingFormat)
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		start := time.Now()
 		resp, err := rt.RoundTrip(req)
-
-		// marshal/unmarshal into requested format - jpe - move me to combiner
-		if resp != nil && resp.StatusCode == http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err != nil {
-				return nil, fmt.Errorf("error reading response body at query frontend: %w", err)
-			}
-			responseObject := &tempopb.TraceByIDResponse{}
-			err = proto.Unmarshal(body, responseObject)
-			if err != nil {
-				return nil, err
-			}
-
-			// below marshalling logic fails on an empty trace
-			if responseObject.Trace == nil {
-				responseObject.Trace = &tempopb.Trace{}
-			}
-
-			if marshallingFormat == api.HeaderAcceptJSON {
-				var jsonTrace bytes.Buffer
-				marshaller := &jsonpb.Marshaler{}
-				err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
-				if err != nil {
-					return nil, err
-				}
-				resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
-			} else {
-				traceBuffer, err := proto.Marshal(responseObject.Trace)
-				if err != nil {
-					return nil, err
-				}
-				resp.Body = io.NopCloser(bytes.NewReader(traceBuffer))
-			}
-
-			if resp.Header != nil {
-				resp.Header.Set(api.HeaderContentType, marshallingFormat)
-			}
-		}
 
 		elapsed := time.Since(start)
 		postSLOHook(resp, tenant, 0, elapsed, err)
