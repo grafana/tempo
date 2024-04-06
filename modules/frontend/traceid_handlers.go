@@ -79,12 +79,9 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		start := time.Now()
+		resp, err := rt.RoundTrip(req)
 
-		// wrap the round tripper with the deduper middleware
-		deduperMW := newDeduper(logger)
-		resp, err := deduperMW.Wrap(rt).RoundTrip(req)
-
-		// marshal/unmarshal into requested format
+		// marshal/unmarshal into requested format - jpe - move me to combiner
 		if resp != nil && resp.StatusCode == http.StatusOK {
 			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()

@@ -27,6 +27,11 @@ type traceByIDCombiner struct {
 	statusMessage string
 }
 
+// NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
+// - 404 is a valid response code. if all downstream jobs return 404 then it will return 404 with no body
+// - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
+// - runs the zipkin dedupe logic on the fully combined trace
+// - encode the returned trace as either json or proto depending on the request
 func NewTraceByID(maxBytes int) Combiner {
 	return &traceByIDCombiner{
 		c:    trace.NewCombiner(maxBytes),
@@ -92,6 +97,10 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 			Header:     http.Header{},
 		}, nil
 	}
+
+	// dedupe duplicate span ids
+	deduper := newDeduper()
+	traceResult = deduper.dedupe(traceResult)
 
 	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
 		Trace: traceResult,
