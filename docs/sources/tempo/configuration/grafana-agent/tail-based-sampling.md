@@ -16,7 +16,7 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 Tail-based sampling works with Grafana Agent in Flow or static modes.
-Flow mode configuration files are [written in River](/docs/agent/latest/flow/config-language).
+Flow mode configuration files are [written in River](/docs/agent/latest/flow/concepts/config-language).
 Static mode configuration files are [written in YAML](/docs/agent/latest/static/configuration).
 Examples in this document are for Flow mode. You can also use the [Static mode Kubernetes operator](/docs/agent/latest/operator).
 
