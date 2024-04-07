@@ -86,7 +86,8 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 
 	actual = &tempopb.Trace{}
 	buff, err := io.ReadAll(resp.Body)
-	proto.Unmarshal(buff, actual)
+	require.NoError(t, err)
+	err = proto.Unmarshal(buff, actual)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
