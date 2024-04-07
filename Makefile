@@ -142,16 +142,16 @@ test-bench: tools docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
-fmt: tools
-	@gofumpt -w $(FILES_TO_FMT)
-	@goimports -w $(FILES_TO_FMT)
+fmt: tools-image
+	@$(TOOLS_CMD) gofumpt -w $(FILES_TO_FMT)
+	@$(TOOLS_CMD) goimports -w $(FILES_TO_FMT)
 
 check-fmt: fmt
 	@git diff --exit-code -- $(FILES_TO_FMT)
 
 .PHONY: jsonnetfmt check-jsonnetfmt
-jsonnetfmt:
-	@jsonnetfmt -i $(FILES_TO_JSONNETFMT)
+jsonnetfmt: tools-image
+	@$(TOOLS_CMD) jsonnetfmt -i $(FILES_TO_JSONNETFMT)
 
 check-jsonnetfmt: jsonnetfmt
 	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
@@ -302,14 +302,14 @@ docs-test:
 
 ### jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
-jsonnet:
-	$(MAKE) -C operations/jsonnet-compiled/util gen
+jsonnet: tools-image
+	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util gen
 
-jsonnet-check:
-	$(MAKE) -C operations/jsonnet-compiled/util check
+jsonnet-check: tools-image
+	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util check
 
-jsonnet-test:
-	$(MAKE) -C operations/jsonnet/microservices test
+jsonnet-test: tools-image
+	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet/microservices test
 
 ### serverless
 .PHONY: docker-serverless test-serverless
@@ -321,11 +321,11 @@ test-serverless:
 
 ### tempo-mixin
 .PHONY: tempo-mixin tempo-mixin-check
-tempo-mixin:
-	$(MAKE) -C operations/tempo-mixin all
+tempo-mixin: tools-image
+	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin all
 
-tempo-mixin-check:
-	$(MAKE) -C operations/tempo-mixin check
+tempo-mixin-check: tools-image
+	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin check
 
 ### drone
 .PHONY: drone drone-jsonnet drone-signature

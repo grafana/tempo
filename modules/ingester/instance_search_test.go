@@ -392,7 +392,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 				MaxBytesPerTagValuesQuery: 10,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -423,7 +423,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 				MaxBlocksPerTagValuesQuery: 1,
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -458,7 +458,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.Equal(t, 100, len(respV2.TagValues))
 
 	// Now test with unlimited blocks
-	limits, err = overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	limits, err = overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	assert.NoError(t, err, "unexpected error creating limits")
 
 	i.limiter = NewLimiter(limits, &ringCountMock{count: 1}, 1)

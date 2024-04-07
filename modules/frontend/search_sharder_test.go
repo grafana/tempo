@@ -17,6 +17,11 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -26,10 +31,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var _ tempodb.Reader = (*mockReader)(nil)
@@ -521,7 +522,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		}), nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	now := time.Now().Add(-10 * time.Minute).Unix()
@@ -581,7 +582,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -614,7 +615,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 				MaxSearchDuration: model.Duration(time.Minute),
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	sharder = newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -668,7 +669,7 @@ func TestAdjustLimit(t *testing.T) {
 
 func TestMaxDuration(t *testing.T) {
 	//
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	sharder := asyncSearchSharder{
 		cfg: SearchSharderConfig{
@@ -685,7 +686,7 @@ func TestMaxDuration(t *testing.T) {
 				MaxSearchDuration: model.Duration(10 * time.Minute),
 			},
 		},
-	}, prometheus.DefaultRegisterer)
+	}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 	sharder = asyncSearchSharder{
 		cfg: SearchSharderConfig{
