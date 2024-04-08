@@ -15,7 +15,7 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
-For externally support GRPC API [see below](#tempo-grpc-api)
+For externally supported GRPC API, [see below](#tempo-grpc-api).
 
 ## Endpoints
 
@@ -302,7 +302,7 @@ Parameters:
 
 ### Search tags V2
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only 
+Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only
 fetch blocks that wasn't flushed to backend.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
@@ -597,7 +597,7 @@ Query parameter:
 GET /status/overrides
 ```
 
-Displays all tenants that have non-default overrides configured. 
+Displays all tenants that have non-default overrides configured.
 
 ```
 GET /status/overrides/{tenant}
