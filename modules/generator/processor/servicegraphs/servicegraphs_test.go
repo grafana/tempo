@@ -299,8 +299,6 @@ func TestServiceGraphs_enableExtraLabelsForUninstrumentedServicesWithQueueAndDat
 		"server_messaging_system": "rabbitmq",
 	})
 
-	fmt.Println(testRegistry)
-
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverDbSystemLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverDbSystemLabels))
