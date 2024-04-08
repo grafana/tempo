@@ -113,6 +113,9 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 }
 
 func (g *Generator) starting(ctx context.Context) (err error) {
+	// clean the wal on start up
+	os.RemoveAll(g.cfg.Storage.Path)
+
 	// In case this function will return error we want to unregister the instance
 	// from the ring. We do it ensuring dependencies are gracefully stopped if they
 	// were already started.
