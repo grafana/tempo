@@ -54,4 +54,3 @@ Tempo integrates well with a number of existing open source tools:
 
 {{< card-grid key="cards" type="simple" >}}
 
-<p align="center"><img src="/static/img/search/tempo.svg"  alt="Tempo Logo"></p>
