@@ -32,7 +32,7 @@ sum by (status_code) (
 )
 ```
 
-This metric is also shown in [the monitoring dashboards]({{< relref "./monitoring" >}}) (the left panel):
+This metric is also shown in [the monitoring dashboards]({{< relref "./monitor" >}}) (the left panel):
 
 <p align="center"><img src="../caching_memcached_connection_limit.png" alt="QPS and latency of requests to memcached"></p>
 
