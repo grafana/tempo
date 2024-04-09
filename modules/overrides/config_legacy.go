@@ -53,6 +53,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 
 		BlockRetention:   c.Compaction.BlockRetention,
 		CompactionWindow: c.Compaction.CompactionWindow,
+		CompactionShards: c.Compaction.Shards,
 
 		MaxBytesPerTagValuesQuery:  c.Read.MaxBytesPerTagValuesQuery,
 		MaxBlocksPerTagValuesQuery: c.Read.MaxBlocksPerTagValuesQuery,
