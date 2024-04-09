@@ -29,7 +29,7 @@ type Compactor struct {
 	opts common.CompactionOptions
 }
 
-func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, cmd common.Compaction) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, cmd common.CompactionRound) (newCompactedBlocks []*backend.BlockMeta, err error) {
 	var (
 		compactionLevel uint8
 		totalRecords    int

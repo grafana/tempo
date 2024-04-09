@@ -11,7 +11,7 @@ import (
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction
 type CompactionBlockSelector interface {
-	BlocksToCompact() common.Compaction
+	BlocksToCompact() common.CompactionRound
 }
 
 const (
@@ -63,7 +63,7 @@ func (c *timeWindowCompaction) CutBlock(currBlock *backend.BlockMeta, _ common.I
 }
 
 var (
-	_ (common.Compaction)       = (*timeWindowCompaction)(nil)
+	_ (common.CompactionRound)  = (*timeWindowCompaction)(nil)
 	_ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 )
 
@@ -138,7 +138,7 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	return twbs
 }
 
-func (twbs *timeWindowBlockSelector) BlocksToCompact() common.Compaction {
+func (twbs *timeWindowBlockSelector) BlocksToCompact() common.CompactionRound {
 	for len(twbs.entries) > 0 {
 		var chosen []timeWindowBlockEntry
 

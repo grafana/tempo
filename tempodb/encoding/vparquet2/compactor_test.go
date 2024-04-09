@@ -28,7 +28,7 @@ func (m *mockCompaction) Blocks() []*backend.BlockMeta              { return m.b
 func (*mockCompaction) Ownership() string                           { return "" }
 func (*mockCompaction) CutBlock(*backend.BlockMeta, common.ID) bool { return false }
 
-var _ (common.Compaction) = (*mockCompaction)(nil)
+var _ (common.CompactionRound) = (*mockCompaction)(nil)
 
 func BenchmarkCompactor(b *testing.B) {
 	b.Run("Small", func(b *testing.B) {

@@ -148,7 +148,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	}
 }
 
-func (rw *readerWriter) compact(ctx context.Context, cmd common.Compaction, tenantID string) error {
+func (rw *readerWriter) compact(ctx context.Context, cmd common.CompactionRound, tenantID string) error {
 	blockMetas := cmd.Blocks()
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 

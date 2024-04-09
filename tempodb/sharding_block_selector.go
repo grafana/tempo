@@ -67,7 +67,7 @@ func (c *shardedCompaction) CutBlock(currBlock *backend.BlockMeta, nextTraceID c
 }
 
 var (
-	_ (common.Compaction)       = (*shardedCompaction)(nil)
+	_ (common.CompactionRound)  = (*shardedCompaction)(nil)
 	_ (CompactionBlockSelector) = (*shardingBlockSelector)(nil)
 )
 
@@ -188,7 +188,7 @@ func (s *shardingBlockSelector) shardOf(id common.ID) int {
 	return i
 }
 
-func (s *shardingBlockSelector) BlocksToCompact() common.Compaction {
+func (s *shardingBlockSelector) BlocksToCompact() common.CompactionRound {
 	for len(s.entries) > 0 {
 		var chosen []shardingBlockEntry
 

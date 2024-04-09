@@ -77,7 +77,7 @@ func (m *mockCompaction) Blocks() []*backend.BlockMeta              { return m.b
 func (*mockCompaction) Ownership() string                           { return "" }
 func (*mockCompaction) CutBlock(*backend.BlockMeta, common.ID) bool { return false }
 
-var _ (common.Compaction) = (*mockCompaction)(nil)
+var _ (common.CompactionRound) = (*mockCompaction)(nil)
 
 func TestCompactionRoundtrip(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
