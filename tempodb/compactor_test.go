@@ -25,7 +25,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -725,7 +724,7 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	for _, enc := range /*encoding.AllEncodings()*/ []encoding.VersionedEncoding{vparquet3.Encoding{}} {
+	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		b.Run(version, func(b *testing.B) {
 			benchmarkCompaction(b, version)
