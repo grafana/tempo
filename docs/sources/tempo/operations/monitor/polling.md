@@ -5,6 +5,7 @@ description: Monitor Tempo's backend using polling
 weight: 30
 aliases:
 - /docs/tempo/operations/polling
+- ../polling
 ---
 
 # Use polling to monitor Tempo's backend status
@@ -22,14 +23,16 @@ This is done once every `blocklist_poll` duration.
 All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list.
 Again, this is done once every `blocklist_poll` duration.
 
-Due to this behavior, a given compactor or querier will often have an out-of-date blocklist.
+Due to this behavior, a given compactor or querier often have an out-of-date blocklist.
 During normal operation, it will stale by at most twice the configured `blocklist_poll`.
 
->**Note**: For details about configuring polling, see [polling configuration]({{< relref "../configuration/polling" >}}).
+{{% admonition type="note" %}}
+For details about configuring polling, refer to [polling configuration]({{< relref "../../configuration/polling" >}}).
+{{% /admonition %}}
 
 ## Monitor polling with dashboards and alerts
 
-See our Jsonnet for example [alerts](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/alerts.libsonnet) and [runbook entries](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md)
+Refer to the Jsonnet for example [alerts](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/alerts.libsonnet) and [runbook entries](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md)
 related to polling.
 
 If you are building your own dashboards or alerts, here are a few relevant metrics:
