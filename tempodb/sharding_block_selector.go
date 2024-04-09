@@ -72,7 +72,7 @@ var (
 )
 
 func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks int) CompactionBlockSelector {
-	twbs := &shardingBlockSelector{
+	s := &shardingBlockSelector{
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
 		MaxCompactionRange:   maxCompactionRange,
@@ -83,18 +83,18 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 
 	var (
 		now        = time.Now()
-		currWindow = twbs.windowForTime(now)
+		currWindow = s.windowForTime(now)
 	)
 
 	for _, b := range blocklist {
 
 		var (
-			w     = twbs.windowForBlock(b)
-			shard = twbs.shardOf(b.MinID)
+			w     = s.windowForBlock(b)
+			shard = s.shardOf(b.MinID)
 
 			// These are all of the numeric values that we can group and order by,
 			shardMin = fmt.Sprintf("%03d", shard)
-			shardMax = fmt.Sprintf("%03d", twbs.shardOf(b.MaxID))
+			shardMax = fmt.Sprintf("%03d", s.shardOf(b.MaxID))
 			columns  = fmt.Sprintf("%016X", b.DedicatedColumnsHash())
 			level    = fmt.Sprintf("%03d", b.CompactionLevel)
 			window   = fmt.Sprintf("%v", w)
@@ -104,7 +104,7 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 
 		entry := shardingBlockEntry{
 			meta:      b,
-			minBlocks: twbs.MinInputBlocks,
+			minBlocks: s.MinInputBlocks,
 			// Within group order by lowest compaction level first,
 			// then lowest trace ID to try to co-locate traces even further.
 			// This is the same for all cases.
@@ -166,13 +166,13 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 			)
 		}
 
-		twbs.entries = append(twbs.entries, entry)
+		s.entries = append(s.entries, entry)
 	}
 
 	// sort by group then order
-	sort.SliceStable(twbs.entries, func(i, j int) bool {
-		ei := twbs.entries[i]
-		ej := twbs.entries[j]
+	sort.SliceStable(s.entries, func(i, j int) bool {
+		ei := s.entries[i]
+		ej := s.entries[j]
 
 		if ei.group == ej.group {
 			return ei.order < ej.order
@@ -180,29 +180,29 @@ func newShardingBlockSelector(shards int, blocklist []*backend.BlockMeta, maxCom
 		return ei.group < ej.group
 	})
 
-	return twbs
+	return s
 }
 
-func (twbs *shardingBlockSelector) shardOf(id common.ID) int {
-	i, _ := slices.BinarySearchFunc(twbs.boundaries, []byte(id), bytes.Compare)
+func (s *shardingBlockSelector) shardOf(id common.ID) int {
+	i, _ := slices.BinarySearchFunc(s.boundaries, []byte(id), bytes.Compare)
 	return i
 }
 
-func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
-	for len(twbs.entries) > 0 {
+func (s *shardingBlockSelector) BlocksToCompact() common.Compaction {
+	for len(s.entries) > 0 {
 		var chosen []shardingBlockEntry
 
 		// find everything from cursor forward that belongs to this group
 		// Gather contiguous blocks while staying within limits
 		i := 0
-		for ; i < len(twbs.entries); i++ {
-			chosen = twbs.entries[i:1]
-			for j := i + 1; j < len(twbs.entries); j++ {
-				stripe := twbs.entries[i : j+1]
-				if twbs.entries[i].group == twbs.entries[j].group &&
-					len(stripe) <= twbs.MaxInputBlocks &&
-					totalObjects2(stripe) <= twbs.MaxCompactionObjects &&
-					totalSize2(stripe) <= twbs.MaxBlockBytes {
+		for ; i < len(s.entries); i++ {
+			chosen = s.entries[i:1]
+			for j := i + 1; j < len(s.entries); j++ {
+				stripe := s.entries[i : j+1]
+				if s.entries[i].group == s.entries[j].group &&
+					len(stripe) <= s.MaxInputBlocks &&
+					totalObjects2(stripe) <= s.MaxCompactionObjects &&
+					totalSize2(stripe) <= s.MaxBlockBytes {
 					chosen = stripe
 				} else {
 					break
@@ -215,15 +215,15 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 		}
 
 		// Remove entries that were checked so they are not considered again.
-		twbs.entries = twbs.entries[i+len(chosen):]
+		s.entries = s.entries[i+len(chosen):]
 
 		// did we find enough blocks?
 		if len(chosen) > 0 && len(chosen) >= chosen[0].minBlocks {
 			res := shardedCompaction{
-				maxCompactionObjects: twbs.MaxCompactionObjects,
+				maxCompactionObjects: s.MaxCompactionObjects,
 				hash:                 chosen[0].hash,
 				split:                chosen[0].split,
-				shardOf:              twbs.shardOf,
+				shardOf:              s.shardOf,
 			}
 			for _, e := range chosen {
 				res.blocks = append(res.blocks, e.meta)
@@ -234,12 +234,12 @@ func (twbs *shardingBlockSelector) BlocksToCompact() common.Compaction {
 	return &shardedCompaction{}
 }
 
-func (twbs *shardingBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
-	return twbs.windowForTime(meta.EndTime)
+func (s *shardingBlockSelector) windowForBlock(meta *backend.BlockMeta) int64 {
+	return s.windowForTime(meta.EndTime)
 }
 
-func (twbs *shardingBlockSelector) windowForTime(t time.Time) int64 {
-	return t.Unix() / int64(twbs.MaxCompactionRange/time.Second)
+func (s *shardingBlockSelector) windowForTime(t time.Time) int64 {
+	return t.Unix() / int64(s.MaxCompactionRange/time.Second)
 }
 
 func totalObjects2(entries []shardingBlockEntry) int {
