@@ -124,6 +124,7 @@ local docker_build(arch, app, dockerfile='') = {
     password: { from_secret: docker_password_secret.name },
     build_args: [
       'TARGETARCH=' + arch,
+      'TARGETPLATFORM=' + 'linux', // TODO: Pass as a parameter
     ],
   },
 };
