@@ -818,7 +818,13 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 				sp.cbSpanset.StartTimeUnixNanos = ss.StartTimeUnixNanos
 			}
 			if len(sp.cbSpanset.ServiceStats) == 0 {
-				sp.cbSpanset.ServiceStats = ss.ServiceStats
+				sp.cbSpanset.ServiceStats = map[string]traceql.ServiceStats{}
+				for service, stat := range ss.ServiceStats {
+					sp.cbSpanset.ServiceStats[service] = traceql.ServiceStats{
+						SpanCount:  stat.SpanCount,
+						ErrorCount: stat.ErrorCount,
+					}
+				}
 			}
 
 			i.nextSpans = append(i.nextSpans, sp)
@@ -1046,7 +1052,7 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case intrinsicScopeTrace:
+		case traceql.AttributeScopeTrace, intrinsicScopeTrace:
 			traceConditions = append(traceConditions, cond)
 			continue
 
@@ -1495,14 +1501,16 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 			}
 			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
 		}
+
+		switch cond.Attribute.Name {
+		case traceql.ServiceStatsAttributeName:
+			traceIters = append(traceIters, createServiceStatsIterator(makeIter))
+		}
 	}
 
 	// order is interesting here. would it be more efficient to grab the span/resource conditions first
 	// or the time range filtering first?
 	traceIters = append(traceIters, resourceIter)
-
-	// collect service stats of the trace
-	traceIters = append(traceIters, createServiceStatsIterator(makeIter))
 
 	// evaluate time range
 	// Time range filtering?
@@ -1520,7 +1528,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
-	// TraceCollor adds trace-level data to the spansets
+	// TraceCollector adds trace-level data to the spansets
 	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector()), nil
 }
 

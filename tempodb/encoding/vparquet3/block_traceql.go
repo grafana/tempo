@@ -1039,7 +1039,7 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case intrinsicScopeTrace:
+		case traceql.AttributeScopeTrace, intrinsicScopeTrace:
 			traceConditions = append(traceConditions, cond)
 			continue
 

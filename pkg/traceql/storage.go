@@ -12,6 +12,10 @@ type Condition struct {
 	Operands  Operands
 }
 
+const (
+	ServiceStatsAttributeName = "ServiceStats"
+)
+
 func SearchMetaConditions() []Condition {
 	return []Condition{
 		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
@@ -22,6 +26,7 @@ func SearchMetaConditions() []Condition {
 		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
 		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
 		{NewIntrinsic(IntrinsicDuration), OpNone, nil},
+		{Attribute{Scope: AttributeScopeTrace, Name: ServiceStatsAttributeName}, OpNone, nil},
 	}
 }
 

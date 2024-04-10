@@ -9,6 +9,7 @@ const (
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeUnknown
+	AttributeScopeTrace
 
 	none     = "none"
 	duration = "duration"
