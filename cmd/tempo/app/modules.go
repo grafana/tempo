@@ -404,7 +404,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
-	t.store.EnablePolling(context.Background(), nil)
+	if t.cfg.Target == QueryFrontend {
+		t.store.EnablePolling(context.Background(), nil)
+	}
 
 	// http query echo endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
