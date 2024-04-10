@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"path"
 
@@ -106,16 +105,6 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 
 // Write implements backend.Writer
 func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
-	// If meta and compactedMeta are empty, call delete the tenant index.
-	if len(meta) == 0 && len(compactedMeta) == 0 {
-		// Skip returning an error when the object is already deleted.
-		err := w.w.Delete(ctx, TenantIndexName, []string{tenantID}, nil)
-		if err != nil && !errors.Is(err, ErrDoesNotExist) {
-			return err
-		}
-		return nil
-	}
-
 	b := newTenantIndex(meta, compactedMeta)
 
 	indexBytes, err := b.marshal()
