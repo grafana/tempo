@@ -122,6 +122,7 @@ local docker_build(arch, app, dockerfile='') = {
     repo: 'grafana/%s' % app,
     username: { from_secret: docker_username_secret.name },
     password: { from_secret: docker_password_secret.name },
+    platform: '%s/%s' % ['linux', arch],
     build_args: [
       'TARGETARCH=' + arch,
     ],
