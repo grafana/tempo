@@ -557,24 +557,7 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 		}
 	}
 
-	// Calculate service meta information/statistics per trace
-	ot.ServiceStats = map[string]ServiceStats{}
-	for _, res := range ot.ResourceSpans {
-		stats := ot.ServiceStats[res.Resource.ServiceName]
-
-		for _, ss := range res.ScopeSpans {
-			stats.SpanCount += uint32(len(ss.Spans))
-			for _, s := range ss.Spans {
-				if s.StatusCode == int(v1_trace.Status_STATUS_CODE_ERROR) {
-					stats.ErrorCount++
-				}
-			}
-		}
-
-		ot.ServiceStats[res.Resource.ServiceName] = stats
-	}
-
-	return ot, assignNestedSetModelBounds(ot)
+	return ot, assignNestedSetModelBoundsAndServiceStats(ot)
 }
 
 func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {

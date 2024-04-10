@@ -269,7 +269,7 @@ func TestAssignNestedSetModelBounds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			trace := makeTrace(tt.trace)
 			expected := makeTrace(tt.expected)
-			connected := assignNestedSetModelBounds(trace)
+			connected := assignNestedSetModelBoundsAndServiceStats(trace)
 			assertEqualNestedSetModelBounds(t, trace, expected)
 			assert.Equal(t, tt.expectedConnected, connected)
 		})
@@ -307,4 +307,83 @@ func assertEqualNestedSetModelBounds(t testing.TB, actual, expected *Trace) {
 	}
 
 	assert.Equalf(t, expectedCount, actualCount, "expected %d spans but found %d instead", expectedCount, actualCount)
+}
+
+func TestAssignServiceStats(t *testing.T) {
+	tests := []struct {
+		name     string
+		trace    []ResourceSpans
+		expected map[string]ServiceStats
+	}{
+		{
+			name: "single span",
+			trace: []ResourceSpans{
+				{
+					Resource: Resource{ServiceName: "serviceA"},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{SpanID: []byte("aaaaaaaa")},
+						},
+					}},
+				},
+			},
+			expected: map[string]ServiceStats{"serviceA": {SpanCount: 1}},
+		},
+		{
+			name: "multiple services",
+			trace: []ResourceSpans{
+				{
+					Resource: Resource{ServiceName: "serviceA"},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{SpanID: []byte("aaaaaaaa")},
+							{SpanID: []byte("aaaaaaab")},
+						},
+					}},
+				},
+				{
+					Resource: Resource{ServiceName: "serviceB"},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{SpanID: []byte("aaaaaaac")},
+						},
+					}},
+				},
+			},
+			expected: map[string]ServiceStats{"serviceA": {SpanCount: 2}, "serviceB": {SpanCount: 1}},
+		},
+		{
+			name: "multiple services with errors",
+			trace: []ResourceSpans{
+				{
+					Resource: Resource{ServiceName: "serviceA"},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{SpanID: []byte("aaaaaaaa"), StatusCode: 0},
+							{SpanID: []byte("aaaaaaab"), StatusCode: 2},
+						},
+					}},
+				},
+				{
+					Resource: Resource{ServiceName: "serviceB"},
+					ScopeSpans: []ScopeSpans{{
+						Spans: []Span{
+							{SpanID: []byte("aaaaaaac"), StatusCode: 1},
+							{SpanID: []byte("aaaaaaad"), StatusCode: 2},
+							{SpanID: []byte("aaaaaaae"), StatusCode: 2},
+						},
+					}},
+				},
+			},
+			expected: map[string]ServiceStats{"serviceA": {SpanCount: 2, ErrorCount: 1}, "serviceB": {SpanCount: 3, ErrorCount: 2}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trace := &Trace{ResourceSpans: tt.trace}
+			assignNestedSetModelBoundsAndServiceStats(trace)
+			assert.Equal(t, tt.expected, trace.ServiceStats)
+		})
+	}
 }

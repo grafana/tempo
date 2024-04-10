@@ -18,10 +18,11 @@ type spanNode struct {
 	nextChild int
 }
 
-// assignNestedSetModelBounds calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
+// assignNestedSetModelBoundsAndServiceStats calculates and assigns the values Span.NestedSetLeft, Span.NestedSetRight,
 // and Span.ParentID for all spans in a trace.
+// Additionally, it calculates per-service statistics of the trace.
 // Returns true if the trace tree is a connected graph which is useful for calculating data quality
-func assignNestedSetModelBounds(trace *Trace) bool {
+func assignNestedSetModelBoundsAndServiceStats(trace *Trace) bool {
 	// count spans in order be able to pre-allocate tree nodes
 	var spanCount int
 	for _, rs := range trace.ResourceSpans {
@@ -38,8 +39,15 @@ func assignNestedSetModelBounds(trace *Trace) bool {
 		rootNodes      []*spanNode
 	)
 
+	// initialize ServiceStats (spanCount and errorCount per service)
+	trace.ServiceStats = map[string]ServiceStats{}
+
 	for _, rs := range trace.ResourceSpans {
+		serviceStats := trace.ServiceStats[rs.Resource.ServiceName]
+
 		for _, ss := range rs.ScopeSpans {
+			serviceStats.SpanCount += uint32(len(ss.Spans))
+
 			for i, s := range ss.Spans {
 				allNodes = append(allNodes, spanNode{span: &ss.Spans[i]})
 				node := &allNodes[len(allNodes)-1]
@@ -59,8 +67,14 @@ func assignNestedSetModelBounds(trace *Trace) bool {
 				} else {
 					nodesByID[id] = []*spanNode{node}
 				}
+
+				if s.StatusCode == int(v1.Status_STATUS_CODE_ERROR) {
+					serviceStats.ErrorCount++
+				}
 			}
 		}
+
+		trace.ServiceStats[rs.Resource.ServiceName] = serviceStats
 	}
 
 	// check preconditions before assignment
