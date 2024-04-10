@@ -24,6 +24,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=amd64
+    - TARGETPLATFORM=linux
     dockerfile: cmd/tempo/Dockerfile
     password:
       from_secret: docker_password
@@ -35,6 +36,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=amd64
+    - TARGETPLATFORM=linux
     dockerfile: cmd/tempo-vulture/Dockerfile
     password:
       from_secret: docker_password
@@ -46,6 +48,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=amd64
+    - TARGETPLATFORM=linux
     dockerfile: cmd/tempo-query/Dockerfile
     password:
       from_secret: docker_password
@@ -85,6 +88,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=arm64
+    - TARGETPLATFORM=linux
     dockerfile: cmd/tempo/Dockerfile
     password:
       from_secret: docker_password
@@ -96,6 +100,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=arm64
+    - TARGETPLATFORM=linux
     dockerfile: cmd/tempo-vulture/Dockerfile
     password:
       from_secret: docker_password
@@ -107,6 +112,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=arm64
+    - TARGETPLATFORM=linux
     dockerfile: cmd/tempo-query/Dockerfile
     password:
       from_secret: docker_password
@@ -189,6 +195,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=amd64
+    - TARGETPLATFORM=linux
     dockerfile: tools/Dockerfile
     password:
       from_secret: docker_password
@@ -221,6 +228,7 @@ steps:
   settings:
     build_args:
     - TARGETARCH=arm64
+    - TARGETPLATFORM=linux
     dockerfile: tools/Dockerfile
     password:
       from_secret: docker_password
@@ -522,6 +530,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 01adf0a8a3952d45aca5575e624a63a088167173e18c07b3dfe1950dcb3e069b
+hmac: 2f193387c83d967a228b5b18d311a99b1d5ba3f10bf4337c1f7ade78c560e3fb
 
 ...
