@@ -733,5 +733,4 @@ func TestHashTraceQLQuery(t *testing.T) {
 	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 1})
 	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 2})
 	require.NotEqual(t, h1, h2)
-
 }
