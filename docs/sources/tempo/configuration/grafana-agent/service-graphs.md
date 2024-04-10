@@ -22,13 +22,15 @@ For more information, refer to the [service graph view documentation]({{< relref
 
 ## Before you begin
 
-Service graphs are generated in the Grafana Agent and pushed to a Prometheus-compatible backend.
+Service graphs are generated in Grafana Agent and pushed to a Prometheus-compatible backend.
 Once generated, they can be represented in Grafana as a graph.
-You will need these components to fully use service graphs.
+You need these components to fully use service graphs.
 
 ### Enable service graphs in Grafana Agent
 
-To start using service graphs, enable the feature in the Grafana Agent config.
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+
+To start using service graphs, enable the feature in Grafana Agent configuration.
 
 ```yaml
 traces:
@@ -39,10 +41,10 @@ traces:
         enabled: true
 ```
 
-To see all the available config options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
+To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
 
 Metrics are registered in the Agent's default registerer.
-Therefore, they are exposed at `/metrics` in the Agent's server port (default 12345).
+Therefore, they are exposed at `/metrics` in the Agent's server port (default `12345`).
 One option is to use the Agent self-scrape capabilities to export the metrics to a Prometheus-compatible backend.
 
 ```yaml

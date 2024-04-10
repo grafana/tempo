@@ -59,6 +59,8 @@ To see all the available configuration options, refer to the [configuration refe
 
 ## Example for Grafana Agent Flow
 
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+
 [Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files are written in River instead of YAML.
 
@@ -175,7 +177,8 @@ traces:
 
 ### And compound tail sampling policy
 
-The following policy will only sample traces where all of the conditions for the sub-policies are met. In this case, it takes the prior two policies and will only sample traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/` *and* at least one of the spans of the trace contains an OpenTelemetry Error status code.
+The following policy will only sample traces where all of the conditions for the sub-policies are met.
+In this case, it takes the prior two policies and will only sample traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/` *and* at least one of the spans of the trace contains an OpenTelemetry Error status code.
 
 ```yaml
 traces:
