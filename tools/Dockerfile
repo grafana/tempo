@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM golang:alpine
+FROM golang:alpine
 
 ARG TARGETOS
 ARG TARGETARCH
