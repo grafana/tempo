@@ -548,7 +548,7 @@ func TestSearchAccessesCache(t *testing.T) {
 
 	// setup query
 	query := "{}"
-	hash := hashForTraceQLQuery(query)
+	hash := hashForSearchRequest(&tempopb.SearchRequest{Query: query, Limit: 3, SpansPerSpanSet: 2})
 	start := uint32(10)
 	end := uint32(20)
 	cacheKey := searchJobCacheKey(tenant, hash, int64(start), int64(end), meta, 0, 1)
@@ -558,7 +558,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	require.Equal(t, 0, len(bufs))
 
 	// execute query
-	path := fmt.Sprintf("/?start=%d&end=%d&q=%s", start, end, query) // encapsulates block above
+	path := fmt.Sprintf("/?start=%d&end=%d&q=%s&limit=3&spss=2", start, end, query) // encapsulates block above
 	req := httptest.NewRequest("GET", path, nil)
 	ctx := req.Context()
 	ctx = user.InjectOrgID(ctx, tenant)

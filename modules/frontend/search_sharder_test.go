@@ -700,28 +700,38 @@ func TestMaxDuration(t *testing.T) {
 
 func TestHashTraceQLQuery(t *testing.T) {
 	// exact same queries should have the same hash
-	h1 := hashForTraceQLQuery("{ span.foo = `bar` }")
-	h2 := hashForTraceQLQuery("{ span.foo = `bar` }")
+	h1 := hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
+	h2 := hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
 	require.Equal(t, h1, h2)
 
 	// equivalent queries should have the same hash
-	h1 = hashForTraceQLQuery("{ span.foo = `bar`     }")
-	h2 = hashForTraceQLQuery("{ span.foo = `bar` }")
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar`     }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
 	require.Equal(t, h1, h2)
 
-	h1 = hashForTraceQLQuery("{ (span.foo = `bar`) || (span.bar = `foo`) }")
-	h2 = hashForTraceQLQuery("{ span.foo = `bar` || span.bar = `foo` }")
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ (span.foo = `bar`) || (span.bar = `foo`) }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` || span.bar = `foo` }"})
 	require.Equal(t, h1, h2)
 
 	// different queries should have different hashes
-	h1 = hashForTraceQLQuery("{ span.foo = `bar` }")
-	h2 = hashForTraceQLQuery("{ span.foo = `baz` }")
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `baz` }"})
 	require.NotEqual(t, h1, h2)
 
 	// invalid queries should return 0
-	h1 = hashForTraceQLQuery("{ span.foo = `bar` ")
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` "})
 	require.Equal(t, uint64(0), h1)
 
-	h1 = hashForTraceQLQuery("")
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: ""})
 	require.Equal(t, uint64(0), h1)
+
+	// same queries with different spss and limit should have the different hash
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", Limit: 1})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", Limit: 2})
+	require.NotEqual(t, h1, h2)
+
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 1})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 2})
+	require.NotEqual(t, h1, h2)
+
 }

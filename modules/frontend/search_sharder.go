@@ -268,7 +268,7 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *http.Request, errFn func(error)) {
 	defer close(reqCh)
 
-	queryHash := hashForTraceQLQuery(searchReq.Query)
+	queryHash := hashForSearchRequest(searchReq)
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
@@ -321,22 +321,27 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 	}
 }
 
-// hashForTraceQLQuery returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
+// hashForSearchRequest returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
 // before hashing the query is forced into a canonical form so equivalent queries will hash to the same value.
-func hashForTraceQLQuery(query string) uint64 {
-	if query == "" {
+func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
+	if searchRequest.Query == "" {
 		return 0
 	}
 
-	ast, err := traceql.Parse(query)
+	ast, err := traceql.Parse(searchRequest.Query)
 	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
 		return 0
 	}
 
 	// forces the query into a canonical form
-	query = ast.String()
+	query := ast.String()
 
-	return fnv1a.HashString64(query)
+	// add the query, limit and spss to the hash
+	hash := fnv1a.HashString64(query)
+	hash = fnv1a.AddUint64(hash, uint64(searchRequest.Limit))
+	hash = fnv1a.AddUint64(hash, uint64(searchRequest.SpansPerSpanSet))
+
+	return hash
 }
 
 // pagesPerRequest returns an integer value that indicates the number of pages
