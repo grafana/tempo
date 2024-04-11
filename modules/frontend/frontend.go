@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 
-	//nolint:all //deprecated
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 

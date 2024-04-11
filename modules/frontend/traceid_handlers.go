@@ -16,11 +16,6 @@ import (
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-//
-// todo: the trace by id path consumes a lot of resources for large traces b/c it
-// repeatedly unmarshals/marshals the trace data. Note that it occurs once here
-// to marshal into the proto format and again in the deduper middleware. we should
-// collapse this into the combiner where the data is already unmarshalled
 func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 

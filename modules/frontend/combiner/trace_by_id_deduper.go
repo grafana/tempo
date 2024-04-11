@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	//nolint:all //deprecated
-
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
