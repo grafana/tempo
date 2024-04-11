@@ -436,7 +436,7 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 	subR := parent.Clone(ctx)
 	subR = api.BuildQueryRangeRequest(subR, &req)
 
-	prepareRequestForUpstream(subR, tenantID, parent.URL.Path, subR.URL.Query())
+	prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
 	return subR
 }
 

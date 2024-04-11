@@ -63,7 +63,7 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-		prepareRequestForUpstream(req, tenant, req.RequestURI, nil)
+		prepareRequestForQueriers(req, tenant, req.RequestURI, nil)
 
 		level.Info(logger).Log(
 			"msg", "trace id request",

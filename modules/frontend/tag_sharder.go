@@ -298,7 +298,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				errFn(err)
 				return
 			}
-			prepareRequestForUpstream(subR, tenantID, parent.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
 
 			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
 			if len(key) > 0 {
@@ -356,7 +356,7 @@ func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID str
 		return nil, err
 	}
 
-	prepareRequestForUpstream(subR, tenantID, subR.URL.Path, subR.URL.Query())
+	prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 	return subR, nil
 }
 

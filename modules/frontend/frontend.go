@@ -179,7 +179,7 @@ func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger l
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
-		prepareRequestForUpstream(req, tenant, req.RequestURI, nil)
+		prepareRequestForQueriers(req, tenant, req.RequestURI, nil)
 
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
@@ -203,10 +203,10 @@ func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger l
 	})
 }
 
-// prepareRequestForUpstream modifies the request for downstream functionality
+// prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers
 //   - adds the tenant header
 //   - sets the requesturi (see below for details)
-func prepareRequestForUpstream(req *http.Request, tenant string, originalURI string, params url.Values) {
+func prepareRequestForQueriers(req *http.Request, tenant string, originalURI string, params url.Values) {
 	// set the tenant header
 	req.Header.Set(user.OrgIDHeaderName, tenant)
 

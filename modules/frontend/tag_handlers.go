@@ -107,7 +107,7 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	prepareRequestForUpstream(httpReq, tenant, httpReq.URL.Path, httpReq.URL.Query())
+	prepareRequestForQueriers(httpReq, tenant, httpReq.URL.Path, httpReq.URL.Query())
 
 	c := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
 	collector := pipeline.NewGRPCCollector[TResp](next, c, fnSend)
