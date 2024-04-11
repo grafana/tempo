@@ -347,7 +347,7 @@ func TestQueryRateLimits(t *testing.T) {
 		callFlush(t, tempo)
 		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
 	}
-	// now try to query it back. this should fail b/c the trace is too large
+	// now try to query it back. this should fail b/c the frontend queue doesn't have room
 	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
 
 	// 429 HTTP Trace ID Lookup
