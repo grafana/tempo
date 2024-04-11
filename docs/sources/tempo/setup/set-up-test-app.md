@@ -24,9 +24,11 @@ Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for mo
 
 ## Configure Grafana Agent Flow to remote-write to Tempo
 
-We'll use a [Grafana Agent Helm chart](/docs/agent/latest/flow/setup/install/kubernetes) deployment to send traces to Tempo.
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
-To do this, you need to create a configuration that can be used by the Agent to receive and export traces in OTLP protobuf format.
+This section uses a [Grafana Agent Helm chart](/docs/agent/latest/flow/setup/install/kubernetes) deployment to send traces to Tempo.
+
+To do this, you need to create a configuration that can be used by Grafana Agent to receive and export traces in OTLP `protobuf` format.
 
 1. Create a new `values.yaml` file which we'll use as part of the Agent install.
 
@@ -89,7 +91,6 @@ To do this, you need to create a configuration that can be used by the Agent to 
    helm install -f values.yaml grafana-agent grafana/grafana-agent
    ```
    If you wish to deploy the agent into a specific namespace, make sure to create the namespace first and specify it to Helm by appending `--namespace=<grafana-agent-namespace>` to the end of the command.
-
 
 ## Create a Grafana Tempo data source
 
