@@ -25,6 +25,7 @@ import (
 
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 
@@ -36,6 +37,7 @@ const (
 	configLimits             = "config-limits.yaml"
 	configLimitsQuery        = "config-limits-query.yaml"
 	configLimitsPartialError = "config-limits-partial-success.yaml"
+	configLimits429          = "config-limits-429.yaml"
 )
 
 func TestLimits(t *testing.T) {
@@ -320,4 +322,60 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "unknown_error")),
 	)
 	require.NoError(t, err)
+}
+
+func TestQueryRateLimits(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configLimits429, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// Get port for the otlp receiver endpoint
+	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	// make a trace with 10 spans and push them one at a time, flush in between each one to force different blocks
+	batch := makeThriftBatchWithSpanCount(5)
+	allSpans := batch.Spans
+	for i := range batch.Spans {
+		batch.Spans = allSpans[i : i+1]
+		require.NoError(t, c.EmitBatch(context.Background(), batch))
+		callFlush(t, tempo)
+		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
+	}
+	// now try to query it back. this should fail b/c the frontend queue doesn't have room
+	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
+
+	// 429 HTTP Trace ID Lookup
+	traceID := []byte{0x01, 0x02}
+	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
+	require.ErrorContains(t, err, "job queue full")
+	require.ErrorContains(t, err, "failed with response: 429")
+
+	start := time.Now().Add(-1 * time.Hour).Unix()
+	end := time.Now().Add(1 * time.Hour).Unix()
+
+	// 429 HTTP Search
+	_, err = client.SearchTraceQLWithRange("{}", start, end)
+	require.ErrorContains(t, err, "job queue full")
+	require.ErrorContains(t, err, "failed with response: 429")
+
+	// 429 GRPC Search
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
+	require.NoError(t, err)
+
+	resp, err := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
+		Query: "{}",
+		Start: uint32(start),
+		End:   uint32(end),
+	})
+	require.NoError(t, err)
+
+	_, err = resp.Recv()
+	require.ErrorContains(t, err, "job queue full")
+	require.ErrorContains(t, err, "code = ResourceExhausted")
 }

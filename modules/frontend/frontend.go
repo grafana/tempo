@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,11 +9,9 @@ import (
 	"strings"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
-	"github.com/golang/protobuf/proto"  //nolint:all //deprecated
+	"github.com/go-kit/log/level" //nolint:all //deprecated
+
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -71,11 +68,15 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
+	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 
-	// inject multi-tenant middleware in multi-tenant routes
-	traceByIDMiddleware := MergeMiddlewares(
-		newMultiTenantMiddleware(cfg, combiner.NewTraceByID, logger),
-		newTraceByIDMiddleware(cfg, o, logger), retryWare)
+	tracePipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantMiddleware(cfg, logger),
+			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
+		},
+		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
+		next)
 
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[*http.Response]{
@@ -101,33 +102,36 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	metricsMiddleware := MergeMiddlewares(
-		newMultiTenantUnsupportedMiddleware(cfg, logger),
-		newMetricsMiddleware(), retryWare)
+	metricsPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantUnsupportedMiddleware(cfg, logger),
+		},
+		[]pipeline.Middleware{statusCodeWare, retryWare},
+		next)
 
 	queryRangeMiddleware := MergeMiddlewares(
 		newMultiTenantUnsupportedMiddleware(cfg, logger),
 		newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
 
-	traces := traceByIDMiddleware.Wrap(next)
+	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
 	searchTags := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTags, logger)
 	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
 	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
 	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
+	metrics := newMetricsHandler(metricsPipeline, logger)
 
-	metrics := metricsMiddleware.Wrap(next)
 	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
 		// http/discrete
-		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, traceByIDSLOPostHook(cfg.TraceByID.SLO), logger),
-		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, nil, logger),
-		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, nil, logger),
-		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, nil, logger),
-		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, nil, logger),
-		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, nil, logger),
-		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, nil, logger),
-		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, nil, logger),
+		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
+		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
+		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
+		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
+		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
+		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
+		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
+		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
 
 		// grpc/streaming
 		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
@@ -162,116 +166,52 @@ func (q *QueryFrontend) SearchTagValuesV2(req *tempopb.SearchTagValuesRequest, s
 	return q.streamingTagValuesV2(req, srv)
 }
 
-// newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
-func newTraceByIDMiddleware(cfg Config, o overrides.Interface, logger log.Logger) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		// We're constructing middleware in this statement, each middleware wraps the next one from left-to-right
-		// - the Deduper dedupes Span IDs for Zipkin support
-		// - the ShardingWare shards queries by splitting the block ID space
-		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(
-			next,
-			newDeduper(logger),
-			newTraceByIDSharder(&cfg.TraceByID, o, logger),
-			newHedgedRequestWare(cfg.TraceByID.Hedging),
-		)
-
-		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// validate traceID
-			_, err := api.ParseTraceID(r)
-			if err != nil {
-				return &http.Response{
-					StatusCode: http.StatusBadRequest,
-					Body:       io.NopCloser(strings.NewReader(err.Error())),
-					Header:     http.Header{},
-				}, nil
-			}
-
-			// validate start and end parameter
-			_, _, _, _, _, reqErr := api.ValidateAndSanitizeRequest(r)
-			if reqErr != nil {
-				return &http.Response{
-					StatusCode: http.StatusBadRequest,
-					Body:       io.NopCloser(strings.NewReader(reqErr.Error())),
-					Header:     http.Header{},
-				}, nil
-			}
-
-			// check marshalling format
-			marshallingFormat := api.HeaderAcceptJSON
-			if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
-				marshallingFormat = api.HeaderAcceptProtobuf
-			}
-
-			// enforce all communication internal to Tempo to be in protobuf bytes
-			r.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-
-			resp, err := rt.RoundTrip(r)
-
-			// todo : should all of this request/response content type be up a level and be used for all query types?
-			if resp != nil && resp.StatusCode == http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
-				if err != nil {
-					return nil, fmt.Errorf("error reading response body at query frontend: %w", err)
-				}
-				responseObject := &tempopb.TraceByIDResponse{}
-				err = proto.Unmarshal(body, responseObject)
-				if err != nil {
-					return nil, err
-				}
-
-				if marshallingFormat == api.HeaderAcceptJSON {
-					var jsonTrace bytes.Buffer
-					marshaller := &jsonpb.Marshaler{}
-					err = marshaller.Marshal(&jsonTrace, responseObject.Trace)
-					if err != nil {
-						return nil, err
-					}
-					resp.Body = io.NopCloser(bytes.NewReader(jsonTrace.Bytes()))
-				} else {
-					traceBuffer, err := proto.Marshal(responseObject.Trace)
-					if err != nil {
-						return nil, err
-					}
-					resp.Body = io.NopCloser(bytes.NewReader(traceBuffer))
-				}
-
-				if resp.Header != nil {
-					resp.Header.Set(api.HeaderContentType, marshallingFormat)
-				}
-			}
-			span := opentracing.SpanFromContext(r.Context())
-			if span != nil {
-				span.SetTag("contentType", marshallingFormat)
-			}
-
-			return resp, err
-		})
-	})
-}
-
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsMiddleware() pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		generatorRT := next
+func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		tenant, err := user.ExtractOrgID(req.Context())
+		if err != nil {
+			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
+		prepareRequestForQueriers(req, tenant, req.RequestURI, nil)
 
-		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			// ingester search queries only need to be proxied to a single querier
-			orgID, _ := user.ExtractOrgID(r.Context())
+		level.Info(logger).Log(
+			"msg", "metrics summary request",
+			"tenant", tenant,
+			"path", req.URL.Path)
 
-			r.Header.Set(user.OrgIDHeaderName, orgID)
-			r.RequestURI = buildUpstreamRequestURI(r.RequestURI, nil)
+		resps, err := next.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
 
-			return generatorRT.RoundTrip(r)
-		})
+		resp, _, err := resps.Next(req.Context()) // metrics path will only ever have one response
+
+		level.Info(logger).Log(
+			"msg", "search tag response",
+			"tenant", tenant,
+			"path", req.URL.Path,
+			"err", err)
+
+		return resp, err
 	})
 }
 
-// buildUpstreamRequestURI returns a uri based on the passed parameters
-// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
-// https://github.com/grafana/dskit/blob/740f56bd293423c5147773ce97264519f9fddc58/httpgrpc/server/server.go#L59
-func buildUpstreamRequestURI(originalURI string, params url.Values) string {
+// prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers
+//   - adds the tenant header
+//   - sets the requesturi (see below for details)
+func prepareRequestForQueriers(req *http.Request, tenant string, originalURI string, params url.Values) {
+	// set the tenant header
+	req.Header.Set(user.OrgIDHeaderName, tenant)
+
+	// build and set the request uri
+	// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
+	// https://github.com/grafana/dskit/blob/740f56bd293423c5147773ce97264519f9fddc58/httpgrpc/server/server.go#L59
 	const queryDelimiter = "?"
 
 	uri := path.Join(api.PathPrefixQuerier, originalURI)
@@ -279,7 +219,7 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 		uri += queryDelimiter + params.Encode()
 	}
 
-	return uri
+	req.RequestURI = uri
 }
 
 func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) pipeline.Middleware {
@@ -300,9 +240,6 @@ func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddlewa
 	return pipeline.NewNoopMiddleware()
 }
 
-/*
-// nolint:unused was not working so i'm commenting this out. we are not using this function now, but will use it
-// when we migrate all endpoints to the new middleware
 func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
@@ -310,4 +247,3 @@ func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.As
 
 	return pipeline.NewNoopMiddleware()
 }
-*/

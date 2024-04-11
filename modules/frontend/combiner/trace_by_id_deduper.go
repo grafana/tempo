@@ -1,17 +1,9 @@
-package frontend
+package combiner
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
-	"net/http"
 
-	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto" //nolint:all //deprecated
-	"github.com/opentracing/opentracing-go"
-
-	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
@@ -22,75 +14,29 @@ const (
 
 var maxSpanID uint64 = 0xffffffffffffffff
 
-func newDeduper(logger log.Logger) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		return spanIDDeduper{
-			next:   next,
-			logger: logger,
-		}
-	})
+func newDeduper() *spanIDDeduper {
+	return &spanIDDeduper{}
 }
 
 // This is copied over from Jaeger and modified to work for OpenTelemetry Trace data structure
 // https://github.com/jaegertracing/jaeger/blob/12bba8c9b91cf4a29d314934bc08f4a80e43c042/model/adjuster/span_id_deduper.go
 type spanIDDeduper struct {
-	next      http.RoundTripper
-	logger    log.Logger
 	trace     *tempopb.Trace
 	spansByID map[uint64][]*v1.Span
 	maxUsedID uint64
 }
 
-// RoundTrip implements http.RoundTripper
-func (s spanIDDeduper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := req.Context()
-	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.DedupeSpanIDs")
-	defer span.Finish()
-
-	// context propagation
-	req = req.WithContext(ctx)
-
-	resp, err := s.next.RoundTrip(req)
-	if err != nil {
-		return nil, err
+func (s *spanIDDeduper) dedupe(trace *tempopb.Trace) *tempopb.Trace {
+	if trace == nil {
+		return nil
 	}
 
-	if resp.StatusCode == http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		defer resp.Body.Close()
-		if err != nil {
-			return nil, err
-		}
+	s.trace = trace
 
-		responseObject := &tempopb.TraceByIDResponse{}
-		err = proto.Unmarshal(body, responseObject)
-		if err != nil {
-			return nil, err
-		}
-
-		s.trace = responseObject.Trace
-		s.dedupe()
-
-		responseObject.Trace = s.trace
-		responseBytes, err := proto.Marshal(responseObject)
-		if err != nil {
-			return nil, err
-		}
-
-		return &http.Response{
-			StatusCode:    http.StatusOK,
-			Body:          io.NopCloser(bytes.NewReader(responseBytes)),
-			Header:        http.Header{},
-			ContentLength: resp.ContentLength,
-		}, nil
-	}
-
-	return resp, nil
-}
-
-func (s *spanIDDeduper) dedupe() {
 	s.groupSpansByID()
 	s.dedupeSpanIDs()
+
+	return s.trace
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span

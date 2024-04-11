@@ -279,7 +279,6 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 		blockID := m.BlockID.String()
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
-			subR.Header.Set(user.OrgIDHeaderName, tenantID)
 
 			dc, err := m.DedicatedColumns.ToTempopb()
 			if err != nil {
@@ -305,7 +304,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				continue
 			}
 
-			subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			if len(key) > 0 {
 				subR = pipeline.AddCacheKey(key, subR)
@@ -367,13 +366,11 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 
 func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
 	subR := parent.Clone(ctx)
-
-	subR.Header.Set(user.OrgIDHeaderName, tenantID)
 	subR, err := api.BuildSearchRequest(subR, searchReq)
 	if err != nil {
 		return nil, err
 	}
 
-	subR.RequestURI = buildUpstreamRequestURI(subR.URL.Path, subR.URL.Query())
+	prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 	return subR, nil
 }

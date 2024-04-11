@@ -84,9 +84,8 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 		URL: &url.URL{
 			Path: downstreamPath,
 		},
-		Header:     http.Header{},
-		Body:       io.NopCloser(bytes.NewReader([]byte{})),
-		RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
+		Header: http.Header{},
+		Body:   io.NopCloser(bytes.NewReader([]byte{})),
 	}, req)
 	if err != nil {
 		level.Error(logger).Log("msg", "search tags: build tags request failed", "err", err)
@@ -107,6 +106,8 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 		level.Error(logger).Log("msg", "search tags: ", "err", err)
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+
+	prepareRequestForQueriers(httpReq, tenant, httpReq.URL.Path, httpReq.URL.Query())
 
 	c := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
 	collector := pipeline.NewGRPCCollector[TResp](next, c, fnSend)

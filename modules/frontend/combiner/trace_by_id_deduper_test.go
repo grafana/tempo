@@ -1,4 +1,4 @@
-package frontend
+package combiner
 
 import (
 	"testing"
@@ -188,11 +188,9 @@ func TestDedupeSpanIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &spanIDDeduper{
-				trace: tt.trace,
-			}
-			s.dedupe()
-			assert.Equal(t, tt.expectedRes, s.trace)
+			s := &spanIDDeduper{}
+			trace := s.dedupe(tt.trace)
+			assert.Equal(t, tt.expectedRes, trace)
 		})
 	}
 }
@@ -214,12 +212,11 @@ func BenchmarkDeduper100000(b *testing.B) {
 }
 
 func benchmarkDeduper(b *testing.B, traceSpanCount int) {
-	s := &spanIDDeduper{
-		trace: test.MakeTraceWithSpanCount(1, traceSpanCount, []byte{0x00}),
-	}
+	trace := test.MakeTraceWithSpanCount(1, traceSpanCount, []byte{0x00})
+	s := newDeduper()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		s.dedupe()
+		_ = s.dedupe(trace)
 	}
 }

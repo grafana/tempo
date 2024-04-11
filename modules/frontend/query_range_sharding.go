@@ -434,9 +434,9 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 
 func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.QueryRangeRequest, parent *http.Request, tenantID string) *http.Request {
 	subR := parent.Clone(ctx)
-	subR.Header.Set(user.OrgIDHeaderName, tenantID)
 	subR = api.BuildQueryRangeRequest(subR, &req)
-	subR.RequestURI = buildUpstreamRequestURI(parent.URL.Path, subR.URL.Query())
+
+	prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
 	return subR
 }
 
