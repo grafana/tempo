@@ -50,6 +50,8 @@ Grafana Agent also abstracts features like trace batching to a remote trace back
 To learn more about Grafana Agent and how to set it up for tracing with Tempo,
 refer to [Grafana Agent traces configuration docs](/docs/agent/latest/static/configuration/traces-config/).
 
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+
 {{% admonition type="note" %}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 Refer to [this blog post](/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)

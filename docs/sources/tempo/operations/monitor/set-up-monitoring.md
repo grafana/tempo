@@ -17,7 +17,7 @@ To set up monitoring, you need to:
 
 This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/latest/setup/helm-chart/) and with [Grafana Agent](https://grafana.com/docs/agent/latest/flow/) or [Grafana Alloy](https://grafana.com/docs/alloy/latest/).
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 The steps outlined below use the Grafana Agent Flow configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 

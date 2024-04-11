@@ -28,7 +28,7 @@ You need these components to fully use service graphs.
 
 ### Enable service graphs in Grafana Agent
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 To start using service graphs, enable the feature in Grafana Agent configuration.
 

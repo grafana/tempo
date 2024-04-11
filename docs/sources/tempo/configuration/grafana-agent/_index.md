@@ -8,7 +8,7 @@ aliases:
 
 # Grafana Agent
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 The [Grafana Agent](https://github.com/grafana/agent) is a telemetry
 collector for sending metrics, logs, and trace data to the opinionated

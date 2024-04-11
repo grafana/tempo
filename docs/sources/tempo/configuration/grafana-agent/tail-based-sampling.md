@@ -59,7 +59,7 @@ To see all the available configuration options, refer to the [configuration refe
 
 ## Example for Grafana Agent Flow
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 [Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files are written in River instead of YAML.

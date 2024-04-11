@@ -24,7 +24,7 @@ Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for mo
 
 ## Configure Grafana Agent Flow to remote-write to Tempo
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="<ALLOY VERSION>" >}}
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 This section uses a [Grafana Agent Helm chart](/docs/agent/latest/flow/setup/install/kubernetes) deployment to send traces to Tempo.
 
