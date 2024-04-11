@@ -27,6 +27,7 @@ steps:
     dockerfile: cmd/tempo/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/amd64
     repo: grafana/tempo
     username:
       from_secret: docker_username
@@ -38,6 +39,7 @@ steps:
     dockerfile: cmd/tempo-vulture/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/amd64
     repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
@@ -49,6 +51,7 @@ steps:
     dockerfile: cmd/tempo-query/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/amd64
     repo: grafana/tempo-query
     username:
       from_secret: docker_username
@@ -88,6 +91,7 @@ steps:
     dockerfile: cmd/tempo/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/arm64
     repo: grafana/tempo
     username:
       from_secret: docker_username
@@ -99,6 +103,7 @@ steps:
     dockerfile: cmd/tempo-vulture/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/arm64
     repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
@@ -110,6 +115,7 @@ steps:
     dockerfile: cmd/tempo-query/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/arm64
     repo: grafana/tempo-query
     username:
       from_secret: docker_username
@@ -192,6 +198,7 @@ steps:
     dockerfile: tools/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/amd64
     repo: grafana/tempo-ci-tools
     username:
       from_secret: docker_username
@@ -224,6 +231,7 @@ steps:
     dockerfile: tools/Dockerfile
     password:
       from_secret: docker_password
+    platform: linux/arm64
     repo: grafana/tempo-ci-tools
     username:
       from_secret: docker_username
@@ -522,6 +530,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 01adf0a8a3952d45aca5575e624a63a088167173e18c07b3dfe1950dcb3e069b
+hmac: fd0d2fe13ee75cfc3a721fee180a293121c8aad04419e22e47e16793b45a2e33
 
 ...
