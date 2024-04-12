@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// jpe cli command and docs
 type querySearchCmd struct {
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
 	TraceQL  string `arg:"" optional:"" help:"traceql query"`

@@ -108,7 +108,7 @@ func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http
 	// pass subCtx in requests so we can cancel and exit early
 	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
-		s.logger.Log("msg", "failed to build backend requests", "err", err)
+		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
 	if ingesterReq != nil {
 		totalJobs++
@@ -304,7 +304,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				continue
 			}
 
-			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query()) // jpe can this be done once at the beginning?
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			if len(key) > 0 {
 				subR = pipeline.AddCacheKey(key, subR)

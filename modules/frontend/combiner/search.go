@@ -10,8 +10,7 @@ import (
 
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
-// TODO: we also have a combiner in pkg/traceql/combine.go, which is slightly different then this.
-// this Combiner locks, and merges the spans slightly differently. compare and consolidate both if possible.
+// NewSearch returns a search combiner
 func NewSearch(limit int) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner()
 	diffTraces := map[string]struct{}{}

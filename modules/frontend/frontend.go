@@ -31,6 +31,7 @@ type (
 	streamingTagsV2Handler      func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error
 	streamingTagValuesHandler   func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error
 	streamingTagValuesV2Handler func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error
+	streamingQueryRangeHandler  func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_QueryRangeServer) error
 )
 
 type QueryFrontend struct {
@@ -42,6 +43,7 @@ type QueryFrontend struct {
 	streamingTagsV2                                                                            streamingTagsV2Handler
 	streamingTagValues                                                                         streamingTagValuesHandler
 	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
+	streamingQueryRange                                                                        streamingQueryRangeHandler
 	logger                                                                                     log.Logger
 }
 
@@ -102,6 +104,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
+	// metrics summary
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[*http.Response]{
 			multiTenantUnsupportedMiddleware(cfg, logger),
@@ -109,9 +112,13 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.Middleware{statusCodeWare, retryWare},
 		next)
 
-	queryRangeMiddleware := MergeMiddlewares(
-		newMultiTenantUnsupportedMiddleware(cfg, logger),
-		newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
+	// traceql metrics
+	queryRangePipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[*http.Response]{
+			multiTenantMiddleware(cfg, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
@@ -120,8 +127,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
 	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
 	metrics := newMetricsHandler(metricsPipeline, logger)
+	queryrange := newQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
-	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
 		// http/discrete
 		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
@@ -139,6 +146,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		streamingTagsV2:      newTagV2StreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:   newTagValuesStreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
 		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingQueryRange:  newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
@@ -164,6 +172,10 @@ func (q *QueryFrontend) SearchTagValues(req *tempopb.SearchTagValuesRequest, srv
 
 func (q *QueryFrontend) SearchTagValuesV2(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
 	return q.streamingTagValuesV2(req, srv)
+}
+
+func (q *QueryFrontend) QueryRange(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_QueryRangeServer) error {
+	return q.streamingQueryRange(req, srv)
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
@@ -220,16 +232,6 @@ func prepareRequestForQueriers(req *http.Request, tenant string, originalURI str
 	}
 
 	req.RequestURI = uri
-}
-
-func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		searchRT := NewRoundTripper(next, newQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger))
-
-		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			return searchRT.RoundTrip(r)
-		})
-	})
 }
 
 func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {

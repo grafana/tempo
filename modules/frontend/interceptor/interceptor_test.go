@@ -111,3 +111,7 @@ func (s *mockService) SearchTagValues(*tempopb.SearchTagValuesRequest, tempopb.S
 func (s *mockService) SearchTagValuesV2(*tempopb.SearchTagValuesRequest, tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
 	return nil
 }
+
+func (s *mockService) QueryRange(*tempopb.QueryRangeRequest, tempopb.StreamingQuerier_QueryRangeServer) error {
+	return nil
+}

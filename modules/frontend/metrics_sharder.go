@@ -3,29 +3,24 @@ package frontend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb" //nolint:all deprecated
+	"github.com/go-kit/log/level" //nolint:all deprecated
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
-	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -34,13 +29,14 @@ import (
 )
 
 type queryRangeSharder struct {
-	next      http.RoundTripper
+	next      pipeline.AsyncRoundTripper[*http.Response]
 	reader    tempodb.Reader
 	overrides overrides.Interface
 	cfg       QueryRangeSharderConfig
 	logger    log.Logger
 }
 
+// jpe - rename to metrics sharder? or rename everything back to query range?
 type QueryRangeSharderConfig struct {
 	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
@@ -49,27 +45,28 @@ type QueryRangeSharderConfig struct {
 	Interval              time.Duration `yaml:"interval,omitempty"`
 }
 
-func newQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		return &queryRangeSharder{
+// newAsyncSearchSharder creates a sharding middleware for search
+func newQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+		return asyncSearchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
-			cfg:       cfg,
-			logger:    logger,
+
+			cfg:    cfg,
+			logger: logger,
 		}
 	})
 }
 
-func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
+func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
 	defer span.Finish()
 
 	var (
-		isProm       bool
-		err          error
-		generatorReq *queryRangeJob
-		now          = time.Now()
+		isProm bool
+		err    error
+		now    = time.Now()
 	)
 
 	// This route supports two flavors. (1) Prometheus-compatible (2) Tempo native
@@ -78,7 +75,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	if strings.Contains(r.RequestURI, api.PathPromQueryRange) {
 		isProm = true
 		// Swap upstream calls to the Tempo-native paths
-		r.URL.Path = strings.ReplaceAll(r.URL.Path, api.PathPromQueryRange, api.PathMetricsQueryRange)
+		r.URL.Path = strings.ReplaceAll(r.URL.Path, api.PathPromQueryRange, api.PathMetricsQueryRange) // jpe - move to handler?
 		r.RequestURI = strings.ReplaceAll(r.RequestURI, api.PathPromQueryRange, api.PathMetricsQueryRange)
 		// Prom endpoint is called with 1-second precision timestamps
 		// Round "now" to 1-second also.
@@ -100,9 +97,6 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return s.respErrHandler(isProm, err)
 	}
 
-	subCtx, subCancel := context.WithCancel(ctx)
-	defer subCancel()
-
 	alignTimeRange(req)
 
 	// calculate and enforce max search duration
@@ -119,8 +113,8 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		interval              = s.jobInterval(expr, allowUnsafe)
 	)
 
-	generatorReq = s.generatorRequest(*req, now, samplingRate)
-	reqCh := make(chan *queryRangeJob, 1) // buffer of 1 allows us to insert ingestReq if it exists
+	generatorReq := s.generatorRequest(*req, r, tenantID, now, samplingRate)
+	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
@@ -128,146 +122,31 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqCh <- generatorReq
 	}
 
-	totalBlocks, totalBlockBytes := s.backendRequests(tenantID, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, stopCh)
-
-	var (
-		wg          = boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-		jobErr      = atomic.Error{}
-		c           = traceql.QueryRangeCombiner{}
-		mtx         = sync.Mutex{}
-		startedReqs = 0
-	)
-
-	for job := range reqCh {
-		if job.err != nil {
-			jobErr.Store(fmt.Errorf("unexpected err building reqs: %w", job.err))
-			break
-		}
-
-		if jErr := jobErr.Load(); jErr != nil {
-			break
-		}
-
-		// When we hit capacity of boundedwaitgroup, wg.Add will block
-		wg.Add(1)
-		startedReqs++
-
-		go func(job *queryRangeJob) {
-			defer wg.Done()
-
-			innerR := s.toUpstreamRequest(subCtx, job.req, r, tenantID)
-			resp, err := s.next.RoundTrip(innerR)
-			if err != nil {
-				// context cancelled error happens when we exit early.
-				// bail, and don't log and don't set this error.
-				if errors.Is(err, context.Canceled) {
-					_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", err)
-					return
-				}
-
-				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-				return
-			}
-
-			// if the status code is anything but happy, save the error and pass it down the line
-			if resp.StatusCode != http.StatusOK {
-				bytesMsg, err := io.ReadAll(resp.Body)
-				if err != nil {
-					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
-				}
-				statusMsg := fmt.Sprintf("upstream: (%d) %s", resp.StatusCode, string(bytesMsg))
-				jobErr.Store(fmt.Errorf(statusMsg))
-				return
-			}
-
-			// successful query, read the body
-			results := &tempopb.QueryRangeResponse{}
-			err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(resp.Body, results)
-			if err != nil {
-				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				return
-			}
-
-			// Multiply up the sampling rate
-			if job.samplingRate != 1.0 {
-				for _, series := range results.Series {
-					for i, sample := range series.Samples {
-						sample.Value *= 1.0 / job.samplingRate
-						series.Samples[i] = sample
-					}
-				}
-			}
-
-			mtx.Lock()
-			defer mtx.Unlock()
-			c.Combine(results)
-		}(job)
-	}
-
-	// wait for all goroutines running in wg to finish or cancelled
-	wg.Wait()
-
-	res := c.Response()
-	res.Metrics.CompletedJobs = uint32(startedReqs)
-	res.Metrics.TotalBlocks = uint32(totalBlocks)
-	res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
-
-	// Sort all output, series alphabetically, samples by time
-	sort.SliceStable(res.Series, func(i, j int) bool {
-		return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
+	totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, func(err error) {
+		// todo: actually find a way to return this error to the user
+		s.logger.Log("msg", "query range: failed to build backend requests", "err", err)
 	})
-	for _, series := range res.Series {
-		sort.Slice(series.Samples, func(i, j int) bool {
-			return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
-		})
-	}
 
-	var (
-		reqTime        = time.Since(now)
-		throughput     = math.Round(float64(res.Metrics.InspectedBytes) / reqTime.Seconds())
-		spanThroughput = math.Round(float64(res.Metrics.InspectedSpans) / reqTime.Seconds())
-	)
-
-	span.SetTag("totalBlocks", res.Metrics.TotalBlocks)
-	span.SetTag("inspectedBytes", res.Metrics.InspectedBytes)
-	span.SetTag("inspectedTraces", res.Metrics.InspectedTraces)
-	span.SetTag("inspectedSpans", res.Metrics.InspectedSpans)
-	span.SetTag("totalBlockBytes", res.Metrics.TotalBlockBytes)
-	span.SetTag("totalJobs", res.Metrics.TotalJobs)
-	span.SetTag("finishedJobs", res.Metrics.CompletedJobs)
-	span.SetTag("requestThroughput", throughput)
-	span.SetTag("spanThroughput", spanThroughput)
-
-	if jErr := jobErr.Load(); jErr != nil {
-		return s.respErrHandler(isProm, jErr)
-	}
-
-	var bodyString string
-	if isProm {
-		promResp := s.convertToPromFormat(res)
-		bytes, err := json.Marshal(promResp)
-		if err != nil {
-			return nil, err
+	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs (jpe: make sure this propagates to the combiner)
+	var jobMetricsResponse pipeline.Responses[*http.Response]
+	if totalBlocks > 0 {
+		resp := &tempopb.QueryRangeResponse{
+			Metrics: &tempopb.SearchMetrics{
+				TotalBlocks:     totalBlocks,
+				TotalBlockBytes: totalBlockBytes, // jpe - total jobs?
+			},
 		}
-		bodyString = string(bytes)
-	} else {
-		m := &jsonpb.Marshaler{EmitDefaults: true}
-		bodyString, err = m.MarshalToString(res)
+
+		m := jsonpb.Marshaler{}
+		body, err := m.MarshalToString(resp)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal search metrics: %w", err)
 		}
+
+		jobMetricsResponse = pipeline.NewSuccessfulResponse(body)
 	}
 
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Header: http.Header{
-			api.HeaderContentType: {api.HeaderAcceptJSON},
-		},
-		Body:          io.NopCloser(strings.NewReader(bodyString)),
-		ContentLength: int64(len([]byte(bodyString))),
-	}
-
-	return resp, nil
+	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
@@ -285,7 +164,7 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) backendRequests(tenantID string, searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *queryRangeJob, stopCh <-chan struct{}) (totalBlocks, totalBlockBytes int) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) (totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -312,19 +191,20 @@ func (s *queryRangeSharder) backendRequests(tenantID string, searchReq tempopb.Q
 		return
 	}
 
-	totalBlocks = len(blocks)
+	totalBlocks = uint32(len(blocks))
 	for _, b := range blocks {
-		totalBlockBytes += int(b.Size)
+		totalBlockBytes += b.Size
 	}
 
 	go func() {
-		s.buildBackendRequests(tenantID, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh, stopCh)
+		s.buildBackendRequests(ctx, tenantID, parent, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh, errFn)
 	}()
 
 	return
 }
 
-func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *queryRangeJob, stopCh <-chan struct{}) {
+// jpe - caching!
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) {
 	defer close(reqCh)
 
 	var (
@@ -366,12 +246,12 @@ func (s *queryRangeSharder) buildBackendRequests(tenantID string, searchReq temp
 				shardR.ShardCount *= uint32(1.0 / samplingRate)
 
 				// Set final sampling rate after integer rounding
-				samplingRate = float64(shards) / float64(shardR.ShardCount)
+				// samplingRate = float64(shards) / float64(shardR.ShardCount) - jpe restore
 			}
 
 			select {
-			case reqCh <- &queryRangeJob{req: shardR, samplingRate: samplingRate}:
-			case <-stopCh:
+			case reqCh <- s.toUpstreamRequest(ctx, shardR, parent, tenantID):
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -395,7 +275,7 @@ func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, query
 	return start, end
 }
 
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64) *queryRangeJob {
+func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, now time.Time, samplingRate float64) *http.Request {
 	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
 
 	// if there's no overlap between the query and ingester range just return nil
@@ -424,12 +304,9 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.ShardCount = uint32(1.0 / samplingRate)
 
 	// Set final sampling rate after integer rounding
-	samplingRate = 1.0 / float64(searchReq.ShardCount)
+	// samplingRate = 1.0 / float64(searchReq.ShardCount) - restore?
 
-	return &queryRangeJob{
-		req:          searchReq,
-		samplingRate: samplingRate,
-	}
+	return s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 }
 
 func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.QueryRangeRequest, parent *http.Request, tenantID string) *http.Request {
@@ -547,7 +424,7 @@ func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse
 }
 
 // returns an HTTP response or an error
-func (s *queryRangeSharder) respErrHandler(isProm bool, err error) (*http.Response, error) {
+func (s *queryRangeSharder) respErrHandler(isProm bool, err error) (pipeline.Responses[*http.Response], error) { // jpe - move to handler?
 	if isProm {
 		resp := s.convertToPromError(err)
 		_ = level.Debug(s.logger).Log("resp", fmt.Sprintf("%+v", resp))
@@ -558,20 +435,20 @@ func (s *queryRangeSharder) respErrHandler(isProm bool, err error) (*http.Respon
 		}
 		bodyString := string(bytes)
 
-		return &http.Response{
+		return pipeline.NewSyncToAsyncResponse(&http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
 				api.HeaderContentType: {api.HeaderAcceptJSON},
 			},
 			Body:          io.NopCloser(strings.NewReader(bodyString)),
 			ContentLength: int64(len([]byte(bodyString))),
-		}, nil
+		}), nil
 	}
 
-	return &http.Response{
+	return pipeline.NewSyncToAsyncResponse(&http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
-	}, nil
+	}), nil
 }
 
 func (s *queryRangeSharder) convertToPromError(err error) PromResponse {
