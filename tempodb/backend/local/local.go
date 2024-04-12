@@ -19,9 +19,10 @@ type Backend struct {
 }
 
 var (
-	_ backend.RawReader = (*Backend)(nil)
-	_ backend.RawWriter = (*Backend)(nil)
-	_ backend.Compactor = (*Backend)(nil)
+	_                backend.RawReader = (*Backend)(nil)
+	_                backend.RawWriter = (*Backend)(nil)
+	_                backend.Compactor = (*Backend)(nil)
+	pathSeparatorStr                   = string(os.PathSeparator)
 )
 
 func NewBackend(cfg *Config) (*Backend, error) {
@@ -161,7 +162,7 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 
 		tenantFilePath := filepath.Join(tenant, path)
 
-		parts := strings.Split(tenantFilePath, "/")
+		parts := strings.Split(tenantFilePath, pathSeparatorStr)
 		// i.e: <tenantID/<blockID>/meta
 		if len(parts) != 3 {
 			return nil
