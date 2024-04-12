@@ -324,6 +324,9 @@ metrics_generator:
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
+            # Enables additional labels for services and virtual nodes.
+            [enable_extra_uninstrumented_services_labels: <bool> | default = false]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
