@@ -27,11 +27,6 @@ type Edge struct {
 	// Additional dimension to add to the metrics
 	Dimensions map[string]string
 
-	// Additional labels for uninstrumented services
-	VirtualNode                           string // Indicates which service is the virtual node (client or server)
-	ClientDbSystem, ClientMessagingSystem string // If the client is a virtual node, indicates the client's db or messaging system
-	ServerDbSystem, ServerMessagingSystem string // If the server is a virtual node, indicates the server's db or messaging system
-
 	// PeerNode is the attribute that will be used to create a peer edge
 	PeerNode string
 

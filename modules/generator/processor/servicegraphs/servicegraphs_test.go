@@ -3,7 +3,6 @@ package servicegraphs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"strconv"
@@ -58,8 +57,6 @@ func TestServiceGraphs(t *testing.T) {
 		"beast":           "",
 		"god":             "",
 	})
-
-	fmt.Println(testRegistry)
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
@@ -131,8 +128,6 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 		"server_god":      "zeus",
 	})
 
-	fmt.Println(testRegistry)
-
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
 }
@@ -161,8 +156,6 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 		"server":          "postgres",
 		"connection_type": "database",
 	})
-
-	fmt.Println(testRegistry)
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
@@ -248,17 +241,25 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	p.(*Processor).store.Expire()
 
 	userToServerLabels := labels.FromMap(map[string]string{
-		"client":          "user",
-		"server":          "mythical-server",
-		"connection_type": "virtual_node",
-		"virtual_node":    "client",
+		"client":                  "user",
+		"server":                  "mythical-server",
+		"connection_type":         "virtual_node",
+		"virtual_node":            "client",
+		"client_db_system":        "",
+		"client_messaging_system": "",
+		"server_db_system":        "",
+		"server_messaging_system": "",
 	})
 
 	clientToVirtualPeerLabels := labels.FromMap(map[string]string{
-		"client":          "mythical-requester",
-		"server":          "external-payments-platform",
-		"connection_type": "virtual_node",
-		"virtual_node":    "server",
+		"client":                  "mythical-requester",
+		"server":                  "external-payments-platform",
+		"connection_type":         "virtual_node",
+		"virtual_node":            "server",
+		"client_db_system":        "",
+		"client_messaging_system": "",
+		"server_db_system":        "",
+		"server_messaging_system": "",
 	})
 
 	// counters
@@ -286,16 +287,24 @@ func TestServiceGraphs_enableExtraLabelsForUninstrumentedServicesWithQueueAndDat
 	p.PushSpans(context.Background(), request)
 
 	serverDbSystemLabels := labels.FromMap(map[string]string{
-		"client":           "mythical-server",
-		"connection_type":  "database",
-		"server":           "postgres",
-		"server_db_system": "postgres",
+		"client":                  "mythical-server",
+		"connection_type":         "database",
+		"server":                  "postgres",
+		"virtual_node":            "",
+		"client_db_system":        "",
+		"client_messaging_system": "",
+		"server_db_system":        "postgres",
+		"server_messaging_system": "",
 	})
 
 	serverMsgSystemLabels := labels.FromMap(map[string]string{
 		"client":                  "mythical-requester",
 		"connection_type":         "messaging_system",
 		"server":                  "mythical-recorder",
+		"virtual_node":            "",
+		"client_db_system":        "",
+		"client_messaging_system": "rabbitmq",
+		"server_db_system":        "",
 		"server_messaging_system": "rabbitmq",
 	})
 
@@ -305,6 +314,59 @@ func TestServiceGraphs_enableExtraLabelsForUninstrumentedServicesWithQueueAndDat
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverMsgSystemLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverMsgSystemLabels))
+}
+
+func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"net.peer.port"}
+	cfg.EnableClientServerPrefix = true
+	cfg.EnableExtraUninstrumentedServicesLabels = true
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	messagingSystemLabels := labels.FromMap(map[string]string{
+		"client":                  "mythical-requester",
+		"client_db_system":        "",
+		"client_messaging_system": "rabbitmq",
+		"client_net_peer_port":    "5672",
+		"connection_type":         "messaging_system",
+		"server_db_system":        "",
+		"server_messaging_system": "rabbitmq",
+		"server_net_peer_port":    "5672",
+		"server":                  "mythical-recorder",
+		"virtual_node":            "",
+	})
+
+	dbSystemSystemLabels := labels.FromMap(map[string]string{
+		"client":                  "mythical-server",
+		"client_db_system":        "postgresql",
+		"client_messaging_system": "",
+		"client_net_peer_port":    "5432",
+		"connection_type":         "database",
+		"server_db_system":        "",
+		"server_messaging_system": "",
+		"server_net_peer_port":    "",
+		"server":                  "postgres",
+		"virtual_node":            "",
+	})
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, messagingSystemLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, messagingSystemLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, dbSystemSystemLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
 }
 
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
