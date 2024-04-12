@@ -12,7 +12,7 @@ aliases:
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
 For more information about traces, refer to [What are traces?]({{< relref "../traces" >}}).
 
-Grafana Tempo is an open-source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
+Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
 
 <!-- how to get started with distributed tracing -->
 {{< youtube id="zDrA7Ly3ovU" >}}
@@ -42,13 +42,15 @@ offloads spans from your application, buffers them, and eventually forwards them
 Tracing pipelines are optional (most clients can send directly to Tempo), but the pipelines
 become more critical the larger and more robust your tracing system is.
 
-The Grafana Agent is a service that is deployed close to the application, either on the same node or
+Grafana Agent is a service that is deployed close to the application, either on the same node or
 within the same cluster (in Kubernetes) to quickly offload traces from the application and forward them to
 a storage backend.
-The Grafana Agent also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
+Grafana Agent also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
 
-To learn more about the Grafana Agent and how to set it up for tracing with Tempo,
-refer to [the Grafana Agent traces config docs](/docs/agent/latest/static/configuration/traces-config/).
+To learn more about Grafana Agent and how to set it up for tracing with Tempo,
+refer to [Grafana Agent traces configuration docs](/docs/agent/latest/static/configuration/traces-config/).
+
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 {{% admonition type="note" %}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
@@ -70,9 +72,9 @@ Next, review the [Setup documentation]({{< relref "../setup" >}}) for step-by-st
 Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment]({{< relref "../setup/deployment" >}}) section for more information
 
 {{% admonition type="note" %}}
-The Grafana Agent is already set up to use Tempo. Refer to the [configuration](/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
+The Grafana Agent is already set up to use Tempo.
+Refer to the [configuration](/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 {{% /admonition %}}
-
 
 ## Visualization (Grafana)
 

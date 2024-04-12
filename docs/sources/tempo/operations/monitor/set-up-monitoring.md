@@ -12,10 +12,13 @@ If you don't have a cluster available, you can use the linked documentation to s
 
 To set up monitoring, you need to:
 
-* Use Grafana Agent Flow to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
+* Use Grafana Agent Flow or Grafana Alloy to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 * Update your Grafana Agent Flow configuration to scrape metrics to monitor for your Tempo data.
 
-This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/latest/setup/helm-chart/) and with [Grafana Agent](https://grafana.com/docs/agent/latest/flow/).
+This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/latest/setup/helm-chart/) and with [Grafana Agent](https://grafana.com/docs/agent/latest/flow/) or [Grafana Alloy](https://grafana.com/docs/alloy/latest/).
+
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+
 The steps outlined below use the Grafana Agent Flow configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 
 {{% admonition type="note" %}}
