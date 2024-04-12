@@ -274,8 +274,12 @@ func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
 	s := *l
 	str := ""
 	for s.Peek() != scanner.EOF {
-		if s.Peek() == '.' {
+		r := s.Peek()
+		if r == '.' {
 			str += string(s.Next())
+			break
+		}
+		if !isAttributeRune(r) {
 			break
 		}
 		str += string(s.Next())
