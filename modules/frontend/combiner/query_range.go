@@ -38,10 +38,18 @@ func NewQueryRange(isProm bool) Combiner { // jpe - use isProm? or do in the han
 			return nil
 		},
 		finalize: func(final *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
-			return combiner.Response(), nil
+			resp := combiner.Response()
+			if resp == nil {
+				resp = &tempopb.QueryRangeResponse{}
+			}
+			return resp, nil
 		},
-		diff: func(current *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
-			return combiner.Response(), nil // jpe - diff
+		diff: func(current *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) { // jpe - actually diff
+			resp := combiner.Response()
+			if resp == nil {
+				resp = &tempopb.QueryRangeResponse{}
+			}
+			return resp, nil
 		},
 	}
 }

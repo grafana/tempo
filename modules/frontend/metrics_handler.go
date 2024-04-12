@@ -38,8 +38,8 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 		var finalResponse *tempopb.QueryRangeResponse
 		c := combiner.NewTypedQueryRange(false) // jpe - isProm?
-		collector := pipeline.NewGRPCCollector[*tempopb.QueryRangeResponse](next, c, func(qrr *tempopb.QueryRangeResponse) error {
-			finalResponse = qrr // sadly we can't srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
+		collector := pipeline.NewGRPCCollector(next, c, func(qrr *tempopb.QueryRangeResponse) error {
+			finalResponse = qrr // sadly we can't pass srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(qrr)
 		})
 

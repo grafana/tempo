@@ -45,8 +45,8 @@ type QueryRangeSharderConfig struct {
 	Interval              time.Duration `yaml:"interval,omitempty"`
 }
 
-// newAsyncSearchSharder creates a sharding middleware for search
-func newQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+// newAsyncQueryRangeSharder creates a sharding middleware for search
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
 	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
 		return asyncSearchSharder{
 			next:      next,
