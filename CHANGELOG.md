@@ -11,6 +11,7 @@
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
   This impacts impacts all users of the `grafana/tempo` Docker image.
+* [CHANGE] Return a less confusing error message to the client when refusing spans due to ingestion rates. [#3485](https://github.com/grafana/tempo/pull/3485) (@ie-pham)
 * [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
 * [ENHANCEMENT] Add new (unsafe) query hints for metrics queries [#3396](https://github.com/grafana/tempo/pull/3396) (@mdisibio)
 * [ENHANCEMENT] Add nestedSetLeft/Right/Parent instrinsics to TraceQL. [#3497](https://github.com/grafana/tempo/pull/3497) (@joe-elliott)
@@ -24,6 +25,7 @@
 * [BUGFIX] Correctly cancel GRPC and HTTP contexts in the frontend to prevent having to rely on http write timeout. [#3443](https://github.com/grafana/tempo/pull/3443) (@joe-elliott)
 * [BUGFIX] Add spss and limit to the frontend cache key to prevent the return of incorrect results. [#3557](https://github.com/grafana/tempo/pull/3557) (@joe-elliott)
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
+* [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 
 ## v2.4.1
 
