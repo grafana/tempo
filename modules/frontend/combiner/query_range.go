@@ -7,8 +7,8 @@ import (
 
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
-// NewQueryRange returns a query range combiner. It takes a isProm parameter to control the response format
-func NewQueryRange(isProm bool) Combiner { // jpe - use isProm? or do in the handler?
+// NewQueryRange returns a query range combiner.
+func NewQueryRange() Combiner {
 	combiner := traceql.QueryRangeCombiner{}
 
 	return &genericCombiner[*tempopb.QueryRangeResponse]{
@@ -54,6 +54,23 @@ func NewQueryRange(isProm bool) Combiner { // jpe - use isProm? or do in the han
 	}
 }
 
-func NewTypedQueryRange(isProm bool) GRPCCombiner[*tempopb.QueryRangeResponse] {
-	return NewQueryRange(isProm).(GRPCCombiner[*tempopb.QueryRangeResponse])
+func NewTypedQueryRange() GRPCCombiner[*tempopb.QueryRangeResponse] {
+	return NewQueryRange().(GRPCCombiner[*tempopb.QueryRangeResponse])
 }
+
+/* jpe - restore
+res := c.Response()
+res.Metrics.CompletedJobs = uint32(startedReqs)
+res.Metrics.TotalBlocks = uint32(totalBlocks)
+res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
+
+// Sort all output, series alphabetically, samples by time
+sort.SliceStable(res.Series, func(i, j int) bool {
+	return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
+})
+for _, series := range res.Series {
+	sort.Slice(series.Samples, func(i, j int) bool {
+		return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
+	})
+}
+*/

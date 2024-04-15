@@ -2,17 +2,12 @@ package frontend
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level" //nolint:all deprecated
+	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
@@ -22,7 +17,6 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -64,37 +58,23 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 	defer span.Finish()
 
 	var (
-		isProm bool
-		err    error
-		now    = time.Now()
+		err error
+		now = time.Now()
 	)
-
-	// This route supports two flavors. (1) Prometheus-compatible (2) Tempo native
-	// Remember which flavor this is and swap it so all
-	// upstream calls are always Tempo native.
-	if strings.Contains(r.RequestURI, api.PathPromQueryRange) {
-		isProm = true
-		// Swap upstream calls to the Tempo-native paths
-		r.URL.Path = strings.ReplaceAll(r.URL.Path, api.PathPromQueryRange, api.PathMetricsQueryRange) // jpe - move to handler?
-		r.RequestURI = strings.ReplaceAll(r.RequestURI, api.PathPromQueryRange, api.PathMetricsQueryRange)
-		// Prom endpoint is called with 1-second precision timestamps
-		// Round "now" to 1-second also.
-		now = time.Unix(now.Unix(), 0)
-	}
 
 	req, err := api.ParseQueryRangeRequest(r)
 	if err != nil {
-		return s.respErrHandler(isProm, err)
+		return pipeline.NewBadRequest(err), nil
 	}
 
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
-		return s.respErrHandler(isProm, err)
+		return pipeline.NewBadRequest(err), nil
 	}
 
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return s.respErrHandler(isProm, err)
+		return pipeline.NewBadRequest(err), nil
 	}
 
 	alignTimeRange(req)
@@ -103,7 +83,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(req.End-req.Start)*time.Nanosecond > maxDuration {
 		err = fmt.Errorf(fmt.Sprintf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End))
-		return s.respErrHandler(isProm, err)
+		return pipeline.NewBadRequest(err), nil
 	}
 
 	var (
@@ -305,6 +285,17 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 
 	// Set final sampling rate after integer rounding
 	// samplingRate = 1.0 / float64(searchReq.ShardCount) - restore?
+	/*
+		// Multiply up the sampling rate
+		if job.samplingRate != 1.0 {
+			for _, series := range results.Series {
+				for i, sample := range series.Samples {
+					sample.Value *= 1.0 / job.samplingRate
+					series.Samples[i] = sample
+				}
+			}
+		}
+	*/
 
 	return s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 }
@@ -381,104 +372,4 @@ func (s *queryRangeSharder) jobInterval(expr *traceql.RootExpr, allowUnsafe bool
 
 	// Else use configured value
 	return s.cfg.Interval
-}
-
-func (s *queryRangeSharder) convertToPromFormat(resp *tempopb.QueryRangeResponse) PromResponse {
-	promResp := PromResponse{
-		Status: "success",
-		Data:   &PromData{ResultType: "matrix"},
-	}
-
-	for _, series := range resp.Series {
-		promResult := PromResult{
-			Metric: map[string]string{},
-		}
-
-		for _, label := range series.Labels {
-			var s string
-			switch v := label.Value.Value.(type) {
-			case *common_v1.AnyValue_StringValue:
-				s = v.StringValue
-			case *common_v1.AnyValue_IntValue:
-				s = strconv.Itoa(int(v.IntValue))
-			case *common_v1.AnyValue_DoubleValue:
-				s = strconv.FormatFloat(v.DoubleValue, 'g', -1, 64)
-			case *common_v1.AnyValue_BoolValue:
-				s = strconv.FormatBool(v.BoolValue)
-			}
-			promResult.Metric[label.Key] = s
-		}
-
-		promResult.Values = make([]interface{}, 0, len(series.Samples))
-		for _, ts := range series.Samples {
-			promResult.Values = append(promResult.Values, []interface{}{
-				float64(ts.TimestampMs) / 1000.0,           // float for timestamp. assume it's seconds
-				strconv.FormatFloat(ts.Value, 'f', -1, 64), // making assumptions about the float format returned from prom
-			})
-		}
-
-		promResp.Data.Result = append(promResp.Data.Result, promResult)
-	}
-
-	return promResp
-}
-
-// returns an HTTP response or an error
-func (s *queryRangeSharder) respErrHandler(isProm bool, err error) (pipeline.Responses[*http.Response], error) { // jpe - move to handler?
-	if isProm {
-		resp := s.convertToPromError(err)
-		_ = level.Debug(s.logger).Log("resp", fmt.Sprintf("%+v", resp))
-
-		bytes, marshalErr := json.Marshal(resp)
-		if marshalErr != nil {
-			return nil, fmt.Errorf("marshal failed with: %w: %w", marshalErr, err)
-		}
-		bodyString := string(bytes)
-
-		return pipeline.NewSyncToAsyncResponse(&http.Response{
-			StatusCode: http.StatusOK,
-			Header: http.Header{
-				api.HeaderContentType: {api.HeaderAcceptJSON},
-			},
-			Body:          io.NopCloser(strings.NewReader(bodyString)),
-			ContentLength: int64(len([]byte(bodyString))),
-		}), nil
-	}
-
-	return pipeline.NewSyncToAsyncResponse(&http.Response{
-		StatusCode: http.StatusBadRequest,
-		Body:       io.NopCloser(strings.NewReader(err.Error())),
-	}), nil
-}
-
-func (s *queryRangeSharder) convertToPromError(err error) PromResponse {
-	return PromResponse{
-		Status:    "error",
-		ErrorType: "bad_data",
-		Error:     err.Error(),
-	}
-}
-
-type PromResponse struct {
-	Status    string    `json:"status"`
-	Data      *PromData `json:"data,omitempty"`
-	ErrorType string    `json:"errorType,omitempty"`
-	Error     string    `json:"error,omitempty"`
-}
-
-type PromData struct {
-	ResultType string       `json:"resultType"`
-	Result     []PromResult `json:"result"`
-}
-
-type PromResult struct {
-	Metric    map[string]string `json:"metric"`
-	Values    []interface{}     `json:"values"`    // first entry is timestamp (float), second is value (string)
-	Exemplars []interface{}     `json:"exemplars"` // first entry is timestamp (float), second is duration (float seconds), third is traceID (string)
-}
-
-type queryRangeJob struct {
-	req          tempopb.QueryRangeRequest
-	err          error
-	samplingRate float64
 }
