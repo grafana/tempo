@@ -497,6 +497,8 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # The number of shards to break ingester queries into.
+        [ingester_shards]: <int> | default = 1]
 
     # Trace by ID lookup configuration
     trace_by_id:
