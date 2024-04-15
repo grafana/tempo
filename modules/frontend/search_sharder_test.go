@@ -505,12 +505,6 @@ func timeFrom(t *testing.T, n string) time.Time {
 	return time.Unix(i, 0)
 }
 
-func timeSince(t *testing.T, n string) time.Duration {
-	i, err := strconv.ParseInt(n, 10, 32)
-	require.NoError(t, err)
-	return time.Since(time.Unix(i, 0))
-}
-
 func TestBackendRange(t *testing.T) {
 	now := int(time.Now().Unix())
 	fiveMinutesAgo := int(time.Now().Add(-5 * time.Minute).Unix())
