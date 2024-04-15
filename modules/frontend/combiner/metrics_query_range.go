@@ -1,6 +1,9 @@
 package combiner
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -34,6 +37,7 @@ func NewQueryRange() Combiner {
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
+			sortResponse(resp)
 			return resp, nil
 		},
 		// todo: the diff method still returns the full response every time. find a way to diff
@@ -42,6 +46,7 @@ func NewQueryRange() Combiner {
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
+			sortResponse(resp) // jpe - do we need to sort?
 			return resp, nil
 		},
 	}
@@ -51,19 +56,14 @@ func NewTypedQueryRange() GRPCCombiner[*tempopb.QueryRangeResponse] {
 	return NewQueryRange().(GRPCCombiner[*tempopb.QueryRangeResponse])
 }
 
-/* jpe - restore
-res := c.Response()
-res.Metrics.CompletedJobs = uint32(startedReqs)
-res.Metrics.TotalBlocks = uint32(totalBlocks)
-res.Metrics.TotalBlockBytes = uint64(totalBlockBytes)
-
-// Sort all output, series alphabetically, samples by time
-sort.SliceStable(res.Series, func(i, j int) bool {
-	return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
-})
-for _, series := range res.Series {
-	sort.Slice(series.Samples, func(i, j int) bool {
-		return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
+func sortResponse(res *tempopb.QueryRangeResponse) {
+	// Sort all output, series alphabetically, samples by time
+	sort.SliceStable(res.Series, func(i, j int) bool {
+		return strings.Compare(res.Series[i].PromLabels, res.Series[j].PromLabels) == -1
 	})
+	for _, series := range res.Series {
+		sort.Slice(series.Samples, func(i, j int) bool {
+			return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
+		})
+	}
 }
-*/

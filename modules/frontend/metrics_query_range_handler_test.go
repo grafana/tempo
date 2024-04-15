@@ -24,6 +24,10 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 				PromLabels: "foo",
 				Samples: []tempopb.Sample{
 					{
+						TimestampMs: 2,
+						Value:       2,
+					},
+					{
 						TimestampMs: 1,
 						Value:       1,
 					},
@@ -73,6 +77,10 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 					{
 						TimestampMs: 1,
 						Value:       408,
+					},
+					{
+						TimestampMs: 2,
+						Value:       816,
 					},
 				},
 			},
