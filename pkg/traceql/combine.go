@@ -33,6 +33,11 @@ func (c *MetadataCombiner) Count() int {
 	return len(c.trs)
 }
 
+func (c *MetadataCombiner) Exists(id string) bool {
+	_, ok := c.trs[id]
+	return ok
+}
+
 func (c *MetadataCombiner) Metadata() []*tempopb.TraceSearchMetadata {
 	m := make([]*tempopb.TraceSearchMetadata, 0, len(c.trs))
 	for _, tr := range c.trs {
@@ -167,6 +172,8 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 		q.metrics.TotalBlocks += resp.Metrics.TotalBlocks
 		q.metrics.TotalBlockBytes += resp.Metrics.TotalBlockBytes
 		q.metrics.InspectedBytes += resp.Metrics.InspectedBytes
+		q.metrics.InspectedTraces += resp.Metrics.InspectedTraces
+		q.metrics.InspectedSpans += resp.Metrics.InspectedSpans
 	}
 }
 

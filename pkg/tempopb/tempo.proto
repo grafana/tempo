@@ -33,6 +33,10 @@ service Querier {
 
 service StreamingQuerier {
   rpc Search(SearchRequest) returns (stream SearchResponse);
+  rpc SearchTags(SearchTagsRequest) returns (stream SearchTagsResponse) {}
+  rpc SearchTagsV2(SearchTagsRequest) returns (stream SearchTagsV2Response) {}
+  rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
+  rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
 }
 
 service Metrics {
@@ -142,6 +146,7 @@ message SearchMetrics {
   uint32 completedJobs = 4;
   uint32 totalJobs = 5;
   uint64 totalBlockBytes = 6;
+  uint64 inspectedSpans = 7;
 }
 
 message SearchTagsRequest {
@@ -374,15 +379,14 @@ message Sample {
   double value = 1;
 }
 
-// https : // github.com/grafana/mimir/blob/main/pkg/mimirpb/mimir.proto#L53
 message TimeSeries {
-  // repeated LabelPair labels = 1 [(gogoproto.nullable) = false,
-  // (gogoproto.customtype) = "LabelAdapter"];
+  // Series labels containing name and value. Data-type aware.
   repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  
   // Sorted by time, oldest sample first.
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
-  // repeated Exemplar exemplars = 3 [ (gogoproto.nullable) = false ];
-  // repeated Histogram histograms = 4 [ (gogoproto.nullable) = false ];
-  // TODO: review the LabelAdapter and migrate the use of this string
+
+  // prom_labels are a flattened string-only version of the typed labels.
+  // They are used internally and may differ from official prometheus conventions.
   string prom_labels = 3;
 }

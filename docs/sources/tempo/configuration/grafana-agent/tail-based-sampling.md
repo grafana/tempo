@@ -16,7 +16,7 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 Tail-based sampling works with Grafana Agent in Flow or static modes.
-Flow mode configuration files are [written in River](/docs/agent/latest/flow/config-language).
+Flow mode configuration files are [written in River](/docs/agent/latest/flow/concepts/config-language).
 Static mode configuration files are [written in YAML](/docs/agent/latest/static/configuration).
 Examples in this document are for Flow mode. You can also use the [Static mode Kubernetes operator](/docs/agent/latest/operator).
 
@@ -58,6 +58,8 @@ add load balancing and specify the resolving mechanism to find other Agents in t
 To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config/).
 
 ## Example for Grafana Agent Flow
+
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 [Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files are written in River instead of YAML.
@@ -175,7 +177,8 @@ traces:
 
 ### And compound tail sampling policy
 
-The following policy will only sample traces where all of the conditions for the sub-policies are met. In this case, it takes the prior two policies and will only sample traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/` *and* at least one of the spans of the trace contains an OpenTelemetry Error status code.
+The following policy will only sample traces where all of the conditions for the sub-policies are met.
+In this case, it takes the prior two policies and will only sample traces where the span attribute `http.target` does *not* contain the value `/healthcheck` or is prefixed with `/metrics/` *and* at least one of the spans of the trace contains an OpenTelemetry Error status code.
 
 ```yaml
 traces:

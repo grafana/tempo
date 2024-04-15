@@ -15,7 +15,7 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
-For externally support GRPC API [see below](#tempo-grpc-api)
+For externally supported GRPC API, [see below](#tempo-grpc-api).
 
 ## Endpoints
 
@@ -32,6 +32,7 @@ For externally support GRPC API [see below](#tempo-grpc-api)
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
+| [Overrides API](#overrides-api) | Query-frontend | HTTP | `GET,POST,PATCH,DELETE /api/overrides` |
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
@@ -301,7 +302,7 @@ Parameters:
 
 ### Search tags V2
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only 
+Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only
 fetch blocks that wasn't flushed to backend.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
@@ -467,6 +468,9 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
 {{% /admonition %}}
 
+### Overrides API
+
+For more information about user-configurable overrides API, refer to the [user-configurable overrides]{{< relref "../operations/user-configurable-overrides#api" >}} documentation.
 
 ### Flush
 
@@ -593,7 +597,7 @@ Query parameter:
 GET /status/overrides
 ```
 
-Displays all tenants that have non-default overrides configured. 
+Displays all tenants that have non-default overrides configured.
 
 ```
 GET /status/overrides/{tenant}
@@ -627,52 +631,14 @@ To enable the streaming service over the HTTP port for use with Grafana, set the
 stream_over_http_enabled: true
 ```
 
-The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response.
-The final response sent is guaranteed to have the entire resultset.
+The query frontend supports the following interface. Refer to [`tempo.proto`](https://github.com/grafana/tempo/blob/main/pkg/tempopb/tempo.proto) for complete details of all objects.
 
 ```protobuf
 service StreamingQuerier {
   rpc Search(SearchRequest) returns (stream SearchResponse);
-}
-message SearchRequest {
-  map<string, string> Tags = 1
-  uint32 MinDurationMs = 2;
-  uint32 MaxDurationMs = 3;
-  uint32 Limit = 4;
-  uint32 start = 5;
-  uint32 end = 6;
-  string Query = 8;
-}
-message SearchResponse {
-  repeated TraceSearchMetadata traces = 1;
-  SearchMetrics metrics = 2;
-}
-message TraceSearchMetadata {
-  string traceID = 1;
-  string rootServiceName = 2;
-  string rootTraceName = 3;
-  uint64 startTimeUnixNano = 4;
-  uint32 durationMs = 5;
-  SpanSet spanSet = 6; // deprecated. use SpanSets field below
-  repeated SpanSet spanSets = 7;
-}
-message SpanSet {
-  repeated Span spans = 1;
-  uint32 matched = 2;
-}
-message Span {
-  string spanID = 1;
-  string name = 2;
-  uint64 startTimeUnixNano = 3;
-  uint64 durationNanos = 4;
-  repeated tempopb.common.v1.KeyValue attributes = 5;
-}
-message SearchMetrics {
-  uint32 inspectedTraces = 1;
-  uint64 inspectedBytes = 2;
-  uint32 totalBlocks = 3;
-  uint32 completedJobs = 4;
-  uint32 totalJobs = 5;
-  uint64 totalBlockBytes = 6;
+  rpc SearchTags(SearchTagsRequest) returns (stream SearchTagsResponse) {}
+  rpc SearchTagsV2(SearchTagsRequest) returns (stream SearchTagsV2Response) {}
+  rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
+  rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
 }
 ```

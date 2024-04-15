@@ -52,7 +52,7 @@ The backend can be configured in a few ways:
     * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration]({{< relref "../configuration" >}}) documentation for more information.
     * `--s3-endpoint <value>` The S3 API endpoint (i.e. s3.dualstack.us-east-2.amazonaws.com).
     * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key).
-      Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation]({{< relref "../configuration/s3" >}}) for more information.
+      Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation]({{< relref "../configuration/hosted-storage/s3" >}}) for more information.
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
@@ -80,7 +80,7 @@ tempo-cli query api trace-id http://tempo:3200 f1cfe82a8eef933b
 Call the Tempo API and search using TraceQL.
 
 ```bash
-tempo-cli query api search <host-port> <trace-ql> <start> <end>
+tempo-cli query api search <host-port> <trace-ql> [<start> <end>]
 ```
 Arguments:
 - `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
@@ -99,6 +99,46 @@ Options:
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
+### Search tags
+Call the Tempo API and search attribute names.
+
+```bash
+tempo-cli query api search-tags <host-port> [<start> <end>]
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use GRPC streaming
+- `--path-prefix <value>` String to prefix search paths with
+
+{{% admonition type="note" %}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
+
+### Search tag values
+Call the Tempo API and search attribute values.
+
+```bash
+tempo-cli query api search-tag-values <tag> <host-port> [<start> <end>]
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `tag` The fully qualified traceql tag to search for. e.g. `resource.service.name`
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use GRPC streaming
+- `--path-prefix <value>` String to prefix search paths with
+
+{{% admonition type="note" %}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
 
 ## Query blocks command
 

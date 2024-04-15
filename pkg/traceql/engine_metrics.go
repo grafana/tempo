@@ -60,13 +60,18 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
+type Label struct {
+	Name  string
+	Value Static
+}
+
 type TimeSeries struct {
-	Labels labels.Labels
+	Labels []Label
 	Values []float64
 }
 
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
-// text description: {x="a",y="b"}
+// text description: {x="a",y="b"} for convenience.
 type SeriesSet map[string]TimeSeries
 
 // VectorAggregator turns a vector of spans into a single numeric scalar
@@ -251,39 +256,48 @@ func (g *GroupingAggregator) Observe(span Span) {
 //	{       y=...       }
 //	etc
 //
-// (3) Exceptional case: All Nils. Real Prometheus-style metrics have a name, so there is
-// always at least 1 label. Not so here. We have to force at least 1 label or else things
+// (3) Exceptional case: All Nils. For the TraceQL data-type aware labels we still drop
+// all nils which results in an empty label set. But Prometheus-style always have
+// at least 1 label, so in that case we have to force at least 1 label or else things
 // may not be handled correctly downstream.  In this case we take the first label and
 // make it the string "nil"
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator) labelsFor(vals FastValues) labels.Labels {
-	b := labels.NewBuilder(nil)
-
-	present := false
+func (g *GroupingAggregator) labelsFor(vals FastValues) ([]Label, string) {
+	tempoLabels := make([]Label, 0, len(g.by))
 	for i, v := range vals {
-		if v.Type != TypeNil {
-			b.Set(g.by[i].String(), v.EncodeToString(false))
-			present = true
+		if v.Type == TypeNil {
+			continue
 		}
+		tempoLabels = append(tempoLabels, Label{g.by[i].String(), v})
 	}
 
-	if !present {
-		b.Set(g.by[0].String(), "<nil>")
+	// Prometheus-style version for convenience
+	promLabels := labels.NewBuilder(nil)
+	for _, l := range tempoLabels {
+		promValue := l.Value.EncodeToString(false)
+		if promValue == "" {
+			promValue = "<empty>"
+		}
+		promLabels.Set(l.Name, promValue)
+	}
+	// When all nil then force one.
+	if promLabels.Labels().IsEmpty() {
+		promLabels.Set(g.by[0].String(), "<nil>")
 	}
 
-	return b.Labels()
+	return tempoLabels, promLabels.Labels().String()
 }
 
 func (g *GroupingAggregator) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for vals, agg := range g.series {
-		l := g.labelsFor(vals)
+		labels, promLabels := g.labelsFor(vals)
 
-		ss[l.String()] = TimeSeries{
-			Labels: l,
+		ss[promLabels] = TimeSeries{
+			Labels: labels,
 			Values: agg.Samples(),
 		}
 	}
@@ -311,29 +325,17 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	l := labels.FromStrings(labels.MetricName, u.name)
 	return SeriesSet{
 		l.String(): {
-			Labels: l,
+			Labels: []Label{{labels.MetricName, NewStaticString(u.name)}},
 			Values: u.innerAgg.Samples(),
 		},
 	}
 }
 
-// ExecuteMetricsQueryRange - Execute the given metrics query. Just a wrapper around CompileMetricsQueryRange
-func (e *Engine) ExecuteMetricsQueryRange(ctx context.Context, req *tempopb.QueryRangeRequest, fetcher SpansetFetcher) (results SeriesSet, err error) {
-	eval, err := e.CompileMetricsQueryRange(req, false)
-	if err != nil {
-		return nil, err
-	}
-
-	err = eval.Do(ctx, fetcher, 0, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	return eval.Results()
-}
-
 // CompileMetricsQueryRange returns an evalulator that can be reused across multiple data sources.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool) (*MetricsEvalulator, error) {
+// Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
+// example if the datasource is replication factor=1 or only a single block then we know there
+// aren't duplicates and we can make some optimizations.
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -347,7 +349,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		return nil, fmt.Errorf("step required")
 	}
 
-	eval, metricsPipeline, storageReq, err := e.Compile(req.Query)
+	expr, eval, metricsPipeline, storageReq, err := e.Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -356,39 +358,44 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
+	if v, ok := expr.Hints.GetBool(HintDedupe, allowUnsafeQueryHints); ok {
+		dedupeSpans = v
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req)
 
 	me := &MetricsEvalulator{
-		storageReq:      storageReq,
-		metricsPipeline: metricsPipeline,
-		dedupeSpans:     dedupeSpans,
+		storageReq:        storageReq,
+		metricsPipeline:   metricsPipeline,
+		dedupeSpans:       dedupeSpans,
+		timeOverlapCutoff: timeOverlapCutoff,
 	}
 
-	// TraceID (not always required)
-	if req.ShardCount > 1 || dedupeSpans {
+	// TraceID (optional)
+	if req.ShardCount > 1 {
 		// For sharding it must be in the first pass so that we only evalulate our traces.
 		storageReq.ShardID = req.ShardID
 		storageReq.ShardCount = req.ShardCount
-		traceID := NewIntrinsic(IntrinsicTraceID)
-		if !storageReq.HasAttribute(traceID) {
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: traceID})
+		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
+			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: IntrinsicTraceIDAttribute})
+		}
+	}
+
+	if dedupeSpans {
+		// For dedupe we only need the trace ID on matching spans, so it can go in the second pass.
+		// This is a no-op if we are already sharding and it's in the first pass.
+		// Finally, this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
+			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicTraceIDAttribute})
 		}
 	}
 
 	// Span start time (always required)
-	startTime := NewIntrinsic(IntrinsicSpanStartTime)
-	if !storageReq.HasAttribute(startTime) {
-		if storageReq.AllConditions {
-			// The most efficient case.  We can add it to the primary pass
-			// without affecting correctness. And this lets us avoid the
-			// entire second pass.
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: startTime})
-		} else {
-			// Complex query with a second pass. In this case it is better to
-			// add it to the second pass so that it's only returned for the matches.
-			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: startTime})
-		}
+	if !storageReq.HasAttribute(IntrinsicSpanStartTimeAttribute) {
+		// Technically we only need the start time of matching spans, so we add it to the second pass.
+		// However this is often optimized back to the first pass when it lets us avoid a second pass altogether.
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
 	}
 
 	// Timestamp filtering
@@ -399,6 +406,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	// (2) Only include spans that started in this time frame.
 	//     This is checked outside the fetch layer in the evaluator. Timestamp
 	//     is only checked on the spans that are the final results.
+	// TODO - I think there are cases where we can push this down.
+	// Queries like {status=error} | rate() don't assert inter-span conditions
+	// and we could filter on span start time without affecting correctness.
+	// Queries where we can't are like:  {A} >> {B} | rate() because only require
+	// that {B} occurs within our time range but {A} is allowed to occur any time.
 	me.checkTime = true
 	me.start = req.Start
 	me.end = req.End
@@ -422,7 +434,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
-	// Special optimization for queries like {} | rate() by (rootName)
+	// Special optimization for queries like:
+	//  {} | rate()
+	//  {} | rate() by (rootName)
+	//  {} | rate() by (resource.service.name)
 	// When the second pass consists only of intrinsics, then it's possible to
 	// move them to the first pass and increase performance. It avoids the second pass/bridge
 	// layer and doesn't alter the correctness of the query.
@@ -462,16 +477,17 @@ func lookup(needles []Attribute, haystack Span) Static {
 }
 
 type MetricsEvalulator struct {
-	start, end      uint64
-	checkTime       bool
-	dedupeSpans     bool
-	deduper         *SpanDeduper2
-	storageReq      *FetchSpansRequest
-	metricsPipeline metricsFirstStageElement
-	spansTotal      uint64
-	spansDeduped    uint64
-	bytes           uint64
-	mtx             sync.Mutex
+	start, end        uint64
+	checkTime         bool
+	dedupeSpans       bool
+	deduper           *SpanDeduper2
+	timeOverlapCutoff float64
+	storageReq        *FetchSpansRequest
+	metricsPipeline   metricsFirstStageElement
+	spansTotal        uint64
+	spansDeduped      uint64
+	bytes             uint64
+	mtx               sync.Mutex
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -503,10 +519,10 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		}
 
 		// Our heuristic is if the overlap between the given fetcher (i.e. block)
-		// and the request is less than 20%, use them.  Above 20%, the cost of loading
-		// them doesn't outweight the benefits. 20% was measured in local benchmarking.
-		// TODO - Make configurable or a query hint?
-		if overlap < 0.2 {
+		// and the request is less than X%, use them.  Above X%, the cost of loading
+		// them doesn't outweight the benefits. The default 20% was measured in
+		// local benchmarking.
+		if overlap < e.timeOverlapCutoff {
 			storageReq.StartTimeUnixNanos = e.start
 			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
 		}

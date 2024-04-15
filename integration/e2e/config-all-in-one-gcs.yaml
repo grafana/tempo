@@ -36,6 +36,7 @@ storage:
       bucket_name: tempo
       endpoint: https://tempo_e2e-gcs:4443/storage/v1/
       insecure: true
+      prefix: {{ .Prefix }}
     pool:
       max_workers: 10
       queue_depth: 1000

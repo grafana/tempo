@@ -1,4 +1,5 @@
 type: opencensus
+scope_name: otelcol/opencensusreceiver
 
 status:
   class: receiver

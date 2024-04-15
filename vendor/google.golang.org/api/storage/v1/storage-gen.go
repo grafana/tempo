@@ -1,4 +1,4 @@
-// Copyright 2023 Google LLC.
+// Copyright 2024 Google LLC.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -3593,7 +3593,7 @@ func (c *AnywhereCacheListCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "b/{bucket}/anywhereCache")
+	urls := googleapi.ResolveRelative(c.s.BasePath, "b/{bucket}/anywhereCaches")
 	urls += "?" + c.urlParams_.Encode()
 	req, err := http.NewRequest("GET", urls, body)
 	if err != nil {
@@ -3670,7 +3670,7 @@ func (c *AnywhereCacheListCall) Do(opts ...googleapi.CallOption) (*AnywhereCache
 	//       "type": "string"
 	//     }
 	//   },
-	//   "path": "b/{bucket}/anywhereCache",
+	//   "path": "b/{bucket}/anywhereCaches",
 	//   "response": {
 	//     "$ref": "AnywhereCaches"
 	//   },

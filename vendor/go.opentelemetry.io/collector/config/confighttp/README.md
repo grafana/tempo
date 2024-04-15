@@ -16,7 +16,10 @@ README](../configtls/README.md).
 
 - `endpoint`: address:port
 - [`tls`](../configtls/README.md)
-- `headers`: name/value pairs added to the HTTP request headers
+- [`headers`](https://pkg.go.dev/net/http#Request): name/value pairs added to the HTTP request headers
+  - certain headers such as Content-Length and Connection are automatically written when needed and values in Header may be ignored.
+  - `Host` header is automatically derived from `endpoint` value. However, this automatic assignment can be overridden by explicitly setting the Host field in the headers field.
+  - if `Host` header is provided then it overrides `Host` field in [Request](https://pkg.go.dev/net/http#Request) which results as an override of `Host` header value.
 - [`read_buffer_size`](https://golang.org/pkg/net/http/#Transport)
 - [`timeout`](https://golang.org/pkg/net/http/#Client)
 - [`write_buffer_size`](https://golang.org/pkg/net/http/#Transport)
@@ -29,12 +32,14 @@ README](../configtls/README.md).
 - [`idle_conn_timeout`](https://golang.org/pkg/net/http/#Transport)
 - [`auth`](../configauth/README.md)
 - [`disable_keep_alives`](https://golang.org/pkg/net/http/#Transport)
+- [`http2_read_idle_timeout`](https://pkg.go.dev/golang.org/x/net/http2#Transport)
+- [`http2_ping_timeout`](https://pkg.go.dev/golang.org/x/net/http2#Transport)
 
 Example:
 
 ```yaml
 exporter:
-  otlp:
+  otlphttp:
     endpoint: otelcol2:55690
     auth:
       authenticator: some-authenticator-extension
@@ -69,6 +74,7 @@ will not be enabled.
   header, allowing clients to cache the response to CORS preflight requests. If
   not set, browsers use a default of 5 seconds.
 - `endpoint`: Valid value syntax available [here](https://github.com/grpc/grpc/blob/master/doc/naming.md)
+- `max_request_body_size`: configures the maximum allowed body size in bytes for a single request. Default: `0` (no restriction)
 - [`tls`](../configtls/README.md)
 - [`auth`](../configauth/README.md)
 

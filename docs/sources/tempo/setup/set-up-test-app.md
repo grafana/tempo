@@ -24,9 +24,11 @@ Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for mo
 
 ## Configure Grafana Agent Flow to remote-write to Tempo
 
-We'll use a [Grafana Agent Helm chart](/docs/agent/latest/flow/setup/install/kubernetes) deployment to send traces to Tempo.
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
-To do this, you need to create a configuration that can be used by the Agent to receive and export traces in OTLP protobuf format.
+This section uses a [Grafana Agent Helm chart](/docs/agent/latest/flow/setup/install/kubernetes) deployment to send traces to Tempo.
+
+To do this, you need to create a configuration that can be used by Grafana Agent to receive and export traces in OTLP `protobuf` format.
 
 1. Create a new `values.yaml` file which we'll use as part of the Agent install.
 
@@ -90,7 +92,6 @@ To do this, you need to create a configuration that can be used by the Agent to 
    ```
    If you wish to deploy the agent into a specific namespace, make sure to create the namespace first and specify it to Helm by appending `--namespace=<grafana-agent-namespace>` to the end of the command.
 
-
 ## Create a Grafana Tempo data source
 
 To allow Grafana to read traces from Tempo, you must create a Tempo data source.
@@ -124,20 +125,52 @@ Replace these appropriately if you have altered the endpoint targets for the fol
 1. Install `telemetrygen` using the [installation procedure](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/telemetrygen).
    **NOTE**: You don't need to configure an OpenTelemetry Collector as we are using the Grafana Agent.
 
-1. Generate traces using `telemtrygen`:
+2. Generate traces using `telemetrygen`:
    ```bash
-   telemetrygen traces --otlp-insecure --rate 20 --duration 5s grafana-agent.grafana-agent.svc.cluster.local:4317
+   telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint grafana-agent.grafana-agent.svc.cluster.local:4317
    ```
   This configuration sends traces to Grafana Agent for 5 seconds, at a rate of 20 traces per second.
 
   Optionally, you can also send the trace directly to the Tempo database without using Grafana Agent as a collector by using the following:
   ```bash
-  telemetrygen traces --otlp-insecure --rate 20 --duration 5s tempo-cluster-distributor.tempo.svc.cluster.local:4317
+  telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint tempo-cluster-distributor.tempo.svc.cluster.local:4317
   ```
 
-If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Agent or Tempo distributor service, eg:
-```bash
-kubectl port-forward services/grafana-agent 4317:4317 --namespace grafana-agent
+  If you're running `telemetrygen` on your local machine, ensure that you first port-forward to the relevant Agent or Tempo distributor service, for example:
+  ```bash
+  kubectl port-forward services/grafana-agent 4317:4317 --namespace grafana-agent
+  ```
+3. Alternatively, a cronjob can be created to send traces periodically based on this template:
+
+```
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sample-traces
+spec:
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          containers:
+          - name: traces
+            image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.96.0
+            args:
+              - traces
+              - --otlp-insecure
+              - --rate
+              - "20"
+              - --duration
+              - 5s
+              - --otlp-endpoint
+              - grafana-agent.grafana-agent.svc.cluster.local:4317
+          restartPolicy: Never
 ```
 
 To view the tracing data:

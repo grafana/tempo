@@ -39,6 +39,7 @@ type Interface interface {
 	MaxBlocksPerTagValuesQuery(userID string) int
 	IngestionRateLimitBytes(userID string) float64
 	IngestionBurstSizeBytes(userID string) int
+	IngestionTenantShardSize(userID string) int
 	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorRingSize(userID string) int
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
@@ -68,7 +69,9 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	BlockRetention(userID string) time.Duration
 	MaxSearchDuration(userID string) time.Duration
+	MaxMetricsDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
+	UnsafeQueryHints(userID string) bool
 
 	// Management API
 	WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error

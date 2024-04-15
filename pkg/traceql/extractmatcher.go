@@ -18,7 +18,7 @@ import (
 //  3. The boolean values "true" or "false".
 //
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
+var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._\-" ]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
 
 // TODO: Merge into a single regular expression
 
@@ -55,6 +55,7 @@ func ExtractMatchers(query string) string {
 	var q strings.Builder
 	q.WriteString("{")
 	for i, m := range matchers {
+		m = strings.TrimSpace(m)
 		if i > 0 {
 			q.WriteString(" && ")
 		}

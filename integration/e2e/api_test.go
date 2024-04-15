@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -103,7 +105,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 			name:     "too restrictive query",
 			query:    fmt.Sprintf(`{ %s="%s" && resource.y="%s" }`, resourceX, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
 			tagName:  spanX,
-			expected: searchTagValuesV2Response{},
+			expected: searchTagValuesV2Response{TagValues: []TagValue{}},
 		},
 		// Unscoped not supported, unfiltered results.
 		{
@@ -146,6 +148,14 @@ func TestSearchTagValuesV2(t *testing.T) {
 				TagValues: []TagValue{{Type: "string", Value: "my-service"}},
 			},
 		},
+		{
+			name:    "bad query - unfiltered results",
+			query:   fmt.Sprintf("%s = bar", spanX), // bad query, missing quotes
+			tagName: spanX,
+			expected: searchTagValuesV2Response{
+				TagValues: []TagValue{{Type: "string", Value: firstBatch.spanAttVal}, {Type: "string", Value: secondBatch.spanAttVal}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -168,7 +178,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 	// Assert no more on the ingester
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{}, 0, 0)
+			callSearchTagValuesV2AndAssert(t, tempo, tc.tagName, tc.query, searchTagValuesV2Response{TagValues: []TagValue{}}, 0, 0)
 		})
 	}
 
@@ -187,6 +197,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 	}
 }
 
+// todo: add search tags v2
 func TestSearchTags(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e_tags")
 	require.NoError(t, err)
@@ -217,7 +228,7 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{}, 0, 0)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, 0, 0)
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
@@ -257,7 +268,7 @@ func TestSearchTagValues(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
-	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{}, 0, 0)
+	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{}}, 0, 0)
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
 	// Assert tags on storage backen
@@ -300,6 +311,38 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	require.NoError(t, json.Unmarshal(body, &response))
 	sort.Slice(response.TagValues, func(i, j int) bool { return response.TagValues[i].Value < response.TagValues[j].Value })
 	require.Equal(t, expected, response)
+
+	// streaming
+	grpcReq := &tempopb.SearchTagValuesRequest{
+		TagName: tagName,
+		Query:   query,
+		Start:   uint32(start),
+		End:     uint32(end),
+	}
+
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(3200))
+	require.NoError(t, err)
+
+	respTagsValuesV2, err := grpcClient.SearchTagValuesV2(context.Background(), grpcReq)
+	require.NoError(t, err)
+	var grpcResp *tempopb.SearchTagValuesV2Response
+	for {
+		resp, err := respTagsValuesV2.Recv()
+		if resp != nil {
+			grpcResp = resp
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+	}
+	require.NotNil(t, grpcResp)
+	actualGrpcResp := searchTagValuesV2Response{TagValues: []TagValue{}}
+	for _, tagValue := range grpcResp.TagValues {
+		actualGrpcResp.TagValues = append(actualGrpcResp.TagValues, TagValue{Type: tagValue.Type, Value: tagValue.Value})
+	}
+	sort.Slice(actualGrpcResp.TagValues, func(i, j int) bool { return grpcResp.TagValues[i].Value < grpcResp.TagValues[j].Value })
+	require.Equal(t, expected, actualGrpcResp)
 }
 
 func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected searchTagsResponse, start, end int64) {
@@ -335,6 +378,36 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	sort.Strings(response.TagNames)
 	sort.Strings(expected.TagNames)
 	require.Equal(t, expected, response)
+
+	// streaming
+	grpcReq := &tempopb.SearchTagsRequest{
+		Start: uint32(start),
+		End:   uint32(end),
+	}
+
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(3200))
+	require.NoError(t, err)
+
+	respTags, err := grpcClient.SearchTags(context.Background(), grpcReq)
+	require.NoError(t, err)
+	var grpcResp *tempopb.SearchTagsResponse
+	for {
+		resp, err := respTags.Recv()
+		if resp != nil {
+			grpcResp = resp
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+	}
+	require.NotNil(t, grpcResp)
+
+	if grpcResp.TagNames == nil {
+		grpcResp.TagNames = []string{}
+	}
+	sort.Slice(grpcResp.TagNames, func(i, j int) bool { return grpcResp.TagNames[i] < grpcResp.TagNames[j] })
+	require.Equal(t, expected.TagNames, grpcResp.TagNames)
 }
 
 func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName string, expected searchTagValuesResponse, start, end int64) {

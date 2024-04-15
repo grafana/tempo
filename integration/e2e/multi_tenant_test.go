@@ -122,15 +122,8 @@ func TestMultiTenantSearch(t *testing.T) {
 			resp, err := apiClient.QueryTrace(info.HexID())
 			require.NoError(t, err)
 			respTm := getAttrsAndSpanNames(resp)
-			if tc.tenantSize > 1 {
-				// resource keys should contain tenant key in case of a multi-tenant query
-				traceMap.rKeys = append(traceMap.rKeys, "tenant")
-				// resource values will contain at-least one of tenant ids for multi-tenant query
-				// or exactly match in case of single tenant query
-				assert.Subset(t, append(traceMap.rValues, tenants...), respTm.rValues)
-			} else {
-				assert.ElementsMatch(t, traceMap.rValues, respTm.rValues)
-			}
+
+			assert.ElementsMatch(t, traceMap.rValues, respTm.rValues)
 			assert.ElementsMatch(t, respTm.rKeys, traceMap.rKeys)
 			assert.ElementsMatch(t, traceMap.spanNames, respTm.spanNames)
 
@@ -167,20 +160,6 @@ func TestMultiTenantSearch(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, tagsValuesV2Resp.TagValues)
 
-			// assert tenant federation metrics
-			if tc.tenantSize > 1 {
-				for _, ta := range tenants {
-					matcher, err := labels.NewMatcher(labels.MatchEqual, "tenant", ta)
-					require.NoError(t, err)
-					// we should have 8 requests for each tenant
-					err = tempo.WaitSumMetricsWithOptions(e2e.Equals(8),
-						[]string{"tempo_query_frontend_multitenant_success_total"},
-						e2e.WithLabelMatchers(matcher),
-					)
-					require.NoError(t, err)
-				}
-			}
-
 			// check metrics for all routes
 			routeTable := []struct {
 				route    string
@@ -215,7 +194,7 @@ func TestMultiTenantSearch(t *testing.T) {
 
 			time.Sleep(2 * time.Second) // ensure that blocklist poller has built the blocklist
 			now := time.Now()
-			util.SearchStreamAndAssertTrace(t, grpcCtx, grpcClient, info, now.Add(-5*time.Minute).Unix(), now.Add(5*time.Minute).Unix())
+			util.SearchStreamAndAssertTrace(t, grpcCtx, grpcClient, info, now.Add(-10*time.Minute).Unix(), now.Add(10*time.Minute).Unix())
 			assertRequestCountMetric(t, tempo, "/tempopb.StreamingQuerier/Search", 1)
 
 			// test unsupported endpoint

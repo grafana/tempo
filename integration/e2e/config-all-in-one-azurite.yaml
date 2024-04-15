@@ -37,6 +37,7 @@ storage:
       endpoint_suffix: tempo_e2e-azurite:10000
       storage_account_name: "devstoreaccount1"
       storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+      prefix: {{ .Prefix }}
     pool:
       max_workers: 10
       queue_depth: 100

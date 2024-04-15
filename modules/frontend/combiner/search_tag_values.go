@@ -1,66 +1,84 @@
 package combiner
 
 import (
-	"fmt"
-	"io"
-
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 )
 
 var (
-	_ Combiner = (*genericCombiner[*tempopb.SearchTagValuesResponse])(nil)
-	_ Combiner = (*genericCombiner[*tempopb.SearchTagValuesV2Response])(nil)
+	_ GRPCCombiner[*tempopb.SearchTagValuesResponse]   = (*genericCombiner[*tempopb.SearchTagValuesResponse])(nil)
+	_ GRPCCombiner[*tempopb.SearchTagValuesV2Response] = (*genericCombiner[*tempopb.SearchTagValuesV2Response])(nil)
 )
 
-func NewSearchTagValues() Combiner {
+func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ string) int { return 0 })
+	d := util.NewDistinctStringCollector(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagValuesResponse]{
-		code:  200,
-		final: &tempopb.SearchTagValuesResponse{TagValues: make([]string, 0)},
-		combine: func(body io.ReadCloser, final *tempopb.SearchTagValuesResponse) error {
-			response := &tempopb.SearchTagValuesResponse{}
-			if err := jsonpb.Unmarshal(body, response); err != nil {
-				return fmt.Errorf("error unmarshalling response body: %w", err)
-			}
-			for _, v := range response.TagValues {
+		httpStatusCode: 200,
+		new:            func() *tempopb.SearchTagValuesResponse { return &tempopb.SearchTagValuesResponse{} },
+		current:        &tempopb.SearchTagValuesResponse{TagValues: make([]string, 0)},
+		combine: func(partial, final *tempopb.SearchTagValuesResponse) error {
+			for _, v := range partial.TagValues {
 				d.Collect(v)
 			}
 			return nil
 		},
-		result: func(response *tempopb.SearchTagValuesResponse) (string, error) {
-			response.TagValues = d.Values()
-			return new(jsonpb.Marshaler).MarshalToString(response)
+		finalize: func(final *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
+			final.TagValues = d.Strings()
+			return final, nil
+		},
+		quit: func(_ *tempopb.SearchTagValuesResponse) bool {
+			return d.Exceeded()
+		},
+		diff: func(response *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
+			response.TagValues = d.Diff()
+			return response, nil
 		},
 	}
 }
 
-func NewSearchTagValuesV2() Combiner {
+func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesResponse] {
+	return NewSearchTagValues(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesResponse])
+}
+
+func NewSearchTagValuesV2(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(0, func(_ tempopb.TagValue) int { return 0 })
+	d := util.NewDistinctValueCollector(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
-		final: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
-		combine: func(body io.ReadCloser, final *tempopb.SearchTagValuesV2Response) error {
-			response := &tempopb.SearchTagValuesV2Response{}
-			if err := jsonpb.Unmarshal(body, response); err != nil {
-				return fmt.Errorf("error unmarshalling response body: %w", err)
-			}
-			for _, v := range response.TagValues {
+		current: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
+		new:     func() *tempopb.SearchTagValuesV2Response { return &tempopb.SearchTagValuesV2Response{} },
+		combine: func(partial, final *tempopb.SearchTagValuesV2Response) error {
+			for _, v := range partial.TagValues {
 				d.Collect(*v)
 			}
 			return nil
 		},
-		result: func(response *tempopb.SearchTagValuesV2Response) (string, error) {
+		finalize: func(final *tempopb.SearchTagValuesV2Response) (*tempopb.SearchTagValuesV2Response, error) {
 			values := d.Values()
+			final.TagValues = make([]*tempopb.TagValue, 0, len(values))
 			for _, v := range values {
+				v2 := v
+				final.TagValues = append(final.TagValues, &v2)
+			}
+			return final, nil
+		},
+		quit: func(_ *tempopb.SearchTagValuesV2Response) bool {
+			return d.Exceeded()
+		},
+		diff: func(response *tempopb.SearchTagValuesV2Response) (*tempopb.SearchTagValuesV2Response, error) {
+			diff := d.Diff()
+			response.TagValues = make([]*tempopb.TagValue, 0, len(diff))
+			for _, v := range diff {
 				v2 := v
 				response.TagValues = append(response.TagValues, &v2)
 			}
-			return new(jsonpb.Marshaler).MarshalToString(response)
+			return response, nil
 		},
 	}
+}
+
+func NewTypedSearchTagValuesV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesV2Response] {
+	return NewSearchTagValuesV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
 }

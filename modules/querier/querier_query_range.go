@@ -64,11 +64,6 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, true)
-	if err != nil {
-		return nil, err
-	}
-
 	// Get blocks that overlap this time range
 	metas := q.store.BlockMetas(tenantID)
 	withinTimeRange := metas[:0]
@@ -78,7 +73,37 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		}
 	}
 
-	wg := boundedwaitgroup.New(2)
+	if len(withinTimeRange) == 0 {
+		return nil, nil
+	}
+
+	unsafe := q.limits.UnsafeQueryHints(tenantID)
+
+	// Optimization
+	// If there's only 1 block then dedupe not needed.
+	dedupe := len(withinTimeRange) > 1
+
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	timeOverlapCutoff := q.cfg.Metrics.TimeOverlapCutoff
+	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
+		timeOverlapCutoff = v
+	}
+
+	concurrency := q.cfg.Metrics.ConcurrentBlocks
+	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
+		concurrency = v
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, timeOverlapCutoff, unsafe)
+	if err != nil {
+		return nil, err
+	}
+
+	wg := boundedwaitgroup.New(uint(concurrency))
 	jobErr := atomic.Error{}
 
 	for _, m := range withinTimeRange {
@@ -119,7 +144,15 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	return &tempopb.QueryRangeResponse{Series: queryRangeTraceQLToProto(res, req)}, nil
+	inspectedBytes, spansTotal, _ := eval.Metrics()
+
+	return &tempopb.QueryRangeResponse{
+		Series: queryRangeTraceQLToProto(res, req),
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes: inspectedBytes,
+			InspectedSpans: spansTotal,
+		},
+	}, nil
 }
 
 func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
@@ -131,7 +164,7 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 			labels = append(labels,
 				v1.KeyValue{
 					Key:   label.Name,
-					Value: traceql.NewStaticString(label.Value).AsAnyValue(),
+					Value: label.Value.AsAnyValue(),
 				},
 			)
 		}

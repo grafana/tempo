@@ -164,7 +164,7 @@ Tempo documentation is located in the `docs` directory. The `docs` directory has
 Once you know what you would like to write, use the [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/writing-guide/contribute-documentation/) for information on creating good documentation.
 The toolkit also provides [document templates](https://github.com/grafana/writers-toolkit/tree/main/docs/static/templates) to help get started.
 
-When you create a PR for documentation, add the `types/doc` label to identify the PR as contributing documentation.
+When you create a PR for documentation, add the `type/doc` label to identify the PR as contributing documentation.
 
 If your content needs to be added to a previous release, use the `backport` label for the version. When your PR is merged, the backport label triggers an automatic process to create an additional PR to merge the content into the version's branch. Check the PR for content that might not be appropriate for the version. For example, if you fix a broken link on a page and then backport to Tempo 1.5, you would not want any TraceQL information to appear.
 

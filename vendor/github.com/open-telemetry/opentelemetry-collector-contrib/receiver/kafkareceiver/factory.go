@@ -5,6 +5,8 @@ package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collect
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"go.opencensus.io/stats/view"
@@ -17,7 +19,9 @@ import (
 )
 
 const (
-	defaultTopic         = "otlp_spans"
+	defaultTracesTopic   = "otlp_spans"
+	defaultMetricsTopic  = "otlp_metrics"
+	defaultLogsTopic     = "otlp_logs"
 	defaultEncoding      = "otlp_proto"
 	defaultBroker        = "localhost:9092"
 	defaultClientID      = "otel-collector"
@@ -37,11 +41,13 @@ const (
 	defaultAutoCommitInterval = 1 * time.Second
 )
 
+var errUnrecognizedEncoding = fmt.Errorf("unrecognized encoding")
+
 // FactoryOption applies changes to kafkaExporterFactory.
 type FactoryOption func(factory *kafkaReceiverFactory)
 
-// WithTracesUnmarshalers adds Unmarshalers.
-func WithTracesUnmarshalers(tracesUnmarshalers ...TracesUnmarshaler) FactoryOption {
+// withTracesUnmarshalers adds Unmarshalers.
+func withTracesUnmarshalers(tracesUnmarshalers ...TracesUnmarshaler) FactoryOption {
 	return func(factory *kafkaReceiverFactory) {
 		for _, unmarshaler := range tracesUnmarshalers {
 			factory.tracesUnmarshalers[unmarshaler.Encoding()] = unmarshaler
@@ -49,8 +55,8 @@ func WithTracesUnmarshalers(tracesUnmarshalers ...TracesUnmarshaler) FactoryOpti
 	}
 }
 
-// WithMetricsUnmarshalers adds MetricsUnmarshalers.
-func WithMetricsUnmarshalers(metricsUnmarshalers ...MetricsUnmarshaler) FactoryOption {
+// withMetricsUnmarshalers adds MetricsUnmarshalers.
+func withMetricsUnmarshalers(metricsUnmarshalers ...MetricsUnmarshaler) FactoryOption {
 	return func(factory *kafkaReceiverFactory) {
 		for _, unmarshaler := range metricsUnmarshalers {
 			factory.metricsUnmarshalers[unmarshaler.Encoding()] = unmarshaler
@@ -58,8 +64,8 @@ func WithMetricsUnmarshalers(metricsUnmarshalers ...MetricsUnmarshaler) FactoryO
 	}
 }
 
-// WithLogsUnmarshalers adds LogsUnmarshalers.
-func WithLogsUnmarshalers(logsUnmarshalers ...LogsUnmarshaler) FactoryOption {
+// withLogsUnmarshalers adds LogsUnmarshalers.
+func withLogsUnmarshalers(logsUnmarshalers ...LogsUnmarshaler) FactoryOption {
 	return func(factory *kafkaReceiverFactory) {
 		for _, unmarshaler := range logsUnmarshalers {
 			factory.logsUnmarshalers[unmarshaler.Encoding()] = unmarshaler
@@ -69,12 +75,12 @@ func WithLogsUnmarshalers(logsUnmarshalers ...LogsUnmarshaler) FactoryOption {
 
 // NewFactory creates Kafka receiver factory.
 func NewFactory(options ...FactoryOption) receiver.Factory {
-	_ = view.Register(MetricViews()...)
+	_ = view.Register(metricViews()...)
 
 	f := &kafkaReceiverFactory{
-		tracesUnmarshalers:  defaultTracesUnmarshalers(),
-		metricsUnmarshalers: defaultMetricsUnmarshalers(),
-		logsUnmarshalers:    defaultLogsUnmarshalers(),
+		tracesUnmarshalers:  map[string]TracesUnmarshaler{},
+		metricsUnmarshalers: map[string]MetricsUnmarshaler{},
+		logsUnmarshalers:    map[string]LogsUnmarshaler{},
 	}
 	for _, o := range options {
 		o(f)
@@ -90,7 +96,6 @@ func NewFactory(options ...FactoryOption) receiver.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Topic:         defaultTopic,
 		Encoding:      defaultEncoding,
 		Brokers:       []string{defaultBroker},
 		ClientID:      defaultClientID,
@@ -129,8 +134,20 @@ func (f *kafkaReceiverFactory) createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
-	c := cfg.(*Config)
-	r, err := newTracesReceiver(*c, set, f.tracesUnmarshalers, nextConsumer)
+	for encoding, unmarshal := range defaultTracesUnmarshalers() {
+		f.tracesUnmarshalers[encoding] = unmarshal
+	}
+
+	oCfg := *(cfg.(*Config))
+	if oCfg.Topic == "" {
+		oCfg.Topic = defaultTracesTopic
+	}
+	unmarshaler := f.tracesUnmarshalers[oCfg.Encoding]
+	if unmarshaler == nil {
+		return nil, errUnrecognizedEncoding
+	}
+
+	r, err := newTracesReceiver(oCfg, set, unmarshaler, nextConsumer)
 	if err != nil {
 		return nil, err
 	}
@@ -143,8 +160,20 @@ func (f *kafkaReceiverFactory) createMetricsReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (receiver.Metrics, error) {
-	c := cfg.(*Config)
-	r, err := newMetricsReceiver(*c, set, f.metricsUnmarshalers, nextConsumer)
+	for encoding, unmarshal := range defaultMetricsUnmarshalers() {
+		f.metricsUnmarshalers[encoding] = unmarshal
+	}
+
+	oCfg := *(cfg.(*Config))
+	if oCfg.Topic == "" {
+		oCfg.Topic = defaultMetricsTopic
+	}
+	unmarshaler := f.metricsUnmarshalers[oCfg.Encoding]
+	if unmarshaler == nil {
+		return nil, errUnrecognizedEncoding
+	}
+
+	r, err := newMetricsReceiver(oCfg, set, unmarshaler, nextConsumer)
 	if err != nil {
 		return nil, err
 	}
@@ -157,10 +186,49 @@ func (f *kafkaReceiverFactory) createLogsReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (receiver.Logs, error) {
-	c := cfg.(*Config)
-	r, err := newLogsReceiver(*c, set, f.logsUnmarshalers, nextConsumer)
+	for encoding, unmarshaler := range defaultLogsUnmarshalers(set.BuildInfo.Version, set.Logger) {
+		f.logsUnmarshalers[encoding] = unmarshaler
+	}
+
+	oCfg := *(cfg.(*Config))
+	if oCfg.Topic == "" {
+		oCfg.Topic = defaultLogsTopic
+	}
+	unmarshaler, err := getLogsUnmarshaler(oCfg.Encoding, f.logsUnmarshalers)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := newLogsReceiver(oCfg, set, unmarshaler, nextConsumer)
 	if err != nil {
 		return nil, err
 	}
 	return r, nil
+}
+
+func getLogsUnmarshaler(encoding string, unmarshalers map[string]LogsUnmarshaler) (LogsUnmarshaler, error) {
+	var enc string
+	unmarshaler, ok := unmarshalers[encoding]
+	if !ok {
+		split := strings.SplitN(encoding, "_", 2)
+		prefix := split[0]
+		if len(split) > 1 {
+			enc = split[1]
+		}
+		unmarshaler, ok = unmarshalers[prefix].(LogsUnmarshalerWithEnc)
+		if !ok {
+			return nil, errUnrecognizedEncoding
+		}
+	}
+
+	if unmarshalerWithEnc, ok := unmarshaler.(LogsUnmarshalerWithEnc); ok {
+		// This should be called even when enc is an empty string to initialize the encoding.
+		unmarshaler, err := unmarshalerWithEnc.WithEnc(enc)
+		if err != nil {
+			return nil, err
+		}
+		return unmarshaler, nil
+	}
+
+	return unmarshaler, nil
 }

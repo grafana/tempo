@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
+	"github.com/grafana/tempo/modules/frontend/interceptor"
 	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
@@ -106,6 +107,13 @@ func (t *App) initServer() (services.Service, error) {
 		return svs
 	}
 
+	// add unary and stream timeout interceptors for the query-frontend if configured
+	// this same timeout is enforced for http in the initQueryFrontend() function
+	if t.cfg.Frontend.APITimeout > 0 && t.isModuleActive(QueryFrontend) {
+		t.cfg.Server.GRPCMiddleware = append(t.cfg.Server.GRPCMiddleware, interceptor.NewFrontendAPIUnaryTimeout(t.cfg.Frontend.APITimeout))
+		t.cfg.Server.GRPCStreamMiddleware = append(t.cfg.Server.GRPCStreamMiddleware, interceptor.NewFrontendAPIStreamTimeout(t.cfg.Frontend.APITimeout))
+	}
+
 	return t.Server.StartAndReturnService(t.cfg.Server, t.cfg.StreamOverHTTPEnabled, servicesToWaitFor)
 }
 
@@ -163,14 +171,14 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 		return nil, fmt.Errorf("failed to create ring %s: %w", name, err)
 	}
 
-	t.Server.HTTP().Handle("/"+name+"/ring", ring)
+	t.Server.HTTPRouter().Handle("/"+name+"/ring", ring)
 	t.readRings[name] = ring
 
 	return ring, nil
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	o, err := overrides.NewOverrides(t.cfg.Overrides, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(t.cfg.Overrides, newRuntimeConfigValidator(&t.cfg), prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides: %w", err)
 	}
@@ -182,8 +190,8 @@ func (t *App) initOverrides() (services.Service, error) {
 		prometheus.MustRegister(t.Overrides)
 	}
 
-	t.Server.HTTP().Path("/status/overrides").HandlerFunc(overrides.TenantsHandler(t.Overrides)).Methods("GET")
-	t.Server.HTTP().Path("/status/overrides/{tenant}").HandlerFunc(overrides.TenantStatusHandler(t.Overrides)).Methods("GET")
+	t.Server.HTTPRouter().Path("/status/overrides").HandlerFunc(overrides.TenantsHandler(t.Overrides)).Methods("GET")
+	t.Server.HTTPRouter().Path("/status/overrides/{tenant}").HandlerFunc(overrides.TenantStatusHandler(t.Overrides)).Methods("GET")
 
 	return t.Overrides, nil
 }
@@ -195,7 +203,7 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.API, &cfg.Client, t.Overrides, NewOverridesValidator(&t.cfg))
+	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.API, &cfg.Client, t.Overrides, newOverridesValidator(&t.cfg))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user-configurable overrides API: %w", err)
 	}
@@ -205,10 +213,10 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return t.HTTPAuthMiddleware.Wrap(h)
 	}
 
-	t.Server.HTTP().Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
-	t.Server.HTTP().Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
-	t.Server.HTTP().Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
-	t.Server.HTTP().Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
+	t.Server.HTTPRouter().Path(overridesPath).Methods(http.MethodGet).Handler(wrapHandler(userConfigOverridesAPI.GetHandler))
+	t.Server.HTTPRouter().Path(overridesPath).Methods(http.MethodPost).Handler(wrapHandler(userConfigOverridesAPI.PostHandler))
+	t.Server.HTTPRouter().Path(overridesPath).Methods(http.MethodPatch).Handler(wrapHandler(userConfigOverridesAPI.PatchHandler))
+	t.Server.HTTPRouter().Path(overridesPath).Methods(http.MethodDelete).Handler(wrapHandler(userConfigOverridesAPI.DeleteHandler))
 
 	return userConfigOverridesAPI, nil
 }
@@ -229,7 +237,7 @@ func (t *App) initDistributor() (services.Service, error) {
 	t.distributor = distributor
 
 	if distributor.DistributorRing != nil {
-		t.Server.HTTP().Handle("/distributor/ring", distributor.DistributorRing)
+		t.Server.HTTPRouter().Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
 	return t.distributor, nil
@@ -247,8 +255,8 @@ func (t *App) initIngester() (services.Service, error) {
 
 	tempopb.RegisterPusherServer(t.Server.GRPC(), t.ingester)
 	tempopb.RegisterQuerierServer(t.Server.GRPC(), t.ingester)
-	t.Server.HTTP().Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
-	t.Server.HTTP().Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
+	t.Server.HTTPRouter().Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
+	t.Server.HTTPRouter().Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
 	return t.ingester, nil
 }
 
@@ -265,10 +273,10 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.generator = genSvc
 
 	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
 
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
 
@@ -319,30 +327,30 @@ func (t *App) initQuerier() (services.Service, error) {
 	)
 
 	tracesHandler := middleware.Wrap(http.HandlerFunc(t.querier.TraceByIDHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathTraces)), tracesHandler)
 
 	searchHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearch)), searchHandler)
 
 	searchTagsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTags)), searchTagsHandler)
 
 	searchTagsV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagsV2Handler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2)), searchTagsV2Handler)
 
 	searchTagValuesHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues)), searchTagValuesHandler)
 
 	searchTagValuesV2Handler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SearchTagValuesV2Handler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2)), searchTagValuesV2Handler)
 
 	spanMetricsSummaryHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.SpanMetricsSummaryHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary)), spanMetricsSummaryHandler)
 
 	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.querier.QueryRangeHandler))
-	t.Server.HTTP().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixQuerier, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
-	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTP())
+	return t.querier, t.querier.CreateAndRegisterWorker(t.Server.HTTPHandler())
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
@@ -366,35 +374,45 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// this GRPC service to be available on the HTTP server.
 	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC(), queryFrontend)
 
-	// wrap handlers with auth
-	base := middleware.Merge(
+	httpAPIMiddleware := []middleware.Interface{
 		t.HTTPAuthMiddleware,
 		httpGzipMiddleware(),
-	)
+	}
+
+	// use the api timeout for http requests if set. note that this is set in initServer() for
+	// grpc requests
+	if t.cfg.Frontend.APITimeout > 0 {
+		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.APITimeout, "unable to process request in the configured timeout", t.Server.Log()))
+	}
+
+	// wrap handlers with auth
+	base := middleware.Merge(httpAPIMiddleware...)
 
 	// http trace by id endpoint
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), base.Wrap(queryFrontend.TraceByIDHandler))
 
 	// http search endpoints
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearch), base.Wrap(queryFrontend.SearchHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTags), base.Wrap(queryFrontend.SearchTagsHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagsV2), base.Wrap(queryFrontend.SearchTagsV2Handler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValues), base.Wrap(queryFrontend.SearchTagsValuesHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
 
 	// http metrics endpoints
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
-	t.store.EnablePolling(context.Background(), nil)
+	if t.cfg.Target == QueryFrontend {
+		t.store.EnablePolling(context.Background(), nil)
+	}
 
 	// http query echo endpoint
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
 
 	// http endpoint to see usage stats data
-	t.Server.HTTP().Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
@@ -412,7 +430,7 @@ func (t *App) initCompactor() (services.Service, error) {
 	t.compactor = compactor
 
 	if t.compactor.Ring != nil {
-		t.Server.HTTP().Handle("/compactor/ring", t.compactor.Ring)
+		t.Server.HTTPRouter().Handle("/compactor/ring", t.compactor.Ring)
 	}
 
 	return t.compactor, nil
@@ -452,7 +470,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
-	t.Server.HTTP().Handle("/memberlist", t.MemberlistKV)
+	t.Server.HTTPRouter().Handle("/memberlist", t.MemberlistKV)
 
 	return t.MemberlistKV, nil
 }

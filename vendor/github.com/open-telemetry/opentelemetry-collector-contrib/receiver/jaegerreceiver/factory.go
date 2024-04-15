@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/jaegerreceiverdeprecated"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/localhostgate"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
 )
 
@@ -29,11 +29,11 @@ const (
 	protoThriftBinary  = "thrift_binary"
 	protoThriftCompact = "thrift_compact"
 
-	// Default endpoints to bind to.
-	defaultGRPCBindEndpoint          = "0.0.0.0:14250"
-	defaultHTTPBindEndpoint          = "0.0.0.0:14268"
-	defaultThriftCompactBindEndpoint = "0.0.0.0:6831"
-	defaultThriftBinaryBindEndpoint  = "0.0.0.0:6832"
+	// Default ports to bind to.
+	defaultGRPCPort          = 14250
+	defaultHTTPPort          = 14268
+	defaultThriftCompactPort = 6831
+	defaultThriftBinaryPort  = 6832
 )
 
 var disableJaegerReceiverRemoteSampling = featuregate.GlobalRegistry().MustRegister(
@@ -51,21 +51,18 @@ func logDeprecation(logger *zap.Logger) {
 	})
 }
 
-const protoInsteadOfThrift = "receiver.jaegerreceiver.replaceThriftWithProto"
-
+// nolint
 var protoGate = featuregate.GlobalRegistry().MustRegister(
-	protoInsteadOfThrift,
-	featuregate.StageBeta,
+	"receiver.jaegerreceiver.replaceThriftWithProto",
+	featuregate.StageStable,
 	featuregate.WithRegisterDescription(
 		"When enabled, the jaegerreceiver will use Proto-gen over Thrift-gen.",
 	),
+	featuregate.WithRegisterToVersion("0.92.0"),
 )
 
 // NewFactory creates a new Jaeger receiver factory.
 func NewFactory() receiver.Factory {
-	if !protoGate.IsEnabled() {
-		return jaegerreceiverdeprecated.NewFactory()
-	}
 	return receiver.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
@@ -76,21 +73,21 @@ func NewFactory() receiver.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		Protocols: Protocols{
-			GRPC: &configgrpc.GRPCServerSettings{
-				NetAddr: confignet.NetAddr{
-					Endpoint:  defaultGRPCBindEndpoint,
-					Transport: "tcp",
+			GRPC: &configgrpc.ServerConfig{
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  localhostgate.EndpointForPort(defaultGRPCPort),
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
-			ThriftHTTP: &confighttp.HTTPServerSettings{
-				Endpoint: defaultHTTPBindEndpoint,
+			ThriftHTTP: &confighttp.ServerConfig{
+				Endpoint: localhostgate.EndpointForPort(defaultHTTPPort),
 			},
 			ThriftBinary: &ProtocolUDP{
-				Endpoint:        defaultThriftBinaryBindEndpoint,
+				Endpoint:        localhostgate.EndpointForPort(defaultThriftBinaryPort),
 				ServerConfigUDP: defaultServerConfigUDP(),
 			},
 			ThriftCompact: &ProtocolUDP{
-				Endpoint:        defaultThriftCompactBindEndpoint,
+				Endpoint:        localhostgate.EndpointForPort(defaultThriftCompactPort),
 				ServerConfigUDP: defaultServerConfigUDP(),
 			},
 		},
@@ -115,11 +112,11 @@ func createTracesReceiver(
 	var config configuration
 	// Set ports
 	if rCfg.Protocols.GRPC != nil {
-		config.CollectorGRPCServerSettings = *rCfg.Protocols.GRPC
+		config.GRPCServerConfig = *rCfg.Protocols.GRPC
 	}
 
 	if rCfg.Protocols.ThriftHTTP != nil {
-		config.CollectorHTTPSettings = *rCfg.ThriftHTTP
+		config.HTTPServerConfig = *rCfg.ThriftHTTP
 	}
 
 	if rCfg.Protocols.ThriftBinary != nil {

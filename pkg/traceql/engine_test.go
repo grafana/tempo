@@ -632,13 +632,29 @@ func TestExecuteTagValues(t *testing.T) {
 			query:          `{ span.http.target = "/api/v1/users" }`,
 			expectedValues: []tempopb.TagValue{{Type: "string", Value: "HTTP POST /api/v1/users"}},
 		},
+		{
+			name:      "bad TraceQL",
+			attribute: "name",
+			query:     `{ span.http.target = foo }`,
+			expectedValues: []tempopb.TagValue{
+				{Type: "string", Value: "HTTP GET /status"},
+				{Type: "string", Value: "HTTP POST /api/v1/users"},
+				{Type: "string", Value: "redis call"},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
+			// Ugly hack to make the mock fetcher work with a bad query
+			fetcherQuery := tc.query
+			if _, err := Parse(tc.query); err != nil {
+				fetcherQuery = "{}"
+			}
+
 			tag, err := ParseIdentifier(tc.attribute)
 			assert.NoError(t, err)
-			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(tc.query)))
+			assert.NoError(t, e.ExecuteTagValues(context.Background(), tag, tc.query, MakeCollectTagValueFunc(distinctValues.Collect), mockSpansetFetcher(fetcherQuery)))
 			values := distinctValues.Values()
 			sort.Slice(values, func(i, j int) bool {
 				return values[i].Value < values[j].Value

@@ -312,7 +312,7 @@ func TestSearchWAL(t *testing.T) {
 func TestIngesterStartingReadOnly(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
-	limits, err := overrides.NewOverrides(defaultOverridesConfig(), prometheus.DefaultRegisterer)
+	limits, err := overrides.NewOverrides(defaultOverridesConfig(), nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	// Create ingester but without starting it
@@ -450,7 +450,7 @@ func defaultIngesterStore(t testing.TB, tmpDir string) storage.Store {
 
 func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Config) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(o, prometheus.DefaultRegisterer)
+	limits, err := overrides.NewOverrides(o, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err, "unexpected error creating overrides")
 
 	s := defaultIngesterStore(t, tmpDir)

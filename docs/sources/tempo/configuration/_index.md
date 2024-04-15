@@ -38,7 +38,7 @@ The Tempo configuration options include:
   - [Usage-report](#usage-report)
   - [Cache](#cache)
 
-Additionally, you can review [TLS]({{< relref "./tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "./network/tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -437,6 +437,19 @@ query_frontend:
     # (default: true)
     [multi_tenant_queries_enabled: <bool>]
 
+    # Comma-separated list of request header names to include in query logs. Applies
+    # to both query stats and slow queries logs.
+    [log_query_request_headers: <string> | default = ""]
+
+    # Set a maximum timeout for all api queries at which point the frontend will cancel queued jobs
+    # and return cleanly. HTTP will return a 503 and GRPC will return a context canceled error.
+    # This timeout impacts all http and grpc streaming queries as part of the Tempo api surface such as
+    # search, metrics summary, tags and tag values lookups, etc.
+    # Generally it is preferred to let the client cancel context. This is a failsafe to prevent a client
+    # from imposing more work on Tempo than desired.
+    # (default: 0)
+    [api_timeout: <duration>]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
@@ -493,17 +506,29 @@ query_frontend:
         # (default: 0)
         [concurrent_shards: <int>]
 
-        # If set to a non-zero value, a second request will be issued at the provided duration.
-        # Recommended to be set to p99 of search requests to reduce long-tail latency.
-        [hedge_requests_at: <duration> | default = 2s ]
-
-        # The maximum number of requests to execute when hedging.
-        # Requires hedge_requests_at to be set. Must be greater than 0.
-        [hedge_requests_up_to: <int> | default = 2 ]
-
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds.
         [duration_slo: <duration> | default = 0s ]
+
+    # Metrics query configuration
+    metrics:
+        # The number of concurrent jobs to execute when querying the backend.
+        [concurrent_jobs: <int> | default = 1000 ]
+
+        # The target number of bytes for each job to handle when querying the backend.
+        [target_bytes_per_job: <int> | default = 100MiB ]
+
+        # The maximum allowed time range for a metrics query.
+        # 0 disables this limit.
+        [max_duration: <duration> | default = 3h ]
+
+        # query_backend_after controls where the query-frontend searches for traces.
+        # Time ranges older than query_backend_after will be searched in the backend/object storage only.
+        # Time ranges between query_backend_after and now will be queried from the metrics-generators.
+        [query_backend_after: <duration> | default = 30m ]
+
+        # The target length of time for each job to handle when querying the backend. 
+        [interval: <duration> | default = 5m ]
 ```
 
 ## Querier
@@ -521,6 +546,14 @@ querier:
     # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
+
+    # If shuffle sharding is enabled, queriers fetch in-memory traces from the minimum set of required ingesters,
+    # selecting only ingesters which might have received series since now - <ingester flush period>. Otherwise, the
+    # request is sent to all ingesters.
+    [shuffle_sharding_ingesters_enabled: <bool> | default = true]
+
+    # Lookback period to include ingesters that were part of the shuffle sharded subring.
+    [shuffle_sharding_ingesters_lookback_period: <duration> | default = 1hr]
 
     # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
@@ -666,9 +699,9 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "./gcs" >}})
-* [S3]({{< relref "./s3" >}})
-* [Azure]({{< relref "./azure" >}})
+* [GCS]({{< relref "./hosted-storage/gcs" >}})
+* [S3]({{< relref "./hosted-storage/s3" >}})
+* [Azure]({{< relref "./hosted-storage/azure" >}})
 * [Parquet]({{< relref "./parquet" >}})
 
 ```yaml
@@ -1215,6 +1248,10 @@ overrides:
       # A value of 0 disables the check.
       [max_global_traces_per_user: <int> | default = 0]
 
+      # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
+      # Should not be lower than RF.
+      [tenant_shard_size: <int> | default = 0]
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
@@ -1234,6 +1271,10 @@ overrides:
       # Per-user max search duration. If this value is set to 0 (default), then max_duration
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
+
+      # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
+      #  in the front-end configuration is used.
+      [max_metrics_duration: <duration> | default = 0s]
 
     # Compaction related overrides
     compaction:
@@ -1374,12 +1415,51 @@ overrides:
           scope: <string> # scope of the attribute. options: resource, span
         ]
 
-    # Tenant-specific overrides settings configuration file. The empty string (default
-    # value) disables using an overrides file.
-    [per_tenant_override_config: <string> | default = ""]
+  # Tenant-specific overrides settings configuration file. The empty string (default
+  # value) disables using an overrides file.
+  [per_tenant_override_config: <string> | default = ""]
+        
+  # How frequent tenant-specific overrides are read from the configuration file.
+  [per_tenant_override_period: <druation> | default = 10s]
+
+  # User-configurable overrides configuration
+  user_configurable_overrides:
+    
+    # Enable the user-configurable overrides module
+    [enabled: <bool> | default = false]
+    
+    # How often to poll the backend for new user-configurable overrides
+    [poll_interval: <duration> | default = 60s]
+
+    client:
+      # The storage backend to use
+      # Should be one of "gcs", "s3", "azure" or "local"
+      [backend: <string>]
+
+      # Backend-specific configuration, support the same configuration options as the
+      # trace backend configuration
+      local:
+      gcs:
+      s3:
+      azure:
+
+      # Check whether the backend supports versioning at startup. If enabled Tempo will not start if
+      # the backend doesn't support versioning.
+      [confirm_versioning: <bool> | default = true]
+
+    api:
+      # When enabled, Tempo will refuse request that modify overrides that are already set in the
+      # runtime overrides. For more details, see user-configurable overrides docs.
+      [check_for_conflicting_runtime_overrides: <bool> | default = false]
 ```
 
 #### Tenant-specific overrides
+
+There are two types of tenant-specific overrides:
+- runtime overrides
+- user-configurable overrides
+
+##### Runtime overrides
 
 You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it.
 This overrides file is dynamically loaded.
@@ -1414,6 +1494,12 @@ overrides:
     global:
       [max_bytes_per_trace: <int>]
 ```
+
+##### User-configurable overrides
+
+These tenant-specific overrides are stored in an object store and can be modified using API requests.
+User-configurable overrides have priority over runtime overrides.
+See [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
 
 #### Override strategies
 
@@ -1516,8 +1602,6 @@ cache:
         # Allowed values:
         #   bloom              - Bloom filters for trace id lookup.
         #   parquet-footer     - Parquet footer values. Useful for search and trace by id lookup.
-        #   parquet-column-idx - Parquet column index values. Useful for search and trace by id lookup.
-        #   parquet-offset-idx - Parquet offset index values. Useful for search and trace by id lookup.
         #   parquet-page       - Parquet "pages". WARNING: This will attempt to cache most reads from parquet and, as a result, is very high volume.
         #   frontend-search    - Frontend search job results.
 

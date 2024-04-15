@@ -1,4 +1,5 @@
 type: zipkin
+scope_name: otelcol/zipkinreceiver
 
 status:
   class: receiver
@@ -13,5 +14,6 @@ status:
   - redhat
   - splunk
   - sumo
+  - liatrio
   codeowners:
     active: [MovieStoreGuy, astencel-sumo, crobert-1]

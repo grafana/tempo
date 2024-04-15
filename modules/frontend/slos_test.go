@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -10,16 +9,18 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestSLOHook(t *testing.T) {
 	tcs := []struct {
-		name            string
-		cfg             SLOConfig
-		throughputBytes float64
-		httpStatusCode  int
-		latency         time.Duration
-		err             error
+		name           string
+		cfg            SLOConfig
+		bytesProcessed float64
+		httpStatusCode int
+		latency        time.Duration
+		err            error
 
 		expectedWithSLO float64
 	}{
@@ -30,6 +31,11 @@ func TestSLOHook(t *testing.T) {
 		{
 			name: "no slo fails : error",
 			err:  errors.New("foo"),
+		},
+		{
+			name:            "no slo passes : resource exhausted grpc error",
+			err:             status.Error(codes.ResourceExhausted, "foo"),
+			expectedWithSLO: 1.0,
 		},
 		{
 			name:           "no slo fails : 5XX status code",
@@ -47,7 +53,7 @@ func TestSLOHook(t *testing.T) {
 				ThroughputBytesSLO: 100,
 			},
 			latency:         5 * time.Second,
-			throughputBytes: 110,
+			bytesProcessed:  110,
 			expectedWithSLO: 1.0,
 		},
 		{
@@ -57,7 +63,7 @@ func TestSLOHook(t *testing.T) {
 				ThroughputBytesSLO: 100,
 			},
 			latency:         5 * time.Second,
-			throughputBytes: 90,
+			bytesProcessed:  90,
 			expectedWithSLO: 1.0,
 		},
 		{
@@ -67,7 +73,7 @@ func TestSLOHook(t *testing.T) {
 				ThroughputBytesSLO: 100,
 			},
 			latency:         15 * time.Second,
-			throughputBytes: 110,
+			bytesProcessed:  1650, // 15s * 110 bytes/s
 			expectedWithSLO: 1.0,
 		},
 		{
@@ -76,7 +82,7 @@ func TestSLOHook(t *testing.T) {
 				DurationSLO: 10 * time.Second,
 			},
 			latency:         5 * time.Second,
-			throughputBytes: 1,
+			bytesProcessed:  1,
 			expectedWithSLO: 1.0,
 		},
 		{
@@ -85,7 +91,7 @@ func TestSLOHook(t *testing.T) {
 				ThroughputBytesSLO: 100,
 			},
 			latency:         15 * time.Second,
-			throughputBytes: 110,
+			bytesProcessed:  1650, // 15s * 110 bytes/s
 			expectedWithSLO: 1.0,
 		},
 		{
@@ -93,16 +99,16 @@ func TestSLOHook(t *testing.T) {
 			cfg: SLOConfig{
 				DurationSLO: 10 * time.Second,
 			},
-			latency:         15 * time.Second,
-			throughputBytes: 1,
+			latency:        15 * time.Second,
+			bytesProcessed: 1,
 		},
 		{
 			name: "slo fails - no duration configured",
 			cfg: SLOConfig{
 				ThroughputBytesSLO: 100,
 			},
-			latency:         1 * time.Second,
-			throughputBytes: 90,
+			latency:        1 * time.Second,
+			bytesProcessed: 90,
 		},
 	}
 
@@ -113,14 +119,11 @@ func TestSLOHook(t *testing.T) {
 
 			hook := sloHook(allCounter, sloCounter, tc.cfg)
 
-			ctx := searchSLOPreHook(context.Background()) // prehook adds the throughput pointer
-			addThroughputToContext(ctx, tc.throughputBytes)
-
 			resp := &http.Response{
 				StatusCode: tc.httpStatusCode,
 			}
 
-			hook(ctx, resp, "tenant", tc.latency, tc.err)
+			hook(resp, "tenant", uint64(tc.bytesProcessed), tc.latency, tc.err)
 
 			actualAll, err := test.GetCounterValue(allCounter.WithLabelValues("tenant"))
 			require.NoError(t, err)

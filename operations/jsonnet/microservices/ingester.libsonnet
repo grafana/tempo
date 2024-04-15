@@ -67,7 +67,8 @@
     statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
     statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
     $.util.podPriority('high') +
-    (if with_anti_affinity then $.util.antiAffinity else {}),
+    (if with_anti_affinity then $.util.antiAffinity else {})
+  ,
 
   tempo_ingester_statefulset: $.newIngesterStatefulSet(target_name, self.tempo_ingester_container) + statefulset.mixin.spec.withReplicas($._config.ingester.replicas),
 

@@ -9,6 +9,10 @@ distributor:
     jaeger:
       protocols:
         grpc:
+    otlp:
+      protocols:
+        grpc:
+        http:
 
 overrides:
   defaults:

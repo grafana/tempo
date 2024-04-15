@@ -1,21 +1,18 @@
 package frontend
 
 import (
-	"context"
 	"net/http"
 	"time"
 
+	"github.com/gogo/status"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"google.golang.org/grpc/codes"
 )
-
-type contextKey string
 
 const (
 	traceByIDOp = "traces"
 	searchOp    = "search"
-
-	throughputKey = contextKey("throughput")
 )
 
 var (
@@ -42,8 +39,22 @@ var (
 
 	traceByIDCounter = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter    = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
+
+	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_bytes_processed_per_second",
+		Help:      "Bytes processed per second in the query per tenant",
+		Buckets:   prometheus.ExponentialBuckets(8*1024*1024, 2, 12), // from 8MB up to 16GB
+	}, []string{"tenant", "op"})
+
+	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
+type (
+	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
+)
+
+// todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(traceByIDCounter, sloTraceByIDCounter, cfg)
 }
@@ -52,17 +63,17 @@ func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(searchCounter, sloSearchCounter, cfg)
 }
 
-func searchSLOPreHook(ctx context.Context) context.Context {
-	return context.WithValue(ctx, throughputKey, new(float64)) // add a float pointer to the context to communicate throughput back up
-}
-
 func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, cfg SLOConfig) handlerPostHook {
-	return func(ctx context.Context, resp *http.Response, tenant string, latency time.Duration, err error) {
+	return func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error) {
 		// first record all queries
 		allByTenantCounter.WithLabelValues(tenant).Inc()
 
-		// now check conditions to see if we should record within SLO
+		// most errors are SLO violations
 		if err != nil {
+			// however, if this is a grpc resource exhausted error (429) then we are within SLO
+			if status.Code(err) == codes.ResourceExhausted {
+				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+			}
 			return
 		}
 
@@ -74,10 +85,14 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 		passedThroughput := false
 		// final check is throughput
 		if cfg.ThroughputBytesSLO > 0 {
-			throughput, ok := thoughputFromContext(ctx)
+			throughput := 0.0
+			seconds := latency.Seconds()
+			if seconds > 0 {
+				throughput = float64(bytesProcessed) / seconds
+			}
 
-			// if we didn't find the key, but expected it, we consider throughput a failure
-			passedThroughput = ok && throughput >= cfg.ThroughputBytesSLO
+			searchThroughput.WithLabelValues(tenant).Observe(throughput)
+			passedThroughput = throughput >= cfg.ThroughputBytesSLO
 		}
 
 		passedDuration := false
@@ -95,31 +110,4 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 
 		withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
 	}
-}
-
-func thoughputFromContext(ctx context.Context) (float64, bool) {
-	throughputPtr, ok := ctx.Value(throughputKey).(*float64)
-	if throughputPtr != nil {
-		return *throughputPtr, ok
-	}
-
-	return 0, ok
-}
-
-func addThroughputToContext(ctx context.Context, throughput float64) {
-	ctxVal := ctx.Value(throughputKey)
-	if ctxVal == nil {
-		return
-	}
-
-	throughputPtr, ok := ctxVal.(*float64)
-	if !ok {
-		return
-	}
-
-	if throughputPtr == nil {
-		return
-	}
-
-	*throughputPtr = throughput
 }

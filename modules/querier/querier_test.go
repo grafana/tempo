@@ -81,7 +81,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 	for _, tc := range tests {
 		numExternalRequests.Store(0)
 
-		o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+		o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 		require.NoError(t, err)
 
 		q, err := New(tc.cfg, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)
@@ -98,7 +98,7 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 }
 
 func TestVirtualTagsDoesntHitBackend(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	q, err := New(Config{}, ingester_client.Config{}, nil, generator_client.Config{}, nil, nil, o)

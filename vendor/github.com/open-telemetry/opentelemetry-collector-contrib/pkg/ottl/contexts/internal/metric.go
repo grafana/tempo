@@ -5,7 +5,6 @@ package internal // import "github.com/open-telemetry/opentelemetry-collector-co
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
@@ -28,11 +27,11 @@ var MetricSymbolTable = map[ottl.EnumSymbol]ottl.Enum{
 	"METRIC_DATA_TYPE_SUMMARY":               ottl.Enum(pmetric.MetricTypeSummary),
 }
 
-func MetricPathGetSetter[K MetricContext](path []ottl.Field) (ottl.GetSetter[K], error) {
-	if len(path) == 0 {
+func MetricPathGetSetter[K MetricContext](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+	if path == nil {
 		return accessMetric[K](), nil
 	}
-	switch path[0].Name {
+	switch path.Name() {
 	case "name":
 		return accessName[K](), nil
 	case "description":
@@ -47,9 +46,9 @@ func MetricPathGetSetter[K MetricContext](path []ottl.Field) (ottl.GetSetter[K],
 		return accessIsMonotonic[K](), nil
 	case "data_points":
 		return accessDataPoints[K](), nil
+	default:
+		return nil, FormatDefaultErrorMessage(path.Name(), path.String(), "Metric", MetricRef)
 	}
-
-	return nil, fmt.Errorf("invalid metric path expression %v", path)
 }
 
 func accessMetric[K MetricContext]() ottl.StandardGetSetter[K] {
@@ -177,7 +176,6 @@ func accessDataPoints[K MetricContext]() ottl.StandardGetSetter[K] {
 	return ottl.StandardGetSetter[K]{
 		Getter: func(ctx context.Context, tCtx K) (any, error) {
 			metric := tCtx.GetMetric()
-			//exhaustive:enforce
 			switch metric.Type() {
 			case pmetric.MetricTypeSum:
 				return metric.Sum().DataPoints(), nil
@@ -194,7 +192,6 @@ func accessDataPoints[K MetricContext]() ottl.StandardGetSetter[K] {
 		},
 		Setter: func(ctx context.Context, tCtx K, val any) error {
 			metric := tCtx.GetMetric()
-			//exhaustive:enforce
 			switch metric.Type() {
 			case pmetric.MetricTypeSum:
 				if newDataPoints, ok := val.(pmetric.NumberDataPointSlice); ok {

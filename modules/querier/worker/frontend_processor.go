@@ -15,7 +15,11 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 )
@@ -26,11 +30,17 @@ var processorBackoffConfig = backoff.Config{
 }
 
 func newFrontendProcessor(cfg Config, handler RequestHandler, log log.Logger) processor {
+	metricWorkerRequests := promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "querier_worker_request_executed_total",
+		Help:      "The total number of requests executed by the querier worker.",
+	})
 	return &frontendProcessor{
-		log:            log,
-		handler:        handler,
-		maxMessageSize: cfg.GRPCClientConfig.MaxSendMsgSize,
-		querierID:      cfg.QuerierID,
+		log:                 log,
+		handler:             handler,
+		maxMessageSize:      cfg.GRPCClientConfig.MaxSendMsgSize,
+		querierID:           cfg.QuerierID,
+		metricRequestsTotal: metricWorkerRequests,
 	}
 }
 
@@ -40,7 +50,8 @@ type frontendProcessor struct {
 	maxMessageSize int
 	querierID      string
 
-	log log.Logger
+	metricRequestsTotal prometheus.Counter
+	log                 log.Logger
 }
 
 // notifyShutdown implements processor.
@@ -68,8 +79,11 @@ func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, c
 		}
 
 		if err := fp.process(c); err != nil {
-			level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
-			backoff.Wait()
+			// Avoid logging and connection backoff in the case of a canceled context on the gRPC stream.  This will allow queriers to reconnect and work more quickly.
+			if status.Code(err) != codes.Canceled {
+				level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
+				backoff.Wait()
+			}
 			continue
 		}
 
@@ -179,6 +193,8 @@ func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.H
 		}
 		level.Error(fp.log).Log("msg", "error processing query", "err", errMsg)
 	}
+
+	fp.metricRequestsTotal.Inc()
 
 	return response
 }

@@ -4,6 +4,7 @@
 package internal // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
 
 import (
+	"context"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -11,33 +12,43 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-func GetMapValue(m pcommon.Map, keys []ottl.Key) (any, error) {
+func GetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.Key[K]) (any, error) {
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("cannot get map value without key")
+		return nil, fmt.Errorf("cannot get map value without keys")
 	}
-	if keys[0].String == nil {
+
+	s, err := keys[0].String(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
 		return nil, fmt.Errorf("non-string indexing is not supported")
 	}
 
-	val, ok := m.Get(*keys[0].String)
+	val, ok := m.Get(*s)
 	if !ok {
 		return nil, nil
 	}
-	return getIndexableValue(val, keys[1:])
+
+	return getIndexableValue[K](ctx, tCtx, val, keys[1:])
 }
 
-func SetMapValue(m pcommon.Map, keys []ottl.Key, val any) error {
+func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.Key[K], val any) error {
 	if len(keys) == 0 {
 		return fmt.Errorf("cannot set map value without key")
 	}
-	if keys[0].String == nil {
+
+	s, err := keys[0].String(ctx, tCtx)
+	if err != nil {
+		return err
+	}
+	if s == nil {
 		return fmt.Errorf("non-string indexing is not supported")
 	}
 
-	currentValue, ok := m.Get(*keys[0].String)
+	currentValue, ok := m.Get(*s)
 	if !ok {
-		currentValue = m.PutEmpty(*keys[0].String)
+		currentValue = m.PutEmpty(*s)
 	}
-
-	return setIndexableValue(currentValue, val, keys[1:])
+	return setIndexableValue[K](ctx, tCtx, currentValue, val, keys[1:])
 }

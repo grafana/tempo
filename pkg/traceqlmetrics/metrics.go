@@ -203,7 +203,7 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 		groupByKeys[i] = groupBys[i][0].String()
 	}
 
-	eval, _, req, err := traceql.NewEngine().Compile(query)
+	_, eval, _, req, err := traceql.NewEngine().Compile(query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}

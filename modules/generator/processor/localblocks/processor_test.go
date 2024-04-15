@@ -29,6 +29,10 @@ func (m *mockOverrides) MaxBytesPerTrace(string) int {
 	return 0
 }
 
+func (m *mockOverrides) UnsafeQueryHints(string) bool {
+	return false
+}
+
 func TestProcessorDoesNotRace(t *testing.T) {
 	wal, err := wal.New(&wal.Config{
 		Filepath: t.TempDir(),
@@ -43,11 +47,14 @@ func TestProcessorDoesNotRace(t *testing.T) {
 			FlushCheckPeriod:     10 * time.Millisecond,
 			TraceIdlePeriod:      time.Second,
 			CompleteBlockTimeout: time.Minute,
-			ConcurrentBlocks:     10,
 			Block: &common.BlockConfig{
 				BloomShardSizeBytes: 100_000,
 				BloomFP:             0.05,
 				Version:             encoding.DefaultEncoding().Version(),
+			},
+			Metrics: MetricsConfig{
+				ConcurrentBlocks:  10,
+				TimeOverlapCutoff: 0.2,
 			},
 		}
 		overrides = &mockOverrides{}

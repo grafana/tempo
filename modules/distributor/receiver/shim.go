@@ -220,7 +220,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	// We only need the receivers, the rest of the configuration is not used.
 	conf, err := pro.Get(context.Background(), otelcol.Factories{
 		Receivers: receiverFactories,
-		Exporters: map[component.Type]exporter.Factory{"nop": exportertest.NewNopFactory()}, // nop exporter to avoid errors
+		Exporters: map[component.Type]exporter.Factory{component.MustNewType("nop"): exportertest.NewNopFactory()}, // nop exporter to avoid errors
 	})
 	if err != nil {
 		return nil, err
@@ -233,8 +233,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			Logger:         zapLogger,
 			TracerProvider: tracenoop.NewTracerProvider(),
 			MeterProvider:  metricnoop.NewMeterProvider(),
-			ReportComponentStatus: func(*component.StatusEvent) error {
-				return nil
+			ReportStatus: func(*component.StatusEvent) {
 			},
 		},
 	}
@@ -246,7 +245,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		}
 
 		// Make sure that the headers are added to context. Required for Authentication.
-		switch componentID.Type() {
+		switch componentID.Type().String() {
 		case "otlp":
 			otlpRecvCfg := cfg.(*otlpreceiver.Config)
 
@@ -258,7 +257,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "zipkin":
 			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
 
-			zipkinRecvCfg.HTTPServerSettings.IncludeMetadata = true
+			zipkinRecvCfg.ServerConfig.IncludeMetadata = true
 			cfg = zipkinRecvCfg
 
 		case "jaeger":

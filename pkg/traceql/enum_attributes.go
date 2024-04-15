@@ -60,6 +60,9 @@ const (
 	IntrinsicTraceRootService
 	IntrinsicTraceRootSpan
 	IntrinsicTraceDuration
+	IntrinsicNestedSetLeft
+	IntrinsicNestedSetRight
+	IntrinsicNestedSetParent
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -87,9 +90,14 @@ var (
 	IntrinsicStatusMessageAttribute    = NewIntrinsic(IntrinsicStatusMessage)
 	IntrinsicKindAttribute             = NewIntrinsic(IntrinsicKind)
 	IntrinsicChildCountAttribute       = NewIntrinsic(IntrinsicChildCount)
+	IntrinsicTraceIDAttribute          = NewIntrinsic(IntrinsicTraceID)
 	IntrinsicTraceRootServiceAttribute = NewIntrinsic(IntrinsicTraceRootService)
 	IntrinsicTraceRootSpanAttribute    = NewIntrinsic(IntrinsicTraceRootSpan)
 	IntrinsicTraceDurationAttribute    = NewIntrinsic(IntrinsicTraceDuration)
+	IntrinsicSpanStartTimeAttribute    = NewIntrinsic(IntrinsicSpanStartTime)
+	IntrinsicNestedSetLeftAttribute    = NewIntrinsic(IntrinsicNestedSetLeft)
+	IntrinsicNestedSetRightAttribute   = NewIntrinsic(IntrinsicNestedSetRight)
+	IntrinsicNestedSetParentAttribute  = NewIntrinsic(IntrinsicNestedSetParent)
 )
 
 func (i Intrinsic) String() string {
@@ -125,6 +133,12 @@ func (i Intrinsic) String() string {
 		return "spanID"
 	case IntrinsicSpanStartTime:
 		return "spanStartTime"
+	case IntrinsicNestedSetLeft:
+		return "nestedSetLeft"
+	case IntrinsicNestedSetRight:
+		return "nestedSetRight"
+	case IntrinsicNestedSetParent:
+		return "nestedSetParent"
 	}
 
 	return fmt.Sprintf("intrinsic(%d)", i)
@@ -162,6 +176,12 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicSpanID
 	case "spanStartTime":
 		return IntrinsicSpanStartTime
+	case "nestedSetLeft":
+		return IntrinsicNestedSetLeft
+	case "nestedSetRight":
+		return IntrinsicNestedSetRight
+	case "nestedSetParent":
+		return IntrinsicNestedSetParent
 	}
 
 	return IntrinsicNone

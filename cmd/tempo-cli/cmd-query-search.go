@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"path"
@@ -96,6 +95,7 @@ func (cmd *querySearchCmd) searchGRPC(req *tempopb.SearchRequest) error {
 	}
 }
 
+// nolint: goconst // goconst wants us to make http:// a const
 func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathSearch), nil)
 	if err != nil {
@@ -113,7 +113,7 @@ func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 		return err
 	}
 
-	fmt.Println(httpReq)
+	// fmt.Println(httpReq)
 	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func (cmd *querySearchCmd) searchHTTP(req *tempopb.SearchRequest) error {
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return errors.New("failed to query: " + string(body))
+		return errors.New("failed to query. body: " + string(body) + " status: " + httpResp.Status)
 	}
 
 	resp := &tempopb.SearchResponse{}

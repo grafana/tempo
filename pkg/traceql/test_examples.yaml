@@ -117,6 +117,9 @@ valid:
   - '{ true } | by(name) | count() > 2'
   - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
+  # undocumented - nested set
+  - '{ nestedSetLeft > 3 }'
+  - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
   
 # parse_fails throw an error when parsing
 parse_fails:
@@ -234,6 +237,10 @@ validate_fails:
   # by - will *not* be valid when supported - group expressions must reference the span
   - '{ true } | by(1)'
   - '{ true } | by("foo")'
+  # nested set params are ints
+  - '{ nestedSetLeft = "foo" }'
+  - '{ nestedSetRight = false }'
+  - '{ nestedSetParent > "foo" }'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:

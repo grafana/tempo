@@ -5,8 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"time"
+
+	"github.com/grafana/dskit/flagext"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -24,19 +25,19 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 )
 
-var errTooManyRequest = httpgrpc.Errorf(http.StatusTooManyRequests, "too many outstanding requests")
-
 // Config for a Frontend.
 type Config struct {
-	MaxOutstandingPerTenant int           `yaml:"max_outstanding_per_tenant"`
-	QuerierForgetDelay      time.Duration `yaml:"querier_forget_delay"`
-	MaxBatchSize            int           `yaml:"max_batch_size"`
+	MaxOutstandingPerTenant int                    `yaml:"max_outstanding_per_tenant"`
+	QuerierForgetDelay      time.Duration          `yaml:"querier_forget_delay"`
+	MaxBatchSize            int                    `yaml:"max_batch_size"`
+	LogQueryRequestHeaders  flagext.StringSliceCSV `yaml:"log_query_request_headers"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&cfg.MaxOutstandingPerTenant, "querier.max-outstanding-requests-per-tenant", 2000, "Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.")
 	f.DurationVar(&cfg.QuerierForgetDelay, "query-frontend.querier-forget-delay", 0, "If a querier disconnects without sending notification about graceful shutdown, the query-frontend will keep the querier in the tenant's shard until the forget delay has passed. This feature is useful to reduce the blast radius when shuffle-sharding is enabled.")
+	f.Var(&cfg.LogQueryRequestHeaders, "query-frontend.log-query-request-headers", "Comma-separated list of request header names to include in query logs. Applies to both query stats and slow queries logs.")
 }
 
 type Limits interface {
@@ -373,11 +374,7 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
 	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
 
-	err = f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
-	if errors.Is(err, queue.ErrTooManyRequests) {
-		return errTooManyRequest
-	}
-	return err
+	return f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
 }
 
 // CheckReady determines if the query frontend is ready.  Function parameters/return

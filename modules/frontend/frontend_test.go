@@ -1,9 +1,6 @@
 package frontend
 
 import (
-	"bytes"
-	"io"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -18,46 +15,8 @@ var testSLOcfg = SLOConfig{
 	DurationSLO:        0,
 }
 
-type mockNextTripperware struct{}
-
-func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error) {
-	return &http.Response{
-		StatusCode: 200,
-		Body:       io.NopCloser(bytes.NewReader([]byte("next"))),
-	}, nil
-}
-
-func TestFrontendRoundTripsSearch(t *testing.T) {
-	next := &mockNextTripperware{}
-	f, err := New(Config{
-		TraceByID: TraceByIDConfig{
-			QueryShards: minQueryShards,
-			SLO:         testSLOcfg,
-		},
-		Search: SearchConfig{
-			Sharder: SearchSharderConfig{
-				ConcurrentRequests:    defaultConcurrentRequests,
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			},
-			SLO: testSLOcfg,
-		},
-	}, next, nil, nil, nil, "", log.NewNopLogger(), nil)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest("GET", "/", nil)
-
-	resTags := httptest.NewRecorder()
-	f.SearchTagsHandler.ServeHTTP(resTags, req)
-	assert.Equal(t, resTags.Body.String(), "no org id")
-
-	// search will fail with `no org id` error
-	resSearch := httptest.NewRecorder()
-	f.SearchHandler.ServeHTTP(resSearch, req)
-	assert.Equal(t, resSearch.Body.String(), "no org id")
-}
-
-func TestFrontendRoundTripsTagSearch(t *testing.T) {
-	next := &mockNextTripperware{}
+func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
+	next := &mockRoundTripper{}
 	f, err := New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: minQueryShards,

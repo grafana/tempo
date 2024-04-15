@@ -13,32 +13,63 @@ func TestPairs(t *testing.T) {
 		expectedPairs []Boundary
 		expectedUpper bool
 	}{
-		{
-			1, 2,
-			[]Boundary{
-				{
-					[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},    // Min 63-bit value
-					[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0, 0, 0, 0, 0, 0, 0}, // Half of 63-bit space (exlusive)
-				},
-				{
-					[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0, 0}, // Min 64-bit value (not overlapping with max 63-bit value)
-					[]byte{0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // Half of 128-bit space (exlusive)
-				},
+		//---------------------------------------------
+		// Simplest case, 2 shards
+		//---------------------------------------------
+		{1, 2, []Boundary{
+			{
+				// First half of upper-byte = 0 (between 0x0000 and 0x00FF)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0},
 			},
-			false,
-		},
-		{
-			2, 2, []Boundary{
-				{
-					[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0, 0, 0, 0, 0, 0, 0},                      // Half of 63-bit space
-					[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, // Max 63-bit space (inclusive)
-				},
-				{
-					[]byte{0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},                                              // Half of 128-bit space (not overlapping with max 63-bit value)
-					[]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, // Max 128-bit value (inclusive)
-				},
-			}, true,
-		},
+			{
+				// First half of upper-nibble = 0 (between 0x01 and 0x0F)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x08, 0x80, 0, 0, 0, 0, 0, 0},
+			},
+			{
+				// First half of upper-bit = 0 (between 0x10 and 0x7F)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x48, 0, 0, 0, 0, 0, 0, 0},
+			},
+			{
+				// First half of full 8-byte ids (between 0x80 and 0xFF)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0},
+			},
+			{
+				// First half of full 16-byte ids (between 0x00 and 0x80)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			},
+		}, false},
+		{2, 2, []Boundary{
+			{
+				// Second half of upper-byte = 0 (between 0x0000 and 0x00FF)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			},
+			{
+				// Second half of upper-nibble = 0 (between 0x01 and 0x0F)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x08, 0x80, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			},
+			{
+				// Second half of upper-bit = 0 (between 0x10 and 0x7F)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x48, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			},
+			{
+				// Second half of full 8-byte ids (between 0x80 and 0xFF)
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			},
+			{
+				// Second half of full 16-byte ids (between 0x80 and 0xFF)
+				[]byte{0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				[]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			},
+		}, true},
 	}
 
 	for _, tc := range testCases {

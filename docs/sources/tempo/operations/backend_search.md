@@ -7,7 +7,7 @@ weight: 90
 
 # Tune search performance
 
-Regardless of whether or not you are using TraceQL or the original search API, Tempo will search all of the blocks
+Regardless of whether or not you are using TraceQL or the original search API, Tempo searches all of the blocks
 in the specified time range.
 Depending on your volume, this may result in slow queries.
 This document contains suggestions for tuning your backend to improve performance.
@@ -111,7 +111,7 @@ query_frontend:
 
 ## Serverless environment
 
-Serverless is not required, but with larger loads, serverless can be used to reduce costs. 
+Serverless is not required, but with larger loads, serverless can be used to reduce costs.
 Tempo has support for Google Cloud Run and AWS Lambda. In both cases, you will use the following
 settings to configure Tempo to use a serverless environment:
 
@@ -145,16 +145,3 @@ See here for cloud-specific details:
 
 - [AWS Lambda]({{< relref "./serverless_aws" >}})
 - [Google Cloud Run]({{< relref "./serverless_gcp" >}})
-
-## Caching
-
-If you have set up an external cache (redis or memcached) in in your storage block you can also use it to cache
-parquet footers using the following configuration:
-
-```
-storage:
-  trace:
-    search:
-      cache_control:
-        footer: true
-```

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
+	"os"
 	"path"
 	"strconv"
 	"testing"
@@ -19,6 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -590,11 +593,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	// blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/home/joe/testblock/"),
-		Path: path.Join("/Users/marty/src/tmp"),
+		// Path: path.Join("/Users/marty/src/tmp"),
+		Path: path.Join("/Users/mapno/workspace/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -689,7 +694,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | rate()",
 		"{} | rate() by (name)",
 		"{} | rate() by (resource.service.name)",
-		"{resource.service.name=`tempo-gateway`} | rate()",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{resource.service.name=`loki-ingester`} | rate()",
 		"{status=error} | rate()",
 	}
 
@@ -698,9 +704,11 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		e        = traceql.NewEngine()
 		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
-		blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		// blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
-		path = "/Users/marty/src/tmp/"
+		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		path    = "/Users/marty/src/tmp/"
+		// path = "/Users/mapno/workspace/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -723,7 +731,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+			for _, minutes := range []int{5, 7} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
 					st := meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)
@@ -742,7 +750,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						ShardCount: 65,
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false)
+					eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
@@ -757,6 +765,124 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
 			}
+		})
+	}
+}
+
+func TestTraceIDShardingQuality(t *testing.T) {
+	// Use debug=1 go test -v -run=TestTraceIDShardingQuality
+	if os.Getenv("debug") != "1" {
+		t.Skip()
+	}
+
+	var (
+		ctx      = context.TODO()
+		opts     = common.DefaultSearchOptions()
+		tenantID = "1"
+		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		path    = "/Users/marty/src/tmp/"
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(t, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	require.Equal(t, VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	pf, _, err := block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	fetchReq := traceql.FetchSpansRequest{
+		AllConditions: true,
+		Conditions: []traceql.Condition{
+			{Attribute: traceql.IntrinsicTraceIDAttribute},
+		},
+	}
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	summarizeCounts := func(prefix string, cs []int) {
+		count := len(cs)
+		sum := 0
+		l := math.MaxInt
+		h := math.MinInt
+		for _, v := range cs {
+			sum += v
+			l = min(l, v)
+			h = max(h, v)
+		}
+		fmt.Printf("Shards:%d %s: Min:%d Max:%d Total:%d Avg:%.1f Quality:%.1f %%\n",
+			count, prefix, l, h, sum, float64(sum)/float64(count), float64(l)/float64(h)*100.0)
+	}
+
+	shardsToTest := []int{10, 100, 1000}
+
+	for _, shards := range shardsToTest {
+		t.Run(strconv.Itoa(shards), func(t *testing.T) {
+			var (
+				rgCounts = make([]int, shards)
+				trCounts = make([]int, shards)
+				pairs    = make([][]traceidboundary.Boundary, shards)
+				funcs    = make([]func([]byte) bool, shards)
+			)
+
+			for s := 1; s <= shards; s++ {
+				pairs[s-1], _ = traceidboundary.Pairs(uint32(s), uint32(shards))
+				funcs[s-1], _ = traceidboundary.Funcs(uint32(s), uint32(shards))
+
+				rgs, err := block.rowGroupsForShard(ctx, pf, *meta, uint32(s), uint32(shards))
+				require.NoError(t, err)
+				rgCounts[s-1] = len(rgs)
+			}
+
+			resp, err := f.Fetch(ctx, fetchReq)
+			require.NoError(t, err)
+			defer resp.Results.Close()
+
+			for {
+				ss, err := resp.Results.Next(ctx)
+				require.NoError(t, err)
+
+				if ss == nil {
+					break
+				}
+
+				// Match the trace ID against every shard
+				matched := []int{}
+				for i := 0; i < shards; i++ {
+					if funcs[i](ss.TraceID) {
+						trCounts[i]++
+						matched = append(matched, i)
+					}
+				}
+
+				// Check for missing or overlapping ranges
+				if len(matched) > 1 {
+					fmt.Printf("TraceID %X matched %d shards\n", ss.TraceID, len(matched))
+					for _, s := range matched {
+						for i, b := range pairs[s] {
+							fmt.Printf("  Bucket %d %d: %X %X\n", s, i, b.Min, b.Max)
+						}
+					}
+					panic("trace matched multiple shards")
+				} else if len(matched) == 0 {
+					fmt.Println("TraceID not matched by any shard:", ss.TraceID)
+					panic("trace id not matched by any shard")
+				}
+
+				ss.Release()
+			}
+
+			summarizeCounts("Traces", trCounts)
+			summarizeCounts("RowGroups", rgCounts)
 		})
 	}
 }

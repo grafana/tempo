@@ -27,13 +27,6 @@ jobs:
         with:
           go-version: 1.21.x
 
-      - name: Install jsonnetfmt and goimports
-        run: |
-          curl -fSL -o jsonnet.tar.gz https://github.com/google/jsonnet/releases/download/v0.17.0/jsonnet-bin-v0.17.0-linux.tar.gz
-          tar -xvf jsonnet.tar.gz -C /usr/local/bin/
-          chmod a+x /usr/local/bin/jsonnetfmt
-          go install golang.org/x/tools/cmd/goimports@v0.1.12
-
       - name: Check out code
         uses: actions/checkout@v4
 
@@ -209,17 +202,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
-
-      - name: Install jsonnet, jsonnet-bundler & tanka
-        run: |
-          curl -fSL -o jsonnet.tar.gz https://github.com/google/jsonnet/releases/download/v0.17.0/jsonnet-bin-v0.17.0-linux.tar.gz
-          tar -xvf jsonnet.tar.gz -C /usr/local/bin/
-          chmod a+x /usr/local/bin/jsonnet
-
-          go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.4.0
-
-          curl -fSL -o /usr/local/bin/tk https://github.com/grafana/tanka/releases/download/v0.19.0/tk-linux-amd64
-          chmod a+x /usr/local/bin/tk
 
       - name: Check out code
         uses: actions/checkout@v4

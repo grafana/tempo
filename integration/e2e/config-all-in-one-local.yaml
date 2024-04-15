@@ -1,4 +1,5 @@
 target: all
+stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
@@ -55,4 +56,4 @@ overrides:
     client:
       backend: local
       local:
-        path: /var/tempo_overrides
+        path: /var/tempo/overrides

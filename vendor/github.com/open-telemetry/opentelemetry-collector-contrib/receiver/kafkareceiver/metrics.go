@@ -11,6 +11,7 @@ import (
 
 var (
 	tagInstanceName, _ = tag.NewKey("name")
+	tagPartition, _    = tag.NewKey("partition")
 
 	statMessageCount     = stats.Int64("kafka_receiver_messages", "Number of received messages", stats.UnitDimensionless)
 	statMessageOffset    = stats.Int64("kafka_receiver_current_offset", "Current message offset", stats.UnitDimensionless)
@@ -18,17 +19,22 @@ var (
 
 	statPartitionStart = stats.Int64("kafka_receiver_partition_start", "Number of started partitions", stats.UnitDimensionless)
 	statPartitionClose = stats.Int64("kafka_receiver_partition_close", "Number of finished partitions", stats.UnitDimensionless)
+
+	statUnmarshalFailedMetricPoints = stats.Int64("kafka_receiver_unmarshal_failed_metric_points", "Number of metric points failed to be unmarshaled", stats.UnitDimensionless)
+	statUnmarshalFailedLogRecords   = stats.Int64("kafka_receiver_unmarshal_failed_log_records", "Number of log records failed to be unmarshaled", stats.UnitDimensionless)
+	statUnmarshalFailedSpans        = stats.Int64("kafka_receiver_unmarshal_failed_spans", "Number of spans failed to be unmarshaled", stats.UnitDimensionless)
 )
 
-// MetricViews return metric views for Kafka receiver.
-func MetricViews() []*view.View {
-	tagKeys := []tag.Key{tagInstanceName}
+// metricViews return metric views for Kafka receiver.
+func metricViews() []*view.View {
+	partitionAgnosticTagKeys := []tag.Key{tagInstanceName}
+	partitionSpecificTagKeys := []tag.Key{tagInstanceName, tagPartition}
 
 	countMessages := &view.View{
 		Name:        statMessageCount.Name(),
 		Measure:     statMessageCount,
 		Description: statMessageCount.Description(),
-		TagKeys:     tagKeys,
+		TagKeys:     partitionSpecificTagKeys,
 		Aggregation: view.Sum(),
 	}
 
@@ -36,7 +42,7 @@ func MetricViews() []*view.View {
 		Name:        statMessageOffset.Name(),
 		Measure:     statMessageOffset,
 		Description: statMessageOffset.Description(),
-		TagKeys:     tagKeys,
+		TagKeys:     partitionSpecificTagKeys,
 		Aggregation: view.LastValue(),
 	}
 
@@ -44,7 +50,7 @@ func MetricViews() []*view.View {
 		Name:        statMessageOffsetLag.Name(),
 		Measure:     statMessageOffsetLag,
 		Description: statMessageOffsetLag.Description(),
-		TagKeys:     tagKeys,
+		TagKeys:     partitionSpecificTagKeys,
 		Aggregation: view.LastValue(),
 	}
 
@@ -52,7 +58,7 @@ func MetricViews() []*view.View {
 		Name:        statPartitionStart.Name(),
 		Measure:     statPartitionStart,
 		Description: statPartitionStart.Description(),
-		TagKeys:     tagKeys,
+		TagKeys:     partitionAgnosticTagKeys,
 		Aggregation: view.Sum(),
 	}
 
@@ -60,7 +66,31 @@ func MetricViews() []*view.View {
 		Name:        statPartitionClose.Name(),
 		Measure:     statPartitionClose,
 		Description: statPartitionClose.Description(),
-		TagKeys:     tagKeys,
+		TagKeys:     partitionAgnosticTagKeys,
+		Aggregation: view.Sum(),
+	}
+
+	countUnmarshalFailedMetricPoints := &view.View{
+		Name:        statUnmarshalFailedMetricPoints.Name(),
+		Measure:     statUnmarshalFailedMetricPoints,
+		Description: statUnmarshalFailedMetricPoints.Description(),
+		TagKeys:     partitionAgnosticTagKeys,
+		Aggregation: view.Sum(),
+	}
+
+	countUnmarshalFailedLogRecords := &view.View{
+		Name:        statUnmarshalFailedLogRecords.Name(),
+		Measure:     statUnmarshalFailedLogRecords,
+		Description: statUnmarshalFailedLogRecords.Description(),
+		TagKeys:     partitionAgnosticTagKeys,
+		Aggregation: view.Sum(),
+	}
+
+	countUnmarshalFailedSpans := &view.View{
+		Name:        statUnmarshalFailedSpans.Name(),
+		Measure:     statUnmarshalFailedSpans,
+		Description: statUnmarshalFailedSpans.Description(),
+		TagKeys:     partitionAgnosticTagKeys,
 		Aggregation: view.Sum(),
 	}
 
@@ -70,5 +100,8 @@ func MetricViews() []*view.View {
 		lastValueOffsetLag,
 		countPartitionStart,
 		countPartitionClose,
+		countUnmarshalFailedMetricPoints,
+		countUnmarshalFailedLogRecords,
+		countUnmarshalFailedSpans,
 	}
 }
