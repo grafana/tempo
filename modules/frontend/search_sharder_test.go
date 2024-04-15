@@ -619,6 +619,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		IngesterShards:        1,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
