@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -30,13 +31,12 @@ type queryRangeSharder struct {
 	logger    log.Logger
 }
 
-// jpe - rename to metrics sharder? or rename everything back to query range?
 type QueryRangeSharderConfig struct {
 	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
-	Interval              time.Duration `yaml:"interval,omitempty"` // jpe - fail start if interval is 0
+	Interval              time.Duration `yaml:"interval,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
@@ -93,7 +93,11 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 		interval              = s.jobInterval(expr, allowUnsafe)
 	)
 
-	// jpe - if interval is 0 bail out
+	// if interval is 0 then the backend requests code will loop forever. technically if we are here with a 0 interval it should mean a bad request
+	// b/c it was specified using a query hint. we're going to assume that and return 400
+	if interval == 0 {
+		return pipeline.NewBadRequest(errors.New("invalid interval specified: 0")), nil
+	}
 
 	generatorReq := s.generatorRequest(*req, r, tenantID, now, samplingRate)
 	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
@@ -107,7 +111,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 		s.logger.Log("msg", "query range: failed to build backend requests", "err", err)
 	})
 
-	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs (jpe: make sure this propagates to the combiner)
+	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
 	var jobMetricsResponse pipeline.Responses[*http.Response]
 	if totalBlocks > 0 {
 		resp := &tempopb.QueryRangeResponse{

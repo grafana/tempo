@@ -29,6 +29,13 @@ func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
+		Metrics: MetricsConfig{
+			Sharder: QueryRangeSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				Interval:              time.Second,
+			},
+		},
 	}, next, nil, nil, nil, "", log.NewNopLogger(), nil)
 	require.NoError(t, err)
 

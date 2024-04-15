@@ -52,7 +52,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 
 	httpResp := httptest.NewRecorder()
 
-	f.QueryRangeHandler.ServeHTTP(httpResp, httpReq)
+	f.MetricsQueryRangeHandler.ServeHTTP(httpResp, httpReq)
 
 	require.Equal(t, 200, httpResp.Code)
 

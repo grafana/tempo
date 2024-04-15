@@ -304,7 +304,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				continue
 			}
 
-			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query()) // jpe can this be done once at the beginning?
+			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			if len(key) > 0 {
 				subR = pipeline.AddCacheKey(key, subR)

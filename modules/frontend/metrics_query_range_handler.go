@@ -59,8 +59,8 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 	}
 }
 
-// newQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+// newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -100,10 +100,10 @@ func newQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.
 	})
 }
 
-func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) { // jpe standardize these?
+func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
 	if resp == nil {
 		level.Info(logger).Log(
-			"msg", "search results - no resp",
+			"msg", "query range results - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
 			"error", err)
@@ -113,7 +113,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 
 	if resp.Metrics == nil {
 		level.Info(logger).Log(
-			"msg", "search results - no metrics",
+			"msg", "query range results - no metrics",
 			"tenant", tenantID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
@@ -123,7 +123,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 	}
 
 	level.Info(logger).Log(
-		"msg", "search results",
+		"msg", "query range results",
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,
@@ -139,9 +139,9 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 		"error", err)
 }
 
-func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.QueryRangeRequest) { // jpe standardize these?
+func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.QueryRangeRequest) {
 	level.Info(logger).Log(
-		"msg", "search request",
+		"msg", "query range request",
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
