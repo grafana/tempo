@@ -270,14 +270,24 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 }
 
 func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
+	const longestScope = 9 // "resource." is the longest scope
+
 	// copy the scanner to avoid advancing if it's not a scope.
 	s := *l
 	str := ""
 	for s.Peek() != scanner.EOF {
-		if s.Peek() == '.' {
+		r := s.Peek()
+		if r == '.' { // we've found a scope attribute
 			str += string(s.Next())
 			break
 		}
+		if !isAttributeRune(r) { // we can't have a scope with invalid characters, so just bail
+			break
+		}
+		if len(str) > longestScope { // we can't have a scope longer than the longest scope, so just bail
+			break
+		}
+
 		str += string(s.Next())
 	}
 	tok := tokens[str]

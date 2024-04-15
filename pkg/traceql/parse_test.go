@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1164,5 +1165,29 @@ func TestHints(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
 		})
+	}
+}
+
+func TestReallyLongQuery(t *testing.T) {
+	for i := 1000; i < 1050; i++ {
+		longVal := strings.Repeat("a", i)
+
+		// static value
+		query := fmt.Sprintf("{ .a = `%s` }", longVal)
+		expected := newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticString(longVal))
+
+		actual, err := Parse(query)
+
+		require.NoError(t, err, "i=%d", i)
+		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, "i=%d", i)
+
+		// attr name
+		query = fmt.Sprintf("{ .%s = `foo` }", longVal)
+		expected = newBinaryOperation(OpEqual, NewAttribute(longVal), NewStaticString("foo"))
+
+		actual, err = Parse(query)
+
+		require.NoError(t, err, "i=%d", i)
+		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, "i=%d", i)
 	}
 }
