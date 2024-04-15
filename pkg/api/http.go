@@ -335,6 +335,13 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	req.Query = r.Form.Get("query")
 	req.QueryMode = r.Form.Get(QueryModeKey)
 
+	// if we don't have a query then let's attempt to parse them out of the url
+	//  Grafana posts these params as form data, but BuildQueryRangeRequest below puts them in the url
+	if len(req.Query) == 0 && len(req.QueryMode) == 0 {
+		req.Query = r.Form.Get(urlParamQuery)
+		req.QueryMode = r.Form.Get(QueryModeKey)
+	}
+
 	start, end, _ := bounds(r)
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())

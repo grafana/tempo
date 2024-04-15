@@ -690,6 +690,13 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 				},
 				SLO: testSLOcfg,
 			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              1 * time.Second,
+				},
+			},
 		}
 	}
 

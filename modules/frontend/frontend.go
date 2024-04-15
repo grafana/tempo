@@ -67,6 +67,18 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
+	if cfg.Metrics.Sharder.ConcurrentRequests <= 0 {
+		return nil, fmt.Errorf("frontend metrics concurrent requests should be greater than 0")
+	}
+
+	if cfg.Metrics.Sharder.TargetBytesPerRequest <= 0 {
+		return nil, fmt.Errorf("frontend metrics target bytes per request should be greater than 0")
+	}
+
+	if cfg.Metrics.Sharder.Interval <= 0 {
+		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
+	}
+
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
@@ -116,7 +128,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[*http.Response]{
 			multiTenantMiddleware(cfg, logger),
-			newAsyncQueryRangeSharder(reader, o, cfg.Search.Sharder, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)

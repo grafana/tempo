@@ -132,7 +132,7 @@ type QueryRangeCombiner struct {
 }
 
 func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
-	if resp == nil || len(resp.Series) == 0 {
+	if resp == nil {
 		return
 	}
 
@@ -156,11 +156,13 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 
 	if resp.Metrics != nil {
+		q.metrics.TotalJobs += resp.Metrics.TotalJobs
 		q.metrics.TotalBlocks += resp.Metrics.TotalBlocks
 		q.metrics.TotalBlockBytes += resp.Metrics.TotalBlockBytes
 		q.metrics.InspectedBytes += resp.Metrics.InspectedBytes
 		q.metrics.InspectedTraces += resp.Metrics.InspectedTraces
 		q.metrics.InspectedSpans += resp.Metrics.InspectedSpans
+		q.metrics.CompletedJobs += resp.Metrics.CompletedJobs
 	}
 }
 

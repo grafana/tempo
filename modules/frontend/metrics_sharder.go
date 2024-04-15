@@ -36,13 +36,13 @@ type QueryRangeSharderConfig struct {
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
-	Interval              time.Duration `yaml:"interval,omitempty"`
+	Interval              time.Duration `yaml:"interval,omitempty"` // jpe - fail start if interval is 0
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
 	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
-		return asyncSearchSharder{
+		return queryRangeSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
@@ -93,16 +93,16 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 		interval              = s.jobInterval(expr, allowUnsafe)
 	)
 
+	// jpe - if interval is 0 bail out
+
 	generatorReq := s.generatorRequest(*req, r, tenantID, now, samplingRate)
 	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
-	stopCh := make(chan struct{})
-	defer close(stopCh)
 
 	if generatorReq != nil {
 		reqCh <- generatorReq
 	}
 
-	totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, func(err error) {
+	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "query range: failed to build backend requests", "err", err)
 	})
@@ -112,8 +112,9 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 	if totalBlocks > 0 {
 		resp := &tempopb.QueryRangeResponse{
 			Metrics: &tempopb.SearchMetrics{
+				TotalJobs:       totalJobs,
 				TotalBlocks:     totalBlocks,
-				TotalBlockBytes: totalBlockBytes, // jpe - total jobs?
+				TotalBlockBytes: totalBlockBytes,
 			},
 		}
 
@@ -144,7 +145,7 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) (totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -171,30 +172,20 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		return
 	}
 
+	// count blocks
 	totalBlocks = uint32(len(blocks))
 	for _, b := range blocks {
 		totalBlockBytes += b.Size
 	}
 
-	go func() {
-		s.buildBackendRequests(ctx, tenantID, parent, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh, errFn)
-	}()
-
-	return
-}
-
-// jpe - caching!
-func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) {
-	defer close(reqCh)
-
+	// count jobs. same loops as below
 	var (
-		start          = searchReq.Start
-		end            = searchReq.End
+		start          = backendReq.Start
+		end            = backendReq.End
 		timeWindowSize = uint64(interval.Nanoseconds())
 	)
 
 	for start < end {
-
 		thisStart := start
 		thisEnd := start + timeWindowSize
 		if thisEnd > end {
@@ -215,6 +206,51 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
 
 		for i := uint32(1); i <= shards; i++ {
+			totalJobs++
+		}
+
+		start = thisEnd
+	}
+
+	go func() {
+		s.buildBackendRequests(ctx, tenantID, parent, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh, errFn)
+	}()
+
+	return
+}
+
+// jpe - caching!
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) {
+	defer close(reqCh)
+
+	var (
+		start          = searchReq.Start
+		end            = searchReq.End
+		timeWindowSize = uint64(interval.Nanoseconds())
+	)
+
+	for start < end {
+		thisStart := start
+		thisEnd := start + timeWindowSize
+		if thisEnd > end {
+			thisEnd = end
+		}
+
+		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
+		if len(blocks) == 0 {
+			start = thisEnd
+			continue
+		}
+
+		totalBlockSize := uint64(0)
+		for _, b := range blocks {
+			totalBlockSize += b.Size
+		}
+
+		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
+
+		for i := uint32(1); i <= shards; i++ {
+
 			shardR := searchReq
 			shardR.Start = thisStart
 			shardR.End = thisEnd
@@ -284,7 +320,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.ShardCount = uint32(1.0 / samplingRate)
 
 	// Set final sampling rate after integer rounding
-	// samplingRate = 1.0 / float64(searchReq.ShardCount) - restore?
+	// samplingRate = 1.0 / float64(searchReq.ShardCount)  - jpe restore?
 	/*
 		// Multiply up the sampling rate
 		if job.samplingRate != 1.0 {

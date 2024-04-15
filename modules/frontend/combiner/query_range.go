@@ -15,36 +15,29 @@ func NewQueryRange() Combiner {
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
 		current:        &tempopb.QueryRangeResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(partial *tempopb.QueryRangeResponse, final *tempopb.QueryRangeResponse) error { // jpe - final?
-			// if partial.Metrics != nil { // jpe ?? totalJobs/completedJobs?
-			// 	// there is a coordination with the search sharder here. normal responses
-			// 	// will never have total jobs set, but they will have valid Inspected* values
-			// 	// a special response is sent back from the sharder with no traces but valid Total* values
-			// 	// if TotalJobs is nonzero then assume its the special response
-			// 	if partial.Metrics.TotalJobs == 0 {
-			// 		final.Metrics.CompletedJobs++
-
-			// 		final.Metrics.InspectedBytes += partial.Metrics.InspectedBytes
-			// 		final.Metrics.InspectedTraces += partial.Metrics.InspectedTraces
-			// 	} else {
-			// 		final.Metrics.TotalBlocks += partial.Metrics.TotalBlocks
-			// 		final.Metrics.TotalJobs += partial.Metrics.TotalJobs
-			// 		final.Metrics.TotalBlockBytes += partial.Metrics.TotalBlockBytes
-			// 	}
-			// }
+		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse) error {
+			if partial.Metrics != nil {
+				// this is a coordination between the sharder and combiner. the sharder returns one response with summary metrics
+				// only. the combiner correctly takes and accumulates that job. however, if the response has no jobs this is
+				// an indicator this is a "real" response so we set CompletedJobs to 1 to increment in the combiner.
+				if partial.Metrics.TotalJobs == 0 {
+					partial.Metrics.CompletedJobs = 1
+				}
+			}
 
 			combiner.Combine(partial)
 
 			return nil
 		},
-		finalize: func(final *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
+		finalize: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
 			return resp, nil
 		},
-		diff: func(current *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) { // jpe - actually diff
+		// todo: the diff method still returns the full response every time. find a way to diff
+		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}

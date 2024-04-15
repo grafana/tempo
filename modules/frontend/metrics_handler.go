@@ -88,7 +88,7 @@ func newQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.
 
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		var bytesProcessed uint64
-		queryRangeResp, _ := combiner.GRPCDiff() // jpe - ignoring error?
+		queryRangeResp, _ := combiner.GRPCDiff()
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {
 			bytesProcessed = queryRangeResp.Metrics.InspectedBytes
 		}
