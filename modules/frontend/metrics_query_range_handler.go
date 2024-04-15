@@ -23,7 +23,7 @@ import (
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+	postSLOHook := searchSLOPostHook(cfg.Search.SLO) // jpe - change to metrics SLO?
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_QueryRangeServer) error {
