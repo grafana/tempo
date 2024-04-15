@@ -66,7 +66,13 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		return nil, ErrUnconfigured
 	}
 
-	err := os.MkdirAll(cfg.Storage.Path, os.ModePerm)
+	// clean the wal before everything
+	err := os.RemoveAll(cfg.Storage.Path)
+	if err != nil {
+		level.Warn(logger).Log("msg", "failed to remove wal on start up")
+	}
+
+	err = os.MkdirAll(cfg.Storage.Path, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mkdir on %s: %w", cfg.Storage.Path, err)
 	}
@@ -113,12 +119,6 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 }
 
 func (g *Generator) starting(ctx context.Context) (err error) {
-	// clean the wal on start up
-	os.RemoveAll(g.cfg.Storage.Path)
-	if err != nil {
-		level.Warn(g.logger).Log("msg", "failed to remove wal on start up")
-	}
-
 	// In case this function will return error we want to unregister the instance
 	// from the ring. We do it ensuring dependencies are gracefully stopped if they
 	// were already started.
