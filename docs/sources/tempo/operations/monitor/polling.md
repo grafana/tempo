@@ -1,14 +1,14 @@
 ---
-title: Use polling to monitor Tempo's backend status
+title: Use polling to monitor the backend status
 menuTitle: Use polling to monitor backend status
-description: Monitor Tempo's backend using polling
+description: Monitor backend status for Tempo using polling.
 weight: 30
 aliases:
 - /docs/tempo/operations/polling
 - ../polling
 ---
 
-# Use polling to monitor Tempo's backend status
+# Use polling to monitor the backend status
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently
 only two components that need this knowledge and, consequently, only two that poll the backend: compactors
@@ -26,7 +26,7 @@ Again, this is done once every `blocklist_poll` duration.
 Due to this behavior, a given compactor or querier often have an out-of-date blocklist.
 During normal operation, it will stale by at most twice the configured `blocklist_poll`.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 For details about configuring polling, refer to [polling configuration]({{< relref "../../configuration/polling" >}}).
 {{% /admonition %}}
 

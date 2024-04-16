@@ -43,6 +43,6 @@ Finally, we get the following cardinality estimation:
   Sum: 8 * #hops + 2 * #services
 ```
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 To estimate the number of metrics, refer to the [Dry run metrics generator]({{< relref "../cardinality" >}}) documentation.
 {{% /admonition %}}

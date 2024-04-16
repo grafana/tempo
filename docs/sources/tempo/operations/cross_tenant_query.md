@@ -10,7 +10,7 @@ aliases:
 
 # Cross-tenant query federation
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 You need to enable `multitenancy_enabled: true` in the cluster for multi-tenant querying to work.
 Refer to [Enable multi-tenancy](/docs/tempo/latest/operations/multitenancy/) for more details and implications of `multitenancy_enabled: true`.
 {{% /admonition %}}

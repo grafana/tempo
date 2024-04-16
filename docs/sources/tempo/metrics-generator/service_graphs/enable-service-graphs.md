@@ -13,7 +13,7 @@ Service graphs are generated in Tempo and pushed to a metrics storage.
 Then, they can be represented in Grafana as a graph.
 You will need those components to fully use service graphs.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Cardinality can pose a problem when you have lots of services.
 To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "../cardinality" >}}).
 {{% /admonition %}}
@@ -27,7 +27,7 @@ To enable service graphs when using Grafana Agent, refer to the [Grafana Agent a
 
 ### Enable service graphs in Grafana
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Since Grafana 9.0.4, service graphs have been enabled by default. Prior to Grafana 9.0.4, service graphs were hidden
 under the [feature toggle](/docs/grafana/latest/setup-grafana/configure-grafana/#feature_toggles) `tempoServiceGraph`.
 {{% /admonition %}}

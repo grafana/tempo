@@ -89,7 +89,7 @@ The following table shows the current intrinsic fields:
 | `rootName`      | string      | if it exists the name of the root span in the trace             | `{ rootName = "HTTP GET" }`         |
 | `rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ rootServiceName = "gateway" }`   |
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 `traceDuration`, `rootName`, and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
 these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
 possible to span-level intrinsics.
@@ -154,7 +154,7 @@ You can use quoted attributes syntax with non-quoted attribute syntax, the follo
 { span.attribute."attribute name with space" = "value" }
 ```
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Currently, only the `\"` and `\\` escape sequences are supported.
 {{% /admonition %}}
 

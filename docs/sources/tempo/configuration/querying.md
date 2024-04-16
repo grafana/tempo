@@ -13,7 +13,7 @@ You can use Tempo as a data source in Grafana to Tempo can query Grafana directl
 
 If you are using Grafana on-prem, you need to [set up the Tempo data source](/docs/grafana/<GRAFANA_VERSION>/datasources/tempo).
 
-{{% admonition type="tip" %}}
+{{< admonition type="tip" >}}
 If you want to see what you can do with tracing data in Grafana, try the [Intro to Metrics, Logs, Traces, and Profiling example]({{< relref "../getting-started/docker-example" >}}).
 {{% /admonition %}}
 

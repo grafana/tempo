@@ -49,7 +49,7 @@ JAEGER_SAMPLER_PARAM=1
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently only two components that need this knowledge and, consequently, only two that poll the backend: compactors and queriers.
 
-Refer to [Use polling to monitor Tempo's backend status]({{< relref "./polling" >}}).
+Refer to [Use polling to monitor the backend status]({{< relref "./polling" >}}) for Tempo.
 
 ## Dashboards
 
