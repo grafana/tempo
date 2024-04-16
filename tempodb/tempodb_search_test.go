@@ -1012,6 +1012,7 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 
 			for _, ss := range tr.SpanSets {
 				for _, span := range ss.Spans {
@@ -1086,6 +1087,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		// make sure every spanset returned has the attribute we searched for
