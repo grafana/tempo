@@ -17,16 +17,16 @@ The deployment mode is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
 which is the monolithic deployment mode.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (for example, Helm charts) do not yet reflect this change.
 {{% /admonition %}}
 
 ## Monolithic mode
 
 Monolithic mode deployment runs all top-level components in a single
-process, forming an instance of Tempo.  The monolithic mode is the simplest
+process, forming an instance of Tempo. The monolithic mode is the simplest
 to deploy, but can not horizontally scale out by increasing the quantity of
-components.  Refer to [Architecture]({{< relref "../operations/architecture" >}}) for
+components. Refer to [Architecture]({{< relref "../operations/architecture" >}}) for
 descriptions of the components.
 
 To enable this mode, `-target=all` is used, which is the default.
@@ -60,7 +60,7 @@ deployment, but it is also the most complex.
 
 The configuration associated with each component's deployment specifies a
 `target`. For example, to deploy a `querier`, the configuration would contain
-`target: querier`.  A command-line deployment may specify the `-target=querier`
+`target: querier`. A command-line deployment may specify the `-target=querier`
 flag. Each of the components referenced in [Architecture]({{< relref
 "../operations/architecture" >}}) must be deployed in order to get a working Tempo
 instance.
@@ -73,7 +73,7 @@ Find a docker-compose deployment example at:
 
 Tempo can be easily deployed through a number of tools, including Helm, Tanka, Kubernetes, and Docker.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 The Tanka and Helm examples are equivalent.
 They are both provided for people who prefer different configuration mechanisms.
 {{% /admonition %}}
@@ -109,4 +109,4 @@ They display the full range of configurations available to Tempo.
 
 You can find a collection of Kubernetes manifests to deploy Tempo in the
 [operations/jsonnet-compiled](https://github.com/grafana/tempo/tree/main/operations/jsonnet-compiled)
-folder.  These are generated using the Tanka/Jsonnet.
+folder. These are generated using the Tanka/Jsonnet.

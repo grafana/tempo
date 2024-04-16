@@ -1,7 +1,7 @@
 ---
 title: Hosted storage
 menuTitle: Hosted storage
-description: Learn about Tempo's available hosted storage options and how to configure them.
+description: Learn about available hosted storage options and how to configure them.
 weight: 400
 aliases:
 - /docs/tempo/latest/configuration/

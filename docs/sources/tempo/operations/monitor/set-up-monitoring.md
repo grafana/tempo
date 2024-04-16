@@ -21,7 +21,7 @@ This procedure assumes that you have set up Tempo [using the Helm chart](https:/
 
 The steps outlined below use the Grafana Agent Flow configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/).
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Update any instructions in this document for your own deployment.
 
 If you use the [Kubernetes integration Grafana Agent Helm chart](https://grafana.com/docs/agent/latest/flow/get-started/install/kubernetes/), you’ll be able to use the Kubernetes scrap annotations to automatically scrap Tempo. You’ll need to add the labels to all of the deployed components.
@@ -47,7 +47,7 @@ Before you can monitor Tempo data, you need to configure the Grafana Agent to se
 
 Use [these instructions to create a test application](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/) in your Tempo cluster. These steps configure Grafana Agent Flow to `remote-write` to Tempo. In addition, the test app instructions explain how to configure a Tempo data source in Grafana and view the tracing data.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 If you already have a Tempo environment, then you do not need to create a test app.
 This guide assumes that the Tempo and Grafana Agent configurations are the same as or based on [these instructions to create a test application](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/), as you'll augment those configurations to enable Tempo metrics monitoring.
 {{% /admonition %}}
@@ -253,7 +253,7 @@ To install the mixins in Grafana, you need to:
 
 This contains a compiled version of the alert and recording rules, as well as the dashboards.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 If you want to change any of the mixins, make your updates in the `operations/tempo-mixin` directory.
 Use the instructions in the [README](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) in that directory to regenerate the files.
 The mixins are generated in the `operations/tempo-mixin-compiled` directory.
@@ -264,7 +264,7 @@ The mixins are generated in the `operations/tempo-mixin-compiled` directory.
 The `dashboards` directory includes the six monitoring dashboards that can be installed into your Grafana instance.
 Refer to [Import a dashboard ](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/import-dashboards/)in the Grafana documentation.
 
-{{% admonition type="tip" %}}
+{{< admonition type="tip" >}}
 Install all six dashboards.
 You can only import one dashboard at a time.
 Create a new folder in the Dashboards area, for example “Tempo Monitoring”, as an easy location to save the imported dashboards.

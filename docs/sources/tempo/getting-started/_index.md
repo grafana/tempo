@@ -30,7 +30,7 @@ Client instrumentation (1 in the diagram) is the first building block to a funct
 Client instrumentation is the process of adding instrumentation points in the application that
 create and offload spans.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 To learn more about instrumentation, read the [Instrument for tracing]({{< relref "./instrumentation" >}}) documentation to learn how to instrument your favorite language for distributed tracing.
 {{% /admonition %}}
 
@@ -52,7 +52,7 @@ refer to [Grafana Agent traces configuration docs](/docs/agent/latest/static/con
 
 {{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 Refer to [this blog post](/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
 to see how the OpenTelemetry Collector can be used with Grafana Cloud Tempo.
@@ -71,7 +71,7 @@ Next, review the [Setup documentation]({{< relref "../setup" >}}) for step-by-st
 
 Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment]({{< relref "../setup/deployment" >}}) section for more information
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 The Grafana Agent is already set up to use Tempo.
 Refer to the [configuration](/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 {{% /admonition %}}
