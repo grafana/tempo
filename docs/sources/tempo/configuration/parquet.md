@@ -1,7 +1,7 @@
 ---
 title: Apache Parquet block format
 menuTitle: Apache Parquet
-description: Learn about Tempo's Parquet block format.
+description: Learn about Parquet block format in Tempo.
 weight: 300
 ---
 
@@ -23,7 +23,7 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 
 ## Choose a different block format
 
-The default block format is `vParquet3`, which is the latest iteration of Tempo's Parquet-based columnar block format.
+The default block format is `vParquet3`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
 It introduces dedicated attribute columns, which improve query performance by storing attributes in own columns,
 rather than in the generic attribute key-value list.
 For more information, see [Dedicated attribute columns]({{< relref "../operations/tempo_cli" >}}).

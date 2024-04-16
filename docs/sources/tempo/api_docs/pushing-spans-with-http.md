@@ -8,7 +8,7 @@ aliases:
 # Push spans with HTTP
 
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
-or a span ingestion pipeline in order to push spans.  This guide aims to show an extremely basic technique for
+or a span ingestion pipeline in order to push spans. This guide aims to show an extremely basic technique for
 pushing spans with HTTP/JSON from a Bash script using the [OpenTelemetry](https://opentelemetry.io/docs/specs/otlp/) receiver.
 
 ## Before you begin
@@ -96,7 +96,7 @@ Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You ca
 
 ## Retrieve traces
 
-The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
+The easiest way to get the trace is to execute a simple curl command to Tempo. The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
 1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
 
@@ -125,9 +125,9 @@ To format this in a more human-readable output, consider using a [tool such as `
 curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }' | jq
 ```
 
-## Spans from everything!
+## Spans from everything
 
-Tracing is not limited to enterprise languages with complex frameworks.  As you can see it's easy to store and track events from your js, python or bash scripts.
+Tracing is not limited to enterprise languages with complex frameworks. As you can see it's easy to store and track events from your js, python or bash scripts.
 You can use Tempo/distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows, or anything else
 you can think of.
 

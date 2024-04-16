@@ -10,14 +10,14 @@ aliases:
 # Enable multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use of a header: `X-Scope-OrgID`.
-Refer to [multi-tenancy docs]({{< relref "../../operations/multitenancy" >}}) for more details. 
+Refer to [multi-tenancy docs]({{< relref "../../operations/multitenancy" >}}) for more details.
 This document outlines how to deploy and use multi-tenant Tempo with the Operator.
 
 ## Multi-tenancy without authentication
 
 The following Kubernetes Custom Resource (CR) deploys a multi-tenant Tempo instance.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Jaeger query is not tenant aware and therefore is not supported in this configuration.
 {{% /admonition %}}
 
@@ -95,7 +95,7 @@ spec:
 ```
 
 * The secret `oidc-test` defines fields `clientID`, `clientSecret` and `issuerCAPath`.
-* The RBAC gives tenant `test-oidc` read and write access for traces. 
+* The RBAC gives tenant `test-oidc` read and write access for traces.
 
 ## OpenShift
 

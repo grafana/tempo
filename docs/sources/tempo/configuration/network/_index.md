@@ -1,7 +1,7 @@
 ---
 title: Network options
 menuTitle: Network options
-description: Learn about Tempo's available network options and how to configure them.
+description: Learn about available network options and how to configure them.
 weight: 500
 ---
 
