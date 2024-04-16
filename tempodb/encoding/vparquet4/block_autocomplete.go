@@ -209,7 +209,11 @@ func createDistinctSpanIterator(
 		// TODO: Support structural operators
 		case traceql.IntrinsicStructuralDescendant,
 			traceql.IntrinsicStructuralChild,
-			traceql.IntrinsicStructuralSibling:
+			traceql.IntrinsicStructuralSibling,
+			// nested set intrinsics should not be considered when autocompleting
+			traceql.IntrinsicNestedSetLeft,
+			traceql.IntrinsicNestedSetRight,
+			traceql.IntrinsicNestedSetParent:
 			continue
 		}
 
