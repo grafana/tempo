@@ -30,7 +30,7 @@ cards:
       description: Use metrics-generator to derive metrics from ingested traces. The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
     - title: Query with TraceQL
       href: /docs/tempo/latest/traceql/
-      description: Inspired by PromQL and LogQL, TraceQL is a query language desßigned for selecting traces in Tempo. This query language lets you precisely and easily select spans and jump directly to the spans fulfilling the specified conditions.
+      description: Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. This query language lets you precisely and easily select spans and jump directly to the spans fulfilling the specified conditions.
 ---
 
 {{< docs/hero-simple key="hero" >}}
