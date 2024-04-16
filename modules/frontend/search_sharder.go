@@ -94,10 +94,9 @@ func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End)), nil
 	}
 
-	// TODO: avoid a 0 length channel in the config init
 	reqCh := make(chan *http.Request, s.cfg.IngesterShards+1) // buffer of shards+1 allows us to insert ingestReq and metrics
 
-	// build request to search ingester based on query_ingesters_until config and time range
+	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
 	err = s.ingesterRequests(ctx, tenantID, r, *searchReq, reqCh)
 	if err != nil {
