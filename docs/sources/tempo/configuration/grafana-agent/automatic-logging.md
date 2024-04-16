@@ -27,8 +27,7 @@ While this approach is useful, it isn't as powerful as [TraceQL]({{< relref
 trace ID, to enable jumping from logs to traces, then read on!
 
 If you want to query the system directly, read the [TraceQL
-documentation]({{< relref "../../traceql" >}}). We doubt you'll
-be sad.
+documentation]({{< relref "../../traceql" >}}). 
 
 ## Configuration
 
