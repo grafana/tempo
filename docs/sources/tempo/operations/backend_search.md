@@ -272,7 +272,7 @@ Batching pushes jobs faster to the queriers, and reduce the time spent waiting a
 * Big batch size will increase the latency of the querier requests, and they might start hitting timeouts of 5xx, which will increase the rate of retries.
 * Bigger `max_batch_size` results in pushing too many jobs to the queriers. The jobs then have to be canceled if a query is exited early.
 
-###  `query_frontend.search.concurrent_jobs` parameters
+###  `query_frontend.search.concurrent_jobs` parameter
 
 The number of concurrent jobs to execute when searching the backend. This controls how much work is produced concurrently.
 
@@ -310,7 +310,6 @@ Current configurations only retry if the return is 5xx (_translated from equival
 * Higher retries impact the backend when you have a big query that’s generating lots of jobs.
 * High `max_retries` can overwhelm the queriers when they're under heavy load and failing to process the jobs. Retries can snowball, and degrade the query performance.
 
-
 ### `query_frontend.search.target_bytes_per_job` parameter
 
 The target number of bytes for each job to handle when performing a backend search.
@@ -325,7 +324,6 @@ This option controls the upper limit on the size of a job, and can be used as a 
 * Setting this to a small value produces too many jobs, and results in more overhead, setting it too high produces big jobs. Queriers might struggle to finish those jobs and it can lead to high latency.
 * In testing, 100MB to 200MB is a sweet spot for this configuration, and works best across different sizes of clusters.
 * We recommend keeping this fixed within the recommended range and not changing it.
-
 
 ### `querier.search.prefer_self` parameter
 
@@ -342,7 +340,7 @@ This setting controls the number of job the querier will process before spilling
 * Setting this to a very big number is as good as turning it off because the querier tries to process all the jobs and it never spills over to serverless.
 * If we set this to a low value, we spill more jobs to serverless, even when queriers have capacity to process the job, and due to cold start, query latency increases.
 
-### `querier.frontend_worker.parallelism`
+### `querier.frontend_worker.parallelism` parameter
 
 Number of simultaneous queries to process per query-frontend or query-scheduler. This configuration controls the number of concurrent requests per query-frontend a querier process.
 
@@ -362,7 +360,7 @@ If you want to make sure you always have connections defined in this config, you
 * As you add more queriers, connections to an individual frontend increase. Query-frontend has a shared lock on these connections so if you see issues when you scale out queriers, lower the parallelism to reduce contention.
 * It’s recommended to set `match_max_concurrent: false` and not set `max_concurrent_queries` when using parallelism.
 
-### querier.max_concurrent_queries
+### `querier.max_concurrent_queries` parameter
 
 This controls the maximum number of jobs a querier processes concurrently. It doesn't distinguish between the types of queries. These jobs can be from two different queries, or different tenants as well.
 
