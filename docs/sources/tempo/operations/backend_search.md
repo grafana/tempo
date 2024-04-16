@@ -77,7 +77,7 @@ Job batches are sent over these connections, and return the results.
 This process is synchronized so a single job batch can block a connection.
 
 The number of connections control the number of batches a querier processes concurrently.
-The number of connections is controlled by `max_concuccrent_queries` OR `frontend_worker.parallelism`.
+The number of connections is controlled by `querier.max_concuccrent_queries` OR `frontend_worker.parallelism`.
 
 ## General guidelines
 
@@ -277,9 +277,9 @@ Batching pushes jobs faster to the queriers, and reduce the time spent waiting a
 The number of concurrent jobs to execute when searching the backend. This controls how much work is produced concurrently.
 
 To put it another way, if a search job is sharded into 5000 jobs, and `concurrent_jobs` is set to 1000, then Tempo only executes 1000 jobs concurrently.
-The other 4000 jobs are processed one by one as the first 100 jobs return the responses.
+The other 4000 jobs are processed one by one as the first 1000 jobs return the responses.
 
-If Tempo manages to answer the search query without executing all 500 jobs, Tempo exits early and cancels the jobs that weren't started.
+If Tempo manages to answer the search query without executing all 5000 jobs, Tempo exits early and cancels the jobs that weren't started.
 
 #### Guidelines
 
