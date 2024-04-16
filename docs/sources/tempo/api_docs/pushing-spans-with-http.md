@@ -125,7 +125,7 @@ To format this in a more human-readable output, consider using a [tool such as `
 curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name = "my.service" }' | jq
 ```
 
-## Spans from everything!
+## Spans from everything
 
 Tracing is not limited to enterprise languages with complex frameworks. As you can see it's easy to store and track events from your js, python or bash scripts.
 You can use Tempo/distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows, or anything else
