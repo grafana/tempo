@@ -472,17 +472,23 @@ func TestIngesterRequests(t *testing.T) {
 			require.NoError(t, err)
 
 			for k, v := range expectedQueryStringValues {
-				// We don't need to compare the querier searches
-				if strings.HasPrefix(k, "/querier") {
-					continue
+				key := k
+
+				// Due the the way the query string is parse, we need to ensure that
+				// the first query param is captured.  Split the key on the first ? and
+				// use the second part as the key.
+				if strings.Contains(k, "?") {
+					parts := strings.Split(k, "?")
+					require.Equal(t, 2, len(parts))
+					key = parts[1]
 				}
 
-				if k == "start" || k == "end" {
+				if key == "start" || key == "end" {
 					// check the time difference between the expected and actual
 					// start/end times is within a tollerance for the use of time.Now()
 					// in the code compared to when the tests check the values.
 
-					diff := timeFrom(t, v[0]).Sub(timeFrom(t, values[k][0]))
+					diff := timeFrom(t, v[0]).Sub(timeFrom(t, values[key][0]))
 					require.LessOrEqual(t, diff, time.Millisecond)
 					continue
 				}
