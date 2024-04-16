@@ -243,8 +243,16 @@ func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID stri
 	for i := 0; i < shards; i++ {
 		subReq := searchReq
 
-		shardStart := ingesterStart + uint32(i)*interval
-		shardEnd := shardStart + interval
+		var (
+			shardStart = ingesterStart
+			shardEnd   = ingesterEnd
+		)
+
+		// We only want to adjust the interval when we have more than one shard.
+		if shards > 1 {
+			shardStart = ingesterStart + uint32(i)*interval
+			shardEnd = shardStart + interval
+		}
 
 		// Adjust the last shard's end time to match the end time of the range
 		if i == s.cfg.IngesterShards-1 {

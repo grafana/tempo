@@ -414,7 +414,7 @@ func TestIngesterRequests(t *testing.T) {
 			ingesterShards:      1,
 		},
 		// start/end = 20 - 10 mins ago - break across query ingesters until
-		//  ingester start/End = 15 - 10 mins ago
+		//  ingester start/End = 15 - 10 mins ago -- 5 minutes split in 2 shards.
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=12ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("20m")) + "&end=" + strconv.Itoa(ago("10m")),
 			queryIngestersUntil: 15 * time.Minute,
@@ -424,6 +424,7 @@ func TestIngesterRequests(t *testing.T) {
 			},
 			ingesterShards: 2,
 		},
+		// start/end when entirely within the ingester search window when split across 3 shards.
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
 			queryIngestersUntil: 15 * time.Minute,
@@ -433,6 +434,15 @@ func TestIngesterRequests(t *testing.T) {
 				"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m")) + "&tags=foo%3Dbar",
 			},
 			ingesterShards: 3,
+		},
+		// start/end when entirely within ingeste search window, but check that we don't shard too much.
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
+			queryIngestersUntil: 5 * time.Minute,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("0s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 6,
 		},
 	}
 
