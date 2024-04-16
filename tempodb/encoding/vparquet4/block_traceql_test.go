@@ -745,7 +745,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+			for _, minutes := range []int{5, 7} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
 					st := meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)

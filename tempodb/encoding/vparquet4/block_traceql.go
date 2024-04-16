@@ -650,12 +650,14 @@ type bridgeIterator struct {
 	cb   traceql.SecondPassFn
 
 	nextSpans []*span
+	at        *parquetquery.IteratorResult
 }
 
 func newBridgeIterator(iter parquetquery.Iterator, cb traceql.SecondPassFn) *bridgeIterator {
 	return &bridgeIterator{
 		iter: iter,
 		cb:   cb,
+		at:   parquetquery.DefaultPool.Get(),
 	}
 }
 
@@ -668,7 +670,7 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 	if len(i.nextSpans) > 0 {
 		ret := i.nextSpans[0]
 		i.nextSpans = i.nextSpans[1:]
-		return spanToIteratorResult(ret), nil
+		return i.spanToIteratorResult(ret), nil
 	}
 
 	for {
@@ -718,8 +720,6 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 			}
 		}
 
-		res.Release()
-
 		sort.Slice(i.nextSpans, func(j, k int) bool {
 			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpansILSSpan, i.nextSpans[j].rowNum, i.nextSpans[k].rowNum) == -1
 		})
@@ -728,13 +728,14 @@ func (i *bridgeIterator) Next() (*parquetquery.IteratorResult, error) {
 		if len(i.nextSpans) > 0 {
 			ret := i.nextSpans[0]
 			i.nextSpans = i.nextSpans[1:]
-			return spanToIteratorResult(ret), nil
+			return i.spanToIteratorResult(ret), nil
 		}
 	}
 }
 
-func spanToIteratorResult(s *span) *parquetquery.IteratorResult {
-	res := parquetquery.DefaultPool.Get()
+func (i *bridgeIterator) spanToIteratorResult(s *span) *parquetquery.IteratorResult {
+	res := i.at
+	res.Reset()
 	res.RowNumber = s.rowNum
 	res.AppendOtherValue(otherEntrySpanKey, s)
 
@@ -753,6 +754,7 @@ func (i *bridgeIterator) SeekTo(to parquetquery.RowNumber, definitionLevel int) 
 
 func (i *bridgeIterator) Close() {
 	i.iter.Close()
+	parquetquery.DefaultPool.Release(i.at)
 }
 
 // confirm rebatchIterator implements parquetquery.Iterator
@@ -761,14 +763,15 @@ var _ parquetquery.Iterator = (*rebatchIterator)(nil)
 // rebatchIterator either passes spansets through directly OR rebatches them based on metadata
 // in OtherEntries
 type rebatchIterator struct {
-	iter parquetquery.Iterator
-
+	iter      parquetquery.Iterator
+	at        *parquetquery.IteratorResult
 	nextSpans []*span
 }
 
 func newRebatchIterator(iter parquetquery.Iterator) *rebatchIterator {
 	return &rebatchIterator{
 		iter: iter,
+		at:   parquetquery.DefaultPool.Get(),
 	}
 }
 
@@ -849,7 +852,6 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 			i.nextSpans = append(i.nextSpans, sp)
 		}
 
-		res.Release()
 		putSpanset(ss) // Repool the spanset but not the spans which have been moved to nextSpans as needed.
 
 		res = i.resultFromNextSpans()
@@ -866,7 +868,8 @@ func (i *rebatchIterator) resultFromNextSpans() *parquetquery.IteratorResult {
 		i.nextSpans = i.nextSpans[1:]
 
 		if ret.cbSpansetFinal && ret.cbSpanset != nil {
-			res := parquetquery.DefaultPool.Get()
+			res := i.at
+			res.Reset()
 			res.AppendOtherValue(otherEntrySpansetKey, ret.cbSpanset)
 			return res
 		}
@@ -881,6 +884,7 @@ func (i *rebatchIterator) SeekTo(to parquetquery.RowNumber, definitionLevel int)
 
 func (i *rebatchIterator) Close() {
 	i.iter.Close()
+	parquetquery.DefaultPool.Release(i.at)
 }
 
 // spansetIterator turns the parquet iterator into the final
@@ -905,8 +909,6 @@ func (i *spansetIterator) Next(context.Context) (*traceql.Spanset, error) {
 	if res == nil {
 		return nil, nil
 	}
-
-	defer res.Release()
 
 	// The spanset is in the OtherEntries
 	iface := res.OtherValueFromKey(otherEntrySpansetKey)
