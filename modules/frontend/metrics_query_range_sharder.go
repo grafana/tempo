@@ -261,16 +261,19 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			shardR.ShardID = i
 			shardR.ShardCount = shards
 
+			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
 			if samplingRate != 1.0 {
 				shardR.ShardID *= uint32(1.0 / samplingRate)
 				shardR.ShardCount *= uint32(1.0 / samplingRate)
 
 				// Set final sampling rate after integer rounding
-				// samplingRate = float64(shards) / float64(shardR.ShardCount) - jpe restore
+				samplingRate = float64(shards) / float64(shardR.ShardCount)
+
+				httpReq = pipeline.ContextAddAdditionalData(samplingRate, httpReq)
 			}
 
 			select {
-			case reqCh <- s.toUpstreamRequest(ctx, shardR, parent, tenantID):
+			case reqCh <- httpReq:
 			case <-ctx.Done():
 				return
 			}
@@ -322,20 +325,6 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	// weighted slightly off due to int63/128 sharding boundaries.
 	searchReq.ShardID = uint32(1.0 / samplingRate)
 	searchReq.ShardCount = uint32(1.0 / samplingRate)
-
-	// Set final sampling rate after integer rounding
-	// samplingRate = 1.0 / float64(searchReq.ShardCount)  - jpe restore?
-	/*
-		// Multiply up the sampling rate
-		if job.samplingRate != 1.0 {
-			for _, series := range results.Series {
-				for i, sample := range series.Samples {
-					sample.Value *= 1.0 / job.samplingRate
-					series.Samples[i] = sample
-				}
-			}
-		}
-	*/
 
 	return s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 }

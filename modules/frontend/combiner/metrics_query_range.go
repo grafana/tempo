@@ -18,13 +18,27 @@ func NewQueryRange() Combiner {
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
 		current:        &tempopb.QueryRangeResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse) error {
+		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse, resp PipelineResponse) error {
 			if partial.Metrics != nil {
 				// this is a coordination between the sharder and combiner. the sharder returns one response with summary metrics
 				// only. the combiner correctly takes and accumulates that job. however, if the response has no jobs this is
 				// an indicator this is a "real" response so we set CompletedJobs to 1 to increment in the combiner.
 				if partial.Metrics.TotalJobs == 0 {
 					partial.Metrics.CompletedJobs = 1
+				}
+			}
+
+			samplingRate := resp.AdditionalData()
+			if samplingRate != nil {
+				fRate := samplingRate.(float64)
+
+				// Set final sampling rate after integer rounding
+				// Multiply up the sampling rate
+				for _, series := range partial.Series {
+					for i, sample := range series.Samples {
+						sample.Value *= 1.0 / fRate
+						series.Samples[i] = sample
+					}
 				}
 			}
 
@@ -46,7 +60,7 @@ func NewQueryRange() Combiner {
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
-			sortResponse(resp) // jpe - do we need to sort?
+			sortResponse(resp)
 			return resp, nil
 		},
 	}

@@ -19,7 +19,7 @@ func NewSearch(limit int) Combiner {
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchResponse { return &tempopb.SearchResponse{} },
 		current:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(partial *tempopb.SearchResponse, final *tempopb.SearchResponse) error {
+		combine: func(partial *tempopb.SearchResponse, final *tempopb.SearchResponse, _ PipelineResponse) error {
 			for _, t := range partial.Traces {
 				// if we've reached the limit and this is NOT a new trace then skip it
 				if limit > 0 &&

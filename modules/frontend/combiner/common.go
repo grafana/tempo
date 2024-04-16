@@ -29,7 +29,7 @@ type genericCombiner[T TResponse] struct {
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
 
 	new      func() T
-	combine  func(partial T, final T) error
+	combine  func(partial T, final T, resp PipelineResponse) error
 	finalize func(T) (T, error)
 	diff     func(T) (T, error) // currently only implemented by the search combiner. required for streaming
 	quit     func(T) bool
@@ -74,7 +74,7 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 		return fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
-	if err := c.combine(partial, c.current); err != nil {
+	if err := c.combine(partial, c.current, r); err != nil {
 		c.httpRespBody = internalErrorMsg
 		return fmt.Errorf("error combining in combiner: %w", err)
 	}
