@@ -446,7 +446,7 @@ func TestIngesterRequests(t *testing.T) {
 				"/querier?end=" + strconv.Itoa(ago("1m2s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("2m4s")) + "&tags=foo%3Dbar",
 				"/querier?end=" + strconv.Itoa(ago("0s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("1m2s")) + "&tags=foo%3Dbar",
 			},
-			ingesterShards: 5,
+			ingesterShards: 6,
 		},
 	}
 
