@@ -19,11 +19,10 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// jpe - remove docs on prom compat
-
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO) // jpe - change to metrics SLO?
+	// todo: should traceql metrics queries contribute to the search SLO or should we create a new one? as is they use the same settings and contribute to search
+	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_QueryRangeServer) error {

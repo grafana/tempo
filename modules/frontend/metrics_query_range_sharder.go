@@ -78,6 +78,9 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		return pipeline.NewBadRequest(err), nil
 	}
 
+	if req.Step == 0 {
+		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
+	}
 	alignTimeRange(req)
 
 	// calculate and enforce max search duration
