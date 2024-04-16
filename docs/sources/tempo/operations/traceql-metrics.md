@@ -24,7 +24,7 @@ For example:
 { resource.service.name = "foo" && status = error } | rate()
 ```
 
-In this case, we are calculating the rate of the erroring spans coming from the service `foo`. Rate is a `spans/sec` quantity. 
+In this case, we are calculating the rate of the erroring spans coming from the service `foo`. Rate is a `spans/sec` quantity.
 Combined with the `by()` operator, this can be even more powerful!
 
 ```
@@ -56,7 +56,7 @@ Once the `local-blocks` processor is enabled in your `metrics-generator`
 configuration, you can configure it using the following block to make sure
 it records all spans for TraceQL metrics.
 
-Here is an example configuration: 
+Here is an example configuration:
 ```yaml
  metrics_generator:
   processor:
@@ -85,7 +85,7 @@ Consider these areas when raising timeouts:
   - `server.http_server_read_timeout`
   - `server.http_server_write_timeout`
 
-Additionally, a new `query_frontend.metrics` config has been added.  The config
+Additionally, a new `query_frontend.metrics` config has been added. The config
 here will depend on the environment.
 
 For example, in a cloud environment, smaller jobs with more concurrency may be

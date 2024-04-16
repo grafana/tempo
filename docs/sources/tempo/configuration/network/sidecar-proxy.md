@@ -22,7 +22,7 @@ The overall network looks like this:
 
 ![Tempo distributed network overview](/static/img/docs/tempo/sidecar-proxy/tempo-network-sidecar-proxy-simple.svg)
 
-The low-level ring data for ingesters can be viewed by browsing to the `/ingester/ring` URL on a distributor.  It looks like this:
+The low-level ring data for ingesters can be viewed by browsing to the `/ingester/ring` URL on a distributor. It looks like this:
 
 ![Ring status with default port](/static/img/docs/tempo/sidecar-proxy/screenshot-tempo-sidecar.png)
 

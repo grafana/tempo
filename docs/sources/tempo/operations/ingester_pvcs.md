@@ -36,7 +36,7 @@ The following configuration has worked successfully on GKE with GCS:
 
    `kubectl delete sts --cascade=false -n <namespace> ingester`
 
-1. Edit and recreate the Statefulset with the new size. This covers new pods.  There are many ways to deploy Tempo to Kubernetes, these are examples for the popular ones:
+1. Edit and recreate the Statefulset with the new size. This covers new pods. There are many ways to deploy Tempo to Kubernetes, these are examples for the popular ones:
     * Raw YAML: `kubectl apply -f <something>.yaml`
     * Helm: `helm upgrade ... tempo ...`
     * Tanka: `tk apply ...`

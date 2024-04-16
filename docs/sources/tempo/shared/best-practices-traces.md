@@ -91,7 +91,7 @@ You can consider breaking up the spans in several ways:
    - For example, if a complex SQL query involves multiple operations (for example, uses joins, subqueries, or unions), consider creating separate spans for each significant operation.
 - Improve granulation of long-running spans
      - For long-running operations, you could create a new span for every predetermined interval of execution time.
-        {{% admonition type="note" %}}
+        {{< admonition type="note" >}}
         This requires time-based tracking in your application's code and is more complex to implement.
         {{% /admonition %}}
 - Use span linking

@@ -26,7 +26,7 @@ The most basic functionality is to visualize a trace using its ID. Select the Tr
 
 ## Finding traces using Loki logs
 
-Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](/docs/grafana/latest/datasources/loki/#derived-fields).
+Traces can be discovered by searching logs for entries containing trace IDs. This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc. This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](/docs/grafana/latest/datasources/loki/#derived-fields).
 
 ## Find traces using Tempo tags search
 
@@ -59,7 +59,7 @@ A local JSON file containing a trace can be imported and viewed in the Grafana U
 
 The JSON data can be downloaded via the Tempo API or the [Inspector panel](/docs/grafana/latest/explore/explore-inspector/) while viewing the trace in Grafana.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 To perform this action on Grafana 10.1 or later, select a Tempo data source, select **Explore** from the main menu, and then select **Import trace**.
 {{% /admonition %}}
 

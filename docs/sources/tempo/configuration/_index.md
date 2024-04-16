@@ -1,7 +1,7 @@
 ---
 title: Configure Tempo
 menuTitle: Configure
-description: Learn about Tempo's available options and how to configure them.
+description: Learn about available options in Tempo and how to configure them.
 weight: 400
 aliases:
 - /docs/tempo/latest/configuration/
@@ -11,7 +11,7 @@ aliases:
 
 This document explains the configuration options for Tempo as well as the details of what they impact.
 
-{{% admonition type="tip" %}}
+{{< admonition type="tip" >}}
 Instructions for configuring Tempo data sources are available in the [Grafana Cloud](/docs/grafana-cloud/send-data/traces/) and [Grafana](/docs/grafana/latest/datasources/tempo/) documentation.
 {{% /admonition %}}
 
@@ -34,6 +34,8 @@ The Tempo configuration options include:
     - [Ingestion limits](#ingestion-limits)
       - [Standard overrides](#standard-overrides)
       - [Tenant-specific overrides](#tenant-specific-overrides)
+        - [Runtime overrides](#runtime-overrides)
+        - [User-configurable overrides](#user-configurable-overrides)
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
   - [Cache](#cache)
@@ -66,7 +68,7 @@ You can find more about other supported syntax [here](https://github.com/drone/e
 
 ## Server
 
-Tempo uses the server from `dskit/server`. For more information on configuration options, see [here](https://github.com/grafana/dskit/blob/main/server/server.go#L66).
+Tempo uses the server from `dskit/server`. For more information on configuration options, refer to [this file](https://github.com/grafana/dskit/blob/main/server/server.go#L66).
 
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
@@ -119,7 +121,7 @@ server:
 
 ## Distributor
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
 Distributors receive spans and forward them to the appropriate ingesters.
 
@@ -221,7 +223,7 @@ distributor:
 
 ## Ingester
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
 
@@ -269,7 +271,7 @@ ingester:
 
 ## Metrics-generator
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{< relref "../metrics-generator" >}}).
@@ -408,7 +410,7 @@ metrics_generator:
 
 ## Query-frontend
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
 
@@ -527,13 +529,13 @@ query_frontend:
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.
         [query_backend_after: <duration> | default = 30m ]
 
-        # The target length of time for each job to handle when querying the backend. 
+        # The target length of time for each job to handle when querying the backend.
         [interval: <duration> | default = 5m ]
 ```
 
 ## Querier
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
 The Querier is responsible for querying the backends/cache for the traceID.
 
@@ -618,15 +620,15 @@ is defined in the storage section below.
 
 ## Compactor
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
-Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
+Compactors stream blocks from the storage backend, combine them and write them back. Values shown below are the defaults.
 
 ```yaml
 compactor:
 
-    # Optional. Disables backend compaction.  Default is false.
-    # Note: This should only be used in a non-production context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
+    # Optional. Disables backend compaction. Default is false.
+    # Note: This should only be used in a non-production context for debugging purposes. This will allow blocks to say in the backend for further investigation if desired.
     [disabled: <bool>]
 
     ring:
@@ -640,7 +642,7 @@ compactor:
 
     compaction:
 
-        # Optional. Duration to keep blocks.  Default is 14 days (336h).
+        # Optional. Duration to keep blocks. Default is 14 days (336h).
         [block_retention: <duration>]
 
         # Optional. Duration to keep blocks that have been compacted elsewhere. Default is 1h.
@@ -653,7 +655,7 @@ compactor:
         # WARNING: Deprecated. Use max_block_bytes instead.
         [max_compaction_objects: <int>]
 
-        # Optional. Maximum size of a compacted block in bytes.  Default is 100 GB.
+        # Optional. Maximum size of a compacted block in bytes. Default is 100 GB.
         [max_block_bytes: <int>]
 
         # Optional. Number of tenants to process in parallel during retention. Default is 10.
@@ -680,7 +682,7 @@ compactor:
 
 Tempo supports Amazon S3, GCS, Azure, and local file system for storage. In addition, you can use Memcached or Redis for increased query performance.
 
-For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
+For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
 ### Local storage recommendations
 
@@ -688,16 +690,19 @@ While you can use local storage, object storage is recommended for production wo
 A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested.
+At Grafana Labs, we have run Tempo with SSDs when using local storage.
+Hard drives haven't been tested.
 
-How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
+You can estimate how much storage space you need by considering the ingested bytes and retention.
+For example, ingested bytes per day *times* retention days = stored bytes.
 
 You can not use both local and object storage in the same Tempo deployment.
 
 ### Storage block configuration example
 
-The storage block is used to configure TempoDB.
-The following example shows common options. For further platform-specific information, refer to the following:
+The storage block configures TempoDB.
+The following example shows common options.
+For further platform-specific information, refer to the following:
 
 * [GCS]({{< relref "./hosted-storage/gcs" >}})
 * [S3]({{< relref "./hosted-storage/s3" >}})
@@ -834,7 +839,7 @@ storage:
             [tls_server_name: <string>]
 
             # optional.
-            # Set to true to disable verification of a TLS endpoint.  The default value is false.
+            # Set to true to disable verification of a TLS endpoint. The default value is false.
             [tls_insecure_skip_verify: <bool>]
 
             # optional.
@@ -842,7 +847,7 @@ storage:
             [tls_cipher_suites: <string>]
 
             # optional.
-            # Override the default minimum TLS version. The default value is VersionTLS12.  Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
+            # Override the default minimum TLS version. The default value is VersionTLS12. Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
             [tls_min_version: <string>]
 
             # optional.
@@ -860,7 +865,7 @@ storage:
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of S3 requests to reduce long tail latency.  This setting is most impactful when
+            # be set to p99 of S3 requests to reduce long tail latency. This setting is most impactful when
             # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
@@ -925,7 +930,7 @@ storage:
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of Axure Blog Storage requests to reduce long tail latency.  This setting is most impactful when
+            # be set to p99 of Axure Blog Storage requests to reduce long tail latency. This setting is most impactful when
             # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
@@ -945,7 +950,7 @@ storage:
         [blocklist_poll_fallback: <bool>]
 
         # Maximum number of compactors that should build the tenant index. All other components will download
-        # the index.  Default 2.
+        # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
@@ -1073,7 +1078,7 @@ storage:
             # block format version. options: v2, vParquet2, vParquet3
             [version: <string> | default = vParquet3]
 
-            # bloom filter false positive rate.  lower values create larger filters but fewer false positives
+            # bloom filter false positive rate. lower values create larger filters but fewer false positives
             [bloom_filter_false_positive: <float> | default = 0.01]
 
             # maximum size of each bloom filter shard
@@ -1082,7 +1087,7 @@ storage:
             # number of bytes per index record
             [v2_index_downsample_bytes: <uint64> | default = 1MiB]
 
-            # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+            # block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [v2_encoding: <string> | default = zstd]
 
             # search data encoding/compression. same options as block encoding.
@@ -1392,7 +1397,7 @@ overrides:
 
     # Global enforced overrides
     global:
-      # Maximum size of a single trace in bytes.  A value of 0 disables the size
+      # Maximum size of a single trace in bytes. A value of 0 disables the size
       # check.
       # This limit is used in 3 places:
       #  - During search, traces will be skipped when they exceed this threshold.
@@ -1418,16 +1423,16 @@ overrides:
   # Tenant-specific overrides settings configuration file. The empty string (default
   # value) disables using an overrides file.
   [per_tenant_override_config: <string> | default = ""]
-        
+
   # How frequent tenant-specific overrides are read from the configuration file.
   [per_tenant_override_period: <druation> | default = 10s]
 
   # User-configurable overrides configuration
   user_configurable_overrides:
-    
+
     # Enable the user-configurable overrides module
     [enabled: <bool> | default = false]
-    
+
     # How often to poll the backend for new user-configurable overrides
     [poll_interval: <duration> | default = 60s]
 
@@ -1556,7 +1561,7 @@ The following configuration values are used:
 
 - Receivers enabled
 - Frontend concurrency and version
-- Storage cache, backend, wal and block encodings
+- Storage cache, backend, WAL and block encodings
 - Ring replication factor, and `kvstore`
 - Features toggles enabled
 
@@ -1571,7 +1576,7 @@ usage_report:
 ```
 
 If you are using a Helm chart, you can enable or disable usage reporting by changing the `reportingEnabled` value.
-This value is available in the the [tempo-distributed](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and the [tempo](https://github.com/grafana/helm-charts/tree/main/charts/tempo) Helm charts.
+This value is available in the [tempo-distributed](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and the [tempo](https://github.com/grafana/helm-charts/tree/main/charts/tempo) Helm charts.
 
 ```yaml
 # -- If true, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs
@@ -1715,7 +1720,7 @@ cache:
             [sentinel_password: <string>]
 ```
 
-Example config:
+Example configuration:
 
 ```yaml
 cache:
