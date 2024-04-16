@@ -12,6 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/fasthash/fnv1a"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -42,7 +43,7 @@ type backendReqMsg struct {
 }
 
 type asyncSearchSharder struct {
-	next      pipeline.AsyncRoundTripper[*http.Response]
+	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader    tempodb.Reader
 	overrides overrides.Interface
 
@@ -51,8 +52,8 @@ type asyncSearchSharder struct {
 }
 
 // newAsyncSearchSharder creates a sharding middleware for search
-func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
-	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
 			next:      next,
 			reader:    reader,
@@ -67,7 +68,7 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 // RoundTrip implements http.RoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
+func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
@@ -115,7 +116,7 @@ func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http
 	}
 
 	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
-	var jobMetricsResponse pipeline.Responses[*http.Response]
+	var jobMetricsResponse pipeline.Responses[combiner.PipelineResponse]
 	if totalJobs > 0 {
 		resp := &tempopb.SearchResponse{
 			Metrics: &tempopb.SearchMetrics{
@@ -307,7 +308,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			if len(key) > 0 {
-				subR = pipeline.AddCacheKey(key, subR)
+				subR = pipeline.ContextAddCacheKey(key, subR)
 			}
 
 			select {

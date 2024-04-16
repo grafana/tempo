@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -510,13 +511,13 @@ func TestBackendRange(t *testing.T) {
 }
 
 func TestTotalJobsIncludesIngester(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
 			Metrics: &tempopb.SearchMetrics{},
 		})
 		require.NoError(t, err)
 
-		return pipeline.NewSyncToAsyncResponse(&http.Response{
+		return pipeline.NewHTTPToAsyncResponse(&http.Response{
 			Body:       io.NopCloser(strings.NewReader(resString)),
 			StatusCode: 200,
 		}), nil
@@ -555,7 +556,8 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 	// find a response with total jobs > . this is the metadata response
 	var resp *tempopb.SearchResponse
 	for {
-		r, done, err := resps.Next(context.Background())
+		res, done, err := resps.Next(context.Background())
+		r := res.HTTPResponse()
 		require.NoError(t, err)
 		require.Equal(t, 200, r.StatusCode)
 
@@ -578,7 +580,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 }
 
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		return nil, nil
 	})
 
@@ -631,14 +633,14 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
 
-func testBadRequestFromResponses(t *testing.T, resp pipeline.Responses[*http.Response], err error, expectedBody string) {
+func testBadRequestFromResponses(t *testing.T, resp pipeline.Responses[combiner.PipelineResponse], err error, expectedBody string) {
 	require.NoError(t, err)
 
 	r, done, err := resp.Next(context.Background())
 	require.NoError(t, err)
 	require.True(t, done) // there should only be one response
 
-	testBadRequest(t, r, err, expectedBody)
+	testBadRequest(t, r.HTTPResponse(), err, expectedBody)
 }
 
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {

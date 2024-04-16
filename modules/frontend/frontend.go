@@ -85,7 +85,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 
 	tracePipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
@@ -93,7 +93,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	searchPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
@@ -101,7 +101,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	searchTagsPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
@@ -109,7 +109,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	searchTagValuesPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
@@ -118,7 +118,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	// metrics summary
 	metricsPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
@@ -126,7 +126,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
@@ -192,7 +192,7 @@ func (q *QueryFrontend) QueryRange(req *tempopb.QueryRangeRequest, srv tempopb.S
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
@@ -223,7 +223,7 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[*http.Response], l
 			"path", req.URL.Path,
 			"err", err)
 
-		return resp, err
+		return resp.HTTPResponse(), err
 	})
 }
 
@@ -247,7 +247,7 @@ func prepareRequestForQueriers(req *http.Request, tenant string, originalURI str
 	req.RequestURI = uri
 }
 
-func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantMiddleware(logger)
 	}
@@ -255,7 +255,7 @@ func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddlewa
 	return pipeline.NewNoopMiddleware()
 }
 
-func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
 	}

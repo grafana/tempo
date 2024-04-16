@@ -2,6 +2,8 @@ package pipeline
 
 import (
 	"net/http"
+
+	"github.com/grafana/tempo/modules/frontend/combiner"
 )
 
 //
@@ -60,8 +62,8 @@ func (f MiddlewareFunc) Wrap(w http.RoundTripper) http.RoundTripper {
 //
 
 // Build takes a slice of async, sync middleware and a http.RoundTripper and builds a request pipeline
-func Build(asyncMW []AsyncMiddleware[*http.Response], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[*http.Response] {
-	asyncPipeline := AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
+func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[combiner.PipelineResponse] {
+	asyncPipeline := AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		for i := len(asyncMW) - 1; i >= 0; i-- {
 			next = asyncMW[i].Wrap(next)
 		}
@@ -77,22 +79,52 @@ func Build(asyncMW []AsyncMiddleware[*http.Response], mw []Middleware, next http
 
 	// bridge the two pipelines
 	bridge := &pipelineBridge{
-		next: syncPipeline.Wrap(next),
+		next:    syncPipeline.Wrap(next),
+		convert: NewHTTPToAsyncResponse,
 	}
 	return asyncPipeline.Wrap(bridge)
 }
 
-var _ AsyncRoundTripper[*http.Response] = (*pipelineBridge)(nil)
+var _ AsyncRoundTripper[combiner.PipelineResponse] = (*pipelineBridge)(nil)
 
 type pipelineBridge struct {
-	next http.RoundTripper
+	next    http.RoundTripper
+	convert func(*http.Response) Responses[combiner.PipelineResponse]
 }
 
-func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[*http.Response], error) {
+func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[combiner.PipelineResponse], error) {
 	r, err := b.next.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewSyncToAsyncResponse(r), nil
+	// check for additional data in the context and echo it back if it exists
+	if val := req.Context().Value(contextEchoAdditionalData); val != nil {
+		return NewHTTPToAsyncResponseWithAdditionalData(r, val), nil
+	}
+
+	return NewHTTPToAsyncResponse(r), nil
+}
+
+func BuildWithCustomResponse(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next http.RoundTripper, fn func(*http.Response) Responses[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
+	asyncPipeline := AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
+		for i := len(asyncMW) - 1; i >= 0; i-- {
+			next = asyncMW[i].Wrap(next)
+		}
+		return next
+	})
+
+	syncPipeline := MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+		for i := len(mw) - 1; i >= 0; i-- {
+			next = mw[i].Wrap(next)
+		}
+		return next
+	})
+
+	// bridge the two pipelines
+	bridge := &pipelineBridge{
+		next:    syncPipeline.Wrap(next),
+		convert: fn,
+	}
+	return asyncPipeline.Wrap(bridge)
 }

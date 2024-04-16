@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"go.uber.org/atomic"
 )
 
@@ -14,23 +15,48 @@ type Responses[T any] interface {
 	Next(context.Context) (T, bool, error) // bool = done
 }
 
-var _ Responses[*http.Response] = syncResponse{}
+var _ Responses[combiner.PipelineResponse] = syncResponse{}
+
+type pipelineResponse struct {
+	r              *http.Response
+	additionalData any
+}
+
+func (p pipelineResponse) HTTPResponse() *http.Response {
+	return p.r
+}
+
+func (s pipelineResponse) AdditionalData() any {
+	return s.additionalData
+}
 
 // syncResponse is a single http.Response that implements the Responses[*http.Response] interface.
 type syncResponse struct {
-	r *http.Response
+	r combiner.PipelineResponse
 }
 
-// NewSyncToAsyncResponse creates a new AsyncResponse that wraps a single http.Response.
-func NewSyncToAsyncResponse(r *http.Response) Responses[*http.Response] {
+// NewHTTPToAsyncResponse creates a new AsyncResponse that wraps a single http.Response.
+func NewHTTPToAsyncResponse(r *http.Response) Responses[combiner.PipelineResponse] {
 	return syncResponse{
-		r: r,
+		r: pipelineResponse{
+			r:              r,
+			additionalData: nil,
+		},
+	}
+}
+
+func NewHTTPToAsyncResponseWithAdditionalData(r *http.Response, additionalData any) Responses[combiner.PipelineResponse] {
+	return syncResponse{
+		r: pipelineResponse{
+			r:              r,
+			additionalData: additionalData,
+		},
 	}
 }
 
 // NewBadRequest creates a new AsyncResponse that wraps a single http.Response with a 400 status code and the provided error message.
-func NewBadRequest(err error) Responses[*http.Response] {
-	return NewSyncToAsyncResponse(&http.Response{
+func NewBadRequest(err error) Responses[combiner.PipelineResponse] {
+	return NewHTTPToAsyncResponse(&http.Response{
 		StatusCode: http.StatusBadRequest,
 		Status:     http.StatusText(http.StatusBadRequest),
 		Body:       io.NopCloser(strings.NewReader(err.Error())),
@@ -38,15 +64,15 @@ func NewBadRequest(err error) Responses[*http.Response] {
 }
 
 // NewSuccessfulResponse creates a new AsyncResponse that wraps a single http.Response with a 200 status code and the provided body.
-func NewSuccessfulResponse(body string) Responses[*http.Response] {
-	return NewSyncToAsyncResponse(&http.Response{
+func NewSuccessfulResponse(body string) Responses[combiner.PipelineResponse] {
+	return NewHTTPToAsyncResponse(&http.Response{
 		StatusCode: http.StatusOK,
 		Status:     http.StatusText(http.StatusOK),
 		Body:       io.NopCloser(strings.NewReader(body)),
 	})
 }
 
-func (s syncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
+func (s syncResponse) Next(ctx context.Context) (combiner.PipelineResponse, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, true, err
 	}
@@ -54,26 +80,26 @@ func (s syncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
 	return s.r, true, nil
 }
 
-var _ Responses[*http.Response] = &asyncResponse{}
+var _ Responses[combiner.PipelineResponse] = &asyncResponse{}
 
 // asyncResponse supports a fan in of a variable number of http.Responses.
 type asyncResponse struct {
-	respChan chan Responses[*http.Response]
+	respChan chan Responses[combiner.PipelineResponse]
 	errChan  chan error
 	err      *atomic.Error
 
-	curResponses Responses[*http.Response]
+	curResponses Responses[combiner.PipelineResponse]
 }
 
 func newAsyncResponse() *asyncResponse {
 	return &asyncResponse{
-		respChan: make(chan Responses[*http.Response]),
+		respChan: make(chan Responses[combiner.PipelineResponse]),
 		errChan:  make(chan error, 1),
 		err:      atomic.NewError(nil),
 	}
 }
 
-func (a *asyncResponse) Send(ctx context.Context, r Responses[*http.Response]) {
+func (a *asyncResponse) Send(ctx context.Context, r Responses[combiner.PipelineResponse]) {
 	select {
 	case <-ctx.Done():
 	case a.respChan <- r:
@@ -98,7 +124,7 @@ func (a *asyncResponse) SendComplete() {
 
 // Next returns the next http.Response or an error if one is available. It always prefers an error over a response.
 // todo: review performance. There is a lot of channel access here
-func (a *asyncResponse) Next(ctx context.Context) (*http.Response, bool, error) {
+func (a *asyncResponse) Next(ctx context.Context) (combiner.PipelineResponse, bool, error) {
 	for {
 		// explicitly check the err channel first. selects are non-deterministic and
 		// if there is an error we want to prioritize it over a valid response

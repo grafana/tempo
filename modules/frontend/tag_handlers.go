@@ -27,7 +27,7 @@ import (
 //nolint:all //deprecated
 
 // newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newTagStreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
+func newTagStreamingGRPCHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
@@ -36,7 +36,7 @@ func newTagStreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Response],
 }
 
 // newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newTagV2StreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
+func newTagV2StreamingGRPCHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
@@ -44,7 +44,7 @@ func newTagV2StreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Response
 	}
 }
 
-func newTagValuesStreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
+func newTagValuesStreamingGRPCHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
@@ -55,7 +55,7 @@ func newTagValuesStreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Resp
 	}
 }
 
-func newTagValuesV2StreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesV2Handler {
+func newTagValuesV2StreamingGRPCHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesV2Handler {
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
@@ -68,7 +68,7 @@ func newTagValuesV2StreamingGRPCHandler(next pipeline.AsyncRoundTripper[*http.Re
 
 // streamingTags abstracts the boilerplate for streaming tags and tag values
 func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
-	next pipeline.AsyncRoundTripper[*http.Response],
+	next pipeline.AsyncRoundTripper[combiner.PipelineResponse],
 	req TReq,
 	downstreamPath string,
 	tagName string,
@@ -121,7 +121,7 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 }
 
 // newTagHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newTagHTTPHandler(next pipeline.AsyncRoundTripper[*http.Response], o overrides.Interface, fnCombiner func(int) combiner.Combiner, logger log.Logger) http.RoundTripper {
+func newTagHTTPHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, fnCombiner func(int) combiner.Combiner, logger log.Logger) http.RoundTripper {
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {

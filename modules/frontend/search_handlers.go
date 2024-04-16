@@ -23,7 +23,7 @@ import (
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, logger log.Logger) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
@@ -71,7 +71,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*
 }
 
 // newSearchHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {

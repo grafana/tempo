@@ -22,7 +22,7 @@ import (
 // jpe - remove docs on prom compat
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
+func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO) // jpe - change to metrics SLO?
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -60,7 +60,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 }
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {

@@ -18,6 +18,11 @@ type TResponse interface {
 	proto.Message
 }
 
+type PipelineResponse interface {
+	HTTPResponse() *http.Response
+	AdditionalData() any
+}
+
 type genericCombiner[T TResponse] struct {
 	mu sync.Mutex
 
@@ -35,10 +40,11 @@ type genericCombiner[T TResponse] struct {
 }
 
 // AddResponse is used to add a http response to the combiner.
-func (c *genericCombiner[T]) AddResponse(res *http.Response) error {
+func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	res := r.HTTPResponse()
 	if res == nil {
 		return nil
 	}

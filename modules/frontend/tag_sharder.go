@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -162,7 +163,7 @@ type tagSearchReq interface {
 }
 
 type searchTagSharder struct {
-	next      pipeline.AsyncRoundTripper[*http.Response]
+	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader    tempodb.Reader
 	overrides overrides.Interface
 
@@ -172,8 +173,8 @@ type searchTagSharder struct {
 }
 
 // newAsyncTagSharder creates a sharding middleware for tags and tag values
-func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
-	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return searchTagSharder{
 			next:         next,
 			reader:       reader,
@@ -188,7 +189,7 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 // RoundTrip implements pipeline.AsyncRoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
+func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	requestCtx := r.Context()
 
 	tenantID, err := user.ExtractOrgID(requestCtx)
@@ -302,7 +303,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
 			if len(key) > 0 {
-				subR = pipeline.AddCacheKey(key, subR)
+				subR = pipeline.ContextAddCacheKey(key, subR)
 			}
 
 			select {

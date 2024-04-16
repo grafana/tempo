@@ -28,13 +28,13 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 		Body:       nil,
 	}
 
-	asyncR := NewSyncToAsyncResponse(expected)
+	asyncR := NewHTTPToAsyncResponse(expected)
 
 	// confirm we get back what we put in
 	actual, done, err := asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, expected, actual.HTTPResponse())
 
 	// confirm errored context is honored
 	ctx, cancel := context.WithCancel(context.Background())
@@ -54,7 +54,7 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 	actual, done, err = asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, expected, actual.HTTPResponse())
 
 	// confirm successful response is expected
 	asyncR = NewSuccessfulResponse("foo")
@@ -66,7 +66,7 @@ func TestNewSyncToAsyncResponse(t *testing.T) {
 	actual, done, err = asyncR.Next(context.Background())
 	require.True(t, done)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, expected, actual.HTTPResponse())
 }
 
 func TestAsyncResponseReturnsResponsesInOrder(t *testing.T) {
@@ -94,7 +94,7 @@ func TestAsyncResponseReturnsResponsesInOrder(t *testing.T) {
 	go func() {
 		ctx := context.Background()
 		for _, r := range expected {
-			asyncR.Send(ctx, NewSyncToAsyncResponse(r))
+			asyncR.Send(ctx, NewHTTPToAsyncResponse(r))
 		}
 		asyncR.SendComplete()
 	}()
@@ -104,7 +104,7 @@ func TestAsyncResponseReturnsResponsesInOrder(t *testing.T) {
 		actual, done, err := asyncR.Next(context.Background())
 		require.False(t, done)
 		require.NoError(t, err)
-		require.Equal(t, e, actual)
+		require.Equal(t, e, actual.HTTPResponse())
 	}
 
 	// next call should be done
@@ -194,7 +194,7 @@ func addResponses(r *asyncResponse) int {
 	ctx := context.Background()
 	r.Send(ctx, childResponse)
 	for i := 0; i < responsesToAdd; i++ {
-		childResponse.Send(ctx, NewSyncToAsyncResponse(&http.Response{}))
+		childResponse.Send(ctx, NewHTTPToAsyncResponse(&http.Response{}))
 	}
 
 	recurse := rand.Intn(2)%2 == 0
@@ -388,11 +388,11 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 }
 
 type sharder struct {
-	next        AsyncRoundTripper[*http.Response]
+	next        AsyncRoundTripper[combiner.PipelineResponse]
 	funcSharder bool
 }
 
-func (s sharder) RoundTrip(r *http.Request) (Responses[*http.Response], error) {
+func (s sharder) RoundTrip(r *http.Request) (Responses[combiner.PipelineResponse], error) {
 	total := 4
 	concurrent := 2
 
@@ -416,7 +416,7 @@ func (s sharder) RoundTrip(r *http.Request) (Responses[*http.Response], error) {
 func BenchmarkNewSyncToAsyncResponse(b *testing.B) {
 	r := &http.Response{}
 	for i := 0; i < b.N; i++ {
-		foo := NewSyncToAsyncResponse(r)
+		foo := NewHTTPToAsyncResponse(r)
 		_ = foo
 	}
 }

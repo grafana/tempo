@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -24,7 +25,7 @@ import (
 )
 
 type queryRangeSharder struct {
-	next      pipeline.AsyncRoundTripper[*http.Response]
+	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader    tempodb.Reader
 	overrides overrides.Interface
 	cfg       QueryRangeSharderConfig
@@ -40,8 +41,8 @@ type QueryRangeSharderConfig struct {
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
-	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
 			next:      next,
 			reader:    reader,
@@ -53,7 +54,7 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 	})
 }
 
-func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
+func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
 	defer span.Finish()
 
@@ -112,7 +113,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.
 	})
 
 	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
-	var jobMetricsResponse pipeline.Responses[*http.Response]
+	var jobMetricsResponse pipeline.Responses[combiner.PipelineResponse]
 	if totalBlocks > 0 {
 		resp := &tempopb.QueryRangeResponse{
 			Metrics: &tempopb.SearchMetrics{
@@ -223,7 +224,6 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	return
 }
 
-// jpe - caching!
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, errFn func(error)) {
 	defer close(reqCh)
 
