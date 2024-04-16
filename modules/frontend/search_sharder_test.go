@@ -438,11 +438,15 @@ func TestIngesterRequests(t *testing.T) {
 		// start/end when entirely within ingeste search window, but check that we don't shard too much.
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
-			queryIngestersUntil: 5 * time.Minute,
+			queryIngestersUntil: 5*time.Minute + 10*time.Second,
 			expectedURI: []string{
-				"/querier?end=" + strconv.Itoa(ago("0s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("4m8s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m10s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("3m6s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("4m8s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("2m4s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("3m6s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("1m2s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("2m4s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("0s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("1m2s")) + "&tags=foo%3Dbar",
 			},
-			ingesterShards: 6,
+			ingesterShards: 5,
 		},
 	}
 
