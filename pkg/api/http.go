@@ -352,10 +352,12 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 	req.Step = uint64(step.Nanoseconds())
 
-	if of, err := strconv.Atoi(r.Form.Get(urlParamShardCount)); err == nil {
+	shardCount, _ := extractQueryParam(r, urlParamShardCount)
+	if of, err := strconv.Atoi(shardCount); err == nil {
 		req.ShardCount = uint32(of)
 	}
-	if shard, err := strconv.Atoi(r.Form.Get(urlParamShard)); err == nil {
+	shard, _ := extractQueryParam(r, urlParamShard)
+	if shard, err := strconv.Atoi(shard); err == nil {
 		req.ShardID = uint32(shard)
 	}
 
@@ -391,10 +393,10 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 func bounds(r *http.Request) (time.Time, time.Time, error) {
 	var (
-		now   = time.Now()
-		start = r.Form.Get(urlParamStart)
-		end   = r.Form.Get(urlParamEnd)
-		since = r.Form.Get(urlParamSince)
+		now      = time.Now()
+		start, _ = extractQueryParam(r, urlParamStart)
+		end, _   = extractQueryParam(r, urlParamEnd)
+		since, _ = extractQueryParam(r, urlParamSince)
 	)
 
 	return determineBounds(now, start, end, since)
@@ -459,7 +461,7 @@ func parseTimestamp(value string, def time.Time) (time.Time, error) {
 }
 
 func step(r *http.Request, start, end time.Time) (time.Duration, error) {
-	value := r.Form.Get(urlParamStep)
+	value, _ := extractQueryParam(r, urlParamStep)
 	if value == "" {
 		return time.Duration(traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))), nil
 	}
