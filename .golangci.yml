@@ -64,7 +64,7 @@ linters-settings:
   errorlint:
     errorf: false # don't check whether fmt.Errorf uses %w to wrap errors
   goconst:
-    min-occurrences: 5
+    ignore-tests: true
 
 issues:
   exclude:
