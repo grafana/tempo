@@ -121,20 +121,20 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 		"name": name,
 	}, r))
 
-  dialTimeout := net.DialTimeout
-  if cfg.TLSEnabled {
-    cfg, err := cfg.TLS.GetTLSConfig()
-    if err != nil {
-      level.Error(logger).Log("msg", "couldn't create TLS configuration", "err", err)
-    } else {
-      dialTimeout = func(func(network string, address string, timeout time.Duration) (net.Conn, error) {
-        base := new(net.Dialer)
-        base.Timeout = timeout
+	dialTimeout := net.DialTimeout
+	if cfg.TLSEnabled {
+		cfg, err := cfg.TLS.GetTLSConfig()
+		if err != nil {
+			level.Error(logger).Log("msg", "couldn't create TLS configuration", "err", err)
+		} else {
+			dialTimeout = func(network string, address string, timeout time.Duration) (net.Conn, error) {
+				base := new(net.Dialer)
+				base.Timeout = timeout
 
-        return tls.DialWithDialer(base, network, address, cfg)
-      }
-    }
-  }
+				return tls.DialWithDialer(base, network, address, cfg)
+			}
+		}
+	}
 
 	newClient := &memcachedClient{
 		DialTimeout: dialTimeout,
@@ -170,8 +170,8 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 	if cfg.CBFailures > 0 {
 		newClient.Client.DialTimeout = newClient.dialViaCircuitBreaker
 	} else {
-    netClient.Client.DialTimeout = dialTimeout
-  }
+		netClient.Client.DialTimeout = dialTimeout
+	}
 
 	if len(cfg.Addresses) > 0 {
 		util_log.WarnExperimentalUse("DNS-based memcached service discovery")
