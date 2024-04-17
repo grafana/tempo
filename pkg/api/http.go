@@ -328,18 +328,18 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error) {
 	req := &tempopb.QueryRangeRequest{}
 
-	if err := r.ParseForm(); err != nil {
-		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
+	// check "query" first. this was originally added for prom compatibility and Grafana still uses it.
+	if s, ok := extractQueryParam(r, "query"); ok {
+		req.Query = s
 	}
 
-	req.Query = r.Form.Get("query")
-	req.QueryMode = r.Form.Get(QueryModeKey)
+	// also check the `q` parameter. this is what all other Tempo endpoints take for a TraceQL query.
+	if s, ok := extractQueryParam(r, urlParamQuery); ok {
+		req.Query = s
+	}
 
-	// if we don't have a query then let's attempt to parse them out of the url
-	//  Grafana posts these params as form data, but BuildQueryRangeRequest below puts them in the url
-	if len(req.Query) == 0 && len(req.QueryMode) == 0 {
-		req.Query = r.Form.Get(urlParamQuery)
-		req.QueryMode = r.Form.Get(QueryModeKey)
+	if s, ok := extractQueryParam(r, QueryModeKey); ok {
+		req.QueryMode = s
 	}
 
 	start, end, _ := bounds(r)
