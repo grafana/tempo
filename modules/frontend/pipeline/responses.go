@@ -26,8 +26,8 @@ func (p pipelineResponse) HTTPResponse() *http.Response {
 	return p.r
 }
 
-func (s pipelineResponse) AdditionalData() any {
-	return s.additionalData
+func (p pipelineResponse) AdditionalData() any {
+	return p.additionalData
 }
 
 // syncResponse is a single http.Response that implements the Responses[*http.Response] interface.

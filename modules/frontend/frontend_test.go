@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -155,8 +154,8 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
-	fmt.Println(err)
 	assert.EqualError(t, err, "frontend metrics concurrent requests should be greater than 0")
+	assert.Nil(t, f)
 
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
@@ -177,6 +176,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics target bytes per request should be greater than 0")
+	assert.Nil(t, f)
 
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
@@ -198,4 +198,5 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics interval should be greater than 0")
+	assert.Nil(t, f)
 }
