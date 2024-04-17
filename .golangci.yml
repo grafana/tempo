@@ -63,6 +63,8 @@ linters-settings:
     exclude: ./.errcheck-exclude.txt
   errorlint:
     errorf: false # don't check whether fmt.Errorf uses %w to wrap errors
+  goconst:
+    ignore-tests: true
 
 issues:
   exclude:
@@ -74,8 +76,3 @@ issues:
     - path: integration/e2e
       linters:
         - unused
-    # it's common to have multiple instances of a string in a test file.
-    # don't flag it with the linter
-    - path: _test\.go
-      linters:
-        - goconst
