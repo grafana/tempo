@@ -32,12 +32,14 @@ func NewQueryRange() Combiner {
 			if samplingRate != nil {
 				fRate := samplingRate.(float64)
 
-				// Set final sampling rate after integer rounding
-				// Multiply up the sampling rate
-				for _, series := range partial.Series {
-					for i, sample := range series.Samples {
-						sample.Value *= 1.0 / fRate
-						series.Samples[i] = sample
+				if fRate != 0.0 {
+					// Set final sampling rate after integer rounding
+					// Multiply up the sampling rate
+					for _, series := range partial.Series {
+						for i, sample := range series.Samples {
+							sample.Value *= 1.0 / fRate
+							series.Samples[i] = sample
+						}
 					}
 				}
 			}
