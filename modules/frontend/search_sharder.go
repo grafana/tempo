@@ -251,7 +251,13 @@ func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID stri
 			break
 		}
 
-		if shardEnd > ingesterEnd {
+		// adjust shardEnd if necessary
+		if shardEnd >= ingesterEnd {
+			shardEnd = ingesterEnd
+		}
+
+		// Adjust the last shard to the end of the range
+		if i == s.cfg.IngesterShards-1 {
 			shardEnd = ingesterEnd
 		}
 
