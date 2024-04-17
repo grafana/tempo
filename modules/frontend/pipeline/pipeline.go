@@ -107,26 +107,3 @@ func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[combiner.Pipeli
 
 	return NewHTTPToAsyncResponse(r), nil
 }
-
-func BuildWithCustomResponse(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next http.RoundTripper, fn func(*http.Response) Responses[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
-	asyncPipeline := AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
-		for i := len(asyncMW) - 1; i >= 0; i-- {
-			next = asyncMW[i].Wrap(next)
-		}
-		return next
-	})
-
-	syncPipeline := MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		for i := len(mw) - 1; i >= 0; i-- {
-			next = mw[i].Wrap(next)
-		}
-		return next
-	})
-
-	// bridge the two pipelines
-	bridge := &pipelineBridge{
-		next:    syncPipeline.Wrap(next),
-		convert: fn,
-	}
-	return asyncPipeline.Wrap(bridge)
-}
