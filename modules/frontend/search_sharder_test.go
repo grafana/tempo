@@ -449,6 +449,19 @@ func TestIngesterRequests(t *testing.T) {
 			},
 			ingesterShards: 6,
 		},
+		// start/end when entirely within ingeste search window, but check that we don't shard too much with a large number of shards for a small window.
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
+			queryIngestersUntil: 5 * time.Minute,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("4m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("3m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("4m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("2m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("3m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("1m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("2m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("0s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("1m")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 30,
+		},
 	}
 
 	for i, tc := range tests {
@@ -475,7 +488,7 @@ func TestIngesterRequests(t *testing.T) {
 			continue
 		}
 		assert.NoError(t, err)
-		require.Equal(t, len(tc.expectedURI), len(reqChan))
+		assert.Equal(t, len(tc.expectedURI), len(reqChan))
 
 		// drain the channel and check the URIs
 		for _, expectedURI := range tc.expectedURI {
