@@ -516,8 +516,15 @@ func TestIngesterRequests(t *testing.T) {
 					// start/end times is within a tollerance for the use of time.Now()
 					// in the code compared to when the tests check the values.
 
-					diff := timeFrom(t, v[0]).Sub(timeFrom(t, values[key][0]))
-					require.LessOrEqual(t, diff, time.Millisecond)
+					actual := timeFrom(t, values[key][0])
+					expected := timeFrom(t, v[0])
+
+					diff := expected.Sub(actual)
+					assert.LessOrEqual(t, diff, time.Millisecond)
+
+					diff = actual.Sub(expected)
+					assert.LessOrEqual(t, diff, time.Millisecond)
+
 					continue
 				}
 
