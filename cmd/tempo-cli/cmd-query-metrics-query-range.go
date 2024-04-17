@@ -18,9 +18,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// jpe
-//   - api docs for additional GRPC endpoint
-//   - rename GRPC: MetricsQueryRange
 type metricsQueryRangeCmd struct {
 	HostPort string `arg:"" help:"tempo host and port. scheme and path will be provided based on query type. e.g. localhost:3200"`
 	TraceQL  string `arg:"" optional:"" help:"traceql query"`
@@ -73,7 +70,7 @@ func (cmd *metricsQueryRangeCmd) searchGRPC(req *tempopb.QueryRangeRequest) erro
 
 	client := tempopb.NewStreamingQuerierClient(clientConn)
 
-	resp, err := client.QueryRange(ctx, req)
+	resp, err := client.MetricsQueryRange(ctx, req)
 	if err != nil {
 		return err
 	}
