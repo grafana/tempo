@@ -170,7 +170,7 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 	if cfg.CBFailures > 0 {
 		newClient.Client.DialTimeout = newClient.dialViaCircuitBreaker
 	} else {
-		netClient.Client.DialTimeout = dialTimeout
+		newClient.Client.DialTimeout = dialTimeout
 	}
 
 	if len(cfg.Addresses) > 0 {
