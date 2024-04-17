@@ -31,10 +31,16 @@ const (
 
 const (
 	DefaultLevel = SpeedDefault
+
+	DefaultConcurrency = 1
 )
 
 type Codec struct {
 	Level Level
+
+	// Concurrency is the number of CPU cores to use for encoding and decoding.
+	// If Concurrency is 0, it will use DefaultConcurrency.
+	Concurrency uint
 
 	encoders sync.Pool // *zstd.Encoder
 	decoders sync.Pool // *zstd.Decoder
@@ -53,7 +59,7 @@ func (c *Codec) Encode(dst, src []byte) ([]byte, error) {
 	if e == nil {
 		var err error
 		e, err = zstd.NewWriter(nil,
-			zstd.WithEncoderConcurrency(1),
+			zstd.WithEncoderConcurrency(c.concurrency()),
 			zstd.WithEncoderLevel(c.level()),
 			zstd.WithZeroFrames(true),
 			zstd.WithEncoderCRC(false),
@@ -71,7 +77,7 @@ func (c *Codec) Decode(dst, src []byte) ([]byte, error) {
 	if d == nil {
 		var err error
 		d, err = zstd.NewReader(nil,
-			zstd.WithDecoderConcurrency(1),
+			zstd.WithDecoderConcurrency(c.concurrency()),
 		)
 		if err != nil {
 			return dst[:0], err
@@ -86,4 +92,11 @@ func (c *Codec) level() Level {
 		return c.Level
 	}
 	return DefaultLevel
+}
+
+func (c *Codec) concurrency() int {
+	if c.Concurrency != 0 {
+		return int(c.Concurrency)
+	}
+	return DefaultConcurrency
 }

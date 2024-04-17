@@ -130,7 +130,7 @@ func (c *columnPages) ReadPage() (Page, error) {
 func (c *columnPages) SeekToRow(rowIndex int64) error {
 	c.index = 0
 
-	for c.index < len(c.pages) && c.pages[c.index].chunk.rowGroup.NumRows >= rowIndex {
+	for c.index < len(c.pages) && c.pages[c.index].chunk.rowGroup.NumRows < rowIndex {
 		rowIndex -= c.pages[c.index].chunk.rowGroup.NumRows
 		c.index++
 	}
@@ -139,8 +139,8 @@ func (c *columnPages) SeekToRow(rowIndex int64) error {
 		if err := c.pages[c.index].SeekToRow(rowIndex); err != nil {
 			return err
 		}
-		for i := range c.pages[c.index:] {
-			p := &c.pages[c.index+i]
+		for i := c.index + 1; i < len(c.pages); i++ {
+			p := &c.pages[i]
 			if err := p.SeekToRow(0); err != nil {
 				return err
 			}
