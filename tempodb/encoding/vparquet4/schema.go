@@ -64,20 +64,6 @@ const (
 	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
 )
 
-type AttrType int32
-
-const (
-	attrTypeNotSupported AttrType = iota
-	attrTypeString
-	attrTypeInt
-	attrTypeDouble
-	attrTypeBool
-	attrTypeStringArray
-	attrTypeIntArray
-	attrTypeDoubleArray
-	attrTypeBoolArray
-)
-
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
 
@@ -126,7 +112,7 @@ var (
 type Attribute struct {
 	Key string `parquet:",snappy,dict"`
 
-	ValueType        AttrType  `parquet:",snappy,delta"`
+	IsArray          bool      `parquet:",snappy"`
 	Value            []string  `parquet:",snappy,dict,list"`
 	ValueInt         []int64   `parquet:",snappy,list"`
 	ValueDouble      []float64 `parquet:",snappy,list"`
@@ -261,7 +247,7 @@ type Trace struct {
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {
 	p.Key = a.Key
-	p.ValueType = 0
+	p.IsArray = false
 	p.Value = p.Value[:0]
 	p.ValueInt = p.ValueInt[:0]
 	p.ValueDouble = p.ValueDouble[:0]
@@ -271,19 +257,15 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 	switch v := a.GetValue().Value.(type) {
 	case *v1.AnyValue_StringValue:
 		p.Value = append(p.Value, v.StringValue)
-		p.ValueType = attrTypeString
 	case *v1.AnyValue_IntValue:
 		p.ValueInt = append(p.ValueInt, v.IntValue)
-		p.ValueType = attrTypeInt
 	case *v1.AnyValue_DoubleValue:
 		p.ValueDouble = append(p.ValueDouble, v.DoubleValue)
-		p.ValueType = attrTypeDouble
 	case *v1.AnyValue_BoolValue:
 		p.ValueBool = append(p.ValueBool, v.BoolValue)
-		p.ValueType = attrTypeBool
 	case *v1.AnyValue_ArrayValue:
+		p.IsArray = true
 		if v.ArrayValue == nil || len(v.ArrayValue.Values) == 0 {
-			p.ValueType = attrTypeStringArray
 			return
 		}
 		switch v.ArrayValue.Values[0].Value.(type) {
@@ -297,7 +279,6 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 				}
 
 				p.Value = append(p.Value, ev.StringValue)
-				p.ValueType = attrTypeStringArray
 			}
 		case *v1.AnyValue_IntValue:
 			for _, e := range v.ArrayValue.Values {
@@ -309,7 +290,6 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 				}
 
 				p.ValueInt = append(p.ValueInt, ev.IntValue)
-				p.ValueType = attrTypeIntArray
 			}
 		case *v1.AnyValue_DoubleValue:
 			for _, e := range v.ArrayValue.Values {
@@ -321,7 +301,6 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 				}
 
 				p.ValueDouble = append(p.ValueDouble, ev.DoubleValue)
-				p.ValueType = attrTypeDoubleArray
 			}
 		case *v1.AnyValue_BoolValue:
 			for _, e := range v.ArrayValue.Values {
@@ -333,7 +312,6 @@ func attrToParquet(a *v1.KeyValue, p *Attribute) {
 				}
 
 				p.ValueBool = append(p.ValueBool, ev.BoolValue)
-				p.ValueType = attrTypeBoolArray
 			}
 		default:
 			attrToParquetTypeUnsupported(a, p)
@@ -348,7 +326,7 @@ func attrToParquetTypeUnsupported(a *v1.KeyValue, p *Attribute) {
 	_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
 	jsonStr := jsonBytes.String()
 	p.ValueUnsupported = &jsonStr
-	p.ValueType = attrTypeNotSupported
+	p.IsArray = false
 }
 
 // traceToParquet converts a tempopb.Trace to this schema's object model. Returns the new object and
@@ -603,90 +581,76 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 	for _, attr := range parquetAttrs {
 		var protoVal v1.AnyValue
 
-		switch attr.ValueType {
-		case attrTypeString:
-			var v v1.AnyValue_StringValue
+		if !attr.IsArray {
 			if len(attr.Value) > 0 {
-				v.StringValue = attr.Value[0]
-			}
-			protoVal.Value = &v
-		case attrTypeInt:
-			var v v1.AnyValue_IntValue
-			if len(attr.ValueInt) > 0 {
-				v.IntValue = attr.ValueInt[0]
-			}
-			protoVal.Value = &v
-		case attrTypeDouble:
-			var v v1.AnyValue_DoubleValue
-			if len(attr.ValueDouble) > 0 {
-				v.DoubleValue = attr.ValueDouble[0]
-			}
-			protoVal.Value = &v
-		case attrTypeBool:
-			var v v1.AnyValue_BoolValue
-			if len(attr.ValueBool) > 0 {
-				v.BoolValue = attr.ValueBool[0]
-			}
-			protoVal.Value = &v
-		case attrTypeStringArray:
-			values := make([]*v1.AnyValue, len(attr.Value))
-
-			anyValues := make([]v1.AnyValue, len(values))
-			strValues := make([]v1.AnyValue_StringValue, len(values))
-			for i, v := range attr.Value {
-				s := &strValues[i]
-				s.StringValue = v
-				values[i] = &anyValues[i]
-				values[i].Value = s
-			}
-
-			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-		case attrTypeIntArray:
-			values := make([]*v1.AnyValue, len(attr.ValueInt))
-
-			anyValues := make([]v1.AnyValue, len(values))
-			intValues := make([]v1.AnyValue_IntValue, len(values))
-			for i, v := range attr.ValueInt {
-				n := &intValues[i]
-				n.IntValue = v
-				values[i] = &anyValues[i]
-				values[i].Value = n
-			}
-
-			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-		case attrTypeDoubleArray:
-			values := make([]*v1.AnyValue, len(attr.ValueDouble))
-
-			anyValues := make([]v1.AnyValue, len(values))
-			intValues := make([]v1.AnyValue_DoubleValue, len(values))
-			for i, v := range attr.ValueDouble {
-				n := &intValues[i]
-				n.DoubleValue = v
-				values[i] = &anyValues[i]
-				values[i].Value = n
-			}
-
-			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-		case attrTypeBoolArray:
-			values := make([]*v1.AnyValue, len(attr.ValueBool))
-
-			anyValues := make([]v1.AnyValue, len(values))
-			intValues := make([]v1.AnyValue_BoolValue, len(values))
-			for i, v := range attr.ValueBool {
-				n := &intValues[i]
-				n.BoolValue = v
-				values[i] = &anyValues[i]
-				values[i].Value = n
-			}
-
-			protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
-		case attrTypeNotSupported:
-			if attr.ValueUnsupported == nil {
+				protoVal.Value = &v1.AnyValue_StringValue{StringValue: attr.Value[0]}
+			} else if len(attr.ValueInt) > 0 {
+				protoVal.Value = &v1.AnyValue_IntValue{IntValue: attr.ValueInt[0]}
+			} else if len(attr.ValueDouble) > 0 {
+				protoVal.Value = &v1.AnyValue_DoubleValue{DoubleValue: attr.ValueDouble[0]}
+			} else if len(attr.ValueBool) > 0 {
+				protoVal.Value = &v1.AnyValue_BoolValue{BoolValue: attr.ValueBool[0]}
+			} else if attr.ValueUnsupported != nil {
+				_ = jsonpb.Unmarshal(bytes.NewBufferString(*attr.ValueUnsupported), &protoVal)
+			} else {
 				continue
 			}
-			_ = jsonpb.Unmarshal(bytes.NewBufferString(*attr.ValueUnsupported), &protoVal)
-		default:
-			continue
+		} else {
+			if len(attr.Value) > 0 {
+				values := make([]*v1.AnyValue, len(attr.Value))
+
+				anyValues := make([]v1.AnyValue, len(values))
+				strValues := make([]v1.AnyValue_StringValue, len(values))
+				for i, v := range attr.Value {
+					s := &strValues[i]
+					s.StringValue = v
+					values[i] = &anyValues[i]
+					values[i].Value = s
+				}
+
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+			} else if len(attr.ValueInt) > 0 {
+				values := make([]*v1.AnyValue, len(attr.ValueInt))
+
+				anyValues := make([]v1.AnyValue, len(values))
+				intValues := make([]v1.AnyValue_IntValue, len(values))
+				for i, v := range attr.ValueInt {
+					n := &intValues[i]
+					n.IntValue = v
+					values[i] = &anyValues[i]
+					values[i].Value = n
+				}
+
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+			} else if len(attr.ValueDouble) > 0 {
+				values := make([]*v1.AnyValue, len(attr.ValueDouble))
+
+				anyValues := make([]v1.AnyValue, len(values))
+				doubleValues := make([]v1.AnyValue_DoubleValue, len(values))
+				for i, v := range attr.ValueDouble {
+					n := &doubleValues[i]
+					n.DoubleValue = v
+					values[i] = &anyValues[i]
+					values[i].Value = n
+				}
+
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+			} else if len(attr.ValueBool) > 0 {
+				values := make([]*v1.AnyValue, len(attr.ValueBool))
+
+				anyValues := make([]v1.AnyValue, len(values))
+				boolValues := make([]v1.AnyValue_BoolValue, len(values))
+				for i, v := range attr.ValueBool {
+					n := &boolValues[i]
+					n.BoolValue = v
+					values[i] = &anyValues[i]
+					values[i].Value = n
+				}
+
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: values}}
+			} else {
+				protoVal.Value = &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{}}}
+			}
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{

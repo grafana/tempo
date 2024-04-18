@@ -442,8 +442,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						attr("str-array", []string{"value-one", "value-two"}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
-						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, ValueType: attrTypeNotSupported},
-						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, ValueType: attrTypeNotSupported},
+						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
+						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
 					},
 					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
@@ -490,8 +490,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
 									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
 									// Unsupported attributes
-									{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, ValueType: attrTypeNotSupported},
-									{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, ValueType: attrTypeNotSupported},
+									{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
+									{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
 								},
 								Events: []Event{
 									{
@@ -908,21 +908,21 @@ func ptr[T any](v T) *T {
 func attr(key string, val any) Attribute {
 	switch val := val.(type) {
 	case string:
-		return Attribute{Key: key, Value: []string{val}, ValueType: attrTypeString}
+		return Attribute{Key: key, Value: []string{val}, IsArray: false}
 	case []string:
-		return Attribute{Key: key, Value: val, ValueType: attrTypeStringArray}
+		return Attribute{Key: key, Value: val, IsArray: true}
 	case int:
-		return Attribute{Key: key, ValueInt: []int64{int64(val)}, ValueType: attrTypeInt}
+		return Attribute{Key: key, ValueInt: []int64{int64(val)}, IsArray: false}
 	case []int64:
-		return Attribute{Key: key, ValueInt: val, ValueType: attrTypeIntArray}
+		return Attribute{Key: key, ValueInt: val, IsArray: true}
 	case float64:
-		return Attribute{Key: key, ValueDouble: []float64{val}, ValueType: attrTypeDouble}
+		return Attribute{Key: key, ValueDouble: []float64{val}, IsArray: false}
 	case []float64:
-		return Attribute{Key: key, ValueDouble: val, ValueType: attrTypeDoubleArray}
+		return Attribute{Key: key, ValueDouble: val, IsArray: true}
 	case bool:
-		return Attribute{Key: key, ValueBool: []bool{val}, ValueType: attrTypeBool}
+		return Attribute{Key: key, ValueBool: []bool{val}, IsArray: false}
 	case []bool:
-		return Attribute{Key: key, ValueBool: val, ValueType: attrTypeBoolArray}
+		return Attribute{Key: key, ValueBool: val, IsArray: true}
 	default:
 		panic(fmt.Sprintf("type %T not supported for attribute '%s'", val, key))
 	}
