@@ -37,7 +37,7 @@ query
 job
 : A shard of a search query, the lowest unit of work. A query is broken down into multiple jobs and processed.
 
-Batch
+batch
 : A group of jobs is called a batch.
 
 frontend
@@ -266,8 +266,8 @@ Batching pushes jobs faster to the queriers, and reduce the time spent waiting a
 
 #### Guidelines
 
-* Default value of `max_batch_size` is set to `5`. In testing, `5` is a good default across all sizes of clusters.
-* We DO NOT recommend changing the batch size from the default value of `5`. In testing, `5` was the sweet spot.
+* Default value of `max_batch_size` is set to `5`.
+* We DO NOT recommend changing the batch size from the default value of `5`. Based on testing at Grafana Labs, `5` is a good default.
 * If the batch size is big, you push more jobs at once but it takes longer for the querier to process the batch and return the results back.
 * Big batch size will increase the latency of the querier requests, and they might start hitting timeouts of 5xx, which will increase the rate of retries.
 * Bigger `max_batch_size` results in pushing too many jobs to the queriers. The jobs then have to be canceled if a query is exited early.
@@ -297,7 +297,7 @@ If Tempo manages to answer the search query without executing all 5000 jobs, Tem
 ### `query_frontend.max_retries` parameter
 
 This option controls the number of times to retry a request sent to a querier.
-Current configurations only retry if the return is 5xx (_translated from equivalent gRPC error_) from a querier.
+We only retry on 5xx from a queriers (_translated from equivalent gRPC error_).
 
 #### Guidelines
 
@@ -322,8 +322,8 @@ This option controls the upper limit on the size of a job, and can be used as a 
 #### Guidelines
 
 * Setting this to a small value produces too many jobs, and results in more overhead, setting it too high produces big jobs. Queriers might struggle to finish those jobs and it can lead to high latency.
-* In testing, 100MB to 200MB is a sweet spot for this configuration, and works best across different sizes of clusters.
-* We recommend keeping this fixed within the recommended range and not changing it.
+* In testing at Grafana Labs, 100MB to 200MB is a good range for this configuration, and works across different sizes of clusters.
+* We recommend keeping this fixed within the recommended range.
 
 ### `querier.search.prefer_self` parameter
 
