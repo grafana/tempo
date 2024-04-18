@@ -66,13 +66,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		return nil, ErrUnconfigured
 	}
 
-	// clean the wal before everything
-	err := os.RemoveAll(cfg.Storage.Path)
-	if err != nil {
-		level.Warn(logger).Log("msg", "failed to remove wal on start up")
-	}
-
-	err = os.MkdirAll(cfg.Storage.Path, os.ModePerm)
+	err := os.MkdirAll(cfg.Storage.Path, os.ModePerm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mkdir on %s: %w", cfg.Storage.Path, err)
 	}
