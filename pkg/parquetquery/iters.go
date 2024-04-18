@@ -1331,7 +1331,6 @@ func (c *ColumnIterator) storeErr(msg string, err error) {
 type JoinIterator struct {
 	definitionLevel int
 	iters           []Iterator
-	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
 	pool            *ResultPool
@@ -1344,7 +1343,6 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate,
 	j := &JoinIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
-		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
 		pool:            DefaultPool,
@@ -1375,11 +1373,8 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 	// Else we progress the iterators and try again.
 	// There is an optimization here in that we can seek to the highest
 	// row seen. It's impossible to have joins before that row.
+outer:
 	for {
-		lowestRowNumber := MaxRowNumber()
-		highestRowNumber := EmptyRowNumber()
-		j.lowestIters = j.lowestIters[:0]
-
 		for iterNum := range j.iters {
 			res, err := j.peek(iterNum)
 			if err != nil {
@@ -1391,45 +1386,39 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 				return nil, nil
 			}
 
-			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
-			switch c {
-			case -1:
-				// New lowest, reset
-				j.lowestIters = j.lowestIters[:0]
-				lowestRowNumber = res.RowNumber
-				fallthrough
-
-			case 0:
-				// Same, append
-				j.lowestIters = append(j.lowestIters, iterNum)
+			if iterNum == 0 {
+				continue
 			}
 
-			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
-				// New high water mark
-				highestRowNumber = res.RowNumber
-			}
-		}
-
-		// All iterators pointing at same row?
-		if len(j.lowestIters) == len(j.iters) {
-			// Get the data
-			result, err := j.collect(lowestRowNumber)
+			err = j.seek(iterNum, j.peeks[0].RowNumber, j.definitionLevel)
 			if err != nil {
-				return nil, fmt.Errorf("join iterator collect failed: %w", err)
+				return nil, err
 			}
 
-			// Keep group?
-			if j.pred == nil || j.pred.KeepGroup(result) {
-				// Yes
-				return result, nil
+			if CompareRowNumbers(j.definitionLevel, res.RowNumber, j.peeks[0].RowNumber) == 1 {
+				// We already don't have a match so move
+				// first iter and try again. This row number is higher
+				// so we seek the first iter ahead
+				err := j.seek(0, res.RowNumber, j.definitionLevel)
+				if err != nil {
+					return nil, err
+				}
+
+				continue outer
 			}
 		}
 
-		// Skip all iterators to the highest row seen, it's impossible
-		// to find matches before that.
-		err := j.seekAll(highestRowNumber, j.definitionLevel)
+		// All iterators pointing at same row
+		// Get the data
+		result, err := j.collect(j.peeks[0].RowNumber)
 		if err != nil {
-			return nil, fmt.Errorf("join iterator seekAll failed: %w", err)
+			return nil, fmt.Errorf("join iterator collect failed: %w", err)
+		}
+
+		// Keep group?
+		if j.pred == nil || j.pred.KeepGroup(result) {
+			// Yes
+			return result, nil
 		}
 	}
 }
@@ -1440,6 +1429,18 @@ func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 		return nil, fmt.Errorf("join iterator seekAll failed: %w", err)
 	}
 	return j.Next()
+}
+
+func (j *JoinIterator) seek(iterNum int, t RowNumber, d int) error {
+	var err error
+	t = TruncateRowNumber(d, t)
+	if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
+		j.peeks[iterNum], err = j.iters[iterNum].SeekTo(t, d)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (j *JoinIterator) seekAll(t RowNumber, d int) error {
@@ -1503,7 +1504,6 @@ func (j *JoinIterator) Close() {
 type LeftJoinIterator struct {
 	definitionLevel              int
 	required, optional           []Iterator
-	lowestIters                  []int
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
 	pool                         *ResultPool
@@ -1524,7 +1524,6 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		definitionLevel: definitionLevel,
 		required:        required,
 		optional:        optional,
-		lowestIters:     make([]int, len(required)),
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
@@ -1560,11 +1559,8 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 	// Else we progress the iterators and try again.
 	// There is an optimization here in that we can seek to the highest
 	// row seen. It's impossible to have joins before that row.
+outer:
 	for {
-		lowestRowNumber := MaxRowNumber()
-		highestRowNumber := EmptyRowNumber()
-		j.lowestIters = j.lowestIters[:0]
-
 		for iterNum := range j.required {
 			res, err := j.peek(iterNum)
 			if err != nil {
@@ -1576,45 +1572,39 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 				return nil, nil
 			}
 
-			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
-			switch c {
-			case -1:
-				// New lowest, reset
-				j.lowestIters = j.lowestIters[:0]
-				lowestRowNumber = res.RowNumber
-				fallthrough
-
-			case 0:
-				// Same, append
-				j.lowestIters = append(j.lowestIters, iterNum)
+			if iterNum == 0 {
+				continue
 			}
 
-			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
-				// New high water mark
-				highestRowNumber = res.RowNumber
-			}
-		}
-
-		// All iterators pointing at same row?
-		if len(j.lowestIters) == len(j.required) {
-			// Get the data
-			result, err := j.collect(lowestRowNumber)
+			err = j.seek(iterNum, j.peeksRequired[0].RowNumber, j.definitionLevel)
 			if err != nil {
 				return nil, err
 			}
 
-			// Keep group?
-			if j.pred == nil || j.pred.KeepGroup(result) {
-				// Yes
-				return result, nil
+			if CompareRowNumbers(j.definitionLevel, res.RowNumber, j.peeksRequired[0].RowNumber) == 1 {
+				// We already don't have a match so move
+				// first iter and try again. This row number is higher
+				// so we seek the first iter ahead
+				err = j.seek(0, res.RowNumber, j.definitionLevel)
+				if err != nil {
+					return nil, err
+				}
+
+				continue outer
 			}
 		}
 
-		// Skip all iterators to the highest row seen, it's impossible
-		// to find matches before that.
-		err := j.seekAll(highestRowNumber, j.definitionLevel)
+		// All iterators pointing at same row
+		// Get the data
+		result, err := j.collect(j.peeksRequired[0].RowNumber)
 		if err != nil {
 			return nil, err
+		}
+
+		// Keep group?
+		if j.pred == nil || j.pred.KeepGroup(result) {
+			// Yes
+			return result, nil
 		}
 	}
 }
@@ -1626,6 +1616,17 @@ func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
 	}
 
 	return j.Next()
+}
+
+func (j *LeftJoinIterator) seek(iterNum int, t RowNumber, d int) (err error) {
+	t = TruncateRowNumber(d, t)
+	if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+		j.peeksRequired[iterNum], err = j.required[iterNum].SeekTo(t, d)
+		if err != nil {
+			return
+		}
+	}
+	return nil
 }
 
 func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
