@@ -11,7 +11,7 @@ Regardless of whether or not you are using TraceQL or the original search API, T
 in the specified time range.
 Depending on your volume, this may result in slow queries.
 
-This document explains how Tempo’s read path works, what controls you have to tune the read path, details of the core configuration options, and how to tune these configuration options to get the most out of your Tempo cluster.
+This document explains how read path in Tempo works, what controls you have to tune the read path, details of the core configuration options, and how to tune these configuration options to get the most out of your Tempo cluster.
 
 The general advice is to scale your compactors and queriers. Additional queriers can more effectively run jobs in parallel
 while additional compactors more aggressively reduce the length of your blocklist and copies of data (if using `RF=3`).
