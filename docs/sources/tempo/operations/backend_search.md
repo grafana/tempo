@@ -214,7 +214,7 @@ Scaling up queriers is a safe way to add more query capacity.
 At Grafana Labs, we prefer to scale queries horizontally by adding more replicas.
 If you see out of memory (OOM) errors, it might be worth scaling the queriers vertically.
 
-There should always be two replicas of query-frontends in a cluster.
+We recommend running at least two replicates of query-frontend. These replicas should be scaled vertically instead of horizontally. 
 If you need to scale, scale query-frontends vertically by adding more CPU and RAM.
 Currently, query-frontends aren’t scaled horizontally, but this might change in the future.
 
