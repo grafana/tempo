@@ -211,7 +211,7 @@ For cloud-specific details:
 ## Settings that are safe to increase without major impact.
 
 Scaling up queriers is a safe way to add more query capacity.
-At Grafana, we prefer to scale queries horizontally by adding more replicas.
+At Grafana Labs, we prefer to scale queries horizontally by adding more replicas.
 If you see out of memory (OOM) errors, it might be worth scaling the queriers vertically.
 
 There should always be two replicas of query-frontends in a cluster.
@@ -219,7 +219,8 @@ If you need to scale, scale query-frontends vertically by adding more CPU and RA
 Currently, query-frontends aren’t scaled horizontally, but this might change in the future.
 
 The reason we keep only two replicas is because each query-frontend has its own request queue and it also impacts the amount of jobs sent to each querier.
-If you add more query-frontends, you need to tune other configuration parameters to account for the change. We decided to keep query-frontend to two replicas for now.
+If you add more query-frontends, you need to tune other configuration parameters to account for the change.
+We decided to keep query-frontend to two replicas for now.
 
 In a dedicated cluster, you can increase `query_frontend.max_outstanding_per_tenant` because the cluster is dedicated to a single customer.
 In a shared cluster, you need to use more caution when increasing `querier.max_outstanding_per_tenant`
@@ -297,7 +298,7 @@ If Tempo manages to answer the search query without executing all 5000 jobs, Tem
 ### `query_frontend.max_retries` parameter
 
 This option controls the number of times to retry a request sent to a querier.
-We only retry on 5xx from a queriers (_translated from equivalent gRPC error_).
+We only retry on 5xx from a queriers (_translated from the equivalent gRPC error_).
 
 #### Guidelines
 
@@ -335,7 +336,7 @@ This setting controls the number of job the querier will process before spilling
 
 #### Guidelines
 
-* In testing at Grafana, serverless suffered from cold starts problems. If your query load is predictable, serverless isn't recommended.
+* In testing at Grafana Labs, serverless suffered from cold starts problems. If your query load is predictable, serverless isn't recommended.
 * Increase the value of `prefer_self` if you want to process more jobs in the querier and spill out in extreme cases.
 * Setting this to a very big number is as good as turning it off because the querier tries to process all the jobs and it never spills over to serverless.
 * If we set this to a low value, we spill more jobs to serverless, even when queriers have capacity to process the job, and due to cold start, query latency increases.
