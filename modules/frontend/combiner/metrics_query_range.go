@@ -32,7 +32,7 @@ func NewQueryRange() Combiner {
 			if samplingRate != nil {
 				fRate := samplingRate.(float64)
 
-				if fRate != 0.0 {
+				if fRate <= 1.0 {
 					// Set final sampling rate after integer rounding
 					// Multiply up the sampling rate
 					for _, series := range partial.Series {
