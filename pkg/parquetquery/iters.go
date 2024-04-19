@@ -1366,44 +1366,36 @@ func (j *JoinIterator) String() string {
 }
 
 func (j *JoinIterator) Next() (*IteratorResult, error) {
-	// Here is the algorithm for joins:  On each pass of the iterators
-	// we remember which ones are pointing at the earliest rows. If all
-	// are the lowest (and therefore pointing at the same thing) then
-	// there is a successful join and return the result.
-	// Else we progress the iterators and try again.
-	// There is an optimization here in that we can seek to the highest
-	// row seen. It's impossible to have joins before that row.
 outer:
 	for {
-		for iterNum := range j.iters {
-			res, err := j.peek(iterNum)
+		// Ensure first iter is populated.
+		if j.peeks[0] == nil {
+			res, err := j.peek(0)
 			if err != nil {
-				return nil, fmt.Errorf("join iterator peek failed: %w", err)
+				return nil, err
 			}
-
 			if res == nil {
-				// Iterator exhausted, no more joins possible
 				return nil, nil
 			}
+		}
 
-			if iterNum == 0 {
-				continue
-			}
-
-			err = j.seek(iterNum, j.peeks[0].RowNumber, j.definitionLevel)
+		// The first iter is pointing at the next candidate row. Proceed through iters 2 to N looking
+		// for matches.
+		for iterNum := 1; iterNum < len(j.iters); iterNum++ {
+			err := j.seek(iterNum, j.peeks[0].RowNumber, j.definitionLevel)
 			if err != nil {
 				return nil, err
 			}
 
-			if CompareRowNumbers(j.definitionLevel, res.RowNumber, j.peeks[0].RowNumber) == 1 {
-				// We already don't have a match so move
-				// first iter and try again. This row number is higher
-				// so we seek the first iter ahead
-				err := j.seek(0, res.RowNumber, j.definitionLevel)
-				if err != nil {
-					return nil, err
-				}
+			if j.peeks[iterNum] == nil {
+				return nil, nil
+			}
 
+			if CompareRowNumbers(j.definitionLevel, j.peeks[iterNum].RowNumber, j.peeks[0].RowNumber) == 1 {
+				// This iterator has a higher row number than all previous iterators.  That means it might have
+				// a higher filtering power, swap it to the top and restart the loop.
+				j.iters[0], j.iters[iterNum] = j.iters[iterNum], j.iters[0]
+				j.peeks[0], j.peeks[iterNum] = j.peeks[iterNum], j.peeks[0]
 				continue outer
 			}
 		}
@@ -1451,6 +1443,10 @@ func (j *JoinIterator) seekAll(t RowNumber, d int) error {
 			j.peeks[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return err
+			}
+			if j.peeks[iterNum] == nil {
+				// This iterator is exhausted, no reason to seek the remaining
+				break
 			}
 		}
 	}
@@ -1552,44 +1548,37 @@ func (j *LeftJoinIterator) String() string {
 }
 
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
-	// Here is the algorithm for joins:  On each pass of the iterators
-	// we remember which ones are pointing at the earliest rows. If all
-	// are the lowest (and therefore pointing at the same thing) then
-	// there is a successful join and return the result.
-	// Else we progress the iterators and try again.
-	// There is an optimization here in that we can seek to the highest
-	// row seen. It's impossible to have joins before that row.
 outer:
 	for {
-		for iterNum := range j.required {
-			res, err := j.peek(iterNum)
+		// Ensure first iter is populated
+		if j.peeksRequired[0] == nil {
+			res, err := j.peek(0)
+			if err != nil {
+				return nil, err
+			}
+			if res == nil {
+				return nil, nil
+			}
+		}
+
+		// The first iter is pointing at the next candidate row. Proceed through iters 2 to N looking
+		// for matches.
+		for iterNum := 1; iterNum < len(j.required); iterNum++ {
+			err := j.seek(iterNum, j.peeksRequired[0].RowNumber, j.definitionLevel)
 			if err != nil {
 				return nil, err
 			}
 
-			if res == nil {
-				// Iterator exhausted, no more joins possible
+			if j.peeksRequired[iterNum] == nil {
+				// This iterator is exhausted no more joins possible.
 				return nil, nil
 			}
 
-			if iterNum == 0 {
-				continue
-			}
-
-			err = j.seek(iterNum, j.peeksRequired[0].RowNumber, j.definitionLevel)
-			if err != nil {
-				return nil, err
-			}
-
-			if CompareRowNumbers(j.definitionLevel, res.RowNumber, j.peeksRequired[0].RowNumber) == 1 {
-				// We already don't have a match so move
-				// first iter and try again. This row number is higher
-				// so we seek the first iter ahead
-				err = j.seek(0, res.RowNumber, j.definitionLevel)
-				if err != nil {
-					return nil, err
-				}
-
+			if CompareRowNumbers(j.definitionLevel, j.peeksRequired[iterNum].RowNumber, j.peeksRequired[0].RowNumber) == 1 {
+				// This iterator has a higher row number than all previous iterators.  That means it might have
+				// a higher filtering power, swap it to the top and restart the loop.
+				j.required[0], j.required[iterNum] = j.required[iterNum], j.required[0]
+				j.peeksRequired[0], j.peeksRequired[iterNum] = j.peeksRequired[iterNum], j.peeksRequired[0]
 				continue outer
 			}
 		}
@@ -1636,6 +1625,10 @@ func (j *LeftJoinIterator) seekAll(t RowNumber, d int) (err error) {
 			j.peeksRequired[iterNum], err = iter.SeekTo(t, d)
 			if err != nil {
 				return
+			}
+			if j.peeksRequired[iterNum] == nil {
+				// A required iterator is exhausted, no reason to seek the remaining
+				return nil
 			}
 		}
 	}
