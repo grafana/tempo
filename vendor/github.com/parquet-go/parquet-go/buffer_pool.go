@@ -112,6 +112,191 @@ func (pool *memoryBufferPool) PutBuffer(buf io.ReadWriteSeeker) {
 	}
 }
 
+// NewChunkBufferPool creates a new in-memory page buffer pool.
+//
+// The implementation is backed by sync.Pool and allocates memory buffers on the
+// Go heap in fixed-size chunks.
+func NewChunkBufferPool(chunkSize int) BufferPool {
+	return newChunkMemoryBufferPool(chunkSize)
+}
+
+func newChunkMemoryBufferPool(chunkSize int) *chunkMemoryBufferPool {
+	pool := &chunkMemoryBufferPool{}
+	pool.bytesPool.New = func() any {
+		return make([]byte, chunkSize)
+	}
+	return pool
+}
+
+// chunkMemoryBuffer implements an io.ReadWriteSeeker by storing a slice of fixed-size
+// buffers into which it copies data. (It uses a sync.Pool to reuse buffers across
+// instances.)
+type chunkMemoryBuffer struct {
+	bytesPool *sync.Pool
+
+	data [][]byte
+	idx  int
+	off  int
+}
+
+func (c *chunkMemoryBuffer) Reset() {
+	for i := range c.data {
+		c.bytesPool.Put(c.data[i])
+	}
+	for i := range c.data {
+		c.data[i] = nil
+	}
+	c.data, c.idx, c.off = c.data[:0], 0, 0
+}
+
+func (c *chunkMemoryBuffer) Read(b []byte) (n int, err error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+
+	if c.idx >= len(c.data) {
+		return 0, io.EOF
+	}
+
+	curData := c.data[c.idx]
+
+	if c.idx == len(c.data)-1 && c.off == len(curData) {
+		return 0, io.EOF
+	}
+
+	n = copy(b, curData[c.off:])
+	c.off += n
+
+	if c.off == cap(curData) {
+		c.idx++
+		c.off = 0
+	}
+
+	return n, err
+}
+
+func (c *chunkMemoryBuffer) Write(b []byte) (int, error) {
+	lenB := len(b)
+
+	if lenB == 0 {
+		return 0, nil
+	}
+
+	for len(b) > 0 {
+		if c.idx == len(c.data) {
+			c.data = append(c.data, c.bytesPool.Get().([]byte)[:0])
+		}
+		curData := c.data[c.idx]
+		n := copy(curData[c.off:cap(curData)], b)
+		c.data[c.idx] = curData[:c.off+n]
+		c.off += n
+		b = b[n:]
+		if c.off >= cap(curData) {
+			c.idx++
+			c.off = 0
+		}
+	}
+
+	return lenB, nil
+}
+
+func (c *chunkMemoryBuffer) WriteTo(w io.Writer) (int64, error) {
+	var numWritten int64
+	var err error
+	for err == nil {
+		curData := c.data[c.idx]
+		n, e := w.Write(curData[c.off:])
+		numWritten += int64(n)
+		err = e
+		if c.idx == len(c.data)-1 {
+			c.off = int(numWritten)
+			break
+		}
+		c.idx++
+		c.off = 0
+	}
+	return numWritten, err
+}
+
+func (c *chunkMemoryBuffer) Seek(offset int64, whence int) (int64, error) {
+	// Because this is the common case, we check it first to avoid computing endOff.
+	if offset == 0 && whence == io.SeekStart {
+		c.idx = 0
+		c.off = 0
+		return offset, nil
+	}
+	endOff := c.endOff()
+	switch whence {
+	case io.SeekCurrent:
+		offset += c.currentOff()
+	case io.SeekEnd:
+		offset += endOff
+	}
+	if offset < 0 {
+		return 0, fmt.Errorf("seek: negative offset: %d<0", offset)
+	}
+	if offset > endOff {
+		offset = endOff
+	}
+	// Repeat this case now that we know the absolute offset. This is a bit faster, but
+	// mainly protects us from an out-of-bounds if c.data is empty. (If the buffer is
+	// empty and the absolute offset isn't zero, we'd have errored (if negative) or
+	// clamped to zero (if positive) above.
+	if offset == 0 {
+		c.idx = 0
+		c.off = 0
+	} else {
+		stride := cap(c.data[0])
+		c.idx = int(offset) / stride
+		c.off = int(offset) % stride
+	}
+	return offset, nil
+}
+
+func (c *chunkMemoryBuffer) currentOff() int64 {
+	if c.idx == 0 {
+		return int64(c.off)
+	}
+	return int64((c.idx-1)*cap(c.data[0]) + c.off)
+}
+
+func (c *chunkMemoryBuffer) endOff() int64 {
+	if len(c.data) == 0 {
+		return 0
+	}
+	l := len(c.data)
+	last := c.data[l-1]
+	return int64(cap(last)*(l-1) + len(last))
+}
+
+type chunkMemoryBufferPool struct {
+	sync.Pool
+	bytesPool sync.Pool
+}
+
+func (pool *chunkMemoryBufferPool) GetBuffer() io.ReadWriteSeeker {
+	b, _ := pool.Get().(*chunkMemoryBuffer)
+	if b == nil {
+		b = &chunkMemoryBuffer{bytesPool: &pool.bytesPool}
+	} else {
+		b.Reset()
+	}
+	return b
+}
+
+func (pool *chunkMemoryBufferPool) PutBuffer(buf io.ReadWriteSeeker) {
+	if b, _ := buf.(*chunkMemoryBuffer); b != nil {
+		for _, bytes := range b.data {
+			b.bytesPool.Put(bytes)
+		}
+		for i := range b.data {
+			b.data[i] = nil
+		}
+		b.data = b.data[:0]
+		pool.Put(b)
+	}
+}
+
 type fileBufferPool struct {
 	err     error
 	tempdir string
@@ -155,12 +340,15 @@ func (buf *errorBuffer) WriteTo(io.Writer) (int64, error)  { return 0, buf.err }
 func (buf *errorBuffer) Seek(int64, int) (int64, error)    { return 0, buf.err }
 
 var (
-	defaultColumnBufferPool  memoryBufferPool
+	defaultColumnBufferPool  = *newChunkMemoryBufferPool(256 * 1024)
 	defaultSortingBufferPool memoryBufferPool
 
-	_ io.ReaderFrom = (*errorBuffer)(nil)
-	_ io.WriterTo   = (*errorBuffer)(nil)
-	_ io.WriterTo   = (*memoryBuffer)(nil)
+	_ io.ReaderFrom      = (*errorBuffer)(nil)
+	_ io.WriterTo        = (*errorBuffer)(nil)
+	_ io.ReadWriteSeeker = (*memoryBuffer)(nil)
+	_ io.WriterTo        = (*memoryBuffer)(nil)
+	_ io.ReadWriteSeeker = (*chunkMemoryBuffer)(nil)
+	_ io.WriterTo        = (*chunkMemoryBuffer)(nil)
 )
 
 type readerAt struct {
