@@ -47,7 +47,7 @@ metrics_generator:
       source: tempo
       cluster: docker-compose
   storage:
-    path: /tmp/tempo/generator/wal
+    path: /var/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
@@ -62,9 +62,9 @@ storage:
       secret_key: supersecret
       insecure: true
     wal:
-      path: /tmp/tempo/wal             # where to store the the wal locally
+      path: /var/tempo/wal             # where to store the the wal locally
     local:
-      path: /tmp/tempo/blocks
+      path: /var/tempo/blocks
 
 overrides:
   defaults:

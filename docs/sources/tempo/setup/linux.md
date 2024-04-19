@@ -97,7 +97,7 @@ metrics_generator:
       source: tempo
       cluster: linux-microservices
   storage:
-    path: /tmp/tempo/generator/wal
+    path: /var/tempo/generator/wal
     remote_write:
     - url: http://localhost:9090/api/v1/write
       send_exemplars: true
@@ -114,9 +114,9 @@ storage:
       access_key: # TODO - Add S3 access key
       secret_key: # TODO - Add S3 secret key
     wal:
-      path: /tmp/tempo/wal         # where to store the the wal locally
+      path: /var/tempo/wal         # where to store the the wal locally
     local:
-      path: /tmp/tempo/blocks
+      path: /var/tempo/blocks
 overrides:
   defaults:
     metrics_generator:
@@ -243,7 +243,7 @@ Docker compose uses an internal networking bridge to connect all of the defined 
 1. Alter the Tempo configuration to point to the instance of Prometheus running in docker compose. To do so, edit the configuration at `/etc/tempo/config.yaml` and change the `storage` block under the `metrics_generator` section so that the remote write url is `http://localhost:9090`. The configuration section should look like this:
    ```
     storage:
-        path: /tmp/tempo/generator/wal
+        path: /var/tempo/generator/wal
         remote_write:
            - url: http://localhost:9090/api/v1/write
            send_exemplars: true

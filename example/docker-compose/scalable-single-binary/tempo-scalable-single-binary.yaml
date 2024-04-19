@@ -37,7 +37,7 @@ metrics_generator:
       source: tempo
       cluster: docker-compose
   storage:
-    path: /tmp/tempo/generator/wal
+    path: /var/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true
@@ -46,7 +46,7 @@ storage:
   trace:
     backend: s3                        # backend configuration to use
     wal:
-      path: /tmp/tempo/wal             # where to store the the wal locally
+      path: /var/tempo/wal             # where to store the the wal locally
     s3:
       bucket: tempo                    # how to store data in s3
       endpoint: minio:9000
