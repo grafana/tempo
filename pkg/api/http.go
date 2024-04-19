@@ -82,8 +82,6 @@ const (
 	PathSpanMetricsSummary = "/api/metrics/summary"
 	PathMetricsQueryRange  = "/api/metrics/query_range"
 
-	PathPromQueryRange = "/prom/api/v1/query_range"
-
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
 
@@ -330,12 +328,19 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error) {
 	req := &tempopb.QueryRangeRequest{}
 
-	if err := r.ParseForm(); err != nil {
-		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
+	// check "query" first. this was originally added for prom compatibility and Grafana still uses it.
+	if s, ok := extractQueryParam(r, "query"); ok {
+		req.Query = s
 	}
 
-	req.Query = r.Form.Get("query")
-	req.QueryMode = r.Form.Get(QueryModeKey)
+	// also check the `q` parameter. this is what all other Tempo endpoints take for a TraceQL query.
+	if s, ok := extractQueryParam(r, urlParamQuery); ok {
+		req.Query = s
+	}
+
+	if s, ok := extractQueryParam(r, QueryModeKey); ok {
+		req.QueryMode = s
+	}
 
 	start, end, _ := bounds(r)
 	req.Start = uint64(start.UnixNano())
@@ -347,10 +352,12 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 	req.Step = uint64(step.Nanoseconds())
 
-	if of, err := strconv.Atoi(r.Form.Get(urlParamShardCount)); err == nil {
+	shardCount, _ := extractQueryParam(r, urlParamShardCount)
+	if of, err := strconv.Atoi(shardCount); err == nil {
 		req.ShardCount = uint32(of)
 	}
-	if shard, err := strconv.Atoi(r.Form.Get(urlParamShard)); err == nil {
+	shard, _ := extractQueryParam(r, urlParamShard)
+	if shard, err := strconv.Atoi(shard); err == nil {
 		req.ShardID = uint32(shard)
 	}
 
@@ -386,10 +393,10 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 func bounds(r *http.Request) (time.Time, time.Time, error) {
 	var (
-		now   = time.Now()
-		start = r.Form.Get(urlParamStart)
-		end   = r.Form.Get(urlParamEnd)
-		since = r.Form.Get(urlParamSince)
+		now      = time.Now()
+		start, _ = extractQueryParam(r, urlParamStart)
+		end, _   = extractQueryParam(r, urlParamEnd)
+		since, _ = extractQueryParam(r, urlParamSince)
 	)
 
 	return determineBounds(now, start, end, since)
@@ -454,7 +461,7 @@ func parseTimestamp(value string, def time.Time) (time.Time, error) {
 }
 
 func step(r *http.Request, start, end time.Time) (time.Duration, error) {
-	value := r.Form.Get(urlParamStep)
+	value, _ := extractQueryParam(r, urlParamStep)
 	if value == "" {
 		return time.Duration(traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))), nil
 	}

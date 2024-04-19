@@ -327,6 +327,13 @@ func TestSearchLimitHonored(t *testing.T) {
 			},
 			SLO: testSLOcfg,
 		},
+		Metrics: MetricsConfig{
+			Sharder: QueryRangeSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				Interval:              time.Second,
+			},
+		},
 	}, nil)
 
 	tcs := []struct {
@@ -478,6 +485,13 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				},
 				SLO: testSLOcfg,
 			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              time.Second,
+				},
+			},
 		}, nil)
 
 		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000", nil)
@@ -514,6 +528,13 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				},
 				SLO: testSLOcfg,
+			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              time.Second,
+				},
 			},
 		}, nil)
 
@@ -689,6 +710,13 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				},
 				SLO: testSLOcfg,
+			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              1 * time.Second,
+				},
 			},
 		}
 	}

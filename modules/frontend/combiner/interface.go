@@ -9,7 +9,7 @@ import (
 // Implementations must be thread-safe.
 // TODO: StatusCode() is only used for multi-tenant support. Can we remove it?
 type Combiner interface {
-	AddResponse(r *http.Response) error
+	AddResponse(r PipelineResponse) error
 	StatusCode() int
 	ShouldQuit() bool
 

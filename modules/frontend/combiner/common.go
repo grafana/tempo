@@ -18,13 +18,18 @@ type TResponse interface {
 	proto.Message
 }
 
+type PipelineResponse interface {
+	HTTPResponse() *http.Response
+	AdditionalData() any
+}
+
 type genericCombiner[T TResponse] struct {
 	mu sync.Mutex
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
 
 	new      func() T
-	combine  func(partial T, final T) error
+	combine  func(partial T, final T, resp PipelineResponse) error
 	finalize func(T) (T, error)
 	diff     func(T) (T, error) // currently only implemented by the search combiner. required for streaming
 	quit     func(T) bool
@@ -35,10 +40,11 @@ type genericCombiner[T TResponse] struct {
 }
 
 // AddResponse is used to add a http response to the combiner.
-func (c *genericCombiner[T]) AddResponse(res *http.Response) error {
+func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	res := r.HTTPResponse()
 	if res == nil {
 		return nil
 	}
@@ -68,7 +74,7 @@ func (c *genericCombiner[T]) AddResponse(res *http.Response) error {
 		return fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
-	if err := c.combine(partial, c.current); err != nil {
+	if err := c.combine(partial, c.current, r); err != nil {
 		c.httpRespBody = internalErrorMsg
 		return fmt.Errorf("error combining in combiner: %w", err)
 	}

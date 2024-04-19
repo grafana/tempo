@@ -11,13 +11,13 @@ import (
 )
 
 type GRPCCollector[T combiner.TResponse] struct {
-	next     AsyncRoundTripper[*http.Response]
+	next     AsyncRoundTripper[combiner.PipelineResponse]
 	combiner combiner.GRPCCombiner[T]
 
 	send func(T) error
 }
 
-func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[*http.Response], combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
+func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
 	return &GRPCCollector[T]{
 		next:     next,
 		combiner: combiner,

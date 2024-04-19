@@ -140,6 +140,27 @@ Options:
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
+### Metrics
+Call the Tempo API and generate metrics from traces using TraceQL.
+
+```bash
+tempo-cli query api metrics <host-port> <trace-ql metrics query> [<start> <end>]
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `trace-ql metrics query` TraceQL metrics query.
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use GRPC streaming
+- `--path-prefix <value>` String to prefix search paths with
+
+{{% admonition type="note" %}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
+
 ## Query blocks command
 
 Iterate over all backend blocks and dump all data found for a given trace id.

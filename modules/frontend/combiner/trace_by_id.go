@@ -42,7 +42,7 @@ func NewTraceByID(maxBytes int, contentType string) Combiner {
 	}
 }
 
-func (c *traceByIDCombiner) AddResponse(res *http.Response) error {
+func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -50,6 +50,7 @@ func (c *traceByIDCombiner) AddResponse(res *http.Response) error {
 		return nil
 	}
 
+	res := r.HTTPResponse()
 	if res.StatusCode == http.StatusNotFound {
 		// 404s are not considered errors, so we don't need to do anything.
 		return nil

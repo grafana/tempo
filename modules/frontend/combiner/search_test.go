@@ -39,7 +39,7 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// unparseable body should not quit, but should return an error
 	c = NewSearch(0)
-	err = c.AddResponse(&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200})
+	err = c.AddResponse(&pipelineResponse{&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
@@ -128,8 +128,8 @@ func TestSearchCombinesResults(t *testing.T) {
 func TestSearchResponseCombiner(t *testing.T) {
 	tests := []struct {
 		name      string
-		response1 *http.Response
-		response2 *http.Response
+		response1 PipelineResponse
+		response2 PipelineResponse
 
 		expectedStatus    int
 		expectedResponse  *tempopb.SearchResponse
@@ -386,7 +386,19 @@ func TestSearchDiffsResults(t *testing.T) {
 	require.Equal(t, expectedDiff2, actual)
 }
 
-func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) *http.Response {
+type pipelineResponse struct {
+	r *http.Response
+}
+
+func (p *pipelineResponse) HTTPResponse() *http.Response {
+	return p.r
+}
+
+func (p *pipelineResponse) AdditionalData() any {
+	return nil
+}
+
+func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
 	var body string
 
 	if pb != nil {
@@ -396,10 +408,10 @@ func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) *http.Respon
 		require.NoError(t, err)
 	}
 
-	return &http.Response{
+	return &pipelineResponse{&http.Response{
 		Body:       io.NopCloser(strings.NewReader(body)),
 		StatusCode: statusCode,
-	}
+	}}
 }
 
 func fromHTTPResponse(t *testing.T, r *http.Response, pb proto.Message) {

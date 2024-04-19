@@ -2,9 +2,13 @@
 
 * [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
 * [ENHANCEMENT] Add querier metrics for requests executed [#3524](https://github.com/grafana/tempo/pull/3524) (@electron0zero)
-* [FEATURE] Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
+* [FEATURE] Added gRPC streaming endpoints for Tempo APIs.
+  * Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
+  * Added gRPC streaming endpoints for metrics. [#3584](https://github.com/grafana/tempo/pull/3584) (@joe-elliott)
+  * Reduced memory consumption in the frontend for large traces. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+  * **Breaking Change** Remove trace by id hedging from the frontend. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+  * **Breaking Change** Dropped meta-tag for tenant from trace by id multitenant. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
-* [CHANGE] **Breaking Change** Remove trace by id hedging from the frontend [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
   **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historyically this
   has been owned by root:root, and with this change it will now be owned by

@@ -698,6 +698,39 @@ func Test_parseTimestamp(t *testing.T) {
 	}
 }
 
+func TestQueryRangeRoundtrip(t *testing.T) {
+	tcs := []struct {
+		name string
+		req  *tempopb.QueryRangeRequest
+	}{
+		{
+			name: "empty",
+			req:  &tempopb.QueryRangeRequest{},
+		},
+		{
+			name: "not empty!",
+			req: &tempopb.QueryRangeRequest{
+				Query:      "{ foo = `bar` }",
+				Start:      uint64(24 * time.Hour),
+				End:        uint64(25 * time.Hour),
+				Step:       uint64(30 * time.Second),
+				ShardID:    1,
+				ShardCount: 2,
+				QueryMode:  "foo",
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			httpReq := BuildQueryRangeRequest(nil, tc.req)
+			actualReq, err := ParseQueryRangeRequest(httpReq)
+			require.NoError(t, err)
+			assert.Equal(t, tc.req, actualReq)
+		})
+	}
+}
+
 func Test_determineBounds(t *testing.T) {
 	type args struct {
 		now         time.Time

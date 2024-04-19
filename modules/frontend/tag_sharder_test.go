@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -282,7 +283,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 }
 
 func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		return nil, nil
 	})
 

@@ -13,8 +13,6 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 )
 
-var cacheKey = struct{}{}
-
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return cachingWare{
@@ -37,7 +35,7 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// extract cache key
-	key, ok := req.Context().Value(cacheKey).(string)
+	key, ok := req.Context().Value(contextCacheKey).(string)
 	if ok && len(key) > 0 {
 		body := c.cache.fetchBytes(key)
 		if len(body) > 0 {
@@ -83,10 +81,6 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func shouldCache(statusCode int) bool {
 	return statusCode/100 == 2
-}
-
-func AddCacheKey(key string, req *http.Request) *http.Request {
-	return req.WithContext(context.WithValue(req.Context(), cacheKey, key))
 }
 
 type frontendCache struct {

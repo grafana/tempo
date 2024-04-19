@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,11 +17,11 @@ func TestAsyncSharders(t *testing.T) {
 
 	tcs := []struct {
 		name       string
-		responseFn func(next AsyncRoundTripper[*http.Response]) *asyncResponse
+		responseFn func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse
 	}{
 		{
 			name: "AsyncSharder",
-			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
+			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
 				return NewAsyncSharderFunc(context.Background(), 10, expectedRequestCount, func(i int) *http.Request {
 					if i >= expectedRequestCount {
 						return nil
@@ -31,7 +32,7 @@ func TestAsyncSharders(t *testing.T) {
 		},
 		{
 			name: "AsyncSharder - no limit",
-			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
+			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
 				return NewAsyncSharderFunc(context.Background(), 0, expectedRequestCount, func(i int) *http.Request {
 					if i >= expectedRequestCount {
 						return nil
@@ -42,7 +43,7 @@ func TestAsyncSharders(t *testing.T) {
 		},
 		{
 			name: "AsyncSharderLimitedGoroutines",
-			responseFn: func(next AsyncRoundTripper[*http.Response]) *asyncResponse {
+			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
 				reqChan := make(chan *http.Request)
 				go func() {
 					for i := 0; i < expectedRequestCount; i++ {
@@ -58,9 +59,9 @@ func TestAsyncSharders(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			next := AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (Responses[*http.Response], error) {
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (Responses[combiner.PipelineResponse], error) {
 				// return a generic 200
-				return NewSyncToAsyncResponse(&http.Response{
+				return NewHTTPToAsyncResponse(&http.Response{
 					Body:       io.NopCloser(strings.NewReader("")),
 					StatusCode: 200,
 				}), nil
