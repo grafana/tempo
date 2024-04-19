@@ -23,6 +23,7 @@ func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
 		parquet.FileSchema(parquetSchema),
+		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
 	pf, err := parquet.OpenFile(br, int64(b.meta.Size), o...)
@@ -75,6 +76,7 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	}
 
 	if errors.Is(err, io.EOF) {
+		i.pool.Put(rows[0])
 		return nil, nil, nil
 	}
 
