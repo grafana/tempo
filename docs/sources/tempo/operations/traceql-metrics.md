@@ -63,9 +63,9 @@ Here is an example configuration:
     local_blocks:
       filter_server_spans: false
   storage:
-    path: /tmp/tempo/generator/wal
+    path: /var/tempo/generator/wal
   traces_storage:
-    path: /tmp/tempo/generator/traces
+    path: /var/tempo/generator/traces
 ```
 
 Refer to the [metrics-generator configuration]({{< relref "../configuration#metrics-generator" >}}) documentation for more information.

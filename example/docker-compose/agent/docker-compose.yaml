@@ -25,7 +25,7 @@ services:
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ../shared/tempo.yaml:/etc/tempo.yaml
-      - ./tempo-data:/tmp/tempo
+      - ./tempo-data:/var/tempo
     ports:
       - "14268"  # jaeger ingest
       - "3200"   # tempo
