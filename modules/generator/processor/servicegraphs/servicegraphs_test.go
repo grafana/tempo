@@ -227,7 +227,7 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
-	cfg.EnableExtraUninstrumentedServicesLabels = true
+	cfg.EnableVirtualNodeLabel = true
 	cfg.Wait = time.Nanosecond
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
@@ -271,7 +271,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"db.system", "messaging.system"}
 	cfg.EnableClientServerPrefix = true
-	cfg.EnableExtraUninstrumentedServicesLabels = true
+	cfg.EnableVirtualNodeLabel = true
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())

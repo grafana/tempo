@@ -104,6 +104,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
 					EnableClientServerPrefix: boolPtr(true),
+					EnableVirtualNodeLabel:   boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
 					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
 				},

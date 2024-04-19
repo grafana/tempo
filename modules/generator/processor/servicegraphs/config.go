@@ -41,7 +41,7 @@ type Config struct {
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 
 	// EnableExtraUninstrumentedServicesLabels enables additional labels for uninstrumented services
-	EnableExtraUninstrumentedServicesLabels bool `yaml:"enable_extra_uninstrumented_services_labels"`
+	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

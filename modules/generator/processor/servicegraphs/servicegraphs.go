@@ -87,13 +87,13 @@ type Processor struct {
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
 
-	if cfg.EnableExtraUninstrumentedServicesLabels {
+	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, "virtual_node")
 	}
 
 	for _, d := range cfg.Dimensions {
 		if cfg.EnableClientServerPrefix {
-			if cfg.EnableExtraUninstrumentedServicesLabels {
+			if cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
 				if d == "virtual_node" {
 					labels = append(labels, strutil.SanitizeLabelName(d))
@@ -283,7 +283,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
-			if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+			if p.Cfg.EnableVirtualNodeLabel {
 				// leave the extra label for this feature as-is
 				if dimension == "virtual_node" {
 					labelValues = append(labelValues, e.Dimensions[dimension])
@@ -323,7 +323,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
 			e.ClientService = "user"
 
-			if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+			if p.Cfg.EnableVirtualNodeLabel {
 				e.Dimensions["virtual_node"] = "client"
 			}
 
@@ -334,7 +334,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 		// we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
 		e.ServerService = e.PeerNode
 
-		if p.Cfg.EnableExtraUninstrumentedServicesLabels {
+		if p.Cfg.EnableVirtualNodeLabel {
 			e.Dimensions["virtual_node"] = "server"
 		}
 
