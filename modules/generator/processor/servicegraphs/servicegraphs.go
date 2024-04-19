@@ -88,7 +88,7 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	labels := []string{"client", "server", "connection_type"}
 
 	if cfg.EnableExtraUninstrumentedServicesLabels {
-		cfg.Dimensions = append(cfg.Dimensions, "virtual_node", "db.system", "messaging.system")
+		cfg.Dimensions = append(cfg.Dimensions, "virtual_node")
 	}
 
 	for _, d := range cfg.Dimensions {
@@ -102,13 +102,6 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 			}
 			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
 		} else {
-			if cfg.EnableExtraUninstrumentedServicesLabels {
-				// prefix the extra labels for this feature anyway
-				if d == "db.system" || d == "messaging.system" {
-					labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
-					continue
-				}
-			}
 			labels = append(labels, strutil.SanitizeLabelName(d))
 		}
 	}
@@ -208,15 +201,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 							e.ConnectionType = store.Database
 							e.ServerService = dbName
 							e.ServerLatencySec = spanDurationSec(span)
-							if p.Cfg.EnableExtraUninstrumentedServicesLabels {
-								e.Dimensions["server_db_system"] = e.ServerService
-							}
-						}
-
-						if messagingSystem, ok := processor_util.FindAttributeValue("messaging.system", rs.Resource.Attributes, span.Attributes); ok {
-							if p.Cfg.EnableExtraUninstrumentedServicesLabels {
-								e.Dimensions["server_messaging_system"] = messagingSystem
-							}
 						}
 					})
 
@@ -235,12 +219,6 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
-
-						if messagingSystem, ok := processor_util.FindAttributeValue("messaging.system", rs.Resource.Attributes, span.Attributes); ok {
-							if p.Cfg.EnableExtraUninstrumentedServicesLabels {
-								e.Dimensions["client_messaging_system"] = messagingSystem
-							}
-						}
 					})
 				default:
 					// this span is not part of an edge
@@ -303,26 +281,18 @@ func (p *Processor) onComplete(e *store.Edge) {
 	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
 
-	for _, d := range p.Cfg.Dimensions {
+	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
 			if p.Cfg.EnableExtraUninstrumentedServicesLabels {
 				// leave the extra label for this feature as-is
-				if d == "virtual_node" {
-					labelValues = append(labelValues, e.Dimensions[d])
+				if dimension == "virtual_node" {
+					labelValues = append(labelValues, e.Dimensions[dimension])
 					continue
 				}
 			}
-			labelValues = append(labelValues, e.Dimensions["client_"+d], e.Dimensions["server_"+d])
+			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
 		} else {
-			if p.Cfg.EnableExtraUninstrumentedServicesLabels {
-				// prefix the extra labels for this feature anyway
-				if d == "db.system" || d == "messaging.system" {
-					clientDimLabel, serverDimLabel := strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d)
-					labelValues = append(labelValues, e.Dimensions[clientDimLabel], e.Dimensions[serverDimLabel])
-					continue
-				}
-			}
-			labelValues = append(labelValues, e.Dimensions[d])
+			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
 	}
 

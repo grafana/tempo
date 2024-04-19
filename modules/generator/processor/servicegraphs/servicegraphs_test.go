@@ -241,25 +241,17 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	p.(*Processor).store.Expire()
 
 	userToServerLabels := labels.FromMap(map[string]string{
-		"client":                  "user",
-		"server":                  "mythical-server",
-		"connection_type":         "virtual_node",
-		"virtual_node":            "client",
-		"client_db_system":        "",
-		"client_messaging_system": "",
-		"server_db_system":        "",
-		"server_messaging_system": "",
+		"client":          "user",
+		"server":          "mythical-server",
+		"connection_type": "virtual_node",
+		"virtual_node":    "client",
 	})
 
 	clientToVirtualPeerLabels := labels.FromMap(map[string]string{
-		"client":                  "mythical-requester",
-		"server":                  "external-payments-platform",
-		"connection_type":         "virtual_node",
-		"virtual_node":            "server",
-		"client_db_system":        "",
-		"client_messaging_system": "",
-		"server_db_system":        "",
-		"server_messaging_system": "",
+		"client":          "mythical-requester",
+		"server":          "external-payments-platform",
+		"connection_type": "virtual_node",
+		"virtual_node":    "server",
 	})
 
 	// counters
@@ -270,52 +262,6 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
 }
 
-func TestServiceGraphs_enableExtraLabelsForUninstrumentedServicesWithQueueAndDatabase(t *testing.T) {
-	testRegistry := registry.NewTestRegistry()
-
-	cfg := Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", nil)
-
-	cfg.EnableExtraUninstrumentedServicesLabels = true
-
-	p := New(cfg, "test", testRegistry, log.NewNopLogger())
-	defer p.Shutdown(context.Background())
-
-	request, err := loadTestData("testdata/trace-with-queue-database.json")
-	require.NoError(t, err)
-
-	p.PushSpans(context.Background(), request)
-
-	serverDbSystemLabels := labels.FromMap(map[string]string{
-		"client":                  "mythical-server",
-		"connection_type":         "database",
-		"server":                  "postgres",
-		"virtual_node":            "",
-		"client_db_system":        "",
-		"client_messaging_system": "",
-		"server_db_system":        "postgres",
-		"server_messaging_system": "",
-	})
-
-	serverMsgSystemLabels := labels.FromMap(map[string]string{
-		"client":                  "mythical-requester",
-		"connection_type":         "messaging_system",
-		"server":                  "mythical-recorder",
-		"virtual_node":            "",
-		"client_db_system":        "",
-		"client_messaging_system": "rabbitmq",
-		"server_db_system":        "",
-		"server_messaging_system": "rabbitmq",
-	})
-
-	// counters
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverDbSystemLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverDbSystemLabels))
-
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverMsgSystemLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverMsgSystemLabels))
-}
-
 func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
@@ -323,7 +269,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.HistogramBuckets = []float64{0.04}
-	cfg.Dimensions = []string{"net.peer.port"}
+	cfg.Dimensions = []string{"db.system", "messaging.system"}
 	cfg.EnableClientServerPrefix = true
 	cfg.EnableExtraUninstrumentedServicesLabels = true
 
@@ -339,11 +285,9 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 		"client":                  "mythical-requester",
 		"client_db_system":        "",
 		"client_messaging_system": "rabbitmq",
-		"client_net_peer_port":    "5672",
 		"connection_type":         "messaging_system",
 		"server_db_system":        "",
 		"server_messaging_system": "rabbitmq",
-		"server_net_peer_port":    "5672",
 		"server":                  "mythical-recorder",
 		"virtual_node":            "",
 	})
@@ -352,11 +296,9 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 		"client":                  "mythical-server",
 		"client_db_system":        "postgresql",
 		"client_messaging_system": "",
-		"client_net_peer_port":    "5432",
 		"connection_type":         "database",
 		"server_db_system":        "",
 		"server_messaging_system": "",
-		"server_net_peer_port":    "",
 		"server":                  "postgres",
 		"virtual_node":            "",
 	})

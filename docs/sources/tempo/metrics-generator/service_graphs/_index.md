@@ -73,20 +73,16 @@ Duration is measured both from the client and the server sides.
 
 Possible values for `connection_type`: unset, `virtual_node`, `messaging_system`, or `database`.
 
-Additional labels can be included using the `dimensions` configuration option, or the `enable_extra_uninstrumented_services_labels` option.
+Additional labels can be included using the `dimensions` configuration option, or the `enable_extra_uninstrumented_services_label` option.
 
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
 
-#### Activating enable_extra_uninstrumented_services_labels
+#### Activating enable_extra_uninstrumented_services_label
 
-The following labels, with the corresponding values, will be added if this feature is enabled:
+The following label, with the corresponding values, will be added if this feature is enabled:
 
 | Label                   | Possible Values             | Description                                                              |
 |-------------------------|-----------------------------|--------------------------------------------------------------------------|
 | virtual_node            | `unset`, `client`, `server` | Explicitly indicates the side that is uninstrumented                     |
-| client_db_system        | `unset`,  `<string>`        | Surfaces the `db.system` resource attribute of the client, if any        |
-| server_db_system        | `unset`,  `<string>`        | Surfaces the `db.system` resource attribute of the server, if any        |
-| client_messaging_system | `unset`,  `<string>`        | Surfaces the `messaging.system` resource attribute of the client, if any |
-| server_messaging_system | `unset`,  `<string>`        | Surfaces the `messaging.system` resource attribute of the server, if any |
