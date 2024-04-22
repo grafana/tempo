@@ -79,9 +79,9 @@ Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
 
-#### Activating enable_extra_uninstrumented_services_label
+#### Activate `enable_extra_uninstrumented_services_label`
 
-The following label, with the corresponding values, will be added if this feature is enabled:
+Activating this feature adds the following label and corresponding values:
 
 | Label                   | Possible Values             | Description                                                              |
 |-------------------------|-----------------------------|--------------------------------------------------------------------------|
