@@ -72,11 +72,10 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 
 		// most errors are SLO violations
 		if err != nil {
-			switch {
 			// However, if this is a grpc resource exhausted error (429)
 			// or a client context.Cancel then we are within SLO
-			case status.Code(err) == codes.ResourceExhausted,
-				errors.Is(err, context.Canceled):
+			if status.Code(err) == codes.ResourceExhausted ||
+				errors.Is(err, context.Canceled) {
 				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
 			}
 			return
