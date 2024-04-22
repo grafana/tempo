@@ -23,6 +23,28 @@ type store struct {
 	maxItems int
 }
 
+var edgePool = sync.Pool{
+	New: func() interface{} {
+		return &Edge{
+			Dimensions: make(map[string]string),
+		}
+	},
+}
+
+// GrabEdge returns a new Edge from the pool, clearing its state and setting the key and expiration.
+func (s *store) GrabEdge(key string) *Edge {
+	edge := edgePool.Get().(*Edge)
+	zeroStateEdge(edge)
+	edge.key = key
+	edge.expiration = time.Now().Add(s.ttl).Unix()
+	return edge
+}
+
+// ReturnEdge returns an Edge to the pool.
+func (s *store) ReturnEdge(e *Edge) {
+	edgePool.Put(e)
+}
+
 // NewStore creates a Store to build service graphs. The store caches edges, each representing a
 // request between two services. Once an edge is complete its metrics can be collected. Edges that
 // have not found their pair are deleted after ttl time.
@@ -91,7 +113,7 @@ func (s *store) UpsertEdge(key string, update Callback) (isNew bool, err error) 
 		return false, nil
 	}
 
-	edge := newEdge(key, s.ttl)
+	edge := s.GrabEdge(key)
 	update(edge)
 
 	if edge.isComplete() {

@@ -307,6 +307,8 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
 	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+
+	p.store.ReturnEdge(e)
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
