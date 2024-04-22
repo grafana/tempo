@@ -1005,3 +1005,199 @@ func TestDescendantOf(t *testing.T) {
 		})
 	}
 }
+
+func TestChildOf(t *testing.T) {
+	parent1 := &span{nestedSetLeft: 1, nestedSetParent: -1}
+	child1a := &span{nestedSetLeft: 5, nestedSetParent: 1}
+	child1b := &span{nestedSetLeft: 10, nestedSetParent: 1}
+	parent2 := &span{nestedSetLeft: 15, nestedSetParent: -1}
+	child2a := &span{nestedSetLeft: 20, nestedSetParent: 15}
+	child2b := &span{nestedSetLeft: 25, nestedSetParent: 15}
+	disconnected := &span{nestedSetLeft: 30, nestedSetParent: -1}
+
+	tcs := []struct {
+		name        string
+		lhs         []traceql.Span
+		rhs         []traceql.Span
+		falseForAll bool // !< or !>
+		invert      bool // <
+		expected    []traceql.Span
+	}{
+		{
+			name:     "empty",
+			lhs:      []traceql.Span{},
+			rhs:      []traceql.Span{},
+			expected: nil,
+		},
+		// >
+		{
+			name:     "child: basic",
+			lhs:      []traceql.Span{parent1, disconnected},
+			rhs:      []traceql.Span{child1a, child1b, child2a, child2b},
+			expected: []traceql.Span{child1a, child1b},
+		},
+		{
+			name:     "child: multiple matching trees",
+			lhs:      []traceql.Span{parent1, parent2},
+			rhs:      []traceql.Span{child1a, child1b, disconnected, child2a, child2b},
+			expected: []traceql.Span{child1a, child1b, child2a, child2b},
+		},
+		{
+			name:     "child: don't match self",
+			lhs:      []traceql.Span{parent1},
+			rhs:      []traceql.Span{parent1},
+			expected: nil,
+		},
+		// <
+		{
+			name:     "parent: basic",
+			lhs:      []traceql.Span{child1a, child1b, child2a, child2b},
+			rhs:      []traceql.Span{parent1, disconnected},
+			invert:   true,
+			expected: []traceql.Span{parent1},
+		},
+		{
+			name:     "parent: multiple matching trees",
+			lhs:      []traceql.Span{child1a, child1b, disconnected, child2a, child2b},
+			rhs:      []traceql.Span{parent1, parent2},
+			invert:   true,
+			expected: []traceql.Span{parent1, parent2},
+		},
+		{
+			name:     "parent: don't match self",
+			lhs:      []traceql.Span{parent1},
+			rhs:      []traceql.Span{parent1},
+			invert:   true,
+			expected: nil,
+		},
+		// !>
+		{
+			name:        "!child: basic",
+			lhs:         []traceql.Span{parent1, disconnected},
+			rhs:         []traceql.Span{child1a, child1b, child2a, child2b},
+			falseForAll: true,
+			expected:    []traceql.Span{child2a, child2b},
+		},
+		{
+			name:        "!child: multiple matching trees",
+			lhs:         []traceql.Span{parent1, parent2},
+			rhs:         []traceql.Span{child1a, child1b, disconnected, child2a, child2b},
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!child: match self",
+			lhs:         []traceql.Span{parent1},
+			rhs:         []traceql.Span{parent1},
+			falseForAll: true,
+			expected:    []traceql.Span{parent1},
+		},
+		// !<
+		{
+			name:        "!parent: basic",
+			lhs:         []traceql.Span{child1a, child1b, child2a, child2b},
+			rhs:         []traceql.Span{parent1, disconnected},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!parent: multiple matching trees",
+			lhs:         []traceql.Span{child1a, child1b, child2a, child2b},
+			rhs:         []traceql.Span{parent1, parent2, disconnected},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!parent: match self",
+			lhs:         []traceql.Span{parent1},
+			rhs:         []traceql.Span{parent1},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{parent1},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &span{}
+
+			actual := s.ChildOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, nil)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestSiblingOf(t *testing.T) {
+	sibling1a := &span{nestedSetParent: 1}
+	sibling1b := &span{nestedSetParent: 1}
+	sibling2a := &span{nestedSetParent: 2}
+	sibling2b := &span{nestedSetParent: 2}
+	disconnected := &span{nestedSetParent: 3}
+
+	tcs := []struct {
+		name        string
+		lhs         []traceql.Span
+		rhs         []traceql.Span
+		falseForAll bool // !~ or !~
+		expected    []traceql.Span
+	}{
+		{
+			name:     "empty",
+			lhs:      []traceql.Span{},
+			rhs:      []traceql.Span{},
+			expected: nil,
+		},
+		// ~
+		{
+			name:     "sibling: basic",
+			lhs:      []traceql.Span{sibling1a, disconnected},
+			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
+			expected: []traceql.Span{sibling1b},
+		},
+		{
+			name:     "sibling: multiple matching trees",
+			lhs:      []traceql.Span{sibling1a, sibling1b, disconnected, sibling2a, sibling2b},
+			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
+			expected: []traceql.Span{sibling1b, sibling2a, sibling2b},
+		},
+		{
+			name:     "sibling: match self",
+			lhs:      []traceql.Span{sibling1a},
+			rhs:      []traceql.Span{sibling1a},
+			expected: []traceql.Span{sibling1a},
+		},
+		// !~
+		{
+			name:        "!sibling: basic",
+			lhs:         []traceql.Span{sibling1a, disconnected},
+			rhs:         []traceql.Span{sibling1b, sibling2a, sibling2b},
+			falseForAll: true,
+			expected:    []traceql.Span{sibling2a, sibling2b},
+		},
+		{
+			name:        "!sibling: multiple matching trees",
+			lhs:         []traceql.Span{sibling1a, sibling1b, disconnected, sibling2a, sibling2b},
+			rhs:         []traceql.Span{sibling1b, sibling2a, sibling2b},
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!sibling: match self",
+			lhs:         []traceql.Span{sibling1a},
+			rhs:         []traceql.Span{sibling1a},
+			falseForAll: true,
+			expected:    nil,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &span{}
+
+			actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, nil)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
