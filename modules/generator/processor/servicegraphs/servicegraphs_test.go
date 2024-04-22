@@ -311,6 +311,26 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
 }
 
+func BenchmarkServiceGraphs(b *testing.B) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		p.PushSpans(context.Background(), request)
+	}
+}
+
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
 	f, err := os.Open(path)
 	if err != nil {
