@@ -882,3 +882,126 @@ func TestTraceIDShardingQuality(t *testing.T) {
 		})
 	}
 }
+
+func TestDescendantOf(t *testing.T) {
+	ancestor1 := &span{nestedSetLeft: 1, nestedSetRight: 10}
+	descendant1a := &span{nestedSetLeft: 2, nestedSetRight: 5}
+	descendant1b := &span{nestedSetLeft: 6, nestedSetRight: 7}
+	ancestor2 := &span{nestedSetLeft: 11, nestedSetRight: 20}
+	descendant2a := &span{nestedSetLeft: 12, nestedSetRight: 15}
+	descendant2b := &span{nestedSetLeft: 16, nestedSetRight: 17}
+	disconnected := &span{nestedSetLeft: 21, nestedSetRight: 22}
+
+	tcs := []struct {
+		name        string
+		lhs         []traceql.Span
+		rhs         []traceql.Span
+		falseForAll bool // !<< or !>>
+		invert      bool // <<
+		expected    []traceql.Span
+	}{
+		{
+			name:     "empty",
+			lhs:      []traceql.Span{},
+			rhs:      []traceql.Span{},
+			expected: nil,
+		},
+		// >>
+		{
+			name:     "descendant: basic",
+			lhs:      []traceql.Span{ancestor1, disconnected},
+			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			expected: []traceql.Span{descendant1a, descendant1b},
+		},
+		{
+			name:     "descendant: multiple matching trees",
+			lhs:      []traceql.Span{ancestor1, ancestor2},
+			rhs:      []traceql.Span{descendant1a, descendant1b, disconnected, descendant2a, descendant2b},
+			expected: []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+		},
+		{
+			name:     "descendant: don't match self",
+			lhs:      []traceql.Span{ancestor1},
+			rhs:      []traceql.Span{ancestor1},
+			expected: nil,
+		},
+		// <<
+		{
+			name:     "ancestor: basic",
+			lhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			rhs:      []traceql.Span{ancestor1, disconnected},
+			invert:   true,
+			expected: []traceql.Span{ancestor1},
+		},
+		{
+			name:     "ancestor: multiple matching trees",
+			lhs:      []traceql.Span{descendant1a, descendant1b, disconnected, descendant2a, descendant2b},
+			rhs:      []traceql.Span{ancestor1, ancestor2},
+			invert:   true,
+			expected: []traceql.Span{ancestor1, ancestor2},
+		},
+		{
+			name:     "ancestor: don't match self",
+			lhs:      []traceql.Span{ancestor1},
+			rhs:      []traceql.Span{ancestor1},
+			invert:   true,
+			expected: nil,
+		},
+		// !>>
+		{
+			name:        "!descendant: basic",
+			lhs:         []traceql.Span{ancestor1, disconnected},
+			rhs:         []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			falseForAll: true,
+			expected:    []traceql.Span{descendant2a, descendant2b},
+		},
+		{
+			name:        "!descendant: multiple matching trees",
+			lhs:         []traceql.Span{ancestor1, ancestor2},
+			rhs:         []traceql.Span{descendant1a, descendant1b, disconnected, descendant2a, descendant2b},
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!descendant: match self",
+			lhs:         []traceql.Span{ancestor1},
+			rhs:         []traceql.Span{ancestor1},
+			falseForAll: true,
+			expected:    []traceql.Span{ancestor1},
+		},
+		// !<<
+		{
+			name:        "!ancestor: basic",
+			lhs:         []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			rhs:         []traceql.Span{ancestor1, disconnected},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!ancestor: multiple matching trees",
+			lhs:         []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			rhs:         []traceql.Span{ancestor1, ancestor2, disconnected},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{disconnected},
+		},
+		{
+			name:        "!ancestor: match self",
+			lhs:         []traceql.Span{ancestor1},
+			rhs:         []traceql.Span{ancestor1},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{ancestor1},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &span{}
+
+			actual := s.DescendantOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, nil)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
