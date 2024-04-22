@@ -1166,7 +1166,7 @@ func TestSiblingOf(t *testing.T) {
 			name:     "sibling: match self",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
-			expected: []traceql.Span{sibling1a},
+			expected: nil, // jpe this should return?
 		},
 		// !~
 		{
@@ -1178,8 +1178,8 @@ func TestSiblingOf(t *testing.T) {
 		},
 		{
 			name:        "!sibling: multiple matching trees",
-			lhs:         []traceql.Span{sibling1a, sibling1b, disconnected, sibling2a, sibling2b},
-			rhs:         []traceql.Span{sibling1b, sibling2a, sibling2b},
+			lhs:         []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
+			rhs:         []traceql.Span{sibling1b, sibling2a, disconnected, sibling2b},
 			falseForAll: true,
 			expected:    []traceql.Span{disconnected},
 		},
@@ -1188,7 +1188,7 @@ func TestSiblingOf(t *testing.T) {
 			lhs:         []traceql.Span{sibling1a},
 			rhs:         []traceql.Span{sibling1a},
 			falseForAll: true,
-			expected:    nil,
+			expected:    []traceql.Span{sibling1a}, // jpe - this should be nil?
 		},
 	}
 

@@ -98,7 +98,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			if len(lhs) > 0 || len(rhs) > 0 {
 				output = addSpanset(input[i], uniqueSpans(lhs, rhs), output)
 			}
-
+			// jpe!
 		// relationship operators all set relFn which is used by below code
 		// to perform the operation
 		case OpSpansetNotDescendant:

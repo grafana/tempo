@@ -35,7 +35,14 @@ const (
 	OpSpansetNotSibling
 	OpSpansetNotAncestor
 	OpSpansetNotDescendant
+	OpSpansetUnionChild
+	OpSpansetUnionParent
+	OpSpansetUnionSibling
+	OpSpansetUnionAncestor
+	OpSpansetUnionDescendant
 )
+
+// jpe - test everything
 
 func (op Operator) isBoolean() bool {
 	return op == OpOr ||
@@ -178,6 +185,16 @@ func (op Operator) String() string {
 		return "!<<"
 	case OpSpansetNotDescendant:
 		return "!>>"
+	case OpSpansetUnionChild:
+		return "|>"
+	case OpSpansetUnionParent:
+		return "|<"
+	case OpSpansetUnionSibling:
+		return "|~"
+	case OpSpansetUnionAncestor:
+		return "|<<"
+	case OpSpansetUnionDescendant:
+		return "|>>"
 	}
 
 	return fmt.Sprintf("operator(%d)", op)
