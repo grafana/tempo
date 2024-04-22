@@ -49,7 +49,7 @@ func (m *mockSpan) AllAttributes() map[traceql.Attribute]traceql.Static { return
 func (m *mockSpan) ID() []byte                                          { return nil }
 func (m *mockSpan) StartTimeUnixNanos() uint64                          { return m.start }
 func (m *mockSpan) DurationNanos() uint64                               { return m.duration }
-func (m *mockSpan) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+func (m *mockSpan) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 
@@ -58,11 +58,11 @@ func (m *mockSpan) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	return s, ok
 }
 
-func (m *mockSpan) SiblingOf([]traceql.Span, []traceql.Span, bool, []traceql.Span) []traceql.Span {
+func (m *mockSpan) SiblingOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 
-func (m *mockSpan) ChildOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+func (m *mockSpan) ChildOf([]traceql.Span, []traceql.Span, bool, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 

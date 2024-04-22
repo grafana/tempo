@@ -1000,7 +1000,7 @@ func TestDescendantOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &span{}
 
-			actual := s.DescendantOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, nil)
+			actual := s.DescendantOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, false, nil)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -1123,7 +1123,7 @@ func TestChildOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &span{}
 
-			actual := s.ChildOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, nil)
+			actual := s.ChildOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, false, nil)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -1196,7 +1196,7 @@ func TestSiblingOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &span{}
 
-			actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, nil)
+			actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, false, nil)
 			require.Equal(t, tc.expected, actual)
 		})
 	}

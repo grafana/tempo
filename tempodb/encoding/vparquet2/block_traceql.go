@@ -80,7 +80,7 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 || len(rhs) == 0 {
 		return nil
 	}
@@ -142,7 +142,8 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	return buffer
 }
 
-func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, buffer []traceql.Span) []traceql.Span {
+// jpe - vp2 support?
+func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, union bool, buffer []traceql.Span) []traceql.Span {
 	// this is easy. we're just looking for anything on the lhs side with the same nested set parent as the rhs
 	sort.Slice(lhs, func(i, j int) bool {
 		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
@@ -185,7 +186,7 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 	return buffer
 }
 
-func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
 	// we will search the LHS by either nestedSetLeft or nestedSetParent. if we are doing child we sort by nestedSetLeft
 	// so we can quickly find children. if the invert flag is set we are looking for parents and so we sort appropriately
 	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
