@@ -898,6 +898,7 @@ func TestDescendantOf(t *testing.T) {
 		rhs         []traceql.Span
 		falseForAll bool // !<< or !>>
 		invert      bool // <<
+		union       bool // |>> or |<<
 		expected    []traceql.Span
 	}{
 		{
@@ -994,13 +995,35 @@ func TestDescendantOf(t *testing.T) {
 			falseForAll: true,
 			expected:    []traceql.Span{ancestor1},
 		},
+		// |>>
+		{
+			name:     "|descendant: basic",
+			lhs:      []traceql.Span{ancestor1, disconnected},
+			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			expected: []traceql.Span{descendant1a, descendant1b, ancestor1},
+			union:    true,
+		},
+		{
+			name:     "|descendant: multiple matching trees",
+			lhs:      []traceql.Span{ancestor1, ancestor2},
+			rhs:      []traceql.Span{descendant1a, descendant1b, disconnected, descendant2a, descendant2b},
+			expected: []traceql.Span{descendant1a, descendant1b, ancestor1, descendant2a, descendant2b, ancestor2},
+			union:    true,
+		},
+		{
+			name:     "|descendant: don't match self",
+			lhs:      []traceql.Span{ancestor1},
+			rhs:      []traceql.Span{ancestor1},
+			expected: nil,
+			union:    true,
+		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &span{}
 
-			actual := s.DescendantOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, false, nil)
+			actual := s.DescendantOf(tc.lhs, tc.rhs, tc.falseForAll, tc.invert, tc.union, nil)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -1198,6 +1221,70 @@ func TestSiblingOf(t *testing.T) {
 
 			actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, false, nil)
 			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func BenchmarkDescendantOf(b *testing.B) {
+	totalSpans := 1000
+
+	// create 1k s1 in a direct line
+	s1 := make([]traceql.Span, totalSpans)
+	for i := 0; i < 1000; i++ {
+		s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
+	}
+	// copy the same slice to s2
+	s2 := make([]traceql.Span, totalSpans)
+	copy(s2, s1)
+
+	// unsort the slices
+	for i := range s1 {
+		j := rand.Intn(i + 1)
+		s1[i], s1[j] = s1[j], s1[i]
+	}
+	for i := range s2 {
+		j := rand.Intn(i + 1)
+		s2[i], s2[j] = s2[j], s2[i]
+	}
+
+	for _, tc := range []struct {
+		name        string
+		falseForAll bool
+		invert      bool
+		union       bool
+	}{
+		{
+			name: ">>",
+		},
+		{
+			name:   "<<",
+			invert: true,
+		},
+		{
+			name:        "!>>",
+			falseForAll: true,
+		},
+		{
+			name:        "!<<",
+			falseForAll: true,
+			invert:      true,
+		},
+		{
+			name:  "|>>",
+			union: true,
+		},
+		{
+			name:   "|<<",
+			invert: true,
+			union:  true,
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			s := &span{}
+
+			for i := 0; i < b.N; i++ {
+				s.DescendantOf(s1, s1, tc.falseForAll, tc.invert, tc.union, nil)
+			}
 		})
 	}
 }

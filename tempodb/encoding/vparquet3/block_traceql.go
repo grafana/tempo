@@ -196,52 +196,117 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	// entry til the end of the slice.
 	// it might be even better to clone the lhs slice. sort one by left and one by right and search the one that
 	// requires less seeking after the search. this would be faster but cloning the slice would be costly in mem
-	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft > lhs[j].(*span).nestedSetLeft } // sort asc b/c we are interested in lhs nestedSetLeft > rhs nestedSetLeft
-	if invert {
-		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft } // sort desc b/c we want the inverse relationship. see descendantOf func
-	}
-	sort.Slice(lhs, sortFn)
+	//sortFn := // sort asc b/c we are interested in lhs nestedSetLeft > rhs nestedSetLeft
+	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
+	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
 
-	descendantOf := func(a *span, b *span) bool {
-		if a.nestedSetLeft == 0 ||
-			b.nestedSetLeft == 0 ||
-			a.nestedSetRight == 0 ||
-			b.nestedSetRight == 0 {
+	// is a a decendant of b?
+	descendantOf := func(d *span, a *span) bool {
+		if d.nestedSetLeft == 0 ||
+			a.nestedSetLeft == 0 ||
+			d.nestedSetRight == 0 ||
+			a.nestedSetRight == 0 {
 			// Spans with missing data, never a match.
 			return false
 		}
-		return a.nestedSetLeft > b.nestedSetLeft && a.nestedSetRight < b.nestedSetRight
+		return d.nestedSetLeft > a.nestedSetLeft && d.nestedSetRight < a.nestedSetRight
 	}
 
-	for _, r := range rhs {
-		matches := false
-		findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft <= r.(*span).nestedSetLeft }
-		if invert {
-			findFn = func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetLeft }
-		}
+	beforeInTree := func(d *span, a *span) bool {
+		return d.nestedSetRight < a.nestedSetLeft
+	}
 
-		// let's find the first index we need to bother with.
-		found := sort.Search(len(lhs), findFn)
-		if found == -1 { // if we are less then the entire slice we have to search the entire slice
-			found = 0
-		}
+	afterInTree := func(d *span, a *span) bool {
+		return d.nestedSetLeft > a.nestedSetRight
+	}
 
-		for ; found < len(lhs); found++ {
-			a := lhs[found].(*span)
-			b := r.(*span)
-			if invert {
-				a, b = b, a
+	// <<, !<<
+	if invert {
+		descendants := lhs
+		ancestors := rhs
+
+		didx := 0
+		for _, a := range ancestors {
+			matches := false
+
+			for ; didx < len(descendants); didx++ {
+				d := descendants[didx].(*span)
+
+				if descendantOf(d, a.(*span)) {
+					matches = true
+					break
+				}
+
+				// stop searching if we have passed the right side of the ancestor
+				if afterInTree(d, a.(*span)) {
+					break
+				}
 			}
 
-			if descendantOf(b, a) {
-				// Returns RHS
-				matches = true
+			if matches && !falseForAll || !matches && falseForAll {
+				buffer = append(buffer, a)
+			}
+		}
+
+		return buffer
+	}
+
+	// !>>
+	if falseForAll {
+		ancestors := lhs
+		descendants := rhs
+
+		didx := 0
+		for _, a := range ancestors {
+			for ; didx < len(descendants); didx++ {
+				d := descendants[didx].(*span)
+
+				// if before in tree add to buffer
+				if beforeInTree(d, a.(*span)) {
+					buffer = append(buffer, d)
+					continue
+				}
+
+				// if descendant of then skip
+				if descendantOf(d, a.(*span)) {
+					continue
+				}
+
+				// else break to see next ancestor
 				break
 			}
 		}
-		if matches && !falseForAll || // return RHS if there are any matches on the LHS
-			!matches && falseForAll { // return RHS if there are no matches on the LHS
-			buffer = append(buffer, r)
+
+		// add any remaining descendants to the buffer
+		for ; didx < len(descendants); didx++ {
+			buffer = append(buffer, descendants[didx])
+		}
+
+		return buffer
+	}
+
+	// >>
+	ancestors := lhs
+	descendants := rhs
+
+	didx := 0
+	for _, a := range ancestors {
+		matched := false
+
+		for ; didx < len(descendants); didx++ {
+			d := descendants[didx].(*span)
+
+			if descendantOf(d, a.(*span)) {
+				matched = true
+				buffer = append(buffer, d)
+				continue
+			}
+
+			break
+		}
+
+		if matched && union {
+			buffer = append(buffer, a)
 		}
 	}
 
