@@ -19,8 +19,6 @@ The following examples showcase specific features or integrations:
   Simple example using the OpenTelemetry Collector as a tracing pipeline.
 - [OpenTelemetry Collector Multitenant](otel-collector-multitenant/readme.md)  
   Uses the OpenTelemetry Collector in an advanced multitenant configuration.
-- [Grafana 7.4.x](grafana7.4/readme.md)  
-  Uses tempo-query to allow for querying from Grafana 7.4 and before.
 
 These examples show off configuration of different storage backends:
 
