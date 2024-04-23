@@ -567,7 +567,6 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name  string
 		query string
 	}{
-		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
 		// span
 		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
@@ -585,6 +584,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-querier` && status = error }"},
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-ingester` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="loki-distributor" && duration>2s && resource.cluster=~"prod.*"}`},
+		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
 	}
 
 	ctx := context.TODO()
