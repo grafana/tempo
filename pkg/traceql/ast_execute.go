@@ -143,6 +143,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 
 		// if relFn was set up above we are doing a relationship operation.
 		if relFn != nil {
+			// jpe - enforce uniqueness?
 			o.matchingSpansBuffer, err = o.joinSpansets(lhs, rhs, relFn) // o.matchingSpansBuffer is passed into the functions above and is stored here
 			if err != nil {
 				return nil, err

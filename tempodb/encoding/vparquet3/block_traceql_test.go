@@ -1164,6 +1164,7 @@ func TestSiblingOf(t *testing.T) {
 		lhs         []traceql.Span
 		rhs         []traceql.Span
 		falseForAll bool // !~ or !~
+		union       bool
 		expected    []traceql.Span
 	}{
 		{
@@ -1189,7 +1190,7 @@ func TestSiblingOf(t *testing.T) {
 			name:     "sibling: match self",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
-			expected: nil, // jpe this should return?
+			expected: []traceql.Span{sibling1a},
 		},
 		// !~
 		{
@@ -1211,7 +1212,29 @@ func TestSiblingOf(t *testing.T) {
 			lhs:         []traceql.Span{sibling1a},
 			rhs:         []traceql.Span{sibling1a},
 			falseForAll: true,
-			expected:    []traceql.Span{sibling1a}, // jpe - this should be nil?
+			expected:    nil,
+		},
+		// |~
+		{
+			name:     "sibling: basic",
+			lhs:      []traceql.Span{sibling1a, disconnected},
+			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
+			union:    true,
+			expected: []traceql.Span{sibling1b, sibling1a},
+		},
+		{
+			name:     "sibling: multiple matching trees",
+			lhs:      []traceql.Span{sibling1a, sibling1b, disconnected, sibling2a, sibling2b},
+			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
+			union:    true,
+			expected: []traceql.Span{sibling1b, sibling1a, sibling2a, sibling2b, sibling2a, sibling2b}, // jpe - unions can return copies of the same span, should we enforce that here or the engine?
+		},
+		{
+			name:     "sibling: match self",
+			lhs:      []traceql.Span{sibling1a},
+			rhs:      []traceql.Span{sibling1a},
+			union:    true,
+			expected: []traceql.Span{sibling1a, sibling1a}, // jpe - unions can return copies of the same span, should we enforce that here or the engine?
 		},
 	}
 
@@ -1219,7 +1242,7 @@ func TestSiblingOf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &span{}
 
-			actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, false, nil)
+			actual := s.SiblingOf(tc.lhs, tc.rhs, tc.falseForAll, tc.union, nil)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -1284,6 +1307,55 @@ func BenchmarkDescendantOf(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				s.DescendantOf(s1, s1, tc.falseForAll, tc.invert, tc.union, nil)
+			}
+		})
+	}
+}
+
+func BenchmarkSiblingOf(b *testing.B) {
+	totalSpans := 1000
+
+	// create 1k s1 with random siblings
+	s1 := make([]traceql.Span, totalSpans)
+	for i := 0; i < 1000; i++ {
+		s1[i] = &span{nestedSetParent: rand.Int31n(10)}
+	}
+	// copy the same slice to s2
+	s2 := make([]traceql.Span, totalSpans)
+	copy(s2, s1)
+
+	// unsort the slices
+	for i := range s1 {
+		j := rand.Intn(i + 1)
+		s1[i], s1[j] = s1[j], s1[i]
+	}
+	for i := range s2 {
+		j := rand.Intn(i + 1)
+		s2[i], s2[j] = s2[j], s2[i]
+	}
+
+	for _, tc := range []struct {
+		name        string
+		falseForAll bool
+		union       bool
+	}{
+		{
+			name: "~",
+		},
+		{
+			name:        "!~",
+			falseForAll: true,
+		},
+		{
+			name:  "|~",
+			union: true,
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			s := &span{}
+
+			for i := 0; i < b.N; i++ {
+				s.SiblingOf(s1, s1, tc.falseForAll, tc.union, nil)
 			}
 		})
 	}

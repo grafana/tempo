@@ -243,7 +243,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 				}
 			}
 
-			if matches && !falseForAll || !matches && falseForAll {
+			if (matches && !falseForAll) || (!matches && falseForAll) {
 				buffer = append(buffer, a)
 			}
 		}
@@ -314,10 +314,9 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 }
 
 func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, union bool, buffer []traceql.Span) []traceql.Span {
-	// this is easy. we're just looking for anything on the lhs side with the same nested set parent as the rhs
-	sort.Slice(lhs, func(i, j int) bool {
-		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
-	})
+	// sort by parent
+	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
+	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
 
 	siblingOf := func(a *span, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
@@ -325,34 +324,39 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			b.nestedSetParent != 0
 	}
 
+	// ~, |~, !~
+	lidx := 0
 	for _, r := range rhs {
-		matches := false
-
-		if r.(*span).nestedSetParent != 0 {
-			// search for nested set parent
-			found := sort.Search(len(lhs), func(i int) bool {
-				return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetParent
-			})
-
-			if found >= 0 && found < len(lhs) {
-				matches = siblingOf(r.(*span), lhs[found].(*span))
-
-				// if we found a match BUT this is the same span as the match we need to check the very next span (if it exists).
-				// this works b/c Search method returns the first match for nestedSetParent
-				if matches && r.(*span) == lhs[found].(*span) {
-					matches = false
-					if found+1 < len(lhs) {
-						matches = siblingOf(r.(*span), lhs[found+1].(*span))
-					}
-				}
-			}
+		// jpe - similar short circuits in desc/child?
+		if r.(*span).nestedSetParent == 0 {
+			continue
 		}
 
-		if matches && !falseForAll || // return RHS if there are any matches on the LHS
-			!matches && falseForAll { // return RHS if there are no matches on the LHS
+		matches := false
+		for ; lidx < len(lhs); lidx++ {
+			left := lhs[lidx].(*span)
+			right := r.(*span)
+
+			if siblingOf(left, right) {
+				matches = true
+				if union {
+					buffer = append(buffer, r)
+				}
+				break // break w/o incrementing to allow the next rhs to test against this lhs
+			}
+
+			// if the lhs is past the rhs then we need to advance to the next rhs
+			// if left.nestedSetParent > right.nestedSetParent {
+			// 	break
+			// }
+
+		}
+
+		if (matches && !falseForAll) || (!matches && falseForAll) {
 			buffer = append(buffer, r)
 		}
 	}
+
 	return buffer
 }
 
