@@ -1368,14 +1368,22 @@ func (j *JoinIterator) String() string {
 func (j *JoinIterator) Next() (*IteratorResult, error) {
 outer:
 	for {
-		// Ensure first iter is populated.
+		// This loop is doing two things:
+		// On first-pass peek each iter and ensure it has at least one
+		// result.  If any iter has no results we can exit early
+		// without processing the remaining data in the others.
+		// On subsequent passes the first iter is never nil except
+		// when everything is fully exhausted. We check once more
+		// and then exit.
 		if j.peeks[0] == nil {
-			res, err := j.peek(0)
-			if err != nil {
-				return nil, err
-			}
-			if res == nil {
-				return nil, nil
+			for i := range j.iters {
+				res, err := j.peek(i)
+				if err != nil {
+					return nil, err
+				}
+				if res == nil {
+					return nil, nil
+				}
 			}
 		}
 
@@ -1550,14 +1558,22 @@ func (j *LeftJoinIterator) String() string {
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 outer:
 	for {
-		// Ensure first iter is populated
+		// This loop is doing two things:
+		// On first-pass peek each required iter and ensure it has
+		// at least one result.  If any iter has no results we can
+		// exit early without processing the remaining data in the others.
+		// On subsequent passes the first iter is never nil except
+		// when everything is fully exhausted. We check once more
+		// and then exit.
 		if j.peeksRequired[0] == nil {
-			res, err := j.peek(0)
-			if err != nil {
-				return nil, err
-			}
-			if res == nil {
-				return nil, nil
+			for i := range j.peeksRequired {
+				res, err := j.peek(i)
+				if err != nil {
+					return nil, err
+				}
+				if res == nil {
+					return nil, nil
+				}
 			}
 		}
 
