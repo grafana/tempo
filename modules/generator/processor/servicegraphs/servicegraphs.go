@@ -275,7 +275,7 @@ func (p *Processor) Shutdown(_ context.Context) {
 func (p *Processor) onComplete(e *store.Edge) {
 	numLabels := 3 + len(p.Cfg.Dimensions)
 	if p.Cfg.EnableClientServerPrefix {
-		numLabels += 1
+		numLabels++
 	}
 	labelValues := make([]string, 0, numLabels-1)
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
