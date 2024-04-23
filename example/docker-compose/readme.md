@@ -1,7 +1,10 @@
 ## Docker-compose
 
-So you found your way to the docker-compose examples?  This is a great place to get started with Tempo, learn
-some basic configuration and learn about various trace discovery flows.
+So you found your way to the docker compose examples?  This is a great place to
+get started with Tempo, learn some basic configuration and learn about various
+trace discovery flows.
+
+See our [getting-started](https://grafana.com/docs/tempo/next/getting-started/docker-example/) docs for more detail.
 
 If you are interested in more complex configuration we would recommend the [tanka/jsonnet examples](../tk/readme.md).
 
@@ -20,16 +23,16 @@ The following examples showcase specific features or integrations:
 - [OpenTelemetry Collector Multitenant](otel-collector-multitenant/readme.md)  
   Uses the OpenTelemetry Collector in an advanced multitenant configuration.
 
-These examples show off configuration of different storage backends:
+This example uses the `local` backend, suitable for local testing and development:
 
 - [Local Storage](local/readme.md)  
 
 ### Build Images (Optional)
 
 This step is not necessary, but it can be nice for local testing.  For any of the above examples rebuilding these
-images will cause docker-compose to use your local code when running the examples.
+images will cause docker compose to use your local code when running the examples.
 
-Run the following from the project root folder to build the`grafana/tempo:latest` image that is used in all the examples:
+Run the following from the project root folder to build the `grafana/tempo:latest` image that is used in all the examples:
 
 ```console
 make docker-images
