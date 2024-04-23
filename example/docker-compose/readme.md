@@ -25,7 +25,6 @@ These examples show off configuration of different storage backends:
 - [Local Storage](local/readme.md)  
 - [S3/Minio](s3/readme.md)
 - [Azure/Azurite](azure/readme.md)
-- [GCS/Fake](gcs/readme.md)
 
 ### Build Images (Optional)
 
