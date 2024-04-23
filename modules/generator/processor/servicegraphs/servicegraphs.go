@@ -52,6 +52,8 @@ const (
 	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
 )
 
+const virtualNodeLabel = "__virtual_node"
+
 var defaultPeerAttributes = []attribute.Key{
 	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
 }
@@ -88,18 +90,11 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	labels := []string{"client", "server", "connection_type"}
 
 	if cfg.EnableVirtualNodeLabel {
-		cfg.Dimensions = append(cfg.Dimensions, "virtual_node")
+		labels = append(labels, virtualNodeLabel)
 	}
 
 	for _, d := range cfg.Dimensions {
 		if cfg.EnableClientServerPrefix {
-			if cfg.EnableVirtualNodeLabel {
-				// leave the extra label for this feature as-is
-				if d == "virtual_node" {
-					labels = append(labels, strutil.SanitizeLabelName(d))
-					continue
-				}
-			}
 			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
 		} else {
 			labels = append(labels, strutil.SanitizeLabelName(d))
@@ -278,18 +273,18 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
-	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
+	numLabels := 3 + len(p.Cfg.Dimensions)
+	if p.Cfg.EnableClientServerPrefix {
+		numLabels += 1
+	}
+	labelValues := make([]string, 0, numLabels-1)
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
+	if p.Cfg.EnableVirtualNodeLabel {
+		labelValues = append(labelValues, e.Dimensions[virtualNodeLabel])
+	}
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
-			if p.Cfg.EnableVirtualNodeLabel {
-				// leave the extra label for this feature as-is
-				if dimension == "virtual_node" {
-					labelValues = append(labelValues, e.Dimensions[dimension])
-					continue
-				}
-			}
 			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
 		} else {
 			labelValues = append(labelValues, e.Dimensions[dimension])
@@ -318,6 +313,7 @@ func (p *Processor) onExpire(e *store.Edge) {
 	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
 	// or that are not instrumented (eg. a frontend application).
 	e.ConnectionType = store.VirtualNode
+	onCompleteCalled := false
 	if len(e.ClientService) == 0 {
 		// If the client service is not set, it means that the span could have been initiated by an external system,
 		// like a frontend application or an engineer via `curl`.
@@ -326,10 +322,11 @@ func (p *Processor) onExpire(e *store.Edge) {
 			e.ClientService = "user"
 
 			if p.Cfg.EnableVirtualNodeLabel {
-				e.Dimensions["virtual_node"] = "client"
+				e.Dimensions[virtualNodeLabel] = "client"
 			}
 
 			p.onComplete(e)
+			onCompleteCalled = true
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
@@ -337,10 +334,15 @@ func (p *Processor) onExpire(e *store.Edge) {
 		e.ServerService = e.PeerNode
 
 		if p.Cfg.EnableVirtualNodeLabel {
-			e.Dimensions["virtual_node"] = "server"
+			e.Dimensions[virtualNodeLabel] = "server"
 		}
 
 		p.onComplete(e)
+		onCompleteCalled = true
+	}
+
+	if !onCompleteCalled {
+		p.store.ReturnEdge(e)
 	}
 }
 

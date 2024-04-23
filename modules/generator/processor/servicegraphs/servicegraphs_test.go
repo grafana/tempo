@@ -244,14 +244,14 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 		"client":          "user",
 		"server":          "mythical-server",
 		"connection_type": "virtual_node",
-		"virtual_node":    "client",
+		virtualNodeLabel:  "client",
 	})
 
 	clientToVirtualPeerLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-requester",
 		"server":          "external-payments-platform",
 		"connection_type": "virtual_node",
-		"virtual_node":    "server",
+		virtualNodeLabel:  "server",
 	})
 
 	// counters
@@ -289,7 +289,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 		"server_db_system":        "",
 		"server_messaging_system": "rabbitmq",
 		"server":                  "mythical-recorder",
-		"virtual_node":            "",
+		virtualNodeLabel:          "",
 	})
 
 	dbSystemSystemLabels := labels.FromMap(map[string]string{
@@ -300,7 +300,7 @@ func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
 		"server_db_system":        "",
 		"server_messaging_system": "",
 		"server":                  "postgres",
-		"virtual_node":            "",
+		virtualNodeLabel:          "",
 	})
 
 	// counters

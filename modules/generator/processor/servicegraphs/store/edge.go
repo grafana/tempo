@@ -47,10 +47,7 @@ func zeroStateEdge(e *Edge) {
 	e.ServerLatencySec = 0
 	e.ClientLatencySec = 0
 	e.Failed = false
-	for k := range e.Dimensions {
-		// saves 30ns/op, 50 B/op, 1 allocs/op
-		delete(e.Dimensions, k)
-	}
+	clear(e.Dimensions)
 	e.PeerNode = ""
 	e.SpanMultiplier = 1
 }
