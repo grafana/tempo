@@ -23,7 +23,6 @@ The following examples showcase specific features or integrations:
 These examples show off configuration of different storage backends:
 
 - [Local Storage](local/readme.md)  
-- [S3/Minio](s3/readme.md)
 
 ### Build Images (Optional)
 
