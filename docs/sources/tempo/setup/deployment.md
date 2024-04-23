@@ -33,8 +33,7 @@ To enable this mode, `-target=all` is used, which is the default.
 
 Find docker-compose deployment examples at:
 
-- [https://github.com/grafana/tempo/tree/main/example/docker-compose/local](https://github.com/grafana/tempo/tree/main/example/docker-compose/local)
-- [https://github.com/grafana/tempo/tree/main/example/docker-compose/s3](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3)
+- [https://github.com/grafana/tempo/tree/main/example/docker-compose](https://github.com/grafana/tempo/tree/main/example/docker-compose/)
 
 ### Scaling monolithic mode
 
