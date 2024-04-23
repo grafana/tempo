@@ -4,13 +4,13 @@ This example highlights setting up the OpenTelemetry Collector in a simple traci
 1. First start up the stack.
 
 ```console
-docker-compose up -d
+docker compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose ps
+docker compose ps
 ```
 ```
              Name                            Command               State                          Ports                       
@@ -39,5 +39,5 @@ Grafana.
 4. To stop the setup use -
 
 ```console
-docker-compose down -v
+docker compose down -v
 ```

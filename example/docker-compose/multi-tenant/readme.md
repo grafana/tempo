@@ -5,7 +5,7 @@ or when using the single binary, but does not work in a distributed/microservice
 1. First start up the local stack.
 
 ```console
-$ docker-compose up -d
+$ docker compose up -d
 Starting multi-tenant_grafana_1    ... done
 Starting multi-tenant_tempo_1      ... done
 Starting multi-tenant_k6-tracing-2_1 ... done
@@ -15,7 +15,7 @@ Starting multi-tenant_k6-tracing_1   ... done
 At this point, the following containers should be spun up -
 
 ```console
-$ docker-compose ps
+$ docker compose ps
            Name                          Command               State                                                                     Ports                                                                  
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 multi-tenant_grafana_1        /run.sh                          Up      0.0.0.0:3000->3000/tcp,:::3000->3000/tcp
@@ -45,7 +45,7 @@ $ docker logs multi-tenant_tempo_1 -f
 5. To stop the setup use -
 
 ```console
-docker-compose down -v
+docker compose down -v
 ```
 
 ## streaming and multi-tenant search

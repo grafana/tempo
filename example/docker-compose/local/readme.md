@@ -11,13 +11,13 @@ permissions set in order to start correctly.
 ```console
 mkdir tempo-data/
 sudo chown 10001:10001 tempo-data/
-docker-compose up -d
+docker compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose ps
+docker compose ps
 ```
 ```
        Name                     Command               State                                   Ports                                 
@@ -50,7 +50,7 @@ docker logs local_tempo_1 -f
 5. To stop the setup use -
 
 ```console
-docker-compose down -v
+docker compose down -v
 ```
 
 ## search streaming over http
