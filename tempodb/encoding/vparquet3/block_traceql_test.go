@@ -567,6 +567,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name  string
 		query string
 	}{
+		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
 		// span
 		{"spanAttValNoMatch", "{ span.bloom = `bar` }"},
 		{"spanAttIntrinsicNoMatch", "{ name = `asdfasdf` }"},
@@ -727,7 +728,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{5, 7} {
+			for _, minutes := range []int{7} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
 					st := meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)
