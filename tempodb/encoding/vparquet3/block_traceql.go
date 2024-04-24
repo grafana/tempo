@@ -191,129 +191,136 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 		return nil
 	}
 
-	// sort by nested set left. the goal is to quickly be able to find the first entry in the lhs slice that
-	// potentially matches the rhs. after we find this first potential match we just check every single lhs
-	// entry til the end of the slice.
-	// it might be even better to clone the lhs slice. sort one by left and one by right and search the one that
-	// requires less seeking after the search. this would be faster but cloning the slice would be costly in mem
-	//sortFn := // sort asc b/c we are interested in lhs nestedSetLeft > rhs nestedSetLeft
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
 	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
 
-	// is a a decendant of b?
-	descendantOf := func(d *span, a *span) bool {
+	// is d a descendant of a?
+	descendantOf := func(a, d *span) bool {
 		if d.nestedSetLeft == 0 ||
 			a.nestedSetLeft == 0 ||
 			d.nestedSetRight == 0 ||
 			a.nestedSetRight == 0 {
-			// Spans with missing data, never a match.
 			return false
 		}
 		return d.nestedSetLeft > a.nestedSetLeft && d.nestedSetRight < a.nestedSetRight
 	}
-
-	beforeInTree := func(d *span, a *span) bool {
-		return d.nestedSetRight < a.nestedSetLeft
-	}
-
-	afterInTree := func(d *span, a *span) bool {
+	beforeInTree := func(a, d *span) bool {
 		return d.nestedSetLeft > a.nestedSetRight
 	}
+	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
 
-	// <<, !<<
-	if invert {
-		descendants := lhs
-		ancestors := rhs
-
-		didx := 0
-		for _, a := range ancestors {
-			matches := false
-
-			for ; didx < len(descendants); didx++ {
-				d := descendants[didx].(*span)
-
-				if descendantOf(d, a.(*span)) {
-					matches = true
-					break
-				}
-
-				// stop searching if we have passed the right side of the ancestor
-				if afterInTree(d, a.(*span)) {
-					break
-				}
-			}
-
-			if (matches && !falseForAll) || (!matches && falseForAll) {
-				buffer = append(buffer, a)
-			}
-		}
-
-		return buffer
-	}
-
-	// !>>
-	if falseForAll {
-		ancestors := lhs
-		descendants := rhs
-
-		didx := 0
-		for _, a := range ancestors {
-			for ; didx < len(descendants); didx++ {
-				d := descendants[didx].(*span)
-
-				// if before in tree add to buffer
-				if beforeInTree(d, a.(*span)) {
-					buffer = append(buffer, d)
-					continue
-				}
-
-				// if descendant of then skip
-				if descendantOf(d, a.(*span)) {
-					continue
-				}
-
-				// else break to see next ancestor
-				break
-			}
-		}
-
-		// add any remaining descendants to the buffer
-		for ; didx < len(descendants); didx++ {
-			buffer = append(buffer, descendants[didx])
-		}
-
-		return buffer
-	}
-
-	// >>
 	ancestors := lhs
 	descendants := rhs
 
-	didx := 0
-	for _, a := range ancestors {
-		matched := false
-
-		for ; didx < len(descendants); didx++ {
-			d := descendants[didx].(*span)
-
-			if descendantOf(d, a.(*span)) {
-				matched = true
-				buffer = append(buffer, d)
-				continue
-			}
-
-			break
-		}
-
-		if matched && union {
-			buffer = append(buffer, a)
-		}
+	if invert {
+		ancestors, descendants = descendants, ancestors
 	}
 
-	return buffer
+	return nestedSetLoop(ancestors, descendants, isValid, descendantOf, beforeInTree, falseForAll, invert, union, buffer)
+
+	// afterInTree := func(d *span, a *span) bool {
+	// 	return d.nestedSetLeft > a.nestedSetRight
+	// }
+
+	// // <<, !<<
+	// if invert {
+	// 	descendants := lhs
+	// 	ancestors := rhs
+
+	// 	didx := 0
+	// 	for _, a := range ancestors {
+	// 		matches := false
+
+	// 		for ; didx < len(descendants); didx++ {
+	// 			d := descendants[didx].(*span)
+
+	// 			if descendantOf(d, a.(*span)) {
+	// 				matches = true
+	// 				break
+	// 			}
+
+	// 			// stop searching if we have passed the right side of the ancestor
+	// 			if afterInTree(d, a.(*span)) {
+	// 				break
+	// 			}
+	// 		}
+
+	// 		if (matches && !falseForAll) || (!matches && falseForAll) {
+	// 			buffer = append(buffer, a)
+	// 		}
+	// 	}
+
+	// 	return buffer
+	// }
+
+	// // !>>
+	// if falseForAll {
+	// 	ancestors := lhs
+	// 	descendants := rhs
+
+	// 	didx := 0
+	// 	for _, a := range ancestors {
+	// 		for ; didx < len(descendants); didx++ {
+	// 			d := descendants[didx].(*span)
+
+	// 			// if before in tree add to buffer
+	// 			if beforeInTree(d, a.(*span)) {
+	// 				buffer = append(buffer, d)
+	// 				continue
+	// 			}
+
+	// 			// if descendant of then skip
+	// 			if descendantOf(d, a.(*span)) {
+	// 				continue
+	// 			}
+
+	// 			// else break to see next ancestor
+	// 			break
+	// 		}
+	// 	}
+
+	// 	// add any remaining descendants to the buffer
+	// 	for ; didx < len(descendants); didx++ {
+	// 		buffer = append(buffer, descendants[didx])
+	// 	}
+
+	// 	return buffer
+	// }
+
+	// // >>, |>>
+	// ancestors := lhs
+	// descendants := rhs
+
+	// didx := 0
+	// for _, a := range ancestors {
+	// 	matched := false
+
+	// 	for ; didx < len(descendants); didx++ {
+	// 		d := descendants[didx].(*span)
+
+	// 		if descendantOf(d, a.(*span)) {
+	// 			matched = true
+	// 			buffer = append(buffer, d)
+	// 			continue
+	// 		}
+
+	// 		break
+	// 	}
+
+	// 	if matched && union {
+	// 		buffer = append(buffer, a)
+	// 	}
+	// }
+
+	// return buffer
 }
 
+// SiblingOf
 func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, union bool, buffer []traceql.Span) []traceql.Span {
+	if len(lhs) == 0 || len(rhs) == 0 {
+		return nil
+	}
+
 	// sort by parent
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
 	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
@@ -324,10 +331,10 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			b.nestedSetParent != 0
 	}
 
-	// ~, |~, !~
+	// this loop is very similar to the nestedSetLoop func below. It is separated out b/c silbings can have many to many relationships
+	// and the nestedSetLoop is a one to many relationship.
 	lidx := 0
 	for _, r := range rhs {
-		// jpe - similar short circuits in desc/child?
 		if r.(*span).nestedSetParent == 0 {
 			continue
 		}
@@ -337,19 +344,18 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			left := lhs[lidx].(*span)
 			right := r.(*span)
 
+			// if rhs is before lhs break here so it can catch up
+			if right.nestedSetParent < left.nestedSetParent {
+				break
+			}
+
 			if siblingOf(left, right) {
 				matches = true
 				if union {
 					buffer = append(buffer, r)
 				}
-				break // break w/o incrementing to allow the next rhs to test against this lhs
+				break // break w/o incrementing to allow the next rhs to test against this lhs - jpe this could make multiple copies of LHS added if union
 			}
-
-			// if the lhs is past the rhs then we need to advance to the next rhs
-			// if left.nestedSetParent > right.nestedSetParent {
-			// 	break
-			// }
-
 		}
 
 		if (matches && !falseForAll) || (!matches && falseForAll) {
@@ -361,42 +367,106 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 }
 
 func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
-	// we will search the LHS by either nestedSetLeft or nestedSetParent. if we are doing child we sort by nestedSetLeft
-	// so we can quickly find children. if the invert flag is set we are looking for parents and so we sort appropriately
-	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
+	if len(lhs) == 0 || len(rhs) == 0 {
+		return nil
+	}
+
+	childOf := func(p *span, c *span) bool {
+		return p.nestedSetLeft == c.nestedSetParent &&
+			p.nestedSetLeft != 0 &&
+			c.nestedSetParent != 0
+	}
+	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
+	isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
+
+	parents := lhs
+	children := rhs
 	if invert {
-		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
+		parents, children = children, parents
 	}
 
-	childOf := func(a *span, b *span) bool {
-		return a.nestedSetLeft == b.nestedSetParent &&
-			a.nestedSetLeft != 0 &&
-			b.nestedSetParent != 0
-	}
+	sort.Slice(parents, func(i, j int) bool { return parents[i].(*span).nestedSetLeft < parents[j].(*span).nestedSetLeft })
+	sort.Slice(children, func(i, j int) bool { return children[i].(*span).nestedSetParent < children[j].(*span).nestedSetParent })
 
-	sort.Slice(lhs, sortFn)
-	for _, r := range rhs {
-		findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetParent }
-		if invert {
-			findFn = func(i int) bool { return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetLeft }
-		}
+	return nestedSetLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
+}
 
-		// search for nested set parent
-		matches := false
-		found := sort.Search(len(lhs), findFn)
-		if found >= 0 && found < len(lhs) {
-			if invert {
-				matches = childOf(r.(*span), lhs[found].(*span)) // is the rhs a child of the lhs?
-			} else {
-				matches = childOf(lhs[found].(*span), r.(*span)) // is the lhs a child of the rhs?
+// nestedSetLoop runs a standard one -> many loop to calculate nested set relationships
+func nestedSetLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+	// note the small differences between this and the !invert loop. technically we could write these both in one piece of code,
+	// but this feels better for clarity
+	if invert {
+		manyIdx := 0
+		for _, o := range one {
+			oSpan := o.(*span)
+
+			if !isValid(oSpan) {
+				continue
+			}
+
+			matches := false
+			for ; manyIdx < len(many); manyIdx++ {
+				mSpan := many[manyIdx].(*span)
+
+				// if the many loop is ahead of the one loop break back to the one loop to let it catch up
+				if isAfter(oSpan, mSpan) {
+					break
+				}
+
+				// match?
+				if isMatch(oSpan, mSpan) {
+					matches = true
+					if union {
+						buffer = append(buffer, mSpan)
+					}
+				}
+			}
+
+			if (matches && !falseForAll) || (!matches && falseForAll) {
+				buffer = append(buffer, oSpan)
 			}
 		}
 
-		if matches && !falseForAll || // return RHS if there are any matches on the LHS
-			!matches && falseForAll { // return RHS if there are no matches on the LHS
-			buffer = append(buffer, r)
+		return buffer
+	}
+
+	// !invert
+	manyIdx := 0
+	for _, o := range one {
+		oSpan := o.(*span)
+
+		if !isValid(oSpan) {
+			continue
+		}
+
+		matches := false
+		for ; manyIdx < len(many); manyIdx++ {
+			mSpan := many[manyIdx].(*span)
+
+			// is this child after the parent? break to allow the next child to attempt a match
+			if isAfter(oSpan, mSpan) {
+				break
+			}
+
+			match := isMatch(oSpan, mSpan)
+			if (match && !falseForAll) || (!match && falseForAll) {
+				matches = true
+				buffer = append(buffer, mSpan)
+			}
+		}
+
+		if matches && union {
+			buffer = append(buffer, oSpan)
 		}
 	}
+
+	// drain the rest of the children if falseForAll
+	if falseForAll {
+		for ; manyIdx < len(many); manyIdx++ {
+			buffer = append(buffer, many[manyIdx])
+		}
+	}
+
 	return buffer
 }
 
