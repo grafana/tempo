@@ -309,8 +309,6 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
 	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
-
-	p.store.ReturnEdge(e)
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
@@ -320,7 +318,6 @@ func (p *Processor) onExpire(e *store.Edge) {
 	// These are nodes that are outside the user's reach (eg. an external service for payment processing),
 	// or that are not instrumented (eg. a frontend application).
 	e.ConnectionType = store.VirtualNode
-	onCompleteCalled := false
 	if len(e.ClientService) == 0 {
 		// If the client service is not set, it means that the span could have been initiated by an external system,
 		// like a frontend application or an engineer via `curl`.
@@ -333,7 +330,6 @@ func (p *Processor) onExpire(e *store.Edge) {
 			}
 
 			p.onComplete(e)
-			onCompleteCalled = true
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
@@ -345,11 +341,6 @@ func (p *Processor) onExpire(e *store.Edge) {
 		}
 
 		p.onComplete(e)
-		onCompleteCalled = true
-	}
-
-	if !onCompleteCalled {
-		p.store.ReturnEdge(e)
 	}
 }
 

@@ -23,28 +23,6 @@ type store struct {
 	maxItems int
 }
 
-var edgePool = sync.Pool{
-	New: func() interface{} {
-		return &Edge{
-			Dimensions: make(map[string]string),
-		}
-	},
-}
-
-// GrabEdge returns a new Edge from the pool, clearing its state and setting the key and expiration.
-func (s *store) GrabEdge(key string) *Edge {
-	edge := edgePool.Get().(*Edge)
-	resetEdge(edge)
-	edge.key = key
-	edge.expiration = time.Now().Add(s.ttl).Unix()
-	return edge
-}
-
-// ReturnEdge returns an Edge to the pool.
-func (s *store) ReturnEdge(e *Edge) {
-	edgePool.Put(e)
-}
-
 // NewStore creates a Store to build service graphs. The store caches edges, each representing a
 // request between two services. Once an edge is complete its metrics can be collected. Edges that
 // have not found their pair are deleted after ttl time.
@@ -83,11 +61,13 @@ func (s *store) tryEvictHead() bool {
 
 	headEdge := head.Value.(*Edge)
 	if !headEdge.isExpired() {
+		s.returnEdge(headEdge)
 		return false
 	}
 
 	s.onExpire(headEdge)
 	delete(s.m, headEdge.key)
+	s.returnEdge(headEdge)
 	s.l.Remove(head)
 
 	return true
@@ -106,6 +86,7 @@ func (s *store) UpsertEdge(key string, update Callback) (isNew bool, err error) 
 
 		if edge.isComplete() {
 			s.onComplete(edge)
+			s.returnEdge(edge)
 			delete(s.m, key)
 			s.l.Remove(storedEdge)
 		}
@@ -113,17 +94,19 @@ func (s *store) UpsertEdge(key string, update Callback) (isNew bool, err error) 
 		return false, nil
 	}
 
-	edge := s.GrabEdge(key)
+	edge := s.grabEdge(key)
 	update(edge)
 
 	if edge.isComplete() {
 		s.onComplete(edge)
+		s.returnEdge(edge)
 		return true, nil
 	}
 
 	// Check we can add new edges
 	if s.l.Len() >= s.maxItems {
 		// todo: try to evict expired items
+		s.returnEdge(edge)
 		return false, ErrTooManyItems
 	}
 
@@ -140,4 +123,26 @@ func (s *store) Expire() {
 
 	for s.tryEvictHead() {
 	}
+}
+
+var edgePool = sync.Pool{
+	New: func() interface{} {
+		return &Edge{
+			Dimensions: make(map[string]string),
+		}
+	},
+}
+
+// grabEdge returns a new Edge from the pool, clearing its state and setting the key and expiration.
+func (s *store) grabEdge(key string) *Edge {
+	edge := edgePool.Get().(*Edge)
+	resetEdge(edge)
+	edge.key = key
+	edge.expiration = time.Now().Add(s.ttl).Unix()
+	return edge
+}
+
+// returnEdge returns an Edge to the pool.
+func (s *store) returnEdge(e *Edge) {
+	edgePool.Put(e)
 }
