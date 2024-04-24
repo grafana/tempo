@@ -34,7 +34,7 @@ var edgePool = sync.Pool{
 // GrabEdge returns a new Edge from the pool, clearing its state and setting the key and expiration.
 func (s *store) GrabEdge(key string) *Edge {
 	edge := edgePool.Get().(*Edge)
-	zeroStateEdge(edge)
+	resetEdge(edge)
 	edge.key = key
 	edge.expiration = time.Now().Add(s.ttl).Unix()
 	return edge

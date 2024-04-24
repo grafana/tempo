@@ -37,9 +37,9 @@ type Edge struct {
 	SpanMultiplier float64
 }
 
-// zeroStateEdge resets the Edge to its zero state.
+// resetEdge resets the Edge to its zero state.
 // Useful for reusing an Edge without allocating a new one.
-func zeroStateEdge(e *Edge) {
+func resetEdge(e *Edge) {
 	e.TraceID = ""
 	e.ConnectionType = Unknown
 	e.ServerService = ""
