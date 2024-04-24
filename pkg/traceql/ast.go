@@ -17,8 +17,9 @@ type Element interface {
 type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
-	init(*tempopb.QueryRangeRequest)
-	observe(Span) // TODO - batching?
+	init(*tempopb.QueryRangeRequest, bool)
+	observe(Span)            // TODO - batching?
+	observeSeries(SeriesSet) // Re-entrant metrics on the query-frontend
 	result() SeriesSet
 }
 
@@ -763,6 +764,7 @@ type MetricsAggregate struct {
 	attr   Attribute
 	floats []float64
 	agg    SpanAggregator
+	jobAgg SeriesCombiner
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
@@ -785,6 +787,12 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	switch a.op {
 	case metricsAggregateRate, metricsAggregateCountOverTime:
 		// No extra conditions, start time is already enough
+	case metricsAggregateQuantileOverTime:
+		if !request.HasAttribute(a.attr) {
+			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+				Attribute: a.attr,
+			})
+		}
 	}
 
 	for _, b := range a.by {
@@ -796,33 +804,85 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 }
 
-func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest) {
+func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
+	if !sharded {
+		// Query-frontend version
+		a.initUnSharded()
+		return
+	}
+
 	var innerAgg func() VectorAggregator
+	var byFunc func(Span) (Static, bool)
+	var byFuncLabel string
 
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+	case metricsAggregateQuantileOverTime:
+		// Quantiles are implemented as count_over_time by log2(duration)
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		byFuncLabel = internalLabelBucket
+		byFunc = func(s Span) (Static, bool) {
+			d := s.DurationNanos()
+			if d < 2 {
+				return NewStaticNil(), false
+			}
+			return NewStaticInt(int(math.Ceil(math.Log2(float64(d))))), true
+		}
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
 		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
-	}, a.by)
+	}, a.by, byFunc, byFuncLabel)
+}
+
+func (a *MetricsAggregate) initUnSharded() {
+	switch a.op {
+	case metricsAggregateQuantileOverTime:
+		div := 1.0
+		// UGH - Need to think about this
+		// Span duration is in nanos, but we want the output to be something
+		// more reasonable like seconds
+		if a.attr == IntrinsicDurationAttribute {
+			div = float64(time.Second)
+		}
+		a.jobAgg = &HistogramCombiner{
+			by:  a.by,
+			div: div,
+			qs:  a.floats,
+		}
+	default:
+		// These are simple additions by series
+		a.jobAgg = &BasicCombiner{}
+	}
 }
 
 func (a *MetricsAggregate) observe(span Span) {
 	a.agg.Observe(span)
 }
 
+func (a *MetricsAggregate) observeSeries(ss SeriesSet) {
+	a.jobAgg.Combine(ss)
+}
+
 func (a *MetricsAggregate) result() SeriesSet {
-	return a.agg.Series()
+	if a.agg != nil {
+		return a.agg.Series()
+	}
+	return a.jobAgg.Results()
 }
 
 func (a *MetricsAggregate) validate() error {
 	switch a.op {
 	case metricsAggregateCountOverTime:
 	case metricsAggregateRate:
+	case metricsAggregateQuantileOverTime:
+		if len(a.by) >= maxGroupBys {
+			// We reserve a spot for the bucket so quantile has 1 less group by
+			return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
+		}
 	default:
 		return newUnsupportedError(fmt.Sprintf("metrics aggregate operation (%v)", a.op))
 	}

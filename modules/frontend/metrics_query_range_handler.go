@@ -38,7 +38,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c := combiner.NewTypedQueryRange()
+		c := combiner.NewTypedQueryRange(req)
 		collector := pipeline.NewGRPCCollector(next, c, func(qrr *tempopb.QueryRangeResponse) error {
 			finalResponse = qrr // sadly we can't pass srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(qrr)
@@ -80,7 +80,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner := combiner.NewTypedQueryRange()
+		combiner := combiner.NewTypedQueryRange(queryRangeReq)
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		resp, err := rt.RoundTrip(req)

@@ -13,8 +13,11 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
+
+const internalLabelBucket = "__bucket"
 
 func DefaultQueryRangeStep(start, end uint64) uint64 {
 	delta := time.Duration(end - start)
@@ -73,6 +76,75 @@ type TimeSeries struct {
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
 // text description: {x="a",y="b"} for convenience.
 type SeriesSet map[string]TimeSeries
+
+func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
+	resp := make([]*tempopb.TimeSeries, 0, len(set))
+
+	for promLabels, s := range set {
+		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
+		for _, label := range s.Labels {
+			labels = append(labels,
+				commonv1proto.KeyValue{
+					Key:   label.Name,
+					Value: label.Value.AsAnyValue(),
+				},
+			)
+		}
+
+		intervals := IntervalCount(req.Start, req.End, req.Step)
+		samples := make([]tempopb.Sample, 0, intervals)
+		for i, value := range s.Values {
+
+			ts := TimestampOf(uint64(i), req.Start, req.Step)
+
+			samples = append(samples, tempopb.Sample{
+				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
+				Value:       value,
+			})
+		}
+
+		ss := &tempopb.TimeSeries{
+			PromLabels: promLabels,
+			Labels:     labels,
+			Samples:    samples,
+		}
+
+		resp = append(resp, ss)
+	}
+
+	return resp
+}
+
+func SeriesSetFromProto(req *tempopb.QueryRangeRequest, in []*tempopb.TimeSeries) SeriesSet {
+	ss := make(SeriesSet)
+
+	for _, i := range in {
+		dest := TimeSeries{}
+
+		dest.Labels = make([]Label, 0, len(i.Labels))
+		for _, l := range i.Labels {
+			dest.Labels = append(dest.Labels, Label{
+				Name:  l.Key,
+				Value: StaticFromAnyValue(l.Value),
+			})
+		}
+
+		dest.Values = make([]float64, IntervalCount(req.Start, req.End, req.Step))
+		for _, sample := range i.Samples {
+			ts := uint64(time.Duration(sample.TimestampMs) * time.Millisecond)
+			j := IntervalOf(ts, req.Start, req.End, req.Step)
+			// TODO(mdisibio) sometimes interval is out of range
+			// there must be a job alignment issue
+			if j >= 0 && j < len(dest.Values) {
+				dest.Values[j] = sample.Value
+			}
+		}
+
+		ss[i.PromLabels] = dest
+	}
+
+	return ss
+}
 
 // VectorAggregator turns a vector of spans into a single numeric scalar
 type VectorAggregator interface {
@@ -178,6 +250,7 @@ type GroupingAggregator struct {
 	// Config
 	by        []Attribute   // Original attributes: .foo
 	byLookups [][]Attribute // Lookups: span.foo resource.foo
+	byFunc    func(Span) (Static, bool)
 	innerAgg  func() RangeAggregator
 
 	// Data
@@ -187,8 +260,8 @@ type GroupingAggregator struct {
 
 var _ SpanAggregator = (*GroupingAggregator)(nil)
 
-func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute) SpanAggregator {
-	if len(by) == 0 {
+func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string) SpanAggregator {
+	if len(by) == 0 && byFunc == nil {
 		return &UngroupedAggregator{
 			name:     aggName,
 			innerAgg: innerAgg(),
@@ -209,9 +282,16 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 		}
 	}
 
+	// Add the dynamic by-label to the list of labels
+	// It's picked up in LabelsFor
+	if byFunc != nil {
+		by = append(by, NewAttribute(byFuncLabel))
+	}
+
 	return &GroupingAggregator{
 		series:    map[FastValues]RangeAggregator{},
 		by:        by,
+		byFunc:    byFunc,
 		byLookups: lookups,
 		innerAgg:  innerAgg,
 	}
@@ -222,8 +302,18 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 func (g *GroupingAggregator) Observe(span Span) {
 	// Get grouping values
 	// Reuse same buffer
+	// There is no need to reset, the number of group-by attributes
+	// is fixed after creation.
 	for i, lookups := range g.byLookups {
 		g.buf[i] = lookup(lookups, span)
+	}
+	if g.byFunc != nil {
+		v, ok := g.byFunc(span)
+		if !ok {
+			// Totally drop this span
+			return
+		}
+		g.buf[len(g.byLookups)] = v
 	}
 
 	agg, ok := g.series[g.buf]
@@ -265,7 +355,7 @@ func (g *GroupingAggregator) Observe(span Span) {
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
 func (g *GroupingAggregator) labelsFor(vals FastValues) ([]Label, string) {
-	tempoLabels := make([]Label, 0, len(g.by))
+	tempoLabels := make([]Label, 0, len(g.by)+1)
 	for i, v := range vals {
 		if v.Type == TypeNil {
 			continue
@@ -331,6 +421,36 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	}
 }
 
+func (e *Engine) CompileMetricsQueryRangeFrontend(req *tempopb.QueryRangeRequest) (*MetricsFrontendEvaluator, error) {
+	if req.Start <= 0 {
+		return nil, fmt.Errorf("start required")
+	}
+	if req.End <= 0 {
+		return nil, fmt.Errorf("end required")
+	}
+	if req.End <= req.Start {
+		return nil, fmt.Errorf("end must be greater than start")
+	}
+	if req.Step <= 0 {
+		return nil, fmt.Errorf("step required")
+	}
+
+	_, _, metricsPipeline, _, err := e.Compile(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+
+	if metricsPipeline == nil {
+		return nil, fmt.Errorf("not a metrics query")
+	}
+
+	metricsPipeline.init(req, false)
+
+	return &MetricsFrontendEvaluator{
+		metricsPipeline: metricsPipeline,
+	}, nil
+}
+
 // CompileMetricsQueryRange returns an evalulator that can be reused across multiple data sources.
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
@@ -363,7 +483,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	}
 
 	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req)
+	metricsPipeline.init(req, true)
 
 	me := &MetricsEvalulator{
 		storageReq:        storageReq,
@@ -588,8 +708,8 @@ func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
-func (e *MetricsEvalulator) Results() (SeriesSet, error) {
-	return e.metricsPipeline.result(), nil
+func (e *MetricsEvalulator) Results() SeriesSet {
+	return e.metricsPipeline.result()
 }
 
 // SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
@@ -632,4 +752,16 @@ func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
 
 	m[v] = struct{}{}
 	return false
+}
+
+type MetricsFrontendEvaluator struct {
+	metricsPipeline metricsFirstStageElement
+}
+
+func (m *MetricsFrontendEvaluator) ObserveJob(in SeriesSet) {
+	m.metricsPipeline.observeSeries(in)
+}
+
+func (m *MetricsFrontendEvaluator) Results() SeriesSet {
+	return m.metricsPipeline.result()
 }
