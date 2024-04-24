@@ -90,11 +90,18 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	labels := []string{"client", "server", "connection_type"}
 
 	if cfg.EnableVirtualNodeLabel {
-		labels = append(labels, virtualNodeLabel)
+		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}
 
 	for _, d := range cfg.Dimensions {
 		if cfg.EnableClientServerPrefix {
+			if cfg.EnableVirtualNodeLabel {
+				// leave the extra label for this feature as-is
+				if d == virtualNodeLabel {
+					labels = append(labels, strutil.SanitizeLabelName(d))
+					continue
+				}
+			}
 			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
 		} else {
 			labels = append(labels, strutil.SanitizeLabelName(d))
@@ -273,18 +280,18 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
-	numLabels := 3 + len(p.Cfg.Dimensions)
-	if p.Cfg.EnableClientServerPrefix {
-		numLabels++
-	}
-	labelValues := make([]string, 0, numLabels-1)
+	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
 	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
-	if p.Cfg.EnableVirtualNodeLabel {
-		labelValues = append(labelValues, e.Dimensions[virtualNodeLabel])
-	}
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
+			if p.Cfg.EnableVirtualNodeLabel {
+				// leave the extra label for this feature as-is
+				if dimension == virtualNodeLabel {
+					labelValues = append(labelValues, e.Dimensions[dimension])
+					continue
+				}
+			}
 			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
 		} else {
 			labelValues = append(labelValues, e.Dimensions[dimension])
