@@ -34,6 +34,7 @@ type MetricsAggregateOp int
 const (
 	metricsAggregateRate MetricsAggregateOp = iota
 	metricsAggregateCountOverTime
+	metricsAggregateQuantileOverTime
 )
 
 func (a MetricsAggregateOp) String() string {
@@ -42,6 +43,8 @@ func (a MetricsAggregateOp) String() string {
 		return "rate"
 	case metricsAggregateCountOverTime:
 		return "count_over_time"
+	case metricsAggregateQuantileOverTime:
+		return "quantile_over_time"
 	}
 
 	return fmt.Sprintf("aggregate(%d)", a)

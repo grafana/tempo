@@ -35,12 +35,14 @@ import (
     static Static
     intrinsicField Attribute
     attributeField Attribute
+    attribute Attribute
 
     binOp       Operator
     staticInt   int
     staticStr   string
     staticFloat float64
     staticDuration time.Duration
+    floatList []float64
 
     hint *Hint
     hintList []*Hint
@@ -73,6 +75,9 @@ import (
 %type <static> static
 %type <intrinsicField> intrinsicField
 %type <attributeField> attributeField
+%type <attribute> attribute
+
+%type <floatList> floatList
 
 %type <hint> hint
 %type <hintList> hintList
@@ -90,7 +95,7 @@ import (
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
-                        RATE COUNT_OVER_TIME
+                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -161,11 +166,19 @@ selectOperation:
     SELECT OPEN_PARENS attributeList CLOSE_PARENS { $$ = newSelectOperation($3) }
   ;
 
+attribute:
+  intrinsicField    { $$ = $1 }
+  | attributeField  { $$ = $1 }
+  ;
+
 attributeList:
-    intrinsicField                  { $$ = []Attribute{$1} }
-  | attributeField                  { $$ = []Attribute{$1} }
-  | attributeList COMMA intrinsicField { $$ = append($1, $3) }
-  | attributeList COMMA attributeField { $$ = append($1, $3) }
+    attribute                     { $$ = []Attribute{$1} }
+  | attributeList COMMA attribute { $$ = append($1, $3) }
+  ;
+
+floatList:
+  FLOAT                   { $$ = []float64{$1} }
+  | floatList COMMA FLOAT { $$ = append($1, $3) }
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -262,9 +275,11 @@ aggregate:
 // **********************
 metricsAggregation:
       RATE            OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
-    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
     | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA floatList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA floatList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
   ;
 
 // **********************
