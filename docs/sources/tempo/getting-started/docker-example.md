@@ -11,7 +11,7 @@ The Tempo repository provides [multiple examples](https://github.com/grafana/tem
 
 Every example has a `docker-compose.yaml` manifest that includes all of the options needed to explore trace data in Grafana, including resource configuration and trace data generation.
 
-The Tempo examples running with Docker using docker-compose include a version of Tempo and a storage configuration like Amazon S3 and GCS.
+The Tempo examples running with Docker using docker-compose include a version of Tempo and a storage configuration suitable for testing or development.
 
 This quick start guide uses the `local` example running Tempo as a single binary (monolithic). Any data is stored locally in the `tempo-data` folder.
 To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
