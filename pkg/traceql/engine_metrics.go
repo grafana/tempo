@@ -137,37 +137,6 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 	return resp
 }
 
-func SeriesSetFromProto(req *tempopb.QueryRangeRequest, in []*tempopb.TimeSeries) SeriesSet {
-	ss := make(SeriesSet)
-
-	for _, i := range in {
-		dest := TimeSeries{}
-
-		dest.Labels = make([]Label, 0, len(i.Labels))
-		for _, l := range i.Labels {
-			dest.Labels = append(dest.Labels, Label{
-				Name:  l.Key,
-				Value: StaticFromAnyValue(l.Value),
-			})
-		}
-
-		dest.Values = make([]float64, IntervalCount(req.Start, req.End, req.Step))
-		for _, sample := range i.Samples {
-			ts := uint64(time.Duration(sample.TimestampMs) * time.Millisecond)
-			j := IntervalOf(ts, req.Start, req.End, req.Step)
-			// TODO(mdisibio) sometimes interval is out of range
-			// there must be a job alignment issue
-			if j >= 0 && j < len(dest.Values) {
-				dest.Values[j] = sample.Value
-			}
-		}
-
-		ss[i.PromLabels] = dest
-	}
-
-	return ss
-}
-
 // VectorAggregator turns a vector of spans into a single numeric scalar
 type VectorAggregator interface {
 	Observe(s Span)
@@ -270,10 +239,11 @@ type FastValues [maxGroupBys]Static
 // GroupingAggregator groups spans into series based on attribute values.
 type GroupingAggregator struct {
 	// Config
-	by        []Attribute   // Original attributes: .foo
-	byLookups [][]Attribute // Lookups: span.foo resource.foo
-	byFunc    func(Span) (Static, bool)
-	innerAgg  func() RangeAggregator
+	by          []Attribute   // Original attributes: .foo
+	byLookups   [][]Attribute // Lookups: span.foo resource.foo
+	byFunc      func(Span) (Static, bool)
+	byFuncLabel string
+	innerAgg    func() RangeAggregator
 
 	// Data
 	series map[FastValues]RangeAggregator
@@ -304,18 +274,13 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 		}
 	}
 
-	// Add the dynamic by-label to the list of labels
-	// It's picked up in LabelsFor
-	if byFunc != nil {
-		by = append(by, NewAttribute(byFuncLabel))
-	}
-
 	return &GroupingAggregator{
-		series:    map[FastValues]RangeAggregator{},
-		by:        by,
-		byFunc:    byFunc,
-		byLookups: lookups,
-		innerAgg:  innerAgg,
+		series:      map[FastValues]RangeAggregator{},
+		by:          by,
+		byFunc:      byFunc,
+		byFuncLabel: byFuncLabel,
+		byLookups:   lookups,
+		innerAgg:    innerAgg,
 	}
 }
 
@@ -378,11 +343,14 @@ func (g *GroupingAggregator) Observe(span Span) {
 //	{x="nil"}
 func (g *GroupingAggregator) labelsFor(vals FastValues) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
-	for i, v := range vals {
-		if v.Type == TypeNil {
+	for i := range g.by {
+		if vals[i].Type == TypeNil {
 			continue
 		}
-		labels = append(labels, Label{g.by[i].String(), v})
+		labels = append(labels, Label{g.by[i].String(), vals[i]})
+	}
+	if g.byFunc != nil {
+		labels = append(labels, Label{g.byFuncLabel, vals[len(g.by)]})
 	}
 
 	if len(labels) == 0 {
@@ -773,7 +741,7 @@ type MetricsFrontendEvaluator struct {
 	metricsPipeline metricsFirstStageElement
 }
 
-func (m *MetricsFrontendEvaluator) ObserveJob(in SeriesSet) {
+func (m *MetricsFrontendEvaluator) ObserveJob(in []*tempopb.TimeSeries) {
 	m.metricsPipeline.observeSeries(in)
 }
 

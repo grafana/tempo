@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -148,8 +149,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 
 	// Here is where the job results are reentered into the pipeline
-	series := SeriesSetFromProto(q.req, resp.Series)
-	q.e.ObserveJob(series)
+	q.e.ObserveJob(resp.Series)
 
 	if resp.Metrics != nil {
 		q.metrics.TotalJobs += resp.Metrics.TotalJobs
@@ -170,36 +170,52 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 }
 
 type SeriesCombiner interface {
-	Combine(SeriesSet)
+	Combine([]*tempopb.TimeSeries)
 	Results() SeriesSet
 }
 
 type BasicCombiner struct {
-	ss  SeriesSet
-	len int
+	ss               SeriesSet
+	len              int
+	start, end, step uint64
 }
 
 func NewBasicCombiner(req *tempopb.QueryRangeRequest) *BasicCombiner {
 	return &BasicCombiner{
-		ss:  make(SeriesSet),
-		len: IntervalCount(req.Start, req.End, req.Step),
+		ss:    make(SeriesSet),
+		len:   IntervalCount(req.Start, req.End, req.Step),
+		start: req.Start,
+		end:   req.End,
+		step:  req.Step,
 	}
 }
 
-func (b *BasicCombiner) Combine(in SeriesSet) {
-	for k, ts := range in {
-
-		existing, ok := b.ss[k]
+func (b *BasicCombiner) Combine(in []*tempopb.TimeSeries) {
+	for _, ts := range in {
+		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
+			// Convert proto labels to traceql labels
+			labels := make(Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				labels = append(labels, Label{
+					Name:  l.Key,
+					Value: StaticFromAnyValue(l.Value),
+				})
+			}
+
 			existing = TimeSeries{
-				Labels: ts.Labels,
+				Labels: labels,
 				Values: make([]float64, b.len),
 			}
-			b.ss[k] = existing
+			b.ss[ts.PromLabels] = existing
 		}
 
-		for i := range ts.Values {
-			existing.Values[i] += ts.Values[i]
+		for _, sample := range ts.Samples {
+			ts := uint64(time.Duration(sample.TimestampMs) * time.Millisecond)
+			j := IntervalOf(ts, b.start, b.end, b.step)
+			if j >= 0 && j < len(existing.Values) {
+				existing.Values[j] += sample.Value
+			}
 		}
 	}
 }
@@ -214,32 +230,40 @@ type hist struct {
 }
 
 type HistogramCombiner struct {
-	ss  map[string]hist
-	qs  []float64
-	div float64
-	len int
+	ss               map[string]hist
+	qs               []float64
+	div              float64
+	len              int
+	start, end, step uint64
 }
 
 func NewHistogramCombiner(req *tempopb.QueryRangeRequest, qs []float64, div float64) *HistogramCombiner {
 	return &HistogramCombiner{
-		div: div,
-		qs:  qs,
-		len: IntervalCount(req.Start, req.End, req.Step),
-		ss:  make(map[string]hist),
+		div:   div,
+		qs:    qs,
+		ss:    make(map[string]hist),
+		len:   IntervalCount(req.Start, req.End, req.Step),
+		start: req.Start,
+		end:   req.End,
+		step:  req.Step,
 	}
 }
 
-func (h *HistogramCombiner) Combine(in SeriesSet) {
+func (h *HistogramCombiner) Combine(in []*tempopb.TimeSeries) {
 	for _, ts := range in {
+		// Convert proto labels to traceql labels
+		// while at the same time stripping the bucket label
 		withoutBucket := make(Labels, 0, len(ts.Labels))
 		bucket := -1
 		for _, l := range ts.Labels {
-			// TODO - It's roundtripping the internal bucket weird
-			if l.Name == ".__bucket" {
-				bucket = l.Value.N
+			if l.Key == internalLabelBucket {
+				bucket = int(l.Value.GetIntValue())
 				continue
 			}
-			withoutBucket = append(withoutBucket, l)
+			withoutBucket = append(withoutBucket, Label{
+				Name:  l.Key,
+				Value: StaticFromAnyValue(l.Value),
+			})
 		}
 
 		if bucket < 0 || bucket > 64 {
@@ -258,8 +282,12 @@ func (h *HistogramCombiner) Combine(in SeriesSet) {
 			h.ss[withoutBucketStr] = existing
 		}
 
-		for i, v := range ts.Values {
-			existing.hist[i][bucket] += int(v)
+		for _, sample := range ts.Samples {
+			ts := uint64(time.Duration(sample.TimestampMs) * time.Millisecond)
+			j := IntervalOf(ts, h.start, h.end, h.step)
+			if j >= 0 && j < len(existing.hist) {
+				existing.hist[j][bucket] += int(sample.Value)
+			}
 		}
 	}
 }
@@ -270,6 +298,7 @@ func (h *HistogramCombiner) Results() SeriesSet {
 	for _, in := range h.ss {
 		// For each input series, we create a new series for each quantile.
 		for _, q := range h.qs {
+			// Append label for the quantile
 			labels := append((Labels)(nil), in.labels...)
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
 			s := labels.String()

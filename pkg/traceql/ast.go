@@ -18,8 +18,8 @@ type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
 	init(*tempopb.QueryRangeRequest, bool)
-	observe(Span)            // TODO - batching?
-	observeSeries(SeriesSet) // Re-entrant metrics on the query-frontend
+	observe(Span)                        // TODO - batching?
+	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
 }
 
@@ -882,7 +882,7 @@ func (a *MetricsAggregate) observe(span Span) {
 	a.agg.Observe(span)
 }
 
-func (a *MetricsAggregate) observeSeries(ss SeriesSet) {
+func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {
 	a.jobAgg.Combine(ss)
 }
 
