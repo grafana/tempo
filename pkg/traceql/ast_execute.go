@@ -107,6 +107,10 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		case OpSpansetAncestor:
 			fallthrough
 		case OpSpansetDescendant:
+			fallthrough
+		case OpSpansetUnionAncestor:
+			fallthrough
+		case OpSpansetUnionDescendant:
 			falseForAll := o.Op == OpSpansetNotDescendant || o.Op == OpSpansetNotAncestor
 			invert := o.Op == OpSpansetAncestor || o.Op == OpSpansetNotAncestor
 			union := o.Op == OpSpansetUnionAncestor || o.Op == OpSpansetUnionDescendant
@@ -121,7 +125,11 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		case OpSpansetNotParent:
 			fallthrough
 		case OpSpansetParent:
-			falseForAll := o.Op == OpSpansetNotParent || o.Op == OpSpansetNotSibling
+			fallthrough
+		case OpSpansetUnionParent:
+			fallthrough
+		case OpSpansetUnionChild:
+			falseForAll := o.Op == OpSpansetNotParent || o.Op == OpSpansetNotChild
 			invert := o.Op == OpSpansetParent || o.Op == OpSpansetNotParent
 			union := o.Op == OpSpansetUnionParent || o.Op == OpSpansetUnionChild
 			relFn = func(s Span, l, r []Span) []Span {
@@ -131,6 +139,8 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		case OpSpansetNotSibling:
 			fallthrough
 		case OpSpansetSibling:
+			fallthrough
+		case OpSpansetUnionSibling:
 			falseForAll := o.Op == OpSpansetNotSibling
 			union := o.Op == OpSpansetUnionSibling
 			relFn = func(s Span, l, r []Span) []Span {

@@ -328,12 +328,15 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 	siblingOf := func(a *span, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
 			a.nestedSetParent != 0 &&
-			b.nestedSetParent != 0
+			b.nestedSetParent != 0 &&
+			a != b // a span cannot be its own sibling
 	}
 
 	// this loop is very similar to the nestedSetLoop func below. It is separated out b/c silbings can have many to many relationships
-	// and the nestedSetLoop is a one to many relationship.
+	// and the nestedSetLoop is a one to many relationship which works for parent and descendant relationships
 	lidx := 0
+	parentIdx := 0
+	prevParentID := int32(math.MinInt32)
 	for _, r := range rhs {
 		if r.(*span).nestedSetParent == 0 {
 			continue
@@ -343,6 +346,11 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 		for ; lidx < len(lhs); lidx++ {
 			left := lhs[lidx].(*span)
 			right := r.(*span)
+
+			if left.nestedSetParent != prevParentID {
+				parentIdx = lidx
+				prevParentID = left.nestedSetParent
+			}
 
 			// if rhs is before lhs break here so it can catch up
 			if right.nestedSetParent < left.nestedSetParent {
@@ -354,7 +362,8 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 				if union {
 					buffer = append(buffer, r)
 				}
-				break // break w/o incrementing to allow the next rhs to test against this lhs - jpe this could make multiple copies of LHS added if union
+				lidx = parentIdx // we need to rescan this parent for more siblings. siblings are in a many to many relationship
+				break            // jpe this could make multiple copies of LHS added if union
 			}
 		}
 

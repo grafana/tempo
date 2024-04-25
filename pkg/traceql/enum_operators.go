@@ -39,7 +39,7 @@ const (
 	OpSpansetUnionParent
 	OpSpansetUnionSibling
 	OpSpansetUnionAncestor
-	OpSpansetUnionDescendant
+	OpSpansetUnionDescendant // jpe - names are bad. not a union, but a "or" operation
 )
 
 // jpe - test everything

@@ -1286,7 +1286,7 @@ func TestSiblingOf(t *testing.T) {
 			name:     "sibling: match self",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
-			expected: []traceql.Span{sibling1a},
+			expected: nil,
 		},
 		// !~
 		{
@@ -1308,7 +1308,7 @@ func TestSiblingOf(t *testing.T) {
 			lhs:         []traceql.Span{sibling1a},
 			rhs:         []traceql.Span{sibling1a},
 			falseForAll: true,
-			expected:    nil,
+			expected:    []traceql.Span{sibling1a},
 		},
 		// |~
 		{
@@ -1330,7 +1330,7 @@ func TestSiblingOf(t *testing.T) {
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
 			union:    true,
-			expected: []traceql.Span{sibling1a, sibling1a}, // jpe - unions can return copies of the same span, should we enforce that here or the engine?
+			expected: nil, // jpe - unions can return copies of the same span, should we enforce that here or the engine?
 		},
 	}
 
