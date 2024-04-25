@@ -63,6 +63,12 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
+// IntervalOfMs is the same as IntervalOf except the input timestamp is in unix milliseconds.
+func IntervalOfMs(tsmills int64, start, end, step uint64) int {
+	ts := uint64(time.Duration(tsmills) * time.Millisecond)
+	return IntervalOf(ts, start, end, step)
+}
+
 type Label struct {
 	Name  string
 	Value Static

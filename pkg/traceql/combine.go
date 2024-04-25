@@ -4,7 +4,6 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -174,14 +173,14 @@ type SeriesCombiner interface {
 	Results() SeriesSet
 }
 
-type BasicCombiner struct {
+type SimpleAdditionCombiner struct {
 	ss               SeriesSet
 	len              int
 	start, end, step uint64
 }
 
-func NewBasicCombiner(req *tempopb.QueryRangeRequest) *BasicCombiner {
-	return &BasicCombiner{
+func NewSimpleAdditionCombiner(req *tempopb.QueryRangeRequest) *SimpleAdditionCombiner {
+	return &SimpleAdditionCombiner{
 		ss:    make(SeriesSet),
 		len:   IntervalCount(req.Start, req.End, req.Step),
 		start: req.Start,
@@ -190,7 +189,7 @@ func NewBasicCombiner(req *tempopb.QueryRangeRequest) *BasicCombiner {
 	}
 }
 
-func (b *BasicCombiner) Combine(in []*tempopb.TimeSeries) {
+func (b *SimpleAdditionCombiner) Combine(in []*tempopb.TimeSeries) {
 	for _, ts := range in {
 		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
@@ -211,8 +210,7 @@ func (b *BasicCombiner) Combine(in []*tempopb.TimeSeries) {
 		}
 
 		for _, sample := range ts.Samples {
-			ts := uint64(time.Duration(sample.TimestampMs) * time.Millisecond)
-			j := IntervalOf(ts, b.start, b.end, b.step)
+			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
 			if j >= 0 && j < len(existing.Values) {
 				existing.Values[j] += sample.Value
 			}
@@ -220,7 +218,7 @@ func (b *BasicCombiner) Combine(in []*tempopb.TimeSeries) {
 	}
 }
 
-func (b *BasicCombiner) Results() SeriesSet {
+func (b *SimpleAdditionCombiner) Results() SeriesSet {
 	return b.ss
 }
 
@@ -283,8 +281,7 @@ func (h *HistogramCombiner) Combine(in []*tempopb.TimeSeries) {
 		}
 
 		for _, sample := range ts.Samples {
-			ts := uint64(time.Duration(sample.TimestampMs) * time.Millisecond)
-			j := IntervalOf(ts, h.start, h.end, h.step)
+			j := IntervalOfMs(sample.TimestampMs, h.start, h.end, h.step)
 			if j >= 0 && j < len(existing.hist) {
 				existing.hist[j][bucket] += int(sample.Value)
 			}
@@ -371,6 +368,6 @@ func Percentile(p float64, buckets [64]int) float64 {
 }
 
 var (
-	_ SeriesCombiner = (*BasicCombiner)(nil)
+	_ SeriesCombiner = (*SimpleAdditionCombiner)(nil)
 	_ SeriesCombiner = (*HistogramCombiner)(nil)
 )

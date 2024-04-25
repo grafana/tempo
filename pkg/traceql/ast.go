@@ -874,7 +874,7 @@ func (a *MetricsAggregate) initUnSharded(q *tempopb.QueryRangeRequest) {
 		a.jobAgg = NewHistogramCombiner(q, a.floats, div)
 	default:
 		// These are simple additions by series
-		a.jobAgg = NewBasicCombiner(q)
+		a.jobAgg = NewSimpleAdditionCombiner(q)
 	}
 }
 
