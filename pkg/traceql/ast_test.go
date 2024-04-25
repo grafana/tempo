@@ -404,7 +404,6 @@ func (m *mockSpan) DurationNanos() uint64 {
 	return m.durationNanos
 }
 
-// jpe - stuff here?
 func (m *mockSpan) DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, union bool, _ []Span) []Span {
 	return loop(lhs, rhs, falseForAll, invert, descendantOf)
 }

@@ -1025,7 +1025,31 @@ func TestDescendantOf(t *testing.T) {
 			expected: nil,
 			union:    true,
 		},
-		// jpe - add |<<
+		// |<<
+		{
+			name:     "|ancestor: basic",
+			lhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			rhs:      []traceql.Span{ancestor1},
+			invert:   true,
+			union:    true,
+			expected: []traceql.Span{descendant1a, descendant1b, ancestor1},
+		},
+		{
+			name:     "|ancestor: multiple matching trees",
+			lhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
+			rhs:      []traceql.Span{ancestor1, ancestor2},
+			invert:   true,
+			union:    true,
+			expected: []traceql.Span{descendant1a, descendant1b, ancestor1, descendant2a, descendant2b, ancestor2},
+		},
+		{
+			name:     "|ancestor: don't match self",
+			lhs:      []traceql.Span{ancestor1},
+			rhs:      []traceql.Span{ancestor1},
+			invert:   true,
+			union:    true,
+			expected: nil,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1330,7 +1354,7 @@ func TestSiblingOf(t *testing.T) {
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
 			union:    true,
-			expected: nil, // jpe - unions can return copies of the same span, should we enforce that here or the engine?
+			expected: nil,
 		},
 	}
 

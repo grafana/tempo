@@ -97,7 +97,6 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			if len(lhs) > 0 || len(rhs) > 0 {
 				output = addSpanset(input[i], uniqueSpans(lhs, rhs), output)
 			}
-			// jpe!
 		// relationship operators all set relFn which is used by below code
 		// to perform the operation
 		case OpSpansetNotDescendant:
@@ -112,7 +111,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetUnionDescendant:
 			falseForAll := o.Op == OpSpansetNotDescendant || o.Op == OpSpansetNotAncestor
-			invert := o.Op == OpSpansetAncestor || o.Op == OpSpansetNotAncestor
+			invert := o.Op == OpSpansetAncestor || o.Op == OpSpansetNotAncestor || o.Op == OpSpansetUnionAncestor
 			union := o.Op == OpSpansetUnionAncestor || o.Op == OpSpansetUnionDescendant
 			relFn = func(s Span, l, r []Span) []Span {
 				return s.DescendantOf(l, r, falseForAll, invert, union, o.matchingSpansBuffer)
@@ -130,7 +129,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			fallthrough
 		case OpSpansetUnionChild:
 			falseForAll := o.Op == OpSpansetNotParent || o.Op == OpSpansetNotChild
-			invert := o.Op == OpSpansetParent || o.Op == OpSpansetNotParent
+			invert := o.Op == OpSpansetParent || o.Op == OpSpansetNotParent || o.Op == OpSpansetUnionParent
 			union := o.Op == OpSpansetUnionParent || o.Op == OpSpansetUnionChild
 			relFn = func(s Span, l, r []Span) []Span {
 				return s.ChildOf(l, r, falseForAll, invert, union, o.matchingSpansBuffer)

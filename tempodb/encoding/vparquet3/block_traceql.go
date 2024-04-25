@@ -217,102 +217,6 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	}
 
 	return nestedSetLoop(ancestors, descendants, isValid, descendantOf, beforeInTree, falseForAll, invert, union, buffer)
-
-	// afterInTree := func(d *span, a *span) bool {
-	// 	return d.nestedSetLeft > a.nestedSetRight
-	// }
-
-	// // <<, !<<
-	// if invert {
-	// 	descendants := lhs
-	// 	ancestors := rhs
-
-	// 	didx := 0
-	// 	for _, a := range ancestors {
-	// 		matches := false
-
-	// 		for ; didx < len(descendants); didx++ {
-	// 			d := descendants[didx].(*span)
-
-	// 			if descendantOf(d, a.(*span)) {
-	// 				matches = true
-	// 				break
-	// 			}
-
-	// 			// stop searching if we have passed the right side of the ancestor
-	// 			if afterInTree(d, a.(*span)) {
-	// 				break
-	// 			}
-	// 		}
-
-	// 		if (matches && !falseForAll) || (!matches && falseForAll) {
-	// 			buffer = append(buffer, a)
-	// 		}
-	// 	}
-
-	// 	return buffer
-	// }
-
-	// // !>>
-	// if falseForAll {
-	// 	ancestors := lhs
-	// 	descendants := rhs
-
-	// 	didx := 0
-	// 	for _, a := range ancestors {
-	// 		for ; didx < len(descendants); didx++ {
-	// 			d := descendants[didx].(*span)
-
-	// 			// if before in tree add to buffer
-	// 			if beforeInTree(d, a.(*span)) {
-	// 				buffer = append(buffer, d)
-	// 				continue
-	// 			}
-
-	// 			// if descendant of then skip
-	// 			if descendantOf(d, a.(*span)) {
-	// 				continue
-	// 			}
-
-	// 			// else break to see next ancestor
-	// 			break
-	// 		}
-	// 	}
-
-	// 	// add any remaining descendants to the buffer
-	// 	for ; didx < len(descendants); didx++ {
-	// 		buffer = append(buffer, descendants[didx])
-	// 	}
-
-	// 	return buffer
-	// }
-
-	// // >>, |>>
-	// ancestors := lhs
-	// descendants := rhs
-
-	// didx := 0
-	// for _, a := range ancestors {
-	// 	matched := false
-
-	// 	for ; didx < len(descendants); didx++ {
-	// 		d := descendants[didx].(*span)
-
-	// 		if descendantOf(d, a.(*span)) {
-	// 			matched = true
-	// 			buffer = append(buffer, d)
-	// 			continue
-	// 		}
-
-	// 		break
-	// 	}
-
-	// 	if matched && union {
-	// 		buffer = append(buffer, a)
-	// 	}
-	// }
-
-	// return buffer
 }
 
 // SiblingOf
@@ -360,10 +264,10 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			if siblingOf(left, right) {
 				matches = true
 				if union {
-					buffer = append(buffer, r)
+					buffer = append(buffer, left)
 				}
 				lidx = parentIdx // we need to rescan this parent for more siblings. siblings are in a many to many relationship
-				break            // jpe this could make multiple copies of LHS added if union
+				break
 			}
 		}
 
