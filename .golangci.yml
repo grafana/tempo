@@ -32,7 +32,8 @@ run:
 # output configuration options
 output:
   # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
 
   # print lines of code with issue, default is true
   print-issued-lines: true
@@ -60,7 +61,9 @@ linters:
 
 linters-settings:
   errcheck:
-    exclude: ./.errcheck-exclude.txt
+    exclude-functions:
+      - (github.com/go-kit/kit/log.Logger).Log
+      - (github.com/go-kit/log.Logger).Log
   errorlint:
     errorf: false # don't check whether fmt.Errorf uses %w to wrap errors
   goconst:
