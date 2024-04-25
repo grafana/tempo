@@ -485,6 +485,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 	}
 }
 
+// jpe - add {} >> {}, etc and look for duplicates
 func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
@@ -660,21 +661,21 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 						{
 							Spans: []*tempopb.Span{
 								{
-									SpanID:            "0000000000010203",
-									StartTimeUnixNano: 1000000000000,
-									DurationNanos:     1000000000,
-									Name:              "",
-									Attributes: []*v1_common.KeyValue{
-										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
-									},
-								},
-								{
 									SpanID:            "0000000000040506",
 									StartTimeUnixNano: 1000000000000,
 									DurationNanos:     2000000000,
 									Name:              "",
 									Attributes: []*v1_common.KeyValue{
 										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
 									},
 								},
 							},

@@ -489,6 +489,7 @@ func (a Attribute) execute(span Span) (Static, error) {
 	return NewStaticNil(), nil
 }
 
+// jpe - improve by passing in a map to reuse
 func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
 	ss1Count := 0
 	ss2Count := 0

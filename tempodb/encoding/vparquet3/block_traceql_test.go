@@ -888,14 +888,15 @@ func TestDescendantOf(t *testing.T) {
 	descendant1a := &span{nestedSetLeft: 4, nestedSetRight: 5}
 	descendant1b := &span{nestedSetLeft: 6, nestedSetRight: 7}
 
-	ancestor2 := &span{nestedSetLeft: 11, nestedSetRight: 20}
+	ancestor2 := &span{nestedSetLeft: 11, nestedSetRight: 19}
 	descendant2a := &span{nestedSetLeft: 12, nestedSetRight: 13}
-	descendant2b := &span{nestedSetLeft: 16, nestedSetRight: 17}
+	descendant2b := &span{nestedSetLeft: 14, nestedSetRight: 17}
+	descendant2bb := &span{nestedSetLeft: 15, nestedSetRight: 16}
 
 	// adding disconnected spans that purposefully show up before, between and
 	// after the above trees
 	disconnectedBefore := &span{nestedSetLeft: 1, nestedSetRight: 2}
-	disconnectedBetween := &span{nestedSetLeft: 8, nestedSetRight: 9}
+	disconnectedBetween := &span{nestedSetLeft: 9, nestedSetRight: 10}
 	disconnectedAfter := &span{nestedSetLeft: 20, nestedSetRight: 21}
 
 	allDisconnected := []traceql.Span{disconnectedBefore, disconnectedBetween, disconnectedAfter}
@@ -1008,15 +1009,29 @@ func TestDescendantOf(t *testing.T) {
 			name:     "|descendant: basic",
 			lhs:      []traceql.Span{ancestor1},
 			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
-			expected: []traceql.Span{descendant1a, descendant1b, ancestor1},
+			expected: []traceql.Span{ancestor1, descendant1a, descendant1b},
 			union:    true,
 		},
 		{
 			name:     "|descendant: multiple matching trees",
 			lhs:      []traceql.Span{ancestor1, ancestor2},
 			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
-			expected: []traceql.Span{descendant1a, descendant1b, ancestor1, descendant2a, descendant2b, ancestor2},
+			expected: []traceql.Span{ancestor1, descendant1a, descendant1b, ancestor2, descendant2a, descendant2b},
 			union:    true,
+		},
+		{
+			name:     "|descendant: all",
+			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			expected: []traceql.Span{ancestor1, descendant1a, descendant1b, ancestor2, descendant2a, descendant2b, descendant2bb},
+			union:    true,
+		},
+		{
+			name:     "|descendant: multi-tier",
+			lhs:      []traceql.Span{ancestor2, descendant2b, descendant2bb},
+			rhs:      []traceql.Span{ancestor2, descendant2bb},
+			union:    true,
+			expected: []traceql.Span{ancestor2, descendant2b, descendant2bb},
 		},
 		{
 			name:     "|descendant: don't match self",
@@ -1303,8 +1318,8 @@ func TestSiblingOf(t *testing.T) {
 		{
 			name:     "sibling: multiple matching trees",
 			lhs:      []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
-			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
-			expected: []traceql.Span{sibling1b, sibling2a, sibling2b},
+			rhs:      []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
+			expected: []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
 		},
 		{
 			name:     "sibling: match self",
@@ -1336,21 +1351,21 @@ func TestSiblingOf(t *testing.T) {
 		},
 		// |~
 		{
-			name:     "sibling: basic",
+			name:     "|sibling: basic",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
 			union:    true,
 			expected: []traceql.Span{sibling1b, sibling1a},
 		},
 		{
-			name:     "sibling: multiple matching trees",
+			name:     "|sibling: multiple matching trees",
 			lhs:      []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
 			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
 			union:    true,
-			expected: []traceql.Span{sibling1b, sibling1a, sibling2a, sibling2b, sibling2a, sibling2b}, // jpe - unions can return copies of the same span, should we enforce that here or the engine?
+			expected: []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
 		},
 		{
-			name:     "sibling: match self",
+			name:     "|sibling: match self",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
 			union:    true,
@@ -1390,11 +1405,12 @@ func TestSiblingOf(t *testing.T) {
 }
 
 func BenchmarkDescendantOf(b *testing.B) {
+	// jpe - improve. this is a pathological case for |>>
 	totalSpans := 1000
 
 	// create 1k s1 in a direct line
 	s1 := make([]traceql.Span, totalSpans)
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < totalSpans; i++ {
 		s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
 	}
 	// copy the same slice to s2
@@ -1458,7 +1474,7 @@ func BenchmarkSiblingOf(b *testing.B) {
 
 	// create 1k s1 with random siblings
 	s1 := make([]traceql.Span, totalSpans)
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < totalSpans; i++ {
 		s1[i] = &span{nestedSetParent: rand.Int31n(10)}
 	}
 	// copy the same slice to s2
@@ -1507,7 +1523,7 @@ func BenchmarkChildOf(b *testing.B) {
 
 	// create 1k s1 in a direct line
 	s1 := make([]traceql.Span, totalSpans)
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < totalSpans; i++ {
 		s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
 	}
 	// copy the same slice to s2

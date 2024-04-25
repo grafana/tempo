@@ -194,7 +194,27 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
 	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
 
-	// is d a descendant of a?
+	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
+
+	// union is many:many
+	if union {
+		descendantOf := func(d, a *span) bool {
+			if d.nestedSetLeft == 0 ||
+				a.nestedSetLeft == 0 ||
+				d.nestedSetRight == 0 ||
+				a.nestedSetRight == 0 {
+				return false
+			}
+			return d.nestedSetLeft > a.nestedSetLeft && d.nestedSetRight < a.nestedSetRight
+		}
+		outOfTree := func(a, b *span) bool {
+			return b.nestedSetLeft > a.nestedSetRight
+		}
+
+		return nestedSetManyManyLoop(lhs, rhs, isValid, descendantOf, outOfTree, falseForAll, invert, union, buffer)
+	}
+
+	// not union is one:many
 	descendantOf := func(a, d *span) bool {
 		if d.nestedSetLeft == 0 ||
 			a.nestedSetLeft == 0 ||
@@ -207,7 +227,6 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	beforeInTree := func(a, d *span) bool {
 		return d.nestedSetLeft > a.nestedSetRight
 	}
-	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
 
 	ancestors := lhs
 	descendants := rhs
@@ -216,7 +235,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 		ancestors, descendants = descendants, ancestors
 	}
 
-	return nestedSetLoop(ancestors, descendants, isValid, descendantOf, beforeInTree, falseForAll, invert, union, buffer)
+	return nestedSetOneManyLoop(ancestors, descendants, isValid, descendantOf, beforeInTree, falseForAll, invert, union, buffer)
 }
 
 // SiblingOf
@@ -233,52 +252,15 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 		return a.nestedSetParent == b.nestedSetParent &&
 			a.nestedSetParent != 0 &&
 			b.nestedSetParent != 0 &&
-			a != b // a span cannot be its own sibling
+			a != b // a span cannot be its own sibling. note that this only works due to implementation details in the engine. if we ever pipeline structural operators then we would need to use something else for identity. rownumber?
 	}
+	isValid := func(s *span) bool { return s.nestedSetParent != 0 }
+	isAfter := func(a *span, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
 
-	// this loop is very similar to the nestedSetLoop func below. It is separated out b/c silbings can have many to many relationships
-	// and the nestedSetLoop is a one to many relationship which works for parent and descendant relationships
-	lidx := 0
-	parentIdx := 0
-	prevParentID := int32(math.MinInt32)
-	for _, r := range rhs {
-		if r.(*span).nestedSetParent == 0 {
-			continue
-		}
-
-		matches := false
-		for ; lidx < len(lhs); lidx++ {
-			left := lhs[lidx].(*span)
-			right := r.(*span)
-
-			if left.nestedSetParent != prevParentID {
-				parentIdx = lidx
-				prevParentID = left.nestedSetParent
-			}
-
-			// if rhs is before lhs break here so it can catch up
-			if right.nestedSetParent < left.nestedSetParent {
-				break
-			}
-
-			if siblingOf(left, right) {
-				matches = true
-				if union {
-					buffer = append(buffer, left)
-				}
-				lidx = parentIdx // we need to rescan this parent for more siblings. siblings are in a many to many relationship
-				break
-			}
-		}
-
-		if (matches && !falseForAll) || (!matches && falseForAll) {
-			buffer = append(buffer, r)
-		}
-	}
-
-	return buffer
+	return nestedSetManyManyLoop(lhs, rhs, isValid, siblingOf, isAfter, falseForAll, false, union, buffer)
 }
 
+// {} > {} > {} > {}
 func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 || len(rhs) == 0 {
 		return nil
@@ -301,11 +283,70 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 	sort.Slice(parents, func(i, j int) bool { return parents[i].(*span).nestedSetLeft < parents[j].(*span).nestedSetLeft })
 	sort.Slice(children, func(i, j int) bool { return children[i].(*span).nestedSetParent < children[j].(*span).nestedSetParent })
 
-	return nestedSetLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
+	return nestedSetOneManyLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
 }
 
-// nestedSetLoop runs a standard one -> many loop to calculate nested set relationships
-func nestedSetLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+	var uniqueSpans map[*span]struct{}
+	if union {
+		uniqueSpans = make(map[*span]struct{}) // jpe - benchmark passing in a reusable map
+	}
+
+	addToBuffer := func(s *span) {
+		if union {
+			if _, ok := uniqueSpans[s]; !ok {
+				buffer = append(buffer, s)
+				uniqueSpans[s] = struct{}{}
+			}
+		} else {
+			buffer = append(buffer, s)
+		}
+	}
+
+	rescanIdx := 0
+	lidx := 0
+	for _, r := range rhs {
+		rSpan := r.(*span)
+		if !isValid(rSpan) {
+			continue
+		}
+
+		// rescan whatever amount of rhs we need to
+		lidx = rescanIdx
+
+		matches := false
+		for ; lidx < len(lhs); lidx++ {
+			lSpan := lhs[lidx].(*span)
+
+			// if left is after right, swap back to right jpe - invert swap spans?
+			if isAfter(rSpan, lSpan) {
+				break
+			}
+
+			// if we transition forward (trees branches or parents or whatever) store current lidx to rescan
+			if isAfter(lhs[rescanIdx].(*span), lSpan) {
+				rescanIdx = lidx
+			}
+
+			if (!invert && isMatch(rSpan, lSpan)) || (invert && isMatch(lSpan, rSpan)) {
+				matches = true
+				if union {
+					addToBuffer(lSpan)
+				}
+			}
+		}
+
+		if (matches && !falseForAll) || (!matches && falseForAll) {
+			addToBuffer(rSpan)
+		}
+	}
+
+	return buffer
+}
+
+// nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships
+// jpe - dedupe spans on union
+func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	// note the small differences between this and the !invert loop. technically we could write these both in one piece of code,
 	// but this feels better for clarity
 	if invert {
