@@ -61,7 +61,6 @@ func (s *store) tryEvictHead() bool {
 
 	headEdge := head.Value.(*Edge)
 	if !headEdge.isExpired() {
-		s.returnEdge(headEdge)
 		return false
 	}
 
