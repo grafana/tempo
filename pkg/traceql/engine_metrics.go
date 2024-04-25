@@ -245,10 +245,10 @@ type FastValues [maxGroupBys]Static
 // GroupingAggregator groups spans into series based on attribute values.
 type GroupingAggregator struct {
 	// Config
-	by          []Attribute   // Original attributes: .foo
-	byLookups   [][]Attribute // Lookups: span.foo resource.foo
-	byFunc      func(Span) (Static, bool)
-	byFuncLabel string
+	by          []Attribute               // Original attributes: .foo
+	byLookups   [][]Attribute             // Lookups: span.foo resource.foo
+	byFunc      func(Span) (Static, bool) // Dynamic label calculated by a callback
+	byFuncLabel string                    // Name of the dynamic label
 	innerAgg    func() RangeAggregator
 
 	// Data
@@ -300,6 +300,8 @@ func (g *GroupingAggregator) Observe(span Span) {
 	for i, lookups := range g.byLookups {
 		g.buf[i] = lookup(lookups, span)
 	}
+
+	// If dynamic label exists calculate and append it
 	if g.byFunc != nil {
 		v, ok := g.byFunc(span)
 		if !ok {

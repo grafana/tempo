@@ -335,6 +335,11 @@ func Percentile(p float64, buckets [64]int) float64 {
 	// percentiles on low sample counts (<100).
 	maxSamples := int(math.Ceil(p * float64(totalCount)))
 
+	if maxSamples == 0 {
+		// We have to read at least one sample.
+		maxSamples = 1
+	}
+
 	// Find the bucket where the percentile falls in
 	// and the total sample count less than or equal
 	// to that bucket.

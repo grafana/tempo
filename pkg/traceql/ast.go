@@ -827,28 +827,28 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 		switch a.attr {
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
-			byFunc = func(s Span) (Static, bool) {
+			byFunc = func(s Span) (v Static, ok bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return NewStaticNil(), false
+					return
 				}
 				return NewStaticInt(int(math.Ceil(math.Log2(float64(d))))), true
 			}
 		default:
 			// Basic implementation for all other attributes
-			byFunc = func(s Span) (Static, bool) {
-				v, ok := s.AttributeFor(a.attr)
+			byFunc = func(s Span) (v Static, ok bool) {
+				v, ok = s.AttributeFor(a.attr)
 				if !ok {
-					return Static{}, false
+					return
 				}
 
 				// TODO(mdisibio) - Add quantile support for floats
 				if v.Type != TypeInt {
-					return Static{}, false
+					return
 				}
 
 				if v.N < 2 {
-					return NewStaticNil(), false
+					return
 				}
 				return NewStaticInt(int(math.Ceil(math.Log2(float64(v.N))))), true
 			}
