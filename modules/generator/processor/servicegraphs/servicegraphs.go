@@ -52,7 +52,7 @@ const (
 	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
 )
 
-const virtualNodeLabel = "__virtual_node"
+const virtualNodeLabel = "virtual_node"
 
 var defaultPeerAttributes = []attribute.Key{
 	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
