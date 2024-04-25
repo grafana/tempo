@@ -807,7 +807,7 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 	if !sharded {
 		// Query-frontend version
-		a.initUnSharded()
+		a.initUnSharded(q)
 		return
 	}
 
@@ -821,16 +821,39 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
 	case metricsAggregateQuantileOverTime:
-		// Quantiles are implemented as count_over_time by log2(duration)
+		// Quantiles are implemented as count_over_time() by(log2(attr)) for now
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		byFuncLabel = internalLabelBucket
-		byFunc = func(s Span) (Static, bool) {
-			d := s.DurationNanos()
-			if d < 2 {
-				return NewStaticNil(), false
+		switch a.attr {
+		case IntrinsicDurationAttribute:
+			// Optimal implementation for duration attribute
+			byFunc = func(s Span) (Static, bool) {
+				d := s.DurationNanos()
+				if d < 2 {
+					return NewStaticNil(), false
+				}
+				return NewStaticInt(int(math.Ceil(math.Log2(float64(d))))), true
 			}
-			return NewStaticInt(int(math.Ceil(math.Log2(float64(d))))), true
+		default:
+			// Basic implementation for all other attributes
+			byFunc = func(s Span) (Static, bool) {
+				v, ok := s.AttributeFor(a.attr)
+				if !ok {
+					return Static{}, false
+				}
+
+				// TODO(mdisibio) - Add quantile support for floats
+				if v.Type != TypeInt {
+					return Static{}, false
+				}
+
+				if v.N < 2 {
+					return NewStaticNil(), false
+				}
+				return NewStaticInt(int(math.Ceil(math.Log2(float64(v.N))))), true
+			}
 		}
+
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
@@ -838,7 +861,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 	}, a.by, byFunc, byFuncLabel)
 }
 
-func (a *MetricsAggregate) initUnSharded() {
+func (a *MetricsAggregate) initUnSharded(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
 		div := 1.0
@@ -848,14 +871,10 @@ func (a *MetricsAggregate) initUnSharded() {
 		if a.attr == IntrinsicDurationAttribute {
 			div = float64(time.Second)
 		}
-		a.jobAgg = &HistogramCombiner{
-			by:  a.by,
-			div: div,
-			qs:  a.floats,
-		}
+		a.jobAgg = NewHistogramCombiner(q, a.floats, div)
 	default:
 		// These are simple additions by series
-		a.jobAgg = &BasicCombiner{}
+		a.jobAgg = NewBasicCombiner(q)
 	}
 }
 
@@ -871,6 +890,9 @@ func (a *MetricsAggregate) result() SeriesSet {
 	if a.agg != nil {
 		return a.agg.Series()
 	}
+
+	// In the frontend-version the results come from
+	// the job-level aggregator
 	return a.jobAgg.Results()
 }
 
@@ -882,6 +904,11 @@ func (a *MetricsAggregate) validate() error {
 		if len(a.by) >= maxGroupBys {
 			// We reserve a spot for the bucket so quantile has 1 less group by
 			return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
+		}
+		for _, q := range a.floats {
+			if q < 0 || q > 1 {
+				return fmt.Errorf("quantile must be between 0 and 1: %v", q)
+			}
 		}
 	default:
 		return newUnsupportedError(fmt.Sprintf("metrics aggregate operation (%v)", a.op))

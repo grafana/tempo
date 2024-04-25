@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/prometheus/prometheus/model/labels"
 )
 
 type MetadataCombiner struct {
@@ -176,29 +175,32 @@ type SeriesCombiner interface {
 }
 
 type BasicCombiner struct {
-	ss SeriesSet
+	ss  SeriesSet
+	len int
+}
+
+func NewBasicCombiner(req *tempopb.QueryRangeRequest) *BasicCombiner {
+	return &BasicCombiner{
+		ss:  make(SeriesSet),
+		len: IntervalCount(req.Start, req.End, req.Step),
+	}
 }
 
 func (b *BasicCombiner) Combine(in SeriesSet) {
-	if b.ss == nil {
-		b.ss = make(SeriesSet, len(in))
-	}
-
 	for k, ts := range in {
 
 		existing, ok := b.ss[k]
 		if !ok {
-			b.ss[k] = ts
-			continue
+			existing = TimeSeries{
+				Labels: ts.Labels,
+				Values: make([]float64, b.len),
+			}
+			b.ss[k] = existing
 		}
 
-		b.combine(ts, existing)
-	}
-}
-
-func (BasicCombiner) combine(in TimeSeries, out TimeSeries) {
-	for i := range in.Values {
-		out.Values[i] += in.Values[i]
+		for i := range ts.Values {
+			existing.Values[i] += ts.Values[i]
+		}
 	}
 }
 
@@ -206,33 +208,38 @@ func (b *BasicCombiner) Results() SeriesSet {
 	return b.ss
 }
 
+type hist struct {
+	labels Labels
+	hist   [][64]int // There is an array of powers-of-two buckets for every point in time
+}
+
 type HistogramCombiner struct {
-	// ss map[string][][64]int
-	b   BasicCombiner
+	ss  map[string]hist
 	qs  []float64
-	by  []Attribute
 	div float64
+	len int
+}
+
+func NewHistogramCombiner(req *tempopb.QueryRangeRequest, qs []float64, div float64) *HistogramCombiner {
+	return &HistogramCombiner{
+		div: div,
+		qs:  qs,
+		len: IntervalCount(req.Start, req.End, req.Step),
+		ss:  make(map[string]hist),
+	}
 }
 
 func (h *HistogramCombiner) Combine(in SeriesSet) {
-	h.b.Combine(in)
-}
-
-func (h *HistogramCombiner) Results() SeriesSet {
-	rawResults := h.b.Results()
-
-	// Here is where we compute the final percentiles
-	allBuckets := make(map[FastValues][][64]int)
-	for _, rawSeries := range rawResults {
-		withoutBucket := FastValues{}
+	for _, ts := range in {
+		withoutBucket := make(Labels, 0, len(ts.Labels))
 		bucket := -1
-		for i, l := range rawSeries.Labels {
+		for _, l := range ts.Labels {
 			// TODO - It's roundtripping the internal bucket weird
 			if l.Name == ".__bucket" {
 				bucket = l.Value.N
-				break
+				continue
 			}
-			withoutBucket[i] = l.Value
+			withoutBucket = append(withoutBucket, l)
 		}
 
 		if bucket < 0 || bucket > 64 {
@@ -240,66 +247,49 @@ func (h *HistogramCombiner) Results() SeriesSet {
 			continue
 		}
 
-		existing, ok := allBuckets[withoutBucket]
+		withoutBucketStr := withoutBucket.String()
+
+		existing, ok := h.ss[withoutBucketStr]
 		if !ok {
-			existing = make([][64]int, len(rawSeries.Values))
-			allBuckets[withoutBucket] = existing
+			existing = hist{
+				labels: withoutBucket,
+				hist:   make([][64]int, h.len),
+			}
+			h.ss[withoutBucketStr] = existing
 		}
 
-		for i, v := range rawSeries.Values {
-			existing[i][bucket] += int(v)
+		for i, v := range ts.Values {
+			existing.hist[i][bucket] += int(v)
 		}
 	}
+}
 
-	// Now generate new series
-	outresults := make(SeriesSet)
-	for labels, summed := range allBuckets {
+func (h *HistogramCombiner) Results() SeriesSet {
+	results := make(SeriesSet, len(h.ss)*len(h.qs))
+
+	for _, in := range h.ss {
+		// For each input series, we create a new series for each quantile.
 		for _, q := range h.qs {
-			l, prom := h.labelsFor(labels, q)
+			labels := append((Labels)(nil), in.labels...)
+			labels = append(labels, Label{"p", NewStaticFloat(q)})
+			s := labels.String()
 
 			new := TimeSeries{
-				Labels: l,
-				Values: make([]float64, len(summed)),
+				Labels: labels,
+				Values: make([]float64, len(in.hist)),
 			}
-			for i := range summed {
-				new.Values[i] = percentile(q, summed[i]) / h.div
+			for i := range in.hist {
+				new.Values[i] = Percentile(q, in.hist[i]) / h.div
 			}
-			outresults[prom] = new
+			results[s] = new
 		}
 	}
-	return outresults
-	// return h.b.Results()
+	return results
 }
 
-func (h *HistogramCombiner) labelsFor(vals FastValues, percentile float64) ([]Label, string) {
-	tempoLabels := make([]Label, 0, len(h.by))
-	for i, v := range vals {
-		if v.Type == TypeNil {
-			continue
-		}
-		tempoLabels = append(tempoLabels, Label{h.by[i].String(), v})
-	}
-	tempoLabels = append(tempoLabels, Label{"p", NewStaticFloat(percentile)})
-
-	// Prometheus-style version for convenience
-	promLabels := labels.NewBuilder(nil)
-	for _, l := range tempoLabels {
-		promValue := l.Value.EncodeToString(false)
-		if promValue == "" {
-			promValue = "<empty>"
-		}
-		promLabels.Set(l.Name, promValue)
-	}
-	// When all nil then force one.
-	if promLabels.Labels().IsEmpty() {
-		promLabels.Set(h.by[0].String(), "<nil>")
-	}
-
-	return tempoLabels, promLabels.Labels().String()
-}
-
-// Percentile returns the estimated latency percentile in nanoseconds.
-func percentile(p float64, buckets [64]int) float64 {
+// Percentile returns the p-value given powers-of-two bucket counts. Uses
+// exponential interpolation. The original values are int64 so there are always 64 buckets.
+func Percentile(p float64, buckets [64]int) float64 {
 	if math.IsNaN(p) ||
 		p < 0 ||
 		p > 1 {

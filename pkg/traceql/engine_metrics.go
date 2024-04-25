@@ -68,6 +68,28 @@ type Label struct {
 	Value Static
 }
 
+type Labels []Label
+
+// String returns the prometheus-formatted version of the labels. Which is downcasting
+// the typed TraceQL values to strings, with some special casing.
+func (ls Labels) String() string {
+	promLabels := labels.NewBuilder(nil)
+	for _, l := range ls {
+		var promValue string
+		switch {
+		case l.Value.Type == TypeNil:
+			promValue = "<nil>"
+		case l.Value.Type == TypeString && l.Value.S == "":
+			promValue = "<empty>"
+		default:
+			promValue = l.Value.EncodeToString(false)
+		}
+		promLabels.Set(l.Name, promValue)
+	}
+
+	return promLabels.Labels().String()
+}
+
 type TimeSeries struct {
 	Labels []Label
 	Values []float64
@@ -354,30 +376,21 @@ func (g *GroupingAggregator) Observe(span Span) {
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator) labelsFor(vals FastValues) ([]Label, string) {
-	tempoLabels := make([]Label, 0, len(g.by)+1)
+func (g *GroupingAggregator) labelsFor(vals FastValues) (Labels, string) {
+	labels := make(Labels, 0, len(g.by)+1)
 	for i, v := range vals {
 		if v.Type == TypeNil {
 			continue
 		}
-		tempoLabels = append(tempoLabels, Label{g.by[i].String(), v})
+		labels = append(labels, Label{g.by[i].String(), v})
 	}
 
-	// Prometheus-style version for convenience
-	promLabels := labels.NewBuilder(nil)
-	for _, l := range tempoLabels {
-		promValue := l.Value.EncodeToString(false)
-		if promValue == "" {
-			promValue = "<empty>"
-		}
-		promLabels.Set(l.Name, promValue)
-	}
-	// When all nil then force one.
-	if promLabels.Labels().IsEmpty() {
-		promLabels.Set(g.by[0].String(), "<nil>")
+	if len(labels) == 0 {
+		// When all nil then force one
+		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
 	}
 
-	return tempoLabels, promLabels.Labels().String()
+	return labels, labels.String()
 }
 
 func (g *GroupingAggregator) Series() SeriesSet {
@@ -754,6 +767,8 @@ func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
 	return false
 }
 
+// MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
+// of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
 	metricsPipeline metricsFirstStageElement
 }
