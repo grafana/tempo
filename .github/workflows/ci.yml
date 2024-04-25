@@ -36,11 +36,8 @@ jobs:
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: v1.55.2
-          only-new-issues: true
+      - name: lint
+        run: make lint base=${{github.base_ref}}
 
   unit-tests-pkg:
     name: Test packages - pkg
