@@ -142,6 +142,11 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 	return nil
 }
 
+// Delete implements backend.Writer
+func (w *writer) Delete(ctx context.Context, name string, keypath KeyPath) error {
+	return w.w.Delete(ctx, name, keypath, nil)
+}
+
 type reader struct {
 	r RawReader
 }
