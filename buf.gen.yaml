@@ -11,7 +11,7 @@ plugins:
   #   out: gen
   #   opt: paths=source_relative
   - plugin: go
-    out: proto
+    out: pkg/tempopb
     opt: paths=source_relative
   - plugin: go-grpc
     out: proto
