@@ -982,6 +982,13 @@ storage:
         # Default 1
         [blocklist_poll_tolerate_consecutive_errors: <int>]
 
+        # Polling will delete the index for a tenant if no blocks are found to
+        exist.  The empty_tenant_deletion_age configuration is used to tune how
+        quickly the poller will also delete any remaining backend objects found in the
+        tenant path.
+        # Default: 20m; four times the blocklist_poll configuration above.
+        [empty_tenant_deletion_age: <duration>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         # Deprecated. See [cache](#cache) section below.
