@@ -433,7 +433,7 @@ func (e *Engine) CompileMetricsQueryRangeFrontend(req *tempopb.QueryRangeRequest
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	metricsPipeline.init(req, false)
+	metricsPipeline.init(req, true)
 
 	return &MetricsFrontendEvaluator{
 		metricsPipeline: metricsPipeline,
@@ -472,7 +472,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	}
 
 	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req, true)
+	metricsPipeline.init(req, false)
 
 	me := &MetricsEvalulator{
 		storageReq:        storageReq,

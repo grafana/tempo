@@ -804,10 +804,10 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 }
 
-func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
-	if !sharded {
+func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, frontend bool) {
+	if frontend {
 		// Query-frontend version
-		a.initUnSharded(q)
+		a.initFrontend(q)
 		return
 	}
 
@@ -818,8 +818,10 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+
 	case metricsAggregateQuantileOverTime:
 		// Quantiles are implemented as count_over_time() by(log2(attr)) for now
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
@@ -827,33 +829,32 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 		switch a.attr {
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
-			byFunc = func(s Span) (v Static, ok bool) {
+			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return
+					return Static{}, false
 				}
 				return NewStaticInt(int(math.Ceil(math.Log2(float64(d))))), true
 			}
 		default:
 			// Basic implementation for all other attributes
-			byFunc = func(s Span) (v Static, ok bool) {
-				v, ok = s.AttributeFor(a.attr)
+			byFunc = func(s Span) (Static, bool) {
+				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return
+					return Static{}, false
 				}
 
 				// TODO(mdisibio) - Add quantile support for floats
 				if v.Type != TypeInt {
-					return
+					return Static{}, false
 				}
 
 				if v.N < 2 {
-					return
+					return Static{}, false
 				}
 				return NewStaticInt(int(math.Ceil(math.Log2(float64(v.N))))), true
 			}
 		}
-
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
@@ -861,11 +862,11 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, sharded bool) {
 	}, a.by, byFunc, byFuncLabel)
 }
 
-func (a *MetricsAggregate) initUnSharded(q *tempopb.QueryRangeRequest) {
+func (a *MetricsAggregate) initFrontend(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
 		div := 1.0
-		// UGH - Need to think about this
+		// TODO(mdisibio) - Need to think about this
 		// Span duration is in nanos, but we want the output to be something
 		// more reasonable like seconds
 		if a.attr == IntrinsicDurationAttribute {
