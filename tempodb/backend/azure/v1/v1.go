@@ -17,6 +17,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 
+	dskitlog "github.com/grafana/dskit/log"
+	"github.com/grafana/dskit/server"
+
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure/config"
@@ -48,6 +51,9 @@ type appendTracker struct {
 
 func New(cfg *config.Config, confirm bool) (*V1, error) {
 	ctx := context.Background()
+	loglevel := &dskitlog.Level{}
+	loglevel.Set("debug")
+	log.InitLogger(&server.Config{LogLevel: *loglevel})
 
 	container, err := GetContainer(ctx, cfg, false)
 	if err != nil {
@@ -224,6 +230,51 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 		}
 	}
 	return blockIDs, compactedBlockIDs, nil
+}
+
+// Find implements backend.Reader
+func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	marker := blob.Marker{}
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
+
+	var obj string
+	for {
+		res, err := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
+			Prefix:  prefix,
+			Details: blob.BlobListingDetails{},
+		})
+		if err != nil {
+			return fmt.Errorf("iterating objects: %w", err)
+		}
+		marker = res.NextMarker
+
+		level.Info(log.Logger).Log("msg", "find", "prefix", prefix)
+
+		for _, blob := range res.Segment.BlobItems {
+			obj = strings.TrimPrefix(strings.TrimSuffix(blob.Name, dir), prefix)
+
+			level.Info(log.Logger).Log("msg", "find", "blob", blob.Name, "obj", obj, "prefix", prefix, "name", blob.Name, "lastModified", blob.Properties.LastModified)
+
+			opts := backend.FindOpts{
+				Key:      blob.Name,
+				Modified: blob.Properties.LastModified,
+			}
+			f(opts)
+		}
+
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+	}
+
+	return
 }
 
 // Read implements backend.Reader

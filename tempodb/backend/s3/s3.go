@@ -20,7 +20,7 @@ import (
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/minio/minio-go/v7"
+	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
 
@@ -389,6 +389,49 @@ func (rw *readerWriter) ListBlocks(
 	level.Debug(rw.logger).Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
 
 	return blockIDs, compactedBlockIDs, nil
+}
+
+// Find implements backend.Reader
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+
+	// TODO, verify prefix handling.
+
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	nextToken := ""
+	isTruncated := true
+	var res minio.ListBucketV2Result
+
+	for isTruncated {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			res, err = rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "", 0)
+			if err != nil {
+				return fmt.Errorf("error finding objects in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
+			}
+
+			isTruncated = res.IsTruncated
+			nextToken = res.NextContinuationToken
+
+			if len(res.Contents) > 0 {
+				for _, c := range res.Contents {
+					opts := backend.FindOpts{
+						Key:      c.Key,
+						Modified: c.LastModified,
+					}
+					f(opts)
+				}
+			}
+		}
+	}
+
+	return
 }
 
 // Read implements backend.Reader

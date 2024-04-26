@@ -13,7 +13,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	dskitlog "github.com/grafana/dskit/log"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -24,8 +26,11 @@ import (
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
+	"github.com/grafana/dskit/server"
+
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -75,6 +80,9 @@ func NewVersionedReaderWriter(cfg *Config, confirmVersioning bool) (backend.Vers
 }
 
 func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
+	loglevel := &dskitlog.Level{}
+	loglevel.Set("debug")
+	log.InitLogger(&server.Config{LogLevel: *loglevel})
 	ctx := context.Background()
 
 	bucket, err := createBucket(ctx, cfg, false)
@@ -306,6 +314,46 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	}
 
 	return blockIDs, compactedBlockIDs, nil
+}
+
+// Find implements backend.Reader
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+	level.Info(log.Logger).Log("msg", "finding objects", "prefix", prefix, "keypath", fmt.Sprintf("%+v", keypath))
+
+	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Delimiter: "",
+		Prefix:    prefix,
+		Versions:  false,
+	})
+
+	for {
+		level.Info(log.Logger).Log("msg", "iterating objects", "prefix", prefix)
+		attrs, iterErr := iter.Next()
+		if errors.Is(iterErr, iterator.Done) {
+			break
+		}
+		if iterErr != nil {
+			return fmt.Errorf("iterating objects: %w", err)
+		}
+
+		// TODO: hmm, all the other methods in this backend are using attrs other than name.  Except the listBlocks.  Why?
+		/* obj := strings.TrimSuffix(strings.TrimPrefix(attrs.Name, prefix), "/") */
+		/* obj := strings.TrimPrefix(attrs.Name, prefix) */
+		/* level.Info(log.Logger).Log("msg", "find", "blob", attrs.Name, "obj", obj, "attrs", fmt.Sprintf("%+v", attrs)) */
+
+		opts := backend.FindOpts{
+			Key:      attrs.Name,
+			Modified: attrs.Updated,
+		}
+		f(opts)
+	}
+
+	return
 }
 
 // Read implements backend.Reader
