@@ -14,7 +14,7 @@ plugins:
     out: pkg/tempopb
     opt: paths=source_relative
   - plugin: go-grpc
-    out: proto
+    out: pkg/tempopb
     opt:
       - paths=source_relative
       - require_unimplemented_servers=false

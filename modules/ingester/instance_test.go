@@ -19,7 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 

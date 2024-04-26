@@ -19,9 +19,9 @@ import (
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resource_v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
+	resource_v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/resource/v1"
+	trace_v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 

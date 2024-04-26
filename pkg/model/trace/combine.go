@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	proto "google.golang.org/protobuf/proto"
 )
 
 // token is uint64 to reduce hash collision rates.  Experimentally, it was observed
@@ -137,7 +138,7 @@ func (c *Combiner) sizeError() error {
 		return nil
 	}
 
-	if c.result.Size() > c.maxSizeBytes {
+	if proto.Size(c.result) > c.maxSizeBytes {
 		return fmt.Errorf("%w (max bytes: %d)", ErrTraceTooLarge, c.maxSizeBytes)
 	}
 

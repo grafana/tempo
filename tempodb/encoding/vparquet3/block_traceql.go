@@ -18,7 +18,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/traceidboundary"

@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/test"

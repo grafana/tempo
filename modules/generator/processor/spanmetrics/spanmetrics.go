@@ -12,8 +12,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/resource/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 )

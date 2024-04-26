@@ -10,7 +10,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
 

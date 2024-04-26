@@ -1,8 +1,8 @@
 package util
 
 import (
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	semconv "go.opentelemetry.io/collector/semconv/v1.9.0"
 )

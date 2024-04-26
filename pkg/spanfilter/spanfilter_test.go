@@ -8,8 +8,8 @@ import (
 
 	"github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	commonv1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/resource/v1"
 	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
 )

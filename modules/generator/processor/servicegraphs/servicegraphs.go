@@ -22,8 +22,8 @@ import (
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 

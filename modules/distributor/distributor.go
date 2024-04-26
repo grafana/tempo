@@ -33,7 +33,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/pkg/validation"

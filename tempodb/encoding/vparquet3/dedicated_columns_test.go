@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 

@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1resource "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"

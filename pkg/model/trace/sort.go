@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"sort"
 
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
+
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 // SortTrace sorts a *tempopb.Trace

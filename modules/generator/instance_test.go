@@ -21,8 +21,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	commonv1proto "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
 )

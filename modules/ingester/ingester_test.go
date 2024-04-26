@@ -25,7 +25,7 @@ import (
 	model_v1 "github.com/grafana/tempo/pkg/model/v1"
 	model_v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"

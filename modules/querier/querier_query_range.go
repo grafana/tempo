@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"

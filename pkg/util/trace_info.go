@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1common "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	proto "google.golang.org/protobuf/proto"
 )
 
 var (
@@ -214,7 +214,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			}
 
 			t := tempopb.Trace{}
-			err = t.Unmarshal(conv)
+			err = proto.Unmarshal(conv, &t)
 			if err != nil {
 				return err
 			}

@@ -19,7 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"

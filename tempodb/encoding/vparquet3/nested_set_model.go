@@ -1,7 +1,7 @@
 package vparquet3
 
 import (
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
 
