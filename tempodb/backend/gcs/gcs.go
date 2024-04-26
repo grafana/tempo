@@ -81,7 +81,7 @@ func NewVersionedReaderWriter(cfg *Config, confirmVersioning bool) (backend.Vers
 
 func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	loglevel := &dskitlog.Level{}
-	loglevel.Set("debug")
+	_ = loglevel.Set("debug")
 	log.InitLogger(&server.Config{LogLevel: *loglevel})
 	ctx := context.Background()
 

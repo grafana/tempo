@@ -489,9 +489,9 @@ func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
 	// do nothing if the tenant index has appeared.
 	_, err = p.reader.TenantIndex(ctx, tenantID)
 	// If we have any error other than that which indicates that the tenant index
-	// call was made successfuly, and that it does not exist, do nothing.  Only
+	// call was made successfully, and that it does not exist, do nothing.  Only
 	// proceed if we know that the index does not exist.
-	if err != backend.ErrDoesNotExist {
+	if !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil
 	}
 

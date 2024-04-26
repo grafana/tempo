@@ -52,7 +52,7 @@ type appendTracker struct {
 func New(cfg *config.Config, confirm bool) (*V1, error) {
 	ctx := context.Background()
 	loglevel := &dskitlog.Level{}
-	loglevel.Set("debug")
+	_ = loglevel.Set("debug")
 	log.InitLogger(&server.Config{LogLevel: *loglevel})
 
 	container, err := GetContainer(ctx, cfg, false)
