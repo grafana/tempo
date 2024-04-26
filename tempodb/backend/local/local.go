@@ -199,6 +199,10 @@ func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.Fi
 			return err
 		}
 
+		if d.IsDir() {
+			return nil
+		}
+
 		info, err := d.Info()
 		if err != nil {
 			return err
