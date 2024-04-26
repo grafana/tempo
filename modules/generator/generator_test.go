@@ -57,6 +57,12 @@ overrides:
 	generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)
 	g, err := New(generatorConfig, o, prometheus.NewRegistry(), newTestLogger(t))
 	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
+
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), o))
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), g))
+	})
 
 	allSubprocessors := map[spanmetrics.Subprocessor]bool{spanmetrics.Count: true, spanmetrics.Latency: true, spanmetrics.Size: true}
 
@@ -93,6 +99,9 @@ overrides:
 }
 
 func verifySubprocessors(t *testing.T, instance *instance, expected map[spanmetrics.Subprocessor]bool) {
+	instance.processorsMtx.RLock()
+	defer instance.processorsMtx.RUnlock()
+
 	require.Len(t, instance.processors, 1)
 
 	processor, ok := instance.processors[spanmetrics.Name]
