@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	proto "google.golang.org/protobuf/proto"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/receiver"
@@ -334,7 +335,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
 	// used by ToOtlpProtoBytes
 	trace := tempopb.Trace{}
-	err = trace.Unmarshal(convert)
+	err = proto.Unmarshal(convert, &trace)
 	if err != nil {
 		return nil, err
 	}

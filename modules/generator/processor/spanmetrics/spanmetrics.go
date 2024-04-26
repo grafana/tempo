@@ -6,6 +6,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/strutil"
+	"google.golang.org/protobuf/proto"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -212,7 +213,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 
 	if p.Cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
+		p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(proto.Size(span)))
 	}
 
 	// update target_info label values

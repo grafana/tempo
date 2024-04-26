@@ -10,6 +10,7 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"google.golang.org/protobuf/proto"
 )
 
 // Label names for conversion b/n Proto <> Parquet
@@ -371,7 +372,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					links := tempopb.LinkSlice{
 						Links: s.Links,
 					}
-					ss.Links = extendReuseSlice(links.Size(), ss.Links)
+					ss.Links = extendReuseSlice(proto.Size(&links), ss.Links)
 					_, _ = links.MarshalToSizedBuffer(ss.Links)
 				} else {
 					ss.Links = ss.Links[:0] // you can 0 length slice a nil slice
@@ -445,7 +446,7 @@ func eventToParquet(e *v1_trace.Span_Event, ee *Event) {
 	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
 	for i, a := range e.Attributes {
 		ee.Attrs[i].Key = a.Key
-		ee.Attrs[i].Value = extendReuseSlice(a.Value.Size(), ee.Attrs[i].Value)
+		ee.Attrs[i].Value = extendReuseSlice(proto.Size(a.Value), ee.Attrs[i].Value)
 		_, _ = a.Value.MarshalToSizedBuffer(ee.Attrs[i].Value)
 	}
 }
@@ -513,7 +514,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 
 					// event attributes are currently encoded as proto, but were previously json.
 					//  this code attempts proto first and, if there was an error, falls back to json
-					err := protoAttr.Value.Unmarshal(a.Value)
+					err := proto.Unmarshal(a.Value, protoAttr.Value)
 					if err != nil {
 						_ = jsonpb.Unmarshal(bytes.NewBuffer(a.Value), protoAttr.Value)
 					}
@@ -611,7 +612,7 @@ func ParquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 				// unmarshal links
 				if len(span.Links) > 0 {
 					links := tempopb.LinkSlice{}
-					_ = links.Unmarshal(span.Links) // todo: bubble these errors up
+					_ = proto.Unmarshal(span.Links, &links) // todo: bubble these errors up
 					protoSpan.Links = links.Links
 				}
 
