@@ -3,7 +3,7 @@ package policymatch
 import (
 	"testing"
 
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/stretchr/testify/require"
 )

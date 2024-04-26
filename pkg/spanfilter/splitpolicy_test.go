@@ -7,7 +7,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 
 	"github.com/grafana/tempo/pkg/spanfilter/policymatch"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/spanfilter/config"

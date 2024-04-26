@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
 )

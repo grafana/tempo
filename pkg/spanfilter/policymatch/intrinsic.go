@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/opentelemetry/proto/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
