@@ -3,8 +3,9 @@ syntax = "proto3";
 package tempopb;
 
 import "opentelemetry/proto/common/v1/common.proto";
-// import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
+import "google/protobuf/descriptor.proto";
+// import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 service Pusher {
   // different versions of PushBytes expect the trace data to be pushed in
@@ -69,7 +70,7 @@ message TraceByIDMetrics {}
 // SearchRequest takes no block parameters and implies a "recent traces" search
 message SearchRequest {
   // case insensitive partial match
-  map<string, string> Tags = 1 [ (gogoproto.nullable) = false ];
+  map<string, string> Tags = 1;
   uint32 MinDurationMs = 2;
   uint32 MaxDurationMs = 3;
   uint32 Limit = 4;
@@ -232,20 +233,11 @@ enum PushErrorReason {
 //  current BatchDecoder in ./pkg/model
 message PushBytesRequest {
   // pre-marshalled Traces. length must match ids
-  repeated bytes traces = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "PreallocBytes"
-  ];
+  repeated bytes traces = 2;
   // trace ids. length must match traces
-  repeated bytes ids = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "PreallocBytes"
-  ];
+  repeated bytes ids = 3;
   // search data, length must match traces
-  repeated bytes searchData = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "PreallocBytes"
-  ];
+  repeated bytes searchData = 4;
 }
 
 message PushSpansRequest {
@@ -370,11 +362,10 @@ message Sample {
 
 message TimeSeries {
   // Series labels containing name and value. Data-type aware.
-  repeated opentelemetry.proto.common.v1.KeyValue labels = 1
-      [ (gogoproto.nullable) = false ];
+  repeated opentelemetry.proto.common.v1.KeyValue labels = 1;
 
   // Sorted by time, oldest sample first.
-  repeated Sample samples = 2 [ (gogoproto.nullable) = false ];
+  repeated Sample samples = 2;
 
   // prom_labels are a flattened string-only version of the typed labels.
   // They are used internally and may differ from official prometheus

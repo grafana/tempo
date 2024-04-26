@@ -1,5 +1,5 @@
 version: v1
 directories:
   - pkg/tempopb
-  - vendor
+  # - vendor
   - opentelemetry-proto
