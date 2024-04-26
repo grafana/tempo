@@ -5,3 +5,6 @@ breaking:
 lint:
   use:
     - DEFAULT
+deps:
+  - buf.build/protocolbuffers/wellknowntypes:v21.12
+  - buf.build/opentelemetry/opentelemetry:39339ef177218cc965b8cf863d761775ec668858

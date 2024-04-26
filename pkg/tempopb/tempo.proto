@@ -3,7 +3,7 @@ syntax = "proto3";
 package tempopb;
 
 import "opentelemetry/proto/common/v1/common.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+// import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "opentelemetry/proto/trace/v1/trace.proto";
 
 service Pusher {
@@ -25,8 +25,10 @@ service Querier {
   rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {}
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {}
   rpc SearchTagsV2(SearchTagsRequest) returns (SearchTagsV2Response) {}
-  rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse) {}
-  rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {}
+  rpc SearchTagValues(SearchTagValuesRequest)
+      returns (SearchTagValuesResponse) {}
+  rpc SearchTagValuesV2(SearchTagValuesRequest)
+      returns (SearchTagValuesV2Response) {}
   // rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns
   // (SpanMetricsSummaryResponse) {};
 }
@@ -35,13 +37,17 @@ service StreamingQuerier {
   rpc Search(SearchRequest) returns (stream SearchResponse);
   rpc SearchTags(SearchTagsRequest) returns (stream SearchTagsResponse) {}
   rpc SearchTagsV2(SearchTagsRequest) returns (stream SearchTagsV2Response) {}
-  rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
-  rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
-  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {} 
+  rpc SearchTagValues(SearchTagValuesRequest)
+      returns (stream SearchTagValuesResponse) {}
+  rpc SearchTagValuesV2(SearchTagValuesRequest)
+      returns (stream SearchTagValuesV2Response) {}
+  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {
+  }
 }
 
 service Metrics {
-  rpc SpanMetricsSummary(SpanMetricsSummaryRequest) returns (SpanMetricsSummaryResponse) {}
+  rpc SpanMetricsSummary(SpanMetricsSummaryRequest)
+      returns (SpanMetricsSummaryResponse) {}
   rpc QueryRange(QueryRangeRequest) returns (QueryRangeResponse) {}
 }
 
@@ -63,7 +69,7 @@ message TraceByIDMetrics {}
 // SearchRequest takes no block parameters and implies a "recent traces" search
 message SearchRequest {
   // case insensitive partial match
-  map<string, string> Tags = 1 [(gogoproto.nullable) = false];
+  map<string, string> Tags = 1 [ (gogoproto.nullable) = false ];
   uint32 MinDurationMs = 2;
   uint32 MaxDurationMs = 3;
   uint32 Limit = 4;
@@ -86,7 +92,7 @@ message SearchBlockRequest {
   uint32 totalRecords = 7;
   string dataEncoding = 8;
   string version = 9;
-  uint64 size = 10; // total size of data file
+  uint64 size = 10;       // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
 }
@@ -150,8 +156,8 @@ message SearchTagsRequest {
   uint32 end = 4;
 }
 
-// SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
-// to search a block in the backend.
+// SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all
+// information necessary to search a block in the backend.
 message SearchTagsBlockRequest {
   SearchTagsRequest searchReq = 1;
   string blockID = 2;
@@ -162,7 +168,7 @@ message SearchTagsBlockRequest {
   uint32 totalRecords = 7;
   string dataEncoding = 8;
   string version = 9;
-  uint64 size = 10; // total size of data file
+  uint64 size = 10;       // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
 }
@@ -177,19 +183,14 @@ message SearchTagValuesBlockRequest {
   uint32 totalRecords = 7;
   string dataEncoding = 8;
   string version = 9;
-  uint64 size = 10; // total size of data file
+  uint64 size = 10;       // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
 }
 
+message SearchTagsResponse { repeated string tagNames = 1; }
 
-message SearchTagsResponse {
-  repeated string tagNames = 1;
-}
-
-message SearchTagsV2Response {
-  repeated SearchTagsV2Scope scopes = 1;
-}
+message SearchTagsV2Response { repeated SearchTagsV2Scope scopes = 1; }
 
 message SearchTagsV2Scope {
   string name = 1;
@@ -203,27 +204,21 @@ message SearchTagValuesRequest {
   uint32 end = 5;
 }
 
-message SearchTagValuesResponse {
-  repeated string tagValues = 1;
-}
+message SearchTagValuesResponse { repeated string tagValues = 1; }
 
 message TagValue {
   string type = 1;
   string value = 2;
 }
 
-message SearchTagValuesV2Response {
-  repeated TagValue tagValues = 1;
-}
+message SearchTagValuesV2Response { repeated TagValue tagValues = 1; }
 
 message Trace {
   repeated opentelemetry.proto.trace.v1.ResourceSpans batches = 1;
 }
 
 // Write
-message PushResponse {
-  repeated PushErrorReason errorsByTrace = 1;
-}
+message PushResponse { repeated PushErrorReason errorsByTrace = 1; }
 
 enum PushErrorReason {
   NO_ERROR = 0;
@@ -267,9 +262,7 @@ message TraceBytes {
 // parquet. in parquet we proto encode links to a column. unfortunately you
 // can't encode a slice directly so we use this wrapper to generate the required
 // marshalling/unmarshalling functions.
-message LinkSlice {
-  repeated opentelemetry.proto.trace.v1.Span.Link links = 1;
-}
+message LinkSlice { repeated opentelemetry.proto.trace.v1.Span.Link links = 1; }
 
 message SpanMetricsRequest {
   string query = 1;
@@ -369,19 +362,22 @@ message QueryRangeResponse {
 }
 
 message Sample {
-  // Fields order MUST match promql.FPoint so that we can cast types between them.
+  // Fields order MUST match promql.FPoint so that we can cast types between
+  // them.
   int64 timestamp_ms = 2;
   double value = 1;
 }
 
 message TimeSeries {
   // Series labels containing name and value. Data-type aware.
-  repeated opentelemetry.proto.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
-  
+  repeated opentelemetry.proto.common.v1.KeyValue labels = 1
+      [ (gogoproto.nullable) = false ];
+
   // Sorted by time, oldest sample first.
-  repeated Sample samples = 2 [(gogoproto.nullable) = false];
+  repeated Sample samples = 2 [ (gogoproto.nullable) = false ];
 
   // prom_labels are a flattened string-only version of the typed labels.
-  // They are used internally and may differ from official prometheus conventions.
+  // They are used internally and may differ from official prometheus
+  // conventions.
   string prom_labels = 3;
 }
