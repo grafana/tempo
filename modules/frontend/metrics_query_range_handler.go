@@ -38,14 +38,18 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c := combiner.NewTypedQueryRange(req)
+		c, err := combiner.NewTypedQueryRange(req)
+		if err != nil {
+			return err
+		}
+
 		collector := pipeline.NewGRPCCollector(next, c, func(qrr *tempopb.QueryRangeResponse) error {
 			finalResponse = qrr // sadly we can't pass srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(qrr)
 		})
 
 		logQueryRangeRequest(logger, tenant, req)
-		err := collector.RoundTrip(httpReq)
+		err = collector.RoundTrip(httpReq)
 
 		duration := time.Since(start)
 		bytesProcessed := uint64(0)
@@ -80,7 +84,15 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner := combiner.NewTypedQueryRange(queryRangeReq)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq)
+		if err != nil {
+			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     http.StatusText(http.StatusInternalServerError),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		resp, err := rt.RoundTrip(req)

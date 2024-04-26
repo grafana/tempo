@@ -1,7 +1,6 @@
 package traceql
 
 import (
-	"math"
 	"sort"
 	"strings"
 
@@ -128,18 +127,21 @@ func spansetID(ss *tempopb.SpanSet) string {
 
 type QueryRangeCombiner struct {
 	req     *tempopb.QueryRangeRequest
-	e       *MetricsFrontendEvaluator
+	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest) *QueryRangeCombiner {
-	e, _ := NewEngine().CompileMetricsQueryRangeFrontend(req)
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
+	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
+	if err != nil {
+		return nil, err
+	}
 
 	return &QueryRangeCombiner{
 		req:     req,
-		e:       e,
+		eval:    eval,
 		metrics: &tempopb.SearchMetrics{},
-	}
+	}, nil
 }
 
 func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
@@ -148,7 +150,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 
 	// Here is where the job results are reentered into the pipeline
-	q.e.ObserveJob(resp.Series)
+	q.eval.ObserveSeries(resp.Series)
 
 	if resp.Metrics != nil {
 		q.metrics.TotalJobs += resp.Metrics.TotalJobs
@@ -163,216 +165,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 	return &tempopb.QueryRangeResponse{
-		Series:  q.e.Results().ToProto(q.req),
+		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
 }
-
-type SeriesCombiner interface {
-	Combine([]*tempopb.TimeSeries)
-	Results() SeriesSet
-}
-
-type SimpleAdditionCombiner struct {
-	ss               SeriesSet
-	len              int
-	start, end, step uint64
-}
-
-func NewSimpleAdditionCombiner(req *tempopb.QueryRangeRequest) *SimpleAdditionCombiner {
-	return &SimpleAdditionCombiner{
-		ss:    make(SeriesSet),
-		len:   IntervalCount(req.Start, req.End, req.Step),
-		start: req.Start,
-		end:   req.End,
-		step:  req.Step,
-	}
-}
-
-func (b *SimpleAdditionCombiner) Combine(in []*tempopb.TimeSeries) {
-	for _, ts := range in {
-		existing, ok := b.ss[ts.PromLabels]
-		if !ok {
-			// Convert proto labels to traceql labels
-			labels := make(Labels, 0, len(ts.Labels))
-			for _, l := range ts.Labels {
-				labels = append(labels, Label{
-					Name:  l.Key,
-					Value: StaticFromAnyValue(l.Value),
-				})
-			}
-
-			existing = TimeSeries{
-				Labels: labels,
-				Values: make([]float64, b.len),
-			}
-			b.ss[ts.PromLabels] = existing
-		}
-
-		for _, sample := range ts.Samples {
-			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-			if j >= 0 && j < len(existing.Values) {
-				existing.Values[j] += sample.Value
-			}
-		}
-	}
-}
-
-func (b *SimpleAdditionCombiner) Results() SeriesSet {
-	return b.ss
-}
-
-type hist struct {
-	labels Labels
-	hist   [][64]int // There is an array of powers-of-two buckets for every point in time
-}
-
-type HistogramCombiner struct {
-	ss               map[string]hist
-	qs               []float64
-	div              float64
-	len              int
-	start, end, step uint64
-}
-
-func NewHistogramCombiner(req *tempopb.QueryRangeRequest, qs []float64, div float64) *HistogramCombiner {
-	return &HistogramCombiner{
-		div:   div,
-		qs:    qs,
-		ss:    make(map[string]hist),
-		len:   IntervalCount(req.Start, req.End, req.Step),
-		start: req.Start,
-		end:   req.End,
-		step:  req.Step,
-	}
-}
-
-func (h *HistogramCombiner) Combine(in []*tempopb.TimeSeries) {
-	for _, ts := range in {
-		// Convert proto labels to traceql labels
-		// while at the same time stripping the bucket label
-		withoutBucket := make(Labels, 0, len(ts.Labels))
-		bucket := -1
-		for _, l := range ts.Labels {
-			if l.Key == internalLabelBucket {
-				bucket = int(l.Value.GetIntValue())
-				continue
-			}
-			withoutBucket = append(withoutBucket, Label{
-				Name:  l.Key,
-				Value: StaticFromAnyValue(l.Value),
-			})
-		}
-
-		if bucket < 0 || bucket > 64 {
-			// Bad __bucket label?
-			continue
-		}
-
-		withoutBucketStr := withoutBucket.String()
-
-		existing, ok := h.ss[withoutBucketStr]
-		if !ok {
-			existing = hist{
-				labels: withoutBucket,
-				hist:   make([][64]int, h.len),
-			}
-			h.ss[withoutBucketStr] = existing
-		}
-
-		for _, sample := range ts.Samples {
-			j := IntervalOfMs(sample.TimestampMs, h.start, h.end, h.step)
-			if j >= 0 && j < len(existing.hist) {
-				existing.hist[j][bucket] += int(sample.Value)
-			}
-		}
-	}
-}
-
-func (h *HistogramCombiner) Results() SeriesSet {
-	results := make(SeriesSet, len(h.ss)*len(h.qs))
-
-	for _, in := range h.ss {
-		// For each input series, we create a new series for each quantile.
-		for _, q := range h.qs {
-			// Append label for the quantile
-			labels := append((Labels)(nil), in.labels...)
-			labels = append(labels, Label{"p", NewStaticFloat(q)})
-			s := labels.String()
-
-			new := TimeSeries{
-				Labels: labels,
-				Values: make([]float64, len(in.hist)),
-			}
-			for i := range in.hist {
-				new.Values[i] = Percentile(q, in.hist[i]) / h.div
-			}
-			results[s] = new
-		}
-	}
-	return results
-}
-
-// Percentile returns the p-value given powers-of-two bucket counts. Uses
-// exponential interpolation. The original values are int64 so there are always 64 buckets.
-func Percentile(p float64, buckets [64]int) float64 {
-	if math.IsNaN(p) ||
-		p < 0 ||
-		p > 1 {
-		return 0
-	}
-
-	totalCount := 0
-	for _, b := range buckets {
-		totalCount += b
-	}
-
-	if totalCount == 0 {
-		return 0
-	}
-
-	// Maximum amount of samples to include. We round up to better handle
-	// percentiles on low sample counts (<100).
-	maxSamples := int(math.Ceil(p * float64(totalCount)))
-
-	if maxSamples == 0 {
-		// We have to read at least one sample.
-		maxSamples = 1
-	}
-
-	// Find the bucket where the percentile falls in
-	// and the total sample count less than or equal
-	// to that bucket.
-	var total, bucket int
-	for b, count := range buckets {
-		if total+count <= maxSamples {
-			bucket = b
-			total += count
-
-			if total < maxSamples {
-				continue
-			}
-		}
-
-		// We have enough
-		break
-	}
-
-	// Fraction to interpolate between buckets, sample-count wise.
-	// 0.5 means halfway
-	var interp float64
-	if maxSamples-total > 0 {
-		interp = float64(maxSamples-total) / float64(buckets[bucket+1])
-	}
-
-	// Exponential interpolation between buckets
-	minDur := math.Pow(2, float64(bucket))
-	dur := minDur * math.Pow(2, interp)
-
-	return dur
-}
-
-var (
-	_ SeriesCombiner = (*SimpleAdditionCombiner)(nil)
-	_ SeriesCombiner = (*HistogramCombiner)(nil)
-)

@@ -17,7 +17,7 @@ type Element interface {
 type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
-	init(*tempopb.QueryRangeRequest, bool)
+	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
 	observe(Span)                        // TODO - batching?
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
@@ -757,14 +757,15 @@ var (
 // MetricsAggregate is a placeholder in the AST for a metrics aggregation
 // pipeline element. It has a superset of the properties of them all, and
 // builds them later via init() so that appropriate buffers can be allocated
-// for the query time range and step.
+// for the query time range and step, and different implementations for
+// shardable and unshardable pipelines.
 type MetricsAggregate struct {
-	op     MetricsAggregateOp
-	by     []Attribute
-	attr   Attribute
-	floats []float64
-	agg    SpanAggregator
-	jobAgg SeriesCombiner
+	op        MetricsAggregateOp
+	by        []Attribute
+	attr      Attribute
+	floats    []float64
+	agg       SpanAggregator
+	seriesAgg SeriesAggregator
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
@@ -804,12 +805,18 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 }
 
-func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, frontend bool) {
-	if frontend {
-		// Query-frontend version
-		a.initFrontend(q)
+func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+	switch mode {
+	case AggregateModeSum:
+		a.initSum(q)
+		return
+
+	case AggregateModeFinal:
+		a.initFinal(q)
 		return
 	}
+
+	// Raw mode:
 
 	var innerAgg func() VectorAggregator
 	var byFunc func(Span) (Static, bool)
@@ -862,7 +869,13 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, frontend bool) {
 	}, a.by, byFunc, byFuncLabel)
 }
 
-func (a *MetricsAggregate) initFrontend(q *tempopb.QueryRangeRequest) {
+func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
+	// Currently all metrics are summed by job to produce
+	// intermediate results. This will change when adding min/max/topk/etc
+	a.seriesAgg = NewSimpleAdditionCombiner(q)
+}
+
+func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
 		div := 1.0
@@ -872,10 +885,10 @@ func (a *MetricsAggregate) initFrontend(q *tempopb.QueryRangeRequest) {
 		if a.attr == IntrinsicDurationAttribute {
 			div = float64(time.Second)
 		}
-		a.jobAgg = NewHistogramCombiner(q, a.floats, div)
+		a.seriesAgg = NewHistogramCombiner(q, a.floats, div)
 	default:
 		// These are simple additions by series
-		a.jobAgg = NewSimpleAdditionCombiner(q)
+		a.seriesAgg = NewSimpleAdditionCombiner(q)
 	}
 }
 
@@ -884,7 +897,7 @@ func (a *MetricsAggregate) observe(span Span) {
 }
 
 func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {
-	a.jobAgg.Combine(ss)
+	a.seriesAgg.Combine(ss)
 }
 
 func (a *MetricsAggregate) result() SeriesSet {
@@ -894,7 +907,7 @@ func (a *MetricsAggregate) result() SeriesSet {
 
 	// In the frontend-version the results come from
 	// the job-level aggregator
-	return a.jobAgg.Results()
+	return a.seriesAgg.Results()
 }
 
 func (a *MetricsAggregate) validate() error {
