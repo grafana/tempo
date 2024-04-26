@@ -524,25 +524,42 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.start = req.Start
 	me.end = req.End
 
-	optimize(storageReq)
-
-	// Setup second pass callback.  Only as needed.
-	if len(storageReq.SecondPassConditions) > 0 {
-		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
-			// The traceql engine isn't thread-safe.
-			// But parallelization is required for good metrics performance.
-			// So we do external locking here.
-			me.mtx.Lock()
-			defer me.mtx.Unlock()
-			return eval([]*Spanset{s})
-		}
+	// Setup second pass callback.  It might be optimized away
+	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
+		// The traceql engine isn't thread-safe.
+		// But parallelization is required for good metrics performance.
+		// So we do external locking here.
+		me.mtx.Lock()
+		defer me.mtx.Unlock()
+		return eval([]*Spanset{s})
 	}
+
+	optimize(storageReq)
 
 	return me, nil
 }
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
+	if !req.AllConditions {
+		return
+	}
+
+	// There is an issue where multiple conditions &&'ed on the same
+	// attribute can look like AllConditions==true, but are implemented
+	// in the storage layer like ||'ed and require the second pass callback (engine).
+	// TODO(mdisibio) - This would be a big performance improvement if we can fix the storage layer
+	// Example:
+	//   { span.http.status_code >= 500 && span.http.status_code < 600 } | rate() by (span.http.status_code)
+	exists := make(map[Attribute]struct{}, len(req.Conditions))
+	for _, c := range req.Conditions {
+		if _, ok := exists[c.Attribute]; ok {
+			// Don't optimize
+			return
+		}
+		exists[c.Attribute] = struct{}{}
+	}
+
 	// Special optimization for queries like:
 	//  {} | rate()
 	//  {} | rate() by (rootName)
@@ -551,7 +568,7 @@ func optimize(req *FetchSpansRequest) {
 	// move them to the first pass and increase performance. It avoids the second pass/bridge
 	// layer and doesn't alter the correctness of the query.
 	// This can't be done for plain attributes or in all cases.
-	if req.AllConditions && len(req.SecondPassConditions) > 0 {
+	if len(req.SecondPassConditions) > 0 {
 		secondLayerAlwaysPresent := true
 		for _, cond := range req.SecondPassConditions {
 			if cond.Attribute.Intrinsic != IntrinsicNone {
@@ -570,6 +587,7 @@ func optimize(req *FetchSpansRequest) {
 		if secondLayerAlwaysPresent {
 			// Move all to first pass
 			req.Conditions = append(req.Conditions, req.SecondPassConditions...)
+			req.SecondPass = nil
 			req.SecondPassConditions = nil
 		}
 	}
