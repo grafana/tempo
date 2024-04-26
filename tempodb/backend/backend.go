@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/cache"
 )
 
@@ -65,6 +66,8 @@ type Reader interface {
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
 	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
+	// Find executes f for each object in the backend that matches the keypath.
+	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
 	// Shutdown shuts...down?
 	Shutdown()
 }

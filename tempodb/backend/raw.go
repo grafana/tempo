@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"path"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,7 +26,15 @@ const (
 // from the backend
 type KeyPath []string
 
-type Feature int
+// FundFunc is executed for each object in the backend.  The provided FindOpts
+// are used to determine how to handle the object.  Any collection of these
+// objects is the callers responsibility.
+type FindFunc func(FindOpts)
+
+type FindOpts struct {
+	Modified time.Time
+	Key      string
+}
 
 // RawWriter is a collection of methods to write data to tempodb backends
 type RawWriter interface {
@@ -45,6 +54,8 @@ type RawReader interface {
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
 	ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
+	// Find executes the FindFunc for each object in the backend starting at the specified keypath.  Collection of these objects is the callers responsibility.
+	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
 	// ReadRange is for reading parts of large objects from the backend.
@@ -225,6 +236,11 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 	}
 
 	return i, nil
+}
+
+// Find implements backend.Reader
+func (r *reader) Find(ctx context.Context, keypath KeyPath, f FindFunc) error {
+	return r.r.Find(ctx, keypath, f)
 }
 
 // Shutdown implements backend.Reader
