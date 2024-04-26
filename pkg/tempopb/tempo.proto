@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package tempopb;
 
-import "common/v1/common.proto";
+import "opentelemetry/proto/common/v1/common.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "trace/v1/trace.proto";
+import "opentelemetry/proto/trace/v1/trace.proto";
 
 service Pusher {
   // different versions of PushBytes expect the trace data to be pushed in
@@ -123,7 +123,7 @@ message TraceSearchMetadata {
 message SpanSet {
   repeated Span spans = 1;
   uint32 matched = 2;
-  repeated tempopb.common.v1.KeyValue attributes = 3;
+  repeated opentelemetry.proto.common.v1.KeyValue attributes = 3;
 }
 
 message Span {
@@ -131,7 +131,7 @@ message Span {
   string name = 2;
   uint64 startTimeUnixNano = 3;
   uint64 durationNanos = 4;
-  repeated tempopb.common.v1.KeyValue attributes = 5;
+  repeated opentelemetry.proto.common.v1.KeyValue attributes = 5;
 }
 
 message SearchMetrics {
@@ -217,7 +217,7 @@ message SearchTagValuesV2Response {
 }
 
 message Trace {
-  repeated tempopb.trace.v1.ResourceSpans batches = 1;
+  repeated opentelemetry.proto.trace.v1.ResourceSpans batches = 1;
 }
 
 // Write
@@ -255,7 +255,7 @@ message PushBytesRequest {
 
 message PushSpansRequest {
   // just send entire OTel spans for now
-  repeated tempopb.trace.v1.ResourceSpans batches = 1;
+  repeated opentelemetry.proto.trace.v1.ResourceSpans batches = 1;
 }
 
 message TraceBytes {
@@ -268,7 +268,7 @@ message TraceBytes {
 // can't encode a slice directly so we use this wrapper to generate the required
 // marshalling/unmarshalling functions.
 message LinkSlice {
-  repeated tempopb.trace.v1.Span.Link links = 1;
+  repeated opentelemetry.proto.trace.v1.Span.Link links = 1;
 }
 
 message SpanMetricsRequest {
@@ -376,7 +376,7 @@ message Sample {
 
 message TimeSeries {
   // Series labels containing name and value. Data-type aware.
-  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  repeated opentelemetry.proto.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
   
   // Sorted by time, oldest sample first.
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
