@@ -13,6 +13,10 @@ import (
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -30,9 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -501,6 +502,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 
+	if rw.cfg.EmptyTenantDeletionAge <= 0 {
+		rw.cfg.EmptyTenantDeletionAge = 4 * rw.cfg.BlocklistPoll
+	}
+
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
@@ -510,6 +515,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		StaleTenantIndex:          rw.cfg.BlocklistPollStaleTenantIndex,
 		PollJitterMs:              rw.cfg.BlocklistPollJitterMs,
 		TolerateConsecutiveErrors: rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		EmptyTenantDeletionAge:    rw.cfg.EmptyTenantDeletionAge,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller

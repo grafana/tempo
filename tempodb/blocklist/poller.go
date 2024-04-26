@@ -80,6 +80,7 @@ type PollerConfig struct {
 	StaleTenantIndex          time.Duration
 	PollJitterMs              int
 	TolerateConsecutiveErrors int
+	EmptyTenantDeletionAge    time.Duration
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
