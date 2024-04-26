@@ -396,8 +396,6 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 
-	// TODO, verify prefix handling.
-
 	if len(prefix) > 0 {
 		prefix = prefix + "/"
 	}

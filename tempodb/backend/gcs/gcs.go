@@ -341,11 +341,6 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			return fmt.Errorf("iterating objects: %w", err)
 		}
 
-		// TODO: hmm, all the other methods in this backend are using attrs other than name.  Except the listBlocks.  Why?
-		/* obj := strings.TrimSuffix(strings.TrimPrefix(attrs.Name, prefix), "/") */
-		/* obj := strings.TrimPrefix(attrs.Name, prefix) */
-		/* level.Info(log.Logger).Log("msg", "find", "blob", attrs.Name, "obj", obj, "attrs", fmt.Sprintf("%+v", attrs)) */
-
 		opts := backend.FindOpts{
 			Key:      attrs.Name,
 			Modified: attrs.Updated,
