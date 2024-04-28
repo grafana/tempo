@@ -9,7 +9,6 @@ const (
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeUnknown
-	AttributeScopeTrace
 
 	none     = "none"
 	duration = "duration"
@@ -81,6 +80,8 @@ const (
 	IntrinsicTraceStartTime
 	IntrinsicSpanID
 	IntrinsicSpanStartTime
+
+	IntrinsicServiceStats
 )
 
 var (

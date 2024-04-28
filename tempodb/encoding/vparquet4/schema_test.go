@@ -77,6 +77,7 @@ func TestFieldsAreCleared(t *testing.T) {
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1.KeyValue{
+						{Key: LabelServiceName, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service1"}}},
 						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 123.456}}},
 					},
 				},
@@ -86,7 +87,9 @@ func TestFieldsAreCleared(t *testing.T) {
 						Spans: []*v1_trace.Span{
 							{
 								TraceId: traceID,
-								Status:  &v1_trace.Status{},
+								Status: &v1_trace.Status{
+									Code: v1_trace.Status_STATUS_CODE_ERROR,
+								},
 								Attributes: []*v1.KeyValue{
 									// an attribute for every type in order to make sure attributes are reused with different
 									// type combinations
@@ -118,17 +121,20 @@ func TestFieldsAreCleared(t *testing.T) {
 	}
 
 	expectedTrace := &Trace{
-		TraceID:      traceID,
-		TraceIDText:  "102030405060708090a0b0c0d0e0f",
-		ServiceStats: map[string]ServiceStats{"": {SpanCount: 1}},
+		TraceID:         traceID,
+		TraceIDText:     "102030405060708090a0b0c0d0e0f",
+		RootServiceName: "service1",
+		ServiceStats:    map[string]ServiceStats{"service1": {SpanCount: 1, ErrorCount: 1}},
 		ResourceSpans: []ResourceSpans{{
 			Resource: Resource{
+				ServiceName: "service1",
 				Attrs: []Attribute{
 					attr("i", 123.456),
 				},
 			},
 			ScopeSpans: []ScopeSpans{{
 				Spans: []Span{{
+					StatusCode:     2,
 					ParentID:       -1,
 					NestedSetLeft:  1,
 					NestedSetRight: 2,

@@ -73,7 +73,7 @@ func TestMetaConditionsWithout(t *testing.T) {
 				{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
 				{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
 				{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
-				{Attribute{Scope: AttributeScopeTrace, Name: ServiceStatsAttributeName}, OpNone, nil},
+				{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
 			},
 		},
 		{
@@ -84,7 +84,7 @@ func TestMetaConditionsWithout(t *testing.T) {
 				{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
 				{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
 				{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
-				{Attribute{Scope: AttributeScopeTrace, Name: ServiceStatsAttributeName}, OpNone, nil},
+				{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
 			},
 		},
 	}

@@ -740,7 +740,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case traceql.AttributeScopeTrace, intrinsicScopeTrace:
+		case intrinsicScopeTrace:
 			traceConditions = append(traceConditions, cond)
 			continue
 

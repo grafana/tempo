@@ -533,6 +533,8 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceDuration:    {intrinsicScopeTrace, traceql.TypeString, columnPathDurationNanos},
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeDuration, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
+
+	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -840,7 +842,11 @@ func (i *rebatchIterator) Next() (*parquetquery.IteratorResult, error) {
 				sp.cbSpanset.StartTimeUnixNanos = ss.StartTimeUnixNanos
 			}
 			if len(sp.cbSpanset.ServiceStats) == 0 {
-				sp.cbSpanset.ServiceStats = map[string]traceql.ServiceStats{}
+				// If this spanset was created by a GroupOperation, the ServiceStats map is nil and must be allocated first
+				if sp.cbSpanset.ServiceStats == nil {
+					sp.cbSpanset.ServiceStats = map[string]traceql.ServiceStats{}
+				}
+
 				for service, stat := range ss.ServiceStats {
 					sp.cbSpanset.ServiceStats[service] = traceql.ServiceStats{
 						SpanCount:  stat.SpanCount,
@@ -1073,7 +1079,7 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case traceql.AttributeScopeTrace, intrinsicScopeTrace:
+		case intrinsicScopeTrace:
 			traceConditions = append(traceConditions, cond)
 			continue
 
@@ -1569,10 +1575,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				}
 			}
 			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
-		}
-
-		switch cond.Attribute.Name {
-		case traceql.ServiceStatsAttributeName:
+		case traceql.IntrinsicServiceStats:
 			traceIters = append(traceIters, createServiceStatsIterator(makeIter))
 		}
 	}
