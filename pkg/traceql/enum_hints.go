@@ -95,3 +95,5 @@ func (h *Hints) Get(k string, t StaticType, allowUnsafe bool) (v Static, ok bool
 
 	return
 }
+
+var _ Element = (*Hints)(nil)

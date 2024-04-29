@@ -7,7 +7,17 @@ import (
 )
 
 func (r RootExpr) String() string {
-	return r.Pipeline.String()
+	s := strings.Builder{}
+	s.WriteString(r.Pipeline.String())
+	if r.MetricsPipeline != nil {
+		s.WriteString(" | ")
+		s.WriteString(r.MetricsPipeline.String())
+	}
+	if r.Hints != nil {
+		s.WriteString(" ")
+		s.WriteString(r.Hints.String())
+	}
+	return s.String()
 }
 
 func (p Pipeline) String() string {
@@ -126,7 +136,42 @@ func (a Attribute) String() string {
 }
 
 func (a MetricsAggregate) String() string {
-	return a.op.String()
+	s := strings.Builder{}
+
+	s.WriteString(a.op.String())
+	s.WriteString("(")
+	switch a.op {
+	case metricsAggregateQuantileOverTime:
+		s.WriteString(a.attr.String())
+		s.WriteString(",")
+		for i, f := range a.floats {
+			s.WriteString(strconv.FormatFloat(f, 'f', 5, 64))
+			if i < len(a.floats)-1 {
+				s.WriteString(",")
+			}
+		}
+	}
+	s.WriteString(")")
+
+	if len(a.by) > 0 {
+		s.WriteString("by(")
+		for i, b := range a.by {
+			s.WriteString(b.String())
+			if i < len(a.by)-1 {
+				s.WriteString(",")
+			}
+		}
+		s.WriteString(")")
+	}
+	return s.String()
+}
+
+func (h *Hints) String() string {
+	hh := make([]string, 0, len(h.Hints))
+	for _, hn := range h.Hints {
+		hh = append(hh, hn.Name+"="+hn.Value.String())
+	}
+	return "with(" + strings.Join(hh, ",") + ")"
 }
 
 func binaryOp(op Operator, lhs Element, rhs Element) string {
