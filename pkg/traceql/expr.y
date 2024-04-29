@@ -42,7 +42,7 @@ import (
     staticStr   string
     staticFloat float64
     staticDuration time.Duration
-    floatList []float64
+    numericList []float64
 
     hint *Hint
     hintList []*Hint
@@ -77,7 +77,7 @@ import (
 %type <attributeField> attributeField
 %type <attribute> attribute
 
-%type <floatList> floatList
+%type <numericList> numericList
 
 %type <hint> hint
 %type <hintList> hintList
@@ -176,9 +176,12 @@ attributeList:
   | attributeList COMMA attribute { $$ = append($1, $3) }
   ;
 
-floatList:
-  FLOAT                   { $$ = []float64{$1} }
-  | floatList COMMA FLOAT { $$ = append($1, $3) }
+// Comma-separated list of numeric values. Casts all to floats
+numericList:
+  FLOAT                       { $$ = []float64{$1} }
+  | INTEGER                   { $$ = []float64{float64($1)}}
+  | numericList COMMA FLOAT   { $$ = append($1, $3) }
+  | numericList COMMA INTEGER { $$ = append($1, float64($3))}
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -278,8 +281,8 @@ metricsAggregation:
     | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
-    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA floatList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
-    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA floatList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
   ;
 
 // **********************

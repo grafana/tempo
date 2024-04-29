@@ -1215,12 +1215,12 @@ func TestMetrics(t *testing.T) {
 			),
 		},
 		{
-			in: `{ } | quantile_over_time(duration, 0.90, 0.95) by(name, span.http.status_code)`,
+			in: `{ } | quantile_over_time(duration, 0, 0.90, 0.95, 1) by(name, span.http.status_code)`,
 			expected: newRootExprWithMetrics(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregateQuantileOverTime(
 					NewIntrinsic(IntrinsicDuration),
-					[]float64{0.9, 0.95},
+					[]float64{0, 0.9, 0.95, 1.0},
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),
 						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
