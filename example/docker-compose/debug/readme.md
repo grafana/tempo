@@ -5,7 +5,7 @@ questions about the general setup, please refer to its readme file.
 
 Although it's possible to debug Tempo with [`dlv debug`](https://github.com/go-delve/delve/blob/master/Documentation/usage/dlv_debug.md),
 this approach also has disadvantages in scenarios where it is desirable to run Tempo inside a container.
-This example demonstrates how to debug Tempo running in docker-compose.
+This example demonstrates how to debug Tempo running in docker compose.
 
 The make target `docker-tempo-debug` compiles tempo without optimizations and creates a docker
 image that runs Tempo using [`dlv exec`](https://github.com/go-delve/delve/blob/master/Documentation/usage/dlv_exec.md).
@@ -32,13 +32,13 @@ Setting this option to `1` is helpful to debug errors during the start-up phase.
 3. Now, start up the stack from this directory.
 
 ```console
-docker-compose up -d
+docker compose up -d
 ```
 
 At this point, the following containers should be running:
 
 ```console
-docker-compose ps
+docker compose ps
 ```
 ```
        Name                     Command               State                            Ports
@@ -69,5 +69,5 @@ configuration:
 5. To stop the setup, use:
 
 ```console
-docker-compose down -v
+docker compose down -v
 ```
