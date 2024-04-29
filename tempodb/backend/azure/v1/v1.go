@@ -15,7 +15,9 @@ import (
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -28,6 +30,8 @@ const (
 	// max parallelism on uploads
 	maxParallelism = 3
 )
+
+var tracer = otel.Tracer("tempodb/backend/azure/v1")
 
 type V1 struct {
 	cfg                *config.Config
@@ -80,8 +84,8 @@ func New(cfg *config.Config, confirm bool) (*V1, error) {
 func (rw *V1) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Write")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "azure.Write")
+	defer span.End()
 
 	return rw.writer(derivedCtx, bufio.NewReader(data), backend.ObjectFileName(keypath, name))
 }
@@ -162,8 +166,8 @@ func (rw *V1) List(ctx context.Context, keypath backend.KeyPath) ([]string, erro
 
 // ListBlocks implements backend.Reader
 func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "V1.ListBlocks")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "V1.ListBlocks")
+	defer span.End()
 
 	var (
 		blockIDs          = make([]uuid.UUID, 0, 1000)
@@ -230,8 +234,8 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Read")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "azure.Read")
+	defer span.End()
 
 	object := backend.ObjectFileName(keypath, name)
 	b, _, err := rw.readAll(derivedCtx, object)
@@ -246,11 +250,11 @@ func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ 
 func (rw *V1) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadRange", opentracing.Tags{
-		"len":    len(buffer),
-		"offset": offset,
-	})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "azure.ReadRange", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+		attribute.Int64("offset", int64(offset)),
+	))
+	defer span.End()
 
 	object := backend.ObjectFileName(keypath, name)
 	err := rw.readRange(derivedCtx, object, int64(offset), buffer)
@@ -307,8 +311,8 @@ func (rw *V1) DeleteVersioned(ctx context.Context, name string, keypath backend.
 func (rw *V1) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadVersioned")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "azure.ReadVersioned")
+	defer span.End()
 
 	object := backend.ObjectFileName(keypath, name)
 	b, etag, err := rw.readAll(derivedCtx, object)

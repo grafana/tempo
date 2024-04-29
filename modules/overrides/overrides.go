@@ -2,9 +2,12 @@ package overrides
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
 )
 
 const wildcardTenant = "*"
+
+var tracer = otel.Tracer("overrides")
 
 var metricOverridesLimitsDesc = prometheus.NewDesc(
 	"tempo_limits_overrides",

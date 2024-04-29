@@ -6,9 +6,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
 
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/spanlogger"
@@ -62,8 +62,8 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 	// Run a tracked request, using c.requestDuration to monitor requests.
 	err := instr.CollectedRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
 		log, _ := spanlogger.New(ctx, method)
-		defer log.Finish()
-		log.LogFields(otlog.Int("keys requested", len(keys)))
+		defer log.End()
+		log.SetAttributes(attribute.Int("keys requested", len(keys)))
 
 		var err error
 		items, err = c.redis.MGet(ctx, keys)
@@ -74,7 +74,7 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 			return err
 		}
 
-		log.LogFields(otlog.Int("keys found", len(items)))
+		log.SetAttributes(attribute.Int("keys found", len(items)))
 
 		return nil
 	})

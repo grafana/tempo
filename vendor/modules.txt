@@ -566,9 +566,6 @@ github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
-## explicit
-github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc
 # github.com/hashicorp/consul/api v1.25.1
 ## explicit; go 1.19
 github.com/hashicorp/consul/api
@@ -1560,13 +1557,6 @@ go.opentelemetry.io/otel/bridge/opencensus/internal/otel2oc
 ## explicit; go 1.20
 go.opentelemetry.io/otel/bridge/opentracing
 go.opentelemetry.io/otel/bridge/opentracing/migration
-# go.opentelemetry.io/otel/exporters/jaeger v1.17.0
-## explicit; go 1.19
-go.opentelemetry.io/otel/exporters/jaeger
-go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/agent
-go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger
-go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/zipkincore
-go.opentelemetry.io/otel/exporters/jaeger/internal/third_party/thrift/lib/go/thrift
 # go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.23.1
 ## explicit; go 1.20
 go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc
@@ -1698,7 +1688,6 @@ golang.org/x/mod/semver
 # golang.org/x/net v0.22.0 => golang.org/x/net v0.17.0
 ## explicit; go 1.17
 golang.org/x/net/bpf
-golang.org/x/net/context
 golang.org/x/net/http/httpguts
 golang.org/x/net/http/httpproxy
 golang.org/x/net/http2

@@ -9,11 +9,10 @@ import (
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/modules/frontend/queue"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
@@ -42,9 +41,8 @@ type retryWare struct {
 // RoundTrip implements http.RoundTripper
 func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.Retry")
-	defer span.Finish()
-	ext.SpanKindRPCClient.Set(span)
+	ctx, span := tracer.Start(ctx, "frontend.Retry", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
 
 	// context propagation
 	req = req.WithContext(ctx)
@@ -106,12 +104,11 @@ func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
 		// https://github.com/grafana/tempo/issues/857
 		errMsg := fmt.Sprint(err)
 
-		span.LogFields(
-			ot_log.String("msg", "error processing request. retrying"),
-			ot_log.Int("try", tries),
-			ot_log.Int("status_code", statusCode),
-			ot_log.String("errMsg", errMsg),
-		)
+		span.AddEvent("error processing request. retrying", trace.WithAttributes(
+			attribute.Int("try", tries),
+			attribute.Int("status_code", statusCode),
+			attribute.String("errMsg", errMsg),
+		))
 	}
 }
 

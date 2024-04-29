@@ -14,8 +14,9 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/generator/storage"
@@ -32,6 +33,8 @@ const (
 	// in order to simplify the config.
 	ringNumTokens = 256
 )
+
+var tracer = otel.Tracer("generator")
 
 var (
 	ErrUnconfigured = errors.New("no metrics_generator.storage.path configured, metrics generator will be disabled")
@@ -189,14 +192,14 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 		return nil, ErrReadOnly
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "generator.PushSpans")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "generator.PushSpans")
+	defer span.End()
 
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	span.SetTag("instanceID", instanceID)
+	span.SetAttributes(attribute.String("instanceID", instanceID))
 
 	instance, err := g.getOrCreateInstance(instanceID)
 	if err != nil {

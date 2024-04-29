@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -17,6 +19,8 @@ import (
 type Backend struct {
 	cfg *Config
 }
+
+var tracer = otel.Tracer("tempodb/backend/local")
 
 var (
 	_                backend.RawReader = (*Backend)(nil)
@@ -75,10 +79,10 @@ func (rw *Backend) Append(ctx context.Context, name string, keypath backend.KeyP
 		return nil, err
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "local.Append", opentracing.Tags{
-		"len": len(buffer),
-	})
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "local.Append", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+	))
+	defer span.End()
 
 	var dst *os.File
 	if tracker == nil {
@@ -218,11 +222,11 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 		return err
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "local.ReadRange", opentracing.Tags{
-		"len":    len(buffer),
-		"offset": offset,
-	})
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "local.ReadRange", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+		attribute.Int64("offset", int64(offset)),
+	))
+	defer span.End()
 
 	filename := rw.objectFileName(keypath, name)
 

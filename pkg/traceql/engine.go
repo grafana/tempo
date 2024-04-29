@@ -7,7 +7,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -46,8 +47,8 @@ func (e *Engine) Compile(query string) (*RootExpr, SpansetFilterFunc, metricsFir
 }
 
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteSearch")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
+	defer span.End()
 
 	rootExpr, err := e.parseQuery(searchReq)
 	if err != nil {
@@ -56,8 +57,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 
-	span.SetTag("pipeline", rootExpr.Pipeline)
-	span.SetTag("fetchSpansRequest", fetchSpansRequest)
+	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
 
 	// calculate search meta conditions.
 	metaConditions := SearchMetaConditionsWithout(fetchSpansRequest.Conditions)
@@ -72,7 +72,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 
 		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
 		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			span.RecordError(err, trace.WithAttributes(attribute.String("msg", "pipeline.evaluate")))
 			return nil, err
 		}
 
@@ -113,7 +113,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	for {
 		spanset, err := iterator.Next(ctx)
 		if err != nil && !errors.Is(err, io.EOF) {
-			span.LogKV("msg", "iterator.Next", "err", err)
+			span.RecordError(err, trace.WithAttributes(attribute.String("msg", "iterator.Next")))
 			return nil, err
 		}
 		if spanset == nil {
@@ -127,14 +127,14 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	}
 	res.Traces = combiner.Metadata()
 
-	span.SetTag("spansets_evaluated", spansetsEvaluated)
-	span.SetTag("spansets_found", len(res.Traces))
+	span.SetAttributes(attribute.Int("spansets_evaluated", spansetsEvaluated))
+	span.SetAttributes(attribute.Int("spansets_found", len(res.Traces)))
 
 	// Bytes can be nil when callback is no set
 	if fetchSpansResponse.Bytes != nil {
 		// InspectedBytes is used to compute query throughput and SLO metrics
 		res.Metrics.InspectedBytes = fetchSpansResponse.Bytes()
-		span.SetTag("inspectedBytes", res.Metrics.InspectedBytes)
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(res.Metrics.InspectedBytes)))
 	}
 
 	return res, nil
@@ -147,10 +147,10 @@ func (e *Engine) ExecuteTagValues(
 	cb AutocompleteCallback,
 	fetcher AutocompleteFetcher,
 ) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagValues")
+	defer span.End()
 
-	span.SetTag("sanitized query", query)
+	span.SetAttributes(attribute.String("sanitized query", query))
 
 	rootExpr, err := Parse(query)
 	if err != nil {
@@ -165,8 +165,7 @@ func (e *Engine) ExecuteTagValues(
 
 	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
 
-	span.SetTag("pipeline", rootExpr.Pipeline)
-	span.SetTag("autocompleteReq", autocompleteReq)
+	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }

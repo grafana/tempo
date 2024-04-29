@@ -12,8 +12,10 @@ import (
 
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // RowNumber is the sequence of row numbers uniquely identifying a value
@@ -34,6 +36,8 @@ import (
 type RowNumber [6]int64
 
 const MaxDefinitionLevel = 5
+
+var tracer = otel.Tracer("parquetquery")
 
 // EmptyRowNumber creates an empty invalid row number.
 func EmptyRowNumber() RowNumber {
@@ -536,7 +540,7 @@ type SyncIterator struct {
 	filter     *InstrumentedPredicate
 
 	// Status
-	span            opentracing.Span
+	span            trace.Span
 	curr            RowNumber
 	currRowGroup    pq.RowGroup
 	currRowGroupMin RowNumber
@@ -571,10 +575,10 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rn.Skip(rg.NumRows())
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "syncIterator", opentracing.Tags{
-		"columnIndex": column,
-		"column":      columnName,
-	})
+	_, span := tracer.Start(ctx, "syncIterator", trace.WithAttributes(
+		attribute.Int("columnIndex", column),
+		attribute.String("column", columnName),
+	))
 
 	at := IteratorResult{}
 	if selectAs != "" {
@@ -997,13 +1001,13 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 func (c *SyncIterator) Close() {
 	c.closeCurrRowGroup()
 
-	c.span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks)
-	c.span.SetTag("inspectedPages", c.filter.InspectedPages)
-	c.span.SetTag("inspectedValues", c.filter.InspectedValues)
-	c.span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks)
-	c.span.SetTag("keptPages", c.filter.KeptPages)
-	c.span.SetTag("keptValues", c.filter.KeptValues)
-	c.span.Finish()
+	c.span.SetAttributes(attribute.Int64("inspectedColumnChunks", c.filter.InspectedColumnChunks))
+	c.span.SetAttributes(attribute.Int64("inspectedPages", c.filter.InspectedPages))
+	c.span.SetAttributes(attribute.Int64("inspectedValues", c.filter.InspectedValues))
+	c.span.SetAttributes(attribute.Int64("keptColumnChunks", c.filter.KeptColumnChunks))
+	c.span.SetAttributes(attribute.Int64("keptPages", c.filter.KeptPages))
+	c.span.SetAttributes(attribute.Int64("keptValues", c.filter.KeptValues))
+	c.span.End()
 
 	if c.intern && c.interner != nil {
 		c.interner.Close()
@@ -1065,18 +1069,17 @@ func (c *ColumnIterator) String() string {
 func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	defer close(c.ch)
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
-		"columnIndex": c.col,
-		"column":      c.colName,
-	})
+	_, span := tracer.Start(ctx, "columnIterator.iterate", trace.WithAttributes(
+		attribute.Int("columnIndex", c.col),
+		attribute.String("column", c.colName),
+	))
 	defer func() {
-		span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks)
-		span.SetTag("inspectedPages", c.filter.InspectedPages)
-		span.SetTag("inspectedValues", c.filter.InspectedValues)
-		span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks)
-		span.SetTag("keptPages", c.filter.KeptPages)
-		span.SetTag("keptValues", c.filter.KeptValues)
-		span.Finish()
+		span.SetAttributes(attribute.Int64("inspectedColumnChunks", c.filter.InspectedColumnChunks))
+		span.SetAttributes(attribute.Int64("inspectedPages", c.filter.InspectedPages))
+		span.SetAttributes(attribute.Int64("inspectedValues", c.filter.InspectedValues))
+		span.SetAttributes(attribute.Int64("keptColumnChunks", c.filter.KeptColumnChunks))
+		span.SetAttributes(attribute.Int64("keptPages", c.filter.KeptPages))
+		span.SetAttributes(attribute.Int64("keptValues", c.filter.KeptValues))
 	}()
 
 	rn := EmptyRowNumber()

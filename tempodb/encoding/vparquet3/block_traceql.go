@@ -13,8 +13,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -2286,8 +2286,8 @@ func NewTraceIDShardingPredicate(shardID, shardCount uint32) parquetquery.Predic
 // is a single read and typically comes from cache.   Without this we have to test every
 // row group in the file which would be N reads.
 func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, m backend.BlockMeta, shardID, shardCount uint32) ([]parquet.RowGroup, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.rowGroupsForShard")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "parquet.rowGroupsForShard")
+	defer span.End()
 
 	cacheInfo := &backend.CacheInfo{
 		Meta: &m,
@@ -2327,8 +2327,8 @@ func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, 
 		}
 	}
 
-	span.SetTag("totalRowGroups", len(rgs))
-	span.SetTag("matchedRowGroups", len(matches))
+	span.SetAttributes(attribute.Int("totalRowGroups", len(rgs)))
+	span.SetAttributes(attribute.Int("matchedRowGroups", len(matches)))
 
 	return matches, nil
 }

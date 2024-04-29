@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
@@ -244,8 +243,8 @@ func (a *walBlock) Clear() error {
 
 // Find implements common.Finder
 func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "v2WalBlock.FindTraceByID")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "v2WalBlock.FindTraceByID")
+	defer span.End()
 
 	combiner := model.StaticCombiner
 

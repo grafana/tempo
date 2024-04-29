@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 
@@ -26,6 +26,8 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
+
+var tracer = otel.Tracer("generator/processor/servicegraphs")
 
 var (
 	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -151,8 +153,8 @@ func (p *Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "servicegraphs.PushSpans")
+	defer span.End()
 
 	if err := p.consume(req.Batches); err != nil {
 		var tmsErr *tooManySpansError

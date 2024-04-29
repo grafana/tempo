@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/util"
+	"go.opentelemetry.io/otel/attribute"
 
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -30,7 +31,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -273,8 +273,8 @@ func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
-	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "store.Find")
+	defer span.End()
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
@@ -341,11 +341,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		partialTraceObjs[i] = partialTraces[i].(*tempopb.Trace)
 	}
 
-	span.SetTag("blockErrs", len(funcErrs))
-	span.SetTag("liveBlocks", len(blocklist))
-	span.SetTag("liveBlocksSearched", blocksSearched)
-	span.SetTag("compactedBlocks", len(compactedBlocklist))
-	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
+	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+	span.SetAttributes(attribute.Int("liveBlocks", len(blocklist)))
+	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
+	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
+	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
 
 	return partialTraceObjs, funcErrs, err
 }

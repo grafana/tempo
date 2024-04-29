@@ -14,7 +14,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
-	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opencensus.io/stats/view"
@@ -28,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/otel"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
@@ -61,6 +61,8 @@ var (
 	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
+
+var tracer = otel.Tracer("distributor/receiver")
 
 type RetryableError struct {
 	err error
@@ -332,8 +334,8 @@ func (r *receiversShim) stopping(_ error) error {
 
 // ConsumeTraces implements consumer.Trace
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.ConsumeTraces")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
+	defer span.End()
 
 	var err error
 

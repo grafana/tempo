@@ -15,14 +15,13 @@ import (
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/spanprofiler"
-	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
 	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
@@ -89,12 +88,7 @@ func main() {
 	}
 
 	// Init tracer
-	var shutdownTracer func()
-	if config.UseOTelTracer {
-		shutdownTracer, err = installOpenTelemetryTracer(config)
-	} else {
-		shutdownTracer, err = installOpenTracingTracer(config)
-	}
+	shutdownTracer, err := installOpenTelemetryTracer(config)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
 		os.Exit(1)
@@ -221,33 +215,15 @@ func loadConfig() (*app.Config, bool, error) {
 	return config, configVerify, nil
 }
 
-func installOpenTracingTracer(config *app.Config) (func(), error) {
-	level.Info(log.Logger).Log("msg", "initialising OpenTracing tracer")
-
-	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
-	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
-	if err != nil {
-		return nil, fmt.Errorf("error initialising tracer: %w", err)
-	}
-	ot.SetGlobalTracer(spanprofiler.NewTracer(ot.GlobalTracer()))
-
-	return func() {
-		if err := trace.Close(); err != nil {
-			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
-			os.Exit(1)
-		}
-	}, nil
-}
-
 func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
 
 	// for now, migrate OpenTracing Jaeger environment variables
 	migrateJaegerEnvironmentVariables()
 
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint())
+	exp, err := otlptracehttp.New(context.Background(), otlptracehttp.WithInsecure())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
 	resources, err := resource.New(context.Background(),

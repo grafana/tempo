@@ -12,7 +12,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
 )
 
 const nameFlushed = "flushed"
@@ -50,8 +49,8 @@ func newLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *lo
 }
 
 func (c *localBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "localBlock.FindTraceByID")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "localBlock.FindTraceByID")
+	defer span.End()
 	return c.BackendBlock.FindTraceByID(ctx, id, opts)
 }
 

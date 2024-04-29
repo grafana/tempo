@@ -11,10 +11,9 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	otgrpc "github.com/opentracing-contrib/go-grpc"
-	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
 	jaeger_config "github.com/uber/jaeger-client-go/config"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	google_grpc "google.golang.org/grpc"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
@@ -62,8 +61,7 @@ func main() {
 		Store: plugin,
 	}, func(options []google_grpc.ServerOption) *google_grpc.Server {
 		return hcplugin.DefaultGRPCServer([]google_grpc.ServerOption{
-			google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
-			google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
+			google_grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		})
 	})
 }
