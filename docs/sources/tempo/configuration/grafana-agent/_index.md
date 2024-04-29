@@ -42,7 +42,7 @@ For more information, refer to the [Introduction to Grafana Agent](/docs/agent/l
 
 The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry,
-and consist of `receivers`, `processors` and `exporters`.
+and consist of `receivers`, `processors`, and `exporters`.
 The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
 See the [configuration reference](/agent/latest/static/configuration/traces-config/) for all available configuration options.
 
