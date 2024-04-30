@@ -292,8 +292,13 @@ func TestRowIterator(t *testing.T) {
 }
 
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
+<<<<<<< HEAD
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+=======
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, model.CurrentEncoding)
+	w, err := createWALBlock(meta, t.TempDir(), 0)
+>>>>>>> d5a88c506 (Refactor CreateWAL func)
 	require.NoError(t, err)
 
 	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
