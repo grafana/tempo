@@ -1009,21 +1009,21 @@ func TestDescendantOf(t *testing.T) {
 			name:     "|descendant: basic",
 			lhs:      []traceql.Span{ancestor1},
 			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
-			expected: []traceql.Span{ancestor1, descendant1a, descendant1b},
+			expected: []traceql.Span{descendant1a, ancestor1, descendant1b},
 			union:    true,
 		},
 		{
 			name:     "|descendant: multiple matching trees",
 			lhs:      []traceql.Span{ancestor1, ancestor2},
 			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
-			expected: []traceql.Span{ancestor1, descendant1a, descendant1b, ancestor2, descendant2a, descendant2b},
+			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b},
 			union:    true,
 		},
 		{
 			name:     "|descendant: all",
 			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
 			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
-			expected: []traceql.Span{ancestor1, descendant1a, descendant1b, ancestor2, descendant2a, descendant2b, descendant2bb},
+			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b, descendant2bb},
 			union:    true,
 		},
 		{
@@ -1031,7 +1031,7 @@ func TestDescendantOf(t *testing.T) {
 			lhs:      []traceql.Span{ancestor2, descendant2b, descendant2bb},
 			rhs:      []traceql.Span{ancestor2, descendant2bb},
 			union:    true,
-			expected: []traceql.Span{ancestor2, descendant2b, descendant2bb},
+			expected: []traceql.Span{descendant2bb, ancestor2, descendant2b},
 		},
 		{
 			name:     "|descendant: don't match self",
@@ -1047,7 +1047,7 @@ func TestDescendantOf(t *testing.T) {
 			rhs:      []traceql.Span{ancestor1},
 			invert:   true,
 			union:    true,
-			expected: []traceql.Span{descendant1a, descendant1b, ancestor1},
+			expected: []traceql.Span{descendant1a, ancestor1, descendant1b},
 		},
 		{
 			name:     "|ancestor: multiple matching trees",
@@ -1055,7 +1055,23 @@ func TestDescendantOf(t *testing.T) {
 			rhs:      []traceql.Span{ancestor1, ancestor2},
 			invert:   true,
 			union:    true,
-			expected: []traceql.Span{descendant1a, descendant1b, ancestor1, descendant2a, descendant2b, ancestor2},
+			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b},
+		},
+		{
+			name:     "|ancestor: multi-tier",
+			lhs:      []traceql.Span{ancestor2, descendant2b, descendant2bb},
+			rhs:      []traceql.Span{ancestor2, descendant2bb},
+			invert:   true,
+			union:    true,
+			expected: []traceql.Span{descendant2b, descendant2bb, ancestor2},
+		},
+		{
+			name:     "|ancestor: all",
+			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			invert:   true,
+			union:    true,
+			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b, descendant2bb},
 		},
 		{
 			name:     "|ancestor: don't match self",
@@ -1405,7 +1421,6 @@ func TestSiblingOf(t *testing.T) {
 }
 
 func BenchmarkDescendantOf(b *testing.B) {
-	// jpe - improve. this is a pathological case for |>>
 	totalSpans := 1000
 
 	// create 1k s1 in a direct line
