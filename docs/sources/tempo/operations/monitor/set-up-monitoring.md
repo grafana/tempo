@@ -316,4 +316,4 @@ mimirtool alertmanager load operations/tempo-mixin-compiles/alerts.yml --address
 ```
 
 For Grafana Cloud, you need to add the username and API key as well.
-Refer to the [mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/) documentation for more information.
+Refer to the [mimirtool](https://grafana.com/docs/mimir/latest/manage/tools/mimirtool/) documentation for more information. 
