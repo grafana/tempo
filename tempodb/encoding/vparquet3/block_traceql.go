@@ -192,7 +192,9 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	}
 
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
-	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
+	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+		sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
+	}
 
 	afterInTree := func(a, b *span) bool {
 		return b.nestedSetLeft > a.nestedSetRight
@@ -231,7 +233,9 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 
 	// sort by parent
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
-	sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
+	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+		sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
+	}
 
 	siblingOf := func(a *span, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
@@ -259,6 +263,15 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 	}
 	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
 	isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
+
+	// jpe - test with dupe slices
+	//     - |>> -> &>>
+	//     - clean up this file. differenterLoop?
+	// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
+	// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
+	if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {
+		rhs = append([]traceql.Span{}, rhs...)
+	}
 
 	parents := lhs
 	children := rhs

@@ -1527,6 +1527,30 @@ func BenchmarkDescendantOf(b *testing.B) {
 	}
 }
 
+func TestStructuralSameSlice(t *testing.T) {
+	root := &span{nestedSetLeft: 1, nestedSetRight: 10, nestedSetParent: -1}
+
+	parent1 := &span{nestedSetLeft: 2, nestedSetRight: 9, nestedSetParent: 1}
+	child1a := &span{nestedSetLeft: 3, nestedSetRight: 6, nestedSetParent: 2}
+	child1aa := &span{nestedSetLeft: 4, nestedSetRight: 5, nestedSetParent: 3}
+	child1b := &span{nestedSetLeft: 7, nestedSetRight: 8, nestedSetParent: 2}
+
+	all := []traceql.Span{root, parent1, child1a, child1aa, child1b}
+
+	expectedChildOf := []traceql.Span{parent1, child1a, child1b, child1aa}
+	exepectedDescendantOf := []traceql.Span{parent1, child1a, child1aa, child1b}
+	expectedSiblingOf := []traceql.Span{child1a, child1b}
+
+	actualChildOf := child1a.ChildOf(all, all, false, false, false, nil)
+	require.Equal(t, expectedChildOf, actualChildOf)
+
+	actualDescendantOf := child1a.DescendantOf(all, all, false, false, false, nil)
+	require.Equal(t, exepectedDescendantOf, actualDescendantOf)
+
+	actualSiblingOf := child1a.SiblingOf(all, all, false, false, nil)
+	require.Equal(t, expectedSiblingOf, actualSiblingOf)
+}
+
 func BenchmarkSiblingOf(b *testing.B) {
 	totalSpans := 1000
 
