@@ -163,7 +163,6 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 
 	if !allOk {
 		newDesiredProcessors[spanmetrics.Name] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors = make(map[spanmetrics.Subprocessor]bool)
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
 		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Size] = false
