@@ -359,10 +359,25 @@ func newMockSpan(id []byte) *mockSpan {
 	}
 }
 
+func (m *mockSpan) WithStartTime(nanos uint64) *mockSpan {
+	m.startTimeUnixNanos = nanos
+	return m
+}
+
+func (m *mockSpan) WithDuration(nanos uint64) *mockSpan {
+	m.durationNanos = nanos
+	return m
+}
+
 func (m *mockSpan) WithNestedSetInfo(parentid, left, right int) *mockSpan {
 	m.parentID = parentid
 	m.left = left
 	m.right = right
+	return m
+}
+
+func (m *mockSpan) WithSpanString(key string, value string) *mockSpan {
+	m.attributes[NewScopedAttribute(AttributeScopeSpan, false, key)] = NewStaticString(value)
 	return m
 }
 

@@ -290,3 +290,133 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestQuantileOverTime(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+	}
+
+	var (
+		attr = IntrinsicDurationAttribute
+		qs   = []float64{0, 0.5, 1}
+		by   = []Attribute{NewScopedAttribute(AttributeScopeSpan, false, "foo")}
+		div  = float64(time.Second)
+	)
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+	}
+
+	// Output series with quantiles per foo
+	// Prom labels are sorted alphabetically, traceql labels maintain original order.
+	out := SeriesSet{
+		`{p="0.00000", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: "p", Value: NewStaticFloat(0)},
+			},
+			Values: []float64{
+				0.000000128,
+				percentileHelper(0, div, 256, 256, 256, 256),
+				0,
+			},
+		},
+		`{p="0.50000", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: "p", Value: NewStaticFloat(0.5)},
+			},
+			Values: []float64{
+				0.000000256,
+				percentileHelper(0.5, div, 256, 256, 256, 256),
+				0,
+			},
+		},
+		`{p="1.00000", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: "p", Value: NewStaticFloat(1)},
+			},
+			Values: []float64{0.000000512, 0.000000256, 0},
+		},
+		`{p="0.00000", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: "p", Value: NewStaticFloat(0)},
+			},
+			Values: []float64{
+				0, 0,
+				percentileHelper(0, div, 512, 512, 512),
+			},
+		},
+		`{p="0.50000", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: "p", Value: NewStaticFloat(0.5)},
+			},
+			Values: []float64{
+				0, 0,
+				percentileHelper(0.5, div, 512, 512, 512),
+			},
+		},
+		`{p="1.00000", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: "p", Value: NewStaticFloat(1)},
+			},
+			Values: []float64{0, 0, 0.000000512},
+		},
+	}
+
+	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
+	layer1 := newMetricsAggregateQuantileOverTime(attr, qs, by)
+	layer1.init(req, AggregateModeRaw)
+
+	layer2 := newMetricsAggregateQuantileOverTime(attr, qs, by)
+	layer2.init(req, AggregateModeSum)
+
+	layer3 := newMetricsAggregateQuantileOverTime(attr, qs, by)
+	layer3.init(req, AggregateModeFinal)
+
+	// Pass spans to layer 1
+	for _, s := range in {
+		layer1.observe(s)
+	}
+
+	// Pass layer 1 to layer 2
+	// These are partial counts over time by bucket
+	res := layer1.result()
+	layer2.observeSeries(res.ToProto(req))
+
+	// Pass layer 2 to layer 3
+	// These are summed counts over time by bucket
+	res = layer2.result()
+	layer3.observeSeries(res.ToProto(req))
+
+	// Layer 3 final results
+	// The quantiles
+	final := layer3.result()
+	require.Equal(t, out, final)
+}
+
+func percentileHelper(q, div float64, values ...uint64) float64 {
+	b := [64]int{}
+	for _, v := range values {
+		b[Log2Bucket(v)]++
+	}
+	return Log2Quantile(q, b) / div
+}

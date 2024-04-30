@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"strings"
 
 	"github.com/grafana/tempo/pkg/traceql"
@@ -26,7 +25,7 @@ func (m *LatencyHistogram) Record(durationNanos uint64) {
 	// Increment bucket that matches log2(duration)
 	var bucket int
 	if durationNanos >= 2 {
-		bucket = int(math.Ceil(math.Log2(float64(durationNanos))))
+		bucket = traceql.Log2Bucket(durationNanos)
 	}
 	if bucket >= maxBuckets {
 		bucket = maxBuckets - 1
@@ -51,47 +50,7 @@ func (m *LatencyHistogram) Combine(other LatencyHistogram) {
 
 // Percentile returns the estimated latency percentile in nanoseconds.
 func (m *LatencyHistogram) Percentile(p float64) uint64 {
-	if math.IsNaN(p) ||
-		p < 0 ||
-		p > 1 ||
-		m.Count() == 0 {
-		return 0
-	}
-
-	// Maximum amount of samples to include. We round up to better handle
-	// percentiles on low sample counts (<100).
-	maxSamples := int(math.Ceil(p * float64(m.Count())))
-
-	// Find the bucket where the percentile falls in
-	// and the total sample count less than or equal
-	// to that bucket.
-	var total, bucket int
-	for b, count := range m.buckets {
-		if total+count <= maxSamples {
-			bucket = b
-			total += count
-
-			if total < maxSamples {
-				continue
-			}
-		}
-
-		// We have enough
-		break
-	}
-
-	// Fraction to interpolate between buckets, sample-count wise.
-	// 0.5 means halfway
-	var interp float64
-	if maxSamples-total > 0 {
-		interp = float64(maxSamples-total) / float64(m.buckets[bucket+1])
-	}
-
-	// Exponential interpolation between buckets
-	minDur := math.Pow(2, float64(bucket))
-	dur := minDur * math.Pow(2, interp)
-
-	return uint64(dur)
+	return uint64(traceql.Log2Quantile(p, m.buckets))
 }
 
 // Buckets returns the bucket counts for each power of 2.

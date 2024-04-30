@@ -841,7 +841,7 @@ type HistogramAggregator struct {
 	start, end, step uint64
 }
 
-func NewHistogramCombiner(req *tempopb.QueryRangeRequest, qs []float64, div float64) *HistogramAggregator {
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, div float64) *HistogramAggregator {
 	return &HistogramAggregator{
 		div:   div,
 		qs:    qs,
@@ -913,7 +913,7 @@ func (h *HistogramAggregator) Results() SeriesSet {
 				Values: make([]float64, len(in.hist)),
 			}
 			for i := range in.hist {
-				new.Values[i] = Percentile(q, in.hist[i]) / h.div
+				new.Values[i] = Log2Quantile(q, in.hist[i]) / h.div
 			}
 			results[s] = new
 		}
@@ -921,9 +921,19 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	return results
 }
 
-// Percentile returns the p-value given powers-of-two bucket counts. Uses
+// Log2Bucket returns which powers-of-two bucket the value lies in.
+func Log2Bucket(v uint64) int {
+	if v < 2 {
+		return -1
+	}
+
+	return int(math.Ceil(math.Log2(float64(v))))
+}
+
+// Log2Quantile returns the quantile given powers-of-two bucket counts. Uses
 // exponential interpolation. The original values are int64 so there are always 64 buckets.
-func Percentile(p float64, buckets [64]int) float64 {
+// Input comes from Log2Bucket
+func Log2Quantile(p float64, buckets [64]int) float64 {
 	if math.IsNaN(p) ||
 		p < 0 ||
 		p > 1 {

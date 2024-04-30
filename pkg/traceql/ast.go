@@ -841,7 +841,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				if d < 2 {
 					return Static{}, false
 				}
-				return NewStaticInt(int(math.Ceil(math.Log2(float64(d))))), true
+				return NewStaticInt(Log2Bucket(d)), true
 			}
 		default:
 			// Basic implementation for all other attributes
@@ -859,7 +859,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				if v.N < 2 {
 					return Static{}, false
 				}
-				return NewStaticInt(int(math.Ceil(math.Log2(float64(v.N))))), true
+				return NewStaticInt(Log2Bucket(uint64(v.N))), true
 			}
 		}
 	}
@@ -885,7 +885,7 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 		if a.attr == IntrinsicDurationAttribute {
 			div = float64(time.Second)
 		}
-		a.seriesAgg = NewHistogramCombiner(q, a.floats, div)
+		a.seriesAgg = NewHistogramAggregator(q, a.floats, div)
 	default:
 		// These are simple additions by series
 		a.seriesAgg = NewSimpleAdditionCombiner(q)
