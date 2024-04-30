@@ -2213,10 +2213,12 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		s.setTraceAttrs(c.traceAttrs)
 	}
 
-	finalSpanset.ServiceStats = make(map[string]traceql.ServiceStats, numServiceStats)
-	for _, e := range res.OtherEntries {
-		if serviceStats, ok := e.Value.(traceql.ServiceStats); ok {
-			finalSpanset.ServiceStats[e.Key] = serviceStats
+	if numServiceStats > 0 {
+		finalSpanset.ServiceStats = make(map[string]traceql.ServiceStats, numServiceStats)
+		for _, e := range res.OtherEntries {
+			if serviceStats, ok := e.Value.(traceql.ServiceStats); ok {
+				finalSpanset.ServiceStats[e.Key] = serviceStats
+			}
 		}
 	}
 
