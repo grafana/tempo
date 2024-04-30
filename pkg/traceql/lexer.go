@@ -7,6 +7,7 @@ import (
 	"text/scanner"
 	"time"
 	"unicode"
+
 	"github.com/prometheus/common/model"
 )
 

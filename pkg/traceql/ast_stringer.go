@@ -123,19 +123,13 @@ func (a Attribute) String() string {
 	}
 
 	scope := ""
-	// if one scope then just print scope
-	// if more than one scope it should be parent+scope which will then be joined by "."
-	if len(scopes) > 0 { 
-		scope = strings.Join(scopes, ".") 
+	if len(scopes) > 0 {
+		scope = strings.Join(scopes, ".") + "."
 	}
 
-	// add . or : if not intrinsinc
-
-	switch a.Intrinsic {
-	case IntrinsicNone:
+	// Top-level attributes get a "." but top-level intrinsics don't
+	if scope == "" && a.Intrinsic == IntrinsicNone && len(att) > 0 {
 		scope += "."
-	default:
-		scope = ""
 	}
 
 	return scope + att

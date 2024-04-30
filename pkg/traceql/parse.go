@@ -49,7 +49,7 @@ func Parse(s string) (expr *RootExpr, err error) {
 }
 
 func ParseIdentifier(s string) (Attribute, error) {
-	if i := intrinsicFromString(s); (i != IntrinsicNone && i != IntrinsicScoped) {
+	if i := intrinsicFromString(s); i != IntrinsicNone {
 		return NewIntrinsic(i), nil
 	}
 

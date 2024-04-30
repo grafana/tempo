@@ -50,7 +50,6 @@ type Intrinsic int
 
 const (
 	IntrinsicNone Intrinsic = iota
-	IntrinsicScoped
 	IntrinsicDuration
 	IntrinsicName
 	IntrinsicStatus
@@ -186,4 +185,3 @@ func intrinsicFromString(s string) Intrinsic {
 
 	return IntrinsicNone
 }
-

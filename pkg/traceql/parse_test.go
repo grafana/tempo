@@ -1113,7 +1113,6 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: ":statusMessage", shouldError: true},
 		{in: "trace:name", shouldError: true},
 		{in: "span:rootServiceName", shouldError: true},
-		
 	}
 
 	for _, tc := range tests {
@@ -1122,9 +1121,9 @@ func TestScopedIntrinsics(t *testing.T) {
 			s := "{ " + tc.in + "}"
 			actual, err := Parse(s)
 
-			if(tc.shouldError){
+			if tc.shouldError {
 				require.Error(t, err)
-			}else{
+			} else {
 				require.NoError(t, err)
 				require.Equal(t, newRootExpr(newPipeline(
 					newSpansetFilter(Attribute{
@@ -1280,8 +1279,4 @@ func TestMetrics(t *testing.T) {
 			require.Equal(t, tc.expected, actual)
 		})
 	}
-}
-
-func ExpectedScopedIntrinsicError(s string) error {
-	return fmt.Errorf("tag name is not valid scoped intrinsic: %s", s)
 }
