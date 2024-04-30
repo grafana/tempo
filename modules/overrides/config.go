@@ -81,6 +81,7 @@ type ServiceGraphsOverrides struct {
 	Dimensions               []string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	PeerAttributes           []string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
 	EnableClientServerPrefix bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
+	EnableVirtualNodeLabel   bool      `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 }
 
 type SpanMetricsOverrides struct {

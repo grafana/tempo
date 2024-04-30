@@ -123,5 +123,7 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	copyCfg.ServiceGraphs.EnableClientServerPrefix = o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
 
+	copyCfg.ServiceGraphs.EnableVirtualNodeLabel = o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
+
 	return copyCfg, nil
 }
