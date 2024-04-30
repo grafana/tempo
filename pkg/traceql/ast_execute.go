@@ -72,6 +72,7 @@ func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 }
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
+
 	for i := range input {
 		curr := input[i : i+1]
 
@@ -99,17 +100,17 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			}
 		// relationship operators all set relFn which is used by below code
 		// to perform the operation
-		case OpSpansetNotDescendant:
+		case OpSpansetNotDescendant: // !>>
 			fallthrough
-		case OpSpansetNotAncestor:
+		case OpSpansetNotAncestor: // !<<
 			fallthrough
-		case OpSpansetAncestor:
+		case OpSpansetAncestor: // <<
 			fallthrough
-		case OpSpansetDescendant:
+		case OpSpansetDescendant: // >>
 			fallthrough
-		case OpSpansetUnionAncestor:
+		case OpSpansetUnionAncestor: // |<<
 			fallthrough
-		case OpSpansetUnionDescendant:
+		case OpSpansetUnionDescendant: // |>>
 			falseForAll := o.Op == OpSpansetNotDescendant || o.Op == OpSpansetNotAncestor
 			invert := o.Op == OpSpansetAncestor || o.Op == OpSpansetNotAncestor || o.Op == OpSpansetUnionAncestor
 			union := o.Op == OpSpansetUnionAncestor || o.Op == OpSpansetUnionDescendant
@@ -117,17 +118,17 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				return s.DescendantOf(l, r, falseForAll, invert, union, o.matchingSpansBuffer)
 			}
 
-		case OpSpansetNotChild:
+		case OpSpansetNotChild: // !>
 			fallthrough
-		case OpSpansetChild:
+		case OpSpansetChild: // >
 			fallthrough
-		case OpSpansetNotParent:
+		case OpSpansetNotParent: // !<
 			fallthrough
-		case OpSpansetParent:
+		case OpSpansetParent: // <
 			fallthrough
-		case OpSpansetUnionParent:
+		case OpSpansetUnionParent: // |<
 			fallthrough
-		case OpSpansetUnionChild:
+		case OpSpansetUnionChild: // |>
 			falseForAll := o.Op == OpSpansetNotParent || o.Op == OpSpansetNotChild
 			invert := o.Op == OpSpansetParent || o.Op == OpSpansetNotParent || o.Op == OpSpansetUnionParent
 			union := o.Op == OpSpansetUnionParent || o.Op == OpSpansetUnionChild
@@ -135,11 +136,11 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 				return s.ChildOf(l, r, falseForAll, invert, union, o.matchingSpansBuffer)
 			}
 
-		case OpSpansetNotSibling:
+		case OpSpansetNotSibling: // !~
 			fallthrough
-		case OpSpansetSibling:
+		case OpSpansetSibling: // ~
 			fallthrough
-		case OpSpansetUnionSibling:
+		case OpSpansetUnionSibling: // |~
 			falseForAll := o.Op == OpSpansetNotSibling
 			union := o.Op == OpSpansetUnionSibling
 			relFn = func(s Span, l, r []Span) []Span {
@@ -152,7 +153,6 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 
 		// if relFn was set up above we are doing a relationship operation.
 		if relFn != nil {
-			// jpe - enforce uniqueness?
 			o.matchingSpansBuffer, err = o.joinSpansets(lhs, rhs, relFn) // o.matchingSpansBuffer is passed into the functions above and is stored here
 			if err != nil {
 				return nil, err
@@ -489,7 +489,6 @@ func (a Attribute) execute(span Span) (Static, error) {
 	return NewStaticNil(), nil
 }
 
-// jpe - improve by passing in a map to reuse
 func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
 	ss1Count := 0
 	ss2Count := 0

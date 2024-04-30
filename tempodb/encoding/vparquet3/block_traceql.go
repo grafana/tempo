@@ -239,13 +239,14 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			b.nestedSetParent != 0 &&
 			a != b // a span cannot be its own sibling. note that this only works due to implementation details in the engine. if we ever pipeline structural operators then we would need to use something else for identity. rownumber?
 	}
+
 	isValid := func(s *span) bool { return s.nestedSetParent != 0 }
 	isAfter := func(a *span, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
 
 	return nestedSetManyManyLoop(lhs, rhs, isValid, siblingOf, isAfter, falseForAll, false, union, buffer)
 }
 
-// {} > {} > {} > {}
+// {} > {}
 func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 || len(rhs) == 0 {
 		return nil
@@ -272,7 +273,7 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 }
 
 func nestedSetDifferenterLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, buffer []traceql.Span) []traceql.Span {
-	uniqueSpans := make(map[*span]struct{}) // jpe - benchmark passing in a reusable map
+	uniqueSpans := make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
 
 	addToBuffer := func(s *span) {
 		if _, ok := uniqueSpans[s]; !ok {
@@ -287,24 +288,12 @@ func nestedSetDifferenterLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch fu
 		lSpan := lhs[lidx].(*span)
 		rSpan := rhs[ridx].(*span)
 
-		// advance LHS until in tree of RHS
-		// jpe - necessary? benchmark?
-		// for isAfter(lSpan, rSpan) {
-		// 	lidx++
-		// 	if lidx >= len(lhs) {
-		// 		break
-		// 	}
-		// 	lSpan = lhs[lidx].(*span)
-		// }
-
 		// rhs
 		for ; ridx < len(rhs); ridx++ {
 			rSpan = rhs[ridx].(*span)
 
 			if isMatch(lSpan, rSpan) {
-				// we can naked append rSpan regardless of union because we are in the differenter loop
-				uniqueSpans[rSpan] = struct{}{} // jpe - need addToBuffer here?
-				buffer = append(buffer, rSpan)
+				addToBuffer(rSpan)
 			}
 
 			// test the next span to see if it is still in the tree of lhs. if not bail!
@@ -342,7 +331,7 @@ func nestedSetDifferenterLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch fu
 func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	var uniqueSpans map[*span]struct{}
 	if union {
-		uniqueSpans = make(map[*span]struct{}) // jpe - benchmark passing in a reusable map
+		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
 	}
 
 	addToBuffer := func(s *span) {
@@ -371,7 +360,7 @@ func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(
 		for ; lidx < len(lhs); lidx++ {
 			lSpan := lhs[lidx].(*span)
 
-			// if left is after right, swap back to right jpe - invert swap spans?
+			// if left is after right, swap back to right
 			if isAfter(rSpan, lSpan) {
 				break
 			}
@@ -398,8 +387,23 @@ func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(
 }
 
 // nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships
-// jpe - dedupe spans on union
 func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+	var uniqueSpans map[*span]struct{}
+	if union {
+		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
+	}
+
+	addToBuffer := func(s *span) {
+		if union {
+			if _, ok := uniqueSpans[s]; !ok {
+				buffer = append(buffer, s)
+				uniqueSpans[s] = struct{}{}
+			}
+		} else {
+			buffer = append(buffer, s)
+		}
+	}
+
 	// note the small differences between this and the !invert loop. technically we could write these both in one piece of code,
 	// but this feels better for clarity
 	if invert {
@@ -424,13 +428,15 @@ func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(
 				if isMatch(oSpan, mSpan) {
 					matches = true
 					if union {
-						buffer = append(buffer, mSpan)
+						addToBuffer(mSpan)
+					} else {
+						break
 					}
 				}
 			}
 
 			if (matches && !falseForAll) || (!matches && falseForAll) {
-				buffer = append(buffer, oSpan)
+				addToBuffer(oSpan)
 			}
 		}
 
@@ -458,19 +464,19 @@ func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(
 			match := isMatch(oSpan, mSpan)
 			if (match && !falseForAll) || (!match && falseForAll) {
 				matches = true
-				buffer = append(buffer, mSpan)
+				addToBuffer(mSpan)
 			}
 		}
 
 		if matches && union {
-			buffer = append(buffer, oSpan)
+			addToBuffer(oSpan)
 		}
 	}
 
 	// drain the rest of the children if falseForAll
 	if falseForAll {
 		for ; manyIdx < len(many); manyIdx++ {
-			buffer = append(buffer, many[manyIdx])
+			addToBuffer(many[manyIdx].(*span))
 		}
 	}
 

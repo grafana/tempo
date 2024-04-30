@@ -930,6 +930,12 @@ func TestDescendantOf(t *testing.T) {
 			expected: []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
 		},
 		{
+			name:     "descendant: all",
+			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			expected: []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+		},
+		{
 			name:     "descendant: don't match self",
 			lhs:      []traceql.Span{ancestor1},
 			rhs:      []traceql.Span{ancestor1},
@@ -949,6 +955,13 @@ func TestDescendantOf(t *testing.T) {
 			rhs:      []traceql.Span{ancestor1, ancestor2},
 			invert:   true,
 			expected: []traceql.Span{ancestor1, ancestor2},
+		},
+		{
+			name:     "ancestor: all",
+			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			invert:   true,
+			expected: []traceql.Span{ancestor1, ancestor2, descendant2b},
 		},
 		{
 			name:     "ancestor: don't match self",
@@ -973,6 +986,13 @@ func TestDescendantOf(t *testing.T) {
 			expected:    []traceql.Span{disconnectedBefore, disconnectedBetween, disconnectedAfter},
 		},
 		{
+			name:        "!descendant: all",
+			lhs:         []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			rhs:         []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			falseForAll: true,
+			expected:    []traceql.Span{ancestor1, ancestor2},
+		},
+		{
 			name:        "!descendant: match self",
 			lhs:         []traceql.Span{ancestor1},
 			rhs:         []traceql.Span{ancestor1},
@@ -995,6 +1015,14 @@ func TestDescendantOf(t *testing.T) {
 			invert:      true,
 			falseForAll: true,
 			expected:    []traceql.Span{disconnectedBefore, disconnectedBetween, disconnectedAfter},
+		},
+		{
+			name:        "!ancestor: all",
+			lhs:         []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			rhs:         []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
+			invert:      true,
+			falseForAll: true,
+			expected:    []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2bb},
 		},
 		{
 			name:        "!ancestor: match self",
@@ -1107,17 +1135,19 @@ func TestDescendantOf(t *testing.T) {
 }
 
 func TestChildOf(t *testing.T) {
-	parent1 := &span{nestedSetLeft: 1, nestedSetParent: -1}
-	child1a := &span{nestedSetLeft: 5, nestedSetParent: 1}
-	child1b := &span{nestedSetLeft: 10, nestedSetParent: 1}
+	root := &span{nestedSetLeft: 1, nestedSetParent: -1}
 
-	parent2 := &span{nestedSetLeft: 15, nestedSetParent: 14}
+	parent1 := &span{nestedSetLeft: 2, nestedSetParent: 1}
+	child1a := &span{nestedSetLeft: 5, nestedSetParent: 2}
+	child1aa := &span{nestedSetLeft: 6, nestedSetParent: 5}
+	child1b := &span{nestedSetLeft: 10, nestedSetParent: 2}
+
+	parent2 := &span{nestedSetLeft: 15, nestedSetParent: 1}
 	child2a := &span{nestedSetLeft: 20, nestedSetParent: 15}
 	child2b := &span{nestedSetLeft: 25, nestedSetParent: 15}
+	child2bb := &span{nestedSetLeft: 26, nestedSetParent: 25}
 
-	// adding disconnected spans that purposefully show up before, between and
-	// after the above trees
-	disconnectedBefore := &span{nestedSetLeft: 3, nestedSetParent: 2}
+	disconnectedBefore := &span{nestedSetLeft: 4, nestedSetParent: 3}
 	disconnectedBetween := &span{nestedSetLeft: 12, nestedSetParent: 11}
 	disconnectedAfter := &span{nestedSetLeft: 30, nestedSetRight: 29}
 
@@ -1152,6 +1182,12 @@ func TestChildOf(t *testing.T) {
 			expected: []traceql.Span{child1a, child1b, child2a, child2b},
 		},
 		{
+			name:     "child: all",
+			lhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
+			rhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
+			expected: []traceql.Span{parent1, parent2, child1a, child1b, child1aa, child2a, child2b, child2bb},
+		},
+		{
 			name:     "child: don't match self",
 			lhs:      []traceql.Span{parent1},
 			rhs:      []traceql.Span{parent1},
@@ -1171,6 +1207,13 @@ func TestChildOf(t *testing.T) {
 			rhs:      []traceql.Span{parent1, parent2},
 			invert:   true,
 			expected: []traceql.Span{parent1, parent2},
+		},
+		{
+			name:     "parent: all",
+			lhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
+			rhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
+			invert:   true,
+			expected: []traceql.Span{root, parent1, child1a, parent2, child2b},
 		},
 		{
 			name:     "parent: don't match self",
