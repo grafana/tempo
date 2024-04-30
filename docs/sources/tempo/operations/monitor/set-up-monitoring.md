@@ -24,8 +24,9 @@ The steps outlined below use the Grafana Agent Flow configurations described in 
 {{< admonition type="note" >}}
 Update any instructions in this document for your own deployment.
 
-If you use the [Kubernetes integration Grafana Agent Helm chart](https://grafana.com/docs/agent/latest/flow/get-started/install/kubernetes/), you’ll be able to use the Kubernetes scrap annotations to automatically scrap Tempo. You’ll need to add the labels to all of the deployed components.
+If you use the [Kubernetes integration Grafana Agent Helm chart](https://grafana.com/docs/agent/latest/flow/get-started/install/kubernetes/), you’ll be able to use the Kubernetes scrape annotations to automatically scrape Tempo. You’ll need to add the labels to all of the deployed components.
 {{% /admonition %}}
+
 
 ## Before you begin
 
