@@ -5,8 +5,6 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -45,8 +43,8 @@ func (v Encoding) OpenWALBlock(filename, path string, ingestionSlack, additional
 }
 
 // CreateWALBlock creates a new appendable block
-func (v Encoding) CreateWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error) {
-	return createWALBlock(id, tenantID, filepath, e, dataEncoding, ingestionSlack, dedicatedColumns)
+func (v Encoding) CreateWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (common.WALBlock, error) {
+	return createWALBlock(meta, filepath, ingestionSlack)
 }
 
 func (v Encoding) OwnsWALBlock(entry fs.DirEntry) bool {

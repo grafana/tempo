@@ -71,7 +71,8 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version(), nil)
+	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, model.CurrentEncoding)
+	block, err := wal.newBlock(meta, e.Version())
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -128,7 +129,8 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version(), nil)
+	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, model.CurrentEncoding)
+	block, err := wal.newBlock(meta, e.Version())
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -340,7 +342,8 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 
 	// create all valid blocks
 	for _, e := range encoding.AllEncodings() {
-		block, err := wal.newBlock(uuid.New(), testTenantID, model.CurrentEncoding, e.Version(), nil)
+		meta := backend.NewBlockMeta("fake", uuid.New(), e.Version(), backend.EncNone, model.CurrentEncoding)
+		block, err := wal.newBlock(meta, e.Version())
 		require.NoError(t, err)
 
 		id := make([]byte, 16)
@@ -394,7 +397,8 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 
 	blockID := uuid.New()
 
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding, nil)
+	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, model.CurrentEncoding)
+	block, err := wal.newBlock(meta, encoding)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -541,7 +545,8 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 
 	blockID := uuid.New()
 
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding, nil)
+	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, model.CurrentEncoding)
+	block, err := wal.newBlock(meta, encoding)
 	require.NoError(b, err, "unexpected error creating block")
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)

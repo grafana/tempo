@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -49,7 +47,7 @@ type VersionedEncoding interface {
 	OpenWALBlock(filename, path string, ingestionSlack, additionalStartSlack time.Duration) (common.WALBlock, error, error)
 
 	// CreateWALBlock creates a new appendable block for the WAL
-	CreateWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error)
+	CreateWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (common.WALBlock, error)
 
 	// OwnsWALBlock indicates if this encoding owns the WAL block
 	OwnsWALBlock(entry fs.DirEntry) bool

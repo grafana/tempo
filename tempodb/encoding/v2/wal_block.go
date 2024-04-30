@@ -43,19 +43,19 @@ type walBlock struct {
 	once     sync.Once
 }
 
-func createWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
-		len([]rune(dataEncoding)) > maxDataEncodingLength {
-		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
+func createWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (common.WALBlock, error) {
+	if strings.ContainsRune(meta.DataEncoding, ':') || strings.ContainsRune(meta.DataEncoding, '+') ||
+		len([]rune(meta.DataEncoding)) > maxDataEncodingLength {
+		return nil, fmt.Errorf("dataEncoding %s is invalid", meta.DataEncoding)
 	}
 
-	enc, err := model.NewSegmentDecoder(dataEncoding)
+	enc, err := model.NewSegmentDecoder(meta.DataEncoding)
 	if err != nil {
 		return nil, err
 	}
 
 	h := &walBlock{
-		meta:           backend.NewBlockMeta(tenantID, id, VersionString, e, dataEncoding),
+		meta:           meta,
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
 		encoder:        enc,
@@ -69,7 +69,7 @@ func createWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding,
 	}
 	h.appendFile = f
 
-	dataWriter, err := NewDataWriter(f, e)
+	dataWriter, err := NewDataWriter(f, meta.Encoding)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -74,7 +75,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		return bytes.Compare(traces[i].TraceID, traces[j].TraceID) == -1
 	})
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, model.CurrentEncoding)
 	meta.TotalObjects = len(traces)
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 

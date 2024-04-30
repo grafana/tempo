@@ -90,7 +90,8 @@ func TestDB(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	head, err := wal.NewBlock(meta)
 	assert.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -142,7 +143,8 @@ func TestBlockSharding(t *testing.T) {
 	wal := w.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	head, err := wal.NewBlock(meta)
 	assert.NoError(t, err)
 
 	// add a trace to the block
@@ -205,7 +207,8 @@ func TestBlockCleanup(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	head, err := wal.NewBlock(meta)
 	assert.NoError(t, err)
 
 	_, err = w.CompleteBlock(context.Background(), head)
@@ -533,7 +536,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	head, err := wal.NewBlock(meta)
 	assert.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -615,7 +619,8 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := backend.NewBlockMeta(testTenantID, blockID, from, backend.EncNone, model.CurrentEncoding)
+	block, err := wal.NewBlock(meta)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
 
@@ -688,7 +693,8 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	oneHourAgo := now.Add(-1 * time.Hour).Unix()
 	oneHour := now.Add(time.Hour).Unix()
 
-	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	block, err := wal.NewBlock(meta)
 	require.NoError(t, err, "unexpected error creating block")
 
 	// Write a trace from 1 hour ago.
@@ -756,7 +762,8 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
-	blk, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	blk, err := wal.NewBlock(meta)
 	require.NoError(b, err)
 
 	for i := 0; i < traceCount; i++ {
