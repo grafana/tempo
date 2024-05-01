@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -242,7 +241,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, model.CurrentEncoding)
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	meta.TotalObjects = 1
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)

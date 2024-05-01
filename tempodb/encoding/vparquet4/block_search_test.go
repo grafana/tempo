@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -265,7 +264,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 		BloomShardSizeBytes: 100 * 1024,
 	}
 
-	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, model.CurrentEncoding)
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	meta.TotalObjects = 1
 	meta.DedicatedColumns = test.MakeDedicatedColumns()
 
