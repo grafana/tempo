@@ -1463,70 +1463,6 @@ func TestSiblingOf(t *testing.T) {
 	}
 }
 
-func BenchmarkDescendantOf(b *testing.B) {
-	totalSpans := 1000
-
-	// create 1k s1 in a direct line
-	s1 := make([]traceql.Span, totalSpans)
-	for i := 0; i < totalSpans; i++ {
-		s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
-	}
-	// copy the same slice to s2
-	s2 := make([]traceql.Span, totalSpans)
-	copy(s2, s1)
-
-	// unsort the slices
-	for i := range s1 {
-		j := rand.Intn(i + 1)
-		s1[i], s1[j] = s1[j], s1[i]
-	}
-	for i := range s2 {
-		j := rand.Intn(i + 1)
-		s2[i], s2[j] = s2[j], s2[i]
-	}
-
-	for _, tc := range []struct {
-		name        string
-		falseForAll bool
-		invert      bool
-		union       bool
-	}{
-		{
-			name: ">>",
-		},
-		{
-			name:   "<<",
-			invert: true,
-		},
-		{
-			name:        "!>>",
-			falseForAll: true,
-		},
-		{
-			name:        "!<<",
-			falseForAll: true,
-			invert:      true,
-		},
-		{
-			name:  "&>>",
-			union: true,
-		},
-		{
-			name:   "&<<",
-			invert: true,
-			union:  true,
-		},
-	} {
-		b.Run(tc.name, func(b *testing.B) {
-			s := &span{}
-
-			for i := 0; i < b.N; i++ {
-				s.DescendantOf(s1, s1, tc.falseForAll, tc.invert, tc.union, nil)
-			}
-		})
-	}
-}
-
 func TestStructuralSameSlice(t *testing.T) {
 	root := &span{nestedSetLeft: 1, nestedSetRight: 10, nestedSetParent: -1}
 
@@ -1551,115 +1487,178 @@ func TestStructuralSameSlice(t *testing.T) {
 	require.Equal(t, expectedSiblingOf, actualSiblingOf)
 }
 
+func BenchmarkDescendantOf(b *testing.B) {
+	for _, count := range []int{10, 100, 1000, 10000} {
+		b.Run(fmt.Sprintf("%d", count), func(b *testing.B) {
+			totalSpans := count
+
+			// create 1k s1 in a direct line
+			s1 := make([]traceql.Span, totalSpans)
+			for i := 0; i < totalSpans; i++ {
+				s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
+			}
+			// copy the same slice to s2
+			s2 := make([]traceql.Span, totalSpans)
+			copy(s2, s1)
+
+			for _, tc := range []struct {
+				name        string
+				falseForAll bool
+				invert      bool
+				union       bool
+			}{
+				{
+					name: ">>",
+				},
+				{
+					name:   "<<",
+					invert: true,
+				},
+				{
+					name:        "!>>",
+					falseForAll: true,
+				},
+				{
+					name:        "!<<",
+					falseForAll: true,
+					invert:      true,
+				},
+				{
+					name:  "&>>",
+					union: true,
+				},
+				{
+					name:   "&<<",
+					invert: true,
+					union:  true,
+				},
+			} {
+				b.Run(fmt.Sprintf("%s : %d", tc.name, count), func(b *testing.B) {
+					s := &span{}
+
+					shuffleSpans(s1)
+					shuffleSpans(s2)
+					b.ResetTimer()
+
+					for i := 0; i < b.N; i++ {
+						s.DescendantOf(s1, s1, tc.falseForAll, tc.invert, tc.union, nil)
+					}
+				})
+			}
+		})
+	}
+}
 func BenchmarkSiblingOf(b *testing.B) {
-	totalSpans := 1000
+	for _, count := range []int{10, 100, 1000, 10000} {
+		b.Run(fmt.Sprintf("%d", count), func(b *testing.B) {
+			totalSpans := count
 
-	// create 1k s1 with random siblings
-	s1 := make([]traceql.Span, totalSpans)
-	for i := 0; i < totalSpans; i++ {
-		s1[i] = &span{nestedSetParent: rand.Int31n(10)}
-	}
-	// copy the same slice to s2
-	s2 := make([]traceql.Span, totalSpans)
-	copy(s2, s1)
+			// create 1k s1 with random siblings
+			s1 := make([]traceql.Span, totalSpans)
+			for i := 0; i < totalSpans; i++ {
+				s1[i] = &span{nestedSetParent: rand.Int31n(10)}
+			}
+			// copy the same slice to s2
+			s2 := make([]traceql.Span, totalSpans)
+			copy(s2, s1)
 
-	// unsort the slices
-	for i := range s1 {
-		j := rand.Intn(i + 1)
-		s1[i], s1[j] = s1[j], s1[i]
-	}
-	for i := range s2 {
-		j := rand.Intn(i + 1)
-		s2[i], s2[j] = s2[j], s2[i]
-	}
+			for _, tc := range []struct {
+				name        string
+				falseForAll bool
+				union       bool
+			}{
+				{
+					name: "~",
+				},
+				{
+					name:        "!~",
+					falseForAll: true,
+				},
+				{
+					name:  "&~",
+					union: true,
+				},
+			} {
+				b.Run(fmt.Sprintf("%s : %d", tc.name, count), func(b *testing.B) {
+					s := &span{}
 
-	for _, tc := range []struct {
-		name        string
-		falseForAll bool
-		union       bool
-	}{
-		{
-			name: "~",
-		},
-		{
-			name:        "!~",
-			falseForAll: true,
-		},
-		{
-			name:  "&~",
-			union: true,
-		},
-	} {
-		b.Run(tc.name, func(b *testing.B) {
-			s := &span{}
+					shuffleSpans(s1)
+					shuffleSpans(s2)
+					b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
-				s.SiblingOf(s1, s1, tc.falseForAll, tc.union, nil)
+					for i := 0; i < b.N; i++ {
+						s.SiblingOf(s1, s2, tc.falseForAll, tc.union, nil)
+					}
+				})
 			}
 		})
 	}
 }
 
 func BenchmarkChildOf(b *testing.B) {
-	totalSpans := 1000
+	for _, count := range []int{10, 100, 1000, 10000} {
+		b.Run(fmt.Sprintf("%d", count), func(b *testing.B) {
+			totalSpans := count
 
-	// create 1k s1 in a direct line
-	s1 := make([]traceql.Span, totalSpans)
-	for i := 0; i < totalSpans; i++ {
-		s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
-	}
-	// copy the same slice to s2
-	s2 := make([]traceql.Span, totalSpans)
-	copy(s2, s1)
+			// create 1k s1 in a direct line
+			s1 := make([]traceql.Span, totalSpans)
+			for i := 0; i < totalSpans; i++ {
+				s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
+			}
+			// copy the same slice to s2
+			s2 := make([]traceql.Span, totalSpans)
+			copy(s2, s1)
 
-	// unsort the slices
-	for i := range s1 {
-		j := rand.Intn(i + 1)
-		s1[i], s1[j] = s1[j], s1[i]
-	}
-	for i := range s2 {
-		j := rand.Intn(i + 1)
-		s2[i], s2[j] = s2[j], s2[i]
-	}
+			for _, tc := range []struct {
+				name        string
+				falseForAll bool
+				invert      bool
+				union       bool
+			}{
+				{
+					name: ">",
+				},
+				{
+					name:   "<",
+					invert: true,
+				},
+				{
+					name:        "!>",
+					falseForAll: true,
+				},
+				{
+					name:        "!<",
+					falseForAll: true,
+					invert:      true,
+				},
+				{
+					name:  "*>",
+					union: true,
+				},
+				{
+					name:   "&<",
+					invert: true,
+					union:  true,
+				},
+			} {
+				b.Run(fmt.Sprintf("%s : %d", tc.name, count), func(b *testing.B) {
+					s := &span{}
 
-	for _, tc := range []struct {
-		name        string
-		falseForAll bool
-		invert      bool
-		union       bool
-	}{
-		{
-			name: ">",
-		},
-		{
-			name:   "<",
-			invert: true,
-		},
-		{
-			name:        "!>",
-			falseForAll: true,
-		},
-		{
-			name:        "!<",
-			falseForAll: true,
-			invert:      true,
-		},
-		{
-			name:  "*>",
-			union: true,
-		},
-		{
-			name:   "&<",
-			invert: true,
-			union:  true,
-		},
-	} {
-		b.Run(tc.name, func(b *testing.B) {
-			s := &span{}
+					shuffleSpans(s1)
+					shuffleSpans(s2)
+					b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
-				s.ChildOf(s1, s1, tc.falseForAll, tc.invert, tc.union, nil)
+					for i := 0; i < b.N; i++ {
+						s.ChildOf(s1, s1, tc.falseForAll, tc.invert, tc.union, nil)
+					}
+				})
 			}
 		})
 	}
+}
+
+func shuffleSpans(spans []traceql.Span) {
+	rand.Shuffle(len(spans), func(i, j int) {
+		spans[i], spans[j] = spans[j], spans[i]
+	})
 }
