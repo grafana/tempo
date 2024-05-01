@@ -51,6 +51,14 @@ valid:
   - '{ duration > 1s }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
+  # scoped intrinsics
+  - '{ trace:duration > 2s }'
+  - '{ trace:rootName = "a" }'
+  - '{ trace:rootServiceName = "a" }'
+  - '{ span:duration > 2s }'
+  - '{ span:status = error }'
+  - '{ span:kind = client }'
+  - '{ span:statusMessage = "status message" }'
   # binary operations
   - '{ 1 + 1 = 2 }'
   - '{ 1 - 1 = 2 }'

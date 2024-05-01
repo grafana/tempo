@@ -95,6 +95,22 @@ these intrinsics are significantly more performant because they have to inspect 
 possible to span-level intrinsics.
 {{% /admonition %}}
 
+### Scoped Intrinsic Fields
+
+The following table shows the current available scoped intrinsic fields:
+
+| **Field**               | **Type**    | **Definition**                                                  | **Example**                            |
+| ----------------------- | ----------- | --------------------------------------------------------------- | -------------------------------------- |
+| `span:status`           | status enum | status: error, ok, or unset                                     | `{ span:status = ok }`                 |
+| `span:statusMessage`    | string      | optional text accompanying the span status                      | `{ span:statusMessage = "Forbidden" }` |
+| `span:duration`         | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`            |
+| `span:name`             | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`          |
+| `span:kind`             | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`               |
+| `trace:duration`        | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`           |
+| `trace:rootName`        | string      | if it exists the name of the root span in the trace             | `{ trace:rootName = "HTTP GET" }`      |
+| `trace:rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
+
+
 ### Attribute fields
 
 There are two types of attributes: span attributes and resource attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
