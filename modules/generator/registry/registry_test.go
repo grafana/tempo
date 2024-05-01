@@ -153,6 +153,25 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
+func TestManagedRegistry_injectTenantIDAs(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		InjectTenantIDAs: "__tempo_tenant",
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("my_counter")
+	counter.Inc(nil, 1.0)
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__tempo_tenant": "test"}, 0, 0),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "__tempo_tenant": "test"}, 0, 1),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+}
+
 func TestManagedRegistry_maxSeries(t *testing.T) {
 	appender := &capturingAppender{}
 
