@@ -100,6 +100,16 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ span."foo bar" = "baz" }`,
 			expected: `{span."foo bar" = "baz"}`,
 		},
+		{
+			name:     "query with trivial regex matcher",
+			query:    `{ .foo =~ "a" }`,
+			expected: `{.foo =~ "a"}`,
+		},
+		{
+			name:     "query with regex matcher",
+			query:    `{ .foo =~ "(a|b)" }`,
+			expected: `{.foo =~ "(a|b)"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

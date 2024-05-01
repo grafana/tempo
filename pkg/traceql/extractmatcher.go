@@ -18,7 +18,7 @@ import (
 //  3. The boolean values "true" or "false".
 //
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._\-" ]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
+var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._\-" ]+\s*(=|<=|>=|=~|!=|>|<|!~)\s*(?:"[\p{L}\p{N}\p{P}\p{M}\p{S}]+"|true|false|[a-z]+|[0-9smh]+)`)
 
 // TODO: Merge into a single regular expression
 
@@ -29,11 +29,12 @@ var matchersRegexp = regexp.MustCompile(`[\p{L}\p{N}._\-" ]+\s*[=|<=|>=|=~|!=|>|
 //	Query                                    |  Match
 //
 // { .bar = "foo" }                          |   Yes
+// { .bar =~ "foo|bar" }                     |   Yes
 // { .bar = "foo" && .foo = "bar" }          |   Yes
 // { .bar = "foo" || .foo = "bar" }          |   No
 // { .bar = "foo" } && { .foo = "bar" }      |   No
 // { .bar = "foo" } || { .foo = "bar" }      |   No
-var singleFilterRegexp = regexp.MustCompile(`^\{[^|{}]*[^|{}]}?$`)
+var singleFilterRegexp = regexp.MustCompile(`^(\{[^|{}]*[^|{}]}?|\{[^|{}]*=~[^{}]*})$`)
 
 const emptyQuery = "{}"
 
