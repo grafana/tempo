@@ -72,7 +72,6 @@ func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 }
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
-
 	for i := range input {
 		curr := input[i : i+1]
 

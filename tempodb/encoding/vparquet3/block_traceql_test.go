@@ -1553,6 +1553,7 @@ func BenchmarkDescendantOf(b *testing.B) {
 		})
 	}
 }
+
 func BenchmarkSiblingOf(b *testing.B) {
 	for _, count := range []int{10, 100, 1000, 10000} {
 		b.Run(fmt.Sprintf("%d", count), func(b *testing.B) {
