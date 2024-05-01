@@ -1185,7 +1185,7 @@ func TestChildOf(t *testing.T) {
 			name:     "child: all",
 			lhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
 			rhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
-			expected: []traceql.Span{parent1, parent2, child1a, child1b, child1aa, child2a, child2b, child2bb},
+			expected: []traceql.Span{parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
 		},
 		{
 			name:     "child: don't match self",
@@ -1213,7 +1213,7 @@ func TestChildOf(t *testing.T) {
 			lhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
 			rhs:      []traceql.Span{root, parent1, parent2, child1a, child1aa, child1b, child2a, child2b, child2bb},
 			invert:   true,
-			expected: []traceql.Span{root, parent1, child1a, parent2, child2b},
+			expected: []traceql.Span{root, parent1, parent2, child1a, child2b},
 		},
 		{
 			name:     "parent: don't match self",
@@ -1235,7 +1235,7 @@ func TestChildOf(t *testing.T) {
 			lhs:         []traceql.Span{parent1, parent2},
 			rhs:         []traceql.Span{child1a, child1b, child2a, child2b, disconnectedBefore, disconnectedBetween, disconnectedAfter},
 			falseForAll: true,
-			expected:    []traceql.Span{disconnectedAfter, disconnectedBefore, disconnectedBetween},
+			expected:    []traceql.Span{disconnectedBefore, disconnectedBetween, disconnectedAfter},
 		},
 		{
 			name:        "!child: match self",
@@ -1346,6 +1346,7 @@ func TestSiblingOf(t *testing.T) {
 	sibling1b := &span{nestedSetParent: 2}
 	sibling2a := &span{nestedSetParent: 4}
 	sibling2b := &span{nestedSetParent: 4}
+	sibling2c := &span{nestedSetParent: 4}
 
 	disconnectedBefore := &span{nestedSetParent: 1}
 	disconnectedBetween := &span{nestedSetParent: 3}
@@ -1392,14 +1393,14 @@ func TestSiblingOf(t *testing.T) {
 			lhs:         []traceql.Span{sibling1a},
 			rhs:         []traceql.Span{sibling1b, sibling2a, sibling2b, disconnectedAfter, disconnectedBefore, disconnectedBetween},
 			falseForAll: true,
-			expected:    []traceql.Span{disconnectedBefore, disconnectedBetween, sibling2a, sibling2b, disconnectedAfter},
+			expected:    []traceql.Span{sibling2a, sibling2b, disconnectedAfter, disconnectedBefore, disconnectedBetween},
 		},
 		{
 			name:        "!sibling: multiple matching trees",
 			lhs:         []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
 			rhs:         []traceql.Span{sibling1b, sibling2a, sibling2b, disconnectedAfter, disconnectedBefore, disconnectedBetween},
 			falseForAll: true,
-			expected:    []traceql.Span{disconnectedBefore, disconnectedBetween, disconnectedAfter},
+			expected:    []traceql.Span{disconnectedAfter, disconnectedBefore, disconnectedBetween},
 		},
 		{
 			name:        "!sibling: match self",
@@ -1415,6 +1416,13 @@ func TestSiblingOf(t *testing.T) {
 			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
 			union:    true,
 			expected: []traceql.Span{sibling1b, sibling1a},
+		},
+		{
+			name:     "&sibling: multiple left",
+			lhs:      []traceql.Span{sibling2a, sibling2b},
+			rhs:      []traceql.Span{sibling2c},
+			union:    true,
+			expected: []traceql.Span{sibling2a, sibling2b, sibling2c},
 		},
 		{
 			name:     "&sibling: multiple matching trees",
@@ -1473,9 +1481,9 @@ func TestStructuralSameSlice(t *testing.T) {
 
 	all := []traceql.Span{root, parent1, child1a, child1aa, child1b}
 
-	expectedChildOf := []traceql.Span{parent1, child1a, child1b, child1aa}
-	exepectedDescendantOf := []traceql.Span{parent1, child1a, child1aa, child1b}
-	expectedSiblingOf := []traceql.Span{child1a, child1b}
+	expectedChildOf := []traceql.Span{parent1, child1a, child1aa, child1b}
+	exepectedDescendantOf := []traceql.Span{child1b, child1aa, child1a, parent1}
+	expectedSiblingOf := []traceql.Span{child1b, child1a}
 
 	actualChildOf := child1a.ChildOf(all, all, false, false, false, nil)
 	require.Equal(t, expectedChildOf, actualChildOf)
@@ -1493,10 +1501,7 @@ func BenchmarkDescendantOf(b *testing.B) {
 			totalSpans := count
 
 			// create 1k s1 in a direct line
-			s1 := make([]traceql.Span, totalSpans)
-			for i := 0; i < totalSpans; i++ {
-				s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
-			}
+			s1 := randomTree(totalSpans)
 			// copy the same slice to s2
 			s2 := make([]traceql.Span, totalSpans)
 			copy(s2, s1)
@@ -1601,10 +1606,7 @@ func BenchmarkChildOf(b *testing.B) {
 			totalSpans := count
 
 			// create 1k s1 in a direct line
-			s1 := make([]traceql.Span, totalSpans)
-			for i := 0; i < totalSpans; i++ {
-				s1[i] = &span{nestedSetLeft: int32(i), nestedSetRight: int32((totalSpans * 2) - 1)}
-			}
+			s1 := randomTree(totalSpans)
 			// copy the same slice to s2
 			s2 := make([]traceql.Span, totalSpans)
 			copy(s2, s1)
@@ -1632,7 +1634,7 @@ func BenchmarkChildOf(b *testing.B) {
 					invert:      true,
 				},
 				{
-					name:  "*>",
+					name:  "&>",
 					union: true,
 				},
 				{
@@ -1661,4 +1663,50 @@ func shuffleSpans(spans []traceql.Span) {
 	rand.Shuffle(len(spans), func(i, j int) {
 		spans[i], spans[j] = spans[j], spans[i]
 	})
+}
+
+func randomTree(N int) []traceql.Span {
+	nodes := make([]traceql.Span, 0, N)
+
+	// Helper function to recursively generate nodes
+	var generateNodes func(parent int) int
+	generateNodes = func(parent int) int {
+		left := parent
+		for N > 0 {
+			// make sibling
+			N--
+			left++
+			right := left + 1
+			nodes = append(nodes, &span{
+				nestedSetLeft:   int32(left),
+				nestedSetRight:  int32(right),
+				nestedSetParent: int32(parent),
+			})
+			left++
+
+			if rand.Intn(3) > 1 {
+				continue // keep making siblings
+			}
+
+			if rand.Intn(3) > 1 {
+				break // stop making children
+			}
+
+			// descend and make children
+			N--
+			right = generateNodes(left)
+			nodes = append(nodes, &span{
+				nestedSetLeft:   int32(left),
+				nestedSetRight:  int32(right),
+				nestedSetParent: int32(parent),
+			})
+			left = right + 1
+		}
+		return left
+	}
+
+	// Start with root node
+	generateNodes(1)
+
+	return nodes
 }
