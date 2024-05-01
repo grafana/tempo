@@ -653,7 +653,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
-			req: &tempopb.SearchRequest{Query: "{ .parent } |>> { .child }"},
+			req: &tempopb.SearchRequest{Query: "{ .parent } &>> { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
 					SpanSets: []*tempopb.SpanSet{
@@ -685,7 +685,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
-			req: &tempopb.SearchRequest{Query: "{ .child } |<< { .parent }"},
+			req: &tempopb.SearchRequest{Query: "{ .child } &<< { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
 					SpanSets: []*tempopb.SpanSet{
@@ -717,7 +717,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
-			req: &tempopb.SearchRequest{Query: "{ .parent } |> { .child }"},
+			req: &tempopb.SearchRequest{Query: "{ .parent } &> { .child }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
 					SpanSets: []*tempopb.SpanSet{
@@ -749,7 +749,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
-			req: &tempopb.SearchRequest{Query: "{ .child } |< { .parent }"},
+			req: &tempopb.SearchRequest{Query: "{ .child } &< { .parent }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
 					SpanSets: []*tempopb.SpanSet{
@@ -867,7 +867,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
-			req: &tempopb.SearchRequest{Query: "{ .child } |~ { .child2 }"},
+			req: &tempopb.SearchRequest{Query: "{ .child } &~ { .child2 }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
 					SpanSets: []*tempopb.SpanSet{
@@ -936,16 +936,16 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{ .child } !< { .parent }"},
 		{Query: "{ .parent } !> { .child }"},
 		{Query: "{ .child } !~ { .child2 }"},
-		{Query: "{ .child } |>> { .parent }"},
-		{Query: "{ .child } |> { .parent }"},
-		{Query: "{ .child } |~ { .parent }"},
-		{Query: "{ .child } |~ { .child }"},
-		{Query: "{ .broken} |>> {}"},
-		{Query: "{ .broken} |> {}"},
-		{Query: "{ .broken} |~ {}"},
-		{Query: "{} |>> {.broken}"},
-		{Query: "{} |> {.broken}"},
-		{Query: "{} |~ {.broken}"},
+		{Query: "{ .child } &>> { .parent }"},
+		{Query: "{ .child } &> { .parent }"},
+		{Query: "{ .child } &~ { .parent }"},
+		{Query: "{ .child } &~ { .child }"},
+		{Query: "{ .broken} &>> {}"},
+		{Query: "{ .broken} &> {}"},
+		{Query: "{ .broken} &~ {}"},
+		{Query: "{} &>> {.broken}"},
+		{Query: "{} &> {.broken}"},
+		{Query: "{} &~ {.broken}"},
 	}
 
 	for _, tc := range searchesThatMatch {

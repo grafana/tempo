@@ -86,6 +86,7 @@ func TestLexerMultitokens(t *testing.T) {
 		{`!<<`, []int{NOT_ANCE}},
 		{`!`, []int{NOT}},
 		{`!~`, []int{NRE}},
+		{`&>>`, []int{UNION_DESC}},
 	}))
 }
 

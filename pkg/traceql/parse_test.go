@@ -252,6 +252,71 @@ func TestPipelineSpansetOperators(t *testing.T) {
 				),
 			),
 		},
+		{
+			in: "({ .a } | { .b }) &> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionChild,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionParent,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &~ ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionSibling,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &>> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionDescendant,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &<< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionAncestor,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
 	}
 
 	for _, tc := range tests {
@@ -549,6 +614,11 @@ func TestSpansetExpressionOperators(t *testing.T) {
 		{in: "{ true } !>> { false }", expected: newSpansetOperation(OpSpansetNotDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 		{in: "{ true } !<< { false }", expected: newSpansetOperation(OpSpansetNotAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 		{in: "{ true } !~ { false }", expected: newSpansetOperation(OpSpansetNotSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &> { false }", expected: newSpansetOperation(OpSpansetUnionChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &< { false }", expected: newSpansetOperation(OpSpansetUnionParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &>> { false }", expected: newSpansetOperation(OpSpansetUnionDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &<< { false }", expected: newSpansetOperation(OpSpansetUnionAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &~ { false }", expected: newSpansetOperation(OpSpansetUnionSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 	}
 
 	for _, tc := range tests {

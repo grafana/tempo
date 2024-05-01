@@ -218,7 +218,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 
 	// union is differenter
 	if union {
-		return nestedSetDifferenterLoop(ancestors, descendants, descendantOf, afterInTree, buffer)
+		return nestedSetUnionDescendantLoop(ancestors, descendants, descendantOf, afterInTree, buffer)
 	}
 
 	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
@@ -264,9 +264,6 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
 	isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
 
-	// jpe - test with dupe slices
-	//     - |>> -> &>>
-	//     - clean up this file. differenterLoop?
 	// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
 	// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
 	if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {
@@ -285,7 +282,112 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 	return nestedSetOneManyLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
 }
 
-func nestedSetDifferenterLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, buffer []traceql.Span) []traceql.Span {
+// nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships. It handles all nested set relationships except
+// siblingOf and unioned descendantOf. It forward iterates the one and many slices and applies.
+func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+	var uniqueSpans map[*span]struct{}
+	if union {
+		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
+	}
+
+	addToBuffer := func(s *span) {
+		if union {
+			if _, ok := uniqueSpans[s]; !ok {
+				buffer = append(buffer, s)
+				uniqueSpans[s] = struct{}{}
+			}
+		} else {
+			buffer = append(buffer, s)
+		}
+	}
+
+	// note the small differences between this and the !invert loop. technically we could write these both in one piece of code,
+	// but this feels better for clarity
+	if invert {
+		manyIdx := 0
+		for _, o := range one {
+			oSpan := o.(*span)
+
+			if !isValid(oSpan) {
+				continue
+			}
+
+			matches := false
+			for ; manyIdx < len(many); manyIdx++ {
+				mSpan := many[manyIdx].(*span)
+
+				// if the many loop is ahead of the one loop break back to allow the one loop to let it catch up
+				if isAfter(oSpan, mSpan) {
+					break
+				}
+
+				if isMatch(oSpan, mSpan) {
+					matches = true
+					if union {
+						addToBuffer(mSpan)
+					} else {
+						break
+					}
+				}
+			}
+
+			if (matches && !falseForAll) || (!matches && falseForAll) {
+				addToBuffer(oSpan)
+			}
+		}
+
+		return buffer
+	}
+
+	// !invert
+	manyIdx := 0
+	for _, o := range one {
+		oSpan := o.(*span)
+
+		if !isValid(oSpan) {
+			continue
+		}
+
+		matches := false
+		for ; manyIdx < len(many); manyIdx++ {
+			mSpan := many[manyIdx].(*span)
+
+			// if the many loop is ahead of the one loop break back to the allow one loop to let it catch up
+			if isAfter(oSpan, mSpan) {
+				break
+			}
+
+			match := isMatch(oSpan, mSpan)
+			if (match && !falseForAll) || (!match && falseForAll) {
+				matches = true
+				addToBuffer(mSpan)
+			}
+		}
+
+		if matches && union {
+			addToBuffer(oSpan)
+		}
+	}
+
+	// drain the rest of the children if falseForAll
+	if falseForAll {
+		for ; manyIdx < len(many); manyIdx++ {
+			addToBuffer(many[manyIdx].(*span))
+		}
+	}
+
+	return buffer
+}
+
+// nestedSetUnionDescendantLoop is a special loop designed to handle union descendantOf. technically nestedSetManyManyLoop can logically do this
+// but it contains a pathological case where it devolves to O(n^2) in the worst case (a trace with a single series of nested spans).
+// this loop more directly handles union descendantof.
+//   - iterate the rhs checking to see if it is a descendant of lhs
+//   - break out of the rhs loop when the next span will be in a different branch
+//   - at this point rSpan has the narrowest span (the leaf span) of the branch
+//   - iterate the lhs as long as its in the same branch as rSpan checking for ancestors
+//   - go back to rhs iteration and repeat until slices are exhausted
+func nestedSetUnionDescendantLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, buffer []traceql.Span) []traceql.Span {
 	uniqueSpans := make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
 
 	addToBuffer := func(s *span) {
@@ -297,7 +399,7 @@ func nestedSetDifferenterLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch fu
 
 	lidx := 0
 	ridx := 0
-	for lidx < len(lhs) && ridx < len(rhs) { // how to terminate?
+	for lidx < len(lhs) && ridx < len(rhs) {
 		lSpan := lhs[lidx].(*span)
 		rSpan := rhs[ridx].(*span)
 
@@ -341,6 +443,8 @@ func nestedSetDifferenterLoop(lhs []traceql.Span, rhs []traceql.Span, isMatch fu
 	return buffer
 }
 
+// nestedSetManyManyLoop handles the generic case when the lhs must be checked multiple times for each rhs. it is currently only
+// used for siblingOf
 func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	var uniqueSpans map[*span]struct{}
 	if union {
@@ -393,103 +497,6 @@ func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(
 
 		if (matches && !falseForAll) || (!matches && falseForAll) {
 			addToBuffer(rSpan)
-		}
-	}
-
-	return buffer
-}
-
-// nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships
-func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
-	var uniqueSpans map[*span]struct{}
-	if union {
-		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
-	}
-
-	addToBuffer := func(s *span) {
-		if union {
-			if _, ok := uniqueSpans[s]; !ok {
-				buffer = append(buffer, s)
-				uniqueSpans[s] = struct{}{}
-			}
-		} else {
-			buffer = append(buffer, s)
-		}
-	}
-
-	// note the small differences between this and the !invert loop. technically we could write these both in one piece of code,
-	// but this feels better for clarity
-	if invert {
-		manyIdx := 0
-		for _, o := range one {
-			oSpan := o.(*span)
-
-			if !isValid(oSpan) {
-				continue
-			}
-
-			matches := false
-			for ; manyIdx < len(many); manyIdx++ {
-				mSpan := many[manyIdx].(*span)
-
-				// if the many loop is ahead of the one loop break back to the one loop to let it catch up
-				if isAfter(oSpan, mSpan) {
-					break
-				}
-
-				// match?
-				if isMatch(oSpan, mSpan) {
-					matches = true
-					if union {
-						addToBuffer(mSpan)
-					} else {
-						break
-					}
-				}
-			}
-
-			if (matches && !falseForAll) || (!matches && falseForAll) {
-				addToBuffer(oSpan)
-			}
-		}
-
-		return buffer
-	}
-
-	// !invert
-	manyIdx := 0
-	for _, o := range one {
-		oSpan := o.(*span)
-
-		if !isValid(oSpan) {
-			continue
-		}
-
-		matches := false
-		for ; manyIdx < len(many); manyIdx++ {
-			mSpan := many[manyIdx].(*span)
-
-			// is this child after the parent? break to allow the next child to attempt a match
-			if isAfter(oSpan, mSpan) {
-				break
-			}
-
-			match := isMatch(oSpan, mSpan)
-			if (match && !falseForAll) || (!match && falseForAll) {
-				matches = true
-				addToBuffer(mSpan)
-			}
-		}
-
-		if matches && union {
-			addToBuffer(oSpan)
-		}
-	}
-
-	// drain the rest of the children if falseForAll
-	if falseForAll {
-		for ; manyIdx < len(many); manyIdx++ {
-			addToBuffer(many[manyIdx].(*span))
 		}
 	}
 

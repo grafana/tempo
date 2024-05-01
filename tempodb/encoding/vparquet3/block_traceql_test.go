@@ -907,7 +907,7 @@ func TestDescendantOf(t *testing.T) {
 		rhs         []traceql.Span
 		falseForAll bool // !<< or !>>
 		invert      bool // <<
-		union       bool // |>> or |<<
+		union       bool // &>> or &<<
 		expected    []traceql.Span
 	}{
 		{
@@ -1032,37 +1032,37 @@ func TestDescendantOf(t *testing.T) {
 			falseForAll: true,
 			expected:    []traceql.Span{ancestor1},
 		},
-		// |>>
+		// &>>
 		{
-			name:     "|descendant: basic",
+			name:     "&descendant: basic",
 			lhs:      []traceql.Span{ancestor1},
 			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
 			expected: []traceql.Span{descendant1a, ancestor1, descendant1b},
 			union:    true,
 		},
 		{
-			name:     "|descendant: multiple matching trees",
+			name:     "&descendant: multiple matching trees",
 			lhs:      []traceql.Span{ancestor1, ancestor2},
 			rhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
 			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b},
 			union:    true,
 		},
 		{
-			name:     "|descendant: all",
+			name:     "&descendant: all",
 			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
 			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
 			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b, descendant2bb},
 			union:    true,
 		},
 		{
-			name:     "|descendant: multi-tier",
+			name:     "&descendant: multi-tier",
 			lhs:      []traceql.Span{ancestor2, descendant2b, descendant2bb},
 			rhs:      []traceql.Span{ancestor2, descendant2bb},
 			union:    true,
 			expected: []traceql.Span{descendant2bb, ancestor2, descendant2b},
 		},
 		{
-			name:     "|descendant: don't match self",
+			name:     "&descendant: don't match self",
 			lhs:      []traceql.Span{ancestor1},
 			rhs:      []traceql.Span{ancestor1},
 			expected: nil,
@@ -1070,7 +1070,7 @@ func TestDescendantOf(t *testing.T) {
 		},
 		// |<<
 		{
-			name:     "|ancestor: basic",
+			name:     "&ancestor: basic",
 			lhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
 			rhs:      []traceql.Span{ancestor1},
 			invert:   true,
@@ -1078,7 +1078,7 @@ func TestDescendantOf(t *testing.T) {
 			expected: []traceql.Span{descendant1a, ancestor1, descendant1b},
 		},
 		{
-			name:     "|ancestor: multiple matching trees",
+			name:     "&ancestor: multiple matching trees",
 			lhs:      []traceql.Span{descendant1a, descendant1b, descendant2a, descendant2b},
 			rhs:      []traceql.Span{ancestor1, ancestor2},
 			invert:   true,
@@ -1086,7 +1086,7 @@ func TestDescendantOf(t *testing.T) {
 			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b},
 		},
 		{
-			name:     "|ancestor: multi-tier",
+			name:     "&ancestor: multi-tier",
 			lhs:      []traceql.Span{ancestor2, descendant2b, descendant2bb},
 			rhs:      []traceql.Span{ancestor2, descendant2bb},
 			invert:   true,
@@ -1094,7 +1094,7 @@ func TestDescendantOf(t *testing.T) {
 			expected: []traceql.Span{descendant2b, descendant2bb, ancestor2},
 		},
 		{
-			name:     "|ancestor: all",
+			name:     "&ancestor: all",
 			lhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
 			rhs:      []traceql.Span{ancestor1, ancestor2, descendant1a, descendant1b, descendant2a, descendant2b, descendant2bb},
 			invert:   true,
@@ -1102,7 +1102,7 @@ func TestDescendantOf(t *testing.T) {
 			expected: []traceql.Span{descendant1a, ancestor1, descendant1b, descendant2a, ancestor2, descendant2b, descendant2bb},
 		},
 		{
-			name:     "|ancestor: don't match self",
+			name:     "&ancestor: don't match self",
 			lhs:      []traceql.Span{ancestor1},
 			rhs:      []traceql.Span{ancestor1},
 			invert:   true,
@@ -1159,7 +1159,7 @@ func TestChildOf(t *testing.T) {
 		rhs         []traceql.Span
 		falseForAll bool // !< or !>
 		invert      bool // <
-		union       bool // |< or |>
+		union       bool // &< or &>
 		expected    []traceql.Span
 	}{
 		{
@@ -1269,23 +1269,23 @@ func TestChildOf(t *testing.T) {
 			falseForAll: true,
 			expected:    []traceql.Span{parent1},
 		},
-		// |>
+		// &>
 		{
-			name:     "|child: basic",
+			name:     "&child: basic",
 			lhs:      []traceql.Span{parent1},
 			rhs:      []traceql.Span{child1a, child1b, child2a, child2b},
 			expected: []traceql.Span{child1a, child1b, parent1},
 			union:    true,
 		},
 		{
-			name:     "|child: multiple matching trees",
+			name:     "&child: multiple matching trees",
 			lhs:      []traceql.Span{parent1, parent2},
 			rhs:      []traceql.Span{child1a, child1b, child2a, child2b},
 			expected: []traceql.Span{child1a, child1b, parent1, child2a, child2b, parent2},
 			union:    true,
 		},
 		{
-			name:     "|child: don't match self",
+			name:     "&child: don't match self",
 			lhs:      []traceql.Span{parent1},
 			rhs:      []traceql.Span{parent1},
 			expected: nil,
@@ -1293,7 +1293,7 @@ func TestChildOf(t *testing.T) {
 		},
 		// |<
 		{
-			name:     "|parent: basic",
+			name:     "&parent: basic",
 			lhs:      []traceql.Span{child1a, child1b, child2a, child2b},
 			rhs:      []traceql.Span{parent1},
 			invert:   true,
@@ -1301,7 +1301,7 @@ func TestChildOf(t *testing.T) {
 			union:    true,
 		},
 		{
-			name:     "|parent: multiple matching trees",
+			name:     "&parent: multiple matching trees",
 			lhs:      []traceql.Span{child1a, child1b, child2a, child2b},
 			rhs:      []traceql.Span{parent1, parent2},
 			invert:   true,
@@ -1309,7 +1309,7 @@ func TestChildOf(t *testing.T) {
 			union:    true,
 		},
 		{
-			name:     "|parent: don't match self",
+			name:     "&parent: don't match self",
 			lhs:      []traceql.Span{parent1},
 			rhs:      []traceql.Span{parent1},
 			invert:   true,
@@ -1408,23 +1408,23 @@ func TestSiblingOf(t *testing.T) {
 			falseForAll: true,
 			expected:    []traceql.Span{sibling1a},
 		},
-		// |~
+		// &~
 		{
-			name:     "|sibling: basic",
+			name:     "&sibling: basic",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
 			union:    true,
 			expected: []traceql.Span{sibling1b, sibling1a},
 		},
 		{
-			name:     "|sibling: multiple matching trees",
+			name:     "&sibling: multiple matching trees",
 			lhs:      []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
 			rhs:      []traceql.Span{sibling1b, sibling2a, sibling2b},
 			union:    true,
 			expected: []traceql.Span{sibling1a, sibling1b, sibling2a, sibling2b},
 		},
 		{
-			name:     "|sibling: match self",
+			name:     "&sibling: match self",
 			lhs:      []traceql.Span{sibling1a},
 			rhs:      []traceql.Span{sibling1a},
 			union:    true,
@@ -1508,11 +1508,11 @@ func BenchmarkDescendantOf(b *testing.B) {
 			invert:      true,
 		},
 		{
-			name:  "|>>",
+			name:  "&>>",
 			union: true,
 		},
 		{
-			name:   "|<<",
+			name:   "&<<",
 			invert: true,
 			union:  true,
 		},
@@ -1586,7 +1586,7 @@ func BenchmarkSiblingOf(b *testing.B) {
 			falseForAll: true,
 		},
 		{
-			name:  "|~",
+			name:  "&~",
 			union: true,
 		},
 	} {
@@ -1645,11 +1645,11 @@ func BenchmarkChildOf(b *testing.B) {
 			invert:      true,
 		},
 		{
-			name:  "|>",
+			name:  "*>",
 			union: true,
 		},
 		{
-			name:   "|<",
+			name:   "&<",
 			invert: true,
 			union:  true,
 		},
