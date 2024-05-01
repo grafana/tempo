@@ -47,6 +47,13 @@ type VersionedEncoding interface {
 	OpenWALBlock(filename, path string, ingestionSlack, additionalStartSlack time.Duration) (common.WALBlock, error, error)
 
 	// CreateWALBlock creates a new appendable block for the WAL
+	// BlockMeta is used as a container for many options. Required fields:
+	// * BlockID
+	// * TenantID
+	// * Encoding (v2)
+	// * DataEncoding
+	// * DedicatedColumns (vParquet3)
+	// * ReplicationFactor (Optional)
 	CreateWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (common.WALBlock, error)
 
 	// OwnsWALBlock indicates if this encoding owns the WAL block

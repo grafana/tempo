@@ -155,9 +155,10 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 func createWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
-			Version:  VersionString,
-			BlockID:  meta.BlockID,
-			TenantID: meta.TenantID,
+			Version:           VersionString,
+			BlockID:           meta.BlockID,
+			TenantID:          meta.TenantID,
+			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
 		ids:            common.NewIDMap[int64](),
