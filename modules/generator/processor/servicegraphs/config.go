@@ -39,6 +39,9 @@ type Config struct {
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+
+	// EnableVirtualNodeLabel enables additional labels for uninstrumented services
+	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

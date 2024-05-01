@@ -260,3 +260,7 @@ func (a Attribute) validate() error {
 
 	return nil
 }
+
+func (h *Hints) validate() error {
+	return nil
+}

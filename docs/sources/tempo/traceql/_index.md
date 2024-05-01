@@ -354,10 +354,7 @@ TraceQL supports arbitrary arithmetic in your queries. This can be useful to mak
 ```
 { span.http.request_content_length > 10 * 1024 * 1024 }
 ```
-to compare the ratios of two span attributes:
-```
-{ span.bytes_processed < span.jobs_processed * 10 }
-```
+
 or anything else that comes to mind.
 
 ## Selection

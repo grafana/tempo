@@ -1261,3 +1261,50 @@ func TestReallyLongQuery(t *testing.T) {
 		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, "i=%d", i)
 	}
 }
+
+func TestMetrics(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `{ } | rate()`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+			),
+		},
+		{
+			in: `{ } | count_over_time() by(name, span.http.status_code)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+					NewIntrinsic(IntrinsicName),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+				}),
+			),
+		},
+		{
+			in: `{ } | quantile_over_time(duration, 0, 0.90, 0.95, 1) by(name, span.http.status_code)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregateQuantileOverTime(
+					NewIntrinsic(IntrinsicDuration),
+					[]float64{0, 0.9, 0.95, 1.0},
+					[]Attribute{
+						NewIntrinsic(IntrinsicName),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+					}),
+			),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}

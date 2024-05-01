@@ -3,7 +3,6 @@ package servicegraphs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"strconv"
@@ -58,8 +57,6 @@ func TestServiceGraphs(t *testing.T) {
 		"beast":           "",
 		"god":             "",
 	})
-
-	fmt.Println(testRegistry)
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
@@ -131,8 +128,6 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 		"server_god":      "zeus",
 	})
 
-	fmt.Println(testRegistry)
-
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
 }
@@ -161,8 +156,6 @@ func TestServiceGraphs_failedRequests(t *testing.T) {
 		"server":          "postgres",
 		"connection_type": "database",
 	})
-
-	fmt.Println(testRegistry)
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
@@ -226,6 +219,116 @@ func TestServiceGraphs_virtualNodes(t *testing.T) {
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.EnableVirtualNodeLabel = true
+	cfg.Wait = time.Nanosecond
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-virtual-nodes.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	p.(*Processor).store.Expire()
+
+	userToServerLabels := labels.FromMap(map[string]string{
+		"client":          "user",
+		"server":          "mythical-server",
+		"connection_type": "virtual_node",
+		virtualNodeLabel:  "client",
+	})
+
+	clientToVirtualPeerLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "external-payments-platform",
+		"connection_type": "virtual_node",
+		virtualNodeLabel:  "server",
+	})
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, userToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, userToServerLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"db.system", "messaging.system"}
+	cfg.EnableClientServerPrefix = true
+	cfg.EnableVirtualNodeLabel = true
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	messagingSystemLabels := labels.FromMap(map[string]string{
+		"client":                  "mythical-requester",
+		"client_db_system":        "",
+		"client_messaging_system": "rabbitmq",
+		"connection_type":         "messaging_system",
+		"server_db_system":        "",
+		"server_messaging_system": "rabbitmq",
+		"server":                  "mythical-recorder",
+		virtualNodeLabel:          "",
+	})
+
+	dbSystemSystemLabels := labels.FromMap(map[string]string{
+		"client":                  "mythical-server",
+		"client_db_system":        "postgresql",
+		"client_messaging_system": "",
+		"connection_type":         "database",
+		"server_db_system":        "",
+		"server_messaging_system": "",
+		"server":                  "postgres",
+		virtualNodeLabel:          "",
+	})
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, messagingSystemLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, messagingSystemLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, dbSystemSystemLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, dbSystemSystemLabels))
+}
+
+func BenchmarkServiceGraphs(b *testing.B) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		p.PushSpans(context.Background(), request)
+	}
 }
 
 func loadTestData(path string) (*tempopb.PushSpansRequest, error) {

@@ -11,7 +11,7 @@ weight: 200
 Tempo can compress traces that it pushes to backend storage. This requires extra
 memory and CPU, but it reduces the quantity of stored data.
 Anecdotal tests suggest that `zstd` will cut your storage costs to ~15% of the uncompressed amount.
-It is _highly_ recommended to use the default `zstd`.
+It is _highly_ recommended to use the default `zstd`. (The compression field is used for the old v2 format. the vParquet* formats compress columns individually.)
 
 Compression is configured under storage like so:
 
