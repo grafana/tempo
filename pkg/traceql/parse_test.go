@@ -1103,7 +1103,7 @@ func TestScopedIntrinsics(t *testing.T) {
 	}{
 		{in: "trace:duration", expected: IntrinsicTraceDuration},
 		{in: "trace:rootName", expected: IntrinsicTraceRootSpan},
-		{in: "trace:rootServiceName", expected: IntrinsicTraceRootService},
+		{in: "trace:rootService", expected: IntrinsicTraceRootService},
 		{in: "span:duration", expected: IntrinsicDuration},
 		{in: "span:kind", expected: IntrinsicKind},
 		{in: "span:name", expected: IntrinsicName},
@@ -1112,6 +1112,7 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: ":duration", shouldError: true},
 		{in: ":statusMessage", shouldError: true},
 		{in: "trace:name", shouldError: true},
+		{in: "trace:rootServiceName", shouldError: true},
 		{in: "span:rootServiceName", shouldError: true},
 	}
 

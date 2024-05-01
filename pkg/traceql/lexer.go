@@ -65,6 +65,7 @@ var tokens = map[string]int{
 	"kind":               KIND,
 	"rootName":           ROOTNAME,
 	"rootServiceName":    ROOTSERVICENAME,
+	"rootService":        ROOTSERVICE,
 	"traceDuration":      TRACEDURATION,
 	"nestedSetLeft":      NESTEDSETLEFT,
 	"nestedSetRight":     NESTEDSETRIGHT,

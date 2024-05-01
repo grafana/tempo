@@ -75,7 +75,7 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		// trace scoped intrinsics
 		{`trace:duration`, []int{TRACE_COLON, IDURATION}},
 		{`trace:rootName`, []int{TRACE_COLON, ROOTNAME}},
-		{`trace:rootServiceName`, []int{TRACE_COLON, ROOTSERVICENAME}},
+		{`trace:rootService`, []int{TRACE_COLON, ROOTSERVICE}},
 		// // span scoped intrinsics
 		{`span:duration`, []int{SPAN_COLON, IDURATION}},
 		{`span:name`, []int{SPAN_COLON, NAME}},
