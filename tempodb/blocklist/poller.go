@@ -474,16 +474,26 @@ func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
 		return fmt.Errorf("empty tenant deletion age must be greater than 0")
 	}
 
-	var foundObjects []string
+	var (
+		foundObjects  []string
+		recentObjects int
+	)
 	err := p.reader.Find(ctx, backend.KeyPath{tenantID}, func(opts backend.FindMatch) {
 		level.Info(p.logger).Log("msg", "checking object for deletion", "object", opts.Key, "modified", opts.Modified)
 
 		if time.Since(opts.Modified) > p.cfg.EmptyTenantDeletionAge {
 			foundObjects = append(foundObjects, opts.Key)
+		} else {
+			recentObjects++
 		}
 	})
 	if err != nil {
 		return err
+	}
+
+	// do nothing if there are recent objects for this tenant.
+	if recentObjects > 0 {
+		return nil
 	}
 
 	// do nothing if the tenant index has appeared.
