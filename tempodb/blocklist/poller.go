@@ -475,7 +475,7 @@ func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
 	}
 
 	var foundObjects []string
-	err := p.reader.Find(ctx, backend.KeyPath{tenantID}, func(opts backend.FindOpts) {
+	err := p.reader.Find(ctx, backend.KeyPath{tenantID}, func(opts backend.FindMatch) {
 		level.Info(p.logger).Log("msg", "checking object for deletion", "object", opts.Key, "modified", opts.Modified)
 
 		if time.Since(opts.Modified) > p.cfg.EmptyTenantDeletionAge {

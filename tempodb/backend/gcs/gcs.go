@@ -341,7 +341,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 			return fmt.Errorf("iterating objects: %w", err)
 		}
 
-		opts := backend.FindOpts{
+		opts := backend.FindMatch{
 			Key:      attrs.Name,
 			Modified: attrs.Updated,
 		}

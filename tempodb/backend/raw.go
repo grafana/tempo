@@ -29,9 +29,9 @@ type KeyPath []string
 // FundFunc is executed for each object in the backend.  The provided FindOpts
 // are used to determine how to handle the object.  Any collection of these
 // objects is the callers responsibility.
-type FindFunc func(FindOpts)
+type FindFunc func(FindMatch)
 
-type FindOpts struct {
+type FindMatch struct {
 	Modified time.Time
 	Key      string
 }

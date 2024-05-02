@@ -503,7 +503,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	}
 
 	if rw.cfg.EmptyTenantDeletionAge <= 0 {
-		rw.cfg.EmptyTenantDeletionAge = 4 * rw.cfg.BlocklistPoll
+		rw.cfg.EmptyTenantDeletionAge = DefaultEmptyTenantDeletionAge
 	}
 
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)

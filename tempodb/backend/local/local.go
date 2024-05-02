@@ -209,7 +209,7 @@ func (rw *Backend) Find(_ context.Context, keypath backend.KeyPath, f backend.Fi
 		}
 
 		tenantFilePath := filepath.Join(filepath.Join(keypath...), path)
-		opts := backend.FindOpts{
+		opts := backend.FindMatch{
 			Key:      tenantFilePath,
 			Modified: info.ModTime(),
 		}

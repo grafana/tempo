@@ -428,7 +428,7 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 	t.Logf("items: %v", items)
 
 	var found []string
-	f := func(opts backend.FindOpts) {
+	f := func(opts backend.FindMatch) {
 		found = append(found, opts.Key)
 	}
 

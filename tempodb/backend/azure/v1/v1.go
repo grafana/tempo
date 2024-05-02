@@ -261,7 +261,7 @@ func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindF
 
 			level.Info(log.Logger).Log("msg", "find", "blob", blob.Name, "obj", obj, "prefix", prefix, "name", blob.Name, "lastModified", blob.Properties.LastModified)
 
-			opts := backend.FindOpts{
+			opts := backend.FindMatch{
 				Key:      blob.Name,
 				Modified: blob.Properties.LastModified,
 			}

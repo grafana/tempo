@@ -29,6 +29,8 @@ const (
 	DefaultTenantIndexBuilders       = 2
 	DefaultTolerateConsecutiveErrors = 1
 
+	DefaultEmptyTenantDeletionAge = 12 * time.Hour
+
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
 	DefaultReadBufferCount      = 32

@@ -253,7 +253,7 @@ func (rw *V2) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindF
 				continue
 			}
 			o = strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
-			opts := backend.FindOpts{
+			opts := backend.FindMatch{
 				Key:      o,
 				Modified: *b.Properties.LastModified,
 			}

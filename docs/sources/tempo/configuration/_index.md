@@ -986,7 +986,7 @@ storage:
         # exist.  The empty_tenant_deletion_age configuration is used to tune how
         # quickly the poller will also delete any remaining backend objects found in the
         # tenant path.
-        # Default: 20m; four times the blocklist_poll configuration above.
+        # Default: 12h
         [empty_tenant_deletion_age: <duration>]
 
         # Cache type to use. Should be one of "redis", "memcached"
