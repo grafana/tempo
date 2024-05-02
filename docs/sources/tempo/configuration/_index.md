@@ -387,7 +387,7 @@ metrics_generator:
     # WAL Storage configuration for traces
     traces_storage:
 
-      # Path to the metrics-generator WAL directory
+      # Where to store the traces while they are being apeended to
       # If set, will create separate wals per tenant by joining the path with the tenant ID
       [path: <string> | default = ""]
 
@@ -397,16 +397,26 @@ metrics_generator:
       # ???
       blocksfilepath: ""
 
-      # ???
-      v2_encoding: none
+      # WAL encoding/compression.
+      # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+      [v2_encoding: <string> | default = ??? ] # I think (zstd) ?
 
-      # ???
-      search_encoding: none
+      # Defines the search data encoding/compression protocol.
+      # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+      [search_encoding: <string> | default = ???] # I think (snappy) ?
 
-      # ???
-      ingestion_time_range_slack: 0s
+      # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
+      # This block start and end time range is then used when choosing blocks for search.
+      # This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
+      # in the past or future from impacting the block start and end times we use this configuration option.
+      # This option only allows spans that occur within the configured duration to adjust the block start and
+      # end times.
+      # This can result in trace not being found if the trace falls outside the slack configuration value as the
+      # start and end times of the block will not be updated in this case.
+      [ingestion_time_range_slack: <duration> | default = ???] # I think 2m ?
 
-      # WAL Encoding Format Version
+      # WAL Format Version
+      # Options: v2, vParquet, vParquet2, vParquet3
       [version: <string> | default = "vParquet3"]
 
     # Storage and remote write configuration
