@@ -30,6 +30,8 @@ The Tempo configuration options include:
     - [Local storage recommendations](#local-storage-recommendations)
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
+  - [Configuration Blocks](#configuration-blocks)
+    - [WAL Config](#wal-config)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
       - [Standard overrides](#standard-overrides)
@@ -384,40 +386,13 @@ metrics_generator:
         # The maximum length of label values. Label values exceeding this limit will be truncated.
         [max_label_value_length: <int> | default = 2048]
 
-    # WAL Storage configuration for traces
-    traces_storage:
+    # Configuration block for the Write Ahead Log (WAL)
+    traces_storage: <WAL Config>
 
-      # Where to store the traces while they are being apeended to
-      # If set, will create separate wals per tenant by joining the path with the tenant ID
+      # Path to store the wal files.
+      # Must be set.
+      # Example: "/var/tempo/generator/traces"
       [path: <string> | default = ""]
-
-      # ???
-      completedfilepath: ""
-
-      # ???
-      blocksfilepath: ""
-
-      # WAL encoding/compression.
-      # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-      [v2_encoding: <string> | default = ??? ] # I think (zstd) ?
-
-      # Defines the search data encoding/compression protocol.
-      # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-      [search_encoding: <string> | default = ???] # I think (snappy) ?
-
-      # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
-      # This block start and end time range is then used when choosing blocks for search.
-      # This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
-      # in the past or future from impacting the block start and end times we use this configuration option.
-      # This option only allows spans that occur within the configured duration to adjust the block start and
-      # end times.
-      # This can result in trace not being found if the trace falls outside the slack configuration value as the
-      # start and end times of the block will not be updated in this case.
-      [ingestion_time_range_slack: <duration> | default = ???] # I think 2m ?
-
-      # WAL Format Version
-      # Options: v2, vParquet, vParquet2, vParquet3
-      [version: <string> | default = "vParquet3"]
 
     # Storage and remote write configuration
     storage:
@@ -426,7 +401,8 @@ metrics_generator:
         path: <string>
 
         # Configuration for the Prometheus Agent WAL
-        wal:
+        # https://github.com/prometheus/prometheus/v2.51.2/tsdb/agent/db.go#L62-L84
+        wal: <Prometeus Agent WAL Config>
 
         # How long to wait when flushing samples on shutdown
         [remote_write_flush_deadline: <duration> | default = 1m]
@@ -448,7 +424,7 @@ metrics_generator:
     [query_timeout: <duration> | default = 30s ]
 
     # Overides the key used to register the metrics-generator in the ring.
-    [override_ring_key: <string> | default = "ring"]
+    [override_ring_key: <string> | default = "metrics-generator"]
 ```
 
 ## Query-frontend
@@ -1094,29 +1070,11 @@ storage:
             [queue_depth: <int>]
 
         # Configuration block for the Write Ahead Log (WAL)
-        wal:
-
-            # where to store the head blocks while they are being appended to
-            # Example: "wal: /var/tempo/wal"
-            [path: <string>]
-
-            # wal encoding/compression.
-            # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [v2_encoding: <string> | default = snappy]
-
-            # Defines the search data encoding/compression protocol.
-            # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [search_encoding: <string> | default = none]
-
-            # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
-            # This block start and end time range is then used when choosing blocks for search.
-            # This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
-            # in the past or future from impacting the block start and end times we use this configuration option.
-            # This option only allows spans that occur within the configured duration to adjust the block start and
-            # end times.
-            # This can result in trace not being found if the trace falls outside the slack configuration value as the
-            # start and end times of the block will not be updated in this case.
-            [ingestion_time_range_slack: <duration> | default = 2m]
+        wal: <WAL Config>
+          [path: <string> | default = "/var/tempo/wal"]
+          [v2_encoding: <string> | default = snappy]
+          [search_encoding: <string> | default = none]
+          [ingestion_time_range_slack: <duration> | default = 2m]
 
         # block configuration
         block:
@@ -1243,6 +1201,54 @@ memberlist:
     [packet_write_timeout: <duration> | default = 5s]
 
 ```
+
+## Configuration Blocks
+
+Defines re-used configuration blocks
+
+### WAL Config
+
+The Storage WAL configuration block.
+
+```yaml
+# Where to store the wal files while they are being apeended to.
+# Must be set.
+# Example: "/var/tempo/wal
+[path: <string> | default = ""]
+
+# Where to store the completed wal files
+# If not set (""), will join the `path` with "completed" to generate the effective path
+# Example: "/var/tempo/wal/completed"
+[completedfilepath: <string> | default = join(.path, "/completed")]
+
+# Where to store the intermediate blocks while they are being apeended to.
+# Will always join the `path` with "blocks" to generate the effective path
+# Example: "/var/tempo/wal/blocks" (ignored)
+[blocksfilepath: <ignored> | = join(.path, "/blocks")]
+
+# WAL encoding/compression.
+# options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+[v2_encoding: <string> | default = "zstd" ]
+
+# Defines the search data encoding/compression protocol.
+# Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+[search_encoding: <string> | default = "snappy"]
+
+# When a span is written to the WAL it adjusts the start and end times of the block it is written to.
+# This block start and end time range is then used when choosing blocks for search.
+# This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
+# in the past or future from impacting the block start and end times we use this configuration option.
+# This option only allows spans that occur within the configured duration to adjust the block start and
+# end times.
+# This can result in trace not being found if the trace falls outside the slack configuration value as the
+# start and end times of the block will not be updated in this case.
+[ingestion_time_range_slack: <duration> | default = unset]
+
+# WAL File Format Version
+# Options: v2, vParquet, vParquet2, vParquet3
+[version: <string> | default = "vParquet3"]
+```
+
 
 ## Overrides
 
