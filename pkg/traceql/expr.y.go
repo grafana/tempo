@@ -1706,163 +1706,163 @@ yydefault:
 		}
 	case 145:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:361
+//line pkg/traceql/expr.y:363
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicDuration)
 		}
 	case 146:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:362
+//line pkg/traceql/expr.y:364
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicChildCount)
 		}
 	case 147:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:363
+//line pkg/traceql/expr.y:365
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicName)
 		}
 	case 148:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:364
+//line pkg/traceql/expr.y:366
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatus)
 		}
 	case 149:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:365
+//line pkg/traceql/expr.y:367
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatusMessage)
 		}
 	case 150:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:366
+//line pkg/traceql/expr.y:368
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
 		}
 	case 151:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:367
+//line pkg/traceql/expr.y:369
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
 		}
 	case 152:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:368
+//line pkg/traceql/expr.y:370
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
 		}
 	case 153:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:369
+//line pkg/traceql/expr.y:371
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
 	case 154:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:370
+//line pkg/traceql/expr.y:372
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
 		}
 	case 155:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:371
+//line pkg/traceql/expr.y:373
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetLeft)
 		}
 	case 156:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:372
+//line pkg/traceql/expr.y:374
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetRight)
 		}
 	case 157:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:373
+//line pkg/traceql/expr.y:375
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetParent)
 		}
 	case 158:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:378
+//line pkg/traceql/expr.y:380
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceDuration)
 		}
 	case 159:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:379
+//line pkg/traceql/expr.y:381
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
 		}
 	case 160:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:380
+//line pkg/traceql/expr.y:382
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
 	case 161:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:382
+//line pkg/traceql/expr.y:384
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicDuration)
 		}
 	case 162:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:383
+//line pkg/traceql/expr.y:385
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicName)
 		}
 	case 163:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:384
+//line pkg/traceql/expr.y:386
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicKind)
 		}
 	case 164:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:385
+//line pkg/traceql/expr.y:387
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatus)
 		}
 	case 165:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:386
+//line pkg/traceql/expr.y:388
 		{
 			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatusMessage)
 		}
 	case 166:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:389
+//line pkg/traceql/expr.y:391
 		{
 			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
 		}
 	case 167:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:390
+//line pkg/traceql/expr.y:392
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
 		}
 	case 168:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:391
+//line pkg/traceql/expr.y:393
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
 		}
 	case 169:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:392
+//line pkg/traceql/expr.y:394
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
 		}
 	case 170:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:393
+//line pkg/traceql/expr.y:395
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
 		}
 	case 171:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:394
+//line pkg/traceql/expr.y:396
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, true, yyDollar[3].staticStr)
 		}

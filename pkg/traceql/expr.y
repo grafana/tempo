@@ -357,6 +357,8 @@ static:
   | KIND_CONSUMER    { $$ = NewStaticKind(KindConsumer)   }
   ;
 
+// ** DO NOT ADD MORE FEATURES **
+// Going forward with scoped intrinsics only
 intrinsicField:
     IDURATION       { $$ = NewIntrinsic(IntrinsicDuration)         }
   | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
