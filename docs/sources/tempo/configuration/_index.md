@@ -31,6 +31,7 @@ The Tempo configuration options include:
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
   - [Configuration Blocks](#configuration-blocks)
+    - [Filter Policies](#filter-policies)
     - [WAL Config](#wal-config)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
@@ -338,7 +339,7 @@ metrics_generator:
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
-            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10]
+            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10, 8.20, 16,40]
 
             # Configure intrinsic dimensions to add to the metrics. Intrinsic dimensions are taken
             # directly from the respective resource and span properties.
@@ -353,25 +354,48 @@ metrics_generator:
                 [status_code: <bool> | default = true]
                 # Whether to add a status message. Important note: The span status message may
                 # contain arbitrary strings and thus have a very high cardinality.
-                [status_message: <bool> | default = false]
+                [status_message: <bool> | default = true]
 
             # Additional dimensions to add to the metrics along with the intrinsic dimensions.
             # Dimensions are searched for in the resource and span attributes and are added to
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling of dimensions is possible via a list of maps consisting of
-            # "name" <string>, "source_labels" <list of string>, "join" <string>
-            # "name" appears in the metrics, "source_labels" are the actual
-            # attributes that will make up the value of the label and "join" is the
-            # separator if multiple source_labels are provided
-            [dimension_mappings: <list of map>]
+            # Custom labeling mapping
+            dimension_mappings: <list of Label Mappings>
+
+                # The metric name
+              - [name: <string>]
+
+                # The actual attributes that will make the value of the new label
+                [source_labels: <list of strings>]
+
+                # The separator used to join multiple `source_labels`
+                [join: <string>]
+
             # Enable traces_target_info metrics
             [enable_target_info: <bool>]
-            # Drop specific labels from traces_target_info metrics
-            [target_info_excluded_dimensions: <list of string>]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
+
+            # subprocessor toggles for metrics categories that exist under the umbrella of Span Metrics
+            subprocessors:
+              # Toggle the `Latency` metric category
+              [ 0: <bool> | default = true ]
+
+              # Toggle the `Count` metric category
+              [ 1: <bool> | default = true ]
+
+              # Toggle the `Size` metric category
+              [ 2: <bool> | default = true ]
+
+
+            # List of policies that will be applied to spans for inclusion or exlusion.
+            [filter_policies: <list of Filter Policies> | default = []]
+
+            # Drop specific labels from `traces_target_info` metrics
+            [target_info_excluded_dimensions: <list of string>]
 
     # Registry configuration
     registry:
@@ -1212,6 +1236,52 @@ memberlist:
 
 Defines re-used configuration blocks
 
+### Filter Policies
+
+Span Filter block
+
+#### Filter Policy
+```yaml
+# Exclude filters (Postive Matching)
+[include: <Policy Match>]
+
+# Exclude filters (Negative Matching)
+[exclude: <Policy Match>]
+```
+
+#### Policy Match
+```yaml
+# How to match the value of attributes
+# Options: "strict", "regex"
+[match_type: <string>]
+
+# List of attributes to match
+[attributes: <list of Policy Atributes>]
+
+    # Attribute key
+  - [key: <string>]
+
+    # Attribute value
+    [value: <any>]
+```
+
+#### Example
+```yaml
+exclude:
+  match_type: "regex"
+  attributes:
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
+```
+
+```yaml
+include:
+  match_type: "strict"
+  attributes:
+    - key: "foo.bar"
+      value: "baz"
+```
+
 ### WAL Config
 
 The Storage WAL configuration block.
@@ -1254,7 +1324,6 @@ The Storage WAL configuration block.
 # Options: v2, vParquet, vParquet2, vParquet3
 [version: <string> | default = "vParquet3"]
 ```
-
 
 ## Overrides
 
