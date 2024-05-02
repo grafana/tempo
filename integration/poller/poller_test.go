@@ -149,8 +149,9 @@ func TestPollerOwnership(t *testing.T) {
 				w := backend.NewWriter(ww)
 
 				blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
-					PollConcurrency:     3,
-					TenantIndexBuilders: 1,
+					PollConcurrency:        3,
+					TenantIndexBuilders:    1,
+					EmptyTenantDeletionAge: 10 * time.Minute,
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Use the block boundaries in the GCS and S3 implementation
