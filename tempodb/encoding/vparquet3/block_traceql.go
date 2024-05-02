@@ -343,66 +343,66 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 		return nil
 	}
 
-	if !union {
-		// this is easy. we're just looking for anything on the lhs side with the same nested set parent as the rhs
-		sort.Slice(lhs, func(i, j int) bool {
-			return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
-		})
+	if union {
+		// union is more difficult b/c we have to find all matches on both the left and rhs
+		sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
+		if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+			sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
+		}
 
 		siblingOf := func(a *span, b *span) bool {
 			return a.nestedSetParent == b.nestedSetParent &&
 				a.nestedSetParent != 0 &&
-				b.nestedSetParent != 0
+				b.nestedSetParent != 0 &&
+				a != b // a span cannot be its own sibling. note that this only works due to implementation details in the engine. if we ever pipeline structural operators then we would need to use something else for identity. rownumber?
 		}
 
-		for _, r := range rhs {
-			matches := false
+		isValid := func(s *span) bool { return s.nestedSetParent != 0 }
+		isAfter := func(a *span, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
 
-			if r.(*span).nestedSetParent != 0 {
-				// search for nested set parent
-				found := sort.Search(len(lhs), func(i int) bool {
-					return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetParent
-				})
-
-				if found >= 0 && found < len(lhs) {
-					matches = siblingOf(r.(*span), lhs[found].(*span))
-
-					// if we found a match BUT this is the same span as the match we need to check the very next span (if it exists).
-					// this works b/c Search method returns the first match for nestedSetParent
-					if matches && r.(*span) == lhs[found].(*span) {
-						matches = false
-						if found+1 < len(lhs) {
-							matches = siblingOf(r.(*span), lhs[found+1].(*span))
-						}
-					}
-				}
-			}
-
-			if matches && !falseForAll || // return RHS if there are any matches on the LHS
-				!matches && falseForAll { // return RHS if there are no matches on the LHS
-				buffer = append(buffer, r)
-			}
-		}
-		return buffer
+		return nestedSetManyManyLoop(lhs, rhs, isValid, siblingOf, isAfter, falseForAll, false, union, buffer)
 	}
 
-	// union is more difficult b/c we have to find all matches on both the left and rhs
-	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
-	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
-		sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
-	}
+	// this is easy. we're just looking for anything on the lhs side with the same nested set parent as the rhs
+	sort.Slice(lhs, func(i, j int) bool {
+		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
+	})
 
 	siblingOf := func(a *span, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
 			a.nestedSetParent != 0 &&
-			b.nestedSetParent != 0 &&
-			a != b // a span cannot be its own sibling. note that this only works due to implementation details in the engine. if we ever pipeline structural operators then we would need to use something else for identity. rownumber?
+			b.nestedSetParent != 0
 	}
 
-	isValid := func(s *span) bool { return s.nestedSetParent != 0 }
-	isAfter := func(a *span, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
+	for _, r := range rhs {
+		matches := false
 
-	return nestedSetManyManyLoop(lhs, rhs, isValid, siblingOf, isAfter, falseForAll, false, union, buffer)
+		if r.(*span).nestedSetParent != 0 {
+			// search for nested set parent
+			found := sort.Search(len(lhs), func(i int) bool {
+				return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetParent
+			})
+
+			if found >= 0 && found < len(lhs) {
+				matches = siblingOf(r.(*span), lhs[found].(*span))
+
+				// if we found a match BUT this is the same span as the match we need to check the very next span (if it exists).
+				// this works b/c Search method returns the first match for nestedSetParent
+				if matches && r.(*span) == lhs[found].(*span) {
+					matches = false
+					if found+1 < len(lhs) {
+						matches = siblingOf(r.(*span), lhs[found+1].(*span))
+					}
+				}
+			}
+		}
+
+		if matches && !falseForAll || // return RHS if there are any matches on the LHS
+			!matches && falseForAll { // return RHS if there are no matches on the LHS
+			buffer = append(buffer, r)
+		}
+	}
+	return buffer
 }
 
 // {} > {}
@@ -411,70 +411,70 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 		return nil
 	}
 
-	if !union {
-		// we will search the LHS by either nestedSetLeft or nestedSetParent. if we are doing child we sort by nestedSetLeft
-		// so we can quickly find children. if the invert flag is set we are looking for parents and so we sort appropriately
-		sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
+	if union {
+		childOf := func(p *span, c *span) bool {
+			return p.nestedSetLeft == c.nestedSetParent &&
+				p.nestedSetLeft != 0 &&
+				c.nestedSetParent != 0
+		}
+		isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
+		isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
+
+		// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
+		// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
+		if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {
+			rhs = append([]traceql.Span{}, rhs...)
+		}
+
+		parents := lhs
+		children := rhs
 		if invert {
-			sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
+			parents, children = children, parents
 		}
 
-		childOf := func(a *span, b *span) bool {
-			return a.nestedSetLeft == b.nestedSetParent &&
-				a.nestedSetLeft != 0 &&
-				b.nestedSetParent != 0
-		}
+		sort.Slice(parents, func(i, j int) bool { return parents[i].(*span).nestedSetLeft < parents[j].(*span).nestedSetLeft })
+		sort.Slice(children, func(i, j int) bool { return children[i].(*span).nestedSetParent < children[j].(*span).nestedSetParent })
 
-		sort.Slice(lhs, sortFn)
-		for _, r := range rhs {
-			findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetParent }
-			if invert {
-				findFn = func(i int) bool { return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetLeft }
-			}
-
-			// search for nested set parent
-			matches := false
-			found := sort.Search(len(lhs), findFn)
-			if found >= 0 && found < len(lhs) {
-				if invert {
-					matches = childOf(r.(*span), lhs[found].(*span)) // is the rhs a child of the lhs?
-				} else {
-					matches = childOf(lhs[found].(*span), r.(*span)) // is the lhs a child of the rhs?
-				}
-			}
-
-			if matches && !falseForAll || // return RHS if there are any matches on the LHS
-				!matches && falseForAll { // return RHS if there are no matches on the LHS
-				buffer = append(buffer, r)
-			}
-		}
-		return buffer
+		return nestedSetOneManyLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
 	}
 
-	childOf := func(p *span, c *span) bool {
-		return p.nestedSetLeft == c.nestedSetParent &&
-			p.nestedSetLeft != 0 &&
-			c.nestedSetParent != 0
-	}
-	isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
-	isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
-
-	// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
-	// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
-	if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {
-		rhs = append([]traceql.Span{}, rhs...)
-	}
-
-	parents := lhs
-	children := rhs
+	// we will search the LHS by either nestedSetLeft or nestedSetParent. if we are doing child we sort by nestedSetLeft
+	// so we can quickly find children. if the invert flag is set we are looking for parents and so we sort appropriately
+	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
 	if invert {
-		parents, children = children, parents
+		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
 	}
 
-	sort.Slice(parents, func(i, j int) bool { return parents[i].(*span).nestedSetLeft < parents[j].(*span).nestedSetLeft })
-	sort.Slice(children, func(i, j int) bool { return children[i].(*span).nestedSetParent < children[j].(*span).nestedSetParent })
+	childOf := func(a *span, b *span) bool {
+		return a.nestedSetLeft == b.nestedSetParent &&
+			a.nestedSetLeft != 0 &&
+			b.nestedSetParent != 0
+	}
 
-	return nestedSetOneManyLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
+	sort.Slice(lhs, sortFn)
+	for _, r := range rhs {
+		findFn := func(i int) bool { return lhs[i].(*span).nestedSetLeft >= r.(*span).nestedSetParent }
+		if invert {
+			findFn = func(i int) bool { return lhs[i].(*span).nestedSetParent >= r.(*span).nestedSetLeft }
+		}
+
+		// search for nested set parent
+		matches := false
+		found := sort.Search(len(lhs), findFn)
+		if found >= 0 && found < len(lhs) {
+			if invert {
+				matches = childOf(r.(*span), lhs[found].(*span)) // is the rhs a child of the lhs?
+			} else {
+				matches = childOf(lhs[found].(*span), r.(*span)) // is the lhs a child of the rhs?
+			}
+		}
+
+		if matches && !falseForAll || // return RHS if there are any matches on the LHS
+			!matches && falseForAll { // return RHS if there are no matches on the LHS
+			buffer = append(buffer, r)
+		}
+	}
+	return buffer
 }
 
 // nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships. It handles all nested set relationships except
