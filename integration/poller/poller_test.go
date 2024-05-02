@@ -150,6 +150,7 @@ func TestPollerOwnership(t *testing.T) {
 
 				blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 					PollConcurrency:        3,
+					TenantPollConcurrency:  2,
 					TenantIndexBuilders:    1,
 					EmptyTenantDeletionAge: 10 * time.Minute,
 				}, OwnsEverythingSharder, r, cc, w, logger)

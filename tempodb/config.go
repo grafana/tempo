@@ -22,12 +22,13 @@ import (
 )
 
 const (
-	DefaultBlocklistPoll             = 5 * time.Minute
-	DefaultMaxTimePerTenant          = 5 * time.Minute
-	DefaultBlocklistPollConcurrency  = uint(50)
-	DefaultRetentionConcurrency      = uint(10)
-	DefaultTenantIndexBuilders       = 2
-	DefaultTolerateConsecutiveErrors = 1
+	DefaultBlocklistPoll                  = 5 * time.Minute
+	DefaultMaxTimePerTenant               = 5 * time.Minute
+	DefaultBlocklistPollConcurrency       = uint(50)
+	DefaultBlocklistPollTenantConcurrency = uint(1)
+	DefaultRetentionConcurrency           = uint(10)
+	DefaultTenantIndexBuilders            = 2
+	DefaultTolerateConsecutiveErrors      = 1
 
 	DefaultEmptyTenantDeletionAge = 12 * time.Hour
 
@@ -47,6 +48,7 @@ type Config struct {
 
 	BlocklistPoll                          time.Duration `yaml:"blocklist_poll"`
 	BlocklistPollConcurrency               uint          `yaml:"blocklist_poll_concurrency"`
+	BlocklistPollTenantConcurrency         uint          `yaml:"blocklist_poll_tenant_concurrency"`
 	BlocklistPollFallback                  bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders       int           `yaml:"blocklist_poll_tenant_index_builders"`
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`

@@ -21,10 +21,11 @@ import (
 )
 
 var (
-	testPollConcurrency     = uint(10)
-	testPollFallback        = true
-	testBuilders            = 1
-	testEmptyTenantIndexAge = 1 * time.Minute
+	testPollConcurrency       = uint(10)
+	testTenantPollConcurrency = uint(2)
+	testPollFallback          = true
+	testBuilders              = 1
+	testEmptyTenantIndexAge   = 1 * time.Minute
 )
 
 type mockJobSharder struct {
@@ -158,9 +159,10 @@ func TestTenantIndexBuilder(t *testing.T) {
 			b := newBlocklist(PerTenant{}, PerTenantCompacted{})
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
+				PollConcurrency:       testPollConcurrency,
+				TenantPollConcurrency: testTenantPollConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
@@ -262,6 +264,7 @@ func TestTenantIndexFallback(t *testing.T) {
 
 			poller := NewPoller(&PollerConfig{
 				PollConcurrency:        testPollConcurrency,
+				TenantPollConcurrency:  testTenantPollConcurrency,
 				PollFallback:           tc.pollFallback,
 				TenantIndexBuilders:    testBuilders,
 				StaleTenantIndex:       tc.staleTenantIndex,
@@ -352,9 +355,10 @@ func TestPollBlock(t *testing.T) {
 			w := &backend.MockWriter{}
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
+				PollConcurrency:       testPollConcurrency,
+				TenantPollConcurrency: testTenantPollConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
 			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID, false)
 
@@ -572,6 +576,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 			poller := NewPoller(&PollerConfig{
 				PollConcurrency:           testPollConcurrency,
+				TenantPollConcurrency:     testTenantPollConcurrency,
 				PollFallback:              testPollFallback,
 				TenantIndexBuilders:       testBuilders,
 				TolerateConsecutiveErrors: tc.tolerate,
@@ -813,6 +818,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 				PollConcurrency:           testPollConcurrency,
 				PollFallback:              testPollFallback,
 				TenantIndexBuilders:       testBuilders,
+				TenantPollConcurrency:     testTenantPollConcurrency,
 				TolerateConsecutiveErrors: tc.tollerateErrors,
 			}, s, r, c, w, log.NewNopLogger())
 
@@ -898,9 +904,10 @@ func BenchmarkPoller10k(b *testing.B) {
 
 		// This mock reader returns error or nil based on the tenant ID
 		poller := NewPoller(&PollerConfig{
-			PollConcurrency:     testPollConcurrency,
-			PollFallback:        testPollFallback,
-			TenantIndexBuilders: testBuilders,
+			PollConcurrency:       testPollConcurrency,
+			TenantPollConcurrency: testTenantPollConcurrency,
+			PollFallback:          testPollFallback,
+			TenantIndexBuilders:   testBuilders,
 		}, s, r, c, w, log.NewNopLogger())
 
 		runName := fmt.Sprintf("%d-%d", tc.tenantCount, tc.blocksPerTenant)

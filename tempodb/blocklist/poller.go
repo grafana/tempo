@@ -19,6 +19,7 @@ import (
 	spanlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -79,6 +80,7 @@ var (
 // Config is used to configure the poller
 type PollerConfig struct {
 	PollConcurrency            uint
+	TenantPollConcurrency      uint
 	PollFallback               bool
 	TenantIndexBuilders        int
 	StaleTenantIndex           time.Duration
@@ -151,44 +153,67 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		return nil, nil, err
 	}
 
-	blocklist := PerTenant{}
-	compactedBlocklist := PerTenantCompacted{}
+	var (
+		wg  = boundedwaitgroup.New(p.cfg.TenantPollConcurrency)
+		mtx = sync.Mutex{}
 
-	consecutiveErrors := 0
+		blocklist          = PerTenant{}
+		compactedBlocklist = PerTenantCompacted{}
+
+		finalErr          atomic.Error
+		consecutiveErrors int
+	)
 
 	for _, tenantID := range tenants {
-		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
-		if err != nil {
-			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
-			consecutiveErrors++
-			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
-				return nil, nil, err
+		if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+			return nil, nil, finalErr.Load()
+		}
+
+		wg.Add(1)
+		go func(tenantID string) {
+			defer wg.Done()
+
+			newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+			mtx.Lock()
+			defer mtx.Unlock()
+			if err != nil {
+				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+				consecutiveErrors++
+				blocklist[tenantID] = previous.Metas(tenantID)
+				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
+				if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+					finalErr.Store(err)
+					return
+				}
+				return
 			}
 
-			blocklist[tenantID] = previous.Metas(tenantID)
-			compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
-			continue
-		}
+			consecutiveErrors = 0
+			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+				blocklist[tenantID] = newBlockList
+				compactedBlocklist[tenantID] = newCompactedBlockList
 
-		consecutiveErrors = 0
-		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
-			blocklist[tenantID] = newBlockList
-			compactedBlocklist[tenantID] = newCompactedBlockList
+				metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
-			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+				backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+				metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+				metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+				metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+				metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+				return
+			}
+			metricBlocklistLength.DeleteLabelValues(tenantID)
+			metricBackendObjects.DeleteLabelValues(tenantID)
+			metricBackendObjects.DeleteLabelValues(tenantID)
+			metricBackendBytes.DeleteLabelValues(tenantID)
+		}(tenantID)
+	}
 
-			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-			continue
-		}
-		metricBlocklistLength.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendBytes.DeleteLabelValues(tenantID)
+	wg.Wait()
+
+	if err := finalErr.Load(); err != nil {
+		return nil, nil, err
 	}
 
 	return blocklist, compactedBlocklist, nil

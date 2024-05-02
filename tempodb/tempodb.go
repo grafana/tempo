@@ -528,6 +528,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	if rw.cfg.BlocklistPollTenantConcurrency == 0 {
+		rw.cfg.BlocklistPollTenantConcurrency = DefaultBlocklistPollTenantConcurrency
+	}
+
 	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
