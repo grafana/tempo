@@ -365,7 +365,6 @@ metrics_generator:
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
-
     # Registry configuration
     registry:
 
@@ -384,6 +383,31 @@ metrics_generator:
 
         # The maximum length of label values. Label values exceeding this limit will be truncated.
         [max_label_value_length: <int> | default = 2048]
+
+    # WAL Storage configuration for traces
+    traces_storage:
+
+      # Path to the metrics-generator WAL directory
+      # If set, will create separate wals per tenant by joining the path with the tenant ID
+      [path: <string> | default = ""]
+
+      # ???
+      completedfilepath: ""
+
+      # ???
+      blocksfilepath: ""
+
+      # ???
+      v2_encoding: none
+
+      # ???
+      search_encoding: none
+
+      # ???
+      ingestion_time_range_slack: 0s
+
+      # WAL Encoding Format Version
+      [version: <string> | default = "vParquet3"]
 
     # Storage and remote write configuration
     storage:
@@ -409,6 +433,12 @@ metrics_generator:
     # considered in metrics generation.
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
+
+    # Timeout for generator requests (???)
+    [query_timeout: <duration> | default = 30s ]
+
+    # Overides the key used to register the metrics-generator in the ring.
+    [override_ring_key: <string> | default = "ring"]
 ```
 
 ## Query-frontend
