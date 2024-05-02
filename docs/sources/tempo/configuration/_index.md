@@ -354,7 +354,7 @@ metrics_generator:
                 [status_code: <bool> | default = true]
                 # Whether to add a status message. Important note: The span status message may
                 # contain arbitrary strings and thus have a very high cardinality.
-                [status_message: <bool> | default = true]
+                [status_message: <bool> | default = false]
 
             # Additional dimensions to add to the metrics along with the intrinsic dimensions.
             # Dimensions are searched for in the resource and span attributes and are added to
@@ -374,7 +374,7 @@ metrics_generator:
                 [join: <string>]
 
             # Enable traces_target_info metrics
-            [enable_target_info: <bool>]
+            [enable_target_info: <bool> | default = false]
 
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
