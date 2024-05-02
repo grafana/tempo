@@ -331,7 +331,7 @@ func TestQuantileOverTime(t *testing.T) {
 			},
 			Values: []float64{
 				0.000000128,
-				percentileHelper(0, div, 256, 256, 256, 256),
+				percentileHelper(0, 256, 256, 256, 256) / div,
 				0,
 			},
 		},
@@ -342,7 +342,7 @@ func TestQuantileOverTime(t *testing.T) {
 			},
 			Values: []float64{
 				0.000000256,
-				percentileHelper(0.5, div, 256, 256, 256, 256),
+				percentileHelper(0.5, 256, 256, 256, 256) / div,
 				0,
 			},
 		},
@@ -360,7 +360,7 @@ func TestQuantileOverTime(t *testing.T) {
 			},
 			Values: []float64{
 				0, 0,
-				percentileHelper(0, div, 512, 512, 512),
+				percentileHelper(0, 512, 512, 512) / div,
 			},
 		},
 		`{p="0.50000", span.foo="baz"}`: TimeSeries{
@@ -370,7 +370,7 @@ func TestQuantileOverTime(t *testing.T) {
 			},
 			Values: []float64{
 				0, 0,
-				percentileHelper(0.5, div, 512, 512, 512),
+				percentileHelper(0.5, 512, 512, 512) / div,
 			},
 		},
 		`{p="1.00000", span.foo="baz"}`: TimeSeries{
@@ -413,10 +413,10 @@ func TestQuantileOverTime(t *testing.T) {
 	require.Equal(t, out, final)
 }
 
-func percentileHelper(q, div float64, values ...uint64) float64 {
+func percentileHelper(q float64, values ...uint64) float64 {
 	b := [64]int{}
 	for _, v := range values {
 		b[Log2Bucket(v)]++
 	}
-	return Log2Quantile(q, b) / div
+	return Log2Quantile(q, b)
 }

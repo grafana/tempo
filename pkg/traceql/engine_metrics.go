@@ -908,14 +908,14 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			labels = append(labels, Label{"p", NewStaticFloat(q)})
 			s := labels.String()
 
-			new := TimeSeries{
+			ts := TimeSeries{
 				Labels: labels,
 				Values: make([]float64, len(in.hist)),
 			}
 			for i := range in.hist {
-				new.Values[i] = Log2Quantile(q, in.hist[i]) / h.div
+				ts.Values[i] = Log2Quantile(q, in.hist[i]) / h.div
 			}
-			results[s] = new
+			results[s] = ts
 		}
 	}
 	return results
