@@ -497,6 +497,7 @@ func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
 
 	for _, object := range foundObjects {
 		dir, name := path.Split(object)
+		level.Info(p.logger).Log("msg", "deleting", "tenant", tenantID, "object", object)
 		err = p.writer.Delete(ctx, name, backend.KeyPath{dir})
 		if err != nil {
 			return err
