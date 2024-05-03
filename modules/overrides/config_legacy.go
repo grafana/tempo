@@ -23,34 +23,35 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 
 		Forwarders: c.Forwarders,
 
-		MetricsGeneratorRingSize:                                         c.MetricsGenerator.RingSize,
-		MetricsGeneratorProcessors:                                       c.MetricsGenerator.Processors,
-		MetricsGeneratorMaxActiveSeries:                                  c.MetricsGenerator.MaxActiveSeries,
-		MetricsGeneratorCollectionInterval:                               c.MetricsGenerator.CollectionInterval,
-		MetricsGeneratorDisableCollection:                                c.MetricsGenerator.DisableCollection,
-		MetricsGeneratorTraceIDLabelName:                                 c.MetricsGenerator.TraceIDLabelName,
-		MetricsGeneratorRemoteWriteHeaders:                               c.MetricsGenerator.RemoteWriteHeaders,
-		MetricsGeneratorForwarderQueueSize:                               c.MetricsGenerator.Forwarder.QueueSize,
-		MetricsGeneratorForwarderWorkers:                                 c.MetricsGenerator.Forwarder.Workers,
-		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:           c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
-		MetricsGeneratorProcessorServiceGraphsDimensions:                 c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
-		MetricsGeneratorProcessorServiceGraphsPeerAttributes:             c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
-		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:   c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
-		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:     c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
-		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:             c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
-		MetricsGeneratorProcessorSpanMetricsDimensions:                   c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
-		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:          c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
-		MetricsGeneratorProcessorSpanMetricsFilterPolicies:               c.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
-		MetricsGeneratorProcessorSpanMetricsDimensionMappings:            c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
-		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:             c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
-		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions: c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
-		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                c.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:             c.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
-		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                c.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
-		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:             c.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
-		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:              c.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
-		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:         c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
-		MetricsGeneratorIngestionSlack:                                   c.MetricsGenerator.IngestionSlack,
+		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
+		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
+		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
+		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
+		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
+		MetricsGeneratorTraceIDLabelName:                                            c.MetricsGenerator.TraceIDLabelName,
+		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
+		MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
+		MetricsGeneratorForwarderWorkers:                                            c.MetricsGenerator.Forwarder.Workers,
+		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
+		MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
+		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
+		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
+		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
+		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
+		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
+		MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
+		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
+		MetricsGeneratorProcessorSpanMetricsFilterPolicies:                          c.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
+		MetricsGeneratorProcessorSpanMetricsDimensionMappings:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
+		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
+		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
+		MetricsGeneratorProcessorLocalBlocksMaxLiveTraces:                           c.MetricsGenerator.Processor.LocalBlocks.MaxLiveTraces,
+		MetricsGeneratorProcessorLocalBlocksMaxBlockDuration:                        c.MetricsGenerator.Processor.LocalBlocks.MaxBlockDuration,
+		MetricsGeneratorProcessorLocalBlocksMaxBlockBytes:                           c.MetricsGenerator.Processor.LocalBlocks.MaxBlockBytes,
+		MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod:                        c.MetricsGenerator.Processor.LocalBlocks.FlushCheckPeriod,
+		MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod:                         c.MetricsGenerator.Processor.LocalBlocks.TraceIdlePeriod,
+		MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout:                    c.MetricsGenerator.Processor.LocalBlocks.CompleteBlockTimeout,
+		MetricsGeneratorIngestionSlack:                                              c.MetricsGenerator.IngestionSlack,
 
 		BlockRetention:   c.Compaction.BlockRetention,
 		CompactionWindow: c.Compaction.CompactionWindow,
@@ -83,34 +84,35 @@ type LegacyOverrides struct {
 	Forwarders []string `yaml:"forwarders" json:"forwarders"`
 
 	// Metrics-generator config
-	MetricsGeneratorRingSize                                         int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
-	MetricsGeneratorProcessors                                       listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
-	MetricsGeneratorMaxActiveSeries                                  uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
-	MetricsGeneratorCollectionInterval                               time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
-	MetricsGeneratorDisableCollection                                bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
-	MetricsGeneratorTraceIDLabelName                                 string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
-	MetricsGeneratorForwarderQueueSize                               int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
-	MetricsGeneratorForwarderWorkers                                 int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
-	MetricsGeneratorRemoteWriteHeaders                               RemoteWriteHeaders               `yaml:"metrics_generator_remote_write_headers,omitempty" json:"metrics_generator_remote_write_headers,omitempty"`
-	MetricsGeneratorProcessorServiceGraphsHistogramBuckets           []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
-	MetricsGeneratorProcessorServiceGraphsDimensions                 []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
-	MetricsGeneratorProcessorServiceGraphsPeerAttributes             []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
-	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix   bool                             `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
-	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel     bool                             `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
-	MetricsGeneratorProcessorSpanMetricsHistogramBuckets             []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
-	MetricsGeneratorProcessorSpanMetricsDimensions                   []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
-	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions          map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
-	MetricsGeneratorProcessorSpanMetricsFilterPolicies               []filterconfig.FilterPolicy      `yaml:"metrics_generator_processor_span_metrics_filter_policies" json:"metrics_generator_processor_span_metrics_filter_policies"`
-	MetricsGeneratorProcessorSpanMetricsDimensionMappings            []sharedconfig.DimensionMappings `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
-	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo             bool                             `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
-	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
-	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces                uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
-	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration             time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
-	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes                uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
-	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod             time.Duration                    `yaml:"metrics_generator_processor_local_blocks_flush_check_period" json:"metrics_generator_processor_local_blocks_flush_check_period"`
-	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod              time.Duration                    `yaml:"metrics_generator_processor_local_blocks_trace_idle_period" json:"metrics_generator_processor_local_blocks_trace_idle_period"`
-	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout         time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
-	MetricsGeneratorIngestionSlack                                   time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
+	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
+	MetricsGeneratorProcessors                                                  listtomap.ListToMap              `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
+	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
+	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
+	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
+	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
+	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
+	MetricsGeneratorRemoteWriteHeaders                                          RemoteWriteHeaders               `yaml:"metrics_generator_remote_write_headers,omitempty" json:"metrics_generator_remote_write_headers,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsHistogramBuckets                      []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
+	MetricsGeneratorProcessorServiceGraphsDimensions                            []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
+	MetricsGeneratorProcessorServiceGraphsPeerAttributes                        []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
+	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix              bool                             `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
+	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram bool                             `yaml:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram" json:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram"`
+	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                bool                             `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
+	MetricsGeneratorProcessorSpanMetricsHistogramBuckets                        []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
+	MetricsGeneratorProcessorSpanMetricsDimensions                              []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
+	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
+	MetricsGeneratorProcessorSpanMetricsFilterPolicies                          []filterconfig.FilterPolicy      `yaml:"metrics_generator_processor_span_metrics_filter_policies" json:"metrics_generator_processor_span_metrics_filter_policies"`
+	MetricsGeneratorProcessorSpanMetricsDimensionMappings                       []sharedconfig.DimensionMappings `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
+	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        bool                             `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
+	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
+	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
+	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
+	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes                           uint64                           `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`
+	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod                        time.Duration                    `yaml:"metrics_generator_processor_local_blocks_flush_check_period" json:"metrics_generator_processor_local_blocks_flush_check_period"`
+	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod                         time.Duration                    `yaml:"metrics_generator_processor_local_blocks_trace_idle_period" json:"metrics_generator_processor_local_blocks_trace_idle_period"`
+	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout                    time.Duration                    `yaml:"metrics_generator_processor_local_blocks_complete_block_timeout" json:"metrics_generator_processor_local_blocks_complete_block_timeout"`
+	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 
 	// Compactor enforced limits.
 	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
@@ -169,11 +171,12 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			},
 			Processor: ProcessorOverrides{
 				ServiceGraphs: ServiceGraphsOverrides{
-					HistogramBuckets:         l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
-					Dimensions:               l.MetricsGeneratorProcessorServiceGraphsDimensions,
-					PeerAttributes:           l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
-					EnableClientServerPrefix: l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
-					EnableVirtualNodeLabel:   l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
+					HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
+					Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,
+					PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
+					EnableClientServerPrefix:              l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
+					EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
+					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
 				},
 				SpanMetrics: SpanMetricsOverrides{
 					HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,

@@ -15,10 +15,11 @@ const (
 type Edge struct {
 	key string
 
-	TraceID                            string
-	ConnectionType                     ConnectionType
-	ServerService, ClientService       string
-	ServerLatencySec, ClientLatencySec float64
+	TraceID                                        string
+	ConnectionType                                 ConnectionType
+	ServerService, ClientService                   string
+	ServerLatencySec, ClientLatencySec             float64
+	ServerStartTimeUnixNano, ClientEndTimeUnixNano uint64
 
 	// If either the client or the server spans have status code error,
 	// the Edge will be considered as failed.

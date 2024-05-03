@@ -435,6 +435,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix
 }
 
+// MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram enables this metric
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram
+}
+
 // MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel adds the "virtual_node" label
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel
