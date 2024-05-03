@@ -35,12 +35,15 @@ import (
     static Static
     intrinsicField Attribute
     attributeField Attribute
+    attribute Attribute
+    scopedIntrinsicField Attribute
 
     binOp       Operator
     staticInt   int
     staticStr   string
     staticFloat float64
     staticDuration time.Duration
+    numericList []float64
 
     hint *Hint
     hintList []*Hint
@@ -73,6 +76,10 @@ import (
 %type <static> static
 %type <intrinsicField> intrinsicField
 %type <attributeField> attributeField
+%type <scopedIntrinsicField> scopedIntrinsicField
+%type <attribute> attribute
+
+%type <numericList> numericList
 
 %type <hint> hint
 %type <hintList> hintList
@@ -85,12 +92,13 @@ import (
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
-                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
-                        PARENT_DOT RESOURCE_DOT SPAN_DOT
+                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
+                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
+                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
-                        RATE COUNT_OVER_TIME
+                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -161,11 +169,23 @@ selectOperation:
     SELECT OPEN_PARENS attributeList CLOSE_PARENS { $$ = newSelectOperation($3) }
   ;
 
+attribute:
+  intrinsicField          { $$ = $1 }
+  | attributeField        { $$ = $1 }
+  | scopedIntrinsicField  { $$ = $1 }
+  ;
+
 attributeList:
-    intrinsicField                  { $$ = []Attribute{$1} }
-  | attributeField                  { $$ = []Attribute{$1} }
-  | attributeList COMMA intrinsicField { $$ = append($1, $3) }
-  | attributeList COMMA attributeField { $$ = append($1, $3) }
+    attribute                     { $$ = []Attribute{$1} }
+  | attributeList COMMA attribute { $$ = append($1, $3) }
+  ;
+
+// Comma-separated list of numeric values. Casts all to floats
+numericList:
+  FLOAT                       { $$ = []float64{$1} }
+  | INTEGER                   { $$ = []float64{float64($1)}}
+  | numericList COMMA FLOAT   { $$ = append($1, $3) }
+  | numericList COMMA INTEGER { $$ = append($1, float64($3))}
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -262,9 +282,11 @@ aggregate:
 // **********************
 metricsAggregation:
       RATE            OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
-    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
     | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
   ;
 
 // **********************
@@ -310,6 +332,7 @@ fieldExpression:
   | static                                   { $$ = $1 }
   | intrinsicField                           { $$ = $1 }
   | attributeField                           { $$ = $1 }
+  | scopedIntrinsicField                     { $$ = $1 }
   ;
 
 // **********************
@@ -334,6 +357,8 @@ static:
   | KIND_CONSUMER    { $$ = NewStaticKind(KindConsumer)   }
   ;
 
+// ** DO NOT ADD MORE FEATURES **
+// Going forward with scoped intrinsics only
 intrinsicField:
     IDURATION       { $$ = NewIntrinsic(IntrinsicDuration)         }
   | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
@@ -349,6 +374,18 @@ intrinsicField:
   | NESTEDSETRIGHT  { $$ = NewIntrinsic(IntrinsicNestedSetRight)   }
   | NESTEDSETPARENT { $$ = NewIntrinsic(IntrinsicNestedSetParent)  }
   ;
+
+scopedIntrinsicField:
+//  trace:
+    TRACE_COLON IDURATION        { $$ = NewIntrinsic(IntrinsicTraceDuration)       }
+  | TRACE_COLON ROOTNAME         { $$ = NewIntrinsic(IntrinsicTraceRootSpan)       }
+  | TRACE_COLON ROOTSERVICE      { $$ = NewIntrinsic(IntrinsicTraceRootService)    }
+//  span:
+  | SPAN_COLON IDURATION         { $$ = NewIntrinsic(IntrinsicDuration)            }
+  | SPAN_COLON NAME              { $$ = NewIntrinsic(IntrinsicName)                }
+  | SPAN_COLON KIND              { $$ = NewIntrinsic(IntrinsicKind)                }
+  | SPAN_COLON STATUS            { $$ = NewIntrinsic(IntrinsicStatus)              }
+  | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
 
 attributeField:
     DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }

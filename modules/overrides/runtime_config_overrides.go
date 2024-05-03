@@ -440,6 +440,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram
 }
 
+// MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel adds the "virtual_node" label
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel
+}
+
 // MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
 // by the span metrics processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {

@@ -9,28 +9,29 @@ import (
 )
 
 type mockOverrides struct {
-	processors                                         map[string]struct{}
-	serviceGraphsHistogramBuckets                      []float64
-	serviceGraphsDimensions                            []string
-	serviceGraphsPeerAttributes                        []string
-	serviceGraphsEnableClientServerPrefix              bool
-	serviceGraphsEnableMessagingSystemLatencyHistogram bool
-	spanMetricsHistogramBuckets                        []float64
-	spanMetricsDimensions                              []string
-	spanMetricsIntrinsicDimensions                     map[string]bool
-	spanMetricsFilterPolicies                          []filterconfig.FilterPolicy
-	spanMetricsDimensionMappings                       []sharedconfig.DimensionMappings
-	spanMetricsEnableTargetInfo                        bool
-	spanMetricsTargetInfoExcludedDimensions            []string
-	localBlocksMaxLiveTraces                           uint64
-	localBlocksMaxBlockDuration                        time.Duration
-	localBlocksMaxBlockBytes                           uint64
-	localBlocksFlushCheckPeriod                        time.Duration
-	localBlocksTraceIdlePeriod                         time.Duration
-	localBlocksCompleteBlockTimeout                    time.Duration
-	dedicatedColumns                                   backend.DedicatedColumns
-	maxBytesPerTrace                                   int
-	unsafeQueryHints                                   bool
+	processors                              map[string]struct{}
+	serviceGraphsHistogramBuckets           []float64
+	serviceGraphsDimensions                 []string
+	serviceGraphsPeerAttributes             []string
+	serviceGraphsEnableClientServerPrefix   bool
+  serviceGraphsEnableMessagingSystemLatencyHistogram bool
+	serviceGraphsEnableVirtualNodeLabel     bool
+	spanMetricsHistogramBuckets             []float64
+	spanMetricsDimensions                   []string
+	spanMetricsIntrinsicDimensions          map[string]bool
+	spanMetricsFilterPolicies               []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings            []sharedconfig.DimensionMappings
+	spanMetricsEnableTargetInfo             bool
+	spanMetricsTargetInfoExcludedDimensions []string
+	localBlocksMaxLiveTraces                uint64
+	localBlocksMaxBlockDuration             time.Duration
+	localBlocksMaxBlockBytes                uint64
+	localBlocksFlushCheckPeriod             time.Duration
+	localBlocksTraceIdlePeriod              time.Duration
+	localBlocksCompleteBlockTimeout         time.Duration
+	dedicatedColumns                        backend.DedicatedColumns
+	maxBytesPerTrace                        int
+	unsafeQueryHints                        bool
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -131,6 +132,10 @@ func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableClientServer
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(string) bool {
 	return m.serviceGraphsEnableMessagingSystemLatencyHistogram
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(string) bool {
+	return m.serviceGraphsEnableVirtualNodeLabel
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(string) []string {

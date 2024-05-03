@@ -53,6 +53,8 @@ const (
 	metricRequestMessagingSystemSeconds = "traces_service_graph_request_messaging_system_seconds"
 )
 
+const virtualNodeLabel = "virtual_node"
+
 var defaultPeerAttributes = []attribute.Key{
 	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
 }
@@ -88,8 +90,20 @@ type Processor struct {
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
+
+	if cfg.EnableVirtualNodeLabel {
+		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
+	}
+
 	for _, d := range cfg.Dimensions {
 		if cfg.EnableClientServerPrefix {
+			if cfg.EnableVirtualNodeLabel {
+				// leave the extra label for this feature as-is
+				if d == virtualNodeLabel {
+					labels = append(labels, strutil.SanitizeLabelName(d))
+					continue
+				}
+			}
 			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
 		} else {
 			labels = append(labels, strutil.SanitizeLabelName(d))
@@ -276,13 +290,22 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
+			if p.Cfg.EnableVirtualNodeLabel {
+				// leave the extra label for this feature as-is
+				if dimension == virtualNodeLabel {
+					labelValues = append(labelValues, e.Dimensions[dimension])
+					continue
+				}
+			}
 			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
 		} else {
 			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
 	}
 
-	registryLabelValues := p.registry.NewLabelValueCombo(p.labels, labelValues)
+	labels := append([]string{}, p.labels...)
+
+	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {
@@ -315,12 +338,22 @@ func (p *Processor) onExpire(e *store.Edge) {
 		// We check if the span we have is the root span, and if so, we set the client service to "user".
 		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
 			e.ClientService = "user"
+
+			if p.Cfg.EnableVirtualNodeLabel {
+				e.Dimensions[virtualNodeLabel] = "client"
+			}
+
 			p.onComplete(e)
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
 		// we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
 		e.ServerService = e.PeerNode
+
+		if p.Cfg.EnableVirtualNodeLabel {
+			e.Dimensions[virtualNodeLabel] = "server"
+		}
+
 		p.onComplete(e)
 	}
 }

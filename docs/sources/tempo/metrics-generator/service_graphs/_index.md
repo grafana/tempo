@@ -72,10 +72,18 @@ The following metrics are exported:
 
 Duration is measured both from the client and the server sides.
 
-Possible values for `connection_type`: unset, `messaging_system`, or `database`.
+Possible values for `connection_type`: unset, `virtual_node`, `messaging_system`, or `database`.
 
-Additional labels can be included using the `dimensions` configuration option.
+Additional labels can be included using the `dimensions` configuration option, or the `enable_virtual_node_label` option.
 
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
+
+#### Activate `enable_virtual_node_label`
+
+Activating this feature adds the following label and corresponding values:
+
+| Label                   | Possible Values             | Description                                                              |
+|-------------------------|-----------------------------|--------------------------------------------------------------------------|
+| virtual_node            | `unset`, `client`, `server` | Explicitly indicates the side that is uninstrumented                     |

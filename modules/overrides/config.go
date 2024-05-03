@@ -77,11 +77,12 @@ type ForwarderOverrides struct {
 }
 
 type ServiceGraphsOverrides struct {
-	HistogramBuckets                      []float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
-	Dimensions                            []string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-	PeerAttributes                        []string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
-	EnableClientServerPrefix              bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
+	HistogramBuckets         []float64 `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
+	Dimensions               []string  `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	PeerAttributes           []string  `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`
+	EnableClientServerPrefix bool      `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
 	EnableMessagingSystemLatencyHistogram bool      `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
+	EnableVirtualNodeLabel   bool      `yaml:"enable_virtual_node_label,omitempty" json:"enable_virtual_node_label,omitempty"`
 }
 
 type SpanMetricsOverrides struct {

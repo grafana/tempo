@@ -37,6 +37,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
 		MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix:              c.MetricsGenerator.Processor.ServiceGraphs.EnableClientServerPrefix,
 		MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram: c.MetricsGenerator.Processor.ServiceGraphs.EnableMessagingSystemLatencyHistogram,
+		MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel:                c.MetricsGenerator.Processor.ServiceGraphs.EnableVirtualNodeLabel,
 		MetricsGeneratorProcessorSpanMetricsHistogramBuckets:                        c.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets,
 		MetricsGeneratorProcessorSpanMetricsDimensions:                              c.MetricsGenerator.Processor.SpanMetrics.Dimensions,
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
@@ -97,6 +98,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes                        []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix              bool                             `yaml:"metrics_generator_processor_service_graphs_enable_client_server_prefix" json:"metrics_generator_processor_service_graphs_enable_client_server_prefix"`
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram bool                             `yaml:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram" json:"metrics_generator_processor_service_graphs_enable_messaging_system_latency_histogram"`
+	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel                bool                             `yaml:"metrics_generator_processor_service_graphs_enable_virtual_node_label" json:"metrics_generator_processor_service_graphs_enable_virtual_node_label"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets                        []float64                        `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions                              []string                         `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
@@ -174,6 +176,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 					PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
 					EnableClientServerPrefix:              l.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix,
 					EnableMessagingSystemLatencyHistogram: l.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram,
+					EnableVirtualNodeLabel:                l.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel,
 				},
 				SpanMetrics: SpanMetricsOverrides{
 					HistogramBuckets:             l.MetricsGeneratorProcessorSpanMetricsHistogramBuckets,
