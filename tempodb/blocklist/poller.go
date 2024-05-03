@@ -75,13 +75,14 @@ var (
 
 // Config is used to configure the poller
 type PollerConfig struct {
-	PollConcurrency           uint
-	PollFallback              bool
-	TenantIndexBuilders       int
-	StaleTenantIndex          time.Duration
-	PollJitterMs              int
-	TolerateConsecutiveErrors int
-	EmptyTenantDeletionAge    time.Duration
+	PollConcurrency            uint
+	PollFallback               bool
+	TenantIndexBuilders        int
+	StaleTenantIndex           time.Duration
+	PollJitterMs               int
+	TolerateConsecutiveErrors  int
+	EmptyTenantDeletionAge     time.Duration
+	EmptyTenantDeletionEnabled bool
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -468,6 +469,11 @@ func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error
 
 // deleteTenant will delete all of a tenant's objects if there is not a tenant index present.
 func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
+	// If we have not enabled empty tenant deletion, do nothing.
+	if !p.cfg.EmptyTenantDeletionEnabled {
+		return nil
+	}
+
 	level.Info(p.logger).Log("msg", "deleting tenant", "tenant", tenantID)
 
 	if p.cfg.EmptyTenantDeletionAge == 0 {

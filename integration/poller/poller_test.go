@@ -324,6 +324,7 @@ func TestTenantDeletion(t *testing.T) {
 				r := backend.NewReader(rr)
 				w := backend.NewWriter(ww)
 
+				// Tenant deletion is not enabled by default
 				blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 					PollConcurrency:        3,
 					TenantIndexBuilders:    1,
@@ -349,6 +350,23 @@ func TestTenantDeletion(t *testing.T) {
 
 				time.Sleep(500 * time.Millisecond)
 
+				_, _, err = blocklistPoller.Do(l)
+				require.NoError(t, err)
+
+				tennants, err = r.Tenants(ctx)
+				t.Logf("tennants: %v", tennants)
+				require.NoError(t, err)
+				require.Equal(t, 1, len(tennants))
+
+				// Create a new poller with tenantion deletion enabled
+				blocklistPoller = blocklist.NewPoller(&blocklist.PollerConfig{
+					PollConcurrency:            3,
+					TenantIndexBuilders:        1,
+					EmptyTenantDeletionAge:     100 * time.Millisecond,
+					EmptyTenantDeletionEnabled: true,
+				}, OwnsEverythingSharder, r, cc, w, logger)
+
+				// Again
 				_, _, err = blocklistPoller.Do(l)
 				require.NoError(t, err)
 

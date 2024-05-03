@@ -509,13 +509,14 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
-		PollConcurrency:           rw.cfg.BlocklistPollConcurrency,
-		PollFallback:              rw.cfg.BlocklistPollFallback,
-		TenantIndexBuilders:       rw.cfg.BlocklistPollTenantIndexBuilders,
-		StaleTenantIndex:          rw.cfg.BlocklistPollStaleTenantIndex,
-		PollJitterMs:              rw.cfg.BlocklistPollJitterMs,
-		TolerateConsecutiveErrors: rw.cfg.BlocklistPollTolerateConsecutiveErrors,
-		EmptyTenantDeletionAge:    rw.cfg.EmptyTenantDeletionAge,
+		PollConcurrency:            rw.cfg.BlocklistPollConcurrency,
+		PollFallback:               rw.cfg.BlocklistPollFallback,
+		TenantIndexBuilders:        rw.cfg.BlocklistPollTenantIndexBuilders,
+		StaleTenantIndex:           rw.cfg.BlocklistPollStaleTenantIndex,
+		PollJitterMs:               rw.cfg.BlocklistPollJitterMs,
+		TolerateConsecutiveErrors:  rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
+		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller

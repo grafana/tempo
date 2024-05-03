@@ -53,7 +53,8 @@ type Config struct {
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
 
-	EmptyTenantDeletionAge time.Duration `yaml:"empty_tenant_deletion_age"`
+	EmptyTenantDeletionEnabled bool          `yaml:"empty_tenant_deletion_enabled"`
+	EmptyTenantDeletionAge     time.Duration `yaml:"empty_tenant_deletion_age"`
 
 	// backends
 	Backend string        `yaml:"backend"`
