@@ -374,6 +374,8 @@ func StaticFromAnyValue(a *common_v1.AnyValue) Static {
 		return NewStaticInt(int(v.IntValue))
 	case *common_v1.AnyValue_BoolValue:
 		return NewStaticBool(v.BoolValue)
+	case *common_v1.AnyValue_DoubleValue:
+		return NewStaticFloat(v.DoubleValue)
 	default:
 		return NewStaticNil()
 	}
