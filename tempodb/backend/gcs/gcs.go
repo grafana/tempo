@@ -13,9 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	dskitlog "github.com/grafana/dskit/log"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -26,11 +24,8 @@ import (
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
-	"github.com/grafana/dskit/server"
-
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -80,9 +75,6 @@ func NewVersionedReaderWriter(cfg *Config, confirmVersioning bool) (backend.Vers
 }
 
 func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
-	loglevel := &dskitlog.Level{}
-	_ = loglevel.Set("debug")
-	log.InitLogger(&server.Config{LogLevel: *loglevel})
 	ctx := context.Background()
 
 	bucket, err := createBucket(ctx, cfg, false)
@@ -323,7 +315,6 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	if len(prefix) > 0 {
 		prefix = prefix + "/"
 	}
-	level.Info(log.Logger).Log("msg", "finding objects", "prefix", prefix, "keypath", fmt.Sprintf("%+v", keypath))
 
 	iter := rw.bucket.Objects(ctx, &storage.Query{
 		Delimiter: "",
@@ -332,7 +323,6 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	})
 
 	for {
-		level.Info(log.Logger).Log("msg", "iterating objects", "prefix", prefix)
 		attrs, iterErr := iter.Next()
 		if errors.Is(iterErr, iterator.Done) {
 			break
