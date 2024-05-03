@@ -125,7 +125,7 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	copyCfg.ServiceGraphs.EnableMessagingSystemLatencyHistogram = o.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID)
 
-  copyCfg.ServiceGraphs.EnableVirtualNodeLabel = o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
+	copyCfg.ServiceGraphs.EnableVirtualNodeLabel = o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
 
 	return copyCfg, nil
 }
