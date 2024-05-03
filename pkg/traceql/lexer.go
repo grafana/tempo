@@ -65,6 +65,7 @@ var tokens = map[string]int{
 	"kind":               KIND,
 	"rootName":           ROOTNAME,
 	"rootServiceName":    ROOTSERVICENAME,
+	"rootService":        ROOTSERVICE,
 	"traceDuration":      TRACEDURATION,
 	"nestedSetLeft":      NESTEDSETLEFT,
 	"nestedSetRight":     NESTEDSETRIGHT,
@@ -73,6 +74,8 @@ var tokens = map[string]int{
 	"parent.":            PARENT_DOT,
 	"resource.":          RESOURCE_DOT,
 	"span.":              SPAN_DOT,
+	"trace:":             TRACE_COLON,
+	"span:":              SPAN_COLON,
 	"count":              COUNT,
 	"avg":                AVG,
 	"max":                MAX,
@@ -192,7 +195,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		break
 	}
 
-	if multiTok == PARENT_DOT || multiTok == SPAN_DOT || multiTok == RESOURCE_DOT {
+	if multiTok == PARENT_DOT || multiTok == SPAN_DOT || multiTok == RESOURCE_DOT || multiTok == SPAN_COLON || multiTok == TRACE_COLON {
 		l.currentScope = multiTok
 	}
 
