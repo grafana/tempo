@@ -30,9 +30,9 @@ The Tempo configuration options include:
     - [Local storage recommendations](#local-storage-recommendations)
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
-  - [Configuration Blocks](#configuration-blocks)
-    - [Filter Policies](#filter-policies)
-    - [WAL Config](#wal-config)
+  - [Configuration blocks](#configuration-blocks)
+    - [Filter policy config](#filter-policy config)
+    - [WAL config](#wal-config)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
       - [Standard overrides](#standard-overrides)
@@ -326,7 +326,7 @@ metrics_generator:
 
             # Attributes that will be used to create a peer edge
             # Attributes are searched in the order they are provided
-            # See https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.18.0
+            # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.18.0
             # Example: ["peer.service", "db.name", "db.system", "host.name"]
             [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system"] ]
 
@@ -379,7 +379,7 @@ metrics_generator:
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
-            # subprocessor toggles for metrics categories that exist under the umbrella of Span Metrics
+            # Subprocessor toggles for metrics categories that exist under the umbrella of span metrics
             subprocessors:
               # Toggle the `Latency` metric category
               [ 0: <bool> | default = true ]
@@ -391,8 +391,8 @@ metrics_generator:
               [ 2: <bool> | default = true ]
 
 
-            # List of policies that will be applied to spans for inclusion or exlusion.
-            [filter_policies: <list of Filter Policies> | default = []]
+            # List of policies that will be applied to spans for inclusion or exclusion.
+            [filter_policies: <list of filter policies config> | default = []]
 
             # Drop specific labels from `traces_target_info` metrics
             [target_info_excluded_dimensions: <list of string>]
@@ -419,7 +419,7 @@ metrics_generator:
     # Configuration block for the Write Ahead Log (WAL)
     traces_storage: <WAL Config>
 
-      # Path to store the wal files.
+      # Path to store the WAL files.
       # Must be set.
       # Example: "/var/tempo/generator/traces"
       [path: <string> | default = ""]
@@ -432,7 +432,7 @@ metrics_generator:
 
         # Configuration for the Prometheus Agent WAL
         # https://github.com/prometheus/prometheus/v2.51.2/tsdb/agent/db.go#L62-L84
-        wal: <Prometeus Agent WAL Config>
+        wal: <prometeus agent WAL config>
 
         # How long to wait when flushing samples on shutdown
         [remote_write_flush_deadline: <duration> | default = 1m]
@@ -1092,12 +1092,11 @@ storage:
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
 
-            # total number of workers pulling jobs from the queue (default: 400)
-            [max_workers: <int>]
+            # total number of workers pulling jobs from the queue
+            [max_workers: <int> | default = 30]
 
             # length of job queue. imporatant for querier as it queues a job for every block it has to search
-            # (default: 20000)
-            [queue_depth: <int>]
+            [queue_depth: <int> | default = 10000 ]
 
         # Configuration block for the Write Ahead Log (WAL)
         wal: <WAL Config>
@@ -1217,9 +1216,9 @@ memberlist:
     # Timeout for leaving memberlist cluster.
     [leave_timeout: <duration> | default = 5s]
 
-    # IP address to listen on for gossip messages. Multiple addresses may be
-    # specified. Defaults to 0.0.0.0
-    [bind_addr: <list of string> | default = ]
+    # IP address to listen on for gossip messages.
+    # Multiple addresses may be specified.
+    [bind_addr: <list of string> | default = ["0.0.0.0"] ]
 
     # Port to listen on for gossip messages.
     [bind_port: <int> | default = 7946]
@@ -1232,31 +1231,31 @@ memberlist:
 
 ```
 
-## Configuration Blocks
+## Configuration blocks
 
-Defines re-used configuration blocks
+Defines re-used configuration blocks.
 
-### Filter Policies
+### Filter policy config
 
-Span Filter block
+Span filter config block
 
-#### Filter Policy
+#### Filter policy
 ```yaml
-# Exclude filters (Postive Matching)
-[include: <Policy Match>]
+# Exclude filters (postive matching)
+[include: <policy match>]
 
-# Exclude filters (Negative Matching)
-[exclude: <Policy Match>]
+# Exclude filters (negative matching)
+[exclude: <policy match>]
 ```
 
-#### Policy Match
+#### Policy match
 ```yaml
 # How to match the value of attributes
 # Options: "strict", "regex"
 [match_type: <string>]
 
 # List of attributes to match
-[attributes: <list of Policy Atributes>]
+attributes: <list of policy atributes>
 
     # Attribute key
   - [key: <string>]
@@ -1265,7 +1264,8 @@ Span Filter block
     [value: <any>]
 ```
 
-#### Example
+#### Examples
+
 ```yaml
 exclude:
   match_type: "regex"
@@ -1282,12 +1282,12 @@ include:
       value: "baz"
 ```
 
-### WAL Config
+### WAL config
 
-The Storage WAL configuration block.
+The storage WAL configuration block.
 
 ```yaml
-# Where to store the wal files while they are being apeended to.
+# Where to store the wal files while they are being appended to.
 # Must be set.
 # Example: "/var/tempo/wal
 [path: <string> | default = ""]
@@ -1297,7 +1297,7 @@ The Storage WAL configuration block.
 # Example: "/var/tempo/wal/completed"
 [completedfilepath: <string> | default = join(.path, "/completed")]
 
-# Where to store the intermediate blocks while they are being apeended to.
+# Where to store the intermediate blocks while they are being appended to.
 # Will always join the `path` with "blocks" to generate the effective path
 # Example: "/var/tempo/wal/blocks" (ignored)
 [blocksfilepath: <ignored> | = join(.path, "/blocks")]
@@ -1320,7 +1320,7 @@ The Storage WAL configuration block.
 # start and end times of the block will not be updated in this case.
 [ingestion_time_range_slack: <duration> | default = unset]
 
-# WAL File Format Version
+# WAL file format version
 # Options: v2, vParquet, vParquet2, vParquet3
 [version: <string> | default = "vParquet3"]
 ```
