@@ -1500,6 +1500,10 @@ func (r mockRing) InstancesCount() int {
 	return len(r.ingesters)
 }
 
+func (r mockRing) InstancesWithTokensCount() int {
+	return len(r.ingesters)
+}
+
 func (r mockRing) HasInstance(string) bool {
 	return true
 }
@@ -1512,6 +1516,10 @@ func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 }
 
 func (r mockRing) InstancesInZoneCount(string) int {
+	return 0
+}
+
+func (r mockRing) InstancesWithTokensInZoneCount(string) int {
 	return 0
 }
 

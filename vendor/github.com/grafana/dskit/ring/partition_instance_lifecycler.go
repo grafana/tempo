@@ -23,7 +23,7 @@ var (
 	allowedPartitionStateChanges = map[PartitionState][]PartitionState{
 		PartitionPending:  {PartitionActive, PartitionInactive},
 		PartitionActive:   {PartitionInactive},
-		PartitionInactive: {PartitionPending, PartitionActive},
+		PartitionInactive: {PartitionActive},
 	}
 )
 
