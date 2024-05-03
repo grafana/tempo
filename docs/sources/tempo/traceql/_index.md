@@ -262,7 +262,7 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 { span.http.url = "/path/of/api" } >> { span.db.name = "db-shard-001" }
 ```
 
-### Union Structural
+### Union structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans. These operators are unique in that they
 return spans that match on both side of the operator. 
