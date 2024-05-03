@@ -164,8 +164,6 @@ func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
 		"god":             "",
 	})
 
-	fmt.Println(testRegistry)
-
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
 }
