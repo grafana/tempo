@@ -40,6 +40,7 @@
 * [BUGFIX] Add spss and limit to the frontend cache key to prevent the return of incorrect results. [#3557](https://github.com/grafana/tempo/pull/3557) (@joe-elliott)
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
 * [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
+* [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
 
 ## v2.4.1
 
