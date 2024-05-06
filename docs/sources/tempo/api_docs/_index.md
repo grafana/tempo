@@ -43,7 +43,7 @@ For externally supported GRPC API, [see below](#tempo-grpc-api).
 | [Status](#status) | Status |  HTTP | `GET /status` |
 | [List build information](#list-build-information) | Status |  HTTP | `GET /api/status/buildinfo` |
 
-_(*) This endpoint is not always available, check the specific section for more details._
+_(*) This endpoint isn't always available, check the specific section for more details._
 
 ### Readiness probe
 
@@ -103,52 +103,57 @@ a microservices deployment or the Tempo endpoint in a monolithic mode deployment
 ```
 GET /api/traces/<traceid>?start=<start>&end=<end>
 ```
+
 Parameters:
+
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which traces should be returned.
+  Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
-  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include traces for the specified time range only. If the parameters are not provided then Tempo will check for the trace across all blocks in backend. If the parameters are provided, it will only check in the blocks within the specified time range, this can result in trace not being found or partial results if it does not fall in the specified time range.
+  Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
 ```
 GET /querier/api/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF&start=<start>&end=<end>
 ```
+
 Parameters:
+
 - `mode = (blocks|ingesters|all)`
   Specifies whether the querier should look for the trace in blocks, ingesters or both (all).
   Default = `all`
 - `blockStart = (GUID)`
-  Specifies the blockID start boundary. If specified, the querier will only search blocks with IDs > blockStart.
+  Specifies the blockID start boundary. If specified, the querier only searches blocks with IDs > blockStart.
   Default = `00000000-0000-0000-0000-000000000000`
   Example: `blockStart=12345678-0000-0000-1235-000001240000`
 - `blockEnd = (GUID)`
-  Specifies the blockID finish boundary. If specified, the querier will only search blocks with IDs < blockEnd.
+  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < blockEnd.
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which traces should be returned.
+  Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
-  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+  Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 
-This API is not meant to be used directly unless for debugging the sharding functionality of the query
+This API isn't meant to be used directly unless for debugging the sharding functionality of the query
 frontend.
 
-Returns:
-By default this endpoint returns [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
+**Returns**
+
+By default, this endpoint returns [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
 but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
 
 ### Search
 
-Tempo's Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
+The Tempo Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
 [v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
 
-When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. TraceQL follows the same behavior.
+When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches differs due to things like machine load and network latency. TraceQL follows the same behavior.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
-The following request is used to find traces containing spans from service `myservice` and the url contains `api/myapi`.
+The following request is used to find traces containing spans from service `myservice` and the URL contains `api/myapi`.
 
 ```
 GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
@@ -157,30 +162,33 @@ GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
 The URL query parameters support the following values:
 
 **Parameters for TraceQL Search**
+
 - `q = (TraceQL query)`: Url encoded [TraceQL query]({{< relref "../traceql" >}}).
 
 **Parameters for Tag Based Search**
+
 - `tags = (logfmt)`: logfmt encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
 - `minDuration = (go duration value)`
-  Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
+  Optional. Find traces with at least this duration. Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
 - `maxDuration = (go duration value)`
-  Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
+  Optional. Find traces with no greater than this duration. Uses the same form as `minDuration`.
 
 **Parameters supported for all searches**
+
 - `limit = (integer)`
-  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
+  Optional. Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which traces should be returned.
+  Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
- Optional.  Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` will change the way that Tempo searches.
- If the parameters are not provided, then Tempo will search the recent trace data stored in the ingesters. If the parameters are provided, it will search the backend as well.
+ Optional. Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` changes the way that Tempo searches.
+ If the parameters aren't provided, then Tempo searches the recent trace data stored in the ingesters. If the parameters are provided, it searches the backend as well.
  - `spss = (integer)`
   Optional. Limit the number of spans per span-set. Default value is 3.
 
 #### Example of TraceQL search
 
 Example of how to query Tempo using curl.
-This query will return all traces that have their status set to error.
+This query returns all traces that have their status set to error.
 
 ```bash
 $ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error }' | jq
@@ -219,10 +227,10 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error
 }
 ```
 
-#### Example of Tags Based Search
+#### Example of tags-based search
 
 Example of how to query Tempo using curl.
-This query will return all traces that have a tag `service.name` containing `cartservice` and a minimum duration of 600 ms.
+This query returns all traces that have a tag `service.name` containing `cartservice` and a minimum duration of 600 ms.
 
 ```bash
 $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=cartservice' --data-urlencode minDuration=600ms | jq
@@ -255,9 +263,9 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
-This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
+This endpoint retrieves all discovered tag names that can be used in search. The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
-of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
+of tags or attributes returned. If nothing is provided, the endpoint returns all resource and span tags.
 
 ```
 GET /api/search/tags?scope=<resource|span|intrinsic>
@@ -266,7 +274,7 @@ GET /api/search/tags?scope=<resource|span|intrinsic>
 #### Example
 
 Example of how to query Tempo using curl.
-This query will return all discovered tag names.
+This query returns all discovered tag names.
 
 ```bash
 $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
@@ -291,41 +299,42 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 ```
 
 Parameters:
+
 - `scope = (resource|span|intrinsic)`
   Optional. Specifies the scope of the tags. If not specified, it means all scopes.
   Default = `all`
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end`, defines a time range from which tags should be returned.
+  Optional. Along with `end`, defines a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
-  Optional.  Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+  Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 
 
 ### Search tags V2
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only
-fetch blocks that wasn't flushed to backend.
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.If start or end aren't specified, it only fetches blocks that wasn't flushed to backend.
 
-This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
+This endpoint retrieves all discovered tag names that can be used in search. The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
-of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
+of tags or attributes returned. If nothing is provided, the endpoint returns all resource and span tags.
 
-```
+```bash
 GET /api/v2/search/tags?scope=<resource|span|intrinsic>
 ```
 
 Parameters:
+
 - `scope = (resource|span|intrinsic)`
   Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
   Default = `all`
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which tags should be returned.
+  Optional. Along with `end` define a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
-  Optional.  Along with `start` define a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+  Optional. Along with `start` define a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 
 #### Example
 
 Example of how to query Tempo using curl.
-This query will return all discovered tag names.
+This query returns all discovered tag names.
 
 ```bash
 $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
@@ -361,20 +370,21 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 
 ### Search tag values
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search. If start or end are not specified, it will only
-fetch blocks that wasn't flushed to backend.
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+If start or end aren't specified, it only fetches blocks that wasn't flushed to backend.
 
-This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request will return all discovered service names.
+This endpoint retrieves all discovered values for the given tag, which can be used in search.
+The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+The following request returns all discovered service names.
 
-```
+```bash
 GET /api/search/tag/service.name/values
 ```
 
 #### Example
 
 Example of how to query Tempo using curl.
-This query will return all discovered values for the tag `service.name`.
+This query returns all discovered values for the tag `service.name`.
 
 ```bash
 $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
@@ -394,7 +404,7 @@ Parameters:
 - `start = (unix epoch seconds)`
   Optional. Along with `end`, defines a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
-  Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
+  Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 
 
 ### Search tag values V2
@@ -434,11 +444,11 @@ $ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
   ]
 }
 ```
-This endpoint can also receive `start` and `end` optional parameters. These parameters will define the time range from which the tags will be fetched
+This endpoint can also receive `start` and `end` optional parameters. These parameters define the time range from which the tags are fetched
 
 #### Filtered tag values
 
-Tempo's `autocomplete_filtering_enabled` configuration parameter is set to `true` by default. This provides an optional URL query parameter, `q`, to your request.
+The `autocomplete_filtering_enabled` configuration parameter is set to `true` by default. This provides an optional URL query parameter, `q`, to your request.
 The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
 If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters.
 
@@ -454,9 +464,9 @@ The following request returns all discovered service names on spans with `span.h
 GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
 ```
 
-If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it would not be included in the list of values returned.
+If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it won't be included in the list of values returned.
 
-### Query Echo Endpoint
+### Query Echo endpoint
 
 ```
 GET /api/echo
@@ -464,7 +474,7 @@ GET /api/echo
 
 Returns status code 200 and body `echo` when the query frontend is up and ready to receive requests.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
 {{% /admonition %}}
 
@@ -495,13 +505,13 @@ GET,POST /shutdown
 Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the
 ingester service.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 This is usually used at the time of scaling down a cluster.
 {{% /admonition %}}
 
 ### Distributor ring status
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration#overrides" >}}).
 {{% /admonition %}}
 
@@ -509,7 +519,7 @@ This endpoint is only available when Tempo is configured with [the global overri
 GET /distributor/ring
 ```
 
-Displays a web page with the distributor hash ring status, including the state, healthy and last heartbeat time of each
+Displays a web page with the distributor hash ring status, including the state, healthy, and last heartbeat time of each
 distributor.
 
 _For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})._
@@ -520,9 +530,9 @@ _For more information, check the page on [consistent hash ring]({{< relref "../o
 GET /ingester/ring
 ```
 
-Displays a web page with the ingesters hash ring status, including the state, healthy and last heartbeat time of each ingester.
+Displays a web page with the ingesters hash ring status, including the state, healthy, and last heartbeat time of each ingester.
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
+_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
 
 ### Metrics-generator ring status
 
@@ -532,9 +542,9 @@ GET /metrics-generator/ring
 
 Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
 
-This endpoint is only available when the metrics-generator is enabled. See [metrics-generator]({{< relref "../configuration#metrics-generator" >}}).
+This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator]({{< relref "../configuration#metrics-generator" >}}).
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
+For more information, refer to [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
 
 ### Compactor ring status
 
@@ -542,10 +552,9 @@ _For more information, check the page on [consistent hash ring]({{< relref "../o
 GET /compactor/ring
 ```
 
-Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each
-compactor.
+Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each compactor.
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
+For more information, refer to [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
 
 ### Status
 
@@ -564,7 +573,7 @@ Print the version information.
 GET /status/services
 ```
 
-Displays a list of services and their status. If a service failed it will show the failure case.
+Displays a list of services and their status. If a service failed it shows the failure case.
 
 ```
 GET /status/endpoints
@@ -582,6 +591,7 @@ Displays the configuration currently applied to Tempo (in YAML format), includin
 Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.
 
 Optional query parameter:
+
 - `mode = (diff|defaults)`: `diff` shows the difference between the default values and the current configuration. `defaults` shows the default values.
 
 ```
@@ -591,6 +601,7 @@ GET /status/runtime_config
 Displays the override configuration.
 
 Query parameter:
+
 - `mode = (diff)`: Show the difference between defaults and overrides.
 
 ```
@@ -609,9 +620,10 @@ Displays all overrides configured for the specified tenant.
 GET /status/usage-stats
 ```
 
-Displays anonymous usage stats data that is reported back to Grafana Labs.
+Displays anonymous usage stats data that's reported back to Grafana Labs.
 
 ### List build information
+
 ```
 GET /api/status/buildinfo
 ```
@@ -620,10 +632,11 @@ Exposes the build information in a JSON object. The fields are `version`, `revis
 ## Tempo GRPC API
 
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client.
-The query-frontend component implements the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
+The query-frontend component implements the streaming querier interface defined below.
+[See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
 By default, this service is only offered over the GRPC port.
-You can use streaming service over the HTTP port as well (which Grafana expects).
+You can use streaming service over the HTTP port as well, which Grafana expects.
 
 To enable the streaming service over the HTTP port for use with Grafana, set the following:
 
@@ -640,5 +653,6 @@ service StreamingQuerier {
   rpc SearchTagsV2(SearchTagsRequest) returns (stream SearchTagsV2Response) {}
   rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
+  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {} 
 }
 ```

@@ -166,6 +166,20 @@ func TestStore_concurrency(t *testing.T) {
 	close(end)
 }
 
+func BenchmarkStoreUpsertEdge(b *testing.B) {
+	// Benchmark the performance of UpsertEdge with edge pooling enabled
+	s := NewStore(10*time.Millisecond, 1e10, noopCallback, noopCallback)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		_, err := s.UpsertEdge(key, func(e *Edge) {
+			e.ClientService = clientService
+		})
+		require.NoError(b, err)
+	}
+}
+
 func noopCallback(_ *Edge) {
 }
 

@@ -1,8 +1,7 @@
-version: "3"
 services:
 
   distributor:
-    image: grafana/tempo:latest
+    image: &tempoImage grafana/tempo:latest
     command: "-target=distributor -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -16,7 +15,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   ingester-0:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -30,7 +29,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   ingester-1:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -44,7 +43,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   ingester-2:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -58,7 +57,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   query-frontend:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=query-frontend -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     volumes:
@@ -72,7 +71,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   querier:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
     restart: always
     volumes:
@@ -86,7 +85,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   compactor:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=compactor -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -100,7 +99,7 @@ services:
 #      - JAEGER_SAMPLER_PARAM=1
 
   metrics-generator:
-    image: grafana/tempo:latest
+    image: *tempoImage
     command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -147,7 +146,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:10.1.1
+    image: grafana/grafana:10.4.2
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

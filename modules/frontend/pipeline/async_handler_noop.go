@@ -2,12 +2,14 @@ package pipeline
 
 import (
 	"net/http"
+
+	"github.com/grafana/tempo/modules/frontend/combiner"
 )
 
 // NewNoopMiddleware returns a middleware that is a passthrough only
-func NewNoopMiddleware() AsyncMiddleware[*http.Response] {
-	return AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
-		return AsyncRoundTripperFunc[*http.Response](func(req *http.Request) (Responses[*http.Response], error) {
+func NewNoopMiddleware() AsyncMiddleware[combiner.PipelineResponse] {
+	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
+		return AsyncRoundTripperFunc[combiner.PipelineResponse](func(req *http.Request) (Responses[combiner.PipelineResponse], error) {
 			return next.RoundTrip(req)
 		})
 	})

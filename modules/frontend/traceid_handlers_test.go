@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
@@ -187,6 +188,13 @@ func TestTraceIDHandler(t *testing.T) {
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					},
 					SLO: testSLOcfg,
+				},
+				Metrics: MetricsConfig{
+					Sharder: QueryRangeSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						Interval:              time.Second,
+					},
 				},
 			}, nil)
 

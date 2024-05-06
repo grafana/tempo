@@ -12,6 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/fasthash/fnv1a"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -34,6 +35,7 @@ type SearchSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
+	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 }
 
 type backendReqMsg struct {
@@ -42,7 +44,7 @@ type backendReqMsg struct {
 }
 
 type asyncSearchSharder struct {
-	next      pipeline.AsyncRoundTripper[*http.Response]
+	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader    tempodb.Reader
 	overrides overrides.Interface
 
@@ -51,8 +53,8 @@ type asyncSearchSharder struct {
 }
 
 // newAsyncSearchSharder creates a sharding middleware for search
-func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
-	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
 			next:      next,
 			reader:    reader,
@@ -67,7 +69,7 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 // RoundTrip implements http.RoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
+func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
@@ -93,29 +95,29 @@ func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End)), nil
 	}
 
-	// build request to search ingester based on query_ingesters_until config and time range
+	// buffer of shards+1 allows us to insert ingestReq and metrics
+	reqCh := make(chan *http.Request, s.cfg.IngesterShards+1)
+
+	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, *searchReq)
+	err = s.ingesterRequests(ctx, tenantID, r, *searchReq, reqCh)
 	if err != nil {
 		return nil, err
 	}
 
-	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert ingestReq and metrics
-	if ingesterReq != nil {
-		reqCh <- ingesterReq
-	}
+	// Check the number of requests that were were written to the request channel
+	// before we start reading them.
+	ingesterJobs := len(reqCh)
 
 	// pass subCtx in requests so we can cancel and exit early
 	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
-		s.logger.Log("msg", "failed to build backend requests", "err", err)
+		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
-	if ingesterReq != nil {
-		totalJobs++
-	}
+	totalJobs += ingesterJobs
 
 	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
-	var jobMetricsResponse pipeline.Responses[*http.Response]
+	var jobMetricsResponse pipeline.Responses[combiner.PipelineResponse]
 	if totalJobs > 0 {
 		resp := &tempopb.SearchResponse{
 			Metrics: &tempopb.SearchMetrics{
@@ -201,18 +203,17 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *asyncSearchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
+func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest, reqCh chan *http.Request) error {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
-		return buildIngesterRequest(ctx, tenantID, parent, &searchReq)
+		return buildIngesterRequest(ctx, tenantID, parent, &searchReq, reqCh)
 	}
 
-	now := time.Now()
-	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
+	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryIngestersUntil).Unix())
 
 	// if there's no overlap between the query and ingester range just return nil
 	if searchReq.End < ingesterUntil {
-		return nil, nil
+		return nil
 	}
 
 	ingesterStart := searchReq.Start
@@ -225,13 +226,48 @@ func (s *asyncSearchSharder) ingesterRequest(ctx context.Context, tenantID strin
 
 	// if ingester start == ingester end then we don't need to query it
 	if ingesterStart == ingesterEnd {
-		return nil, nil
+		return nil
 	}
 
 	searchReq.Start = ingesterStart
 	searchReq.End = ingesterEnd
 
-	return buildIngesterRequest(ctx, tenantID, parent, &searchReq)
+	// Split the start and end range into sub requests for each range.
+	duration := searchReq.End - searchReq.Start
+	interval := duration / uint32(s.cfg.IngesterShards)
+	intervalMinimum := uint32(60)
+
+	if interval < intervalMinimum {
+		interval = intervalMinimum
+	}
+
+	for i := 0; i < s.cfg.IngesterShards; i++ {
+		var (
+			subReq     = searchReq
+			shardStart = ingesterStart + uint32(i)*interval
+			shardEnd   = shardStart + interval
+		)
+
+		// stop if we've gone past the end of the range
+		if shardStart >= ingesterEnd {
+			break
+		}
+
+		// snap shardEnd to the end of the query range
+		if shardEnd >= ingesterEnd || i == s.cfg.IngesterShards-1 {
+			shardEnd = ingesterEnd
+		}
+
+		subReq.Start = shardStart
+		subReq.End = shardEnd
+
+		err := buildIngesterRequest(ctx, tenantID, parent, &subReq, reqCh)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
@@ -307,7 +343,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			if len(key) > 0 {
-				subR = pipeline.AddCacheKey(key, subR)
+				subR = pipeline.ContextAddCacheKey(key, subR)
 			}
 
 			select {
@@ -364,13 +400,14 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	return pagesPerQuery
 }
 
-func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
+func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan *http.Request) error {
 	subR := parent.Clone(ctx)
 	subR, err := api.BuildSearchRequest(subR, searchReq)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
-	return subR, nil
+	reqCh <- subR
+	return nil
 }

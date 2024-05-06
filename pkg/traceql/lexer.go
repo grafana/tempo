@@ -14,76 +14,80 @@ import (
 const escapeRunes = `\"`
 
 var tokens = map[string]int{
-	",":               COMMA,
-	".":               DOT,
-	"{":               OPEN_BRACE,
-	"}":               CLOSE_BRACE,
-	"(":               OPEN_PARENS,
-	")":               CLOSE_PARENS,
-	"=":               EQ,
-	"!=":              NEQ,
-	"=~":              RE,
-	"!~":              NRE, // also "not sibling"
-	">":               GT,
-	">=":              GTE,
-	"<":               LT,
-	"<=":              LTE,
-	"+":               ADD,
-	"-":               SUB,
-	"/":               DIV,
-	"%":               MOD,
-	"*":               MUL,
-	"^":               POW,
-	"true":            TRUE,
-	"false":           FALSE,
-	"nil":             NIL,
-	"ok":              STATUS_OK,
-	"error":           STATUS_ERROR,
-	"unset":           STATUS_UNSET,
-	"unspecified":     KIND_UNSPECIFIED,
-	"internal":        KIND_INTERNAL,
-	"server":          KIND_SERVER,
-	"client":          KIND_CLIENT,
-	"producer":        KIND_PRODUCER,
-	"consumer":        KIND_CONSUMER,
-	"&&":              AND,
-	"||":              OR,
-	"!":               NOT,
-	"|":               PIPE,
-	">>":              DESC,
-	"<<":              ANCE,
-	"~":               SIBL,
-	"!>":              NOT_CHILD,
-	"!<":              NOT_PARENT,
-	"!>>":             NOT_DESC,
-	"!<<":             NOT_ANCE,
-	"duration":        IDURATION,
-	"childCount":      CHILDCOUNT,
-	"name":            NAME,
-	"status":          STATUS,
-	"statusMessage":   STATUS_MESSAGE,
-	"kind":            KIND,
-	"rootName":        ROOTNAME,
-	"rootServiceName": ROOTSERVICENAME,
-	"traceDuration":   TRACEDURATION,
-	"nestedSetLeft":   NESTEDSETLEFT,
-	"nestedSetRight":  NESTEDSETRIGHT,
-	"nestedSetParent": NESTEDSETPARENT,
-	"parent":          PARENT,
-	"parent.":         PARENT_DOT,
-	"resource.":       RESOURCE_DOT,
-	"span.":           SPAN_DOT,
-	"count":           COUNT,
-	"avg":             AVG,
-	"max":             MAX,
-	"min":             MIN,
-	"sum":             SUM,
-	"by":              BY,
-	"coalesce":        COALESCE,
-	"select":          SELECT,
-	"rate":            RATE,
-	"count_over_time": COUNT_OVER_TIME,
-	"with":            WITH,
+	",":                  COMMA,
+	".":                  DOT,
+	"{":                  OPEN_BRACE,
+	"}":                  CLOSE_BRACE,
+	"(":                  OPEN_PARENS,
+	")":                  CLOSE_PARENS,
+	"=":                  EQ,
+	"!=":                 NEQ,
+	"=~":                 RE,
+	"!~":                 NRE, // also "not sibling"
+	">":                  GT,
+	">=":                 GTE,
+	"<":                  LT,
+	"<=":                 LTE,
+	"+":                  ADD,
+	"-":                  SUB,
+	"/":                  DIV,
+	"%":                  MOD,
+	"*":                  MUL,
+	"^":                  POW,
+	"true":               TRUE,
+	"false":              FALSE,
+	"nil":                NIL,
+	"ok":                 STATUS_OK,
+	"error":              STATUS_ERROR,
+	"unset":              STATUS_UNSET,
+	"unspecified":        KIND_UNSPECIFIED,
+	"internal":           KIND_INTERNAL,
+	"server":             KIND_SERVER,
+	"client":             KIND_CLIENT,
+	"producer":           KIND_PRODUCER,
+	"consumer":           KIND_CONSUMER,
+	"&&":                 AND,
+	"||":                 OR,
+	"!":                  NOT,
+	"|":                  PIPE,
+	">>":                 DESC,
+	"<<":                 ANCE,
+	"~":                  SIBL,
+	"!>":                 NOT_CHILD,
+	"!<":                 NOT_PARENT,
+	"!>>":                NOT_DESC,
+	"!<<":                NOT_ANCE,
+	"duration":           IDURATION,
+	"childCount":         CHILDCOUNT,
+	"name":               NAME,
+	"status":             STATUS,
+	"statusMessage":      STATUS_MESSAGE,
+	"kind":               KIND,
+	"rootName":           ROOTNAME,
+	"rootServiceName":    ROOTSERVICENAME,
+	"rootService":        ROOTSERVICE,
+	"traceDuration":      TRACEDURATION,
+	"nestedSetLeft":      NESTEDSETLEFT,
+	"nestedSetRight":     NESTEDSETRIGHT,
+	"nestedSetParent":    NESTEDSETPARENT,
+	"parent":             PARENT,
+	"parent.":            PARENT_DOT,
+	"resource.":          RESOURCE_DOT,
+	"span.":              SPAN_DOT,
+	"trace:":             TRACE_COLON,
+	"span:":              SPAN_COLON,
+	"count":              COUNT,
+	"avg":                AVG,
+	"max":                MAX,
+	"min":                MIN,
+	"sum":                SUM,
+	"by":                 BY,
+	"coalesce":           COALESCE,
+	"select":             SELECT,
+	"rate":               RATE,
+	"count_over_time":    COUNT_OVER_TIME,
+	"quantile_over_time": QUANTILE_OVER_TIME,
+	"with":               WITH,
 }
 
 type lexer struct {
@@ -191,7 +195,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		break
 	}
 
-	if multiTok == PARENT_DOT || multiTok == SPAN_DOT || multiTok == RESOURCE_DOT {
+	if multiTok == PARENT_DOT || multiTok == SPAN_DOT || multiTok == RESOURCE_DOT || multiTok == SPAN_COLON || multiTok == TRACE_COLON {
 		l.currentScope = multiTok
 	}
 
@@ -270,14 +274,24 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 }
 
 func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
+	const longestScope = 9 // "resource." is the longest scope
+
 	// copy the scanner to avoid advancing if it's not a scope.
 	s := *l
 	str := ""
 	for s.Peek() != scanner.EOF {
-		if s.Peek() == '.' {
+		r := s.Peek()
+		if r == '.' { // we've found a scope attribute
 			str += string(s.Next())
 			break
 		}
+		if !isAttributeRune(r) { // we can't have a scope with invalid characters, so just bail
+			break
+		}
+		if len(str) > longestScope { // we can't have a scope longer than the longest scope, so just bail
+			break
+		}
+
 		str += string(s.Next())
 	}
 	tok := tokens[str]

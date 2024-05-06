@@ -71,25 +71,24 @@ TraceQL differentiates between two types of span data: intrinsics, which are fun
 
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
-
 ### Intrinsic fields
 
 Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
-The following table shows the current intrinsic fields:
+The following table shows the current available scoped intrinsic fields:
 
-| **Field**       | **Type**    | **Definition**                                                  | **Example**                       |
-| --------------- | ----------- | --------------------------------------------------------------- | --------------------------------- |
-| `status`        | status enum | status: error, ok, or unset                                     | `{ status = ok }`                 |
-| `statusMessage` | string      | optional text accompanying the span status                      | `{ statusMessage = "Forbidden" }` |
-| `duration`      | duration    | end - start time of the span                                    | `{ duration > 100ms }`            |
-| `name`          | string      | operation or span name                                          | `{ name = "HTTP POST" }`          |
-| `kind`            | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ kind = server }`                 |
-| `traceDuration`   | duration    | max(end) - min(start) time of the spans in the trace            | `{ traceDuration > 100ms }`       |
-| `rootName`      | string      | if it exists the name of the root span in the trace             | `{ rootName = "HTTP GET" }`         |
-| `rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ rootServiceName = "gateway" }`   |
+| **Field**               | **Type**    | **Definition**                                                  | **Example**                            |
+| ----------------------- | ----------- | --------------------------------------------------------------- | -------------------------------------- |
+| `span:status`           | status enum | status: error, ok, or unset                                     | `{ span:status = ok }`                 |
+| `span:statusMessage`    | string      | optional text accompanying the span status                      | `{ span:statusMessage = "Forbidden" }` |
+| `span:duration`         | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`            |
+| `span:name`             | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`          |
+| `span:kind`             | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`               |
+| `trace:duration`        | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`           |
+| `trace:rootName`        | string      | if it exists the name of the root span in the trace             | `{ trace:rootName = "HTTP GET" }`      |
+| `trace:rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 `traceDuration`, `rootName`, and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
 these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
 possible to span-level intrinsics.
@@ -154,7 +153,7 @@ You can use quoted attributes syntax with non-quoted attribute syntax, the follo
 { span.attribute."attribute name with space" = "value" }
 ```
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Currently, only the `\"` and `\\` escape sequences are supported.
 {{% /admonition %}}
 
@@ -337,10 +336,7 @@ TraceQL supports arbitrary arithmetic in your queries. This can be useful to mak
 ```
 { span.http.request_content_length > 10 * 1024 * 1024 }
 ```
-to compare the ratios of two span attributes:
-```
-{ span.bytes_processed < span.jobs_processed * 10 }
-```
+
 or anything else that comes to mind.
 
 ## Selection

@@ -95,7 +95,7 @@ Options:
 - `--limit <value>`       Number of results to return
 - `--path-prefix <value>` String to prefix search paths with
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
@@ -115,7 +115,7 @@ Options:
 - `--use-grpc`            Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
 
@@ -136,6 +136,27 @@ Options:
 - `--use-grpc`            Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
 
+{{< admonition type="note" >}}
+Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
+{{% /admonition %}}
+
+### Metrics
+Call the Tempo API and generate metrics from traces using TraceQL.
+
+```bash
+tempo-cli query api metrics <host-port> <trace-ql metrics query> [<start> <end>]
+```
+Arguments:
+- `host-port` A host/port combination for Tempo. The scheme will be inferred based on the options provided.
+- `trace-ql metrics query` TraceQL metrics query.
+- `start` Start of the time range to search: (YYYY-MM-DDThh:mm:ss)
+- `end` End of the time range to search: (YYYY-MM-DDThh:mm:ss)
+
+Options:
+- `--org-id <value>`      Organization ID (for use in multi-tenant setup).
+- `--use-grpc`            Use GRPC streaming
+- `--path-prefix <value>` String to prefix search paths with
+
 {{% admonition type="note" %}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
 {{% /admonition %}}
@@ -147,7 +168,7 @@ Iterate over all backend blocks and dump all data found for a given trace id.
 ```bash
 tempo-cli query blocks <trace-id> <tenant-id>
 ```
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
  This can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
  {{% /admonition %}}
 
@@ -202,7 +223,7 @@ tempo-cli list blocks <tenant-id>
 ```
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 
 Options:
 - `--include-compacted` Include blocks that have been compacted. Default behavior is to display only active blocks.
@@ -235,7 +256,7 @@ tempo-cli list block <tenant-id> <block-id>
 ```
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
 
 Options:
@@ -254,7 +275,7 @@ tempo-cli list compaction-summary <tenant-id>
 ```
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 
 **Example:**
 ```bash
@@ -270,7 +291,7 @@ tempo-cli list cache-summary <tenant-id>
 ```
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 
 **Example:**
 ```bash
@@ -285,7 +306,7 @@ tempo-cli list index <tenant-id> <block-id>
 ```
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
 
 **Example:**
@@ -301,7 +322,7 @@ tempo-cli view index <tenant-id> <block-id>
 ```
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
 
 **Example:**
@@ -316,7 +337,7 @@ To generate the bloom filter for a block if the files were deleted/corrupted.
 **Note:** ensure that the block is in a local backend in the expected directory hierarchy, i.e. `path / tenant / blocks`.
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
 - `bloom-fp` The false positive to be used for the bloom filter.
 - `bloom-shard-size` The shard size to be used for the bloom filter.
@@ -335,7 +356,7 @@ To generate the index/bloom for a block if the files were deleted/corrupted.
 **Note:** ensure that the block is in a local backend in the expected directory hierarchy, i.e. `path / tenant / blocks`.
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
 
 **Example:**
@@ -449,7 +470,7 @@ Analyses a block and outputs a summary of the block's generic attributes.
 It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3.
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
 - `block-id` The block ID as UUID string.
 
 Options:
@@ -466,7 +487,7 @@ Analyses all blocks in a given time range and outputs a summary of the blocks' g
 It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3.
 
 Arguments:
-- `tenant-id` The tenant ID.  Use `single-tenant` for single-tenant setups.
+- `tenant-id` The tenant ID. Use `single-tenant` for single-tenant setups.
 
 Options:
 - [Backend options](#backend-options)

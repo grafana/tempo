@@ -722,7 +722,7 @@ func (Attribute) referencesSpan() bool {
 func NewScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
 	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
-	if scope != AttributeScopeResource && scope != AttributeScopeSpan {
+	if scope == AttributeScopeNone && !parent {
 		intrinsic = intrinsicFromString(att)
 	}
 
@@ -753,16 +753,31 @@ var (
 	_ pipelineElement = (*GroupOperation)(nil)
 )
 
+// MetricsAggregate is a placeholder in the AST for a metrics aggregation
+// pipeline element. It has a superset of the properties of them all, and
+// builds them later via init() so that appropriate buffers can be allocated
+// for the query time range and step.
 type MetricsAggregate struct {
-	op  MetricsAggregateOp
-	by  []Attribute
-	agg SpanAggregator
+	op     MetricsAggregateOp
+	by     []Attribute
+	attr   Attribute
+	floats []float64
+	agg    SpanAggregator
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
 	return &MetricsAggregate{
 		op: agg,
 		by: by,
+	}
+}
+
+func newMetricsAggregateQuantileOverTime(attr Attribute, qs []float64, by []Attribute) *MetricsAggregate {
+	return &MetricsAggregate{
+		op:     metricsAggregateQuantileOverTime,
+		floats: qs,
+		attr:   attr,
+		by:     by,
 	}
 }
 

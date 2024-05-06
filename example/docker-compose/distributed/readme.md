@@ -7,13 +7,13 @@ which presents an S3 compatible API.
 1. First start up the distributed stack.
 
 ```console
-docker-compose up -d
+docker compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose ps
+docker compose ps
 ```
 ```
              Name                            Command               State                         Ports                       
@@ -41,5 +41,5 @@ tab to find traces.
 4. To stop the setup use -
 
 ```console
-docker-compose down -v
+docker compose down -v
 ```

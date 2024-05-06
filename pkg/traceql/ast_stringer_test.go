@@ -19,22 +19,30 @@ func TestStringer(t *testing.T) {
 	err = yaml.Unmarshal(b, queries)
 	require.NoError(t, err)
 
-	for _, q := range queries.Valid {
-		t.Run(q, func(t *testing.T) {
-			pass1, err := Parse(q)
-			require.NoError(t, err)
+	// All of these queries are parseable and valid constructs, and should be roundtrippable.
+	sets := [][]string{
+		queries.Valid,
+		queries.Unsupported,
+	}
 
-			// now parse it a second time and confirm that it parses the same way twice
-			pass2, err := Parse(pass1.String())
-			ok := assert.NoError(t, err)
-			if !ok {
-				t.Logf("\n\t1: %s", pass1.String())
-				return
-			}
+	for _, s := range sets {
+		for _, q := range s {
+			t.Run(q, func(t *testing.T) {
+				pass1, err := Parse(q)
+				require.NoError(t, err)
 
-			assert.Equal(t, pass1, pass2)
-			t.Logf("\n\tq: %s\n\t1: %s\n\t2: %s", q, pass1.String(), pass2.String())
-		})
+				// now parse it a second time and confirm that it parses the same way twice
+				pass2, err := Parse(pass1.String())
+				ok := assert.NoError(t, err)
+				if !ok {
+					t.Logf("\n\t1: %s", pass1.String())
+					return
+				}
+
+				assert.Equal(t, pass1, pass2)
+				t.Logf("\n\tq: %s\n\t1: %s\n\t2: %s", q, pass1.String(), pass2.String())
+			})
+		}
 	}
 }
 

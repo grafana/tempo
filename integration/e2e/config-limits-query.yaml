@@ -41,9 +41,9 @@ storage:
     blocklist_poll: 1s
     backend: local
     local:
-      path: /tmp/tempo/blocks
+      path: /var/tempo/blocks
     wal:
-      path: /tmp/tempo/wal
+      path: /var/tempo/wal
     pool:
       max_workers: 10
       queue_depth: 100

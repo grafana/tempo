@@ -13,7 +13,7 @@ The upgrade process changes for each version, depending upon the changes made fo
 
 This upgrade guide applies to on-premise installations and not for Grafana Cloud.
 
-{{% admonition type="tip" %}}
+{{< admonition type="tip" >}}
 You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 {{% /admonition %}}
 
@@ -131,7 +131,7 @@ Both work with Tempo 2.3.
 
 Upgrading to Tempo 2.3 doesn’t modify the Parquet block format.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Tempo 2.2 can’t read data stored in vParquet3.
 {{% /admonition %}}
 
@@ -233,7 +233,7 @@ We strongly encourage upgrading to vParquet2 as soon as possible as this is requ
 
 Tempo 2.2 updates the `microservices` JSonnet to support a `statefulset` for the `metrics_generator` component.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 This update is important if you use the experimental `local-blocks` processor.
 {{% /admonition %}}
 
@@ -306,7 +306,7 @@ Tempo 2.0 marks a major milestone in Tempo’s development. When planning your u
 
 Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 There is a potential issue loading Tempo 1.5's experimental Parquet storage blocks. You may see errors or even panics in the compactors. We have only been able to reproduce this with interim commits between 1.5 and 2.0, but if you experience any issues please [report them](https://github.com/grafana/tempo/issues/new?assignees=&labels=&template=bug_report.md&title=) so we can isolate and fix this issue.
 {{% /admonition %}}
 

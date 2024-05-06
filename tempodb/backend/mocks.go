@@ -28,10 +28,10 @@ type MockRawReader struct {
 	R            []byte // read
 	Range        []byte // ReadRange
 	ReadFn       func(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error)
+	DeleteResult []string
 
 	BlockIDs          []uuid.UUID
 	CompactedBlockIDs []uuid.UUID
-	FindResult        []string
 }
 
 func (m *MockRawReader) List(ctx context.Context, keypath KeyPath) ([]string, error) {
@@ -48,6 +48,10 @@ func (m *MockRawReader) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	}
 
 	return m.BlockIDs, m.CompactedBlockIDs, nil
+}
+
+func (m *MockRawReader) Find(_ context.Context, _ KeyPath, _ FindFunc) error {
+	return nil
 }
 
 func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, cacheInfo *CacheInfo) (io.ReadCloser, int64, error) {
@@ -155,6 +159,10 @@ type MockReader struct {
 	CompactedBlockIDs []uuid.UUID // blocks
 }
 
+func (m *MockReader) Find(_ context.Context, _ KeyPath, _ FindFunc) error {
+	return nil
+}
+
 func (m *MockReader) Tenants(context.Context) ([]string, error) {
 	return m.T, nil
 }
@@ -239,6 +247,10 @@ func (m *MockWriter) Append(context.Context, string, uuid.UUID, string, AppendTr
 }
 
 func (m *MockWriter) CloseAppend(context.Context, AppendTracker) error {
+	return nil
+}
+
+func (m *MockWriter) Delete(context.Context, string, KeyPath) error {
 	return nil
 }
 

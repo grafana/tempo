@@ -13,13 +13,13 @@ Metrics-generator is an optional Tempo component that derives metrics from inges
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
 {{% /admonition %}}
 
 ## Overview
 
-Metrics-generator leverages the data available in Tempo's ingest path to provide additional value by generating metrics from traces.
+Metrics-generator leverages the data available in the ingest path in Tempo to provide additional value by generating metrics from traces.
 
 The metrics-generator internally runs a set of **processors**.
 Each processor ingests spans and produces metrics.

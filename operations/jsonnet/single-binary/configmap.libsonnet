@@ -30,7 +30,7 @@
           path: '/var/tempo/wal',
         },
         'local': {
-          path: '/tmp/tempo/traces',
+          path: '/var/tempo/traces',
         },
       },
     },

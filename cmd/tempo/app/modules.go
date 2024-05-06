@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
 	"github.com/grafana/dskit/kv/codec"
@@ -382,7 +383,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// use the api timeout for http requests if set. note that this is set in initServer() for
 	// grpc requests
 	if t.cfg.Frontend.APITimeout > 0 {
-		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.APITimeout, "unable to process request in the configured timeout", t.Server.Log()))
+		httpAPIMiddleware = append(httpAPIMiddleware, middleware.NewTimeoutMiddleware(t.cfg.Frontend.APITimeout, "unable to process request in the configured timeout", kitlog.NewNopLogger()))
 	}
 
 	// wrap handlers with auth
@@ -399,9 +400,8 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSearchTagValuesV2), base.Wrap(queryFrontend.SearchTagsValuesV2Handler))
 
 	// http metrics endpoints
-	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.SpanMetricsSummaryHandler))
-	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
-	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathPromQueryRange), base.Wrap(queryFrontend.QueryRangeHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathSpanMetricsSummary), base.Wrap(queryFrontend.MetricsSummaryHandler))
+	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.MetricsQueryRangeHandler))
 
 	// the query frontend needs to have knowledge of the blocks so it can shard search jobs
 	if t.cfg.Target == QueryFrontend {

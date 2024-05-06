@@ -16,7 +16,7 @@ Instead of modifying a file or Kubernetes configmap, you (and other services rel
 
 User-configurable overrides are stored in an object store bucket managed by Tempo.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
 When sharing a bucket, make sure any lifecycle rules are scoped correctly to not remove data of user-configurable overrides module.
 {{% /admonition %}}
@@ -42,7 +42,7 @@ Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When
 User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]{{< relref "../configuration#overrides" >}} for information about all overrides.
 When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will take priority.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 `processors` is an exception: Tempo will merge values from both user-configurable overrides and runtime overrides into a single list.
 {{% /admonition %}}
 
@@ -62,6 +62,7 @@ metrics_generator:
       [dimensions: <list of string>]
       [peer_attributes: <list of string>]
       [enable_client_server_prefix: <bool>]
+      [enable_messaging_system_latency_histogram: <bool>]
 
     span_metrics:
       [histogram_buckets: <list of float>]
@@ -154,7 +155,7 @@ Requests that modify or delete overrides need to pass the current version using 
 ```
 $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "..."
 ```
-This example uses uses overrides in the `overrides.json` file with the location in `pwd`: 
+This example uses uses overrides in the `overrides.json` file with the location in `pwd`:
 
 ```
 $ curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json

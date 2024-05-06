@@ -23,13 +23,13 @@ import (
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], apiPrefix string, logger log.Logger) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 		httpReq, err := api.BuildSearchRequest(&http.Request{
-			URL:    &url.URL{Path: downstreamPath}, // jpe - right here - add support for prefix
+			URL:    &url.URL{Path: downstreamPath},
 			Header: http.Header{},
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
 		}, req)
@@ -71,7 +71,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[*
 }
 
 // newSearchHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {

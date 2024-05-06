@@ -10,12 +10,13 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/combiner"
 )
 
 var ErrMultiTenantUnsupported = errors.New("multi-tenant query unsupported")
 
 type tenantRoundTripper struct {
-	next   AsyncRoundTripper[*http.Response]
+	next   AsyncRoundTripper[combiner.PipelineResponse]
 	logger log.Logger
 
 	resolver tenant.Resolver
@@ -23,8 +24,8 @@ type tenantRoundTripper struct {
 
 // NewMultiTenantMiddleware returns a middleware that takes a request and fans it out to each tenant
 // It currently accepts a success and failure counter, to prevent metrics collisions with
-func NewMultiTenantMiddleware(logger log.Logger) AsyncMiddleware[*http.Response] {
-	return AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
+func NewMultiTenantMiddleware(logger log.Logger) AsyncMiddleware[combiner.PipelineResponse] {
+	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		return &tenantRoundTripper{
 			next:     next,
 			logger:   logger,
@@ -33,7 +34,7 @@ func NewMultiTenantMiddleware(logger log.Logger) AsyncMiddleware[*http.Response]
 	})
 }
 
-func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses[*http.Response], error) {
+func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses[combiner.PipelineResponse], error) {
 	// extract tenant ids, this will normalize and de-duplicate tenant ids
 	tenants, err := t.resolver.TenantIDs(req.Context())
 	if err != nil {
@@ -68,14 +69,14 @@ func requestForTenant(ctx context.Context, r *http.Request, tenant string) *http
 }
 
 type unsupportedRoundTripper struct {
-	next   AsyncRoundTripper[*http.Response]
+	next   AsyncRoundTripper[combiner.PipelineResponse]
 	logger log.Logger
 
 	resolver tenant.Resolver
 }
 
-func NewMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware[*http.Response] {
-	return AsyncMiddlewareFunc[*http.Response](func(next AsyncRoundTripper[*http.Response]) AsyncRoundTripper[*http.Response] {
+func NewMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware[combiner.PipelineResponse] {
+	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		return &unsupportedRoundTripper{
 			next:     next,
 			logger:   logger,
@@ -84,7 +85,7 @@ func NewMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware[*htt
 	})
 }
 
-func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (Responses[*http.Response], error) {
+func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (Responses[combiner.PipelineResponse], error) {
 	// extract tenant ids
 	tenants, err := t.resolver.TenantIDs(req.Context())
 	if err != nil {

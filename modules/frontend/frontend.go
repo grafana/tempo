@@ -31,10 +31,11 @@ type (
 	streamingTagsV2Handler      func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error
 	streamingTagValuesHandler   func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error
 	streamingTagValuesV2Handler func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error
+	streamingQueryRangeHandler  func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, SpanMetricsSummaryHandler, QueryRangeHandler              http.Handler
+	TraceByIDHandler, SearchHandler, MetricsSummaryHandler, MetricsQueryRangeHandler           http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
@@ -42,6 +43,7 @@ type QueryFrontend struct {
 	streamingTagsV2                                                                            streamingTagsV2Handler
 	streamingTagValues                                                                         streamingTagValuesHandler
 	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
+	streamingQueryRange                                                                        streamingQueryRangeHandler
 	logger                                                                                     log.Logger
 }
 
@@ -65,13 +67,25 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
+	if cfg.Metrics.Sharder.ConcurrentRequests <= 0 {
+		return nil, fmt.Errorf("frontend metrics concurrent requests should be greater than 0")
+	}
+
+	if cfg.Metrics.Sharder.TargetBytesPerRequest <= 0 {
+		return nil, fmt.Errorf("frontend metrics target bytes per request should be greater than 0")
+	}
+
+	if cfg.Metrics.Sharder.Interval <= 0 {
+		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
+	}
+
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 
 	tracePipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
@@ -79,7 +93,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	searchPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
@@ -87,7 +101,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	searchTagsPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
@@ -95,23 +109,29 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	searchTagValuesPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
+	// metrics summary
 	metricsPipeline := pipeline.Build(
-		[]pipeline.AsyncMiddleware[*http.Response]{
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
 		next)
 
-	queryRangeMiddleware := MergeMiddlewares(
-		newMultiTenantUnsupportedMiddleware(cfg, logger),
-		newQueryRangeMiddleware(cfg, o, reader, logger), retryWare)
+	// traceql metrics
+	queryRangePipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			multiTenantMiddleware(cfg, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
@@ -119,9 +139,9 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
 	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
 	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
-	metrics := newMetricsHandler(metricsPipeline, logger)
+	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
+	queryrange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
-	queryrange := queryRangeMiddleware.Wrap(next)
 	return &QueryFrontend{
 		// http/discrete
 		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
@@ -130,8 +150,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
 		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
 		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
-		SpanMetricsSummaryHandler: newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
-		QueryRangeHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
+		MetricsSummaryHandler:     newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
+		MetricsQueryRangeHandler:  newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
 
 		// grpc/streaming
 		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
@@ -139,6 +159,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		streamingTagsV2:      newTagV2StreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:   newTagValuesStreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
 		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingQueryRange:  newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
@@ -166,8 +187,12 @@ func (q *QueryFrontend) SearchTagValuesV2(req *tempopb.SearchTagValuesRequest, s
 	return q.streamingTagValuesV2(req, srv)
 }
 
+func (q *QueryFrontend) MetricsQueryRange(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
+	return q.streamingQueryRange(req, srv)
+}
+
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
-func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger log.Logger) http.RoundTripper {
+func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
@@ -198,7 +223,7 @@ func newMetricsHandler(next pipeline.AsyncRoundTripper[*http.Response], logger l
 			"path", req.URL.Path,
 			"err", err)
 
-		return resp, err
+		return resp.HTTPResponse(), err
 	})
 }
 
@@ -222,17 +247,7 @@ func prepareRequestForQueriers(req *http.Request, tenant string, originalURI str
 	req.RequestURI = uri
 }
 
-func newQueryRangeMiddleware(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) pipeline.Middleware {
-	return pipeline.MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
-		searchRT := NewRoundTripper(next, newQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger))
-
-		return pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			return searchRT.RoundTrip(r)
-		})
-	})
-}
-
-func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantMiddleware(logger)
 	}
@@ -240,7 +255,7 @@ func multiTenantMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddlewa
 	return pipeline.NewNoopMiddleware()
 }
 
-func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
+func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	if cfg.MultiTenantQueriesEnabled {
 		return pipeline.NewMultiTenantUnsupportedMiddleware(logger)
 	}

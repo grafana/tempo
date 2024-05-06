@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1048,7 +1049,7 @@ func TestIntrinsics(t *testing.T) {
 					Scope:     AttributeScopeNone,
 					Parent:    true,
 					Name:      tc.in,
-					Intrinsic: tc.expected,
+					Intrinsic: IntrinsicNone,
 				}))), actual)
 
 			// as nested parent scoped intrinsic e.g. parent.duration.foo
@@ -1090,6 +1091,49 @@ func TestIntrinsics(t *testing.T) {
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
 				}))), actual)
+		})
+	}
+}
+
+func TestScopedIntrinsics(t *testing.T) {
+	tests := []struct {
+		in          string
+		expected    Intrinsic
+		shouldError bool
+	}{
+		{in: "trace:duration", expected: IntrinsicTraceDuration},
+		{in: "trace:rootName", expected: IntrinsicTraceRootSpan},
+		{in: "trace:rootService", expected: IntrinsicTraceRootService},
+		{in: "span:duration", expected: IntrinsicDuration},
+		{in: "span:kind", expected: IntrinsicKind},
+		{in: "span:name", expected: IntrinsicName},
+		{in: "span:status", expected: IntrinsicStatus},
+		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
+		{in: ":duration", shouldError: true},
+		{in: ":statusMessage", shouldError: true},
+		{in: "trace:name", shouldError: true},
+		{in: "trace:rootServiceName", shouldError: true},
+		{in: "span:rootServiceName", shouldError: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			// as scoped intrinsic e.g :duration
+			s := "{ " + tc.in + "}"
+			actual, err := Parse(s)
+
+			if tc.shouldError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, newRootExpr(newPipeline(
+					newSpansetFilter(Attribute{
+						Scope:     AttributeScopeNone,
+						Parent:    false,
+						Name:      tc.expected.String(),
+						Intrinsic: tc.expected,
+					}))), actual)
+			}
 		})
 	}
 }
@@ -1154,6 +1198,77 @@ func TestHints(t *testing.T) {
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticFloat(0.5)),
 			})),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestReallyLongQuery(t *testing.T) {
+	for i := 1000; i < 1050; i++ {
+		longVal := strings.Repeat("a", i)
+
+		// static value
+		query := fmt.Sprintf("{ .a = `%s` }", longVal)
+		expected := newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticString(longVal))
+
+		actual, err := Parse(query)
+
+		require.NoError(t, err, "i=%d", i)
+		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, "i=%d", i)
+
+		// attr name
+		query = fmt.Sprintf("{ .%s = `foo` }", longVal)
+		expected = newBinaryOperation(OpEqual, NewAttribute(longVal), NewStaticString("foo"))
+
+		actual, err = Parse(query)
+
+		require.NoError(t, err, "i=%d", i)
+		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, "i=%d", i)
+	}
+}
+
+func TestMetrics(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `{ } | rate()`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+			),
+		},
+		{
+			in: `{ } | count_over_time() by(name, span.http.status_code)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+					NewIntrinsic(IntrinsicName),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+				}),
+			),
+		},
+		{
+			in: `{ } | quantile_over_time(duration, 0, 0.90, 0.95, 1) by(name, span.http.status_code)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregateQuantileOverTime(
+					NewIntrinsic(IntrinsicDuration),
+					[]float64{0, 0.9, 0.95, 1.0},
+					[]Attribute{
+						NewIntrinsic(IntrinsicName),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+					}),
+			),
 		},
 	}
 

@@ -104,6 +104,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 				ServiceGraphs: userconfigurableoverrides.LimitsMetricsGeneratorProcessorServiceGraphs{
 					Dimensions:               &[]string{"sg-dimension"},
 					EnableClientServerPrefix: boolPtr(true),
+					EnableVirtualNodeLabel:   boolPtr(true),
 					PeerAttributes:           &[]string{"attribute"},
 					HistogramBuckets:         &[]float64{1, 2, 3, 4, 5},
 				},
@@ -146,6 +147,7 @@ func TestUserConfigOverridesManager_allFields(t *testing.T) {
 	assert.Equal(t, []string{"sg-dimension"}, mgr.MetricsGeneratorProcessorServiceGraphsDimensions(tenant1))
 	assert.Equal(t, 60*time.Second, mgr.MetricsGeneratorCollectionInterval(tenant1))
 	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(tenant1))
+	assert.Equal(t, true, mgr.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(tenant1))
 	assert.Equal(t, []string{"attribute"}, mgr.MetricsGeneratorProcessorServiceGraphsPeerAttributes(tenant1))
 	assert.Equal(t, []float64{1, 2, 3, 4, 5}, mgr.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(tenant1))
 	assert.Equal(t, []string{"sm-dimension"}, mgr.MetricsGeneratorProcessorSpanMetricsDimensions(tenant1))

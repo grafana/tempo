@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -332,8 +334,16 @@ func TestBackendRequests(t *testing.T) {
 	}
 }
 
-func TestIngesterRequest(t *testing.T) {
+func TestIngesterRequests(t *testing.T) {
+	nownow := time.Now()
+
 	now := int(time.Now().Unix())
+
+	ago := func(d string) int {
+		duration, err := time.ParseDuration(d)
+		require.NoError(t, err)
+		return int(nownow.Add(-duration).Unix())
+	}
 	tenMinutesAgo := int(time.Now().Add(-10 * time.Minute).Unix())
 	fifteenMinutesAgo := int(time.Now().Add(-15 * time.Minute).Unix())
 	twentyMinutesAgo := int(time.Now().Add(-20 * time.Minute).Unix())
@@ -341,33 +351,38 @@ func TestIngesterRequest(t *testing.T) {
 	tests := []struct {
 		request             string
 		queryIngestersUntil time.Duration
-		expectedURI         string
+		ingesterShards      int
+		expectedURI         []string
 		expectedError       error
 	}{
 		// start/end is outside queryIngestersUntil
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=10&end=20",
 			queryIngestersUntil: 10 * time.Minute,
-			expectedURI:         "",
+			expectedURI:         []string{},
+			ingesterShards:      1,
 		},
 		// start/end is inside queryBackendAfter
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 30 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar",
+			expectedURI:         []string{"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar"},
+			ingesterShards:      1,
 		},
 		// backendAfter/ingsetersUntil = 0 results in no ingester query
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 0,
-			expectedURI:         "",
+			expectedURI:         []string{},
+			ingesterShards:      1,
 		},
 		// start/end = 20 - 10 mins ago - break across query ingesters until
 		//  ingester start/End = 15 - 10 mins ago
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(tenMinutesAgo),
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
+			expectedURI:         []string{"/querier?end=" + strconv.Itoa(tenMinutesAgo) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar"},
+			ingesterShards:      1,
 		},
 		// start/end = 10 - now mins ago - break across query backend after
 		//  ingester start/End = 10 - now mins ago
@@ -375,7 +390,8 @@ func TestIngesterRequest(t *testing.T) {
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(tenMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar",
+			expectedURI:         []string{"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(tenMinutesAgo) + "&tags=foo%3Dbar"},
+			ingesterShards:      1,
 		},
 		// start/end = 20 - now mins ago - break across both query ingesters until and backend after
 		//  ingester start/End = 15 - now mins ago
@@ -383,24 +399,89 @@ func TestIngesterRequest(t *testing.T) {
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(twentyMinutesAgo) + "&end=" + strconv.Itoa(now),
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar",
+			expectedURI:         []string{"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=" + strconv.Itoa(fifteenMinutesAgo) + "&tags=foo%3Dbar"},
+			ingesterShards:      1,
 		},
 		{
 			request:             "/?tags=foo%3Dbar&minDuration=10ms&maxDuration=30ms&limit=50",
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=0&tags=foo%3Dbar",
+			expectedURI:         []string{"/querier?end=0&limit=50&maxDuration=30ms&minDuration=10ms&spss=3&start=0&tags=foo%3Dbar"},
+			ingesterShards:      1,
 		},
 		{
 			request:             "/?limit=50",
 			queryIngestersUntil: 15 * time.Minute,
-			expectedURI:         "/querier?end=0&limit=50&spss=3&start=0",
+			expectedURI:         []string{"/querier?end=0&limit=50&spss=3&start=0"},
+			ingesterShards:      1,
+		},
+		// start/end = 20 - 10 mins ago - break across query ingesters until
+		//  ingester start/End = 15 - 10 mins ago -- 5 minutes split in 2 shards.
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=12ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("20m")) + "&end=" + strconv.Itoa(ago("10m")),
+			queryIngestersUntil: 15 * time.Minute,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("12.5m")) + "&limit=50&maxDuration=30ms&minDuration=12ms&spss=3&start=" + strconv.Itoa(ago("15m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("10m")) + "&limit=50&maxDuration=30ms&minDuration=12ms&spss=3&start=" + strconv.Itoa(ago("12.5m")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 2,
+		},
+		// start/end when entirely within the ingester search window when split across 3 shards.
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
+			queryIngestersUntil: 15 * time.Minute,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("10m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("15m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("5m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("10m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 3,
+		},
+		// start/end when entirely within ingeste search window, but check that we don't shard too much.
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
+			queryIngestersUntil: 5*time.Minute + 10*time.Second,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("4m10s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m10s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("3m10s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("4m10s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("2m10s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("3m10s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("1m10s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("2m10s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("10s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("1m10s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("10s")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 6,
+		},
+		// start/end when entirely within ingeste search window, but check that we don't shard too much with a large number of shards for a small window.
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
+			queryIngestersUntil: 5 * time.Minute,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("4m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("3m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("4m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("2m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("3m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("1m")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("2m")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("1m")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 30,
+		},
+		{
+			request:             "/?tags=foo%3Dbar&minDuration=11ms&maxDuration=30ms&limit=50&start=" + strconv.Itoa(ago("15m")) + "&end=" + strconv.Itoa(ago("0s")),
+			queryIngestersUntil: 350 * time.Second,
+			expectedURI: []string{
+				"/querier?end=" + strconv.Itoa(ago("3m54s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("5m50s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(ago("1m58s")) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("3m54s")) + "&tags=foo%3Dbar",
+				"/querier?end=" + strconv.Itoa(now) + "&limit=50&maxDuration=30ms&minDuration=11ms&spss=3&start=" + strconv.Itoa(ago("1m58s")) + "&tags=foo%3Dbar",
+			},
+			ingesterShards: 3,
 		},
 	}
 
-	for _, tc := range tests {
+	for i, tc := range tests {
+		t.Logf("test case %d", i)
+		require.Greater(t, tc.ingesterShards, 0)
 		s := &asyncSearchSharder{
 			cfg: SearchSharderConfig{
 				QueryIngestersUntil: tc.queryIngestersUntil,
+				IngesterShards:      tc.ingesterShards,
 			},
 		}
 		req := httptest.NewRequest("GET", tc.request, nil)
@@ -408,23 +489,72 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
+		reqChan := make(chan *http.Request, tc.ingesterShards)
+		defer close(reqChan)
+
 		copyReq := searchReq
-		actualReq, err := s.ingesterRequest(context.Background(), "test", req, *searchReq)
+		err = s.ingesterRequests(context.Background(), "test", req, *searchReq, reqChan)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
 		}
 		assert.NoError(t, err)
-		if tc.expectedURI == "" {
-			assert.Nil(t, actualReq)
-		} else {
-			assert.Equal(t, tc.expectedURI, actualReq.RequestURI)
-		}
+		assert.Equal(t, len(tc.expectedURI), len(reqChan))
 
-		// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that
-		// occurs if the ingesterRequest method is changed to take a searchReq pointer
-		require.True(t, reflect.DeepEqual(copyReq, searchReq))
+		// drain the channel and check the URIs
+		for _, expectedURI := range tc.expectedURI {
+			req := <-reqChan
+			require.NotNil(t, req)
+
+			values := req.URL.Query()
+			expectedQueryStringValues, err := url.ParseQuery(expectedURI)
+			require.NoError(t, err)
+
+			for k, v := range expectedQueryStringValues {
+				key := k
+
+				// Due the the way the query string is parse, we need to ensure that
+				// the first query param is captured.  Split the key on the first ? and
+				// use the second part as the key.
+				if strings.Contains(k, "?") {
+					parts := strings.Split(k, "?")
+					require.Equal(t, 2, len(parts))
+					key = parts[1]
+				}
+
+				if key == "start" || key == "end" {
+					// check the time difference between the expected and actual
+					// start/end times is within a tollerance for the use of time.Now()
+					// in the code compared to when the tests check the values.
+
+					actual := timeFrom(t, values[key][0])
+					expected := timeFrom(t, v[0])
+
+					diff := expected.Sub(actual)
+					assert.LessOrEqual(t, diff, time.Millisecond)
+
+					diff = actual.Sub(expected)
+					assert.LessOrEqual(t, diff, time.Millisecond)
+
+					continue
+				}
+
+				require.Equal(t, v, values[k])
+			}
+
+			/* require.Equal(t, expectedURI, req.RequestURI) */
+
+			// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that
+			// occurs if the ingesterRequest method is changed to take a searchReq pointer
+			require.True(t, reflect.DeepEqual(copyReq, searchReq))
+		}
 	}
+}
+
+func timeFrom(t *testing.T, n string) time.Time {
+	i, err := strconv.ParseInt(n, 10, 32)
+	require.NoError(t, err)
+	return time.Unix(i, 0)
 }
 
 func TestBackendRange(t *testing.T) {
@@ -510,13 +640,13 @@ func TestBackendRange(t *testing.T) {
 }
 
 func TestTotalJobsIncludesIngester(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
 			Metrics: &tempopb.SearchMetrics{},
 		})
 		require.NoError(t, err)
 
-		return pipeline.NewSyncToAsyncResponse(&http.Response{
+		return pipeline.NewHTTPToAsyncResponse(&http.Response{
 			Body:       io.NopCloser(strings.NewReader(resString)),
 			StatusCode: 200,
 		}), nil
@@ -541,6 +671,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		IngesterShards:        1,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
@@ -555,7 +686,8 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 	// find a response with total jobs > . this is the metadata response
 	var resp *tempopb.SearchResponse
 	for {
-		r, done, err := resps.Next(context.Background())
+		res, done, err := resps.Next(context.Background())
+		r := res.HTTPResponse()
 		require.NoError(t, err)
 		require.Equal(t, 200, r.StatusCode)
 
@@ -578,7 +710,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 }
 
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[*http.Response](func(r *http.Request) (pipeline.Responses[*http.Response], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		return nil, nil
 	})
 
@@ -631,14 +763,14 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
 
-func testBadRequestFromResponses(t *testing.T, resp pipeline.Responses[*http.Response], err error, expectedBody string) {
+func testBadRequestFromResponses(t *testing.T, resp pipeline.Responses[combiner.PipelineResponse], err error, expectedBody string) {
 	require.NoError(t, err)
 
 	r, done, err := resp.Next(context.Background())
 	require.NoError(t, err)
 	require.True(t, done) // there should only be one response
 
-	testBadRequest(t, r, err, expectedBody)
+	testBadRequest(t, r.HTTPResponse(), err, expectedBody)
 }
 
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -51,7 +52,7 @@ func TestMultiTenant(t *testing.T) {
 			trace := test.MakeTrace(10, traceID)
 
 			once := sync.Once{}
-			next := AsyncRoundTripperFunc[*http.Response](func(req *http.Request) (Responses[*http.Response], error) {
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(req *http.Request) (Responses[combiner.PipelineResponse], error) {
 				reqCount.Inc() // Count the number of requests.
 
 				// Check if the tenant is in the list of tenants.
@@ -77,7 +78,7 @@ func TestMultiTenant(t *testing.T) {
 					body = buff
 				})
 
-				return NewSyncToAsyncResponse(&http.Response{
+				return NewHTTPToAsyncResponse(&http.Response{
 					StatusCode: statusCode,
 					Body:       io.NopCloser(bytes.NewReader(body)),
 				}), nil
@@ -152,16 +153,19 @@ func TestMultiTenantNotSupported(t *testing.T) {
 			}
 
 			test := NewMultiTenantUnsupportedMiddleware(log.NewNopLogger())
-			next := AsyncRoundTripperFunc[*http.Response](func(req *http.Request) (Responses[*http.Response], error) { return NewSuccessfulResponse("foo"), nil })
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(req *http.Request) (Responses[combiner.PipelineResponse], error) {
+				return NewSuccessfulResponse("foo"), nil
+			})
 
 			rt := test.Wrap(next)
 			resps, err := rt.RoundTrip(req)
 			require.NoError(t, err) // no error expected. tenant unsupported should be passed back as a bad request. errors bubble up as 5xx
 
-			res, done, err := resps.Next(context.Background())
+			r, done, err := resps.Next(context.Background())
 			require.True(t, done)
 			require.NoError(t, err)
 
+			res := r.HTTPResponse()
 			require.Equal(t, tc.expectedResp.StatusCode, res.StatusCode)
 			require.Equal(t, tc.expectedResp.Status, res.Status)
 

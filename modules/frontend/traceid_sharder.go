@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/blockboundary"
@@ -20,14 +21,14 @@ const (
 )
 
 type asyncTraceSharder struct {
-	next            pipeline.AsyncRoundTripper[*http.Response]
+	next            pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	cfg             *TraceByIDConfig
 	logger          log.Logger
 	blockBoundaries [][]byte
 }
 
-func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.AsyncMiddleware[*http.Response] {
-	return pipeline.AsyncMiddlewareFunc[*http.Response](func(next pipeline.AsyncRoundTripper[*http.Response]) pipeline.AsyncRoundTripper[*http.Response] {
+func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncTraceSharder{
 			next:            next,
 			cfg:             cfg,
@@ -38,7 +39,7 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 }
 
 // RoundTrip implements http.RoundTripper
-func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[*http.Response], error) {
+func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.ShardQuery")
 	defer span.Finish()
 	r = r.WithContext(ctx)

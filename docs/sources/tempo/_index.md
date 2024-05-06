@@ -30,7 +30,7 @@ cards:
       description: Use metrics-generator to derive metrics from ingested traces. The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
     - title: Query with TraceQL
       href: /docs/tempo/latest/traceql/
-      description: Inspired by PromQL and LogQL, TraceQL is a query language desßigned for selecting traces in Tempo. This query language lets you precisely and easily select spans and jump directly to the spans fulfilling the specified conditions.
+      description: Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. This query language lets you precisely and easily select spans and jump directly to the spans fulfilling the specified conditions.
 ---
 
 {{< docs/hero-simple key="hero" >}}
@@ -41,10 +41,12 @@ cards:
 
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
 
-Tempo is cost-efficient, and only requires an object storage to operate. Tempo is deeply integrated with Grafana, Mimir, Prometheus, and Loki. You can use Tempo with open source tracing protocols, including Jaeger, Zipkin, or OpenTelemetry.
+Tempo is cost-efficient and only requires an object storage to operate.
+Tempo is deeply integrated with Grafana, Mimir, Prometheus, and Loki.
+You can use Tempo with open source tracing protocols, including Jaeger, Zipkin, or OpenTelemetry.
 <p align="center"><img src="getting-started/assets/trace_custom_metrics_dash.png" alt="Trace visualization in Grafana "></p>
 
-Tempo integrates well with a number of existing open source tools:
+Tempo integrates well with a number of open source tools:
 
 - **Grafana** ships with native support using the built-in [Tempo data source](/docs/grafana/latest/datasources/tempo/).
 - **Grafana Loki**, with its powerful query language LogQL v2 lets you filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](/docs/grafana/latest/datasources/loki/#derived-fields).

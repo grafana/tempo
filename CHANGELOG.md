@@ -1,10 +1,16 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Surface new labels for uninstrumented services and systems [#3543](https://github.com/grafana/tempo/pull/3543) (@t00mas)
+* [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
 * [ENHANCEMENT] Add querier metrics for requests executed [#3524](https://github.com/grafana/tempo/pull/3524) (@electron0zero)
-* [FEATURE] Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
+* [FEATURE] Added gRPC streaming endpoints for Tempo APIs.
+  * Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
+  * Added gRPC streaming endpoints for metrics. [#3584](https://github.com/grafana/tempo/pull/3584) (@joe-elliott)
+  * Reduced memory consumption in the frontend for large traces. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+  * **Breaking Change** Remove trace by id hedging from the frontend. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+  * **Breaking Change** Dropped meta-tag for tenant from trace by id multitenant. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
 * [FEATURE] New block encoding vParquet4 with support for links, events, and arrays [#3368](https://github.com/grafana/tempo/pull/3368) (@stoewer @ie-pham @andreasgerstmayr)
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
-* [CHANGE] **Breaking Change** Remove trace by id hedging from the frontend [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
   **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historyically this
   has been owned by root:root, and with this change it will now be owned by
@@ -12,10 +18,19 @@
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
   This impacts impacts all users of the `grafana/tempo` Docker image.
+* [CHANGE] Return a less confusing error message to the client when refusing spans due to ingestion rates. [#3485](https://github.com/grafana/tempo/pull/3485) (@ie-pham)
+* [CHANGE] Clean Metrics Generator's Prometheus wal before creating instance [#3548](https://github.com/grafana/tempo/pull/3548) (@ie-pham)
+* [CHANGE] Update docker examples for permissions, deprecations, and clean-up [#3603](https://github.com/grafana/tempo/pull/3603) (@zalegrala)
+* [FEATURE] Add messaging-system latency histogram to service-graph [#3453](https://github.com/grafana/tempo/pull/3453) (@adirmatzkin)
+* [CHANGE] Delete any remaining objects for empty tenants after a configurable duration, requires config enable [#3611](https://github.com/grafana/tempo/pull/3611) (@zalegrala)
 * [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
 * [ENHANCEMENT] Add new (unsafe) query hints for metrics queries [#3396](https://github.com/grafana/tempo/pull/3396) (@mdisibio)
 * [ENHANCEMENT] Add nestedSetLeft/Right/Parent instrinsics to TraceQL. [#3497](https://github.com/grafana/tempo/pull/3497) (@joe-elliott)
 * [ENHANCEMENT] Add tenant to frontend job cache key. [#3527](https://github.com/grafana/tempo/pull/3527) (@joe-elliott)
+* [ENHANCEMENT] Better compaction throughput and memory usage [#3579](https://github.com/grafana/tempo/pull/3579) (@mdisibio)
+* [ENHANCEMENT] Add support for sharded ingester queries  [#3574](https://github.com/grafana/tempo/pull/3574) (@zalegrala)
+* [ENHANCEMENT] TraceQL - Add support for scoped intrinsics using `:` [#3629](https://github.com/grafana/tempo/pull/3629) (@ie-pham)
+  available scoped intrinsics: trace:duration, trace:rootName, trace:rootService, span:duration, span:kind, span:name, span:status, span:statusMessage
 * [BUGFIX] Fix metrics query results when filtering and rating on the same attribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)
 * [BUGFIX] Fix metrics query results when series contain empty strings or nil values [#3429](https://github.com/grafana/tempo/issues/3429) (@mdisibio)
 * [BUGFIX] Fix metrics query duration check, add per-tenant override for max metrics query duration [#3479](https://github.com/grafana/tempo/issues/3479) (@mdisibio)
@@ -25,6 +40,7 @@
 * [BUGFIX] Correctly cancel GRPC and HTTP contexts in the frontend to prevent having to rely on http write timeout. [#3443](https://github.com/grafana/tempo/pull/3443) (@joe-elliott)
 * [BUGFIX] Add spss and limit to the frontend cache key to prevent the return of incorrect results. [#3557](https://github.com/grafana/tempo/pull/3557) (@joe-elliott)
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
+* [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 
 ## v2.4.1
 

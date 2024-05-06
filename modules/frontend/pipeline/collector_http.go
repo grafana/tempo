@@ -8,7 +8,7 @@ import (
 )
 
 type httpCollector struct {
-	next     AsyncRoundTripper[*http.Response]
+	next     AsyncRoundTripper[combiner.PipelineResponse]
 	combiner combiner.Combiner
 }
 
@@ -17,7 +17,7 @@ type httpCollector struct {
 //  to be
 
 // NewHTTPCollector returns a new http collector
-func NewHTTPCollector(next AsyncRoundTripper[*http.Response], combiner combiner.Combiner) http.RoundTripper {
+func NewHTTPCollector(next AsyncRoundTripper[combiner.PipelineResponse], combiner combiner.Combiner) http.RoundTripper {
 	return httpCollector{
 		next:     next,
 		combiner: combiner,

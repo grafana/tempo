@@ -1,17 +1,23 @@
 ## Local Storage
-In this example all data is stored locally in the `tempo-data` folder. Local storage is fine for experimenting with Tempo
-or when using the single binary, but does not work in a distributed/microservices scenario.
 
-1. First start up the local stack.
+In this example all data is stored locally in the `tempo-data` folder. Local
+storage is fine for experimenting with Tempo or when using the single binary,
+but does not work in a distributed/microservices scenario. The container runs
+as non-root, and so the local directory needs to have the appropriate
+permissions set in order to start correctly.
+
+1. First create the storage directory with the correct permissions and start up the local stack.
 
 ```console
-docker-compose up -d
+mkdir tempo-data/
+sudo chown 10001:10001 tempo-data/
+docker compose up -d
 ```
 
 At this point, the following containers should be spun up -
 
 ```console
-docker-compose ps
+docker compose ps
 ```
 ```
        Name                     Command               State                                   Ports                                 
@@ -44,7 +50,7 @@ docker logs local_tempo_1 -f
 5. To stop the setup use -
 
 ```console
-docker-compose down -v
+docker compose down -v
 ```
 
 ## search streaming over http

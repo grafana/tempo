@@ -818,7 +818,12 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 					throwInvalidTag(t, name, option)
 				}
 			default:
-				throwInvalidTag(t, name, option)
+				switch t {
+				case reflect.TypeOf(time.Time{}):
+					setEncoding(&DeltaBinaryPacked)
+				default:
+					throwInvalidTag(t, name, option)
+				}
 			}
 
 		case "split":

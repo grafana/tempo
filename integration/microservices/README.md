@@ -30,10 +30,10 @@ copy of tempo already cloned somewhere.
 1. Build the tempo container
    1. Run `make docker-tempo`
    1. This tags a local image `tempo:latest`
-1. Run this repo with docker-compose
-   1. `docker-compose up -d`
+1. Run this repo with `docker compose`
+   1. `docker compose up -d`
    1. Browse to dashboard at http://localhost:3000/d/iaJI4FxMk/tempo-benchmarking
-   1. When finished run `docker-compose down`
+   1. When finished run `docker compose down`
 
 _Repeat steps 1-2 to see how code changes affect performance._
 

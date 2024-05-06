@@ -231,6 +231,13 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 				},
 				SLO: testSLOcfg,
 			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              1 * time.Second,
+				},
+			},
 		}, nil)
 
 		httpReq := httptest.NewRequest("GET", "/api/search/tags?start=1&end=10000", nil)
@@ -267,6 +274,13 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				},
 				SLO: testSLOcfg,
+			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              1 * time.Second,
+				},
 			},
 		}, nil)
 
@@ -345,6 +359,13 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 				},
 				SLO: testSLOcfg,
 			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              1 * time.Second,
+				},
+			},
 		}, nil)
 
 		httpReq := httptest.NewRequest("GET", "/api/v2/search/tags?start=1&end=10000", nil)
@@ -381,6 +402,13 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				},
 				SLO: testSLOcfg,
+			},
+			Metrics: MetricsConfig{
+				Sharder: QueryRangeSharderConfig{
+					ConcurrentRequests:    defaultConcurrentRequests,
+					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					Interval:              1 * time.Second,
+				},
 			},
 		}, nil)
 

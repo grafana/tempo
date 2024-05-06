@@ -20,7 +20,7 @@ To set up Tempo using Kubernetes with Tanka, you need to:
 1. Optional: Enable metrics-generator
 1. Deploy Tempo with the Tanka command
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 This configuration is not suitable for a production environment but can provide a useful way to learn about Tempo.
 {{% /admonition %}}
 
@@ -203,7 +203,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
         ```
 
   1. To check that MinIO is correctly configured, sign in to MinIO and verify that a bucket has been created. Without these buckets, no data will be stored.
-     1.  Port-forward MinIO to port 9001:
+     1. Port-forward MinIO to port 9001:
 
          ```bash
           kubectl port-forward --namespace tempo service/minio 9001:9001
@@ -374,7 +374,7 @@ To change the resources requirements, follow these steps:
    ```
 3. Save the changes to the file.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Lowering these requirements can impact overall performance.
 {{% /admonition %}}
 
@@ -385,7 +385,7 @@ Lowering these requirements can impact overall performance.
     tk apply environments/tempo/main.jsonnet
     ```
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 If the ingesters don’t start after deploying Tempo with the Tanka command, this may be related to the storage class selected for the Write Ahead Logs. If this is the case, add an appropriate storage class to the ingester configuration. For example, to add a standard instead of fast storage class, add the following to the `config` (not `tempo_config`) section in the previous step:
 
   ```bash
