@@ -299,10 +299,12 @@ func TestQuantileOverTime(t *testing.T) {
 	}
 
 	var (
-		attr = IntrinsicDurationAttribute
-		qs   = []float64{0, 0.5, 1}
-		by   = []Attribute{NewScopedAttribute(AttributeScopeSpan, false, "foo")}
-		div  = float64(time.Second)
+		attr   = IntrinsicDurationAttribute
+		qs     = []float64{0, 0.5, 1}
+		by     = []Attribute{NewScopedAttribute(AttributeScopeSpan, false, "foo")}
+		_128ns = 0.000000128
+		_256ns = 0.000000256
+		_512ns = 0.000000512
 	)
 
 	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
@@ -324,61 +326,61 @@ func TestQuantileOverTime(t *testing.T) {
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
-		`{p="0.00000", span.foo="bar"}`: TimeSeries{
+		`{p="0", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0)},
 			},
 			Values: []float64{
-				0.000000128,
-				percentileHelper(0, 256, 256, 256, 256) / div,
+				_128ns,
+				percentileHelper(0, _256ns, _256ns, _256ns, _256ns),
 				0,
 			},
 		},
-		`{p="0.50000", span.foo="bar"}`: TimeSeries{
+		`{p="0.5", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0.5)},
 			},
 			Values: []float64{
-				0.000000256,
-				percentileHelper(0.5, 256, 256, 256, 256) / div,
+				_256ns,
+				percentileHelper(0.5, _256ns, _256ns, _256ns, _256ns),
 				0,
 			},
 		},
-		`{p="1.00000", span.foo="bar"}`: TimeSeries{
+		`{p="1", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(1)},
 			},
-			Values: []float64{0.000000512, 0.000000256, 0},
+			Values: []float64{_512ns, _256ns, 0},
 		},
-		`{p="0.00000", span.foo="baz"}`: TimeSeries{
+		`{p="0", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0)},
 			},
 			Values: []float64{
 				0, 0,
-				percentileHelper(0, 512, 512, 512) / div,
+				percentileHelper(0, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="0.50000", span.foo="baz"}`: TimeSeries{
+		`{p="0.5", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0.5)},
 			},
 			Values: []float64{
 				0, 0,
-				percentileHelper(0.5, 512, 512, 512) / div,
+				percentileHelper(0.5, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="1.00000", span.foo="baz"}`: TimeSeries{
+		`{p="1", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(1)},
 			},
-			Values: []float64{0, 0, 0.000000512},
+			Values: []float64{0, 0, _512ns},
 		},
 	}
 
@@ -413,10 +415,10 @@ func TestQuantileOverTime(t *testing.T) {
 	require.Equal(t, out, final)
 }
 
-func percentileHelper(q float64, values ...uint64) float64 {
-	b := [64]int{}
+func percentileHelper(q float64, values ...float64) float64 {
+	h := Histogram{}
 	for _, v := range values {
-		b[Log2Bucket(v)]++
+		h.Record(v, 1)
 	}
-	return Log2Quantile(q, b)
+	return Log2Quantile(q, h.Buckets)
 }

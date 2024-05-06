@@ -891,7 +891,8 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				if d < 2 {
 					return Static{}, false
 				}
-				return NewStaticInt(Log2Bucket(d)), true
+				// Bucket is in seconds
+				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
 			}
 		default:
 			// Basic implementation for all other attributes
@@ -910,7 +911,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				if v.N < 2 {
 					return Static{}, false
 				}
-				return NewStaticInt(Log2Bucket(uint64(v.N))), true
+				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
 			}
 		}
 	}
@@ -929,14 +930,7 @@ func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
 func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
-		div := 1.0
-		// TODO(mdisibio) - Need to think about this
-		// Span duration is in nanos, but we want the output to be something
-		// more reasonable like seconds
-		if a.attr == IntrinsicDurationAttribute {
-			div = float64(time.Second)
-		}
-		a.seriesAgg = NewHistogramAggregator(q, a.floats, div)
+		a.seriesAgg = NewHistogramAggregator(q, a.floats)
 	default:
 		// These are simple additions by series
 		a.seriesAgg = NewSimpleAdditionCombiner(q)

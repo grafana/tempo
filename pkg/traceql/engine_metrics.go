@@ -8,6 +8,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -828,24 +829,45 @@ func (b *SimpleAdditionAggregator) Results() SeriesSet {
 	return b.ss
 }
 
-type hist struct {
+type HistogramBucket struct {
+	Max   float64
+	Count int
+}
+
+type Histogram struct {
+	Buckets []HistogramBucket
+}
+
+func (h *Histogram) Record(bucket float64, count int) {
+	for i := range h.Buckets {
+		if h.Buckets[i].Max == bucket {
+			h.Buckets[i].Count += count
+			return
+		}
+	}
+
+	h.Buckets = append(h.Buckets, HistogramBucket{
+		Max:   bucket,
+		Count: count,
+	})
+}
+
+type histSeries struct {
 	labels Labels
-	hist   [][64]int // There is an array of powers-of-two buckets for every point in time
+	hist   []Histogram
 }
 
 type HistogramAggregator struct {
-	ss               map[string]hist
+	ss               map[string]histSeries
 	qs               []float64
-	div              float64
 	len              int
 	start, end, step uint64
 }
 
-func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64, div float64) *HistogramAggregator {
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
 	return &HistogramAggregator{
-		div:   div,
 		qs:    qs,
-		ss:    make(map[string]hist),
+		ss:    make(map[string]histSeries),
 		len:   IntervalCount(req.Start, req.End, req.Step),
 		start: req.Start,
 		end:   req.End,
@@ -860,10 +882,11 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 		// Convert proto labels to traceql labels
 		// while at the same time stripping the bucket label
 		withoutBucket := make(Labels, 0, len(ts.Labels))
-		bucket := -1
+		var bucket Static
 		for _, l := range ts.Labels {
 			if l.Key == internalLabelBucket {
-				bucket = int(l.Value.GetIntValue())
+				// bucket = int(l.Value.GetIntValue())
+				bucket = StaticFromAnyValue(l.Value)
 				continue
 			}
 			withoutBucket = append(withoutBucket, Label{
@@ -872,7 +895,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			})
 		}
 
-		if bucket < 0 || bucket > 64 {
+		if bucket.Type == TypeNil {
 			// Bad __bucket label?
 			continue
 		}
@@ -881,17 +904,22 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 
 		existing, ok := h.ss[withoutBucketStr]
 		if !ok {
-			existing = hist{
+			existing = histSeries{
 				labels: withoutBucket,
-				hist:   make([][64]int, h.len),
+				hist:   make([]Histogram, h.len),
 			}
 			h.ss[withoutBucketStr] = existing
 		}
 
+		b := bucket.asFloat()
+
 		for _, sample := range ts.Samples {
+			if sample.Value == 0 {
+				continue
+			}
 			j := IntervalOfMs(sample.TimestampMs, h.start, h.end, h.step)
 			if j >= 0 && j < len(existing.hist) {
-				existing.hist[j][bucket] += int(sample.Value)
+				existing.hist[j].Record(b, int(sample.Value))
 			}
 		}
 	}
@@ -913,7 +941,13 @@ func (h *HistogramAggregator) Results() SeriesSet {
 				Values: make([]float64, len(in.hist)),
 			}
 			for i := range in.hist {
-				ts.Values[i] = Log2Quantile(q, in.hist[i]) / h.div
+
+				buckets := in.hist[i].Buckets
+				sort.Slice(buckets, func(i, j int) bool {
+					return buckets[i].Max < buckets[j].Max
+				})
+
+				ts.Values[i] = Log2Quantile(q, buckets)
 			}
 			results[s] = ts
 		}
@@ -921,28 +955,28 @@ func (h *HistogramAggregator) Results() SeriesSet {
 	return results
 }
 
-// Log2Bucket returns which powers-of-two bucket the value lies in.
-func Log2Bucket(v uint64) int {
+// Log2Bucketize rounds the given value to the next powers-of-two bucket.
+func Log2Bucketize(v uint64) float64 {
 	if v < 2 {
 		return -1
 	}
 
-	return int(math.Ceil(math.Log2(float64(v))))
+	return math.Pow(2, math.Ceil(math.Log2(float64(v))))
 }
 
-// Log2Quantile returns the quantile given powers-of-two bucket counts. Uses
-// exponential interpolation. The original values are int64 so there are always 64 buckets.
-// Input comes from Log2Bucket
-func Log2Quantile(p float64, buckets [64]int) float64 {
+// Log2Quantile returns the quantile given bucket labeled with float ranges and counts. Uses
+// exponential power-of-two interpolation between buckets as needed.
+func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 	if math.IsNaN(p) ||
 		p < 0 ||
-		p > 1 {
+		p > 1 ||
+		len(buckets) == 0 {
 		return 0
 	}
 
 	totalCount := 0
 	for _, b := range buckets {
-		totalCount += b
+		totalCount += b.Count
 	}
 
 	if totalCount == 0 {
@@ -958,36 +992,46 @@ func Log2Quantile(p float64, buckets [64]int) float64 {
 		maxSamples = 1
 	}
 
-	// Find the bucket where the percentile falls in
-	// and the total sample count less than or equal
-	// to that bucket.
+	// Find the bucket where the percentile falls in.
 	var total, bucket int
-	for b, count := range buckets {
-		if total+count <= maxSamples {
-			bucket = b
-			total += count
+	for i, b := range buckets {
+		// Next bucket
+		bucket = i
 
-			if total < maxSamples {
-				continue
-			}
+		// If we can't fully consume the samples in this bucket
+		// then we are done.
+		if total+b.Count > maxSamples {
+			break
 		}
 
-		// We have enough
-		break
+		// Consume all samples in this bucket
+		total += b.Count
+
+		// p100 or happen to read the exact number of samples.
+		// Quantile is the max range for the bucket. No reason
+		// to enter interpolation below.
+		if total == maxSamples {
+			return b.Max
+		}
 	}
 
 	// Fraction to interpolate between buckets, sample-count wise.
 	// 0.5 means halfway
-	var interp float64
-	if maxSamples-total > 0 {
-		interp = float64(maxSamples-total) / float64(buckets[bucket+1])
-	}
+	interp := float64(maxSamples-total) / float64(buckets[bucket].Count)
 
 	// Exponential interpolation between buckets
-	minDur := math.Pow(2, float64(bucket))
-	dur := minDur * math.Pow(2, interp)
-
-	return dur
+	// The current bucket represents the maximum value
+	max := math.Log2(buckets[bucket].Max)
+	var min float64
+	if bucket > 0 {
+		// Prior bucket represents the min
+		min = math.Log2(buckets[bucket-1].Max)
+	} else {
+		// There is no prior bucket, assume powers of 2
+		min = max - 1
+	}
+	mid := math.Pow(2, min+(max-min)*interp)
+	return mid
 }
 
 var (
