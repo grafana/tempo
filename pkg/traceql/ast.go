@@ -841,7 +841,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		// Histograms are implemented as count_over_time() by(2^log2(attr)) for now
 		// This is very similar to quantile_over_time except the bucket values are the true
 		// underlying value in scale, i.e. a duration of 500ms will be in __bucket==0.512s
-		// The difference is that quantile_over_time has to calcualte the final quantiles
+		// The difference is that quantile_over_time has to calculate the final quantiles
 		// so in that case the log2 bucket number is more useful.  We can clean it up later
 		// when updating quantiles to be smarter and more customizable range of buckets.
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
