@@ -51,6 +51,14 @@ valid:
   - '{ duration > 1s }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
+  # scoped intrinsics
+  - '{ trace:duration > 2s }'
+  - '{ trace:rootName = "a" }'
+  - '{ trace:rootService = "a" }'
+  - '{ span:duration > 2s }'
+  - '{ span:status = error }'
+  - '{ span:kind = client }'
+  - '{ span:statusMessage = "status message" }'
   # binary operations
   - '{ 1 + 1 = 2 }'
   - '{ 1 - 1 = 2 }'
@@ -117,6 +125,9 @@ valid:
   - '{ true } | by(name) | count() > 2'
   - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
+  # metrics
+  - '{} | rate()'
+  - '{} | count_over_time() by (name) with(sample=0.1)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
@@ -179,6 +190,16 @@ parse_fails:
   - '(by(namespace) | count()) > 2 * 2' # scalar expressions are currently not allowed in scalar pipelines
   - '(by(namespace) | count()) * 2 > 2'
   - '2 < (by(namespace) | count())'     # static value needs to be on the RHS to remove conflicts with scalar expressions
+  # mismatched scoped intrinsics
+  - '{ trace:status = error }'
+  - '{ trace:kind = server }'
+  - '{ trace:name = "a" }'
+  - '{ trace:rootServiceName = "a" }' # should be trace:rootService only 
+  - '{ span:rootName = "bar" }'
+  # to be added in the future
+  - '{ span:id = "61626364656667" }'
+  - '{ event:name = "foo" }'
+  - '{ scope:version = "v3.34" }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -285,6 +306,8 @@ unsupported:
   # other scalar filters. no idea if these should be supported
   - '3 = 2'                       # naked scalar filter, technically allowed
   - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
+  # quantiles
+  - '{} | quantile_over_time(duration, 0.9, 0.95) by (span.http.path)'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
