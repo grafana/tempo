@@ -855,7 +855,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 					return Static{}, false
 				}
 				// Bucket is log2(nanos) converted to float seconds
-				return NewStaticFloat(math.Pow(2, float64(Log2Bucket(d))) / float64(time.Second)), true
+				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
 			}
 		default:
 			// Basic implementation for all other attributes
@@ -875,7 +875,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 					return Static{}, false
 				}
 				// Bucket is the value rounded up to the nearest power of 2
-				return NewStaticInt(int(math.Pow(2, float64(Log2Bucket(uint64(v.N)))))), true
+				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
 			}
 		}
 
