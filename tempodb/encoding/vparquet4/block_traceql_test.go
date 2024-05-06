@@ -606,6 +606,7 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"struct", "{ resource.service.name != `loki-querier` } >> { resource.service.name = `loki-gateway` && status = error }"},
 		{"||", "{ resource.service.name = `loki-querier` } || { resource.service.name = `loki-gateway` }"},
 		{"mixed", `{resource.namespace!="" && resource.service.name="cortex-gateway" && duration>50ms && resource.cluster=~"prod.*"}`},
+		{"complex", `{resource.cluster=~"prod.*" && resource.namespace = "tempo-prod" && resource.container="query-frontend" && name = "HTTP GET - tempo_api_v2_search_tags" && span.http.status_code = 200 && duration > 1s}`},
 	}
 
 	ctx := context.TODO()
