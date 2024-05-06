@@ -33,6 +33,8 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool
+	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	MaxBytesPerTrace(userID string) int

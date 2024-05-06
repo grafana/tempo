@@ -36,6 +36,7 @@ import (
     intrinsicField Attribute
     attributeField Attribute
     attribute Attribute
+    scopedIntrinsicField Attribute
 
     binOp       Operator
     staticInt   int
@@ -75,6 +76,7 @@ import (
 %type <static> static
 %type <intrinsicField> intrinsicField
 %type <attributeField> attributeField
+%type <scopedIntrinsicField> scopedIntrinsicField
 %type <attribute> attribute
 
 %type <numericList> numericList
@@ -90,8 +92,9 @@ import (
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS COMMA
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
-                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
-                        PARENT_DOT RESOURCE_DOT SPAN_DOT
+                        IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
+                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
+                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
@@ -167,8 +170,9 @@ selectOperation:
   ;
 
 attribute:
-  intrinsicField    { $$ = $1 }
-  | attributeField  { $$ = $1 }
+  intrinsicField          { $$ = $1 }
+  | attributeField        { $$ = $1 }
+  | scopedIntrinsicField  { $$ = $1 }
   ;
 
 attributeList:
@@ -330,6 +334,7 @@ fieldExpression:
   | static                                   { $$ = $1 }
   | intrinsicField                           { $$ = $1 }
   | attributeField                           { $$ = $1 }
+  | scopedIntrinsicField                     { $$ = $1 }
   ;
 
 // **********************
@@ -354,6 +359,8 @@ static:
   | KIND_CONSUMER    { $$ = NewStaticKind(KindConsumer)   }
   ;
 
+// ** DO NOT ADD MORE FEATURES **
+// Going forward with scoped intrinsics only
 intrinsicField:
     IDURATION       { $$ = NewIntrinsic(IntrinsicDuration)         }
   | CHILDCOUNT      { $$ = NewIntrinsic(IntrinsicChildCount)       }
@@ -369,6 +376,18 @@ intrinsicField:
   | NESTEDSETRIGHT  { $$ = NewIntrinsic(IntrinsicNestedSetRight)   }
   | NESTEDSETPARENT { $$ = NewIntrinsic(IntrinsicNestedSetParent)  }
   ;
+
+scopedIntrinsicField:
+//  trace:
+    TRACE_COLON IDURATION        { $$ = NewIntrinsic(IntrinsicTraceDuration)       }
+  | TRACE_COLON ROOTNAME         { $$ = NewIntrinsic(IntrinsicTraceRootSpan)       }
+  | TRACE_COLON ROOTSERVICE      { $$ = NewIntrinsic(IntrinsicTraceRootService)    }
+//  span:
+  | SPAN_COLON IDURATION         { $$ = NewIntrinsic(IntrinsicDuration)            }
+  | SPAN_COLON NAME              { $$ = NewIntrinsic(IntrinsicName)                }
+  | SPAN_COLON KIND              { $$ = NewIntrinsic(IntrinsicKind)                }
+  | SPAN_COLON STATUS            { $$ = NewIntrinsic(IntrinsicStatus)              }
+  | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
 
 attributeField:
     DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }

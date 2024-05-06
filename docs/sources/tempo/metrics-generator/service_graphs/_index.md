@@ -60,21 +60,30 @@ Virtual nodes can be detected in two different ways:
 
 The following metrics are exported:
 
-| Metric                                      | Type      | Labels                          | Description                                                  |
-|---------------------------------------------|-----------|---------------------------------|--------------------------------------------------------------|
-| traces_service_graph_request_total          | Counter   | client, server, connection_type | Total count of requests between two nodes                    |
-| traces_service_graph_request_failed_total   | Counter   | client, server, connection_type | Total count of failed requests between two nodes             |
-| traces_service_graph_request_server_seconds | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server |
-| traces_service_graph_request_client_seconds | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client |
-| traces_service_graph_unpaired_spans_total   | Counter   | client, server, connection_type | Total count of unpaired spans                                |
-| traces_service_graph_dropped_spans_total    | Counter   | client, server, connection_type | Total count of dropped spans                                 |
+| Metric                                                | Type      | Labels                          | Description                                                                                                |
+| ----------------------------------------------------- | --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| traces_service_graph_request_total                    | Counter   | client, server, connection_type | Total count of requests between two nodes                                                                  |
+| traces_service_graph_request_failed_total             | Counter   | client, server, connection_type | Total count of failed requests between two nodes                                                           |
+| traces_service_graph_request_server_seconds           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
+| traces_service_graph_request_client_seconds           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client                                               |
+| traces_service_graph_request_messaging_system_seconds | Histogram | client, server, connection_type | (Off by default) Time between publisher and consumer for services communicating through a messaging system |
+| traces_service_graph_unpaired_spans_total             | Counter   | client, server, connection_type | Total count of unpaired spans                                                                              |
+| traces_service_graph_dropped_spans_total              | Counter   | client, server, connection_type | Total count of dropped spans                                                                               |
 
 Duration is measured both from the client and the server sides.
 
-Possible values for `connection_type`: unset, `messaging_system`, or `database`.
+Possible values for `connection_type`: unset, `virtual_node`, `messaging_system`, or `database`.
 
-Additional labels can be included using the `dimensions` configuration option.
+Additional labels can be included using the `dimensions` configuration option, or the `enable_virtual_node_label` option.
 
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
+
+#### Activate `enable_virtual_node_label`
+
+Activating this feature adds the following label and corresponding values:
+
+| Label                   | Possible Values             | Description                                                              |
+|-------------------------|-----------------------------|--------------------------------------------------------------------------|
+| virtual_node            | `unset`, `client`, `server` | Explicitly indicates the side that is uninstrumented                     |

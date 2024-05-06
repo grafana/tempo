@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	testPollConcurrency = uint(10)
-	testPollFallback    = true
-	testBuilders        = 1
+	testPollConcurrency     = uint(10)
+	testPollFallback        = true
+	testBuilders            = 1
+	testEmptyTenantIndexAge = 1 * time.Minute
 )
 
 type mockJobSharder struct {
@@ -260,10 +261,11 @@ func TestTenantIndexFallback(t *testing.T) {
 			}
 
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        tc.pollFallback,
-				TenantIndexBuilders: testBuilders,
-				StaleTenantIndex:    tc.staleTenantIndex,
+				PollConcurrency:        testPollConcurrency,
+				PollFallback:           tc.pollFallback,
+				TenantIndexBuilders:    testBuilders,
+				StaleTenantIndex:       tc.staleTenantIndex,
+				EmptyTenantDeletionAge: testEmptyTenantIndexAge,
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
@@ -573,6 +575,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				PollFallback:              testPollFallback,
 				TenantIndexBuilders:       testBuilders,
 				TolerateConsecutiveErrors: tc.tolerate,
+				EmptyTenantDeletionAge:    testEmptyTenantIndexAge,
 			}, s, r, c, w, log.NewNopLogger())
 
 			_, _, err := poller.Do(b)
