@@ -296,12 +296,11 @@ func TestQuantileOverTime(t *testing.T) {
 		Start: uint64(1 * time.Second),
 		End:   uint64(3 * time.Second),
 		Step:  uint64(1 * time.Second),
+		Query: "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)",
 	}
 
 	var (
-		attr   = IntrinsicDurationAttribute
-		qs     = []float64{0, 0.5, 1}
-		by     = []Attribute{NewScopedAttribute(AttributeScopeSpan, false, "foo")}
+		e      = NewEngine()
 		_128ns = 0.000000128
 		_256ns = 0.000000256
 		_512ns = 0.000000512
@@ -385,33 +384,33 @@ func TestQuantileOverTime(t *testing.T) {
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1 := newMetricsAggregateQuantileOverTime(attr, qs, by)
-	layer1.init(req, AggregateModeRaw)
+	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	require.NoError(t, err)
 
-	layer2 := newMetricsAggregateQuantileOverTime(attr, qs, by)
-	layer2.init(req, AggregateModeSum)
+	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	require.NoError(t, err)
 
-	layer3 := newMetricsAggregateQuantileOverTime(attr, qs, by)
-	layer3.init(req, AggregateModeFinal)
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	require.NoError(t, err)
 
 	// Pass spans to layer 1
 	for _, s := range in {
-		layer1.observe(s)
+		layer1.metricsPipeline.observe(s)
 	}
 
 	// Pass layer 1 to layer 2
 	// These are partial counts over time by bucket
-	res := layer1.result()
-	layer2.observeSeries(res.ToProto(req))
+	res := layer1.Results()
+	layer2.metricsPipeline.observeSeries(res.ToProto(req))
 
 	// Pass layer 2 to layer 3
 	// These are summed counts over time by bucket
-	res = layer2.result()
-	layer3.observeSeries(res.ToProto(req))
+	res = layer2.Results()
+	layer3.ObserveSeries(res.ToProto(req))
 
 	// Layer 3 final results
 	// The quantiles
-	final := layer3.result()
+	final := layer3.Results()
 	require.Equal(t, out, final)
 }
 
