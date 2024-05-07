@@ -878,8 +878,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	if req.SearchReq.Scope == "" {
 		// start with intrinsic scope and all traceql attribute scopes
 		atts := traceql.AllAttributeScopes()
-		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
-		scopes = append(scopes, api.ParamScopeIntrinsic)
+		scopes = make([]string, 0, len(atts)+1)          // +1 for intrinsic
+		scopes = append(scopes, api.ParamScopeIntrinsic) // jpe - seachtagsv2 doesn't seem to have support for "intrinsics" remove?
 		for _, att := range atts {
 			scopes = append(scopes, att.String())
 		}

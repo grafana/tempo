@@ -219,7 +219,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Aut
 	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
 	// 	}
 	// }
-	req.Conditions = append(req.Conditions, Condition{
+	req.Conditions = append(req.Conditions, Condition{ // jpe should we move this into the fetch itself? it's weird we pass in both the tag through the request _and_ do the trickiness outside of adding it as OpNone
 		Attribute: tag,
 		Op:        OpNone,
 	})

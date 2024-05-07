@@ -1174,8 +1174,8 @@ github.com/sean-/seed
 # github.com/segmentio/encoding v0.3.6
 ## explicit; go 1.14
 github.com/segmentio/encoding/thrift
-# github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
-## explicit
+# github.com/segmentio/fasthash v1.0.3
+## explicit; go 1.11
 github.com/segmentio/fasthash/fnv1a
 # github.com/sercand/kuberesolver/v5 v5.1.1
 ## explicit; go 1.18

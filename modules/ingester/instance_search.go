@@ -260,7 +260,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		atts := traceql.AllAttributeScopes()
 		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
 
-		scopes = append(scopes, api.ParamScopeIntrinsic)
+		scopes = append(scopes, api.ParamScopeIntrinsic) // jpe - search tags doesn't seem to have any "intrinsic" logic. should this be removed?
 		for _, att := range atts {
 			scopes = append(scopes, att.String())
 		}
