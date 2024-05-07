@@ -1,4 +1,4 @@
-package vparquet3
+package vparquet4
 
 import (
 	"bytes"
@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
@@ -394,33 +393,20 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
-	// Helper functions to make pointers
-	strPtr := func(s string) *string { return &s }
-	intPtr := func(i int64) *int64 { return &i }
-	fltPtr := func(f float64) *float64 { return &f }
-	boolPtr := func(b bool) *bool { return &b }
-
-	links := tempopb.LinkSlice{
-		Links: []*v1.Span_Link{
-			{
-				TraceId:                []byte{0x01},
-				SpanId:                 []byte{0x02},
-				TraceState:             "state",
-				DroppedAttributesCount: 3,
-				Attributes: []*v1_common.KeyValue{
-					{
-						Key:   "key",
-						Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value"}},
-					},
-				},
+	links := []Link{
+		{
+			TraceID:                []byte{0x01},
+			SpanID:                 []byte{0x02},
+			TraceState:             "state",
+			DroppedAttributesCount: 3,
+			Attrs: []Attribute{
+				attr("link-attr-key-1", "link-value-1"),
 			},
 		},
 	}
-	linkBytes := make([]byte, links.Size())
-	_, err := links.MarshalTo(linkBytes)
-	if err != nil {
-		panic("failed to marshal links")
-	}
+
+	mixedArrayAttrValue := "{\"arrayValue\":{\"values\":[{\"stringValue\":\"value-one\"},{\"intValue\":\"100\"}]}}"
+	kvListValue := "{\"kvlistValue\":{\"values\":[{\"key\":\"key-one\",\"value\":{\"stringValue\":\"value-one\"}},{\"key\":\"key-two\",\"value\":{\"stringValue\":\"value-two\"}}]}}"
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
@@ -429,41 +415,60 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
 		RootServiceName:   "RootService",
 		RootSpanName:      "RootSpan",
+		ServiceStats: map[string]ServiceStats{
+			"myservice": {
+				SpanCount:  1,
+				ErrorCount: 0,
+			},
+			"service2": {
+				SpanCount:  1,
+				ErrorCount: 0,
+			},
+		},
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
 					ServiceName:      "myservice",
-					Cluster:          strPtr("cluster"),
-					Namespace:        strPtr("namespace"),
-					Pod:              strPtr("pod"),
-					Container:        strPtr("container"),
-					K8sClusterName:   strPtr("k8scluster"),
-					K8sNamespaceName: strPtr("k8snamespace"),
-					K8sPodName:       strPtr("k8spod"),
-					K8sContainerName: strPtr("k8scontainer"),
+					Cluster:          ptr("cluster"),
+					Namespace:        ptr("namespace"),
+					Pod:              ptr("pod"),
+					Container:        ptr("container"),
+					K8sClusterName:   ptr("k8scluster"),
+					K8sNamespaceName: ptr("k8snamespace"),
+					K8sPodName:       ptr("k8spod"),
+					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
-						{Key: "foo", Value: strPtr("abc")},
-						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
+						attr("foo", "abc"),
+						attr("str-array", []string{"value-one", "value-two"}),
+						attr(LabelServiceName, 123), // Different type than dedicated column
+						// Unsupported attributes
+						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
+						{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
 					},
+					DroppedAttributesCount: 22,
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-resource-attr-value-1"),
-						String02: strPtr("dedicated-resource-attr-value-2"),
-						String03: strPtr("dedicated-resource-attr-value-3"),
-						String04: strPtr("dedicated-resource-attr-value-4"),
-						String05: strPtr("dedicated-resource-attr-value-5"),
+						String01: ptr("dedicated-resource-attr-value-1"),
+						String02: ptr("dedicated-resource-attr-value-2"),
+						String03: ptr("dedicated-resource-attr-value-3"),
+						String04: ptr("dedicated-resource-attr-value-4"),
+						String05: ptr("dedicated-resource-attr-value-5"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						Scope: InstrumentationScope{
+							Name:    "scope-1",
+							Version: "version-1",
+						},
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid"),
 								Name:                   "hello",
 								StartTimeUnixNano:      uint64(100 * time.Second),
 								DurationNano:           uint64(100 * time.Second),
-								HttpMethod:             strPtr("get"),
-								HttpUrl:                strPtr("url/hello/world"),
-								HttpStatusCode:         intPtr(500),
+								HttpMethod:             ptr("get"),
+								HttpUrl:                ptr("url/hello/world"),
+								HttpStatusCode:         ptr(int64(500)),
 								ParentSpanID:           []byte{},
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
@@ -472,30 +477,40 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								DroppedAttributesCount: 42,
 								DroppedEventsCount:     43,
 								Attrs: []Attribute{
-									{Key: "foo", Value: strPtr("def")},
-									{Key: "bar", ValueInt: intPtr(123)},
-									{Key: "float", ValueDouble: fltPtr(456.78)},
-									{Key: "bool", ValueBool: boolPtr(false)},
-
+									attr("foo", "def"),
+									attr("bar", 123),
+									attr("float", 456.78),
+									attr("bool", false),
+									attr("string-array", []string{"value-one"}),
+									attr("int-array", []int64{11, 22}),
+									attr("double-array", []float64{1.1, 2.2, 3.3}),
+									attr("bool-array", []bool{true, false, true, false}),
 									// Edge-cases
-									{Key: LabelName, Value: strPtr("Bob")},                    // Conflicts with intrinsic but still looked up by .name
-									{Key: LabelServiceName, Value: strPtr("spanservicename")}, // Overrides resource-level dedicated column
-									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch")},      // Different type than dedicated column
+									attr(LabelName, "Bob"),                    // Conflicts with intrinsic but still looked up by .name
+									attr(LabelServiceName, "spanservicename"), // Overrides resource-level dedicated column
+									attr(LabelHTTPStatusCode, "500ouch"),      // Different type than dedicated column
+									// Unsupported attributes
+									{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
+									{Key: "unsupported-kv-list", ValueUnsupported: &kvListValue, IsArray: false},
 								},
 								Events: []Event{
-									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
-										{Key: "foo", Value: []byte("fake proto encoded data. i hope this never matters")},
-										{Key: "bar", Value: []byte("fake proto encoded data. i hope this never matters")},
-									}},
-									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
+									{
+										TimeSinceStartNano: 1,
+										Name:               "e1",
+										Attrs: []Attribute{
+											attr("event-attr-key-1", "event-value-1"),
+											attr("event-attr-key-2", "event-value-2"),
+										},
+									},
+									{TimeSinceStartNano: 2, Name: "e2", Attrs: []Attribute{}},
 								},
-								Links: linkBytes,
+								Links: links,
 								DedicatedAttributes: DedicatedAttributes{
-									String01: strPtr("dedicated-span-attr-value-1"),
-									String02: strPtr("dedicated-span-attr-value-2"),
-									String03: strPtr("dedicated-span-attr-value-3"),
-									String04: strPtr("dedicated-span-attr-value-4"),
-									String05: strPtr("dedicated-span-attr-value-5"),
+									String01: ptr("dedicated-span-attr-value-1"),
+									String02: ptr("dedicated-span-attr-value-2"),
+									String03: ptr("dedicated-span-attr-value-3"),
+									String04: ptr("dedicated-span-attr-value-4"),
+									String05: ptr("dedicated-span-attr-value-5"),
 								},
 							},
 						},
@@ -505,37 +520,41 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			{
 				Resource: Resource{
 					ServiceName:      "service2",
-					Cluster:          strPtr("cluster2"),
-					Namespace:        strPtr("namespace2"),
-					Pod:              strPtr("pod2"),
-					Container:        strPtr("container2"),
-					K8sClusterName:   strPtr("k8scluster2"),
-					K8sNamespaceName: strPtr("k8snamespace2"),
-					K8sPodName:       strPtr("k8spod2"),
-					K8sContainerName: strPtr("k8scontainer2"),
+					Cluster:          ptr("cluster2"),
+					Namespace:        ptr("namespace2"),
+					Pod:              ptr("pod2"),
+					Container:        ptr("container2"),
+					K8sClusterName:   ptr("k8scluster2"),
+					K8sNamespaceName: ptr("k8snamespace2"),
+					K8sPodName:       ptr("k8spod2"),
+					K8sContainerName: ptr("k8scontainer2"),
 					Attrs: []Attribute{
-						{Key: "foo", Value: strPtr("abc2")},
-						{Key: LabelServiceName, ValueInt: intPtr(1234)}, // Different type than dedicated column
+						attr("foo", "abc2"),
+						attr(LabelServiceName, 1234), // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
-						String01: strPtr("dedicated-resource-attr-value-6"),
-						String02: strPtr("dedicated-resource-attr-value-7"),
-						String03: strPtr("dedicated-resource-attr-value-8"),
-						String04: strPtr("dedicated-resource-attr-value-9"),
-						String05: strPtr("dedicated-resource-attr-value-10"),
+						String01: ptr("dedicated-resource-attr-value-6"),
+						String02: ptr("dedicated-resource-attr-value-7"),
+						String03: ptr("dedicated-resource-attr-value-8"),
+						String04: ptr("dedicated-resource-attr-value-9"),
+						String05: ptr("dedicated-resource-attr-value-10"),
 					},
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						Scope: InstrumentationScope{
+							Name:    "scope-2",
+							Version: "version-2",
+						},
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid2"),
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
-								HttpMethod:             strPtr("PUT"),
-								HttpUrl:                strPtr("url/hello/world/2"),
-								HttpStatusCode:         intPtr(501),
+								HttpMethod:             ptr("PUT"),
+								HttpUrl:                ptr("url/hello/world/2"),
+								HttpStatusCode:         ptr(int64(501)),
 								StatusCode:             int(v1.Status_STATUS_CODE_OK),
 								StatusMessage:          v1.Status_STATUS_CODE_OK.String(),
 								TraceState:             "tracestate2",
@@ -543,15 +562,14 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								DroppedAttributesCount: 45,
 								DroppedEventsCount:     46,
 								Attrs: []Attribute{
-									{Key: "foo", Value: strPtr("ghi")},
-									{Key: "bar", ValueInt: intPtr(1234)},
-									{Key: "float", ValueDouble: fltPtr(456.789)},
-									{Key: "bool", ValueBool: boolPtr(true)},
-
+									attr("foo", "ghi"),
+									attr("bar", 1234),
+									attr("float", 456.789),
+									attr("bool", true),
 									// Edge-cases
-									{Key: LabelName, Value: strPtr("Bob2")},                    // Conflicts with intrinsic but still looked up by .name
-									{Key: LabelServiceName, Value: strPtr("spanservicename2")}, // Overrides resource-level dedicated column
-									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch2")},      // Different type than dedicated column
+									attr(LabelName, "Bob2"),                    // Conflicts with intrinsic but still looked up by .name
+									attr(LabelServiceName, "spanservicename2"), // Overrides resource-level dedicated column
+									attr(LabelHTTPStatusCode, "500ouch2"),      // Different type than dedicated column
 								},
 							},
 						},
@@ -593,12 +611,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	ctx := context.TODO()
 	tenantID := "1"
-	// blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
 	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
 
 	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/home/joe/testblock/"),
 		// Path: path.Join("/Users/marty/src/tmp"),
 		Path: path.Join("/Users/mapno/workspace/testblock"),
 	})
@@ -609,8 +625,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	require.NoError(b, err)
 
 	opts := common.DefaultSearchOptions()
-	opts.StartPage = 10
-	opts.TotalPages = 1
+	opts.StartPage = 3
+	opts.TotalPages = 2
 
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
@@ -706,10 +722,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
 		path    = "/Users/marty/src/tmp/"
-		// path = "/Users/mapno/workspace/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -885,5 +899,32 @@ func TestTraceIDShardingQuality(t *testing.T) {
 			summarizeCounts("Traces", trCounts)
 			summarizeCounts("RowGroups", rgCounts)
 		})
+	}
+}
+
+func ptr[T any](v T) *T {
+	return &v
+}
+
+func attr(key string, val any) Attribute {
+	switch val := val.(type) {
+	case string:
+		return Attribute{Key: key, Value: []string{val}, IsArray: false}
+	case []string:
+		return Attribute{Key: key, Value: val, IsArray: true}
+	case int:
+		return Attribute{Key: key, ValueInt: []int64{int64(val)}, IsArray: false}
+	case []int64:
+		return Attribute{Key: key, ValueInt: val, IsArray: true}
+	case float64:
+		return Attribute{Key: key, ValueDouble: []float64{val}, IsArray: false}
+	case []float64:
+		return Attribute{Key: key, ValueDouble: val, IsArray: true}
+	case bool:
+		return Attribute{Key: key, ValueBool: []bool{val}, IsArray: false}
+	case []bool:
+		return Attribute{Key: key, ValueBool: val, IsArray: true}
+	default:
+		panic(fmt.Sprintf("type %T not supported for attribute '%s'", val, key))
 	}
 }

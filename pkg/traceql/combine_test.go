@@ -193,6 +193,33 @@ func TestCombineResults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "merge ServiceStats",
+			existing: &tempopb.TraceSearchMetadata{
+				ServiceStats: map[string]*tempopb.ServiceStats{
+					"service1": {
+						SpanCount:  5,
+						ErrorCount: 1,
+					},
+				},
+			},
+			new: &tempopb.TraceSearchMetadata{
+				ServiceStats: map[string]*tempopb.ServiceStats{
+					"service1": {
+						SpanCount:  3,
+						ErrorCount: 2,
+					},
+				},
+			},
+			expected: &tempopb.TraceSearchMetadata{
+				ServiceStats: map[string]*tempopb.ServiceStats{
+					"service1": {
+						SpanCount:  5,
+						ErrorCount: 2,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
