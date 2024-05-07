@@ -279,9 +279,7 @@ func createDistinctSpanIterator(
 		return attrIter, nil
 	}
 
-	spanCol := &distinctValueCollector{
-		mapToStatic: mapSpanAttr,
-	}
+	spanCol := newDistinctValueCollector(mapSpanAttr)
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
@@ -388,9 +386,7 @@ func createDistinctAttributeIterator(
 				definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 				valueIters,
-				&distinctAttrCollector{
-					scope: scopeFromDefinitionLevel(definitionLevel),
-				},
+				newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel)),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("creating left join iterator: %w", err)
@@ -506,9 +502,7 @@ func createDistinctResourceIterator(
 		iters = append(iters, attrIter)
 	}
 
-	batchCol := &distinctValueCollector{
-		mapToStatic: mapResourceAttr,
-	}
+	batchCol := newDistinctValueCollector(mapResourceAttr)
 
 	// Put span iterator last, so it is only read when
 	// the resource conditions are met.
@@ -570,15 +564,22 @@ func createDistinctTraceIterator(
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &distinctValueCollector{
-		mapToStatic: mapTraceAttr,
-	}), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newDistinctValueCollector(mapTraceAttr)), nil
 }
 
 var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
 
 type distinctAttrCollector struct {
 	scope traceql.AttributeScope
+
+	sentVals map[traceql.Static]struct{}
+}
+
+func newDistinctAttrCollector(scope traceql.AttributeScope) *distinctAttrCollector {
+	return &distinctAttrCollector{
+		scope:    scope,
+		sentVals: make(map[traceql.Static]struct{}),
+	}
 }
 
 func (d *distinctAttrCollector) String() string {
@@ -609,7 +610,10 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 	var empty traceql.Static
 	if val != empty {
-		result.AppendOtherValue("", val)
+		if _, ok := d.sentVals[val]; !ok {
+			result.AppendOtherValue("", val)
+			d.sentVals[val] = struct{}{}
+		}
 	}
 
 	result.Entries = result.Entries[:0]
@@ -626,6 +630,14 @@ var _ parquetquery.GroupPredicate = (*distinctValueCollector)(nil)
 
 type distinctValueCollector struct {
 	mapToStatic func(entry) traceql.Static
+	sentVals    map[traceql.Static]struct{}
+}
+
+func newDistinctValueCollector(mapToStatic func(entry) traceql.Static) *distinctValueCollector {
+	return &distinctValueCollector{
+		mapToStatic: mapToStatic,
+		sentVals:    make(map[traceql.Static]struct{}),
+	}
 }
 
 func (d distinctValueCollector) String() string { return "distinctValueCollector" }
@@ -635,8 +647,12 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		if e.Value.IsNull() {
 			continue
 		}
+		static := d.mapToStatic(e)
 
-		result.AppendOtherValue("", d.mapToStatic(e))
+		if _, ok := d.sentVals[static]; !ok {
+			result.AppendOtherValue("", static)
+			d.sentVals[static] = struct{}{}
+		}
 	}
 	result.Entries = result.Entries[:0]
 	return true
