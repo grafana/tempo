@@ -457,8 +457,15 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				ScopeSpans: []ScopeSpans{
 					{
 						Scope: InstrumentationScope{
-							Name:    "scope-1",
-							Version: "version-1",
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attrs: []Attribute{
+								attr("scope-attr-str", "scope-attr-1"),
+								attr("scope-attr-int", 101),
+								attr("scope-attr-float", 3.14),
+								attr("scope-attr-bool", true),
+							},
 						},
 						Spans: []Span{
 							{

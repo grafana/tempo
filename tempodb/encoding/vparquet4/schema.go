@@ -542,14 +542,19 @@ func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *Instrumentati
 	if s == nil {
 		ss.Name = ""
 		ss.Version = ""
-	} else {
-		ss.Name = s.Name
-		ss.Version = s.Version
+		ss.DroppedAttributesCount = 0
+		ss.Attrs = ss.Attrs[:0]
+		return
 	}
 
-	// TODO: handle attributes correctly once they are added to the proto
-	ss.Attrs = ss.Attrs[:0]
-	ss.DroppedAttributesCount = 0
+	ss.Name = s.Name
+	ss.Version = s.Version
+	ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
+
+	ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
+	for i, a := range s.Attributes {
+		attrToParquet(a, &ss.Attrs[i])
+	}
 }
 
 func eventToParquet(e *v1_trace.Span_Event, ee *Event, spanStartTime uint64) {
@@ -664,10 +669,15 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 
 func parquetToProtoInstrumentationScope(parquetScope *InstrumentationScope) *v1.InstrumentationScope {
 	scope := v1.InstrumentationScope{
-		Name:    parquetScope.Name,
-		Version: parquetScope.Version,
+		Name:                   parquetScope.Name,
+		Version:                parquetScope.Version,
+		DroppedAttributesCount: uint32(parquetScope.DroppedAttributesCount),
 	}
-	// TODO: handle attributes correctly once they are added to the proto
+
+	if len(parquetScope.Attrs) > 0 {
+		scope.Attributes = parquetToProtoAttrs(parquetScope.Attrs)
+	}
+
 	return &scope
 }
 
