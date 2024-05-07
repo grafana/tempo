@@ -723,12 +723,10 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 			}
 
 			for _, oe := range res.OtherEntries {
-				if oe.Key == req.TagName.String() {
-					v := oe.Value.(traceql.Static)
-					if cb(v) {
-						iter.Close()
-						return nil // We have enough values
-					}
+				v := oe.Value.(traceql.Static)
+				if cb(v) {
+					iter.Close()
+					return nil // We have enough values
 				}
 			}
 		}
