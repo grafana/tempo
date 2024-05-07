@@ -27,6 +27,7 @@ func TestServiceGraphs(t *testing.T) {
 
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableMessagingSystemLatencyHistogram = true
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
@@ -98,6 +99,11 @@ func TestServiceGraphs(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToRecorderLabels))
 	assert.InDelta(t, 0.000693, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToRecorderLabels), 0.001)
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
+	assert.Equal(t, 0.0098816, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_sum`, requesterToRecorderLabels))
 }
 
 func TestServiceGraphs_prefixDimensions(t *testing.T) {
@@ -130,6 +136,36 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+}
+
+func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableMessagingSystemLatencyHistogram = true
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	requesterToRecorderLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-recorder",
+		"connection_type": "messaging_system",
+		"beast":           "",
+		"god":             "",
+	})
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
 }
 
 func TestServiceGraphs_failedRequests(t *testing.T) {

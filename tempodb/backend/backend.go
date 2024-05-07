@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/cache"
 )
 
@@ -47,6 +48,8 @@ type Writer interface {
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
 	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
+	// Delete deletes an object.
+	Delete(ctx context.Context, name string, keypath KeyPath) error
 }
 
 // Reader is a collection of methods to read data from tempodb backends
@@ -65,6 +68,8 @@ type Reader interface {
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
 	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
+	// Find executes f for each object in the backend that matches the keypath.
+	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
 	// Shutdown shuts...down?
 	Shutdown()
 }

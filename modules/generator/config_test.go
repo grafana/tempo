@@ -21,6 +21,7 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			HistogramBuckets:    []float64{1, 2},
 			Dimensions:          []string{"namespace"},
 			IntrinsicDimensions: spanmetrics.IntrinsicDimensions{Service: true},
+			Subprocessors:       map[spanmetrics.Subprocessor]bool{},
 		},
 	}
 
