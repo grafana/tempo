@@ -51,11 +51,9 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 			break
 		}
 		for _, oe := range res.OtherEntries {
-			if oe.Key == req.TagName.String() {
-				v := oe.Value.(traceql.Static)
-				if cb(v) {
-					return nil // We have enough values
-				}
+			v := oe.Value.(traceql.Static)
+			if cb(v) {
+				return nil // We have enough values
 			}
 		}
 	}
@@ -582,7 +580,6 @@ func (d *distinctAttrCollector) String() string {
 }
 
 func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	var key string
 	var val traceql.Static
 
 	for _, e := range result.Entries {
@@ -593,8 +590,6 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 
 		switch e.Key {
-		case "key":
-			key = e.Value.String()
 		case "string":
 			val = traceql.NewStaticString(e.Value.String())
 		case "int":
@@ -608,9 +603,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 	var empty traceql.Static
 	if val != empty {
-		attr := traceql.NewScopedAttribute(d.scope, false, key)
-		result.AppendOtherValue(attr.String(), val) // jpe remove attr.String()
-
+		result.AppendOtherValue("", val)
 	}
 
 	result.Entries = result.Entries[:0]
@@ -636,14 +629,14 @@ func (d distinctSpanCollector) KeepGroup(result *parquetquery.IteratorResult) bo
 			continue
 		}
 
-		attr, static := mapSpanAttr(e)                 // jpe static only
-		result.AppendOtherValue(attr.String(), static) // jpe remove attr.String()
+		static := mapSpanAttr(e)
+		result.AppendOtherValue("", static)
 	}
 	result.Entries = result.Entries[:0]
 	return true
 }
 
-func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
+func mapSpanAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathSpanID,
 		columnPathSpanParentID,
@@ -651,9 +644,9 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		columnPathSpanNestedSetRight,
 		columnPathSpanStartTime:
 	case columnPathSpanDuration:
-		return traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
+		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathSpanName:
-		return traceql.IntrinsicNameAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(e.Value.String())
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
@@ -668,9 +661,9 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		default:
 			status = traceql.Status(e.Value.Uint64())
 		}
-		return traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(status)
+		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(e.Value.String())
 	case columnPathSpanKind:
 		var kind traceql.Kind
 		switch e.Value.Uint64() {
@@ -689,21 +682,21 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		default:
 			kind = traceql.Kind(e.Value.Uint64())
 		}
-		return traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind)
+		return traceql.NewStaticKind(kind)
 	default:
 		// This exists for span-level dedicated columns like http.status_code
 		switch e.Value.Kind() {
 		case parquet.Boolean:
-			return newSpanAttr(e.Key), traceql.NewStaticBool(e.Value.Boolean())
+			return traceql.NewStaticBool(e.Value.Boolean())
 		case parquet.Int32, parquet.Int64:
-			return newSpanAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))
+			return traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.Float:
-			return newSpanAttr(e.Key), traceql.NewStaticFloat(e.Value.Double())
+			return traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
-			return newSpanAttr(e.Key), traceql.NewStaticString(e.Value.String())
+			return traceql.NewStaticString(e.Value.String())
 		}
 	}
-	return traceql.Attribute{}, traceql.Static{}
+	return traceql.Static{}
 }
 
 var _ parquetquery.GroupPredicate = (*distinctBatchCollector)(nil)
@@ -722,25 +715,25 @@ func (d *distinctBatchCollector) KeepGroup(result *parquetquery.IteratorResult) 
 			continue
 		}
 
-		attr, static := mapResourceAttr(e)
-		result.AppendOtherValue(attr.String(), static)
+		static := mapResourceAttr(e)
+		result.AppendOtherValue("", static)
 	}
 	result.Entries = result.Entries[:0]
 	return true
 }
 
-func mapResourceAttr(e entry) (traceql.Attribute, traceql.Static) {
+func mapResourceAttr(e entry) traceql.Static {
 	switch e.Value.Kind() {
 	case parquet.Boolean:
-		return newResAttr(e.Key), traceql.NewStaticBool(e.Value.Boolean())
+		return traceql.NewStaticBool(e.Value.Boolean())
 	case parquet.Int32, parquet.Int64:
-		return newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))
+		return traceql.NewStaticInt(int(e.Value.Int64()))
 	case parquet.Float:
-		return newResAttr(e.Key), traceql.NewStaticFloat(e.Value.Double())
+		return traceql.NewStaticFloat(e.Value.Double())
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		return newResAttr(e.Key), traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(e.Value.String())
 	default:
-		return traceql.Attribute{}, traceql.Static{}
+		return traceql.Static{}
 	}
 }
 
@@ -759,24 +752,24 @@ func (d *distinctTraceCollector) KeepGroup(result *parquetquery.IteratorResult) 
 			continue
 		}
 
-		attr, static := mapTraceAttr(e)
-		result.AppendOtherValue(attr.String(), static)
+		static := mapTraceAttr(e)
+		result.AppendOtherValue("", static)
 	}
 	result.Entries = result.Entries[:0]
 	return true
 }
 
-func mapTraceAttr(e entry) (traceql.Attribute, traceql.Static) {
+func mapTraceAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathTraceID, columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
 	case columnPathDurationNanos:
-		return traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
+		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(e.Value.String())
 	case columnPathRootServiceName:
-		return traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(e.Value.String())
 	}
-	return traceql.Attribute{}, traceql.Static{}
+	return traceql.Static{}
 }
 
 func scopeFromDefinitionLevel(lvl int) traceql.AttributeScope {
