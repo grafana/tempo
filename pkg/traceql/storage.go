@@ -22,6 +22,7 @@ func SearchMetaConditions() []Condition {
 		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
 		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
 		{NewIntrinsic(IntrinsicDuration), OpNone, nil},
+		{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
 	}
 }
 
@@ -110,17 +111,17 @@ type Span interface {
 	// SiblingOf returns all spans on the RHS side that have siblings in the LHS. If falseForAll is true
 	// then the returned spans will be those that do not have siblings in the LHS. buffer is an optional
 	// buffer to use to avoid allocations.
-	SiblingOf(lhs []Span, rhs []Span, falseForAll bool, buffer []Span) []Span
+	SiblingOf(lhs []Span, rhs []Span, falseForAll bool, union bool, buffer []Span) []Span
 	// DescendantOf returns all spans on the RHS side that have descendants in the LHS. If falseForAll is true
 	// then the returned spans will be those that do not have descendants in the LHS. invert is used to invert
 	// the relationship. If invert is true then this will behave like "AncestorOf". buffer is an optional
 	// buffer to use to avoid allocations.
-	DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span
+	DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, union bool, buffer []Span) []Span
 	// ChildOf returns all spans on the RHS side that have children in the LHS. If falseForAll is true
 	// then the returned spans will be those that do not have children in the LHS. invert is used to invert
 	// the relationship. If invert is true then this will behave like "ParentOf". buffer is an optional
 	// buffer to use to avoid allocations.
-	ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, buffer []Span) []Span
+	ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, union bool, buffer []Span) []Span
 }
 
 // should we just make matched a field on the spanset instead of a special attribute?
@@ -129,6 +130,11 @@ const attributeMatched = "__matched"
 type SpansetAttribute struct {
 	Name string
 	Val  Static
+}
+
+type ServiceStats struct {
+	SpanCount  uint32
+	ErrorCount uint32
 }
 
 type Spanset struct {
@@ -141,6 +147,7 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
+	ServiceStats       map[string]ServiceStats
 	Attributes         []*SpansetAttribute
 
 	// Set this function to provide upstream callers with a method to

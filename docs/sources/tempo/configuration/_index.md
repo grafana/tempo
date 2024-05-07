@@ -321,8 +321,16 @@ metrics_generator:
             # per additional dimension instead of one.
             [enable_client_server_prefix: <bool> | default = false]
 
+            # If enabled another histogram will be produced for interactions over messaging systems middlewares
+            # If this feature is relevant over long time ranges (high latencies) - consider increasing
+            # `wait` value for this processor.
+            [enable_messaging_system_latency_histogram: <bool> | default = false]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
+
+            # Enables additional labels for services and virtual nodes.
+            [enable_virtual_node_label: <bool> | default = false]
 
         span_metrics:
 
@@ -974,6 +982,19 @@ storage:
         # Default 1
         [blocklist_poll_tolerate_consecutive_errors: <int>]
 
+        # Used to tune how quickly the poller will delete any remaining backend
+        # objects found in the tenant path.  This functionality requires enabling
+        # below.
+        # Default: 12h
+        [empty_tenant_deletion_age: <duration>]
+
+        # Polling will delete the index for a tenant if no blocks are found to
+        # exist.  If this setting is enabled, the poller will also delete any
+        # remaining backend objects found in the tenant path.  This is used to
+        # clean up partial blocks which may have not been cleaned up by the
+        # retention.
+        [empty_tenant_deletion_enabled: <bool> | default = false]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         # Deprecated. See [cache](#cache) section below.
@@ -1358,6 +1379,7 @@ overrides:
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
           [enable_client_server_prefix: <bool>]
+          [enable_messaging_system_latency_histogram: <bool>]
 
         # Configuration for the span-metrics processor
         span_metrics:

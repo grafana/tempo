@@ -264,15 +264,15 @@ type SpansetOperation struct {
 
 func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	switch o.Op {
-	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor:
+	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor, OpSpansetUnionDescendant, OpSpansetUnionAncestor:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
 		})
-	case OpSpansetChild, OpSpansetParent, OpSpansetNotChild, OpSpansetNotParent:
+	case OpSpansetChild, OpSpansetParent, OpSpansetNotChild, OpSpansetNotParent, OpSpansetUnionChild, OpSpansetUnionParent:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralChild),
 		})
-	case OpSpansetSibling, OpSpansetNotSibling:
+	case OpSpansetSibling, OpSpansetNotSibling, OpSpansetUnionSibling:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralSibling),
 		})
@@ -722,7 +722,7 @@ func (Attribute) referencesSpan() bool {
 func NewScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
 	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
-	if scope != AttributeScopeResource && scope != AttributeScopeSpan {
+	if scope == AttributeScopeNone && !parent {
 		intrinsic = intrinsicFromString(att)
 	}
 

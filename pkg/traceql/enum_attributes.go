@@ -80,6 +80,8 @@ const (
 	IntrinsicTraceStartTime
 	IntrinsicSpanID
 	IntrinsicSpanStartTime
+
+	IntrinsicServiceStats
 )
 
 var (

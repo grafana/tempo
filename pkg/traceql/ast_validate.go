@@ -207,12 +207,17 @@ func (o *BinaryOperation) validate() error {
 		OpSpansetParent,
 		OpSpansetDescendant,
 		OpSpansetAncestor,
+		OpSpansetSibling,
 		OpSpansetNotChild,
 		OpSpansetNotParent,
 		OpSpansetNotSibling,
 		OpSpansetNotAncestor,
 		OpSpansetNotDescendant,
-		OpSpansetSibling:
+		OpSpansetUnionChild,
+		OpSpansetUnionParent,
+		OpSpansetUnionSibling,
+		OpSpansetUnionAncestor,
+		OpSpansetUnionDescendant:
 		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
 	}
 

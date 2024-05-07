@@ -51,6 +51,14 @@ valid:
   - '{ duration > 1s }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
+  # scoped intrinsics
+  - '{ trace:duration > 2s }'
+  - '{ trace:rootName = "a" }'
+  - '{ trace:rootService = "a" }'
+  - '{ span:duration > 2s }'
+  - '{ span:status = error }'
+  - '{ span:kind = client }'
+  - '{ span:statusMessage = "status message" }'
   # binary operations
   - '{ 1 + 1 = 2 }'
   - '{ 1 - 1 = 2 }'
@@ -79,6 +87,11 @@ valid:
   - '{ true } !~ { true }'
   - '{ true } !>> { true }'
   - '{ true } !<< { true }'
+  - '{ true } &> { true }'
+  - '{ true } &< { true }'
+  - '{ true } &~ { true }'
+  - '{ true } &>> { true }'
+  - '{ true } &<< { true }'
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
@@ -182,6 +195,16 @@ parse_fails:
   - '(by(namespace) | count()) > 2 * 2' # scalar expressions are currently not allowed in scalar pipelines
   - '(by(namespace) | count()) * 2 > 2'
   - '2 < (by(namespace) | count())'     # static value needs to be on the RHS to remove conflicts with scalar expressions
+  # mismatched scoped intrinsics
+  - '{ trace:status = error }'
+  - '{ trace:kind = server }'
+  - '{ trace:name = "a" }'
+  - '{ trace:rootServiceName = "a" }' # should be trace:rootService only 
+  - '{ span:rootName = "bar" }'
+  # to be added in the future
+  - '{ span:id = "61626364656667" }'
+  - '{ event:name = "foo" }'
+  - '{ scope:version = "v3.34" }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:

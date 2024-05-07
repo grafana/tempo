@@ -33,12 +33,18 @@ type Config struct {
 	// per dimension.
 	EnableClientServerPrefix bool `yaml:"enable_client_server_prefix"`
 
+	// If enabled another histogram will be produced for interactions over messaging systems middlewares
+	EnableMessagingSystemLatencyHistogram bool `yaml:"enable_messaging_system_latency_histogram"`
+
 	// PeerAttributes are attributes that will be used to create a peer edge
 	// Attributes are searched in the order they are provided
 	PeerAttributes []string `yaml:"peer_attributes"`
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+
+	// EnableVirtualNodeLabel enables additional labels for uninstrumented services
+	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -53,4 +59,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		peerAttr = append(peerAttr, string(attr))
 	}
 	cfg.PeerAttributes = peerAttr
+
+	cfg.EnableMessagingSystemLatencyHistogram = false
 }

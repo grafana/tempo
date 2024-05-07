@@ -252,6 +252,71 @@ func TestPipelineSpansetOperators(t *testing.T) {
 				),
 			),
 		},
+		{
+			in: "({ .a } | { .b }) &> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionChild,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionParent,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &~ ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionSibling,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &>> ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionDescendant,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) &<< ({ .a } | { .b })",
+			expected: newSpansetOperation(OpSpansetUnionAncestor,
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+				newPipeline(
+					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("b")),
+				),
+			),
+		},
 	}
 
 	for _, tc := range tests {
@@ -549,6 +614,11 @@ func TestSpansetExpressionOperators(t *testing.T) {
 		{in: "{ true } !>> { false }", expected: newSpansetOperation(OpSpansetNotDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 		{in: "{ true } !<< { false }", expected: newSpansetOperation(OpSpansetNotAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 		{in: "{ true } !~ { false }", expected: newSpansetOperation(OpSpansetNotSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &> { false }", expected: newSpansetOperation(OpSpansetUnionChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &< { false }", expected: newSpansetOperation(OpSpansetUnionParent, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &>> { false }", expected: newSpansetOperation(OpSpansetUnionDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &<< { false }", expected: newSpansetOperation(OpSpansetUnionAncestor, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } &~ { false }", expected: newSpansetOperation(OpSpansetUnionSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 	}
 
 	for _, tc := range tests {
@@ -1049,7 +1119,7 @@ func TestIntrinsics(t *testing.T) {
 					Scope:     AttributeScopeNone,
 					Parent:    true,
 					Name:      tc.in,
-					Intrinsic: tc.expected,
+					Intrinsic: IntrinsicNone,
 				}))), actual)
 
 			// as nested parent scoped intrinsic e.g. parent.duration.foo
@@ -1091,6 +1161,49 @@ func TestIntrinsics(t *testing.T) {
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
 				}))), actual)
+		})
+	}
+}
+
+func TestScopedIntrinsics(t *testing.T) {
+	tests := []struct {
+		in          string
+		expected    Intrinsic
+		shouldError bool
+	}{
+		{in: "trace:duration", expected: IntrinsicTraceDuration},
+		{in: "trace:rootName", expected: IntrinsicTraceRootSpan},
+		{in: "trace:rootService", expected: IntrinsicTraceRootService},
+		{in: "span:duration", expected: IntrinsicDuration},
+		{in: "span:kind", expected: IntrinsicKind},
+		{in: "span:name", expected: IntrinsicName},
+		{in: "span:status", expected: IntrinsicStatus},
+		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
+		{in: ":duration", shouldError: true},
+		{in: ":statusMessage", shouldError: true},
+		{in: "trace:name", shouldError: true},
+		{in: "trace:rootServiceName", shouldError: true},
+		{in: "span:rootServiceName", shouldError: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			// as scoped intrinsic e.g :duration
+			s := "{ " + tc.in + "}"
+			actual, err := Parse(s)
+
+			if tc.shouldError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, newRootExpr(newPipeline(
+					newSpansetFilter(Attribute{
+						Scope:     AttributeScopeNone,
+						Parent:    false,
+						Name:      tc.expected.String(),
+						Intrinsic: tc.expected,
+					}))), actual)
+			}
 		})
 	}
 }

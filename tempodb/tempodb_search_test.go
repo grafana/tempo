@@ -105,6 +105,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		require.NotNil(t, actual, "search request: %v", req)
 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
 		actual.SpanSets = nil
+		actual.ServiceStats = nil
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
@@ -275,6 +276,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		require.NotNil(t, actual, "search request: %v", req)
 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
 		actual.SpanSets = nil
+		actual.ServiceStats = nil
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
@@ -468,6 +470,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
@@ -653,6 +656,134 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } &>> { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } &<< { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } &> { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } &< { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{  } !~ {  }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
@@ -739,6 +870,36 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ .child } &~ { .child2 }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child2", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ .parent } >> {}"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
@@ -778,6 +939,16 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{ .child } !< { .parent }"},
 		{Query: "{ .parent } !> { .child }"},
 		{Query: "{ .child } !~ { .child2 }"},
+		{Query: "{ .child } &>> { .parent }"},
+		{Query: "{ .child } &> { .parent }"},
+		{Query: "{ .child } &~ { .parent }"},
+		{Query: "{ .child } &~ { .child }"},
+		{Query: "{ .broken} &>> {}"},
+		{Query: "{ .broken} &> {}"},
+		{Query: "{ .broken} &~ {}"},
+		{Query: "{} &>> {.broken}"},
+		{Query: "{} &> {.broken}"},
+		{Query: "{} &~ {.broken}"},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -805,6 +976,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
@@ -1008,6 +1180,7 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 
 			for _, ss := range tr.SpanSets {
 				for _, span := range ss.Spans {
@@ -1082,6 +1255,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		// make sure every spanset returned has the attribute we searched for
