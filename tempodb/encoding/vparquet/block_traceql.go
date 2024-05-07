@@ -77,15 +77,15 @@ func (s *span) DurationNanos() uint64 {
 	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
 
-func (*span) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+func (*span) DescendantOf([]traceql.Span, []traceql.Span, bool, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 
-func (*span) SiblingOf([]traceql.Span, []traceql.Span, bool, []traceql.Span) []traceql.Span {
+func (*span) SiblingOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 
-func (*span) ChildOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
+func (*span) ChildOf([]traceql.Span, []traceql.Span, bool, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }
 
@@ -214,6 +214,8 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceDuration:    {intrinsicScopeTrace, traceql.TypeString, columnPathDurationNanos},
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeDuration, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
+
+	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not used in vparquet, this entry is only used to assign default scope.
 }
 
 // Lookup table of all well-known attributes with dedicated columns

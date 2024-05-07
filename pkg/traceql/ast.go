@@ -265,15 +265,15 @@ type SpansetOperation struct {
 
 func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	switch o.Op {
-	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor:
+	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor, OpSpansetUnionDescendant, OpSpansetUnionAncestor:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
 		})
-	case OpSpansetChild, OpSpansetParent, OpSpansetNotChild, OpSpansetNotParent:
+	case OpSpansetChild, OpSpansetParent, OpSpansetNotChild, OpSpansetNotParent, OpSpansetUnionChild, OpSpansetUnionParent:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralChild),
 		})
-	case OpSpansetSibling, OpSpansetNotSibling:
+	case OpSpansetSibling, OpSpansetNotSibling, OpSpansetUnionSibling:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralSibling),
 		})

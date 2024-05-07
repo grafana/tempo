@@ -261,6 +261,23 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 { span.http.url = "/path/of/api" } >> { span.db.name = "db-shard-001" }
 ```
 
+### Union structural
+
+These spanset operators look at the structure of a trace and the relationship between the spans. These operators are unique in that they
+return spans that match on both side of the operator. 
+
+- `{condA} &>> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`.
+- `{condA} &<< {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`.
+- `{condA} &> {condB}` - The child operator (`>`) looks for spans matching `{condB}` that are direct child spans of a parent matching `{condA}`.
+- `{condA} &< {condB}` - The parent operator (`<`) looks for spans matching `{condB}` that are direct parent spans of a child matching `{condA}`.
+- `{condA} &~ {condB}` - The sibling operator (`~`) looks at spans matching `{condB}` that have at least one sibling matching `{condA}`.
+
+For example, to get a failing endpoint AND all descendant failing spans in one query:
+
+```
+{ span.http.url = "/path/of/api" && status = error } &>> { status = error }
+```
+
 ### Experimental structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans.
