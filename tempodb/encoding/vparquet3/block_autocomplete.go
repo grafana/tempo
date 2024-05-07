@@ -606,8 +606,12 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 	}
 
-	attr := traceql.NewScopedAttribute(d.scope, false, key)
-	result.AppendOtherValue(attr.String(), val) // jpe remove attr.String()
+	var empty traceql.Static
+	if val != empty {
+		attr := traceql.NewScopedAttribute(d.scope, false, key)
+		result.AppendOtherValue(attr.String(), val) // jpe remove attr.String()
+
+	}
 
 	result.Entries = result.Entries[:0]
 
@@ -628,6 +632,10 @@ func (d distinctSpanCollector) String() string { return "distinctSpanCollector" 
 
 func (d distinctSpanCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	for _, e := range result.Entries {
+		if e.Value.IsNull() {
+			continue
+		}
+
 		attr, static := mapSpanAttr(e)                 // jpe static only
 		result.AppendOtherValue(attr.String(), static) // jpe remove attr.String()
 	}
@@ -710,6 +718,10 @@ func (d *distinctBatchCollector) String() string {
 func (d *distinctBatchCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	// Gather Attributes from dedicated resource-level columns
 	for _, e := range result.Entries {
+		if e.Value.IsNull() {
+			continue
+		}
+
 		attr, static := mapResourceAttr(e)
 		result.AppendOtherValue(attr.String(), static)
 	}
@@ -743,6 +755,10 @@ func (d *distinctTraceCollector) String() string {
 
 func (d *distinctTraceCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	for _, e := range result.Entries {
+		if e.Value.IsNull() { // jpe why are these null?
+			continue
+		}
+
 		attr, static := mapTraceAttr(e)
 		result.AppendOtherValue(attr.String(), static)
 	}
