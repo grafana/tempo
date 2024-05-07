@@ -373,3 +373,18 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 		},
 	}
 }
+
+func StaticFromAnyValue(a *common_v1.AnyValue) Static {
+	switch v := a.Value.(type) {
+	case *common_v1.AnyValue_StringValue:
+		return NewStaticString(v.StringValue)
+	case *common_v1.AnyValue_IntValue:
+		return NewStaticInt(int(v.IntValue))
+	case *common_v1.AnyValue_BoolValue:
+		return NewStaticBool(v.BoolValue)
+	case *common_v1.AnyValue_DoubleValue:
+		return NewStaticFloat(v.DoubleValue)
+	default:
+		return NewStaticNil()
+	}
+}

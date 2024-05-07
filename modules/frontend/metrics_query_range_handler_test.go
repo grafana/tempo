@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,13 +23,16 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 		Series: []*tempopb.TimeSeries{
 			{
 				PromLabels: "foo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
 				Samples: []tempopb.Sample{
 					{
-						TimestampMs: 2,
+						TimestampMs: 1200_000,
 						Value:       2,
 					},
 					{
-						TimestampMs: 1,
+						TimestampMs: 1100_000,
 						Value:       1,
 					},
 				},
@@ -40,15 +44,17 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 		responseFn: func() proto.Message {
 			return resp
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, func(c *Config) {
+		c.Metrics.Sharder.Interval = time.Hour
+	})
 	tenant := "foo"
 
 	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
 		Query: "{} | rate()",
-		Start: 1,
-		End:   uint64(10000 * time.Second),
-		Step:  uint64(1 * time.Second),
+		Start: uint64(1100 * time.Second),
+		End:   uint64(1200 * time.Second),
+		Step:  uint64(100 * time.Second),
 	})
 
 	ctx := user.InjectOrgID(httpReq.Context(), tenant)
@@ -63,24 +69,27 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 	// for reasons I don't understand, this query turns into 408 jobs.
 	expectedResp := &tempopb.QueryRangeResponse{
 		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   408,
-			InspectedTraces: 408,
-			InspectedBytes:  408,
-			TotalJobs:       408,
+			CompletedJobs:   4,
+			InspectedTraces: 4,
+			InspectedBytes:  4,
+			TotalJobs:       4,
 			TotalBlocks:     2,
 			TotalBlockBytes: 419430400,
 		},
 		Series: []*tempopb.TimeSeries{
 			{
 				PromLabels: "foo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
 				Samples: []tempopb.Sample{
 					{
-						TimestampMs: 1,
-						Value:       408,
+						TimestampMs: 1100_000,
+						Value:       4,
 					},
 					{
-						TimestampMs: 2,
-						Value:       816,
+						TimestampMs: 1200_000,
+						Value:       8,
 					},
 				},
 			},
@@ -102,13 +111,16 @@ func TestQueryRangeHandlerRespectsSamplingRate(t *testing.T) {
 		Series: []*tempopb.TimeSeries{
 			{
 				PromLabels: "foo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
 				Samples: []tempopb.Sample{
 					{
-						TimestampMs: 2,
+						TimestampMs: 1200_000,
 						Value:       2,
 					},
 					{
-						TimestampMs: 1,
+						TimestampMs: 1100_000,
 						Value:       1,
 					},
 				},
@@ -120,15 +132,17 @@ func TestQueryRangeHandlerRespectsSamplingRate(t *testing.T) {
 		responseFn: func() proto.Message {
 			return resp
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, func(c *Config) {
+		c.Metrics.Sharder.Interval = time.Hour
+	})
 	tenant := "foo"
 
 	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
 		Query: "{} | rate() with (sample=.2)",
-		Start: 1,
-		End:   uint64(10000 * time.Second),
-		Step:  uint64(1 * time.Second),
+		Start: uint64(1100 * time.Second),
+		End:   uint64(1200 * time.Second),
+		Step:  uint64(100 * time.Second),
 	})
 
 	ctx := user.InjectOrgID(httpReq.Context(), tenant)
@@ -140,27 +154,29 @@ func TestQueryRangeHandlerRespectsSamplingRate(t *testing.T) {
 
 	require.Equal(t, 200, httpResp.Code)
 
-	// for reasons I don't understand, this query turns into 408 jobs.
 	expectedResp := &tempopb.QueryRangeResponse{
 		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   102,
-			InspectedTraces: 102,
-			InspectedBytes:  102,
-			TotalJobs:       102,
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  1,
+			TotalJobs:       1,
 			TotalBlocks:     2,
 			TotalBlockBytes: 419430400,
 		},
 		Series: []*tempopb.TimeSeries{
 			{
 				PromLabels: "foo",
+				Labels: []v1.KeyValue{
+					{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}},
+				},
 				Samples: []tempopb.Sample{
 					{
-						TimestampMs: 1,
-						Value:       510,
+						TimestampMs: 1100_000,
+						Value:       5,
 					},
 					{
-						TimestampMs: 2,
-						Value:       1020,
+						TimestampMs: 1200_000,
+						Value:       10,
 					},
 				},
 			},

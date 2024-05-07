@@ -11,8 +11,11 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange() Combiner {
-	combiner := traceql.QueryRangeCombiner{}
+func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
+	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
+	if err != nil {
+		return nil, err
+	}
 
 	return &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
@@ -65,11 +68,16 @@ func NewQueryRange() Combiner {
 			sortResponse(resp)
 			return resp, nil
 		},
-	}
+	}, nil
 }
 
-func NewTypedQueryRange() GRPCCombiner[*tempopb.QueryRangeResponse] {
-	return NewQueryRange().(GRPCCombiner[*tempopb.QueryRangeResponse])
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.(GRPCCombiner[*tempopb.QueryRangeResponse]), nil
 }
 
 func sortResponse(res *tempopb.QueryRangeResponse) {
