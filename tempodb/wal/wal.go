@@ -157,16 +157,12 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(meta *backend.BlockMeta) (common.WALBlock, error) {
-	return w.newBlock(meta, w.c.Version)
-}
-
-func (w *WAL) newBlock(meta *backend.BlockMeta, blockVersion string) (common.WALBlock, error) {
-	v, err := encoding.FromVersion(blockVersion)
+func (w *WAL) NewBlock(meta *backend.BlockMeta, dataEncoding string) (common.WALBlock, error) {
+	v, err := encoding.FromVersion(w.c.Version)
 	if err != nil {
 		return nil, err
 	}
-	return v.CreateWALBlock(meta, w.c.Filepath, w.c.IngestionSlack)
+	return v.CreateWALBlock(meta, w.c.Filepath, dataEncoding, w.c.IngestionSlack)
 }
 
 func (w *WAL) GetFilepath() string {

@@ -149,7 +149,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (*walBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:           VersionString,
@@ -169,7 +169,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack tim
 		return nil, err
 	}
 
-	dec, err := model.NewObjectDecoder(meta.DataEncoding)
+	dec, err := model.NewObjectDecoder(dataEncoding)
 	if err != nil {
 		return nil, err
 	}

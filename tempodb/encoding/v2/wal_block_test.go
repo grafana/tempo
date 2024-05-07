@@ -171,7 +171,7 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 func TestPartialBlock(t *testing.T) {
 	blockID := uuid.New()
 	meta := backend.NewBlockMeta(testTenantID, blockID, "v2", backend.EncSnappy, model.CurrentEncoding)
-	block, err := createWALBlock(meta, t.TempDir(), 0)
+	block, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)

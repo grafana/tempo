@@ -43,19 +43,19 @@ type walBlock struct {
 	once     sync.Once
 }
 
-func createWALBlock(meta *backend.BlockMeta, filepath string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	if strings.ContainsRune(meta.DataEncoding, ':') || strings.ContainsRune(meta.DataEncoding, '+') ||
-		len([]rune(meta.DataEncoding)) > maxDataEncodingLength {
-		return nil, fmt.Errorf("dataEncoding %s is invalid", meta.DataEncoding)
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
+	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
+		len([]rune(dataEncoding)) > maxDataEncodingLength {
+		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
 
-	enc, err := model.NewSegmentDecoder(meta.DataEncoding)
+	enc, err := model.NewSegmentDecoder(dataEncoding)
 	if err != nil {
 		return nil, err
 	}
 
 	h := &walBlock{
-		meta:           meta,
+		meta:           backend.NewBlockMeta(meta.TenantID, meta.BlockID, meta.Version, meta.Encoding, dataEncoding),
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
 		encoder:        enc,
