@@ -47,8 +47,8 @@ func (v Encoding) OpenWALBlock(filename string, path string, ingestionSlack time
 // CreateWALBlock creates a new appendable block
 func (v Encoding) CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
 	// Default data encoding if needed
-	if meta.DataEncoding == "" {
-		meta.DataEncoding = model.CurrentEncoding
+	if dataEncoding == "" {
+		dataEncoding = model.CurrentEncoding
 	}
 	return createWALBlock(meta, filepath, dataEncoding, ingestionSlack)
 }
