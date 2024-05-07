@@ -87,7 +87,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	}
 
 	if union {
-		return descendantOfUnion(lhs, rhs, falseForAll, invert, union, buffer)
+		return descendantOfUnion(lhs, rhs, invert, buffer)
 	}
 
 	// sort by nested set left. the goal is to quickly be able to find the first entry in the lhs slice that
@@ -155,7 +155,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 //   - at this point rSpan has the narrowest span (the leaf span) of the branch
 //   - iterate the lhs as long as its in the same branch as rSpan checking for ancestors
 //   - go back to rhs iteration and repeat until slices are exhausted
-func descendantOfUnion(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
+func descendantOfUnion(lhs []traceql.Span, rhs []traceql.Span, invert bool, buffer []traceql.Span) []traceql.Span {
 	// union is harder b/c we have to find all matches on both the left and rhs
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
 	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
