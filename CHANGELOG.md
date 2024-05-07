@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Instrumentation scope can have attributes in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
 * [ENHANCEMENT] Surface new labels for uninstrumented services and systems [#3543](https://github.com/grafana/tempo/pull/3543) (@t00mas)
 * [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
 * [ENHANCEMENT] Add querier metrics for requests executed [#3524](https://github.com/grafana/tempo/pull/3524) (@electron0zero)
