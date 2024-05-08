@@ -239,7 +239,15 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		RootTraceName:     spanset.RootSpanName,
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
+		ServiceStats:      make(map[string]*tempopb.ServiceStats, len(spanset.ServiceStats)),
 		SpanSet:           &tempopb.SpanSet{},
+	}
+
+	for service, stats := range spanset.ServiceStats {
+		metadata.ServiceStats[service] = &tempopb.ServiceStats{
+			SpanCount:  stats.SpanCount,
+			ErrorCount: stats.ErrorCount,
+		}
 	}
 
 	for _, span := range spanset.Spans {
@@ -363,5 +371,20 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 		Value: &common_v1.AnyValue_StringValue{
 			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 		},
+	}
+}
+
+func StaticFromAnyValue(a *common_v1.AnyValue) Static {
+	switch v := a.Value.(type) {
+	case *common_v1.AnyValue_StringValue:
+		return NewStaticString(v.StringValue)
+	case *common_v1.AnyValue_IntValue:
+		return NewStaticInt(int(v.IntValue))
+	case *common_v1.AnyValue_BoolValue:
+		return NewStaticBool(v.BoolValue)
+	case *common_v1.AnyValue_DoubleValue:
+		return NewStaticFloat(v.DoubleValue)
+	default:
+		return NewStaticNil()
 	}
 }

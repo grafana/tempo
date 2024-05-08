@@ -46,10 +46,11 @@ var (
 )
 
 const (
-	metricRequestTotal         = "traces_service_graph_request_total"
-	metricRequestFailedTotal   = "traces_service_graph_request_failed_total"
-	metricRequestServerSeconds = "traces_service_graph_request_server_seconds"
-	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
+	metricRequestTotal                  = "traces_service_graph_request_total"
+	metricRequestFailedTotal            = "traces_service_graph_request_failed_total"
+	metricRequestServerSeconds          = "traces_service_graph_request_server_seconds"
+	metricRequestClientSeconds          = "traces_service_graph_request_client_seconds"
+	metricRequestMessagingSystemSeconds = "traces_service_graph_request_messaging_system_seconds"
 )
 
 const virtualNodeLabel = "virtual_node"
@@ -75,10 +76,11 @@ type Processor struct {
 
 	closeCh chan struct{}
 
-	serviceGraphRequestTotal                  registry.Counter
-	serviceGraphRequestFailedTotal            registry.Counter
-	serviceGraphRequestServerSecondsHistogram registry.Histogram
-	serviceGraphRequestClientSecondsHistogram registry.Histogram
+	serviceGraphRequestTotal                           registry.Counter
+	serviceGraphRequestFailedTotal                     registry.Counter
+	serviceGraphRequestServerSecondsHistogram          registry.Histogram
+	serviceGraphRequestClientSecondsHistogram          registry.Histogram
+	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 
 	metricDroppedSpans prometheus.Counter
 	metricTotalEdges   prometheus.Counter
@@ -114,10 +116,11 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                           registry.NewCounter(metricRequestTotal),
+		serviceGraphRequestFailedTotal:                     registry.NewCounter(metricRequestFailedTotal),
+		serviceGraphRequestServerSecondsHistogram:          registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestClientSecondsHistogram:          registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestMessagingSystemSecondsHistogram: registry.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
@@ -192,6 +195,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
+						e.ClientEndTimeUnixNano = span.EndTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
@@ -217,6 +221,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ConnectionType = connectionType
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
+						e.ServerStartTimeUnixNano = span.StartTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
@@ -309,6 +314,15 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
 	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+
+	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
+		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
+		if messagingSystemLatencySec == 0 {
+			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
+		} else {
+			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+		}
+	}
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
@@ -348,8 +362,17 @@ func (p *Processor) spanFailed(span *v1_trace.Span) bool {
 	return span.GetStatus().GetCode() == v1_trace.Status_STATUS_CODE_ERROR
 }
 
+func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
+	if unixNanoStart > unixNanoEnd {
+		// To prevent underflow, return 0.
+		return 0
+	}
+	// Safe subtraction.
+	return float64(unixNanoEnd-unixNanoStart) / float64(time.Second)
+}
+
 func spanDurationSec(span *v1_trace.Span) float64 {
-	return float64(span.EndTimeUnixNano-span.StartTimeUnixNano) / float64(time.Second.Nanoseconds())
+	return unixNanosDiffSec(span.StartTimeUnixNano, span.EndTimeUnixNano)
 }
 
 func buildKey(k1, k2 string) string {

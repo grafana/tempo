@@ -70,6 +70,21 @@ func TestLexerAttributes(t *testing.T) {
 	}))
 }
 
+func TestLexerScopedIntrinsic(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		// trace scoped intrinsics
+		{`trace:duration`, []int{TRACE_COLON, IDURATION}},
+		{`trace:rootName`, []int{TRACE_COLON, ROOTNAME}},
+		{`trace:rootService`, []int{TRACE_COLON, ROOTSERVICE}},
+		// // span scoped intrinsics
+		{`span:duration`, []int{SPAN_COLON, IDURATION}},
+		{`span:name`, []int{SPAN_COLON, NAME}},
+		{`span:kind`, []int{SPAN_COLON, KIND}},
+		{`span:status`, []int{SPAN_COLON, STATUS}},
+		{`span:statusMessage`, []int{SPAN_COLON, STATUS_MESSAGE}},
+	}))
+}
+
 func TestLexerIntrinsics(t *testing.T) {
 	testLexer(t, ([]lexerTestCase{
 		{`nestedSetLeft`, []int{NESTEDSETLEFT}},
@@ -86,6 +101,7 @@ func TestLexerMultitokens(t *testing.T) {
 		{`!<<`, []int{NOT_ANCE}},
 		{`!`, []int{NOT}},
 		{`!~`, []int{NRE}},
+		{`&>>`, []int{UNION_DESC}},
 	}))
 }
 

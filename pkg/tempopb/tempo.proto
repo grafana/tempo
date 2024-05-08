@@ -118,6 +118,12 @@ message TraceSearchMetadata {
   uint32 durationMs = 5;
   SpanSet spanSet = 6; // deprecated. use SpanSets field below
   repeated SpanSet spanSets = 7;
+  map<string, ServiceStats> serviceStats = 8;
+}
+
+message ServiceStats {
+  uint32 spanCount = 1;
+  uint32 errorCount = 2;
 }
 
 message SpanSet {
