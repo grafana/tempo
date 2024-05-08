@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package oc2otel // import "go.opentelemetry.io/otel/bridge/opencensus/internal/oc2otel"
 
@@ -27,6 +16,17 @@ func Attributes(attr []octrace.Attribute) []attribute.KeyValue {
 			Key:   attribute.Key(a.Key()),
 			Value: AttributeValue(a.Value()),
 		}
+	}
+	return otelAttr
+}
+
+func AttributesFromMap(attr map[string]interface{}) []attribute.KeyValue {
+	otelAttr := make([]attribute.KeyValue, 0, len(attr))
+	for k, v := range attr {
+		otelAttr = append(otelAttr, attribute.KeyValue{
+			Key:   attribute.Key(k),
+			Value: AttributeValue(v),
+		})
 	}
 	return otelAttr
 }
