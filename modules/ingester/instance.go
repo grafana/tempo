@@ -524,10 +524,9 @@ func (i *instance) resetHeadBlock() error {
 	meta := &backend.BlockMeta{
 		BlockID:          uuid.New(),
 		TenantID:         i.instanceID,
-		DataEncoding:     model.CurrentEncoding,
 		DedicatedColumns: dedicatedColumns,
 	}
-	newHeadBlock, err := i.writer.WAL().NewBlock(meta)
+	newHeadBlock, err := i.writer.WAL().NewBlock(meta, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}

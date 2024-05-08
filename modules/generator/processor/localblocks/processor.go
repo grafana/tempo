@@ -636,11 +636,10 @@ func (p *Processor) resetHeadBlock() error {
 	meta := &backend.BlockMeta{
 		BlockID:           uuid.New(),
 		TenantID:          p.tenant,
-		DataEncoding:      model.CurrentEncoding,
 		DedicatedColumns:  p.overrides.DedicatedColumns(p.tenant),
 		ReplicationFactor: 1,
 	}
-	block, err := p.wal.NewBlock(meta)
+	block, err := p.wal.NewBlock(meta, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}
