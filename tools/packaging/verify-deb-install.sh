@@ -22,6 +22,11 @@ cat <<EOF | docker exec --interactive "${image}" sh
     systemctl is-active tempo
     tail /var/log/dpkg.log
     journalctl -b
+    journalctl
+    journalctl -u tempo.service
+
+    curl -vvv http://localhost:3200/status
+    curl -vvv http://localhost:3200/ready
 
     # Wait for tempo to be ready. The script is cat-ed because it is passed to docker exec
     apt update && apt install -y curl
