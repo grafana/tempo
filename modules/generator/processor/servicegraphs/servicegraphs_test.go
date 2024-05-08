@@ -14,10 +14,21 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
+
+// This is a way to know if the contents of the semconv package have changed.
+// Since we rely on the key contents in the span attributes, we want to know if
+// there is ever a change to the ones we rely on.  This is not a complete test,
+// but just a quick way to know about changes upstream.
+func TestSemconvKeys(t *testing.T) {
+	require.Equal(t, string(semconv.DBNameKey), "db.name")
+	require.Equal(t, string(semconv.DBSystemKey), "db.system")
+	require.Equal(t, string(semconv.PeerServiceKey), "peer.service")
+}
 
 func TestServiceGraphs(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()

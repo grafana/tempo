@@ -8,20 +8,27 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"golang.org/x/oauth2"
+	"google.golang.org/api/internal"
 	"google.golang.org/api/option"
 	"google.golang.org/api/option/internaloption"
 	htransport "google.golang.org/api/transport/http"
 )
 
 var (
-	iamCredentailsEndpoint = "https://iamcredentials.googleapis.com"
-	oauth2Endpoint         = "https://oauth2.googleapis.com"
+	iamCredentailsEndpoint                      = "https://iamcredentials.googleapis.com"
+	oauth2Endpoint                              = "https://oauth2.googleapis.com"
+	errMissingTargetPrincipal                   = errors.New("impersonate: a target service account must be provided")
+	errMissingScopes                            = errors.New("impersonate: scopes must be provided")
+	errLifetimeOverMax                          = errors.New("impersonate: max lifetime is 12 hours")
+	errUniverseNotSupportedDomainWideDelegation = errors.New("impersonate: service account user is configured for the credential. " +
+		"Domain-wide delegation is not supported in universes other than googleapis.com")
 )
 
 // CredentialsConfig for generating impersonated credentials.
@@ -62,13 +69,13 @@ func defaultClientOptions() []option.ClientOption {
 // the base credentials.
 func CredentialsTokenSource(ctx context.Context, config CredentialsConfig, opts ...option.ClientOption) (oauth2.TokenSource, error) {
 	if config.TargetPrincipal == "" {
-		return nil, fmt.Errorf("impersonate: a target service account must be provided")
+		return nil, errMissingTargetPrincipal
 	}
 	if len(config.Scopes) == 0 {
-		return nil, fmt.Errorf("impersonate: scopes must be provided")
+		return nil, errMissingScopes
 	}
 	if config.Lifetime.Hours() > 12 {
-		return nil, fmt.Errorf("impersonate: max lifetime is 12 hours")
+		return nil, errLifetimeOverMax
 	}
 
 	var isStaticToken bool
@@ -86,9 +93,16 @@ func CredentialsTokenSource(ctx context.Context, config CredentialsConfig, opts 
 	if err != nil {
 		return nil, err
 	}
-	// If a subject is specified a different auth-flow is initiated to
-	// impersonate as the provided subject (user).
+	// If a subject is specified a domain-wide delegation auth-flow is initiated
+	// to impersonate as the provided subject (user).
 	if config.Subject != "" {
+		settings, err := newSettings(clientOpts)
+		if err != nil {
+			return nil, err
+		}
+		if !settings.IsUniverseDomainGDU() {
+			return nil, errUniverseNotSupportedDomainWideDelegation
+		}
 		return user(ctx, config, client, lifetime, isStaticToken)
 	}
 
@@ -111,6 +125,18 @@ func CredentialsTokenSource(ctx context.Context, config CredentialsConfig, opts 
 		return oauth2.StaticTokenSource(tok), nil
 	}
 	return oauth2.ReuseTokenSource(nil, its), nil
+}
+
+func newSettings(opts []option.ClientOption) (*internal.DialSettings, error) {
+	var o internal.DialSettings
+	for _, opt := range opts {
+		opt.Apply(&o)
+	}
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &o, nil
 }
 
 func formatIAMServiceAccountName(name string) string {
