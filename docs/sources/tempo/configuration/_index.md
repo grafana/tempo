@@ -367,14 +367,11 @@ metrics_generator:
             [dimensions: <list of string>]
 
             # Custom labeling mapping
-            dimension_mappings: <list of Label Mappings>
-
-                # The metric name
+            dimension_mappings: <list of label mappings>
+                # The new label name
               - [name: <string>]
-
                 # The actual attributes that will make the value of the new label
                 [source_labels: <list of strings>]
-
                 # The separator used to join multiple `source_labels`
                 [join: <string>]
 
@@ -388,13 +385,10 @@ metrics_generator:
             subprocessors:
               # Toggle the `Latency` metric category
               [ 0: <bool> | default = true ]
-
               # Toggle the `Count` metric category
               [ 1: <bool> | default = true ]
-
               # Toggle the `Size` metric category
               [ 2: <bool> | default = true ]
-
 
             # List of policies that will be applied to spans for inclusion or exclusion.
             [filter_policies: <list of filter policies config> | default = []]
