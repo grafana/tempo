@@ -1,13 +1,14 @@
 ---
-title: TempoStack documentation
-menuTitle: TempoStack documentation
-description: TempoStack CRD and Operator configuration
+title: Operator configuration and CRD specifications
+menuTitle: API documentation
+description: Operator configuration and CRD specifications
 weight: 1000
 aliases:
   - /docs/tempo/operator/api-docs
 ---
 
-# TempoStack documentation
+# Operator configuration and CRD specifications
 
-* The `TempoStack` CRD documentation can be found at [tempo-operator/api.md](https://github.com/grafana/tempo-operator/blob/main/docs/operator/api.md)
-* The Operator configuration can be found at [tempo-operator/feature-gates.md](https://github.com/grafana/tempo-operator/blob/main/docs/operator/feature-gates.md)
+* The Operator configuration can be found at [tempo-operator/docs/operator/config.yaml](https://github.com/grafana/tempo-operator/blob/main/docs/operator/config.yaml)
+* The `TempoStack` CRD documentation can be found at [tempo-operator/docs/spec/tempo.grafana.com_tempostacks.yaml](https://github.com/grafana/tempo-operator/blob/main/docs/spec/tempo.grafana.com_tempostacks.yaml)
+* The `TempoMonolithic` CRD documentation can be found at [tempo-operator/docs/spec/tempo.grafana.com_tempomonolithics.yaml](https://github.com/grafana/tempo-operator/blob/main/docs/spec/tempo.grafana.com_tempomonolithics.yaml)
