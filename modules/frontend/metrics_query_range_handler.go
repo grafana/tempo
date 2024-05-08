@@ -21,8 +21,7 @@ import (
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
-	// todo: should traceql metrics queries contribute to the search SLO or should we create a new one? as is they use the same settings and contribute to search
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
@@ -64,7 +63,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
 func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, _ := user.ExtractOrgID(req.Context())

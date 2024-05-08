@@ -195,6 +195,7 @@ func TestTraceIDHandler(t *testing.T) {
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
 						Interval:              time.Second,
 					},
+					SLO: testSLOcfg,
 				},
 			}, nil)
 
