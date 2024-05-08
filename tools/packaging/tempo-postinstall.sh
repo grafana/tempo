@@ -17,7 +17,7 @@ cleanInstall() {
     fi
 
     # Create and assign permissions for default storage
-    mkdir /var/tempo
+    mkdir -m 0700 /var/tempo
     chown tempo /var/tempo
 
     # rhel/centos7 cannot use ExecStartPre=+ to specify the pre start should be run as root
