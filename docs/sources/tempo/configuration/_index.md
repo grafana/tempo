@@ -344,7 +344,7 @@ metrics_generator:
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
-            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10, 8.20, 16,40]
+            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384]
 
             # Configure intrinsic dimensions to add to the metrics. Intrinsic dimensions are taken
             # directly from the respective resource and span properties.
