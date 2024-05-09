@@ -118,7 +118,6 @@ func newClientWithOpts(cfg *commonConfig, opts ...option) (*Client, error) {
 			cfg.hedgeRequestsUpTo,
 			http.DefaultClient,
 		)
-
 		if err != nil {
 			return nil, err
 		}
