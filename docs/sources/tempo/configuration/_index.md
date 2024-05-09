@@ -541,6 +541,15 @@ query_frontend:
 
         # The target length of time for each job to handle when querying the backend.
         [interval: <duration> | default = 5m ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        # NOTE: `duration_slo` and `throughput_bytes_slo` both must be configured for it to work
+        [duration_slo: <duration> | default = 0s ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        [throughput_bytes_slo: <float> | default = 0 ]
 ```
 
 ## Querier
