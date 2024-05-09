@@ -29,6 +29,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'
 
       - name: check-fmt
         run: make check-fmt
@@ -37,7 +39,7 @@ jobs:
         run: make check-jsonnetfmt
 
       - name: lint
-        run: make lint base=${{github.base_ref}}
+        run: make lint base=origin/${{github.base_ref}}
 
   unit-tests-pkg:
     name: Test packages - pkg
