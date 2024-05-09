@@ -13,7 +13,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
 const (
@@ -37,10 +36,6 @@ type Config struct {
 }
 
 func ValidateConfig(c *Config) error {
-	if c.Version == vparquet.VersionString {
-		return fmt.Errorf("this version of vParquet has been deprecated, please use vParquet2 or higher")
-	}
-
 	if _, err := encoding.FromVersion(c.Version); err != nil {
 		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
 	}

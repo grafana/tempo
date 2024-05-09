@@ -129,7 +129,6 @@ func TestValidateConfig(t *testing.T) {
 }
 
 func TestDeprecatedVersions(t *testing.T) {
-	errorMessage := "this version of vParquet has been deprecated, please use vParquet2 or higher"
 	tests := []struct {
 		cfg            *Config
 		expectedConfig *Config
@@ -161,36 +160,6 @@ func TestDeprecatedVersions(t *testing.T) {
 					Version:              "vParquet3",
 				},
 			},
-		},
-		{
-			cfg: &Config{
-				WAL: &wal.Config{
-					Version: "vParquet",
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              "v2",
-				},
-			},
-			err: errorMessage,
-		},
-		{
-			cfg: &Config{
-				WAL: &wal.Config{
-					Version: "vParquet2",
-				},
-				Block: &common.BlockConfig{
-					IndexDownsampleBytes: 1,
-					IndexPageSizeBytes:   1,
-					BloomFP:              0.01,
-					BloomShardSizeBytes:  1,
-					Version:              "vParquet",
-				},
-			},
-			err: errorMessage,
 		},
 	}
 

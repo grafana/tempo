@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/parquet-go/parquet-go"
 )
 
@@ -36,7 +36,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 	fmt.Printf("\n***************     block meta    *********************\n\n\n")
 	fmt.Printf("%+v\n", meta)
 
-	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
+	rr := vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	pf, err := parquet.OpenFile(rr, int64(meta.Size))
 	if err != nil {
 		return err

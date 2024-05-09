@@ -20,6 +20,12 @@
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
   This impacts impacts all users of the `grafana/tempo` Docker image.
+* [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
+  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now it is 
+  removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
+  running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
+  with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet (1) blocks
+  have expired and been deleted from the backend, or else will encounter read errors after upgrading to this release.
 * [CHANGE] Return a less confusing error message to the client when refusing spans due to ingestion rates. [#3485](https://github.com/grafana/tempo/pull/3485) (@ie-pham)
 * [CHANGE] Clean Metrics Generator's Prometheus wal before creating instance [#3548](https://github.com/grafana/tempo/pull/3548) (@ie-pham)
 * [CHANGE] Update docker examples for permissions, deprecations, and clean-up [#3603](https://github.com/grafana/tempo/pull/3603) (@zalegrala)
