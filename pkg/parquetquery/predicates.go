@@ -333,6 +333,7 @@ func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
 	return p.Fn(p.Extract(v))
 }
 
+// jpe - comment on this and generic pred above. DO NOT USE! exist for legacy purposes
 func NewIntPredicate(fn func(int64) bool, rangeFn func(int64, int64) bool) *GenericPredicate[int64] {
 	return NewGenericPredicate(
 		fn, rangeFn,
@@ -353,48 +354,6 @@ func NewBoolPredicate(b bool) *GenericPredicate[bool] {
 		nil,
 		func(v pq.Value) bool { return v.Boolean() },
 	)
-}
-
-type FloatBetweenPredicate struct {
-	min, max float64
-}
-
-var _ Predicate = (*FloatBetweenPredicate)(nil)
-
-func NewFloatBetweenPredicate(min, max float64) *FloatBetweenPredicate {
-	return &FloatBetweenPredicate{min, max}
-}
-
-func (p *FloatBetweenPredicate) String() string {
-	return fmt.Sprintf("FloatBetweenPredicate{%f,%f}", p.min, p.max)
-}
-
-func (p *FloatBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	ci, err := c.ColumnIndex()
-	if err == nil && ci != nil {
-		for i := 0; i < ci.NumPages(); i++ {
-			min := ci.MinValue(i).Double()
-			max := ci.MaxValue(i).Double()
-			if p.max >= min && p.min <= max {
-				return true
-			}
-		}
-		return false
-	}
-
-	return true
-}
-
-func (p *FloatBetweenPredicate) KeepValue(v pq.Value) bool {
-	vv := v.Double()
-	return p.min <= vv && vv <= p.max
-}
-
-func (p *FloatBetweenPredicate) KeepPage(page pq.Page) bool {
-	if min, max, ok := page.Bounds(); ok {
-		return p.max >= min.Double() && p.min <= max.Double()
-	}
-	return true
 }
 
 type OrPredicate struct {

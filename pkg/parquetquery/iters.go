@@ -533,7 +533,7 @@ type SyncIterator struct {
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
-	filter     *InstrumentedPredicate
+	filter     *InstrumentedPredicate // jpe - consider dropping InstrumentedPredicate couple % saved
 
 	// Status
 	span            opentracing.Span
@@ -911,6 +911,8 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
 			c.currPageN++
+
+			// jpe consider v.IsNull skip
 
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
