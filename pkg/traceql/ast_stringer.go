@@ -85,7 +85,7 @@ func (n Static) EncodeToString(quotes bool) string {
 	case TypeInt:
 		return strconv.Itoa(n.N)
 	case TypeFloat:
-		return strconv.FormatFloat(n.F, 'f', 5, 64)
+		return strconv.FormatFloat(n.F, 'g', -1, 64)
 	case TypeString:
 		if quotes {
 			return "`" + n.S + "`"

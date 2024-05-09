@@ -186,9 +186,13 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert bool, buffer []traceql.Span) []traceql.Span {
-	if len(lhs) == 0 || len(rhs) == 0 {
+func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
+	if len(lhs) == 0 && len(rhs) == 0 {
 		return nil
+	}
+
+	if union {
+		return descendantOfUnion(lhs, rhs, invert, buffer)
 	}
 
 	// sort by nested set left. the goal is to quickly be able to find the first entry in the lhs slice that
@@ -202,7 +206,7 @@ func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert bool, b
 	}
 	sort.Slice(lhs, sortFn)
 
-	descendantOf := func(a, b *span) bool {
+	descendantOf := func(a *span, b *span) bool {
 		if a.nestedSetLeft == 0 ||
 			b.nestedSetLeft == 0 ||
 			a.nestedSetRight == 0 ||
@@ -248,13 +252,123 @@ func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert bool, b
 	return buffer
 }
 
-func (s *span) SiblingOf(lhs, rhs []traceql.Span, falseForAll bool, buffer []traceql.Span) []traceql.Span {
+// descendantOfUnion is a special loop designed to handle union descendantOf. technically nestedSetManyManyLoop can logically do this
+// but it contains a pathological case where it devolves to O(n^2) in the worst case (a trace with a single series of nested spans).
+// this loop more directly handles union descendantof.
+//   - iterate the rhs checking to see if it is a descendant of lhs
+//   - break out of the rhs loop when the next span will be in a different branch
+//   - at this point rSpan has the narrowest span (the leaf span) of the branch
+//   - iterate the lhs as long as its in the same branch as rSpan checking for ancestors
+//   - go back to rhs iteration and repeat until slices are exhausted
+func descendantOfUnion(lhs []traceql.Span, rhs []traceql.Span, invert bool, buffer []traceql.Span) []traceql.Span {
+	// union is harder b/c we have to find all matches on both the left and rhs
+	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
+	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+		sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
+	}
+
+	isAfter := func(a, b *span) bool {
+		return b.nestedSetLeft > a.nestedSetRight
+	}
+	isMatch := func(a, d *span) bool {
+		if d.nestedSetLeft == 0 ||
+			a.nestedSetLeft == 0 ||
+			d.nestedSetRight == 0 ||
+			a.nestedSetRight == 0 {
+			return false
+		}
+		return d.nestedSetLeft > a.nestedSetLeft && d.nestedSetRight < a.nestedSetRight
+	}
+
+	if invert {
+		lhs, rhs = rhs, lhs
+	}
+
+	uniqueSpans := make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
+	addToBuffer := func(s *span) {
+		if _, ok := uniqueSpans[s]; !ok {
+			buffer = append(buffer, s)
+			uniqueSpans[s] = struct{}{}
+		}
+	}
+
+	lidx := 0
+	ridx := 0
+	for lidx < len(lhs) && ridx < len(rhs) {
+		lSpan := lhs[lidx].(*span)
+		rSpan := rhs[ridx].(*span)
+
+		// rhs
+		for ; ridx < len(rhs); ridx++ {
+			rSpan = rhs[ridx].(*span)
+
+			if isMatch(lSpan, rSpan) {
+				addToBuffer(rSpan)
+			}
+
+			// test the next span to see if it is still in the tree of lhs. if not bail!
+			if ridx+1 < len(rhs) && isAfter(rSpan, rhs[ridx+1].(*span)) {
+				ridx++
+				break
+			}
+		}
+
+		// lhs
+		// rSpan contains the narrowest span that is in tree for lhs. advance and add lhs until we're out of tree
+		for ; lidx < len(lhs); lidx++ {
+			lSpan = lhs[lidx].(*span)
+
+			// advance LHS until out of tree of RHS
+			if isAfter(rSpan, lSpan) {
+				break
+			}
+
+			if isMatch(lSpan, rSpan) {
+				addToBuffer(lSpan)
+
+				// if rSpan is in tree of lSpan keep on keeping on
+				if ridx < len(rhs) && isMatch(lSpan, rhs[ridx].(*span)) {
+					break
+				}
+			}
+		}
+	}
+
+	return buffer
+}
+
+// SiblingOf
+func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, union bool, buffer []traceql.Span) []traceql.Span {
+	if len(lhs) == 0 && len(rhs) == 0 {
+		return nil
+	}
+
+	if union {
+		// union is more difficult b/c we have to find all matches on both the left and rhs
+		sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
+		if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+			sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
+		}
+
+		siblingOf := func(a *span, b *span) bool {
+			return a.nestedSetParent == b.nestedSetParent &&
+				a.nestedSetParent != 0 &&
+				b.nestedSetParent != 0 &&
+				a != b // a span cannot be its own sibling. note that this only works due to implementation details in the engine. if we ever pipeline structural operators then we would need to use something else for identity. rownumber?
+		}
+
+		isValid := func(s *span) bool { return s.nestedSetParent != 0 }
+		isAfter := func(a *span, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
+
+		return nestedSetManyManyLoop(lhs, rhs, isValid, siblingOf, isAfter, falseForAll, false, union, buffer)
+	}
+
 	// this is easy. we're just looking for anything on the lhs side with the same nested set parent as the rhs
 	sort.Slice(lhs, func(i, j int) bool {
 		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
 	})
 
-	siblingOf := func(a, b *span) bool {
+	siblingOf := func(a *span, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
 			a.nestedSetParent != 0 &&
 			b.nestedSetParent != 0
@@ -291,7 +405,39 @@ func (s *span) SiblingOf(lhs, rhs []traceql.Span, falseForAll bool, buffer []tra
 	return buffer
 }
 
-func (s *span) ChildOf(lhs, rhs []traceql.Span, falseForAll, invert bool, buffer []traceql.Span) []traceql.Span {
+// {} > {}
+func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
+	if len(lhs) == 0 && len(rhs) == 0 {
+		return nil
+	}
+
+	if union {
+		childOf := func(p *span, c *span) bool {
+			return p.nestedSetLeft == c.nestedSetParent &&
+				p.nestedSetLeft != 0 &&
+				c.nestedSetParent != 0
+		}
+		isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
+		isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
+
+		// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
+		// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
+		if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {
+			rhs = append([]traceql.Span{}, rhs...)
+		}
+
+		parents := lhs
+		children := rhs
+		if invert {
+			parents, children = children, parents
+		}
+
+		sort.Slice(parents, func(i, j int) bool { return parents[i].(*span).nestedSetLeft < parents[j].(*span).nestedSetLeft })
+		sort.Slice(children, func(i, j int) bool { return children[i].(*span).nestedSetParent < children[j].(*span).nestedSetParent })
+
+		return nestedSetOneManyLoop(parents, children, isValid, childOf, isAfter, falseForAll, invert, union, buffer)
+	}
+
 	// we will search the LHS by either nestedSetLeft or nestedSetParent. if we are doing child we sort by nestedSetLeft
 	// so we can quickly find children. if the invert flag is set we are looking for parents and so we sort appropriately
 	sortFn := func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft }
@@ -299,7 +445,7 @@ func (s *span) ChildOf(lhs, rhs []traceql.Span, falseForAll, invert bool, buffer
 		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
 	}
 
-	childOf := func(a, b *span) bool {
+	childOf := func(a *span, b *span) bool {
 		return a.nestedSetLeft == b.nestedSetParent &&
 			a.nestedSetLeft != 0 &&
 			b.nestedSetParent != 0
@@ -328,6 +474,163 @@ func (s *span) ChildOf(lhs, rhs []traceql.Span, falseForAll, invert bool, buffer
 			buffer = append(buffer, r)
 		}
 	}
+	return buffer
+}
+
+// nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships. It handles all nested set relationships except
+// siblingOf and unioned descendantOf. It forward iterates the one and many slices and applies.
+func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+	var uniqueSpans map[*span]struct{}
+	if union {
+		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
+	}
+
+	addToBuffer := func(s *span) {
+		if union {
+			if _, ok := uniqueSpans[s]; !ok {
+				buffer = append(buffer, s)
+				uniqueSpans[s] = struct{}{}
+			}
+		} else {
+			buffer = append(buffer, s)
+		}
+	}
+
+	// note the small differences between this and the !invert loop. technically we could write these both in one piece of code,
+	// but this feels better for clarity
+	if invert {
+		manyIdx := 0
+		for _, o := range one {
+			oSpan := o.(*span)
+
+			if !isValid(oSpan) {
+				continue
+			}
+
+			matches := false
+			for ; manyIdx < len(many); manyIdx++ {
+				mSpan := many[manyIdx].(*span)
+
+				// if the many loop is ahead of the one loop break back to allow the one loop to let it catch up
+				if isAfter(oSpan, mSpan) {
+					break
+				}
+
+				if isMatch(oSpan, mSpan) {
+					matches = true
+					if union {
+						addToBuffer(mSpan)
+					} else {
+						break
+					}
+				}
+			}
+
+			if (matches && !falseForAll) || (!matches && falseForAll) {
+				addToBuffer(oSpan)
+			}
+		}
+
+		return buffer
+	}
+
+	// !invert
+	manyIdx := 0
+	for _, o := range one {
+		oSpan := o.(*span)
+
+		if !isValid(oSpan) {
+			continue
+		}
+
+		matches := false
+		for ; manyIdx < len(many); manyIdx++ {
+			mSpan := many[manyIdx].(*span)
+
+			// if the many loop is ahead of the one loop break back to the allow one loop to let it catch up
+			if isAfter(oSpan, mSpan) {
+				break
+			}
+
+			match := isMatch(oSpan, mSpan)
+			if (match && !falseForAll) || (!match && falseForAll) {
+				matches = true
+				addToBuffer(mSpan)
+			}
+		}
+
+		if matches && union {
+			addToBuffer(oSpan)
+		}
+	}
+
+	// drain the rest of the children if falseForAll
+	if falseForAll {
+		for ; manyIdx < len(many); manyIdx++ {
+			addToBuffer(many[manyIdx].(*span))
+		}
+	}
+
+	return buffer
+}
+
+// nestedSetManyManyLoop handles the generic case when the lhs must be checked multiple times for each rhs. it is currently only
+// used for siblingOf
+func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+	var uniqueSpans map[*span]struct{}
+	if union {
+		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
+	}
+
+	addToBuffer := func(s *span) {
+		if union {
+			if _, ok := uniqueSpans[s]; !ok {
+				buffer = append(buffer, s)
+				uniqueSpans[s] = struct{}{}
+			}
+		} else {
+			buffer = append(buffer, s)
+		}
+	}
+
+	rescanIdx := 0
+	lidx := 0
+	for _, r := range rhs {
+		rSpan := r.(*span)
+		if !isValid(rSpan) {
+			continue
+		}
+
+		// rescan whatever amount of rhs we need to
+		lidx = rescanIdx
+
+		matches := false
+		for ; lidx < len(lhs); lidx++ {
+			lSpan := lhs[lidx].(*span)
+
+			// if left is after right, swap back to right
+			if isAfter(rSpan, lSpan) {
+				break
+			}
+
+			// if we transition forward (trees branches or parents or whatever) store current lidx to rescan
+			if isAfter(lhs[rescanIdx].(*span), lSpan) {
+				rescanIdx = lidx
+			}
+
+			if (!invert && isMatch(rSpan, lSpan)) || (invert && isMatch(lSpan, rSpan)) {
+				matches = true
+				if union {
+					addToBuffer(lSpan)
+				}
+			}
+		}
+
+		if (matches && !falseForAll) || (!matches && falseForAll) {
+			addToBuffer(rSpan)
+		}
+	}
+
 	return buffer
 }
 

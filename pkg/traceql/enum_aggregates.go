@@ -29,6 +29,26 @@ func (a AggregateOp) String() string {
 	return fmt.Sprintf("aggregate(%d)", a)
 }
 
+// AggregateMode is the different flavors of metrics queries
+// as executed in different places.
+type AggregateMode int
+
+const (
+	// AggregateModeRaw is the version that runs directly on spans.
+	// It yields the first level of raw time series.
+	AggregateModeRaw = iota
+
+	// AggregateModeSum is the version that performs the next stages
+	// after raw. This is how to combine results from multiple jobs or pods, but still not
+	// the final results. For example rate/count are simple addition, min/max compute
+	// another level of min/maxing.
+	AggregateModeSum
+
+	// AggregateModeFinal is the version that must run in a single place and cannot be
+	// subdivided. This includes the computation of quantiles, averages, etc.
+	AggregateModeFinal
+)
+
 type MetricsAggregateOp int
 
 const (
