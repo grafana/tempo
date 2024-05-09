@@ -263,7 +263,7 @@ func (t *App) initIngester() (services.Service, error) {
 
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -576,7 +576,7 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend:    {Common, Store, OverridesAPI},
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
 		Ingester:         {Common, Store, MemberlistKV},
-		MetricsGenerator: {Common, MemberlistKV},
+		MetricsGenerator: {Common, Store, MemberlistKV},
 		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		// composite targets
