@@ -29,6 +29,8 @@ const (
 	DefaultTenantIndexBuilders       = 2
 	DefaultTolerateConsecutiveErrors = 1
 
+	DefaultEmptyTenantDeletionAge = 12 * time.Hour
+
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
 	DefaultReadBufferCount      = 32
@@ -50,6 +52,9 @@ type Config struct {
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
+
+	EmptyTenantDeletionEnabled bool          `yaml:"empty_tenant_deletion_enabled"`
+	EmptyTenantDeletionAge     time.Duration `yaml:"empty_tenant_deletion_age"`
 
 	// backends
 	Backend string        `yaml:"backend"`

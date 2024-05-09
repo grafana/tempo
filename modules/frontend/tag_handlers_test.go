@@ -237,6 +237,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -281,6 +282,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -365,6 +367,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -409,6 +412,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 

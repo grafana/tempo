@@ -15,7 +15,7 @@ TOOLS_IMAGE ?= grafana/tempo-ci-tools
 
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
-TOOLS_CMD = docker run --rm -v ${PWD}:/tools $(TOOLS_IMAGE)
+TOOLS_CMD = docker run --rm -t -v ${PWD}:/tools $(TOOLS_IMAGE)
 
 .PHONY: tools-image-build
 tools-image-build:

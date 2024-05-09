@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package internal // import "go.opentelemetry.io/otel/bridge/opencensus/internal"
 
@@ -121,8 +110,20 @@ func (s *Span) AddMessageReceiveEvent(messageID, uncompressedByteSize, compresse
 }
 
 // AddLink adds a link to this span.
+// This drops the OpenCensus LinkType because there is no such concept in OpenTelemetry.
 func (s *Span) AddLink(l octrace.Link) {
-	Handle(fmt.Errorf("ignoring OpenCensus link %+v for span %q because OpenTelemetry doesn't support setting links after creation", l, s.String()))
+	s.otelSpan.AddLink(trace.Link{
+		SpanContext: trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID: trace.TraceID(l.TraceID),
+			SpanID:  trace.SpanID(l.SpanID),
+			// We don't know if this was sampled or not.
+			// Mark it as sampled, since sampled means
+			// "the caller may have recorded trace data":
+			// https://www.w3.org/TR/trace-context/#sampled-flag
+			TraceFlags: trace.FlagsSampled,
+		}),
+		Attributes: oc2otel.AttributesFromMap(l.Attributes),
+	})
 }
 
 // String prints a string representation of this span.

@@ -44,6 +44,7 @@ type TraceByIDConfig struct {
 
 type MetricsConfig struct {
 	Sharder QueryRangeSharderConfig `yaml:",inline"`
+	SLO     SLOConfig               `yaml:",inline"`
 }
 
 type SLOConfig struct {
@@ -85,6 +86,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
 		},
+		SLO: slo,
 	}
 
 	// enable multi tenant queries by default

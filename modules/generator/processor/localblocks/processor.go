@@ -466,6 +466,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		concurrency = uint(v)
 	}
 
+	// Compile the sharded version of the query
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
@@ -519,7 +520,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	return eval.Results()
+	return eval.Results(), nil
 }
 
 func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {

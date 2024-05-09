@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+
 	"github.com/grafana/tempo/pkg/cache"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -70,6 +71,11 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 
 func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
 	return r.nextReader.ListBlocks(ctx, tenant)
+}
+
+// Find implements backend.Reader
+func (r *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+	return r.nextReader.Find(ctx, keypath, f)
 }
 
 // Read implements backend.RawReader
