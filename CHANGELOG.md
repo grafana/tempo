@@ -1,6 +1,8 @@
 ## main / unreleased
 
-* [ENHANCEMENT] Instrumentation scope can have attributes in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
+* [ENHANCEMENT] Update OTLP and add attributes to instrumentation scope in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
+  **Breaking Change** The update to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary`
+  and `InstrumentationLibrarySpan` from the OTLP receivers
 * [BUGFIX] Fix handling of regex matchers in autocomplete endpoints [#3641](https://github.com/grafana/tempo/pull/3641) (@sd2k)
 * [ENHANCEMENT] Surface new labels for uninstrumented services and systems [#3543](https://github.com/grafana/tempo/pull/3543) (@t00mas)
 * [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
