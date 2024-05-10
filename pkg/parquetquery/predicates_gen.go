@@ -833,3 +833,41 @@ func (p BoolNotEqualPredicate) KeepValue(v pq.Value) bool {
 
 
 
+
+var _ Predicate = (*StringNotEqualPredicate)(nil)
+
+type StringNotEqualPredicate struct {
+	value string
+}
+
+func NewStringNotEqualPredicate(val string) StringNotEqualPredicate {
+	return StringNotEqualPredicate{value: val}
+}
+
+func (p StringNotEqualPredicate) String() string {
+	return fmt.Sprintf("StringNotEqualPredicate{%s}", p.value)
+}
+
+func (p StringNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	
+
+	return true
+}
+
+func (p StringNotEqualPredicate) KeepPage(page pq.Page) bool {
+	
+
+	return true
+}
+
+func (p StringNotEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return vv != p.value
+}
+
+
+

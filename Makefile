@@ -268,9 +268,16 @@ gen-traceql:
 gen-traceql-local:
 	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
+# ##############
+# Gen Parquet-Query
+# ##############
+.PHONY: gen-parquet-query
+gen-parquet-query:
+	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates_gen.go
+
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
-vendor-check: gen-proto update-mod gen-traceql
+vendor-check: gen-proto update-mod gen-traceql gen-parquet-query
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 ### Tidy dependencies for tempo and tempo-serverless modules

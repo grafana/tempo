@@ -201,7 +201,7 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 				{
 					Op:          "Equal",
 					CompareCond: "vv == p.value",
-					RangeCond:   "", // jpe if strlen = 0 don't generate that crap
+					RangeCond:   "",
 				},
 				{
 					Op:          "NotEqual",
@@ -214,19 +214,19 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 		// = covered by StringInPredicate
 		// =~ covered by RegexInPredicate
 		// !~ covered by RegexNotInPredicate
-		// {
-		// 	Name:           "String",
-		// 	Type:           "string",
-		// 	ParquetFunc:    "ByteArray()", // jpe work out this difference. unsafeToString?
-		// 	FormatModifier: "%s",
-		// 	Ops: []op{
-		// 		{
-		// 			Op:          "NotEqual",
-		// 			CompareCond: "vv != p.value",
-		// 			RangeCond:   "",
-		// 		},
-		// 	},
-		// },
+		{
+			Name:           "String",
+			Type:           "string",
+			ParquetFunc:    "ByteArray()", // jpe work out this difference. unsafeToString?
+			FormatModifier: "%s",
+			Ops: []op{
+				{
+					Op:          "NotEqual",
+					CompareCond: "vv != p.value",
+					RangeCond:   "",
+				},
+			},
+		},
 	}
 
 	funcMap := template.FuncMap{
