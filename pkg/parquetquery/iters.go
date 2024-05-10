@@ -31,7 +31,7 @@ import (
 //	  E        0,  2, -1
 //
 // Currently supports 6 levels of nesting which should be enough for anybody. :)
-type RowNumber [6]int64
+type RowNumber [6]int32
 
 const MaxDefinitionLevel = 5
 
@@ -42,7 +42,7 @@ func EmptyRowNumber() RowNumber {
 
 // MaxRowNumber is a helper that represents the maximum(-ish) representable value.
 func MaxRowNumber() RowNumber {
-	return RowNumber{math.MaxInt64}
+	return RowNumber{math.MaxInt32}
 }
 
 // CompareRowNumbers compares the sequences of row numbers in
@@ -314,7 +314,7 @@ func (t *RowNumber) nextSlow(repetitionLevel, definitionLevel int) {
 
 // Skip rows at the root-level.
 func (t *RowNumber) Skip(numRows int64) {
-	t[0] += numRows
+	t[0] += int32(numRows)
 	for i := 1; i < len(t); i++ {
 		t[i] = -1
 	}
@@ -331,7 +331,7 @@ func (t RowNumber) Preceding() RowNumber {
 		case -1:
 			continue
 		case 0:
-			t[i] = math.MaxInt64
+			t[i] = math.MaxInt32
 		default:
 			t[i]--
 			return t
@@ -821,12 +821,12 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	if rowSkip < 1 {
 		return
 	}
-	if rowSkip > c.currPage.NumRows() {
+	if rowSkip > int32(c.currPage.NumRows()) {
 		return
 	}
 
 	// reslice the page to jump directly to the desired row number
-	pg := c.currPage.Slice(rowSkip-1, c.currPage.NumRows())
+	pg := c.currPage.Slice(int64(rowSkip-1), c.currPage.NumRows())
 
 	// remove all detail below the row number
 	c.curr = TruncateRowNumber(0, to)
