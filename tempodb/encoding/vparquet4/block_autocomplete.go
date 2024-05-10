@@ -598,7 +598,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 		switch e.Key {
 		case "string":
-			val = traceql.NewStaticString(e.Value.String())
+			val = traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		case "int":
 			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
@@ -668,7 +668,7 @@ func mapSpanAttr(e entry) traceql.Static {
 	case columnPathSpanDuration:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathSpanName:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
@@ -685,7 +685,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		}
 		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanKind:
 		var kind traceql.Kind
 		switch e.Value.Uint64() {
@@ -715,7 +715,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		case parquet.Float:
 			return traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
-			return traceql.NewStaticString(e.Value.String())
+			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
 	return traceql.Static{}
@@ -730,7 +730,7 @@ func mapResourceAttr(e entry) traceql.Static {
 	case parquet.Float:
 		return traceql.NewStaticFloat(e.Value.Double())
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
 		return traceql.Static{}
 	}
@@ -742,9 +742,9 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathDurationNanos:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathRootServiceName:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
 	return traceql.Static{}
 }
