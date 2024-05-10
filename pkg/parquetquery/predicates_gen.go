@@ -708,30 +708,11 @@ func (p StringEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	if d := c.Dictionary(); d != nil {
 		return keepDictionary(d, p.KeepValue)
 	}
-	ci, err := c.ColumnIndex()
-	if err == nil && ci != nil {
-		for i := 0; i < ci.NumPages(); i++ {
-			min := ci.MinValue(i).ByteArray()
-			max := ci.MaxValue(i).ByteArray()
-
-			if bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0 {
-				return true
-			}
-		}
-		return false
-	}
 
 	return true
 }
 
 func (p StringEqualPredicate) KeepPage(page pq.Page) bool {
-	minV, maxV, ok := page.Bounds()
-	if ok {
-		min := minV.ByteArray()
-		max := maxV.ByteArray()
-
-		return bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0
-	}
 
 	return true
 }
