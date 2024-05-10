@@ -70,6 +70,8 @@ linters-settings:
     ignore-tests: true
 
 issues:
+  exclude-files:
+    - /pkg/parquetquery/predicates_gen.go
   exclude:
     - Error return value of .*log\.Logger\)\.Log\x60 is not checked
     - package github.com/golang/protobuf/proto is deprecated

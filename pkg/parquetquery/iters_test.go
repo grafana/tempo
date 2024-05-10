@@ -157,7 +157,7 @@ func testColumnIteratorSeek(t *testing.T, makeIter makeTestIterFn) {
 		require.NoError(t, err)
 		require.NotNil(t, res, "seekTo=%v", seekTo)
 		require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1}, res.RowNumber)
-		require.Equal(t, seekTo, res.ToMap()["A"][0].Int64())
+		require.Equal(t, seekTo, res.ToMap()["A"][0].Int32())
 	}
 }
 
@@ -190,7 +190,7 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		require.Equal(t, RowNumber{expectedResult, -1, -1, -1, -1, -1}, res.RowNumber)
-		require.Equal(t, expectedResult, res.ToMap()["A"][0].Int64())
+		require.Equal(t, expectedResult, res.ToMap()["A"][0].Int32())
 	}
 }
 
