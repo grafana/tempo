@@ -533,7 +533,7 @@ type SyncIterator struct {
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
-	filter     *InstrumentedPredicate // jpe - consider dropping InstrumentedPredicate couple % saved
+	filter     Predicate
 
 	// Status
 	span            opentracing.Span
@@ -596,7 +596,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		readSize:   readSize,
 		rgsMin:     rgsMin,
 		rgsMax:     rgsMax,
-		filter:     &InstrumentedPredicate{pred: filter},
+		filter:     filter,
 		curr:       EmptyRowNumber(),
 		at:         at,
 	}
@@ -999,12 +999,6 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 func (c *SyncIterator) Close() {
 	c.closeCurrRowGroup()
 
-	c.span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks)
-	c.span.SetTag("inspectedPages", c.filter.InspectedPages)
-	c.span.SetTag("inspectedValues", c.filter.InspectedValues)
-	c.span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks)
-	c.span.SetTag("keptPages", c.filter.KeptPages)
-	c.span.SetTag("keptValues", c.filter.KeptValues)
 	c.span.Finish()
 
 	if c.intern && c.interner != nil {
