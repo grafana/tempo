@@ -8,7 +8,6 @@ import (
 	"math"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -1912,76 +1911,23 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	s := operands[0].S
 
 	switch op {
+	case traceql.OpEqual:
+		//return parquetquery.NewStringInPredicate([]string{s}), nil
+		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return v != s
-			},
-			func(min, max string) bool {
-				return min != s || max != s
-			},
-			func(v parquet.Value) string {
-				return unsafeToString(v.Bytes())
-			},
-		), nil
-
+		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
 	case traceql.OpNotRegex:
 		return parquetquery.NewRegexNotInPredicate([]string{s})
-
-	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate([]string{s}), nil
-
 	case traceql.OpGreater:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) > 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(max, s) > 0
-			},
-			func(v parquet.Value) string {
-				return unsafeToString(v.Bytes())
-			},
-		), nil
+		return parquetquery.NewStringGreaterPredicate([]byte(s)), nil
 	case traceql.OpGreaterEqual:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) >= 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(max, s) >= 0
-			},
-			func(v parquet.Value) string {
-				return unsafeToString(v.Bytes())
-			},
-		), nil
+		return parquetquery.NewStringGreaterEqualPredicate([]byte(s)), nil
 	case traceql.OpLess:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) < 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(min, s) < 0
-			},
-			func(v parquet.Value) string {
-				return unsafeToString(v.Bytes())
-			},
-		), nil
+		return parquetquery.NewStringLessPredicate([]byte(s)), nil
 	case traceql.OpLessEqual:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) <= 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(min, s) <= 0
-			},
-			func(v parquet.Value) string {
-				return unsafeToString(v.Bytes())
-			},
-		), nil
-
+		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
 	}

@@ -57,7 +57,9 @@ func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	if err == nil && ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
-				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
+				min := ci.MinValue(i).ByteArray()
+				max := ci.MaxValue(i).ByteArray()
+				ok := bytes.Compare(min, subs) <= 0 && bytes.Compare(max, subs) >= 0
 				if ok {
 					// At least one page in this chunk matches
 					return true
