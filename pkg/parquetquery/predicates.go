@@ -289,6 +289,8 @@ type GenericPredicate[T any] struct {
 
 var _ Predicate = (*GenericPredicate[int64])(nil)
 
+// NewGenericPredicate is deprecated due to speed concerns. Please use a predicated hard coded to the type you are working with.
+// If no such predicate exists add it to the generator in ../parquetquerygen/predicates.go
 func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extract func(pq.Value) T) *GenericPredicate[T] {
 	return &GenericPredicate[T]{Fn: fn, RangeFn: rangeFn, Extract: extract}
 }
@@ -333,29 +335,6 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
 	return p.Fn(p.Extract(v))
-}
-
-// jpe - comment on this and generic pred above. DO NOT USE! exist for legacy purposes
-func NewIntPredicate(fn func(int64) bool, rangeFn func(int64, int64) bool) *GenericPredicate[int64] {
-	return NewGenericPredicate(
-		fn, rangeFn,
-		func(v pq.Value) int64 { return v.Int64() },
-	)
-}
-
-func NewFloatPredicate(fn func(float64) bool, rangeFn func(float64, float64) bool) *GenericPredicate[float64] {
-	return NewGenericPredicate(
-		fn, rangeFn,
-		func(v pq.Value) float64 { return v.Double() },
-	)
-}
-
-func NewBoolPredicate(b bool) *GenericPredicate[bool] {
-	return NewGenericPredicate(
-		func(v bool) bool { return v == b },
-		nil,
-		func(v pq.Value) bool { return v.Boolean() },
-	)
 }
 
 type OrPredicate struct {

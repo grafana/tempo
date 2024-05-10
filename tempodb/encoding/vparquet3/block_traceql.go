@@ -1912,7 +1912,6 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 	switch op {
 	case traceql.OpEqual:
-		//return parquetquery.NewStringInPredicate([]string{s}), nil
 		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
 	case traceql.OpNotEqual:
 		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
@@ -2013,10 +2012,8 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	switch op {
 	case traceql.OpEqual:
 		return parquetquery.NewBoolEqualPredicate(operands[0].B), nil
-
 	case traceql.OpNotEqual:
 		return parquetquery.NewBoolNotEqualPredicate(!operands[0].B), nil
-
 	default:
 		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
 	}
