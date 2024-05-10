@@ -912,7 +912,11 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.currBufN++
 			c.currPageN++
 
-			// jpe consider v.IsNull skip
+			// currently no predicates need a null value. this may change in the future
+			// but for now this is a very nice perf improvement
+			if v.IsNull() {
+				continue
+			}
 
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
