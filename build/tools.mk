@@ -29,7 +29,7 @@ tools-docker:
 
 tools-image:
 	@echo "=== [ tools-image     ]: Running tools in docker..."
-	@docker pull ${TOOLS_IMAGE}
+	@docker image list ${TOOLS_IMAGE}:latest | grep -q ${TOOLS_IMAGE} || docker pull ${TOOLS_IMAGE}
 
 tools:
 	@echo "=== [ tools            ]: Installing tools required by the project..."
