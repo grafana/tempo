@@ -281,11 +281,11 @@ update-mod:
 
 .PHONY: release
 release: tools-image
-	$(TOOLS_CMD) goreleaser release --rm-dist
+	$(TOOLS_CMD) goreleaser release --clean
 
 .PHONY: release-snapshot
 release-snapshot: tools-image
-	$(TOOLS_CMD) goreleaser release --skip-validate --rm-dist --snapshot
+	$(TOOLS_CMD) goreleaser release --skip-validate --clean --snapshot
 
 ### Docs
 .PHONY: docs
