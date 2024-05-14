@@ -751,7 +751,15 @@ func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
 	d.h.Write(d.buf)
 
 	v := d.h.Sum32()
-	m := d.m[tid[len(tid)-1]]
+
+	// Use last byte of the trace to choose the submap.
+	// Empty ID uses submap 0.
+	mapIdx := byte(0)
+	if len(tid) > 0 {
+		mapIdx = tid[len(tid)-1]
+	}
+
+	m := d.m[mapIdx]
 
 	if _, ok := m[v]; ok {
 		return true
