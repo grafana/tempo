@@ -12,10 +12,11 @@ TOOL_DIR     ?= tools
 TOOL_CONFIG  ?= $(TOOL_DIR)/tools.go
 
 TOOLS_IMAGE ?= grafana/tempo-ci-tools
+TOOLS_IMAGE_TAG ?= main-d8c69d4
 
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
-TOOLS_CMD = docker run --rm -t -v ${PWD}:/tools $(TOOLS_IMAGE)
+TOOLS_CMD = docker run --rm -t -v ${PWD}:/tools $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
 
 .PHONY: tools-image-build
 tools-image-build:
