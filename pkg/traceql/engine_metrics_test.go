@@ -290,3 +290,26 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanDeduper(t *testing.T) {
+	d := NewSpanDeduper2()
+
+	in := []struct {
+		tid []byte
+		ts  uint64
+	}{
+		{nil, 0},
+		{[]byte{1}, 1},
+		{[]byte{1, 1}, 1},
+		{[]byte{1, 2}, 2},
+	}
+
+	for _, tc := range in {
+		// First call is always false
+		require.False(t, d.Skip(tc.tid, tc.ts))
+
+		// Second call is always true
+		require.True(t, d.Skip(tc.tid, tc.ts))
+	}
+	d.Skip(nil, 0)
+}
