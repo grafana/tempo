@@ -1,4 +1,5 @@
-FROM golang:alpine
+# Some tools are only supported on specific versions of Go.  The image version here tracks the main go.mod of the project.
+FROM golang:1.21-alpine
 
 ARG TARGETOS
 ARG TARGETARCH
