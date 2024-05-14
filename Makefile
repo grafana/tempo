@@ -8,7 +8,6 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
 GOPATH := $(shell go env GOPATH)
-GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.23.0
@@ -280,18 +279,13 @@ update-mod:
 	go mod tidy -e
 	$(MAKE) -C cmd/tempo-serverless update-mod
 
-
-### Release (intended to be used in the .github/workflows/release.yml)
-$(GORELEASER):
-	go install github.com/goreleaser/goreleaser@latest
-
 .PHONY: release
-release: $(GORELEASER)
-	$(GORELEASER) release --rm-dist
+release: tools-image
+	$(TOOLS_CMD) goreleaser release --rm-dist
 
 .PHONY: release-snapshot
-release-snapshot: $(GORELEASER)
-	$(GORELEASER) release --skip-validate --rm-dist --snapshot
+release-snapshot: tools-image
+	$(TOOLS_CMD) goreleaser release --skip-validate --rm-dist --snapshot
 
 ### Docs
 .PHONY: docs
