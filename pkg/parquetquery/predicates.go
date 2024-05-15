@@ -57,7 +57,9 @@ func (p *StringInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	if err == nil && ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
-				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
+				min := ci.MinValue(i).ByteArray()
+				max := ci.MaxValue(i).ByteArray()
+				ok := bytes.Compare(min, subs) <= 0 && bytes.Compare(max, subs) >= 0
 				if ok {
 					// At least one page in this chunk matches
 					return true
@@ -287,6 +289,8 @@ type GenericPredicate[T any] struct {
 
 var _ Predicate = (*GenericPredicate[int64])(nil)
 
+// NewGenericPredicate is deprecated due to speed concerns. Please use a predicated hard coded to the type you are working with.
+// If no such predicate exists add it to the generator in ../parquetquerygen/predicates.go
 func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extract func(pq.Value) T) *GenericPredicate[T] {
 	return &GenericPredicate[T]{Fn: fn, RangeFn: rangeFn, Extract: extract}
 }
@@ -331,70 +335,6 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
 	return p.Fn(p.Extract(v))
-}
-
-func NewIntPredicate(fn func(int64) bool, rangeFn func(int64, int64) bool) *GenericPredicate[int64] {
-	return NewGenericPredicate(
-		fn, rangeFn,
-		func(v pq.Value) int64 { return v.Int64() },
-	)
-}
-
-func NewFloatPredicate(fn func(float64) bool, rangeFn func(float64, float64) bool) *GenericPredicate[float64] {
-	return NewGenericPredicate(
-		fn, rangeFn,
-		func(v pq.Value) float64 { return v.Double() },
-	)
-}
-
-func NewBoolPredicate(b bool) *GenericPredicate[bool] {
-	return NewGenericPredicate(
-		func(v bool) bool { return v == b },
-		nil,
-		func(v pq.Value) bool { return v.Boolean() },
-	)
-}
-
-type FloatBetweenPredicate struct {
-	min, max float64
-}
-
-var _ Predicate = (*FloatBetweenPredicate)(nil)
-
-func NewFloatBetweenPredicate(min, max float64) *FloatBetweenPredicate {
-	return &FloatBetweenPredicate{min, max}
-}
-
-func (p *FloatBetweenPredicate) String() string {
-	return fmt.Sprintf("FloatBetweenPredicate{%f,%f}", p.min, p.max)
-}
-
-func (p *FloatBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
-	ci, err := c.ColumnIndex()
-	if err == nil && ci != nil {
-		for i := 0; i < ci.NumPages(); i++ {
-			min := ci.MinValue(i).Double()
-			max := ci.MaxValue(i).Double()
-			if p.max >= min && p.min <= max {
-				return true
-			}
-		}
-		return false
-	}
-
-	return true
-}
-
-func (p *FloatBetweenPredicate) KeepValue(v pq.Value) bool {
-	vv := v.Double()
-	return p.min <= vv && vv <= p.max
-}
-
-func (p *FloatBetweenPredicate) KeepPage(page pq.Page) bool {
-	if min, max, ok := page.Bounds(); ok {
-		return p.max >= min.Double() && p.min <= max.Double()
-	}
-	return true
 }
 
 type OrPredicate struct {

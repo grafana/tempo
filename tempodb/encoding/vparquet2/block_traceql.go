@@ -8,7 +8,6 @@ import (
 	"math"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -1670,76 +1669,22 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	s := operands[0].S
 
 	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return v != s
-			},
-			func(min, max string) bool {
-				return min != s || max != s
-			},
-			func(v parquet.Value) string {
-				return v.String()
-			},
-		), nil
-
+		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
 	case traceql.OpNotRegex:
 		return parquetquery.NewRegexNotInPredicate([]string{s})
-
-	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate([]string{s}), nil
-
 	case traceql.OpGreater:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) > 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(max, s) > 0
-			},
-			func(v parquet.Value) string {
-				return v.String()
-			},
-		), nil
+		return parquetquery.NewStringGreaterPredicate([]byte(s)), nil
 	case traceql.OpGreaterEqual:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) >= 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(max, s) >= 0
-			},
-			func(v parquet.Value) string {
-				return v.String()
-			},
-		), nil
+		return parquetquery.NewStringGreaterEqualPredicate([]byte(s)), nil
 	case traceql.OpLess:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) < 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(min, s) < 0
-			},
-			func(v parquet.Value) string {
-				return v.String()
-			},
-		), nil
+		return parquetquery.NewStringLessPredicate([]byte(s)), nil
 	case traceql.OpLessEqual:
-		return parquetquery.NewGenericPredicate(
-			func(v string) bool {
-				return strings.Compare(v, s) <= 0
-			},
-			func(min, max string) bool {
-				return strings.Compare(min, s) <= 0
-			},
-			func(v parquet.Value) string {
-				return v.String()
-			},
-		), nil
-
+		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
 	}
@@ -1764,33 +1709,22 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 		return nil, fmt.Errorf("operand is not int, duration, status or kind: %+v", operands[0])
 	}
 
-	var fn func(v int64) bool
-	var rangeFn func(min, max int64) bool
-
 	switch op {
 	case traceql.OpEqual:
-		fn = func(v int64) bool { return v == i }
-		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
+		return parquetquery.NewIntEqualPredicate(i), nil
 	case traceql.OpNotEqual:
-		fn = func(v int64) bool { return v != i }
-		rangeFn = func(min, max int64) bool { return min != i || max != i }
+		return parquetquery.NewIntNotEqualPredicate(i), nil
 	case traceql.OpGreater:
-		fn = func(v int64) bool { return v > i }
-		rangeFn = func(min, max int64) bool { return max > i }
+		return parquetquery.NewIntGreaterPredicate(i), nil
 	case traceql.OpGreaterEqual:
-		fn = func(v int64) bool { return v >= i }
-		rangeFn = func(min, max int64) bool { return max >= i }
+		return parquetquery.NewIntGreaterEqualPredicate(i), nil
 	case traceql.OpLess:
-		fn = func(v int64) bool { return v < i }
-		rangeFn = func(min, max int64) bool { return min < i }
+		return parquetquery.NewIntLessPredicate(i), nil
 	case traceql.OpLessEqual:
-		fn = func(v int64) bool { return v <= i }
-		rangeFn = func(min, max int64) bool { return min <= i }
+		return parquetquery.NewIntLessEqualPredicate(i), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
 	}
-
-	return parquetquery.NewIntPredicate(fn, rangeFn), nil
 }
 
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -1805,33 +1739,22 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 
 	i := operands[0].F
 
-	var fn func(v float64) bool
-	var rangeFn func(min, max float64) bool
-
 	switch op {
 	case traceql.OpEqual:
-		fn = func(v float64) bool { return v == i }
-		rangeFn = func(min, max float64) bool { return min <= i && i <= max }
+		return parquetquery.NewFloatEqualPredicate(i), nil
 	case traceql.OpNotEqual:
-		fn = func(v float64) bool { return v != i }
-		rangeFn = func(min, max float64) bool { return min != i || max != i }
+		return parquetquery.NewFloatNotEqualPredicate(i), nil
 	case traceql.OpGreater:
-		fn = func(v float64) bool { return v > i }
-		rangeFn = func(min, max float64) bool { return max > i }
+		return parquetquery.NewFloatGreaterPredicate(i), nil
 	case traceql.OpGreaterEqual:
-		fn = func(v float64) bool { return v >= i }
-		rangeFn = func(min, max float64) bool { return max >= i }
+		return parquetquery.NewFloatGreaterEqualPredicate(i), nil
 	case traceql.OpLess:
-		fn = func(v float64) bool { return v < i }
-		rangeFn = func(min, max float64) bool { return min < i }
+		return parquetquery.NewFloatLessPredicate(i), nil
 	case traceql.OpLessEqual:
-		fn = func(v float64) bool { return v <= i }
-		rangeFn = func(min, max float64) bool { return min <= i }
+		return parquetquery.NewFloatLessEqualPredicate(i), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
 	}
-
-	return parquetquery.NewFloatPredicate(fn, rangeFn), nil
 }
 
 func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -1846,11 +1769,9 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewBoolPredicate(operands[0].B), nil
-
+		return parquetquery.NewBoolEqualPredicate(operands[0].B), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewBoolPredicate(!operands[0].B), nil
-
+		return parquetquery.NewBoolNotEqualPredicate(operands[0].B), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
 	}

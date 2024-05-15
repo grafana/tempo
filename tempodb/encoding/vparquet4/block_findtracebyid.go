@@ -246,7 +246,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	for _, rg := range pf.RowGroups()[0:rowGroup] {
 		rowMatch += rg.NumRows()
 	}
-	rowMatch += res.RowNumber[0]
+	rowMatch += int64(res.RowNumber[0])
 
 	// seek to row and read
 	r := parquet.NewGenericReader[*Trace](pf)
