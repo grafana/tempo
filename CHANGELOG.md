@@ -50,6 +50,7 @@
 * [BUGFIX] Fix metrics query results when filtering and rating on the same attribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)
 * [BUGFIX] Fix metrics query results when series contain empty strings or nil values [#3429](https://github.com/grafana/tempo/issues/3429) (@mdisibio)
 * [BUGFIX] Fix metrics query duration check, add per-tenant override for max metrics query duration [#3479](https://github.com/grafana/tempo/issues/3479) (@mdisibio)
+* [BUGFIX] Fix metrics query panic "index out of range [-1]" when a trace has zero-length ID [](https://github.com/grafana/tempo/pull/3668) (@mdisibio)
 * [BUGFIX] Return unfiltered results when a bad TraceQL query is provided in autocomplete. [#3426](https://github.com/grafana/tempo/pull/3426) (@mapno)
 * [BUGFIX] Add support for dashes, quotes and spaces in attribute names in autocomplete [#3458](https://github.com/grafana/tempo/pull/3458) (@mapno)
 * [BUGFIX] Correctly handle 429s in GRPC search streaming. [#3469](https://github.com/grafana/tempo/pull/3469) (@joe-ellitot)
@@ -58,6 +59,10 @@
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
 * [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 * [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
+
+## v2.4.2
+
+* [BUGFIX] Update golang.org/x/net package to 0.24.0 to fix CVE-2023-45288 [#3613](https://github.com/grafana/tempo/pull/3613) (@pavolloffay)
 
 ## v2.4.1
 

@@ -290,7 +290,7 @@ update-mod:
 
 ### Release (intended to be used in the .github/workflows/release.yml)
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser@latest
+	go install github.com/goreleaser/goreleaser@v1.25.1
 
 .PHONY: release
 release: $(GORELEASER)
