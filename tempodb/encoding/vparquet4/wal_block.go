@@ -688,7 +688,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		return fmt.Errorf("conditions invalid: %w", err)
 	}
 
-	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	mingledConditions, _, _, _, _, err := categorizeConditions(req.Conditions)
 	if err != nil {
 		return err
 	}

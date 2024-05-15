@@ -677,6 +677,7 @@ const (
 	// a fake intrinsic scope at the trace lvl
 	intrinsicScopeTrace = -1
 	intrinsicScopeSpan  = -2
+	intrinsicScopeEvent = -3
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -702,6 +703,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
+	traceql.IntrinsicEventName:    {intrinsicScopeEvent, traceql.TypeNil, ""}, // Not used in vparquet2, this entry is only used to assign default scope.
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not used in vparquet2, this entry is only used to assign default scope.
 }
 
