@@ -126,7 +126,7 @@ func TestHedge(t *testing.T) {
 						// SDK to make three requests in total: one request for each of the two blocks, and a final commit request.
 						// See azblob.UploadStreamOptions.BlockSize.
 
-						// TODO: this test periodically causes segfaults in the test and a root cause has not been determined.
+						// TODO: this test periodically causes segfaults in the the test and a root cause has not been determined.
 						// blockSize := 2000000
 						// u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
 						// require.NoError(t, err)
