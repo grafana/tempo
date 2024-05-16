@@ -513,7 +513,7 @@ func TestIngesterRequests(t *testing.T) {
 			for k, v := range expectedQueryStringValues {
 				key := k
 
-				// Due the way the query string is parse, we need to ensure that
+				// Due the the way the query string is parse, we need to ensure that
 				// the first query param is captured.  Split the key on the first ? and
 				// use the second part as the key.
 				if strings.Contains(k, "?") {
