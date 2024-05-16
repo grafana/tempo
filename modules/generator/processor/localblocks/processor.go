@@ -577,11 +577,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
 
 	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
-	if immediate {
-		since = time.Time{}
-	}
-
-	tracesToCut := p.liveTraces.CutIdle(since)
+	tracesToCut := p.liveTraces.CutIdle(since, immediate)
 
 	p.liveTracesMtx.Unlock()
 
