@@ -71,7 +71,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, model.CurrentEncoding)
+	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, "")
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -129,7 +129,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, model.CurrentEncoding)
+	meta := backend.NewBlockMeta("fake", blockID, e.Version(), backend.EncNone, "")
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -342,7 +342,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 
 	// create all valid blocks
 	for _, e := range encoding.AllEncodings() {
-		meta := backend.NewBlockMeta("fake", uuid.New(), e.Version(), backend.EncNone, model.CurrentEncoding)
+		meta := backend.NewBlockMeta("fake", uuid.New(), e.Version(), backend.EncNone, "")
 		block, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
@@ -397,7 +397,7 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, model.CurrentEncoding)
+	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, "")
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -545,7 +545,7 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, model.CurrentEncoding)
+	meta := backend.NewBlockMeta("fake", blockID, encoding, backend.EncNone, "")
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(b, err, "unexpected error creating block")
 

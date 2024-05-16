@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -619,7 +620,11 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	blockID := uuid.New()
 
-	meta := backend.NewBlockMeta(testTenantID, blockID, from, backend.EncNone, model.CurrentEncoding)
+	var dataEncoding string
+	if from == v2.VersionString {
+		dataEncoding = model.CurrentEncoding
+	}
+	meta := backend.NewBlockMeta(testTenantID, blockID, from, backend.EncNone, dataEncoding)
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
