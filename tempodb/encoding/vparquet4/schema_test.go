@@ -179,7 +179,7 @@ func TestTraceToParquet(t *testing.T) {
 		expected Trace
 	}{
 		{
-			name: "span and resource attributes",
+			name: "span scope and resource attributes",
 			id:   traceID,
 			trace: tempopb.Trace{
 				Batches: []*v1_trace.ResourceSpans{{
@@ -231,7 +231,23 @@ func TestTraceToParquet(t *testing.T) {
 						},
 					},
 					ScopeSpans: []*v1_trace.ScopeSpans{{
-						Scope: &v1.InstrumentationScope{},
+						Scope: &v1.InstrumentationScope{
+							Name:                   "scope-a",
+							Version:                "scope-a-version",
+							DroppedAttributesCount: 101,
+							Attributes: []*v1.KeyValue{
+								{Key: "scope.attr.str", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "scope-val-1"}}},
+								{Key: "scope.attr.int", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 102}}},
+								{Key: "scope.attr.float", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.234}}},
+								{Key: "scope.attr.bool", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+								{Key: "scope.string.array", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{
+									Values: []*v1.AnyValue{
+										{Value: &v1.AnyValue_StringValue{StringValue: "one"}},
+										{Value: &v1.AnyValue_StringValue{StringValue: "two"}},
+									},
+								}}}},
+							},
+						},
 						Spans: []*v1_trace.Span{{
 							Name:   "span-a",
 							SpanId: common.ID{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
@@ -328,6 +344,18 @@ func TestTraceToParquet(t *testing.T) {
 						},
 					},
 					ScopeSpans: []ScopeSpans{{
+						Scope: InstrumentationScope{
+							Name:                   "scope-a",
+							Version:                "scope-a-version",
+							DroppedAttributesCount: 101,
+							Attrs: []Attribute{
+								attr("scope.attr.str", "scope-val-1"),
+								attr("scope.attr.int", 102),
+								attr("scope.attr.float", 1.234),
+								attr("scope.attr.bool", true),
+								attr("scope.string.array", []string{"one", "two"}),
+							},
+						},
 						Spans: []Span{{
 							Name:           "span-a",
 							SpanID:         []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},

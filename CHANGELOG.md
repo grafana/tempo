@@ -1,7 +1,13 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Update OTLP and add attributes to instrumentation scope in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
+  **Breaking Change** The update to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary`
+  and `InstrumentationLibrarySpan` from the OTLP receivers
+* [BUGFIX] Fix handling of regex matchers in autocomplete endpoints [#3641](https://github.com/grafana/tempo/pull/3641) (@sd2k)
 * [ENHANCEMENT] Surface new labels for uninstrumented services and systems [#3543](https://github.com/grafana/tempo/pull/3543) (@t00mas)
 * [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
+* [FEATURE] TraceQL metrics queries: add quantile_over_time [#3605](https://github.com/grafana/tempo/pull/3605) [#3633](https://github.com/grafana/tempo/pull/3633) (@mdisibio) 
+* [FEATURE] TraceQL metrics queries: add histogram_over_time [#3644](https://github.com/grafana/tempo/pull/3644) (@mdisibio)
 * [ENHANCEMENT] Add querier metrics for requests executed [#3524](https://github.com/grafana/tempo/pull/3524) (@electron0zero)
 * [FEATURE] Added gRPC streaming endpoints for Tempo APIs.
   * Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
@@ -19,11 +25,19 @@
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
   This impacts impacts all users of the `grafana/tempo` Docker image.
+* [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
+  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now it is 
+  removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
+  running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
+  with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet (1) blocks
+  have expired and been deleted from the backend, or else will encounter read errors after upgrading to this release.
 * [CHANGE] Return a less confusing error message to the client when refusing spans due to ingestion rates. [#3485](https://github.com/grafana/tempo/pull/3485) (@ie-pham)
 * [CHANGE] Clean Metrics Generator's Prometheus wal before creating instance [#3548](https://github.com/grafana/tempo/pull/3548) (@ie-pham)
 * [CHANGE] Update docker examples for permissions, deprecations, and clean-up [#3603](https://github.com/grafana/tempo/pull/3603) (@zalegrala)
-* [CHANGE] Add the ability to specify the replication factor of the data within a block in the block's meta [#3628](https://github.com/grafana/tempo/pull/3628) (@mapno)
+* [CHANGE] Update debian and rpm packages to grant required permissions to default storage path after installation [#3657](https://github.com/grafana/tempo/pull/3657) (@mdisibio)
+* [FEATURE] Add messaging-system latency histogram to service-graph [#3453](https://github.com/grafana/tempo/pull/3453) (@adirmatzkin)
 * [CHANGE] Delete any remaining objects for empty tenants after a configurable duration, requires config enable [#3611](https://github.com/grafana/tempo/pull/3611) (@zalegrala)
+* [CHANGE] Add golangci to the tools image and update `lint` make target [#3610](https://github.com/grafana/tempo/pull/3610) (@zalegrala)
 * [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
 * [ENHANCEMENT] Add new (unsafe) query hints for metrics queries [#3396](https://github.com/grafana/tempo/pull/3396) (@mdisibio)
 * [ENHANCEMENT] Add nestedSetLeft/Right/Parent instrinsics to TraceQL. [#3497](https://github.com/grafana/tempo/pull/3497) (@joe-elliott)
@@ -32,9 +46,12 @@
 * [ENHANCEMENT] Add support for sharded ingester queries  [#3574](https://github.com/grafana/tempo/pull/3574) (@zalegrala)
 * [ENHANCEMENT] TraceQL - Add support for scoped intrinsics using `:` [#3629](https://github.com/grafana/tempo/pull/3629) (@ie-pham)
   available scoped intrinsics: trace:duration, trace:rootName, trace:rootService, span:duration, span:kind, span:name, span:status, span:statusMessage
+* [ENHANCEMENT] Performance improvements on TraceQL and tag value search. [#3650](https://github.com/grafana/tempo/pull/3650),[#3667](https://github.com/grafana/tempo/pull/3667) (@joe-elliott)
+* [BUGFIX] Update golang.org/x/net package to 0.24.0 to fix CVE-2023-45288 [#3613](https://github.com/grafana/tempo/pull/3613) (@pavolloffay)
 * [BUGFIX] Fix metrics query results when filtering and rating on the same attribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)
 * [BUGFIX] Fix metrics query results when series contain empty strings or nil values [#3429](https://github.com/grafana/tempo/issues/3429) (@mdisibio)
 * [BUGFIX] Fix metrics query duration check, add per-tenant override for max metrics query duration [#3479](https://github.com/grafana/tempo/issues/3479) (@mdisibio)
+* [BUGFIX] Fix metrics query panic "index out of range [-1]" when a trace has zero-length ID [](https://github.com/grafana/tempo/pull/3668) (@mdisibio)
 * [BUGFIX] Return unfiltered results when a bad TraceQL query is provided in autocomplete. [#3426](https://github.com/grafana/tempo/pull/3426) (@mapno)
 * [BUGFIX] Add support for dashes, quotes and spaces in attribute names in autocomplete [#3458](https://github.com/grafana/tempo/pull/3458) (@mapno)
 * [BUGFIX] Correctly handle 429s in GRPC search streaming. [#3469](https://github.com/grafana/tempo/pull/3469) (@joe-ellitot)
@@ -43,6 +60,10 @@
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
 * [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 * [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
+
+## v2.4.2
+
+* [BUGFIX] Update golang.org/x/net package to 0.24.0 to fix CVE-2023-45288 [#3613](https://github.com/grafana/tempo/pull/3613) (@pavolloffay)
 
 ## v2.4.1
 

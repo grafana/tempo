@@ -21,8 +21,7 @@ import (
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
 func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryRangeHandler {
-	// todo: should traceql metrics queries contribute to the search SLO or should we create a new one? as is they use the same settings and contribute to search
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
@@ -38,14 +37,18 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c := combiner.NewTypedQueryRange()
+		c, err := combiner.NewTypedQueryRange(req)
+		if err != nil {
+			return err
+		}
+
 		collector := pipeline.NewGRPCCollector(next, c, func(qrr *tempopb.QueryRangeResponse) error {
 			finalResponse = qrr // sadly we can't pass srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(qrr)
 		})
 
 		logQueryRangeRequest(logger, tenant, req)
-		err := collector.RoundTrip(httpReq)
+		err = collector.RoundTrip(httpReq)
 
 		duration := time.Since(start)
 		bytesProcessed := uint64(0)
@@ -60,7 +63,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
 func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
-	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
+	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, _ := user.ExtractOrgID(req.Context())
@@ -80,7 +83,15 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner := combiner.NewTypedQueryRange()
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq)
+		if err != nil {
+			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     http.StatusText(http.StatusInternalServerError),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
 		rt := pipeline.NewHTTPCollector(next, combiner)
 
 		resp, err := rt.RoundTrip(req)

@@ -47,7 +47,11 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, fmt.Errorf("error querying generators in Querier.MetricsQueryRange: %w", err)
 	}
 
-	c := traceql.QueryRangeCombiner{}
+	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, result := range lookupResults {
 		c.Combine(result.response.(*tempopb.QueryRangeResponse))
 	}
@@ -98,6 +102,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		concurrency = v
 	}
 
+	// Compile the sharded version of the query
 	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
@@ -139,10 +144,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		return nil, err
 	}
 
-	res, err := eval.Results()
-	if err != nil {
-		return nil, err
-	}
+	res := eval.Results()
 
 	inspectedBytes, spansTotal, _ := eval.Metrics()
 

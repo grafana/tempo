@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -203,7 +203,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 						// A database request will only have one span, we don't wait for the server
 						// span but just copy details from the client span
-						if dbName, ok := processor_util.FindAttributeValue("db.name", rs.Resource.Attributes, span.Attributes); ok {
+						if dbName, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), rs.Resource.Attributes, span.Attributes); ok {
 							e.ConnectionType = store.Database
 							e.ServerService = dbName
 							e.ServerLatencySec = spanDurationSec(span)

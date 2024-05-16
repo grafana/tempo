@@ -139,7 +139,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(traceID, 0, 0)
-					page.ids.Set(traceID, match.RowNumber[0]) // Save rownumber for the trace ID
+					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
 		}

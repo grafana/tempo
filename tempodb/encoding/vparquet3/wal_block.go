@@ -136,7 +136,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(traceID, 0, 0)
-					page.ids.Set(traceID, match.RowNumber[0]) // Save rownumber for the trace ID
+					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
 		}
@@ -536,7 +536,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 
-			trp := parquetTraceToTempopbTrace(b.meta, tr)
+			trp := ParquetTraceToTempopbTrace(b.meta, tr)
 
 			trs = append(trs, trp)
 		}
@@ -724,12 +724,10 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 			}
 
 			for _, oe := range res.OtherEntries {
-				if oe.Key == req.TagName.String() {
-					v := oe.Value.(traceql.Static)
-					if cb(v) {
-						iter.Close()
-						return nil // We have enough values
-					}
+				v := oe.Value.(traceql.Static)
+				if cb(v) {
+					iter.Close()
+					return nil // We have enough values
 				}
 			}
 		}
@@ -871,7 +869,7 @@ func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 		return nil, nil, err
 	}
 
-	tr := parquetTraceToTempopbTrace(i.meta, t)
+	tr := ParquetTraceToTempopbTrace(i.meta, t)
 	return id, tr, nil
 }
 

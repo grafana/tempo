@@ -51,11 +51,9 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 			break
 		}
 		for _, oe := range res.OtherEntries {
-			if oe.Key == req.TagName.String() {
-				v := oe.Value.(traceql.Static)
-				if cb(v) {
-					return nil // We have enough values
-				}
+			v := oe.Value.(traceql.Static)
+			if cb(v) {
+				return nil // We have enough values
 			}
 		}
 	}
@@ -90,27 +88,24 @@ func createDistinctIterator(
 	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
-	// Safeguard. Shouldn't be needed since we only use collect the tag we want.
-	keep := func(attr traceql.Attribute) bool { return tag == attr }
-
 	var currentIter parquetquery.Iterator
 
 	if len(spanConditions) > 0 {
-		currentIter, err = createDistinctSpanIterator(makeIter, keep, tag, currentIter, spanConditions, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, tag, currentIter, spanConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
 	if len(resourceConditions) > 0 {
-		currentIter, err = createDistinctResourceIterator(makeIter, keep, tag, currentIter, resourceConditions, dc)
+		currentIter, err = createDistinctResourceIterator(makeIter, tag, currentIter, resourceConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
 		}
 	}
 
 	if len(traceConditions) > 0 {
-		currentIter, err = createDistinctTraceIterator(makeIter, keep, currentIter, traceConditions)
+		currentIter, err = createDistinctTraceIterator(makeIter, currentIter, traceConditions)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating trace iterator")
 		}
@@ -123,7 +118,6 @@ func createDistinctIterator(
 // one span each.  Spans are returned that match any of the given conditions.
 func createDistinctSpanIterator(
 	makeIter makeIterFn,
-	keep keepFn,
 	tag traceql.Attribute,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -266,7 +260,7 @@ func createDistinctSpanIterator(
 		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
+	attrIter, err := createDistinctAttributeIterator(makeIter, tag, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -285,7 +279,7 @@ func createDistinctSpanIterator(
 		return attrIter, nil
 	}
 
-	spanCol := &distinctSpanCollector{keep: keep}
+	spanCol := newDistinctValueCollector(mapSpanAttr)
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
@@ -294,7 +288,6 @@ func createDistinctSpanIterator(
 
 func createDistinctAttributeIterator(
 	makeIter makeIterFn,
-	keep keepFn,
 	tag traceql.Attribute,
 	conditions []traceql.Condition,
 	definitionLevel int,
@@ -393,10 +386,7 @@ func createDistinctAttributeIterator(
 				definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 				valueIters,
-				&distinctAttrCollector{
-					scope: scopeFromDefinitionLevel(definitionLevel),
-					keep:  keep,
-				},
+				newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel)),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("creating left join iterator: %w", err)
@@ -425,7 +415,6 @@ func oneLevelUp(definitionLevel int) int {
 
 func createDistinctResourceIterator(
 	makeIter makeIterFn,
-	keep keepFn,
 	tag traceql.Attribute,
 	spanIterator parquetquery.Iterator,
 	conditions []traceql.Condition,
@@ -504,7 +493,7 @@ func createDistinctResourceIterator(
 		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
-	attrIter, err := createDistinctAttributeIterator(makeIter, keep, tag, genericConditions, DefinitionLevelResourceAttrs,
+	attrIter, err := createDistinctAttributeIterator(makeIter, tag, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -513,7 +502,7 @@ func createDistinctResourceIterator(
 		iters = append(iters, attrIter)
 	}
 
-	batchCol := &distinctBatchCollector{keep: keep}
+	batchCol := newDistinctValueCollector(mapResourceAttr)
 
 	// Put span iterator last, so it is only read when
 	// the resource conditions are met.
@@ -526,7 +515,6 @@ func createDistinctResourceIterator(
 
 func createDistinctTraceIterator(
 	makeIter makeIterFn,
-	keep keepFn,
 	resourceIter parquetquery.Iterator,
 	conds []traceql.Condition,
 ) (parquetquery.Iterator, error) {
@@ -576,18 +564,22 @@ func createDistinctTraceIterator(
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &distinctTraceCollector{
-		keep: keep,
-	}), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newDistinctValueCollector(mapTraceAttr)), nil
 }
-
-type keepFn func(attr traceql.Attribute) bool
 
 var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
 
 type distinctAttrCollector struct {
 	scope traceql.AttributeScope
-	keep  keepFn
+
+	sentVals map[traceql.Static]struct{}
+}
+
+func newDistinctAttrCollector(scope traceql.AttributeScope) *distinctAttrCollector {
+	return &distinctAttrCollector{
+		scope:    scope,
+		sentVals: make(map[traceql.Static]struct{}),
+	}
 }
 
 func (d *distinctAttrCollector) String() string {
@@ -595,7 +587,6 @@ func (d *distinctAttrCollector) String() string {
 }
 
 func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	var key string
 	var val traceql.Static
 
 	for _, e := range result.Entries {
@@ -606,10 +597,8 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 
 		switch e.Key {
-		case "key":
-			key = e.Value.String()
 		case "string":
-			val = traceql.NewStaticString(e.Value.String())
+			val = traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		case "int":
 			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
@@ -619,9 +608,12 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 	}
 
-	attr := traceql.NewScopedAttribute(d.scope, false, key)
-	if d.keep(attr) {
-		result.AppendOtherValue(attr.String(), val)
+	var empty traceql.Static
+	if val != empty {
+		if _, ok := d.sentVals[val]; !ok {
+			result.AppendOtherValue("", val)
+			d.sentVals[val] = struct{}{}
+		}
 	}
 
 	result.Entries = result.Entries[:0]
@@ -634,25 +626,39 @@ type entry struct {
 	Value parquet.Value
 }
 
-var _ parquetquery.GroupPredicate = (*distinctSpanCollector)(nil)
+var _ parquetquery.GroupPredicate = (*distinctValueCollector)(nil)
 
-type distinctSpanCollector struct {
-	keep keepFn
+type distinctValueCollector struct {
+	mapToStatic func(entry) traceql.Static
+	sentVals    map[traceql.Static]struct{}
 }
 
-func (d distinctSpanCollector) String() string { return "distinctSpanCollector" }
+func newDistinctValueCollector(mapToStatic func(entry) traceql.Static) *distinctValueCollector {
+	return &distinctValueCollector{
+		mapToStatic: mapToStatic,
+		sentVals:    make(map[traceql.Static]struct{}),
+	}
+}
 
-func (d distinctSpanCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
+func (d distinctValueCollector) String() string { return "distinctValueCollector" }
+
+func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	for _, e := range result.Entries {
-		if attr, static := mapSpanAttr(e); d.keep(attr) {
-			result.AppendOtherValue(attr.String(), static)
+		if e.Value.IsNull() {
+			continue
+		}
+		static := d.mapToStatic(e)
+
+		if _, ok := d.sentVals[static]; !ok {
+			result.AppendOtherValue("", static)
+			d.sentVals[static] = struct{}{}
 		}
 	}
 	result.Entries = result.Entries[:0]
 	return true
 }
 
-func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
+func mapSpanAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathSpanID,
 		columnPathSpanParentID,
@@ -660,9 +666,9 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		columnPathSpanNestedSetRight,
 		columnPathSpanStartTime:
 	case columnPathSpanDuration:
-		return traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
+		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathSpanName:
-		return traceql.IntrinsicNameAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
@@ -677,9 +683,9 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		default:
 			status = traceql.Status(e.Value.Uint64())
 		}
-		return traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(status)
+		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanKind:
 		var kind traceql.Kind
 		switch e.Value.Uint64() {
@@ -698,90 +704,49 @@ func mapSpanAttr(e entry) (traceql.Attribute, traceql.Static) {
 		default:
 			kind = traceql.Kind(e.Value.Uint64())
 		}
-		return traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind)
+		return traceql.NewStaticKind(kind)
 	default:
 		// This exists for span-level dedicated columns like http.status_code
 		switch e.Value.Kind() {
 		case parquet.Boolean:
-			return newSpanAttr(e.Key), traceql.NewStaticBool(e.Value.Boolean())
+			return traceql.NewStaticBool(e.Value.Boolean())
 		case parquet.Int32, parquet.Int64:
-			return newSpanAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))
+			return traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.Float:
-			return newSpanAttr(e.Key), traceql.NewStaticFloat(e.Value.Double())
+			return traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
-			return newSpanAttr(e.Key), traceql.NewStaticString(e.Value.String())
+			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
-	return traceql.Attribute{}, traceql.Static{}
+	return traceql.Static{}
 }
 
-var _ parquetquery.GroupPredicate = (*distinctBatchCollector)(nil)
-
-type distinctBatchCollector struct {
-	keep keepFn
-}
-
-func (d *distinctBatchCollector) String() string {
-	return "distinctBatchCollector"
-}
-
-func (d *distinctBatchCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	// Gather Attributes from dedicated resource-level columns
-	for _, e := range result.Entries {
-		if attr, static := mapResourceAttr(e); d.keep(attr) {
-			result.AppendOtherValue(attr.String(), static)
-		}
-	}
-	result.Entries = result.Entries[:0]
-	return true
-}
-
-func mapResourceAttr(e entry) (traceql.Attribute, traceql.Static) {
+func mapResourceAttr(e entry) traceql.Static {
 	switch e.Value.Kind() {
 	case parquet.Boolean:
-		return newResAttr(e.Key), traceql.NewStaticBool(e.Value.Boolean())
+		return traceql.NewStaticBool(e.Value.Boolean())
 	case parquet.Int32, parquet.Int64:
-		return newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))
+		return traceql.NewStaticInt(int(e.Value.Int64()))
 	case parquet.Float:
-		return newResAttr(e.Key), traceql.NewStaticFloat(e.Value.Double())
+		return traceql.NewStaticFloat(e.Value.Double())
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		return newResAttr(e.Key), traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
-		return traceql.Attribute{}, traceql.Static{}
+		return traceql.Static{}
 	}
 }
 
-var _ parquetquery.GroupPredicate = (*distinctTraceCollector)(nil)
-
-type distinctTraceCollector struct {
-	keep keepFn
-}
-
-func (d *distinctTraceCollector) String() string {
-	return "distinctTraceCollector"
-}
-
-func (d *distinctTraceCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
-	for _, e := range result.Entries {
-		if attr, static := mapTraceAttr(e); d.keep(attr) {
-			result.AppendOtherValue(attr.String(), static)
-		}
-	}
-	result.Entries = result.Entries[:0]
-	return true
-}
-
-func mapTraceAttr(e entry) (traceql.Attribute, traceql.Static) {
+func mapTraceAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathTraceID, columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
 	case columnPathDurationNanos:
-		return traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
+		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathRootServiceName:
-		return traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
-	return traceql.Attribute{}, traceql.Static{}
+	return traceql.Static{}
 }
 
 func scopeFromDefinitionLevel(lvl int) traceql.AttributeScope {

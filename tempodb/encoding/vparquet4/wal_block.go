@@ -136,7 +136,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(traceID, 0, 0)
-					page.ids.Set(traceID, match.RowNumber[0]) // Save rownumber for the trace ID
+					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
 		}
@@ -724,12 +724,10 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 			}
 
 			for _, oe := range res.OtherEntries {
-				if oe.Key == req.TagName.String() {
-					v := oe.Value.(traceql.Static)
-					if cb(v) {
-						iter.Close()
-						return nil // We have enough values
-					}
+				v := oe.Value.(traceql.Static)
+				if cb(v) {
+					iter.Close()
+					return nil // We have enough values
 				}
 			}
 		}
