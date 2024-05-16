@@ -15,6 +15,7 @@ overrides:
   ingestion_rate_limit_bytes: 7000
   ingestion_burst_size_bytes: 7000
 
+
 ingester:
   lifecycler:
     address: 127.0.0.1
