@@ -296,7 +296,7 @@ If you do not need to change the values, you can skip this section.
           insecure: true
     ```
 
-1. Optional: Locate the MinIO section and change the username and password to something you wish to use.
+1. Optional: Locate the MinIO section and change the the username and password to something you wish to use.
 
    ```yaml
    minio:
