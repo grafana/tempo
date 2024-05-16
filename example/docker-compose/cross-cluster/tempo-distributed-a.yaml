@@ -62,7 +62,7 @@ storage:
       secret_key: supersecret
       insecure: true
     wal:
-      path: /var/tempo/wal             # where to store the wal locally
+      path: /var/tempo/wal             # where to store the the wal locally
     local:
       path: /var/tempo/blocks
 
