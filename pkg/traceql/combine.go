@@ -81,6 +81,9 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 		existingStats, ok := existing.ServiceStats[service]
 		if !ok {
 			existingStats = &tempopb.ServiceStats{}
+			if existing.ServiceStats == nil {
+				existing.ServiceStats = make(map[string]*tempopb.ServiceStats)
+			}
 			existing.ServiceStats[service] = existingStats
 		}
 		existingStats.SpanCount = max(existingStats.SpanCount, incomingStats.SpanCount)

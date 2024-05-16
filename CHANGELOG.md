@@ -59,6 +59,7 @@
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
 * [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 * [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
+* [BUGFIX] Fix panic in query-frontend when combining results [#3683](https://github.com/grafana/tempo/pull/3683) (@mapno)
 
 ## v2.4.2
 
