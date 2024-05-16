@@ -82,7 +82,7 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 func NewAzurite(port int) *e2e.HTTPService {
 	s := e2e.NewHTTPService(
 		"azurite",
-		azuriteImage, // Create the the azurite container
+		azuriteImage, // Create the azurite container
 		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
 		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), // If we get 403 the Azurite is ready
 		port, // blob storage port
