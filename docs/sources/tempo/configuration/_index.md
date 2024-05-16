@@ -281,7 +281,7 @@ Metrics-generator processors are disabled by default. To enable it for a specifi
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
-
+For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/latest/operations/traceql-metrics/#configure-the-local-blocks-processor).
 
 ```yaml
 # Metrics-generator configuration block
@@ -1729,7 +1729,7 @@ cache:
 
             # Override the default cipher suite list (separated by commas). Allowed
             # values:
-            # 
+            #
             # Secure Ciphers:
             # - TLS_RSA_WITH_AES_128_CBC_SHA
             # - TLS_RSA_WITH_AES_256_CBC_SHA
@@ -1748,7 +1748,7 @@ cache:
             # - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
             # - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
             # - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
-            # 
+            #
             # Insecure Ciphers:
             # - TLS_RSA_WITH_RC4_128_SHA
             # - TLS_RSA_WITH_3DES_EDE_CBC_SHA
