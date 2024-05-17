@@ -1,6 +1,6 @@
 ---
 title: Operator configuration and CRD specifications
-menuTitle: API documentation
+menuTitle: Reference
 description: Operator configuration and CRD specifications
 weight: 1000
 aliases:
