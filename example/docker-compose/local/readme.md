@@ -7,7 +7,7 @@ Before starting, login to ghcr so you can access the images, using something lik
 docker login ghcr.io -u <GITHUB USERNAME> -p <GITHUB PERSONAL ACCESS TOKEN>
 ```
 
-1. Start up the local stack.
+1. Start the local stack.
 
 ```console
 docker-compose up -d
@@ -31,18 +31,18 @@ local_tempo_1        /tempo -config.file=/etc/t ...   Up      0.0.0.0:14268->142
                                                               0.0.0.0:9411->9411/tcp,:::9411->9411/tcp 
 ```
 
-If local_temo_1 is showing as exited, check the logs 
+If `local_temo_1` is showing as exited, check the logs:
 ```console
 docker logs local_tempo_1 -f
 ```
-If it's showing a permissions error make sure the tempo-data directory exists in the same place as the docker-compose.yaml and that it's writeable by the docker containers. An easy fix for local dev is 
+If it's showing a permissions error, make sure the `tempo-data` directory exists in the same place as the `docker-compose.yaml` and that it's writeable by the docker containers. An easy fix for local dev is: 
 ```console
 chmod 777 tempo-data
 ```
 
 And then bring the stack up again.
 
-2. If you're interested you can see the wal/blocks as they are being created.
+2. If you're interested, you can see the WAL/blocks as they are being created.
 
 ```console
 ls tempo-data/
