@@ -8,12 +8,14 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -767,6 +769,76 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 				})
 			}
 		})
+	}
+}
+
+func TestBaselineComparison(t *testing.T) {
+	var (
+		ctx      = context.TODO()
+		e        = traceql.NewEngine()
+		opts     = common.DefaultSearchOptions()
+		tenantID = "1"
+		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		path    = "/Users/marty/src/tmp/"
+		// path = "/Users/mapno/workspace/testblock"
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(t, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	require.Equal(t, VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	/*req := traceql.BaselineCompareRequest{
+		Baseline:      `{resource.service.name="tempo-gateway"}`,
+		BaselineStart: uint64(meta.StartTime.UnixNano()),
+		BaselineEnd:   uint64(meta.EndTime.UnixNano()),
+		Compare:       `{duration<1s}`,
+		CompareStart:  uint64(meta.StartTime.UnixNano()),
+		CompareEnd:    uint64(meta.EndTime.UnixNano()),
+		MaxValues:     5,
+	}
+
+	res, err := e.ExecuteBaselineComparison(ctx, req, f)
+	require.NoError(t, err)
+	k := maps.Keys(res)
+	sort.Strings(k)
+	for _, kk := range k {
+		fmt.Println(kk, res[kk].Values)
+	}*/
+
+	req := tempopb.QueryRangeRequest{
+		Query: `{resource.service.name="tempo-gateway"} | compare_over_time({duration<1s})`,
+		Start: uint64(meta.StartTime.UnixNano()),
+		End:   uint64(meta.EndTime.UnixNano()),
+		Step:  uint64(meta.EndTime.Sub(meta.StartTime).Nanoseconds()),
+	}
+
+	eval, err := e.CompileMetricsQueryRange(&req, false, 0, false)
+	require.NoError(t, err)
+
+	err = eval.Do(ctx, f, 0, 0)
+	require.NoError(t, err)
+
+	res := eval.Results()
+	k := maps.Keys(res)
+	sort.Strings(k)
+	for _, kk := range k {
+		fmt.Println(kk, res[kk].Values)
 	}
 }
 

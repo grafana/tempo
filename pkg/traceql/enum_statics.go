@@ -95,3 +95,8 @@ func (k Kind) String() string {
 
 	return fmt.Sprintf("kind(%d)", k)
 }
+
+var (
+	StaticTrue  = NewStaticBool(true)
+	StaticFalse = NewStaticBool(false)
+)

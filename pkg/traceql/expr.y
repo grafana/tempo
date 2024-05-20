@@ -29,7 +29,7 @@ import (
     wrappedScalarPipeline Pipeline
     scalarPipeline Pipeline
     aggregate Aggregate
-    metricsAggregation *MetricsAggregate
+    metricsAggregation metricsFirstStageElement
 
     fieldExpression FieldExpression
     static Static
@@ -98,7 +98,7 @@ import (
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
-                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME
+                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -300,6 +300,8 @@ metricsAggregation:
     | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
     | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS                                                            { $$ = newMetricsAggregateHistogramOverTime($3, nil) }
     | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                  { $$ = newMetricsAggregateHistogramOverTime($3, $7) }
+    | COMPARE OPEN_PARENS spansetFilter CLOSE_PARENS                { $$ = newMetricsCompare($3, 0, 0)}
+    | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER COMMA INTEGER CLOSE_PARENS                { $$ = newMetricsCompare($3, $5, $7)}
   ;
 
 // **********************
