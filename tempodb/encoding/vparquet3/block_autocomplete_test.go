@@ -20,70 +20,78 @@ import (
 
 func TestFetchTagNames(t *testing.T) {
 	testCases := []struct {
-		name           string
-		query          string
-		expectedValues []string
+		name                   string
+		query                  string
+		expectedSpanValues     []string
+		expectedResourceValues []string
 	}{
 		{
 			name:  "no query - fall back to old search", // jpe - not working. not falling back to old search due to span start time cond?
 			query: "{}",
-			expectedValues: []string{
-				"generic-01",
+			expectedSpanValues: []string{
 				"generic-01-01",
 				"generic-01-02",
-				"generic-02",
 				"generic-02-01",
 				"span-same",
-				"resource-same",
 			},
+			expectedResourceValues: []string{"generic-01", "generic-02", "resource-same"},
 		},
 		{
-			name:           "matches nothing",
-			query:          "{span.generic-01-01=`bar`}",
-			expectedValues: []string{},
+			name:                   "matches nothing",
+			query:                  "{span.generic-01-01=`bar`}",
+			expectedSpanValues:     []string{},
+			expectedResourceValues: []string{},
 		},
 		// span
 		{
-			name:           "intrinsic span",
-			query:          "{statusMessage=`msg-01-01`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "span-same", "resource-same"},
+			name:                   "intrinsic span",
+			query:                  "{statusMessage=`msg-01-01`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
 		},
 		{
-			name:           "well known span",
-			query:          "{span.http.method=`method-01-01`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "span-same", "resource-same"},
+			name:                   "well known span",
+			query:                  "{span.http.method=`method-01-01`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
 		},
 		{
-			name:           "generic span",
-			query:          "{span.generic-01-01=`foo`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "span-same", "resource-same"},
+			name:                   "generic span",
+			query:                  "{span.generic-01-01=`foo`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
 		},
 		{
-			name:           "match two spans",
-			query:          "{span.span-same=`foo`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "span-same", "resource-same", "generic-02", "generic-02-01"},
+			name:                   "match two spans",
+			query:                  "{span.span-same=`foo`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
 		},
 		// resource
 		{
-			name:           "well known resource",
-			query:          "{resource.cluster=`cluster-01`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "generic-01-02", "span-same", "resource-same"},
+			name:                   "well known resource",
+			query:                  "{resource.cluster=`cluster-01`}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
 		},
 		{
-			name:           "generic resource",
-			query:          "{resource.generic-01=`bar`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "generic-01-02", "span-same", "resource-same"},
+			name:                   "generic resource",
+			query:                  "{resource.generic-01=`bar`}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
 		},
 		{
-			name:           "match two resources",
-			query:          "{resource.resource-same=`foo`}",
-			expectedValues: []string{"generic-01", "generic-01-01", "generic-01-02", "span-same", "resource-same", "generic-02", "generic-02-01"},
+			name:                   "match two resources",
+			query:                  "{resource.resource-same=`foo`}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
 		},
 		// trace level match
 		{
-			name:           "trace",
-			query:          "{rootName=`root` }",
-			expectedValues: []string{"generic-01", "generic-01-01", "generic-01-02", "span-same", "resource-same", "generic-02", "generic-02-01"},
+			name:                   "trace",
+			query:                  "{rootName=`root` }",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
 		},
 	}
 
@@ -178,32 +186,51 @@ func TestFetchTagNames(t *testing.T) {
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("query: %s", tc.query), func(t *testing.T) {
-			distinctAttrNames := util.NewDistinctStringCollector(1_000_000)
-			req, err := traceql.ExtractFetchSpansRequest(tc.query)
-			require.NoError(t, err)
-
-			// Build autocomplete request
-			autocompleteReq := traceql.AutocompleteRequest{
-				Conditions: req.Conditions,
-				TagName:    traceql.Attribute{},
-			}
-
-			err = block.FetchTagNames(ctx, autocompleteReq, distinctAttrNames.Collect, opts)
-			require.NoError(t, err)
-
-			expectedValues := tc.expectedValues
-			actualValues := distinctAttrNames.Strings()
+		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
+			expectedSpanValues := tc.expectedSpanValues
+			expectedResourceValues := tc.expectedResourceValues
 
 			// add dedicated and well known columns to expected values. the code currently does not
 			// attempt to perfectly filter these, but instead adds them to the return if any values are present
-			expectedValues = append(expectedValues, "dedicated.span.1", "dedicated.resource.1")
-			expectedValues = append(expectedValues, "cluster", "http.method", "service.name")
+			dedicatedSpanValues := []string{"dedicated.span.1"}
+			dedicatedResourceValues := []string{"dedicated.resource.1"}
 
-			sort.Strings(expectedValues)
-			sort.Strings(actualValues)
-			require.Equal(t, expectedValues, actualValues)
-		})
+			wellKnownSpanValues := []string{"http.method"}
+			wellKnownResourceValues := []string{"cluster", "service.name"}
+
+			var expectedValues []string
+			if scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeNone {
+				expectedValues = append(expectedValues, expectedSpanValues...)
+				expectedValues = append(expectedValues, wellKnownSpanValues...)
+				expectedValues = append(expectedValues, dedicatedSpanValues...)
+			}
+			if scope == traceql.AttributeScopeResource || scope == traceql.AttributeScopeNone {
+				expectedValues = append(expectedValues, expectedResourceValues...)
+				expectedValues = append(expectedValues, wellKnownResourceValues...)
+				expectedValues = append(expectedValues, dedicatedResourceValues...)
+			}
+
+			t.Run(fmt.Sprintf("query: %s-%s", tc.query, scope), func(t *testing.T) {
+				distinctAttrNames := util.NewDistinctStringCollector(1_000_000)
+				req, err := traceql.ExtractFetchSpansRequest(tc.query)
+				require.NoError(t, err)
+
+				// Build autocomplete request
+				autocompleteReq := traceql.FetchTagsRequest{
+					Conditions: req.Conditions,
+					Scope:      scope,
+				}
+
+				err = block.FetchTagNames(ctx, autocompleteReq, distinctAttrNames.Collect, opts)
+				require.NoError(t, err)
+
+				actualValues := distinctAttrNames.Strings()
+
+				sort.Strings(expectedValues)
+				sort.Strings(actualValues)
+				require.Equal(t, expectedValues, actualValues)
+			})
+		}
 	}
 }
 
@@ -644,9 +671,9 @@ func BenchmarkFetchTags(b *testing.B) {
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(b, err)
 
-			autocompleteReq := traceql.AutocompleteRequest{
+			autocompleteReq := traceql.FetchTagsRequest{
 				Conditions: req.Conditions,
-				TagName:    traceql.Attribute{},
+				Scope:      traceql.AttributeScopeNone,
 			}
 			b.ResetTimer()
 

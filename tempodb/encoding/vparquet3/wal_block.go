@@ -704,9 +704,12 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteR
 		}
 		defer file.Close()
 
-		pf := file.parquetFile
+		tr := tagRequest{
+			conditions: req.Conditions,
+			tag:        req.TagName,
+		}
 
-		iter, err := autocompleteIter(ctx, req.Conditions, req.TagName, pf, opts, b.meta.DedicatedColumns)
+		iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}

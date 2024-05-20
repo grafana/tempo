@@ -258,3 +258,10 @@ func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest)
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
 }
+
+type FetchTagsRequest struct {
+	Conditions []Condition
+	Scope      AttributeScope
+	// jpe - add effort param?
+	// TODO: Add start and end time?
+}

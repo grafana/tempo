@@ -14,29 +14,33 @@ import (
 	"github.com/pkg/errors"
 )
 
-// jpe - "AutoComplete" -> FetchTagValuesRequest and FetchTagNamesRequest
-// jpe - what to share with below?
 // jpe - require scope?
-// jpe - add any ded col or well known col that has values. confirm this doesn't add reads
-// jpe - explore using rep/def lvls to determine if a value exists at a row? confirm this doesn't add reads
-// jpe - have to add an iterator for the generic attr name if it doesn't exist
+// jpe - add effort param?
 
 type tagRequest struct {
-	keys bool
-	tag  traceql.Attribute
+	// applies to tag names and tag values. the conditions by which to return the filtered data
+	conditions []traceql.Condition
+	// scope requested. only used for tag names. A scope of None means all scopes.
+	scope traceql.AttributeScope
+	// tag requested.  only used for tag values. if populated then return tag values for this tag, otherwise return tag names.
+	tag traceql.Attribute
 }
 
-func (r tagRequest) attributeRequested() bool {
-	return r.tag != (traceql.Attribute{})
+func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
+	if r.tag != (traceql.Attribute{}) {
+		return false
+	}
+
+	// none scope means return all scopes
+	if r.scope == traceql.AttributeScopeNone {
+		return true
+	}
+
+	return r.scope == scope
 }
 
-func (r tagRequest) keysRequested() bool {
-	return r.keys
-}
-
-// jpe - current searchTags takes one param at a time for scope. we should change it to take a list of scopes. otherwise we will
-// be repeating this same search 2x
-func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.AutocompleteRequest, cb common.TagCallback, opts common.SearchOptions) error {
+// jpe - callback needs to take a scope somehow
+func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb common.TagCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -57,7 +61,12 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.Autocomple
 		return err
 	}
 
-	iter, err := autocompleteIter(ctx, req.Conditions, traceql.Attribute{}, pf, opts, b.meta.DedicatedColumns) // jpe call iter funcs directly to avoid nil cb
+	tr := tagRequest{
+		conditions: req.Conditions,
+		scope:      req.Scope,
+	}
+
+	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns) // jpe call iter funcs directly to avoid nil cb
 	if err != nil {
 		return errors.Wrap(err, "creating fetch iter")
 	}
@@ -99,16 +108,32 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.Autocomple
 
 	// add all well known columns that have values
 	for name, entry := range wellKnownColumnLookups {
+		if entry.level != tr.scope && tr.scope != traceql.AttributeScopeNone {
+			continue
+		}
+
 		if hasValues(entry.columnPath, pf) { // jpe - resource vs span scope?
 			cb(name)
 		}
 	}
 
-	// add all dedicated columns that have values
-	dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns) // jpe - scope again?
-	for name, col := range dedCols.mapping {
-		if hasValues(col.ColumnPath, pf) {
-			cb(name)
+	// add all span dedicated columns that have values
+	if tr.scope == traceql.AttributeScopeNone || tr.scope == traceql.AttributeScopeSpan {
+		dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+		for name, col := range dedCols.mapping {
+			if hasValues(col.ColumnPath, pf) {
+				cb(name)
+			}
+		}
+	}
+
+	// add all resource dedicated columns that have values
+	if tr.scope == traceql.AttributeScopeNone || tr.scope == traceql.AttributeScopeResource {
+		dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+		for name, col := range dedCols.mapping {
+			if hasValues(col.ColumnPath, pf) {
+				cb(name)
+			}
 		}
 	}
 
@@ -136,7 +161,12 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 		return err
 	}
 
-	iter, err := autocompleteIter(ctx, req.Conditions, req.TagName, pf, opts, b.meta.DedicatedColumns) // jpe call iter funcs directly to avoid nil cb
+	tr := tagRequest{
+		conditions: req.Conditions,
+		tag:        req.TagName,
+	}
+
+	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns) // jpe call iter funcs directly to avoid nil cb
 	if err != nil {
 		return errors.Wrap(err, "creating fetch iter")
 	}
@@ -163,14 +193,9 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
-func autocompleteIter(ctx context.Context, conds []traceql.Condition, tagName traceql.Attribute, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
-	tr := tagRequest{ // jpe - push this up?
-		tag:  tagName,
-		keys: tagName == (traceql.Attribute{}),
-	}
-
+func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	// categorizeConditions conditions into span-level or resource-level
-	_, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	_, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(tr.conditions)
 	if err != nil {
 		return nil, err
 	}
@@ -180,14 +205,14 @@ func autocompleteIter(ctx context.Context, conds []traceql.Condition, tagName tr
 
 	var currentIter parquetquery.Iterator
 
-	if len(spanConditions) > 0 || tr.keysRequested() {
+	if len(spanConditions) > 0 || tr.keysRequested(traceql.AttributeScopeSpan) {
 		currentIter, err = createDistinctSpanIterator(makeIter, tr, spanConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
-	if len(resourceConditions) > 0 || tr.keysRequested() {
+	if len(resourceConditions) > 0 || tr.keysRequested(traceql.AttributeScopeResource) {
 		currentIter, err = createDistinctResourceIterator(makeIter, tr, currentIter, resourceConditions, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
@@ -464,13 +489,14 @@ func createDistinctAttributeIterator(
 		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool"))
 	}
 
-	if len(valueIters) > 0 || len(iters) > 0 || tr.keysRequested() {
+	scope := scopeFromDefinitionLevel(definitionLevel)
+	if len(valueIters) > 0 || len(iters) > 0 || tr.keysRequested(scope) {
 		if len(valueIters) > 0 {
 			tagIter, err := parquetquery.NewLeftJoinIterator(
 				definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 				valueIters,
-				newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), false), // jpe - empty attribute signals we want tag names?
+				newDistinctAttrCollector(scope, false),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("creating left join iterator: %w", err)
@@ -478,7 +504,7 @@ func createDistinctAttributeIterator(
 			iters = append(iters, tagIter)
 		}
 
-		if tr.keysRequested() {
+		if tr.keysRequested(scope) {
 			return keyNameIterator(makeIter, definitionLevel, keyPath, iters)
 		}
 
