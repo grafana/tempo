@@ -273,7 +273,7 @@ func TestFetchTagValues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build autocomplete request
-			autocompleteReq := traceql.AutocompleteRequest{
+			autocompleteReq := traceql.FetchTagValuesRequest{
 				Conditions: req.Conditions,
 				TagName:    tag,
 			}
@@ -359,7 +359,7 @@ func BenchmarkFetchTagValues(b *testing.B) {
 				Attribute: tag,
 			})
 
-			autocompleteReq := traceql.AutocompleteRequest{
+			autocompleteReq := traceql.FetchTagValuesRequest{
 				Conditions: req.Conditions,
 				TagName:    tag,
 			}
