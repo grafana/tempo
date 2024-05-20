@@ -45,6 +45,7 @@
 * [ENHANCEMENT] Add support for sharded ingester queries  [#3574](https://github.com/grafana/tempo/pull/3574) (@zalegrala)
 * [ENHANCEMENT] TraceQL - Add support for scoped intrinsics using `:` [#3629](https://github.com/grafana/tempo/pull/3629) (@ie-pham)
   available scoped intrinsics: trace:duration, trace:rootName, trace:rootService, span:duration, span:kind, span:name, span:status, span:statusMessage
+* [ENHANCEMENT] TraceQL - Add support for trace:id and span:id [#3670](https://github.com/grafana/tempo/pull/3670) (@ie-pham)
 * [ENHANCEMENT] Performance improvements on TraceQL and tag value search. [#3650](https://github.com/grafana/tempo/pull/3650),[#3667](https://github.com/grafana/tempo/pull/3667) (@joe-elliott)
 * [BUGFIX] Update golang.org/x/net package to 0.24.0 to fix CVE-2023-45288 [#3613](https://github.com/grafana/tempo/pull/3613) (@pavolloffay)
 * [BUGFIX] Fix metrics query results when filtering and rating on the same attribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)

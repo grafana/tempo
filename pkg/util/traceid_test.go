@@ -276,3 +276,39 @@ func TestPadTraceIDTo16Bytes(t *testing.T) {
 		})
 	}
 }
+
+func TestHexStringToSpanID(t *testing.T) {
+	tc := []struct {
+		id          string
+		expected    []byte
+		expectError error
+	}{
+		{
+			id:       "000eda96db732100",
+			expected: []byte{0x00, 0x0e, 0xda, 0x96, 0xdb, 0x73, 0x21, 0x00},
+		},
+		{
+			id:       "0000000000000002",
+			expected: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+		},
+		{
+			id:       "1234567890abcdef", // 64 bit
+			expected: []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.id, func(t *testing.T) {
+			actual, err := HexStringToSpanID(tt.id)
+
+			if tt.expectError != nil {
+				assert.Equal(t, tt.expectError, err)
+				assert.Nil(t, actual)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
