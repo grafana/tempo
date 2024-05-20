@@ -1531,7 +1531,9 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 	// Write to wal
 	wal := w.WAL()
-	head, err := wal.NewBlockWithDedicatedColumns(uuid.New(), testTenantID, model.CurrentEncoding, dc)
+
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DedicatedColumns: dc}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -1559,10 +1561,10 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// Complete block
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
-	meta := block.BlockMeta()
+	blockMeta := block.BlockMeta()
 
 	for _, r := range runners {
-		r(t, wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw, block)
+		r(t, wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, blockMeta, rw, block)
 	}
 
 	// todo: do some compaction and then call runner again
@@ -1956,7 +1958,8 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
-	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	// Write to wal
@@ -2014,7 +2017,8 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
