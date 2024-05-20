@@ -80,6 +80,38 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.Autocomple
 		}
 	}
 
+	// currently just seeing if any row groups have values. future improvements:
+	// - only check those row groups that otherwise have a match in the iterators above
+	// - use rep/def levels to determine if a value exists at a row w/o actually testing values.
+	//   atm i believe this requires reading the pages themselves b/c the rep/def lvls come w/ the page
+	hasValues := func(path string, pf *parquet.File) bool {
+		idx, _ := parquetquery.GetColumnIndexByPath(pf, path)
+		md := pf.Metadata()
+		for _, rg := range md.RowGroups {
+			col := rg.Columns[idx]
+			if col.MetaData.NumValues-col.MetaData.Statistics.NullCount > 0 {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// add all well known columns that have values
+	for name, entry := range wellKnownColumnLookups {
+		if hasValues(entry.columnPath, pf) { // jpe - resource vs span scope?
+			cb(name)
+		}
+	}
+
+	// add all dedicated columns that have values
+	dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns) // jpe - scope again?
+	for name, col := range dedCols.mapping {
+		if hasValues(col.ColumnPath, pf) {
+			cb(name)
+		}
+	}
+
 	return nil
 }
 

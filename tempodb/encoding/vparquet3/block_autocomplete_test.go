@@ -194,6 +194,12 @@ func TestFetchTagNames(t *testing.T) {
 
 			expectedValues := tc.expectedValues
 			actualValues := distinctAttrNames.Strings()
+
+			// add dedicated and well known columns to expected values. the code currently does not
+			// attempt to perfectly filter these, but instead adds them to the return if any values are present
+			expectedValues = append(expectedValues, "dedicated.span.1", "dedicated.resource.1")
+			expectedValues = append(expectedValues, "cluster", "http.method", "service.name")
+
 			sort.Strings(expectedValues)
 			sort.Strings(actualValues)
 			require.Equal(t, expectedValues, actualValues)
