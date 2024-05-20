@@ -17,149 +17,6 @@ var internalLabelErrorTooManyValues = Label{
 	Value: NewStaticString(internalErrorTooManyValues),
 }
 
-/*type BaselineCompareRequest struct {
-	Baseline      string
-	BaselineStart uint64
-	BaselineEnd   uint64
-	Compare       string
-	CompareStart  uint64
-	CompareEnd    uint64
-	MaxValues     uint32 // Max cardinality for a single attribute
-}
-
-type baselineComparisonSeries struct {
-	baseline  bool
-	Attribute Attribute
-	Value     Static
-}
-
-func (e Engine) ExecuteBaselineComparison(ctx context.Context, req BaselineCompareRequest, f SpansetFetcher) (SeriesSet, error) {
-	// Validation
-	if req.BaselineStart == 0 || req.BaselineEnd <= req.BaselineStart {
-		return nil, fmt.Errorf("invalid baseline time range")
-	}
-
-	if req.CompareStart == 0 ||
-		req.CompareEnd <= req.CompareStart ||
-		req.CompareEnd < req.BaselineStart ||
-		req.CompareStart > req.BaselineEnd {
-		return nil, fmt.Errorf("invalid comparison time range. must be enclosed within baseline time range (for now)")
-	}
-
-	exprB, err := Parse(req.Baseline)
-	if err != nil {
-		return nil, err
-	}
-
-	exprC, err := Parse(req.Compare)
-	if err != nil {
-		return nil, err
-	}
-
-	filterC, ok := exprC.Pipeline.Elements[0].(*SpansetFilter)
-	if !ok {
-		return nil, fmt.Errorf("invalid comparison query. must be single spanset filter like { <conditions> }")
-	}
-
-	storageReq := &FetchSpansRequest{
-		StartTimeUnixNanos: req.BaselineStart,
-		EndTimeUnixNanos:   req.BaselineEnd,
-		SelectAll:          true,
-		AllConditions:      true,
-		SecondPass: func(ss *Spanset) ([]*Spanset, error) {
-			return exprB.Pipeline.evaluate([]*Spanset{ss})
-		},
-		SecondPassConditions: []Condition{{Attribute: IntrinsicSpanStartTimeAttribute}},
-	}
-
-	// The baseline filters must be true for all spans,
-	// so we can try for AllConditions and require them to
-	// match.  Since we are selecting all, we don't need to
-	// add it in conditions for the comparison.
-	exprB.extractConditions(storageReq)
-
-	res, err := f.Fetch(ctx, *storageReq)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Results.Close()
-
-	// Span count by attribute name, value, and baseline type
-	output := map[baselineComparisonSeries]int{}
-	buf := baselineComparisonSeries{}
-	// cardinality := map[Attribute]int{}
-
-	for {
-		ss, err := res.Results.Next(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if ss == nil {
-			break
-		}
-
-		for _, s := range ss.Spans {
-
-			// Check the span against the comparison window and expression.
-			// If it matches then it's labeled with the comparison series
-			// Else it's part of the baseline.
-			buf.baseline = true
-			st := s.StartTimeUnixNanos()
-			if st >= req.CompareStart && st < req.CompareEnd {
-				isC, err := filterC.Expression.execute(s)
-				if err != nil {
-					return nil, err
-				}
-				if isC == StaticTrue {
-					buf.baseline = false
-				}
-			}
-
-			// Increment counter for every attribute
-			attrs := s.AllAttributes()
-			for k, v := range attrs {
-				// These attributes get pulled back by select all but we never
-				// group by them because I say so.
-				switch k {
-				case IntrinsicDurationAttribute:
-					continue
-				}
-
-				buf.Attribute = k
-				buf.Value = v
-
-				output[buf]++
-			}
-		}
-
-		ss.Release()
-	}
-
-	// Deleted attributes that reach too high cardinality
-	for k, v := range output {
-		if v < 10 {
-			delete(output, k)
-		}
-	}
-
-	// Convert output
-	output2 := SeriesSet{}
-	for k, v := range output {
-		labels := Labels{
-			{Name: k.Attribute.String(), Value: k.Value},
-			{Name: internalLabelBaseline, Value: NewStaticBool(k.baseline)},
-		}
-		s := TimeSeries{
-			Labels: labels,
-			Values: []float64{float64(v)},
-		}
-		output2[labels.String()] = s
-	}
-
-	return output2, nil
-}*/
-
 func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	request.SelectAll = true
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
@@ -186,14 +43,9 @@ func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		return
 
 	case AggregateModeFinal:
-		// a.seriesAgg = NewSimpleAdditionCombiner(q)
-		// TODO
-		// a.seriesAgg = NewComparisonCombiner
 		a.seriesAgg = NewBaselineAggregator(q)
 		return
 	}
-
-	// Raw mode:
 }
 
 func (a *MetricsCompare) observe(span Span) {
@@ -512,28 +364,6 @@ func (b *BaselineAggregator) Results() SeriesSet {
 			Values: nil,
 		}
 	}
-
-	// Get list of all unique attributes in both datasets
-	/*allAttributes := maps.Keys(b.baseline)
-	for k := range b.compare {
-		if _, ok := b.baseline[k]; !ok {
-			// Attribute in comparison and not baseline
-			allAttributes = append(allAttributes, k)
-		}
-	}
-
-	for _, k := range allAttributes {
-
-		allValues := maps.Keys(b.baseline[k])
-		for v := range b.compare[k] {
-			if _, ok := b.baseline[k][v]; !ok {
-				allValues = append(allValues, v)
-			}
-		}
-
-		if len(allValues) > b.maxValues {
-		}
-	}*/
 
 	return output
 }
