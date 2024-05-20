@@ -42,8 +42,9 @@ For information on changing the vParquet version, refer to [Choose a different b
 ### Cache configuration refactored
 
 The major cache refactor to allow multiple role-based caches to be configured. [[PR 3166](https://github.com/grafana/tempo/pull/3166)]
-This change resulted in the following fields being deprecated.
-These have all been migrated to a top level `cache:` field.
+This change resulted in several fields being deprecated (refer to the old configuration).
+
+These fields have all been migrated to a top level `cache:` field.
 
 For more information about the configuration, refer to the [Cache]({{< relref "../configuration#cache" >}}) section.
 
@@ -224,7 +225,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 ### Default block format changed to vParquet2
 
-While not a breaking change, upgrading to Tempo 2.2 will by default change Tempo’s block format to vParquet2.
+While not a breaking change, upgrading to Tempo 2.2 by default changes Tempo’s block format to vParquet2.
 
 To stay on a previous block format, read the [Parquet configuration documentation]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
 We strongly encourage upgrading to vParquet2 as soon as possible as this is required for using structural operators in your TraceQL queries and provides query performance improvements, in particular on queries using the `duration` intrinsic.
@@ -263,7 +264,8 @@ For more information on other enhancements, read the [Tempo 2.1 release notes]({
 
 ### Remove support for Search on v2 blocks
 
-Users can no longer search blocks in v2 format. Only vParquet and vParquet2 formats support search. The following search configuration options were removed from the overrides section:
+Users can no longer search blocks in v2 format. Only vParquet and vParquet2 formats support search.
+These search configuration options were removed from the overrides section:
 
 ```
 overrides:
