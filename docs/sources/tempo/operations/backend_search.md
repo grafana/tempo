@@ -77,7 +77,7 @@ Job batches are sent over these connections, and return the results.
 This process is synchronized so a single job batch can block a connection.
 
 The number of connections control the number of batches a querier processes concurrently.
-The number of connections is controlled by `querier.max_concuccrent_queries` OR `frontend_worker.parallelism`.
+The number of connections is controlled by `querier.max_concurrent_queries` OR `frontend_worker.parallelism`.
 
 ## General guidelines
 
