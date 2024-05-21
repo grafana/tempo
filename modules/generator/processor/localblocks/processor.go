@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
@@ -43,6 +44,7 @@ type ProcessorOverrides interface {
 
 type Processor struct {
 	tenant    string
+	logger    kitlog.Logger
 	Cfg       Config
 	wal       *wal.WAL
 	closeCh   chan struct{}
@@ -83,8 +85,9 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 	}
 
 	p = &Processor{
-		Cfg:            cfg,
 		tenant:         tenant,
+		logger:         log.WithUserID(tenant, log.Logger),
+		Cfg:            cfg,
 		wal:            wal,
 		overrides:      overrides,
 		enc:            enc,
@@ -178,12 +181,12 @@ func (p *Processor) Shutdown(context.Context) {
 	// Immediately cut all traces from memory
 	err := p.cutIdleTraces(true)
 	if err != nil {
-		level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
+		level.Error(p.logger).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
 	}
 
 	err = p.cutBlocks(true)
 	if err != nil {
-		level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut head block on shutdown", "err", err)
+		level.Error(p.logger).Log("msg", "local blocks processor failed to cut head block on shutdown", "err", err)
 	}
 }
 
@@ -198,12 +201,12 @@ func (p *Processor) cutLoop() {
 		case <-flushTicker.C:
 			err := p.cutIdleTraces(false)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
 			}
 
 			err = p.cutBlocks(false)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut head block", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to cut head block", "err", err)
 			}
 
 		case <-p.closeCh:
@@ -223,7 +226,7 @@ func (p *Processor) deleteLoop() {
 		case <-ticker.C:
 			err := p.deleteOldBlocks()
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to delete old blocks", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to delete old blocks", "err", err)
 			}
 
 		case <-p.closeCh:
@@ -243,7 +246,7 @@ func (p *Processor) completeLoop() {
 		case <-ticker.C:
 			err := p.completeBlock()
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to complete a block", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to complete a block", "err", err)
 			}
 
 		case <-p.closeCh:
@@ -272,7 +275,7 @@ func (p *Processor) flushLoop() {
 		op := o.(*flushOp)
 		err := p.flushBlock(op.blockID)
 		if err != nil {
-			level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to flush a block", "err", err)
+			level.Error(p.logger).Log("msg", "local blocks processor failed to flush a block", "err", err)
 			// TODO: retry
 		}
 	}
@@ -344,7 +347,7 @@ func (p *Processor) completeBlock() error {
 
 	// Queue for flushing
 	if _, err := p.flushqueue.Enqueue(newFlushOp(newMeta.BlockID)); err != nil {
-		_ = level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
+		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
 	}
 
 	err = b.Clear()
@@ -622,12 +625,11 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	}
 
 	for id, b := range p.completeBlocks {
-		flushedTime := b.FlushedTime()
-		if flushedTime.IsZero() {
-			continue
-		}
-
-		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
+		if b.BlockMeta().EndTime.Before(before) {
+			if b.FlushedTime().Before(before) {
+				// TODO: Don't delete un-flushed blocks
+				level.Warn(p.logger).Log("msg", "deleting block that was never flushed to storage", "block", b.BlockMeta().BlockID.String())
+			}
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
 				return err
@@ -797,7 +799,7 @@ func (p *Processor) reloadBlocks() error {
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to clear partially written block during replay", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to clear partially written block during replay", "err", err)
 			}
 			continue
 		}
