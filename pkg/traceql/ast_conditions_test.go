@@ -89,6 +89,14 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			},
 			allConditions: true,
 		},
+		{
+			query: `{ .foo = .bar + 1 }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpNone),
+				newCondition(NewAttribute("bar"), OpNone),
+			},
+			allConditions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
