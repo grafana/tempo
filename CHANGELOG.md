@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Remove hardcoded delay in distributor shutdown [#3687](https://github.com/grafana/tempo/pull/3687) (@chodges15)
+* [ENHANCEMENT] Tempo CLI - add percentage support for query blocks #3697 [#3697](https://github.com/grafana/tempo/pull/3697) (@edgarkz)
 * [ENHANCEMENT] Update OTLP and add attributes to instrumentation scope in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
   **Breaking Change** The update to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary`
   and `InstrumentationLibrarySpan` from the OTLP receivers
@@ -59,6 +61,7 @@
 * [BUGFIX] Use os path separator to split blocks path. [#3552](https://github.com/grafana/tempo/issues/3552) (@teyyubismayil)
 * [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 * [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
+* [BUGFIX] Fix panic in query-frontend when combining results [#3683](https://github.com/grafana/tempo/pull/3683) (@mapno)
 
 ## v2.4.2
 

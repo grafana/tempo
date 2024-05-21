@@ -149,13 +149,14 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(id uuid.UUID, tenantID, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns backend.DedicatedColumns) (*walBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
-			Version:          VersionString,
-			BlockID:          id,
-			TenantID:         tenantID,
-			DedicatedColumns: dedicatedColumns,
+			Version:           VersionString,
+			BlockID:           meta.BlockID,
+			TenantID:          meta.TenantID,
+			DedicatedColumns:  meta.DedicatedColumns,
+			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
 		ids:            common.NewIDMap[int64](),
@@ -681,7 +682,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}, nil
 }
 
-func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return fmt.Errorf("conditions invalid: %w", err)

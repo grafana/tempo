@@ -58,7 +58,7 @@ func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tem
 	return nil, nil
 }
 
-func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
 	return nil
 }
 
@@ -513,7 +513,7 @@ func TestIngesterRequests(t *testing.T) {
 			for k, v := range expectedQueryStringValues {
 				key := k
 
-				// Due the the way the query string is parse, we need to ensure that
+				// Due the way the query string is parse, we need to ensure that
 				// the first query param is captured.  Split the key on the first ? and
 				// use the second part as the key.
 				if strings.Contains(k, "?") {

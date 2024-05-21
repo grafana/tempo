@@ -189,31 +189,31 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// AutocompleteCallback is called to collect unique tag values.
+// FetchTagValuesCallback is called to collect unique tag values.
 // Returns true if it has exceeded the maximum number of results.
-type AutocompleteCallback func(static Static) bool
+type FetchTagValuesCallback func(static Static) bool
 
-type AutocompleteRequest struct {
+type FetchTagValuesRequest struct {
 	Conditions []Condition
 	TagName    Attribute
 	// TODO: Add start and end time?
 }
 
-type AutocompleteFetcher interface {
-	Fetch(context.Context, AutocompleteRequest, AutocompleteCallback) error
+type TagValuesFetcher interface {
+	Fetch(context.Context, FetchTagValuesRequest, FetchTagValuesCallback) error
 }
 
-type AutocompleteFetcherWrapper struct {
-	f func(context.Context, AutocompleteRequest, AutocompleteCallback) error
+type TagValuesFetcherWrapper struct {
+	f func(context.Context, FetchTagValuesRequest, FetchTagValuesCallback) error
 }
 
-var _ AutocompleteFetcher = (*AutocompleteFetcherWrapper)(nil)
+var _ TagValuesFetcher = (*TagValuesFetcherWrapper)(nil)
 
-func NewAutocompleteFetcherWrapper(f func(context.Context, AutocompleteRequest, AutocompleteCallback) error) AutocompleteFetcher {
-	return AutocompleteFetcherWrapper{f}
+func NewTagValuesFetcherWrapper(f func(context.Context, FetchTagValuesRequest, FetchTagValuesCallback) error) TagValuesFetcher {
+	return TagValuesFetcherWrapper{f}
 }
 
-func (s AutocompleteFetcherWrapper) Fetch(ctx context.Context, request AutocompleteRequest, callback AutocompleteCallback) error {
+func (s TagValuesFetcherWrapper) Fetch(ctx context.Context, request FetchTagValuesRequest, callback FetchTagValuesCallback) error {
 	return s.f(ctx, request, callback)
 }
 
