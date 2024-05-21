@@ -7,15 +7,29 @@ import (
 )
 
 const (
-	internalLabelBaseline      = "__baseline"
-	internalLabelError         = "__error"
+	internalLabelMetaType     = "__meta_type"
+	internalMetaTypeBaseline  = "baseline"
+	internalMetaTypeSelection = "selection"
+
+	// internalLabelBaseline      = "__baseline"
+	internalLabelError         = "__meta_error"
 	internalErrorTooManyValues = "__too_many_values__"
 )
 
-var internalLabelErrorTooManyValues = Label{
-	Name:  internalLabelError,
-	Value: NewStaticString(internalErrorTooManyValues),
-}
+var (
+	internalLabelTypeBaseline = Label{
+		Name:  internalLabelMetaType,
+		Value: NewStaticString(internalMetaTypeBaseline),
+	}
+	internalLabelTypeSelection = Label{
+		Name:  internalLabelMetaType,
+		Value: NewStaticString(internalMetaTypeSelection),
+	}
+	internalLabelErrorTooManyValues = Label{
+		Name:  internalLabelError,
+		Value: NewStaticString(internalErrorTooManyValues),
+	}
+)
 
 func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	request.SelectAll = true
@@ -27,14 +41,12 @@ func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 }
 
 func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
-	maxCardinality := 10
-
 	switch mode {
 	case AggregateModeRaw:
-		a.baselineAgg = NewGroupByEachAggregator([]Label{{Name: internalLabelBaseline, Value: NewStaticString("true")}}, maxCardinality, func() RangeAggregator {
+		a.baselineAgg = NewGroupByEachAggregator([]Label{internalLabelTypeBaseline}, a.maxValues, func() RangeAggregator {
 			return NewStepAggregator(q.Start, q.End, q.Step, func() VectorAggregator { return NewCountOverTimeAggregator() })
 		})
-		a.compareAgg = NewGroupByEachAggregator([]Label{{Name: internalLabelBaseline, Value: NewStaticString("false")}}, maxCardinality, func() RangeAggregator {
+		a.selectionAgg = NewGroupByEachAggregator([]Label{internalLabelTypeSelection}, a.maxValues, func() RangeAggregator {
 			return NewStepAggregator(q.Start, q.End, q.Step, func() VectorAggregator { return NewCountOverTimeAggregator() })
 		})
 
@@ -43,7 +55,7 @@ func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		return
 
 	case AggregateModeFinal:
-		a.seriesAgg = NewBaselineAggregator(q)
+		a.seriesAgg = NewBaselineAggregator(q, a.maxValues)
 		return
 	}
 }
@@ -63,7 +75,7 @@ func (a *MetricsCompare) observe(span Span) {
 	}
 
 	if isComparison == StaticTrue {
-		a.compareAgg.Observe(span)
+		a.selectionAgg.Observe(span)
 	} else {
 		a.baselineAgg.Observe(span)
 	}
@@ -77,7 +89,7 @@ func (a *MetricsCompare) result() SeriesSet {
 	if a.baselineAgg != nil {
 		// Combine output
 		ss := a.baselineAgg.Series()
-		ss2 := a.compareAgg.Series()
+		ss2 := a.selectionAgg.Series()
 		for k, v := range ss2 {
 			ss[k] = v
 		}
@@ -95,36 +107,42 @@ func (a *MetricsCompare) validate() error {
 		return err
 	}
 
+	if a.maxValues <= 0 {
+		return fmt.Errorf("compare() max number of values must be integer greater than 0")
+	}
+
 	if a.start == 0 && a.end == 0 {
 		return nil
 	}
 
 	if a.start <= 0 || a.end <= 0 {
-		return fmt.Errorf("comparison timestamps must be positive integer unix nanoseconds")
+		return fmt.Errorf("compare() timestamps must be positive integer unix nanoseconds")
 	}
 	if a.end <= a.start {
-		return fmt.Errorf("comparison end timestamp must be greater than start timestamp")
+		return fmt.Errorf("compare() end timestamp must be greater than start timestamp")
 	}
 	return nil
 }
 
 func (a *MetricsCompare) String() string {
-	return "compare_over_time(" + a.f.String() + "}"
+	return "compare(" + a.f.String() + "}"
 }
 
 type MetricsCompare struct {
-	f           *SpansetFilter
-	start, end  int
-	baselineAgg SpanAggregator
-	compareAgg  SpanAggregator
-	seriesAgg   SeriesAggregator
+	f            *SpansetFilter
+	start, end   int
+	maxValues    int
+	baselineAgg  SpanAggregator
+	selectionAgg SpanAggregator
+	seriesAgg    SeriesAggregator
 }
 
-func newMetricsCompare(f *SpansetFilter, start, end int) *MetricsCompare {
+func newMetricsCompare(f *SpansetFilter, maxValues, start, end int) *MetricsCompare {
 	return &MetricsCompare{
-		f:     f,
-		start: start,
-		end:   end,
+		f:         f,
+		maxValues: maxValues,
+		start:     start,
+		end:       end,
 	}
 }
 
@@ -234,42 +252,46 @@ func (g *GroupByEach) Series() SeriesSet {
 
 var _ SpanAggregator = (*GroupByEach)(nil)
 
+// BaselineAggregate is a special series combiner for the compare() function.
+// It resplits job-level results into baseline and selection buffers, and if
+// an attribute reached max cardinality at the job-level, it will be marked
+// as such at the query-level.
 type BaselineAggregator struct {
 	maxValues        int
 	len              int
 	start, end, step uint64
 	baseline         map[string]map[Static]TimeSeries
-	compare          map[string]map[Static]TimeSeries
+	selection        map[string]map[Static]TimeSeries
 	maxed            map[string]struct{}
 }
 
-func NewBaselineAggregator(req *tempopb.QueryRangeRequest) *BaselineAggregator {
+func NewBaselineAggregator(req *tempopb.QueryRangeRequest, maxValues int) *BaselineAggregator {
 	return &BaselineAggregator{
 		baseline:  make(map[string]map[Static]TimeSeries),
-		compare:   make(map[string]map[Static]TimeSeries),
+		selection: make(map[string]map[Static]TimeSeries),
 		maxed:     make(map[string]struct{}),
 		len:       IntervalCount(req.Start, req.End, req.Step),
 		start:     req.Start,
 		end:       req.End,
 		step:      req.Step,
-		maxValues: 10,
+		maxValues: maxValues,
 	}
 }
 
 func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 	for _, s := range ss {
-		isBaseline := false
-		var error string
+		var metaType string
+		var err string
 		var a string
 		var v Static
 
 		// Scan all labels
 		for _, l := range s.Labels {
 			switch l.Key {
-			case internalLabelBaseline:
-				isBaseline = l.Value.GetStringValue() == "true"
+			case internalLabelMetaType:
+				metaType = l.Value.GetStringValue()
 			case internalLabelError:
-				error = l.Value.GetStringValue()
+				err = l.Value.GetStringValue()
 			default:
 				a = l.Key
 				v = StaticFromAnyValue(l.Value)
@@ -277,13 +299,14 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		}
 
 		// Check for errors on this attribute
-		if error != "" {
-			if error == internalErrorTooManyValues {
+		if err != "" {
+			if err == internalErrorTooManyValues {
 				// A sub-job reached max values for this attribute.
 				b.maxed[a] = struct{}{}
 				delete(b.baseline, a)
-				delete(b.compare, a)
+				delete(b.selection, a)
 			}
+			// Skip remaining processing regardless of error type
 			continue
 		}
 
@@ -293,9 +316,16 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		}
 
 		// Merge this time series into the destination buffer
-		dest := b.compare
-		if isBaseline {
+		// based on meta type
+		var dest map[string]map[Static]TimeSeries
+		switch metaType {
+		case internalMetaTypeBaseline:
 			dest = b.baseline
+		case internalMetaTypeSelection:
+			dest = b.selection
+		default:
+			// Unknown type, ignore
+			continue
 		}
 
 		attr, ok := dest[a]
@@ -320,7 +350,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 			// Delete all data and mark it for future input
 			b.maxed[a] = struct{}{}
 			delete(b.baseline, a)
-			delete(b.compare, a)
+			delete(b.selection, a)
 			continue
 		}
 
@@ -336,11 +366,11 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 func (b *BaselineAggregator) Results() SeriesSet {
 	output := make(SeriesSet)
 
-	append := func(buffer map[string]map[Static]TimeSeries, baseline string) {
+	append := func(buffer map[string]map[Static]TimeSeries, l Label) {
 		for a, attr := range buffer {
 			for v, ts := range attr {
 				labels := Labels{
-					{Name: internalLabelBaseline, Value: NewStaticString(baseline)},
+					l,
 					{Name: a, Value: v},
 				}
 				output[labels.String()] = TimeSeries{
@@ -351,8 +381,8 @@ func (b *BaselineAggregator) Results() SeriesSet {
 		}
 	}
 
-	append(b.baseline, "true")
-	append(b.compare, "false")
+	append(b.baseline, internalLabelTypeBaseline)
+	append(b.selection, internalLabelTypeSelection)
 
 	for a := range b.maxed {
 		labels := Labels{
