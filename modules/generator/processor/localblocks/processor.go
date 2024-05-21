@@ -259,11 +259,8 @@ func (p *Processor) flushLoop() {
 	defer p.wg.Done()
 
 	go func() {
-		select {
-		case <-p.closeCh:
-			p.flushqueue.Close()
-			return
-		}
+		<-p.closeCh
+		p.flushqueue.Close()
 	}()
 
 	for {
@@ -636,9 +633,6 @@ func (p *Processor) deleteOldBlocks() (err error) {
 			}
 			delete(p.completeBlocks, id)
 		}
-
-		//if b.BlockMeta().EndTime.Before(before) {
-		//}
 	}
 
 	return

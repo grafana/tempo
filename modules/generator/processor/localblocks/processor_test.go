@@ -38,10 +38,19 @@ func (m *mockOverrides) UnsafeQueryHints(string) bool {
 var _ tempodb.Writer = (*mockWriter)(nil)
 
 type mockWriter struct {
+	mtx    sync.Mutex
 	blocks []*backend.BlockMeta
 }
 
+func (m *mockWriter) metas() []*backend.BlockMeta {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	return m.blocks
+}
+
 func (m *mockWriter) WriteBlock(_ context.Context, b tempodb.WriteableBlock) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	m.blocks = append(m.blocks, b.BlockMeta())
 	return nil
 }
@@ -229,9 +238,11 @@ func TestReplicationFactor(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		return len(mockWriter.blocks) == 1
+		return len(mockWriter.metas()) == 1
 	}, time.Second, 10*time.Millisecond)
-	verifyReplicationFactor(t, &mockBlock{meta: mockWriter.blocks[0]})
+	p.blocksMtx.Lock()
+	verifyReplicationFactor(t, &mockBlock{meta: mockWriter.metas()[0]})
+	p.blocksMtx.Unlock()
 }
 
 func verifyReplicationFactor(t *testing.T, b common.BackendBlock) {
