@@ -13,6 +13,7 @@ import (
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/atomic"
@@ -57,6 +58,8 @@ type Processor struct {
 	completeBlocks map[uuid.UUID]*ingester.LocalBlock
 	lastCutTime    time.Time
 
+	flushqueue *flushqueues.PriorityQueue
+
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
 	traceSizes    *traceSizes
@@ -87,6 +90,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
+		flushqueue:     flushqueues.NewPriorityQueue(nil),
 		liveTraces:     newLiveTraces(),
 		traceSizes:     newTraceSizes(),
 		closeCh:        make(chan struct{}),
@@ -100,12 +104,16 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		return nil, fmt.Errorf("replaying blocks: %w", err)
 	}
 
-	p.wg.Add(5)
+	p.wg.Add(4)
 	go p.cutLoop()
 	go p.completeLoop()
-	go p.flushLoop()
 	go p.deleteLoop()
 	go p.metricLoop()
+
+	if p.writer != nil {
+		p.wg.Add(1)
+		go p.flushLoop()
+	}
 
 	return p, nil
 }
@@ -247,19 +255,25 @@ func (p *Processor) completeLoop() {
 func (p *Processor) flushLoop() {
 	defer p.wg.Done()
 
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
+	go func() {
+		select {
+		case <-p.closeCh:
+			p.flushqueue.Close()
+			return
+		}
+	}()
 
 	for {
-		select {
-		case <-ticker.C:
-			err := p.flushBlock()
-			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to flush a block", "err", err)
-			}
-
-		case <-p.closeCh:
+		o := p.flushqueue.Dequeue()
+		if o == nil {
 			return
+		}
+
+		op := o.(*flushOp)
+		err := p.flushBlock(op.blockID)
+		if err != nil {
+			level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to flush a block", "err", err)
+			// TODO: retry
 		}
 	}
 }
@@ -326,6 +340,12 @@ func (p *Processor) completeBlock() error {
 	defer p.blocksMtx.Unlock()
 
 	p.completeBlocks[newMeta.BlockID] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
+	metricCompletedBlocks.WithLabelValues(p.tenant).Inc()
+
+	// Queue for flushing
+	if _, err := p.flushqueue.Enqueue(newFlushOp(newMeta.BlockID)); err != nil {
+		_ = level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
+	}
 
 	err = b.Clear()
 	if err != nil {
@@ -336,24 +356,21 @@ func (p *Processor) completeBlock() error {
 	return nil
 }
 
-func (p *Processor) flushBlock() error {
-	var firstCompleteBlock *ingester.LocalBlock
+func (p *Processor) flushBlock(id uuid.UUID) error {
 	p.blocksMtx.RLock()
-	for _, e := range p.completeBlocks {
-		firstCompleteBlock = e
-		break
-	}
+	completeBlock := p.completeBlocks[id]
 	p.blocksMtx.RUnlock()
 
-	if firstCompleteBlock == nil {
+	if completeBlock == nil {
 		return nil
 	}
 
 	ctx := context.Background()
-	err := p.writer.WriteBlock(ctx, firstCompleteBlock)
+	err := p.writer.WriteBlock(ctx, completeBlock)
 	if err != nil {
 		return err
 	}
+	metricFlushedBlocks.WithLabelValues(p.tenant).Inc()
 	return nil
 }
 
@@ -722,6 +739,7 @@ func (p *Processor) cutBlocks(immediate bool) error {
 	}
 
 	p.walBlocks[p.headBlock.BlockMeta().BlockID] = p.headBlock
+	metricCutBlocks.WithLabelValues(p.tenant).Inc()
 
 	err = p.resetHeadBlock()
 	if err != nil {
@@ -877,3 +895,19 @@ func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
 
 	return keep
 }
+
+type flushOp struct {
+	blockID uuid.UUID
+	at      time.Time // When to execute
+}
+
+func newFlushOp(blockID uuid.UUID) *flushOp {
+	return &flushOp{
+		blockID: blockID,
+		at:      time.Now(),
+	}
+}
+
+func (f *flushOp) Key() string { return f.blockID.String() }
+
+func (f *flushOp) Priority() int64 { return -f.at.Unix() }

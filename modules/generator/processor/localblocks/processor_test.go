@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb"
-
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -36,9 +37,14 @@ func (m *mockOverrides) UnsafeQueryHints(string) bool {
 
 var _ tempodb.Writer = (*mockWriter)(nil)
 
-type mockWriter struct{}
+type mockWriter struct {
+	blocks []*backend.BlockMeta
+}
 
-func (m *mockWriter) WriteBlock(context.Context, tempodb.WriteableBlock) error { return nil }
+func (m *mockWriter) WriteBlock(_ context.Context, b tempodb.WriteableBlock) error {
+	m.blocks = append(m.blocks, b.BlockMeta())
+	return nil
+}
 
 func (m *mockWriter) CompleteBlock(context.Context, common.WALBlock) (common.BackendBlock, error) {
 	return nil, nil
@@ -131,7 +137,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := p.flushBlock()
+		err := p.flushBlock(uuid.New())
 		require.NoError(t, err, "flushing blocks")
 	})
 
@@ -199,7 +205,9 @@ func TestReplicationFactor(t *testing.T) {
 		FilterServerSpans: false,
 	}
 
-	p, err := New(cfg, "fake", wal, &mockWriter{}, &mockOverrides{})
+	mockWriter := &mockWriter{}
+
+	p, err := New(cfg, "fake", wal, mockWriter, &mockOverrides{})
 	require.NoError(t, err)
 
 	tr := test.MakeTrace(10, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
@@ -219,8 +227,49 @@ func TestReplicationFactor(t *testing.T) {
 	for _, b := range p.completeBlocks {
 		verifyReplicationFactor(t, b)
 	}
+
+	require.Eventually(t, func() bool {
+		return len(mockWriter.blocks) == 1
+	}, time.Second, 10*time.Millisecond)
+	verifyReplicationFactor(t, &mockBlock{meta: mockWriter.blocks[0]})
 }
 
 func verifyReplicationFactor(t *testing.T, b common.BackendBlock) {
 	require.Equal(t, 1, int(b.BlockMeta().ReplicationFactor))
 }
+
+var _ common.BackendBlock = (*mockBlock)(nil)
+
+type mockBlock struct {
+	meta *backend.BlockMeta
+}
+
+func (m *mockBlock) FindTraceByID(context.Context, common.ID, common.SearchOptions) (*tempopb.Trace, error) {
+	return nil, nil
+}
+
+func (m *mockBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
+	return nil, nil
+}
+
+func (m *mockBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
+	return nil
+}
+
+func (m *mockBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
+	return nil
+}
+
+func (m *mockBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagCallbackV2, common.SearchOptions) error {
+	return nil
+}
+
+func (m *mockBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
+	return traceql.FetchSpansResponse{}, nil
+}
+
+func (m *mockBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+	return nil
+}
+
+func (m *mockBlock) BlockMeta() *backend.BlockMeta { return m.meta }

@@ -50,4 +50,22 @@ var (
 		Name:      "bytes",
 		Help:      "Total size of local blocks",
 	}, []string{"tenant"})
+	metricCompletedBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "completed_blocks",
+		Help:      "Number of blocks completed by the local blocks processor",
+	}, []string{"tenant"})
+	metricCutBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "cut_blocks",
+		Help:      "Number of blocks cut by the local blocks processor",
+	}, []string{"tenant"})
+	metricFlushedBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "flushed_blocks",
+		Help:      "Number of blocks flushed by the local blocks processor",
+	}, []string{"tenant"})
 )
