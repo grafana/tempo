@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Remove hardcoded delay in distributor shutdown [#3687](https://github.com/grafana/tempo/pull/3687) (@chodges15)
+* [ENHANCEMENT] Tempo CLI - add percentage support for query blocks #3697 [#3697](https://github.com/grafana/tempo/pull/3697) (@edgarkz)
 * [ENHANCEMENT] Update OTLP and add attributes to instrumentation scope in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
   **Breaking Change** The update to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary`
   and `InstrumentationLibrarySpan` from the OTLP receivers
