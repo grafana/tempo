@@ -144,8 +144,8 @@ func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	tag Attribute,
 	query string,
-	cb AutocompleteCallback,
-	fetcher AutocompleteFetcher,
+	cb FetchTagValuesCallback,
+	fetcher TagValuesFetcher,
 ) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.Finish()
@@ -195,7 +195,7 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
-func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) AutocompleteRequest {
+func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) FetchTagValuesRequest {
 	req := FetchSpansRequest{
 		Conditions:    nil,
 		AllConditions: true,
@@ -205,7 +205,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Aut
 	//  and breaks optimizations in block_autocomplete.go.
 	//  We only want the attribute we're searching for in the conditions.
 	if pipeline.String() == "{ true }" {
-		return AutocompleteRequest{
+		return FetchTagValuesRequest{
 			Conditions: []Condition{{Attribute: tag, Op: OpNone}},
 			TagName:    tag,
 		}
@@ -224,7 +224,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Aut
 		Op:        OpNone,
 	})
 
-	autocompleteReq := AutocompleteRequest{
+	autocompleteReq := FetchTagValuesRequest{
 		Conditions: req.Conditions,
 		TagName:    tag,
 	}

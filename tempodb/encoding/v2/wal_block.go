@@ -307,7 +307,7 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 }
 
 // FetchTagValues implements traceql.Searcher
-func (a *walBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

@@ -58,7 +58,7 @@ func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tem
 	return nil, nil
 }
 
-func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
 	return nil
 }
 
