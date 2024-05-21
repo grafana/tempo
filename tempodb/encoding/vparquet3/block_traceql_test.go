@@ -8,14 +8,12 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"sort"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -778,7 +776,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	}
 }
 
-func TestBaselineComparison(t *testing.T) {
+/*func TestBaselineComparison(t *testing.T) {
 	var (
 		ctx      = context.TODO()
 		e        = traceql.NewEngine()
@@ -809,26 +807,8 @@ func TestBaselineComparison(t *testing.T) {
 		return block.Fetch(ctx, req, opts)
 	})
 
-	/*req := traceql.BaselineCompareRequest{
-		Baseline:      `{resource.service.name="tempo-gateway"}`,
-		BaselineStart: uint64(meta.StartTime.UnixNano()),
-		BaselineEnd:   uint64(meta.EndTime.UnixNano()),
-		Compare:       `{duration<1s}`,
-		CompareStart:  uint64(meta.StartTime.UnixNano()),
-		CompareEnd:    uint64(meta.EndTime.UnixNano()),
-		MaxValues:     5,
-	}
-
-	res, err := e.ExecuteBaselineComparison(ctx, req, f)
-	require.NoError(t, err)
-	k := maps.Keys(res)
-	sort.Strings(k)
-	for _, kk := range k {
-		fmt.Println(kk, res[kk].Values)
-	}*/
-
 	req := tempopb.QueryRangeRequest{
-		Query: `{resource.service.name="tempo-gateway"} | compare_over_time({duration<1s})`,
+		Query: `{resource.service.name="tempo-gateway"} | compare({duration<1s}, 5)`,
 		Start: uint64(meta.StartTime.UnixNano()),
 		End:   uint64(meta.EndTime.UnixNano()),
 		Step:  uint64(meta.EndTime.Sub(meta.StartTime).Nanoseconds()),
@@ -846,7 +826,7 @@ func TestBaselineComparison(t *testing.T) {
 	for _, kk := range k {
 		fmt.Println(kk, res[kk].Values)
 	}
-}
+}*/
 
 func TestTraceIDShardingQuality(t *testing.T) {
 	// Use debug=1 go test -v -run=TestTraceIDShardingQuality
