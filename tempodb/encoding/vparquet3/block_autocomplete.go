@@ -72,8 +72,8 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 	defer iter.Close()
 
-	// fmt.Println("-------------")
-	// fmt.Println(iter) // jpe remove
+	fmt.Println("-------------")
+	fmt.Println(iter) // jpe remove
 
 	for {
 		// Exhaust the iterator
@@ -314,14 +314,37 @@ func createDistinctSpanIterator(
 			addSelectAs(cond.Attribute, columnPathSpanStatusMessage, columnPathSpanStatusMessage)
 			continue
 
+		case traceql.IntrinsicNestedSetLeft:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanNestedSetLeft, pred)
+			addSelectAs(cond.Attribute, columnPathSpanNestedSetLeft, columnPathSpanNestedSetLeft)
+			continue
+
+		case traceql.IntrinsicNestedSetRight:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanNestedSetRight, pred)
+			addSelectAs(cond.Attribute, columnPathSpanNestedSetRight, columnPathSpanNestedSetRight)
+			continue
+
+		case traceql.IntrinsicNestedSetParent:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanParentID, pred)
+			addSelectAs(cond.Attribute, columnPathSpanParentID, columnPathSpanParentID)
+			continue
+
 		// TODO: Support structural operators
 		case traceql.IntrinsicStructuralDescendant,
 			traceql.IntrinsicStructuralChild,
-			traceql.IntrinsicStructuralSibling,
-			// nested set intrinsics should not be considered when autocompleting
-			traceql.IntrinsicNestedSetLeft,
-			traceql.IntrinsicNestedSetRight,
-			traceql.IntrinsicNestedSetParent:
+			traceql.IntrinsicStructuralSibling:
 			continue
 		}
 
@@ -792,23 +815,24 @@ func (d *distinctKeyPredicate) String() string {
 }
 
 func (d *distinctKeyPredicate) KeepColumnChunk(cc *parquetquery.ColumnChunkHelper) bool { // jpe name better and extend all the way to the tag call back, so we can test globally if something has been added
-	foundNew := false
+	// foundNew := false
 
-	if dict := cc.Dictionary(); dict != nil {
-		l := dict.Len()
-		for i := 0; i < l; i++ {
-			v := dict.Index(int32(i))
-			key := unsafeToString(v.ByteArray())
+	// if dict := cc.Dictionary(); dict != nil {
+	// 	l := dict.Len()
+	// 	for i := 0; i < l; i++ {
+	// 		v := dict.Index(int32(i))
+	// 		key := unsafeToString(v.ByteArray())
 
-			if _, ok := d.sentKeys[key]; !ok {
-				d.sentKeys[key] = struct{}{}
-				foundNew = true
-				break // jpe - noodle on this. it's a perf boost somehow?
-			}
-		}
-	}
+	// 		if _, ok := d.sentKeys[key]; !ok {
+	// 			d.sentKeys[key] = struct{}{}
+	// 			foundNew = true
+	// 			break // jpe - noodle on this. it's a perf boost somehow?
+	// 		}
+	// 	}
+	// }
 
-	return foundNew
+	// return foundNew
+	return true
 }
 
 func (d *distinctKeyPredicate) KeepPage(pq parquet.Page) bool {

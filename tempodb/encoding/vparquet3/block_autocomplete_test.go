@@ -628,7 +628,7 @@ func BenchmarkFetchTags(b *testing.B) {
 			query: `{span.http.status_code=200}`, // well known/dedicated column
 		},
 		{
-			query: `{span.sampler.type="probabilistic"}`, // generic attribute
+			query: `{nestedSetParent=-1}`, // generic attribute
 		},
 		{
 			query: `{rootName="Memcache.Put"}`, // trace level
@@ -666,21 +666,23 @@ func BenchmarkFetchTags(b *testing.B) {
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
-		b.Run(fmt.Sprintf("query: %s", tc.query), func(b *testing.B) {
-			distinctStrings := util.NewDistinctStringCollector(1_000_000)
-			req, err := traceql.ExtractFetchSpansRequest(tc.query)
-			require.NoError(b, err)
-
-			autocompleteReq := traceql.FetchTagsRequest{
-				Conditions: req.Conditions,
-				Scope:      traceql.AttributeScopeNone,
-			}
-			b.ResetTimer()
-
-			for i := 0; i < b.N; i++ {
-				err := block.FetchTagNames(ctx, autocompleteReq, distinctStrings.Collect, opts)
+		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
+			b.Run(fmt.Sprintf("query: %s %s", tc.query, scope), func(b *testing.B) {
+				distinctStrings := util.NewDistinctStringCollector(1_000_000)
+				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(b, err)
-			}
-		})
+
+				autocompleteReq := traceql.FetchTagsRequest{
+					Conditions: req.Conditions,
+					Scope:      scope,
+				}
+				b.ResetTimer()
+
+				for i := 0; i < b.N; i++ {
+					err := block.FetchTagNames(ctx, autocompleteReq, distinctStrings.Collect, opts)
+					require.NoError(b, err)
+				}
+			})
+		}
 	}
 }
