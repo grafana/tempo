@@ -129,9 +129,9 @@ func hexStringToID(id string, isSpan bool) ([]byte, error) {
 		if size > 8 {
 			return nil, errors.New("span IDs can't be larger than 64 bits")
 		}
-		if size < 8 {
-			byteID = append(make([]byte, 8-size), byteID...)
-		}
+		// if size < 8 {
+		// 	byteID = append(make([]byte, 8-size), byteID...)
+		// }
 		return byteID, nil
 	}
 

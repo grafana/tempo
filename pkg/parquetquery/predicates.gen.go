@@ -972,3 +972,86 @@ func (p StringLessEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
 	return bytes.Compare(vv, p.value) <= 0
 }
+
+var _ Predicate = (*ByteEqualPredicate)(nil)
+
+type ByteEqualPredicate struct {
+	value []byte
+}
+
+func NewByteEqualPredicate(val []byte) ByteEqualPredicate {
+	return ByteEqualPredicate{value: val}
+}
+
+func (p ByteEqualPredicate) String() string {
+	return fmt.Sprintf("ByteEqualPredicate{%s}", p.value)
+}
+
+func (p ByteEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p ByteEqualPredicate) KeepPage(page pq.Page) bool {
+
+	return true
+}
+
+func (p ByteEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+}
+
+var _ Predicate = (*ByteNotEqualPredicate)(nil)
+
+type ByteNotEqualPredicate struct {
+	value []byte
+}
+
+func NewByteNotEqualPredicate(val []byte) ByteNotEqualPredicate {
+	return ByteNotEqualPredicate{value: val}
+}
+
+func (p ByteNotEqualPredicate) String() string {
+	return fmt.Sprintf("ByteNotEqualPredicate{%s}", p.value)
+}
+
+func (p ByteNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+	ci, err := c.ColumnIndex()
+	if err == nil && ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).ByteArray()
+			max := ci.MaxValue(i).ByteArray()
+
+			if !bytes.Equal(min, p.value) || !bytes.Equal(p.value, max) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
+}
+
+func (p ByteNotEqualPredicate) KeepPage(page pq.Page) bool {
+	minV, maxV, ok := page.Bounds()
+	if ok {
+		min := minV.ByteArray()
+		max := maxV.ByteArray()
+
+		return !bytes.Equal(min, p.value) || !bytes.Equal(p.value, max)
+	}
+
+	return true
+}
+
+func (p ByteNotEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return !bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+}

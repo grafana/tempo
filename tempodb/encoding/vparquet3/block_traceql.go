@@ -1,6 +1,7 @@
 package vparquet3
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1962,11 +1963,13 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, nil
 	}
 
+	id = bytes.TrimLeft(id, "\x00")
+
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate(id), nil
+		return parquetquery.NewByteEqualPredicate(id), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate(id), nil
+		return parquetquery.NewByteNotEqualPredicate(id), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for IDs: %+v", op)
 	}
