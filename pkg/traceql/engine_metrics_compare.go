@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -43,10 +44,10 @@ func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
 	switch mode {
 	case AggregateModeRaw:
-		a.baselineAgg = NewGroupByEachAggregator([]Label{internalLabelTypeBaseline}, a.maxValues, func() RangeAggregator {
+		a.baselineAgg = NewGroupByEachAggregator([]Label{internalLabelTypeBaseline}, a.topN, func() RangeAggregator {
 			return NewStepAggregator(q.Start, q.End, q.Step, func() VectorAggregator { return NewCountOverTimeAggregator() })
 		})
-		a.selectionAgg = NewGroupByEachAggregator([]Label{internalLabelTypeSelection}, a.maxValues, func() RangeAggregator {
+		a.selectionAgg = NewGroupByEachAggregator([]Label{internalLabelTypeSelection}, a.topN, func() RangeAggregator {
 			return NewStepAggregator(q.Start, q.End, q.Step, func() VectorAggregator { return NewCountOverTimeAggregator() })
 		})
 
@@ -55,7 +56,7 @@ func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		return
 
 	case AggregateModeFinal:
-		a.seriesAgg = NewBaselineAggregator(q, a.maxValues)
+		a.seriesAgg = NewBaselineAggregator(q, a.topN)
 		return
 	}
 }
@@ -107,8 +108,8 @@ func (a *MetricsCompare) validate() error {
 		return err
 	}
 
-	if a.maxValues <= 0 {
-		return fmt.Errorf("compare() max number of values must be integer greater than 0")
+	if a.topN <= 0 {
+		return fmt.Errorf("compare() top number of values must be integer greater than 0")
 	}
 
 	if a.start == 0 && a.end == 0 {
@@ -131,18 +132,18 @@ func (a *MetricsCompare) String() string {
 type MetricsCompare struct {
 	f            *SpansetFilter
 	start, end   int
-	maxValues    int
+	topN         int
 	baselineAgg  SpanAggregator
 	selectionAgg SpanAggregator
 	seriesAgg    SeriesAggregator
 }
 
-func newMetricsCompare(f *SpansetFilter, maxValues, start, end int) *MetricsCompare {
+func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
 	return &MetricsCompare{
-		f:         f,
-		maxValues: maxValues,
-		start:     start,
-		end:       end,
+		f:     f,
+		topN:  topN,
+		start: start,
+		end:   end,
 	}
 }
 
@@ -157,22 +158,20 @@ type AttributeValue struct {
 // of every attribute. I.e. a series for all distinct names, a series for all distinct services, etc.
 type GroupByEach struct {
 	// Config
-	prefix    Labels
-	innerAgg  func() RangeAggregator
-	maxValues int
+	prefix   Labels
+	innerAgg func() RangeAggregator
+	topN     int
 
 	// Data
-	maxed  map[Attribute]struct{}
 	series map[Attribute]map[Static]RangeAggregator // Two layer map
 }
 
-func NewGroupByEachAggregator(prefix Labels, maxValues int, innerAgg func() RangeAggregator) *GroupByEach {
+func NewGroupByEachAggregator(prefix Labels, topN int, innerAgg func() RangeAggregator) *GroupByEach {
 	return &GroupByEach{
-		prefix:    prefix,
-		maxValues: maxValues,
-		innerAgg:  innerAgg,
-		series:    map[Attribute]map[Static]RangeAggregator{},
-		maxed:     make(map[Attribute]struct{}),
+		prefix:   prefix,
+		topN:     topN,
+		innerAgg: innerAgg,
+		series:   map[Attribute]map[Static]RangeAggregator{},
 	}
 }
 
@@ -181,14 +180,9 @@ func (g *GroupByEach) Observe(span Span) {
 	for a, v := range m {
 		// These attributes get pulled back by select all but we never
 		// group by them because I say so.
+		// TODO - can we check type instead?
 		switch a {
 		case IntrinsicSpanStartTimeAttribute, IntrinsicDurationAttribute:
-			continue
-		}
-
-		if _, ok := g.maxed[a]; ok {
-			// This attribute reached max cardinality.
-			// Stop counting
 			continue
 		}
 
@@ -204,46 +198,44 @@ func (g *GroupByEach) Observe(span Span) {
 			attrSeries[v] = agg
 		}
 
-		if len(attrSeries) > g.maxValues {
-			// This attribute is now exceeding max cardinality.
-			// Delete the data and mark it for future input
-			g.maxed[a] = struct{}{}
-			delete(g.series, a)
-			continue
-		}
-
 		agg.Observe(span)
 	}
 }
 
 func (g *GroupByEach) Series() SeriesSet {
 	ss := SeriesSet{}
+	top := &topN[Static]{}
 
-	for a, m := range g.series {
-		for v, agg := range m {
-			labels := make(Labels, len(g.prefix)+1)
-			copy(labels, g.prefix)
-			labels[len(g.prefix)] = Label{Name: a.String(), Value: v}
+	add := func(labels Labels, agg RangeAggregator) {
+		ls := make(Labels, 0, len(g.prefix)+len(labels))
+		ls = append(ls, g.prefix...)
+		ls = append(ls, labels...)
 
-			promLabels := labels.String()
-			ss[promLabels] = TimeSeries{
-				Labels: labels,
-				Values: agg.Samples(),
-			}
+		promLabels := ls.String()
+		ts := TimeSeries{}
+		ts.Labels = ls
+
+		if agg != nil {
+			ts.Values = agg.Samples()
 		}
+
+		ss[promLabels] = ts
 	}
 
-	// Create a series for each attribute that reached max cardinality.
-	for a := range g.maxed {
-		labels := make(Labels, len(g.prefix)+2)
-		copy(labels, g.prefix)
-		labels[len(g.prefix)] = Label{Name: a.String(), Value: NewStaticNil()}
-		labels[len(g.prefix)+1] = internalLabelErrorTooManyValues
+	for a, m := range g.series {
 
-		promLabels := labels.String()
-		ss[promLabels] = TimeSeries{
-			Labels: labels,
-			Values: nil,
+		top.reset()
+		for v, agg := range m {
+			top.add(v, agg.Samples())
+		}
+
+		more := top.get(g.topN, func(key Static) {
+			add(Labels{Label{Name: a.String(), Value: key}}, m[key])
+		})
+
+		if more {
+			// Add too many values error
+			add(Labels{internalLabelErrorTooManyValues, Label{a.String(), NewStaticNil()}}, nil)
 		}
 	}
 
@@ -257,7 +249,7 @@ var _ SpanAggregator = (*GroupByEach)(nil)
 // an attribute reached max cardinality at the job-level, it will be marked
 // as such at the query-level.
 type BaselineAggregator struct {
-	maxValues        int
+	topN             int
 	len              int
 	start, end, step uint64
 	baseline         map[string]map[Static]TimeSeries
@@ -265,7 +257,7 @@ type BaselineAggregator struct {
 	maxed            map[string]struct{}
 }
 
-func NewBaselineAggregator(req *tempopb.QueryRangeRequest, maxValues int) *BaselineAggregator {
+func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
 	return &BaselineAggregator{
 		baseline:  make(map[string]map[Static]TimeSeries),
 		selection: make(map[string]map[Static]TimeSeries),
@@ -274,7 +266,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, maxValues int) *Basel
 		start:     req.Start,
 		end:       req.End,
 		step:      req.Step,
-		maxValues: maxValues,
+		topN:      topN,
 	}
 }
 
@@ -302,16 +294,10 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		if err != "" {
 			if err == internalErrorTooManyValues {
 				// A sub-job reached max values for this attribute.
+				// Record the error
 				b.maxed[a] = struct{}{}
-				delete(b.baseline, a)
-				delete(b.selection, a)
 			}
 			// Skip remaining processing regardless of error type
-			continue
-		}
-
-		if _, ok := b.maxed[a]; ok {
-			// This attribute previous reached max values. Stop counting
 			continue
 		}
 
@@ -345,13 +331,10 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 			attr[v] = val
 		}
 
-		if len(attr) > b.maxValues {
+		if len(attr) > b.topN {
 			// This attribute just reached max cardinality overall (not within a sub-job)
-			// Delete all data and mark it for future input
+			// Record the error
 			b.maxed[a] = struct{}{}
-			delete(b.baseline, a)
-			delete(b.selection, a)
-			continue
 		}
 
 		for _, sample := range s.Samples {
@@ -365,37 +348,86 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 
 func (b *BaselineAggregator) Results() SeriesSet {
 	output := make(SeriesSet)
+	topN := &topN[Static]{}
 
-	add := func(buffer map[string]map[Static]TimeSeries, l Label) {
-		for a, attr := range buffer {
-			for v, ts := range attr {
-				labels := Labels{
-					l,
-					{Name: a, Value: v},
-				}
-				output[labels.String()] = TimeSeries{
-					Labels: labels,
-					Values: ts.Values,
-				}
-			}
+	addSeries := func(prefix Label, name string, value Static, samples []float64) {
+		ls := Labels{
+			prefix,
+			{Name: name, Value: value},
+		}
+		output[ls.String()] = TimeSeries{
+			Labels: ls,
+			Values: samples,
 		}
 	}
 
-	add(b.baseline, internalLabelTypeBaseline)
-	add(b.selection, internalLabelTypeSelection)
+	do := func(buffer map[string]map[Static]TimeSeries, prefix Label) {
+		for a, m := range buffer {
 
+			topN.reset()
+			for v, ts := range m {
+				topN.add(v, ts.Values)
+			}
+
+			topN.get(b.topN, func(key Static) {
+				addSeries(prefix, a, key, m[key].Values)
+			})
+		}
+	}
+
+	do(b.baseline, internalLabelTypeBaseline)
+	do(b.selection, internalLabelTypeSelection)
+
+	// Add series for every attribute that exceeded max value.
 	for a := range b.maxed {
-		labels := Labels{
-			{Name: a, Value: NewStaticNil()},
-			internalLabelErrorTooManyValues,
-		}
-		output[labels.String()] = TimeSeries{
-			Labels: labels,
-			Values: nil,
-		}
+		addSeries(internalLabelErrorTooManyValues, a, NewStaticNil(), nil)
 	}
 
 	return output
 }
 
 var _ SeriesAggregator = (*BaselineAggregator)(nil)
+
+// topN is a helper struct that gets the topN keys based on total sum
+type topN[T any] struct {
+	entries []struct {
+		key   T
+		total float64
+	}
+}
+
+func (t *topN[T]) add(key T, values []float64) {
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	t.entries = append(t.entries, struct {
+		key   T
+		total float64
+	}{key, sum})
+}
+
+// get the top N values. Given as a callback to avoid allocating.
+// bool result indicates if there were more than N values
+func (t *topN[T]) get(n int, cb func(key T)) (more bool) {
+	if len(t.entries) <= n {
+		for _, e := range t.entries {
+			cb(e.key)
+		}
+		return false
+	}
+
+	sort.Slice(t.entries, func(i, j int) bool {
+		return t.entries[i].total > t.entries[j].total // Sort descending
+	})
+
+	for i := 0; i < n; i++ {
+		cb(t.entries[i].key)
+	}
+
+	return true
+}
+
+func (t *topN[T]) reset() {
+	t.entries = t.entries[:0]
+}
