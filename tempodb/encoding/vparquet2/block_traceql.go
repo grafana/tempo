@@ -736,7 +736,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
 	}
 
-	if req.SelectAll {
+	if req.SecondPassSelectAll {
 		return traceql.FetchSpansResponse{}, common.ErrUnsupported
 	}
 

@@ -541,7 +541,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
-	if !req.AllConditions || req.SelectAll {
+	if !req.AllConditions || req.SecondPassSelectAll {
 		return
 	}
 

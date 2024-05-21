@@ -75,7 +75,7 @@ type FetchSpansRequest struct {
 	// TODO: extend this to an arbitrary number of passes
 	SecondPass           SecondPassFn
 	SecondPassConditions []Condition
-	SelectAll            bool // Ignore second pass conditions and select all attributes
+	SecondPassSelectAll  bool // Ignore second pass conditions and select all attributes
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {

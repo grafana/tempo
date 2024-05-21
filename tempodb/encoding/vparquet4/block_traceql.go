@@ -1345,7 +1345,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, req.ShardID, req.ShardCount, rowGroups, pf, dc, req.SelectAll)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, req.ShardID, req.ShardCount, rowGroups, pf, dc, req.SecondPassSelectAll)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}

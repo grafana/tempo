@@ -9,11 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStar(t *testing.T) {
-	expr, err := Parse(`{} | rate() by (.*)`)
-	fmt.Println(expr, err)
-}
-
 func TestPipelineErrors(t *testing.T) {
 	tests := []struct {
 		in  string

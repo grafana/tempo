@@ -32,7 +32,7 @@ var (
 )
 
 func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
-	request.SelectAll = true
+	request.SecondPassSelectAll = true
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		request.SecondPassConditions = append(request.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
 	}
