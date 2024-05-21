@@ -220,7 +220,7 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 	}
 
 	if len(traceConditions) > 0 {
-		currentIter, err = createDistinctTraceIterator(makeIter, currentIter, traceConditions)
+		currentIter, err = createDistinctTraceIterator(makeIter, tr, currentIter, traceConditions)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating trace iterator")
 		}
@@ -647,11 +647,19 @@ func createDistinctResourceIterator(
 
 func createDistinctTraceIterator(
 	makeIter makeIterFn,
+	tr tagRequest,
 	resourceIter parquetquery.Iterator,
 	conds []traceql.Condition,
 ) (parquetquery.Iterator, error) {
 	var err error
 	traceIters := make([]parquetquery.Iterator, 0, 3)
+
+	selectAs := func(attr traceql.Attribute, columnPath string) string {
+		if attr == tr.tag {
+			return columnPath
+		}
+		return ""
+	}
 
 	// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
 	// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
@@ -667,7 +675,7 @@ func createDistinctTraceIterator(
 			if err != nil {
 				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
+			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, selectAs(cond.Attribute, columnPathDurationNanos)))
 
 		case traceql.IntrinsicTraceRootSpan:
 			var pred parquetquery.Predicate
@@ -675,7 +683,7 @@ func createDistinctTraceIterator(
 			if err != nil {
 				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
+			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, selectAs(cond.Attribute, columnPathRootSpanName)))
 
 		case traceql.IntrinsicTraceRootService:
 			var pred parquetquery.Predicate
@@ -683,7 +691,7 @@ func createDistinctTraceIterator(
 			if err != nil {
 				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
+			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, selectAs(cond.Attribute, columnPathRootServiceName)))
 		}
 	}
 
