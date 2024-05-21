@@ -366,7 +366,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 func (b *BaselineAggregator) Results() SeriesSet {
 	output := make(SeriesSet)
 
-	append := func(buffer map[string]map[Static]TimeSeries, l Label) {
+	add := func(buffer map[string]map[Static]TimeSeries, l Label) {
 		for a, attr := range buffer {
 			for v, ts := range attr {
 				labels := Labels{
@@ -381,8 +381,8 @@ func (b *BaselineAggregator) Results() SeriesSet {
 		}
 	}
 
-	append(b.baseline, internalLabelTypeBaseline)
-	append(b.selection, internalLabelTypeSelection)
+	add(b.baseline, internalLabelTypeBaseline)
+	add(b.selection, internalLabelTypeSelection)
 
 	for a := range b.maxed {
 		labels := Labels{
