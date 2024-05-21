@@ -521,7 +521,12 @@ func (i *instance) resetHeadBlock() error {
 
 	dedicatedColumns := i.getDedicatedColumns()
 
-	newHeadBlock, err := i.writer.WAL().NewBlockWithDedicatedColumns(uuid.New(), i.instanceID, model.CurrentEncoding, dedicatedColumns)
+	meta := &backend.BlockMeta{
+		BlockID:          uuid.New(),
+		TenantID:         i.instanceID,
+		DedicatedColumns: dedicatedColumns,
+	}
+	newHeadBlock, err := i.writer.WAL().NewBlock(meta, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}

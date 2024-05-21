@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -15,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/stretchr/testify/require"
 )
 
 type mockOverrides struct{}
@@ -152,4 +151,53 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	close(end)
 	wg.Wait()
 	p.Shutdown(ctx)
+}
+
+func TestReplicationFactor(t *testing.T) {
+	wal, err := wal.New(&wal.Config{
+		Filepath: t.TempDir(),
+		Version:  encoding.DefaultEncoding().Version(),
+	})
+	require.NoError(t, err)
+
+	cfg := Config{
+		FlushCheckPeriod:     time.Minute,
+		TraceIdlePeriod:      time.Minute,
+		CompleteBlockTimeout: time.Minute,
+		Block: &common.BlockConfig{
+			BloomShardSizeBytes: 100_000,
+			BloomFP:             0.05,
+			Version:             encoding.DefaultEncoding().Version(),
+		},
+		Metrics: MetricsConfig{
+			ConcurrentBlocks:  10,
+			TimeOverlapCutoff: 0.2,
+		},
+		FilterServerSpans: false,
+	}
+
+	p, err := New(cfg, "fake", wal, &mockOverrides{})
+	require.NoError(t, err)
+
+	tr := test.MakeTrace(10, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
+	p.PushSpans(context.TODO(), &tempopb.PushSpansRequest{
+		Batches: tr.Batches,
+	})
+
+	require.NoError(t, p.cutIdleTraces(true))
+	verifyReplicationFactor(t, p.headBlock)
+
+	require.NoError(t, p.cutBlocks(true))
+	for _, b := range p.walBlocks {
+		verifyReplicationFactor(t, b)
+	}
+
+	require.NoError(t, p.completeBlock())
+	for _, b := range p.completeBlocks {
+		verifyReplicationFactor(t, b)
+	}
+}
+
+func verifyReplicationFactor(t *testing.T, b common.BackendBlock) {
+	require.Equal(t, 1, int(b.BlockMeta().ReplicationFactor))
 }

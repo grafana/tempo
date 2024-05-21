@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,7 +91,8 @@ func TestDB(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -142,7 +144,8 @@ func TestBlockSharding(t *testing.T) {
 	wal := w.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	// add a trace to the block
@@ -205,7 +208,8 @@ func TestBlockCleanup(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	_, err = w.CompleteBlock(context.Background(), head)
@@ -533,7 +537,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -615,7 +620,12 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	var dataEncoding string
+	if from == v2.VersionString {
+		dataEncoding = model.CurrentEncoding
+	}
+	meta := backend.NewBlockMeta(testTenantID, blockID, from, backend.EncNone, dataEncoding)
+	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
 
@@ -688,7 +698,8 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	oneHourAgo := now.Add(-1 * time.Hour).Unix()
 	oneHour := now.Add(time.Hour).Unix()
 
-	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
 	// Write a trace from 1 hour ago.
@@ -756,7 +767,8 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
-	blk, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	blk, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(b, err)
 
 	for i := 0; i < traceCount; i++ {

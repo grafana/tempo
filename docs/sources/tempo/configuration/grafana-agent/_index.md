@@ -54,12 +54,8 @@ backends.
 
 ### Receiving traces
 <!-- vale Grafana.Parentheses = NO -->
-<!-- vale Grafana.Acronyms = NO -->
-<!-- vale Grafana.Archives = NO -->
 The Grafana Agent supports multiple ingestion receivers:
 OTLP (OpenTelemetry), Jaeger, Zipkin, OpenCensus, and Kafka.
-<!-- vale Grafana.Archives = YES -->
-<!-- vale Grafana.Acronyms = YES -->
 <!-- vale Grafana.Parentheses = YES -->
 
 Each tracing pipeline can be configured to receive traces in all these formats.

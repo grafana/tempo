@@ -59,11 +59,11 @@ func (l *liveTraces) Push(traceID []byte, batch *v1.ResourceSpans, max uint64) b
 	return true
 }
 
-func (l *liveTraces) CutIdle(idleSince time.Time) []*liveTrace {
+func (l *liveTraces) CutIdle(idleSince time.Time, immediate bool) []*liveTrace {
 	res := []*liveTrace{}
 
 	for k, tr := range l.traces {
-		if tr.timestamp.Before(idleSince) {
+		if tr.timestamp.Before(idleSince) || immediate {
 			res = append(res, tr)
 			delete(l.traces, k)
 		}

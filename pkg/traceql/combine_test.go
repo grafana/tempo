@@ -220,6 +220,26 @@ func TestCombineResults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "existing ServiceStats is nil doesn't panic",
+			existing: &tempopb.TraceSearchMetadata{},
+			new: &tempopb.TraceSearchMetadata{
+				ServiceStats: map[string]*tempopb.ServiceStats{
+					"service1": {
+						SpanCount:  3,
+						ErrorCount: 2,
+					},
+				},
+			},
+			expected: &tempopb.TraceSearchMetadata{
+				ServiceStats: map[string]*tempopb.ServiceStats{
+					"service1": {
+						SpanCount:  3,
+						ErrorCount: 2,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
