@@ -30,8 +30,8 @@ type queryBlocksCmd struct {
 	backendOptions
 
 	TraceID  string `arg:"" help:"trace ID to retrieve"`
-	TenantID string `arg:"" help:"tenant ID to searchi"`
-    Percentage float32 `help:"percentage of blocks to scan e.g..1 for 10%"`
+	TenantID string `arg:"" help:"tenant ID to search"`
+	Percentage float32 `help:"percentage of blocks to scan e.g..1 for 10%"`
 }
 
 func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
