@@ -437,6 +437,12 @@ func (t *App) initCompactor() (services.Service, error) {
 }
 
 func (t *App) initStore() (services.Service, error) {
+	// Used by the local-blocs processor to flush RF1 blocks to storage.
+	// Only initialize if it's configured.
+	if t.cfg.Target == MetricsGenerator && t.cfg.StorageConfig.Trace.Backend == "" {
+		return services.NewIdleService(nil, nil), nil
+	}
+
 	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, t.cacheProvider, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)
