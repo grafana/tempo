@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/rand"
 	"fmt"
 	"strconv"
 
@@ -29,7 +30,8 @@ type queryBlocksCmd struct {
 	backendOptions
 
 	TraceID  string `arg:"" help:"trace ID to retrieve"`
-	TenantID string `arg:"" help:"tenant ID to search"`
+	TenantID string `arg:"" help:"tenant ID to searchi"`
+    Percentage float32 `help:"percentage of blocks to scan e.g..1 for 10%"`
 }
 
 func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
@@ -43,7 +45,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	results, err := queryBucket(context.Background(), r, c, cmd.TenantID, id)
+	results, err := queryBucket(context.Background(), cmd.Percentage, r, c, cmd.TenantID, id)
 	if err != nil {
 		return err
 	}
@@ -83,12 +85,21 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 	return nil
 }
 
-func queryBucket(ctx context.Context, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) ([]queryResults, error) {
+func queryBucket(ctx context.Context, percentage float32, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) ([]queryResults, error) {
 	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}
 
+	if percentage > 0 {
+		// shuffle
+		rand.Shuffle(len(blockIDs), func(i, j int) { blockIDs[i], blockIDs[j] = blockIDs[j], blockIDs[i] })
+
+		// get the first n%
+		total := len(blockIDs)
+		total = int(float32(total) * percentage)
+		blockIDs = blockIDs[:total]
+	}
 	fmt.Println("total blocks to search: ", len(blockIDs))
 
 	blockIDs = append(blockIDs, compactedBlockIDs...)
