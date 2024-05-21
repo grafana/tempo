@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"math/rand"
 	"fmt"
+	"math/rand"
 	"strconv"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -29,8 +29,8 @@ type queryResults struct {
 type queryBlocksCmd struct {
 	backendOptions
 
-	TraceID  string `arg:"" help:"trace ID to retrieve"`
-	TenantID string `arg:"" help:"tenant ID to search"`
+	TraceID    string  `arg:"" help:"trace ID to retrieve"`
+	TenantID   string  `arg:"" help:"tenant ID to search"`
 	Percentage float32 `help:"percentage of blocks to scan e.g..1 for 10%"`
 }
 
