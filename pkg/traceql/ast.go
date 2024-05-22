@@ -402,12 +402,20 @@ type BinaryOperation struct {
 	compiledExpression *regexp.Regexp
 }
 
-func newBinaryOperation(op Operator, lhs, rhs FieldExpression) *BinaryOperation {
-	return &BinaryOperation{
+func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
+	binop := &BinaryOperation{
 		Op:  op,
 		LHS: lhs,
 		RHS: rhs,
 	}
+
+	if !binop.referencesSpan() && binop.validate() == nil {
+		if simplified, err := binop.execute(nil); err == nil {
+			return simplified
+		}
+	}
+
+	return binop
 }
 
 // nolint: revive
@@ -437,11 +445,19 @@ type UnaryOperation struct {
 	Expression FieldExpression
 }
 
-func newUnaryOperation(op Operator, e FieldExpression) UnaryOperation {
-	return UnaryOperation{
+func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
+	unop := UnaryOperation{
 		Op:         op,
 		Expression: e,
 	}
+
+	if !unop.referencesSpan() && unop.validate() == nil {
+		if simplified, err := unop.execute(nil); err == nil {
+			return simplified
+		}
+	}
+
+	return unop
 }
 
 // nolint: revive
