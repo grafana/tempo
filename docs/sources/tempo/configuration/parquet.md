@@ -28,7 +28,7 @@ It introduces dedicated attribute columns, which improve query performance by st
 rather than in the generic attribute key-value list.
 For more information, see [Dedicated attribute columns]({{< relref "../operations/tempo_cli" >}}).
 
-You can also use the latest version of the format `vParquet4`.
+You can also use the latest more experimental version `vParquet4`.
 To enable it, set the block version option to `vParquet4` in the Storage section of the configuration file.
 
 ```yaml
