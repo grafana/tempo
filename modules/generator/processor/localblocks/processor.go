@@ -613,6 +613,9 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 	for id, b := range p.walBlocks {
 		if b.BlockMeta().EndTime.Before(before) {
+			if _, ok := p.completeBlocks[id]; !ok {
+				level.Warn(p.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
+			}
 			err = b.Clear()
 			if err != nil {
 				return err
@@ -622,11 +625,12 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	}
 
 	for id, b := range p.completeBlocks {
-		if b.BlockMeta().EndTime.Before(before) {
-			if b.FlushedTime().Before(before) {
-				// TODO: Don't delete un-flushed blocks
-				level.Warn(p.logger).Log("msg", "deleting block that was never flushed to storage", "block", b.BlockMeta().BlockID.String())
-			}
+		flushedTime := b.FlushedTime()
+		if flushedTime.IsZero() {
+			continue
+		}
+
+		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
 				return err
