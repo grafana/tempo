@@ -979,6 +979,8 @@ func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
 		{in: "{ `foo` = `bar` }", expected: NewStaticBool(false)},
 		{in: "{ 1 = 1. }", expected: NewStaticBool(true)}, // this is an interesting case, it returns true even though { span.foo = 1 } would be false if span.foo had the float value 1.0
 		{in: "{ .1 + 1 }", expected: NewStaticFloat(1.1)},
+		{in: "{ 1 * -1 = -1 }", expected: NewStaticBool(true)},
+		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
 	}
 
 	test := func(q string, expected FieldExpression) {
