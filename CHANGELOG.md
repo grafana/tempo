@@ -9,7 +9,7 @@
   tempo:tempo with the UID/GID of 10001.  The `ingester` and
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
-  This impacts impacts all users of the `grafana/tempo` Docker image.
+  This impacts all users of the `grafana/tempo` Docker image.
 * [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
   **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now, it's 
   removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
