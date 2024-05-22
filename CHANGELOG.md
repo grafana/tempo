@@ -6,14 +6,14 @@
 
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
-  **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historyically this
-  has been owned by root:root, and with this change it will now be owned by
+  **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historically, this
+  has been owned by root:root. With this change, it will now be owned by
   tempo:tempo with the UID/GID of 10001.  The `ingester` and
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
-  This impacts impacts all users of the `grafana/tempo` Docker image.
+  This impacts all users of the `grafana/tempo` Docker image.
 * [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
-  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now it is 
+  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now, it's 
   removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
   running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
   with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet (1) blocks
