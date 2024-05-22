@@ -264,7 +264,7 @@ For more information on other enhancements, read the [Tempo 2.1 release notes]({
 
 ### Remove support for Search on v2 blocks
 
-Users can no longer search blocks in v2 format. Only vParquet and vParquet2 formats support search.
+Users can no longer search blocks in v2 format. Only the Parquet formats support search.
 These search configuration options were removed from the overrides section:
 
 ```
