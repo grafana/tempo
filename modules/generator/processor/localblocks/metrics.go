@@ -68,4 +68,10 @@ var (
 		Name:      "flushed_blocks",
 		Help:      "Number of blocks flushed by the local blocks processor",
 	}, []string{"tenant"})
+	metricFlushQueueSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "flush_queue_size",
+		Help:      "Size of the flush queue",
+	}, []string{"tenant"})
 )

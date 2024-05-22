@@ -93,7 +93,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
-		flushqueue:     flushqueues.NewPriorityQueue(nil),
+		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
 		liveTraces:     newLiveTraces(),
 		traceSizes:     newTraceSizes(),
 		closeCh:        make(chan struct{}),
@@ -270,10 +270,19 @@ func (p *Processor) flushLoop() {
 		}
 
 		op := o.(*flushOp)
+		op.attempts++
 		err := p.flushBlock(op.blockID)
 		if err != nil {
-			level.Error(p.logger).Log("msg", "local blocks processor failed to flush a block", "err", err)
-			// TODO: retry
+			_ = level.Error(p.logger).Log("msg", "failed to flush a block", "err", err)
+
+			if op.attempts < 3 {
+				_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
+				op.at = time.Now().Add(10 * time.Second) // TODO: Exponential backoff?
+
+				if _, err := p.flushqueue.Enqueue(op); err != nil {
+					_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
+				}
+			}
 		}
 	}
 }
@@ -813,6 +822,12 @@ func (p *Processor) reloadBlocks() error {
 
 		lb := ingester.NewLocalBlock(ctx, blk, l)
 		p.completeBlocks[id] = lb
+
+		if lb.FlushedTime().IsZero() {
+			if _, err := p.flushqueue.Enqueue(newFlushOp(id)); err != nil {
+				_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing during replay", "err", err)
+			}
+		}
 	}
 
 	return nil
@@ -897,8 +912,9 @@ func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
 }
 
 type flushOp struct {
-	blockID uuid.UUID
-	at      time.Time // When to execute
+	blockID  uuid.UUID
+	at       time.Time // When to execute
+	attempts int
 }
 
 func newFlushOp(blockID uuid.UUID) *flushOp {
