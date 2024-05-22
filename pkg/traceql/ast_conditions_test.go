@@ -97,6 +97,14 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			},
 			allConditions: true,
 		},
+		{
+			query: `{ (.foo = 2) && (.bar / 1 > 3) }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticInt(2)),
+				newCondition(NewAttribute("bar"), OpNone),
+			},
+			allConditions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
