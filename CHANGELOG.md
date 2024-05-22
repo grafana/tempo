@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Fix TraceQL queries involving non boolean operations between statics and attributes. [#3698](https://github.com/grafana/tempo/pull/3698) (@joe-elliott)
+
 ## v2.5.0-rc.0
 
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
