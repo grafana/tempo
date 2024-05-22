@@ -5,7 +5,7 @@
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
   **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historically, this
-  has been owned by root:root, and with this change it will now be owned by
+  has been owned by root:root. With this change, it will now be owned by
   tempo:tempo with the UID/GID of 10001.  The `ingester` and
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
