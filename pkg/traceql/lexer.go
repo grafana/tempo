@@ -75,6 +75,7 @@ var tokens = map[string]int{
 	"nestedSetLeft":       NESTEDSETLEFT,
 	"nestedSetRight":      NESTEDSETRIGHT,
 	"nestedSetParent":     NESTEDSETPARENT,
+	"id":                  ID,
 	"parent":              PARENT,
 	"parent.":             PARENT_DOT,
 	"resource.":           RESOURCE_DOT,

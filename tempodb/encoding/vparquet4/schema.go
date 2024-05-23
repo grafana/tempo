@@ -40,6 +40,8 @@ const (
 	LabelKind                   = "kind"
 	LabelTraceQLRootServiceName = "rootServiceName"
 	LabelTraceQLRootName        = "rootName"
+	LabelTraceID                = "trace:id"
+	LabelSpanID                 = "span:id"
 )
 
 // These definition levels match the schema below
