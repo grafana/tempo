@@ -41,9 +41,6 @@ type genericCombiner[T TResponse] struct {
 
 // AddResponse is used to add a http response to the combiner.
 func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	res := r.HTTPResponse()
 	if res == nil {
 		return nil
@@ -52,12 +49,14 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 	// todo: reevaluate this. should the caller owner the lifecycle of the http.response body?
 	defer func() { _ = res.Body.Close() }()
 
-	if c.shouldQuit() {
+	if c.ShouldQuit() {
 		return nil
 	}
 
-	c.httpStatusCode = res.StatusCode
 	if res.StatusCode != http.StatusOK {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
 		bytesMsg, err := io.ReadAll(res.Body)
 		if err != nil {
 			return fmt.Errorf("error reading response body: %w", err)
@@ -87,6 +86,10 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 		}
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.httpStatusCode = res.StatusCode
 	if err := c.combine(partial, c.current, r); err != nil {
 		c.httpRespBody = internalErrorMsg
 		return fmt.Errorf("error combining in combiner: %w", err)
