@@ -3,9 +3,13 @@ package combiner
 import (
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
@@ -77,5 +81,148 @@ func TestErroredResponse(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, expectedBody, actualBody)
 		})
+	}
+}
+
+func TestGenericCombiner(t *testing.T) {
+	combiner := newTestCombiner()
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 10000; j++ {
+
+				err := combiner.AddResponse(newTestResponse(t))
+				require.NoError(t, err)
+			}
+		}()
+	}
+
+	wg.Wait()
+	actual, err := combiner.finalize(nil)
+	require.NoError(t, err)
+
+	expected := 10 * 10000
+	require.Equal(t, expected, int(actual.SpanCount))
+	require.Equal(t, expected, int(actual.ErrorCount))
+}
+
+func TestGenericCombinerDoesntRace(t *testing.T) {
+	combiner := newTestCombiner()
+	end := make(chan struct{})
+
+	concurrent := func(f func()) {
+		for {
+			select {
+			case <-end:
+				return
+			default:
+				f()
+			}
+		}
+	}
+	go concurrent(func() {
+		err := combiner.AddResponse(newTestResponse(t))
+		require.NoError(t, err)
+	})
+
+	go concurrent(func() {
+		// this test is going to add a failed response which cuts off certain code paths. just wait a bit to test the other paths
+		time.Sleep(10 * time.Millisecond)
+		err := combiner.AddResponse(newFailedTestResponse())
+		require.NoError(t, err)
+	})
+
+	go concurrent(func() {
+		combiner.ShouldQuit()
+	})
+
+	go concurrent(func() {
+		combiner.StatusCode()
+	})
+
+	go concurrent(func() {
+		_, err := combiner.HTTPFinal()
+		require.NoError(t, err)
+	})
+
+	go concurrent(func() {
+		_, err := combiner.GRPCFinal()
+		require.NoError(t, err)
+	})
+
+	go concurrent(func() {
+		_, err := combiner.GRPCDiff()
+		require.NoError(t, err)
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	close(end)
+}
+
+type testPipelineResponse struct {
+	r *http.Response
+}
+
+func newTestResponse(t *testing.T) *testPipelineResponse {
+	serviceStats := &tempopb.ServiceStats{
+		SpanCount:  1,
+		ErrorCount: 1,
+	}
+
+	rec := httptest.NewRecorder()
+	err := (&jsonpb.Marshaler{}).Marshal(rec, serviceStats)
+	require.NoError(t, err)
+
+	return &testPipelineResponse{
+		r: rec.Result(),
+	}
+}
+
+func newFailedTestResponse() *testPipelineResponse {
+	rec := httptest.NewRecorder()
+	rec.WriteHeader(http.StatusInternalServerError)
+
+	return &testPipelineResponse{
+		r: rec.Result(),
+	}
+}
+
+func (p *testPipelineResponse) HTTPResponse() *http.Response {
+	return p.r
+}
+
+func (p *testPipelineResponse) AdditionalData() any {
+	return nil
+}
+
+func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
+	count := 0
+
+	return &genericCombiner[*tempopb.ServiceStats]{
+		httpStatusCode: 200,
+		new:            func() *tempopb.ServiceStats { return &tempopb.ServiceStats{} },
+		current:        nil,
+		combine: func(_, _ *tempopb.ServiceStats, _ PipelineResponse) error {
+			count++
+			return nil
+		},
+		finalize: func(_ *tempopb.ServiceStats) (*tempopb.ServiceStats, error) {
+			return &tempopb.ServiceStats{
+				SpanCount:  uint32(count),
+				ErrorCount: uint32(count),
+			}, nil
+		},
+		quit: func(_ *tempopb.ServiceStats) bool {
+			return false
+		},
+		diff: func(_ *tempopb.ServiceStats) (*tempopb.ServiceStats, error) {
+			return &tempopb.ServiceStats{
+				SpanCount:  uint32(count),
+				ErrorCount: uint32(count),
+			}, nil
+		},
 	}
 }
