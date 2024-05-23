@@ -200,14 +200,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
-
-						// A database request will only have one span, we don't wait for the server
-						// span but just copy details from the client span
-						if dbName, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), rs.Resource.Attributes, span.Attributes); ok {
-							e.ConnectionType = store.Database
-							e.ServerService = dbName
-							e.ServerLatencySec = spanDurationSec(span)
-						}
+						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
 					})
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
@@ -277,6 +270,62 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 			e.PeerNode = v
 			return
 		}
+	}
+}
+
+// upsertDatabaseRequest handles the logic of adding a database edge on the
+// graph.  If we have a db.name or db.system attribute, we assume this is a
+// database request.  The name of the edge is determined by the following
+// order:
+//
+//	if we have a peer.service, use it as the database ServerService
+//	if we have a server.address, use it as the database ServerService
+//	if we have a db.name, use it as the database ServerService, which is the backwards-compatible behavior
+func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_common.KeyValue, span *v1_trace.Span) {
+	var (
+		isDatabase bool
+
+		// The fallback database name
+		dbName string
+	)
+
+	// Check for db.name first.  The dbName is set initially to maintain backwards compatbility.
+	if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
+		dbName = name
+		isDatabase = true
+	}
+
+	// Check for db.system only if we don't have db.name above
+	if !isDatabase {
+		if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+			isDatabase = true
+		}
+	}
+
+	// If neither db.system nor db.name are present, we can't determine if this is a database request
+	if !isDatabase {
+		return
+	}
+	e.ConnectionType = store.Database
+	e.ServerLatencySec = spanDurationSec(span)
+
+	// Set the service name by order of precedence
+
+	// Check for peer.service
+	if name, ok := processor_util.FindAttributeValue(string(semconv.PeerServiceKey), resourceAttr, span.Attributes); ok {
+		e.ServerService = name
+		return
+	}
+
+	// Check for server.address
+	if name, ok := processor_util.FindAttributeValue(string(semconv.ServerAddressKey), resourceAttr, span.Attributes); ok {
+		e.ServerService = name
+		return
+	}
+
+	// Fallback to db.name
+	if dbName != "" {
+		e.ServerService = dbName
 	}
 }
 
