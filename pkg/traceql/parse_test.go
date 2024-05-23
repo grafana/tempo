@@ -1174,16 +1174,19 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: "trace:duration", expected: IntrinsicTraceDuration},
 		{in: "trace:rootName", expected: IntrinsicTraceRootSpan},
 		{in: "trace:rootService", expected: IntrinsicTraceRootService},
+		{in: "trace:id", expected: IntrinsicTraceID},
 		{in: "span:duration", expected: IntrinsicDuration},
 		{in: "span:kind", expected: IntrinsicKind},
 		{in: "span:name", expected: IntrinsicName},
 		{in: "span:status", expected: IntrinsicStatus},
 		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
+		{in: "span:id", expected: IntrinsicSpanID},
 		{in: ":duration", shouldError: true},
 		{in: ":statusMessage", shouldError: true},
 		{in: "trace:name", shouldError: true},
 		{in: "trace:rootServiceName", shouldError: true},
 		{in: "span:rootServiceName", shouldError: true},
+		{in: "parent:id", shouldError: true},
 	}
 
 	for _, tc := range tests {

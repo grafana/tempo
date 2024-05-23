@@ -1,6 +1,7 @@
 package vparquet3
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -829,7 +830,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
 	traceql.IntrinsicTraceDuration:    {intrinsicScopeTrace, traceql.TypeString, columnPathDurationNanos},
-	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeDuration, columnPathTraceID},
+	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not used in vparquet3, this entry is only used to assign default scope.
@@ -1469,7 +1470,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
-			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
 				return nil, err
 			}
@@ -1819,7 +1820,14 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
-			traceIters = append(traceIters, makeIter(columnPathTraceID, NewTraceIDShardingPredicate(shardID, shardCount), columnPathTraceID))
+			var pred parquetquery.Predicate
+			if allConditions {
+				pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
+				if err != nil {
+					return nil, err
+				}
+			}
+			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, columnPathTraceID))
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
 			if allConditions {
@@ -1929,6 +1937,41 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
+	}
+}
+
+func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	for _, op := range operands {
+		if op.Type != traceql.TypeString {
+			return nil, fmt.Errorf("operand is not string: %+v", op)
+		}
+	}
+
+	s := operands[0].S
+
+	var id []byte
+	id, err := util.HexStringToTraceID(s)
+	if isSpan {
+		id, err = util.HexStringToSpanID(s)
+	}
+
+	if err != nil {
+		return nil, nil
+	}
+
+	id = bytes.TrimLeft(id, "\x00")
+
+	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewByteEqualPredicate(id), nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewByteNotEqualPredicate(id), nil
+	default:
+		return nil, fmt.Errorf("operand not supported for IDs: %+v", op)
 	}
 }
 
@@ -2159,6 +2202,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch kv.Key {
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
+			sp.addSpanAttr(traceql.IntrinsicSpanIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanDuration:
@@ -2370,6 +2414,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case columnPathTraceID:
 			finalSpanset.TraceID = e.Value.ByteArray()
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(util.TraceIDToHexString(e.Value.ByteArray()))})
 		case columnPathStartTimeUnixNano:
 			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:
