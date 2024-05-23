@@ -364,6 +364,17 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			total:  1.0,
 			errors: 0.0,
 		},
+		{
+			name:        "semconv125NetworkPeer",
+			fixturePath: "testdata/trace-with-queue-database4.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database:5432",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
 	}
 
 	for _, tc := range cases {

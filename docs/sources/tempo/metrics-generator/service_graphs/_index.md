@@ -58,7 +58,7 @@ Virtual nodes can be detected in two different ways:
 
 A database node is identified by the span having at least `db.name` or `db.system` attribute.
 
-The name of a database node is determined using the following span attributes in order of precedence: `peer.service`, `server.address`, `db.name`.
+The name of a database node is determined using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.name`.
 
 ### Metrics
 

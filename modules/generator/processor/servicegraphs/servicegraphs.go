@@ -323,6 +323,16 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 		return
 	}
 
+	// Check for network.peer.address and network.peer.port.  Use port if it is present.
+	if host, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerAddressKey), resourceAttr, span.Attributes); ok {
+		if port, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerPortKey), resourceAttr, span.Attributes); ok {
+			e.ServerService = fmt.Sprintf("%s:%s", host, port)
+			return
+		}
+		e.ServerService = host
+		return
+	}
+
 	// Fallback to db.name
 	if dbName != "" {
 		e.ServerService = dbName
