@@ -3,8 +3,10 @@ package pipeline
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"go.uber.org/atomic"
 )
 
 type httpCollector struct {
@@ -35,29 +37,71 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	err = addNextAsync(ctx, resps, r.next, r.combiner, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.combiner.HTTPFinal()
+}
+
+func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse], next AsyncRoundTripper[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
+	respChan := make(chan combiner.PipelineResponse)
+	overallErr := atomic.Error{}
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for resp := range respChan {
+				err := c.AddResponse(resp)
+				if err != nil {
+					overallErr.Store(err)
+				}
+			}
+		}()
+	}
+
 	for {
+		if ctx.Err() != nil {
+			overallErr.Store(ctx.Err())
+			break
+		}
+
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
-			return nil, err
+			overallErr.Store(err)
+			break
 		}
 
 		if resp != nil {
-			err := r.combiner.AddResponse(resp)
-			if err != nil {
-				return nil, err
-			}
+			respChan <- resp
 		}
 
-		if r.combiner.ShouldQuit() {
+		if overallErr.Load() != nil {
+			break
+		}
+
+		if c.ShouldQuit() {
 			break
 		}
 
 		if done {
 			break
 		}
+
+		if callback != nil {
+			err = callback()
+			if err != nil {
+				overallErr.Store(err)
+				break
+			}
+		}
 	}
 
-	resp, err := r.combiner.HTTPFinal()
+	close(respChan)
+	wg.Wait()
 
-	return resp, err
+	return overallErr.Load()
 }
