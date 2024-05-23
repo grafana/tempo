@@ -113,7 +113,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 	go p.deleteLoop()
 	go p.metricLoop()
 
-	if p.writer != nil {
+	if p.writer != nil && p.Cfg.FlushToStorage {
 		p.wg.Add(1)
 		go p.flushLoop()
 	}
@@ -275,13 +275,11 @@ func (p *Processor) flushLoop() {
 		if err != nil {
 			_ = level.Error(p.logger).Log("msg", "failed to flush a block", "err", err)
 
-			if op.attempts < 3 {
-				_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
-				op.at = time.Now().Add(10 * time.Second) // TODO: Exponential backoff?
+			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
+			op.at = time.Now().Add(op.backoff())
 
-				if _, err := p.flushqueue.Enqueue(op); err != nil {
-					_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
-				}
+			if _, err := p.flushqueue.Enqueue(op); err != nil {
+				_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
 			}
 		}
 	}
@@ -380,6 +378,7 @@ func (p *Processor) flushBlock(id uuid.UUID) error {
 		return err
 	}
 	metricFlushedBlocks.WithLabelValues(p.tenant).Inc()
+	_ = level.Info(p.logger).Log("msg", "flushed block to storage", "block", id.String())
 	return nil
 }
 
@@ -915,15 +914,28 @@ type flushOp struct {
 	blockID  uuid.UUID
 	at       time.Time // When to execute
 	attempts int
+	bo       time.Duration
 }
 
 func newFlushOp(blockID uuid.UUID) *flushOp {
 	return &flushOp{
 		blockID: blockID,
 		at:      time.Now(),
+		bo:      30 * time.Second,
 	}
 }
 
 func (f *flushOp) Key() string { return f.blockID.String() }
 
 func (f *flushOp) Priority() int64 { return -f.at.Unix() }
+
+const maxBackoff = 5 * time.Minute
+
+func (f *flushOp) backoff() time.Duration {
+	f.bo *= 2
+	if f.bo > maxBackoff {
+		f.bo = maxBackoff
+	}
+
+	return f.bo
+}
