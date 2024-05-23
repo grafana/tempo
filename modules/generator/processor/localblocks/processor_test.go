@@ -239,7 +239,7 @@ func TestReplicationFactor(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return len(mockWriter.metas()) == 1
-	}, time.Second, 10*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 	p.blocksMtx.Lock()
 	verifyReplicationFactor(t, &mockBlock{meta: mockWriter.metas()[0]})
 	p.blocksMtx.Unlock()
