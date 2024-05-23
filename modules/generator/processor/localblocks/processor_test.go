@@ -279,7 +279,7 @@ func (m *mockBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sea
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (m *mockBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
 	return nil
 }
 
