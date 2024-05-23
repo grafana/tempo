@@ -983,7 +983,7 @@ func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
 		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
 	}
 
-	test := func(q string, expected FieldExpression) {
+	test := func(t *testing.T, q string, expected FieldExpression) {
 		actual, err := Parse(q)
 		require.NoError(t, err, q)
 		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, q)
@@ -991,7 +991,7 @@ func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
-			test(tc.in, tc.expected)
+			test(t, tc.in, tc.expected)
 		})
 	}
 }
