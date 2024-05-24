@@ -340,7 +340,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			//queriers will return one errr
+			// queriers will return one err
 			f := frontendWithSettings(t, &mockRoundTripper{
 				statusCode:    tc.querierCode,
 				statusMessage: tc.querierMessage,
