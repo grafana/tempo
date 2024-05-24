@@ -41,7 +41,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 
 	lastUpdate := time.Now()
 
-	err = addNextAsync(ctx, c.consumers, resps, c.next, c.combiner, func() error {
+	err = addNextAsync(ctx, c.consumers, resps, c.combiner, func() error {
 		// check if we should send an update
 		if time.Since(lastUpdate) > 500*time.Millisecond {
 			lastUpdate = time.Now()

@@ -326,7 +326,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				bridge := &pipelineBridge{
 					next: tc.finalRT(cancel),
 				}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, 0, combiner.NewTypedSearch(0), func(sr *tempopb.SearchResponse) error { return nil })
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](sharder{next: bridge}, 0, combiner.NewTypedSearch(0), func(_ *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
 
@@ -350,7 +350,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				}
 
 				s := sharder{next: sharder{next: bridge}, funcSharder: true}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0), func(sr *tempopb.SearchResponse) error { return nil })
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0), func(_ *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
 
@@ -373,7 +373,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 				}
 
 				s := sharder{next: sharder{next: bridge, funcSharder: true}}
-				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0), func(sr *tempopb.SearchResponse) error { return nil })
+				grpcCollector := NewGRPCCollector[*tempopb.SearchResponse](s, 0, combiner.NewTypedSearch(0), func(_ *tempopb.SearchResponse) error { return nil })
 
 				_ = grpcCollector.RoundTrip(req)
 

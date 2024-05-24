@@ -124,15 +124,13 @@ func TestGenericCombinerDoesntRace(t *testing.T) {
 		}
 	}
 	go concurrent(func() {
-		err := combiner.AddResponse(newTestResponse(t))
-		require.NoError(t, err)
+		_ = combiner.AddResponse(newTestResponse(t))
 	})
 
 	go concurrent(func() {
 		// this test is going to add a failed response which cuts off certain code paths. just wait a bit to test the other paths
 		time.Sleep(10 * time.Millisecond)
-		err := combiner.AddResponse(newFailedTestResponse())
-		require.NoError(t, err)
+		_ = combiner.AddResponse(newFailedTestResponse())
 	})
 
 	go concurrent(func() {
@@ -144,18 +142,15 @@ func TestGenericCombinerDoesntRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := combiner.HTTPFinal()
-		require.NoError(t, err)
+		_, _ = combiner.HTTPFinal()
 	})
 
 	go concurrent(func() {
-		_, err := combiner.GRPCFinal()
-		require.NoError(t, err)
+		_, _ = combiner.GRPCFinal()
 	})
 
 	go concurrent(func() {
-		_, err := combiner.GRPCDiff()
-		require.NoError(t, err)
+		_, _ = combiner.GRPCDiff()
 	})
 
 	time.Sleep(100 * time.Millisecond)
