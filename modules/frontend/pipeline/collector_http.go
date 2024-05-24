@@ -10,8 +10,9 @@ import (
 )
 
 type httpCollector struct {
-	next     AsyncRoundTripper[combiner.PipelineResponse]
-	combiner combiner.Combiner
+	next      AsyncRoundTripper[combiner.PipelineResponse]
+	combiner  combiner.Combiner
+	consumers int
 }
 
 // todo: long term this should return an http.Handler instead of a RoundTripper? that way it can completely
@@ -19,10 +20,11 @@ type httpCollector struct {
 //  to be
 
 // NewHTTPCollector returns a new http collector
-func NewHTTPCollector(next AsyncRoundTripper[combiner.PipelineResponse], combiner combiner.Combiner) http.RoundTripper {
+func NewHTTPCollector(next AsyncRoundTripper[combiner.PipelineResponse], consumers int, combiner combiner.Combiner) http.RoundTripper {
 	return httpCollector{
-		next:     next,
-		combiner: combiner,
+		next:      next,
+		combiner:  combiner,
+		consumers: consumers,
 	}
 }
 
@@ -37,7 +39,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	err = addNextAsync(ctx, resps, r.next, r.combiner, nil)
+	err = addNextAsync(ctx, r.consumers, resps, r.next, r.combiner, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +47,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r.combiner.HTTPFinal()
 }
 
-func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse], next AsyncRoundTripper[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
+func addNextAsync(ctx context.Context, consumers int, resps Responses[combiner.PipelineResponse], next AsyncRoundTripper[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
 	respChan := make(chan combiner.PipelineResponse)
 	overallErr := atomic.Error{}
 	wg := sync.WaitGroup{}
@@ -54,7 +56,11 @@ func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse
 		overallErr.CompareAndSwap(nil, err)
 	}
 
-	for i := 0; i < 10; i++ {
+	if consumers <= 0 {
+		consumers = 10
+	}
+
+	for i := 0; i < consumers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

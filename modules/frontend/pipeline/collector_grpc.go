@@ -11,17 +11,19 @@ import (
 )
 
 type GRPCCollector[T combiner.TResponse] struct {
-	next     AsyncRoundTripper[combiner.PipelineResponse]
-	combiner combiner.GRPCCombiner[T]
+	next      AsyncRoundTripper[combiner.PipelineResponse]
+	combiner  combiner.GRPCCombiner[T]
+	consumers int
 
 	send func(T) error
 }
 
-func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
+func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], consumers int, combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
 	return &GRPCCollector[T]{
-		next:     next,
-		combiner: combiner,
-		send:     send,
+		next:      next,
+		combiner:  combiner,
+		consumers: consumers,
+		send:      send,
 	}
 }
 
@@ -39,7 +41,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 
 	lastUpdate := time.Now()
 
-	err = addNextAsync(ctx, resps, c.next, c.combiner, func() error {
+	err = addNextAsync(ctx, c.consumers, resps, c.next, c.combiner, func() error {
 		// check if we should send an update
 		if time.Since(lastUpdate) > 500*time.Millisecond {
 			lastUpdate = time.Now()
