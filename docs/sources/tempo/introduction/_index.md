@@ -2,7 +2,7 @@
 aliases:
   - /docs/tempo/getting-started/traces
   - /docs/tempo/traces
-description: "What are traces? Learn about tracing and how you can use them."
+description: "What are traces? Learn about traces and how you can use them."
 keywords:
   - Grafana
   - traces
@@ -11,7 +11,7 @@ title: Introduction
 weight: 120
 ---
 
-# Introduction to traces
+# Introduction
 
 A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures.
 Traces let you profile and observe systems, making it easy to discover bottlenecks and interconnection issues.
