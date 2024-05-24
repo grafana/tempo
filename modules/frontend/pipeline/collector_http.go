@@ -50,6 +50,10 @@ func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse
 	overallErr := atomic.Error{}
 	wg := sync.WaitGroup{}
 
+	setErr := func(err error) {
+		overallErr.CompareAndSwap(nil, err)
+	}
+
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
@@ -57,7 +61,7 @@ func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse
 			for resp := range respChan {
 				err := c.AddResponse(resp)
 				if err != nil {
-					overallErr.Store(err)
+					setErr(err)
 				}
 			}
 		}()
@@ -65,13 +69,13 @@ func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse
 
 	for {
 		if ctx.Err() != nil {
-			overallErr.Store(ctx.Err())
+			setErr(ctx.Err())
 			break
 		}
 
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
-			overallErr.Store(err)
+			setErr(err)
 			break
 		}
 
@@ -94,7 +98,7 @@ func addNextAsync(ctx context.Context, resps Responses[combiner.PipelineResponse
 		if callback != nil {
 			err = callback()
 			if err != nil {
-				overallErr.Store(err)
+				setErr(err)
 				break
 			}
 		}
