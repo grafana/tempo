@@ -55,7 +55,7 @@ ifeq ($(UNAME), Darwin)
     SED_OPTS := ''
 endif
 
-FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -not -name '*.y.go' -print)
+FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -not -name '*.y.go' -not -name '*.gen.go' -print)
 FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -not -path "*/vendor/*" -print)
 
 ### Build
@@ -158,7 +158,11 @@ check-jsonnetfmt: jsonnetfmt
 
 .PHONY: lint
 lint:
-	$(LINT) run --config .golangci.yml
+ifneq ($(base),)
+	$(TOOLS_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
+else
+	$(TOOLS_CMD) $(LINT) run --config .golangci.yml
+endif
 
 ### Docker Images
 
@@ -264,9 +268,16 @@ gen-traceql:
 gen-traceql-local:
 	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
+# ##############
+# Gen Parquet-Query
+# ##############
+.PHONY: gen-parquet-query
+gen-parquet-query:
+	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
+
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
-vendor-check: gen-proto update-mod gen-traceql
+vendor-check: gen-proto update-mod gen-traceql gen-parquet-query
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 ### Tidy dependencies for tempo and tempo-serverless modules
@@ -279,7 +290,7 @@ update-mod:
 
 ### Release (intended to be used in the .github/workflows/release.yml)
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser@latest
+	go install github.com/goreleaser/goreleaser@v1.25.1
 
 .PHONY: release
 release: $(GORELEASER)

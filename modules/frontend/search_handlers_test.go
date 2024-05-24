@@ -333,6 +333,7 @@ func TestSearchLimitHonored(t *testing.T) {
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				Interval:              time.Second,
 			},
+			SLO: testSLOcfg,
 		},
 	}, nil)
 
@@ -491,6 +492,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -535,6 +537,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -719,6 +722,7 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}
 	}

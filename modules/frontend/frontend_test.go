@@ -35,6 +35,7 @@ func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				Interval:              time.Second,
 			},
+			SLO: testSLOcfg,
 		},
 	}, next, nil, nil, nil, "", log.NewNopLogger(), nil)
 	require.NoError(t, err)
@@ -173,6 +174,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: 0,
 			},
+			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics target bytes per request should be greater than 0")
@@ -195,6 +197,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				Interval:              0,
 			},
+			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics interval should be greater than 0")

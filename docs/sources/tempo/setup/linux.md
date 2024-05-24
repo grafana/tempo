@@ -114,7 +114,7 @@ storage:
       access_key: # TODO - Add S3 access key
       secret_key: # TODO - Add S3 secret key
     wal:
-      path: /var/tempo/wal         # where to store the the wal locally
+      path: /var/tempo/wal         # where to store the wal locally
     local:
       path: /var/tempo/blocks
 overrides:

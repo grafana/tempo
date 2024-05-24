@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -62,7 +62,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
-func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func autocompleteIter(ctx context.Context, req traceql.FetchTagValuesRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	iter, err := createDistinctIterator(ctx, req.Conditions, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
@@ -598,7 +598,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 		switch e.Key {
 		case "string":
-			val = traceql.NewStaticString(e.Value.String())
+			val = traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		case "int":
 			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
@@ -668,7 +668,7 @@ func mapSpanAttr(e entry) traceql.Static {
 	case columnPathSpanDuration:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathSpanName:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
@@ -685,7 +685,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		}
 		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanKind:
 		var kind traceql.Kind
 		switch e.Value.Uint64() {
@@ -715,7 +715,7 @@ func mapSpanAttr(e entry) traceql.Static {
 		case parquet.Float:
 			return traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
-			return traceql.NewStaticString(e.Value.String())
+			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
 	return traceql.Static{}
@@ -730,7 +730,7 @@ func mapResourceAttr(e entry) traceql.Static {
 	case parquet.Float:
 		return traceql.NewStaticFloat(e.Value.Double())
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
 		return traceql.Static{}
 	}
@@ -742,9 +742,9 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathDurationNanos:
 		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathRootServiceName:
-		return traceql.NewStaticString(e.Value.String())
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
 	return traceql.Static{}
 }

@@ -305,12 +305,6 @@ func (r *receiversShim) starting(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (r *receiversShim) stopping(_ error) error {
-	// when shutdown is called on the receiver it immediately shuts down its connection
-	// which drops requests on the floor. at this point in the shutdown process
-	// the readiness handler is already down so we are not receiving any more requests.
-	// sleep for 30 seconds to here to all pending requests to finish.
-	time.Sleep(30 * time.Second)
-
 	ctx, cancelFn := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFn()
 

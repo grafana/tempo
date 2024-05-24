@@ -91,7 +91,6 @@ func getContainerClient(ctx context.Context, cfg *config.Config, hedge bool) (*c
 		}
 
 		client, err = azblob.NewClient(u.String(), credential, &opts)
-
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +112,6 @@ func getContainerClient(ctx context.Context, cfg *config.Config, hedge bool) (*c
 		}
 
 		client, err = azblob.NewClient(u.String(), credential, &opts)
-
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +123,6 @@ func getContainerClient(ctx context.Context, cfg *config.Config, hedge bool) (*c
 		}
 
 		client, err = azblob.NewClientWithSharedKeyCredential(u.String(), credential, &opts)
-
 		if err != nil {
 			return nil, err
 		}

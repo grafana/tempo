@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -999,8 +998,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 
 func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
 	// nested set queries only supported in 3 or greater
-	if meta.Version == vparquet.VersionString ||
-		meta.Version == vparquet2.VersionString {
+	if meta.Version == vparquet2.VersionString {
 		return
 	}
 
@@ -1377,7 +1375,7 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+			fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 				return bb.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
 			})
 
@@ -1440,11 +1438,15 @@ func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string
 		case *v1_common.AnyValue_StringValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, v.StringValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=`%v`", a.Key, v.StringValue))
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v!=`%v`", scope, a.Key, test.RandomString()))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v!=`%v`", a.Key, test.RandomString()))
 			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, test.RandomString()))
 			falseConditions = append(falseConditions, fmt.Sprintf(".%v=`%v`", a.Key, test.RandomString()))
 		case *v1_common.AnyValue_BoolValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%t", scope, a.Key, v.BoolValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%t", a.Key, v.BoolValue))
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v!=%t", scope, a.Key, !v.BoolValue))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v!=%t", a.Key, !v.BoolValue))
 			// tough to add an always false condition here
 		case *v1_common.AnyValue_IntValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%d", scope, a.Key, v.IntValue))
@@ -1529,7 +1531,9 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 	// Write to wal
 	wal := w.WAL()
-	head, err := wal.NewBlockWithDedicatedColumns(uuid.New(), testTenantID, model.CurrentEncoding, dc)
+
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DedicatedColumns: dc}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -1557,10 +1561,10 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// Complete block
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
-	meta := block.BlockMeta()
+	blockMeta := block.BlockMeta()
 
 	for _, r := range runners {
-		r(t, wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw, block)
+		r(t, wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, blockMeta, rw, block)
 	}
 
 	// todo: do some compaction and then call runner again
@@ -1954,7 +1958,8 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
-	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	// Write to wal
@@ -2012,7 +2017,8 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -2104,7 +2110,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	assert.Equal(t, expected, tagValues.TagValues)
 
 	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](0, func(value tempopb.TagValue) int { return 0 })
-	f := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+	f := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, common.DefaultSearchOptions())
 	})
 

@@ -10,7 +10,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 )
 
 type listColumnCmd struct {
@@ -32,7 +32,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
+	rr := vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	pf, err := parquet.OpenFile(rr, int64(meta.Size))
 	if err != nil {
 		return err

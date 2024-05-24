@@ -58,7 +58,8 @@ func TestRetention(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	complete, err := w.CompleteBlock(context.Background(), head)
@@ -121,7 +122,8 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	blockID := uuid.New()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	complete, err := w.CompleteBlock(ctx, head)

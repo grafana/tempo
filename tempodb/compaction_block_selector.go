@@ -78,25 +78,25 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 			// inside active window.
 			// Group by compaction level and window.
 			// Choose lowest compaction level and most recent windows first.
-			entry.group = fmt.Sprintf("A-%v-%016X", b.CompactionLevel, age)
+			entry.group = fmt.Sprintf("A-%v-%016X-%v", b.CompactionLevel, age, b.ReplicationFactor)
 
 			// Within group choose smallest blocks first.
 			// update after parquet: we want to make sure blocks of the same version end up together
 			// update afert vParquet3: we want to make sure blocks of the same dedicated columns end up together
 			entry.order = fmt.Sprintf("%016X-%v-%016X", entry.meta.TotalObjects, entry.meta.Version, entry.meta.DedicatedColumnsHash())
 
-			entry.hash = fmt.Sprintf("%v-%v-%v", b.TenantID, b.CompactionLevel, w)
+			entry.hash = fmt.Sprintf("%v-%v-%v-%v", b.TenantID, b.CompactionLevel, w, b.ReplicationFactor)
 		} else {
 			// outside active window.
 			// Group by window only.  Choose most recent windows first.
-			entry.group = fmt.Sprintf("B-%016X", age)
+			entry.group = fmt.Sprintf("B-%016X-%v", age, b.ReplicationFactor)
 
 			// Within group chose lowest compaction lvl and smallest blocks first.
 			// update after parquet: we want to make sure blocks of the same version end up together
 			// update afert vParquet3: we want to make sure blocks of the same dedicated columns end up together
 			entry.order = fmt.Sprintf("%v-%016X-%v-%016X", b.CompactionLevel, entry.meta.TotalObjects, entry.meta.Version, entry.meta.DedicatedColumnsHash())
 
-			entry.hash = fmt.Sprintf("%v-%v", b.TenantID, w)
+			entry.hash = fmt.Sprintf("%v-%v-%v", b.TenantID, w, b.ReplicationFactor)
 		}
 
 		twbs.entries = append(twbs.entries, entry)

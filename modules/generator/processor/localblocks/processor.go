@@ -3,6 +3,7 @@ package localblocks
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -577,11 +578,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
 
 	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
-	if immediate {
-		since = time.Time{}
-	}
-
-	tracesToCut := p.liveTraces.CutIdle(since)
+	tracesToCut := p.liveTraces.CutIdle(since, immediate)
 
 	p.liveTracesMtx.Unlock()
 
@@ -634,7 +631,13 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 }
 
 func (p *Processor) resetHeadBlock() error {
-	block, err := p.wal.NewBlockWithDedicatedColumns(uuid.New(), p.tenant, model.CurrentEncoding, p.overrides.DedicatedColumns(p.tenant))
+	meta := &backend.BlockMeta{
+		BlockID:           uuid.New(),
+		TenantID:          p.tenant,
+		DedicatedColumns:  p.overrides.DedicatedColumns(p.tenant),
+		ReplicationFactor: 1,
+	}
+	block, err := p.wal.NewBlock(meta, model.CurrentEncoding)
 	if err != nil {
 		return err
 	}
@@ -718,7 +721,15 @@ func (p *Processor) reloadBlocks() error {
 	for _, id := range ids {
 		meta, err := r.BlockMeta(ctx, id, t)
 
-		if errors.Is(err, backend.ErrDoesNotExist) {
+		var clearBlock bool
+		if err != nil {
+			var vv *json.SyntaxError
+			if errors.Is(err, backend.ErrDoesNotExist) || errors.As(err, &vv) {
+				clearBlock = true
+			}
+		}
+
+		if clearBlock {
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {

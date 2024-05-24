@@ -93,12 +93,12 @@ import (
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
                         IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
-                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
+                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID
                         PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
-                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME
+                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -292,12 +292,14 @@ aggregate:
 // Metrics
 // **********************
 metricsAggregation:
-      RATE            OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
-    | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
-    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
-    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
-    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
+      RATE            OPEN_PARENS CLOSE_PARENS                                                                          { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
+    | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                                { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS                                                                          { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                                { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS                                           { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
     | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
+    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS                                                            { $$ = newMetricsAggregateHistogramOverTime($3, nil) }
+    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                  { $$ = newMetricsAggregateHistogramOverTime($3, $7) }
   ;
 
 // **********************
@@ -391,12 +393,14 @@ scopedIntrinsicField:
     TRACE_COLON IDURATION        { $$ = NewIntrinsic(IntrinsicTraceDuration)       }
   | TRACE_COLON ROOTNAME         { $$ = NewIntrinsic(IntrinsicTraceRootSpan)       }
   | TRACE_COLON ROOTSERVICE      { $$ = NewIntrinsic(IntrinsicTraceRootService)    }
+  | TRACE_COLON ID               { $$ = NewIntrinsic(IntrinsicTraceID)             }
 //  span:
   | SPAN_COLON IDURATION         { $$ = NewIntrinsic(IntrinsicDuration)            }
   | SPAN_COLON NAME              { $$ = NewIntrinsic(IntrinsicName)                }
   | SPAN_COLON KIND              { $$ = NewIntrinsic(IntrinsicKind)                }
   | SPAN_COLON STATUS            { $$ = NewIntrinsic(IntrinsicStatus)              }
   | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
+  | SPAN_COLON ID                { $$ = NewIntrinsic(IntrinsicSpanID)              }
 
 attributeField:
     DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }

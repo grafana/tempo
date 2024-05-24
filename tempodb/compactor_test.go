@@ -126,7 +126,8 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
+		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
@@ -297,7 +298,8 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID, v1.Encoding)
+		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
@@ -659,7 +661,8 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(uuid.New(), tenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	for _, d := range data {
@@ -678,7 +681,8 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		head, err := wal.NewBlock(uuid.New(), tenantID, model.CurrentEncoding)
+		meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: tenantID}
+		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {

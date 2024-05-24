@@ -136,7 +136,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(traceID, 0, 0)
-					page.ids.Set(traceID, match.RowNumber[0]) // Save rownumber for the trace ID
+					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
 		}
@@ -149,13 +149,14 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(id uuid.UUID, tenantID, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns backend.DedicatedColumns) (*walBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
-			Version:          VersionString,
-			BlockID:          id,
-			TenantID:         tenantID,
-			DedicatedColumns: dedicatedColumns,
+			Version:           VersionString,
+			BlockID:           meta.BlockID,
+			TenantID:          meta.TenantID,
+			DedicatedColumns:  meta.DedicatedColumns,
+			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
 		ids:            common.NewIDMap[int64](),
@@ -535,7 +536,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 				return nil, fmt.Errorf("error reading row from backend: %w", err)
 			}
 
-			trp := parquetTraceToTempopbTrace(b.meta, tr)
+			trp := ParquetTraceToTempopbTrace(b.meta, tr)
 
 			trs = append(trs, trp)
 		}
@@ -681,7 +682,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}, nil
 }
 
-func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return fmt.Errorf("conditions invalid: %w", err)
@@ -868,7 +869,7 @@ func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 		return nil, nil, err
 	}
 
-	tr := parquetTraceToTempopbTrace(i.meta, t)
+	tr := ParquetTraceToTempopbTrace(i.meta, t)
 	return id, tr, nil
 }
 

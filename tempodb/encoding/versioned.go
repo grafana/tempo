@@ -6,12 +6,9 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
@@ -50,7 +47,14 @@ type VersionedEncoding interface {
 	OpenWALBlock(filename, path string, ingestionSlack, additionalStartSlack time.Duration) (common.WALBlock, error, error)
 
 	// CreateWALBlock creates a new appendable block for the WAL
-	CreateWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error)
+	// BlockMeta is used as a container for many options. Required fields:
+	// * BlockID
+	// * TenantID
+	// * Encoding
+	// * DataEncoding (of the file - v2)
+	// * DedicatedColumns (vParquet3)
+	// * ReplicationFactor (Optional)
+	CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
 
 	// OwnsWALBlock indicates if this encoding owns the WAL block
 	OwnsWALBlock(entry fs.DirEntry) bool
@@ -61,8 +65,6 @@ func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
 	case v2.VersionString:
 		return v2.Encoding{}, nil
-	case vparquet.VersionString:
-		return vparquet.Encoding{}, nil
 	case vparquet2.VersionString:
 		return vparquet2.Encoding{}, nil
 	case vparquet3.VersionString:
