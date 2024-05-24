@@ -31,7 +31,8 @@ The Tempo configuration options include:
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
   - [Configuration blocks](#configuration-blocks)
-    - [Filter policy config](#filter-policy config)
+    - [Filter policy config](#filter-policy-config)
+    - [KVStore config](#kvstore-config)
     - [WAL config](#wal-config)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
@@ -292,12 +293,36 @@ metrics_generator:
 
     # Ring configuration
     ring:
-
-      kvstore:
-
-        # The metrics-generator uses the ring to balance work across instances. The ring is stored
-        # in a key-vault store.
+      kvstore: <KVStore config>
         [store: <string> | default = memberlist]
+        [prefix: <string> | default = "collectors/"]
+
+      # Period at which to heartbeat the instance
+      # 0 disables heartbeat alltogether
+      [heartbeat_period: <duration> | default = 5s]
+
+      # The heartbeat timeout, after which, the instance is skipped. 
+      # 0 disables timeout.
+      [heartbeat_timeout: <duration> | default = 1m]
+
+      # Our Instance ID to register as in the ring.
+      [instance_id: <string> | default = os.Hostname()]
+
+      # Name of the network interface to read address from.
+      [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
+
+      # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+      # Will default to the configured `instance_id` ip address, 
+      # if unset, will fallback to ip reported by `instance_interface_names`
+      # (Effected by `enable_inet6`)
+      [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
+
+      # Our advertised port in the ring
+      # Defaults to the configured GRPC listing port
+      [instance_port: <int> | default = auto(listen_port)]
+
+      # Enables the registering of ipv6 addresses in the ring.
+      [enable_inet6: <bool> | default = false]
 
     # Processor-specific configuration
     processor:
@@ -691,13 +716,9 @@ compactor:
     [disabled: <bool>]
 
     ring:
-
-        kvstore:
-
-            # in a high volume environment multiple compactors need to work together to keep up with incoming blocks.
-            # this tells the compactors to use a ring stored in memberlist to coordinate.
-            # Example: "store: memberlist"
-            [store: <string>]
+        kvstore: <KVStore config>
+            [store: <string> | default = memberlist]
+            [prefix: <string> | default = "collectors/" ]
 
     compaction:
 
@@ -1301,6 +1322,52 @@ include:
   attributes:
     - key: "foo.bar"
       value: "baz"
+```
+
+### KVStore config
+
+The kvstore configuration block
+
+```yaml
+# Set backing store to use
+[store: <string> | default = "consul"]
+
+# What prefix to use for keys
+[prefix: <string> | default = "ring."]
+
+# Store spesific configs
+consul:
+  [host: <string> | default = "localhost:8500"]
+  [acl_token: <secret string> | default = "" ]
+  [http_client_timeout: <duration> | default = 20s]
+  [consistent_reads: <bool> | default = false]
+  [watch_rate_limit: <float64> | default = 1.0]
+  [watch_burst_size: <int> | default = 1]
+  [cas_retry_delay: <duration> | default 1s]
+
+etcd:
+  [endpoints: <list of string> | default = [] ]
+  [dial_timeout: <duration> | default = 10s]
+  [max_retries: <int> | default = 10 ]
+  [tls_enabled: <bool> | default = false]
+
+  # TLS config
+  [tls_cert_path: <string> | default = ""]
+  [tls_key_path: <string> | default = ""]
+  [tls_ca_path: <string> | default = ""]
+  [tls_server_name: <string> | default = ""]
+  [tls_insecure_skip_verify: <bool> | default = false]
+  [tls_cipher_suites: <string> | default = ""]
+  [tls_min_version: <string> | default = ""]
+
+  [username: <string> | default = ""]
+  [password: <secret string> | default = ""]
+
+multi:
+  [primary: <string> | default = ""]
+  [secondary: <string> | default = ""]
+  [mirror_enabled: <bool> | default = false]
+  [mirror_timeout: <bool> | default = 2s]
 ```
 
 ### WAL config
