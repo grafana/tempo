@@ -212,6 +212,7 @@ func TestReplicationFactor(t *testing.T) {
 			TimeOverlapCutoff: 0.2,
 		},
 		FilterServerSpans: false,
+		FlushToStorage:    true,
 	}
 
 	mockWriter := &mockWriter{}
