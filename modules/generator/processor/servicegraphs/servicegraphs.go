@@ -280,6 +280,7 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 //
 //	if we have a peer.service, use it as the database ServerService
 //	if we have a server.address, use it as the database ServerService
+//	if we have a network.peer.address, use it as the database ServerService.  Include :port if network.peer.port is present
 //	if we have a db.name, use it as the database ServerService, which is the backwards-compatible behavior
 func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_common.KeyValue, span *v1_trace.Span) {
 	var (

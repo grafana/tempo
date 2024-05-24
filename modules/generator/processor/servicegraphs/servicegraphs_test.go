@@ -332,6 +332,17 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			errors: 0.0,
 		},
 		{
+			name:        "withoutDatabaseName",
+			fixturePath: "testdata/trace-without-database-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
 			name:        "semconv118",
 			fixturePath: "testdata/trace-with-queue-database.json",
 			databaseLabels: labels.FromMap(map[string]string{
@@ -365,11 +376,22 @@ func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
 			errors: 0.0,
 		},
 		{
-			name:        "semconv125NetworkPeer",
+			name:        "semconv125NetworkPeerWithPort",
 			fixturePath: "testdata/trace-with-queue-database4.json",
 			databaseLabels: labels.FromMap(map[string]string{
 				"client":          "mythical-server",
 				"server":          "mythical-database:5432",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "semconv125NetworkPeerWithoutPort",
+			fixturePath: "testdata/trace-with-queue-database5.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
 				"connection_type": "database",
 			}),
 			total:  1.0,
