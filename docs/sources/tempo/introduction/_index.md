@@ -2,16 +2,16 @@
 aliases:
   - /docs/tempo/getting-started/traces
   - /docs/tempo/traces
-description: "What are traces?"
+description: "What are traces? Learn about tracing and how you can use them."
 keywords:
   - Grafana
   - traces
   - tracing
-title: What are traces?
+title: Introduction
 weight: 120
 ---
 
-# What are traces?
+# Introduction to traces
 
 A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures.
 Traces let you profile and observe systems, making it easy to discover bottlenecks and interconnection issues.
@@ -60,16 +60,26 @@ A trace can be visualized to give a graphic representation of how long it takes 
 It can show where new requests are initiated and end, and how your system responds.
 This data helps you locate problem areas, often in places you never would have anticipated or found without this ability to trace the request flow.
 
+<!-- What traces provide that logs and metrics don't -->
+{{< youtube id="0tlp7QCPu0k" >}}
+
+## Learn more
+
+For more information about traces, refer to:
+
+* [Traces and telemetry]({{< relref "./telemetry" >}})
+* [User journeys: How tracing can help you]({{< relref "./user-journeys" >}})
+* [Terminology]({{< relref "./terminology" >}})
+
+### Metrics, logs, and traces
+
 Metrics, logs, and traces form the three pillars of observability.
-Metrics provide the health data about the state of a system.
-Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway.
-
-## Traces versus metrics and logs
-
 Each observability signal plays a unique role in providing insights into your systems.
 Metrics act as the high-level indicators of system health.
 They alert you that something is wrong or deviating from the norm.
+
 Logs then help you understand what exactly is going wrong, for example, the nature or cause of the elevated error rates you're seeing in your metrics.
+
 Traces illustrate where in the sequence of events something is going wrong.
 They let you pinpoint which service in the many services that any given request traverses is the source of the delay or the error.
 
@@ -81,54 +91,3 @@ Logs provide a granular view of what exactly is going wrong. For example, there 
 
 <!-- What traces provide that logs and metrics don't -->
 {{< youtube id="0tlp7QCPu0k" >}}
-
-## Tracing versus profiling
-
-Tracing provides an overview of tasks performed by an operation or set of work.
-Profiling provides a code-level view of what was going on.
-Generally, tracing is done at a much higher level specific to one transaction, and profiling is sampled over time, aggregated over many transactions.
-
-The superpower of tracing is seeing how a thing in one program invoked another program.
-
-The superpower of profiling is seeing function-level or line-level detail.
-
-For example, let’s say you want to gather trace data on how long it takes to enter and start a car. The trace would contain multiple spans:
-
-- Walking from the resident to the car
-- Unlocking the car
-- Adjusting the seat
-- Starting the ignition
-
-This trace data is collected every time the car is entered and started.
-You can track variations between each operation that can help pinpoint when issues happen.
-If the driver forgot their keys, then that would show up as an outlying longer duration span.
-In this same example, profiling gives the code stack, in minute detail: get-to-car invoked step-forward, which invoked lift-foot, which invoked contract-muscle, etc.
-This extra detail provides the context that informs the data provided by a trace.
-
-## Terminology
-
-{{< glossary.inline >}}{{ (index (where site.Data.glossary "keys" "intersect" (slice (.Get 0))) 0).value | markdownify }}{{< /glossary.inline >}}
-
-Active series
-: {{< glossary.inline "active series" />}}
-
-Cardinality
-: {{< glossary.inline "cardinality" />}}
-
-Data source
-: {{< glossary.inline "data source" />}}
-
-Exemplar
-: {{< glossary.inline "exemplar" />}}
-
-Log
-: {{< glossary.inline "log" />}}
-
-Metric
-: {{< glossary.inline "metric" />}}
-
-Span
-: {{< glossary.inline "span" />}}
-
-Trace
-: {{< glossary.inline "trace" />}}
