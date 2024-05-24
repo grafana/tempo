@@ -406,15 +406,6 @@ metrics_generator:
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
-            # Subprocessor toggles for metrics categories that exist under the umbrella of span metrics
-            subprocessors:
-              # Toggle the `Latency` metric category
-              [ 0: <bool> | default = true ]
-              # Toggle the `Count` metric category
-              [ 1: <bool> | default = true ]
-              # Toggle the `Size` metric category
-              [ 2: <bool> | default = true ]
-
             # List of policies that will be applied to spans for inclusion or exclusion.
             [filter_policies: <list of filter policies config> | default = []]
 
@@ -455,7 +446,7 @@ metrics_generator:
         path: <string>
 
         # Configuration for the Prometheus Agent WAL
-        # https://github.com/prometheus/prometheus/v2.51.2/tsdb/agent/db.go#L62-L84
+        # https://github.com/prometheus/prometheus/blob/v2.51.2/tsdb/agent/db.go#L62-L84
         wal: <prometeus agent WAL config>
 
         # How long to wait when flushing samples on shutdown
@@ -474,7 +465,7 @@ metrics_generator:
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 
-    # Timeout for generator requests (???)
+    # Timeout for metric requests
     [query_timeout: <duration> | default = 30s ]
 
     # Overides the key used to register the metrics-generator in the ring.
