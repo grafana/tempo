@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
+
 ## v2.5.0-rc.1
 
 * [CHANGE] Update Alpine image version to 3.20 [#3710](https://github.com/grafana/tempo/pull/3710) (@joe-elliott)
