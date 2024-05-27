@@ -31,8 +31,10 @@ The Tempo configuration options include:
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
   - [Configuration blocks](#configuration-blocks)
+    - [Block config](#block-config)
     - [Filter policy config](#filter-policy-config)
     - [KVStore config](#kvstore-config)
+    - [Search config](#search-config)
     - [WAL config](#wal-config)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
@@ -412,6 +414,46 @@ metrics_generator:
             # Drop specific labels from `traces_target_info` metrics
             [target_info_excluded_dimensions: <list of string>]
 
+        local_blocks:
+
+            # Block configuration
+	          block: <Block config>
+
+            # Search configuration
+	          search: <Search config>
+
+            # How often to run flush checks (??)
+	          [flush_check_period: <duration> | default = 10s]
+
+            # After this idle period, a trace is closed. (??)
+	          [trace_idle_period: <duration> | default = 10s]
+
+            # Maximum (???) (lifespan for any given block?)
+	          [max_block_duration: <duration> | default = 1m]
+
+            # Maximum block size before it is closed (?)
+	          [max_block_bytes: <uint64> | default = 500000000]
+
+            # Maximum (???)
+	          [complete_block_timeout: <duration> | default = 1h]
+
+            # (Unused?)
+            # Max number of "live" traces
+	          [max_live_traces: <uint64>]
+
+            # Whether server spans should be filtered in or not.
+            # true means keep the server kinds (???)
+            # false means drop the server kinds (???)
+	          [filter_server_spans: <bool> | default = true]
+
+            # Number of blocks that are allowed to be processed concurently
+	          [concurrent_blocks: <uint> | default = 10]
+
+            # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
+            # If a block overlaps the time window by less than this ratio, then we skip the columns. 
+            # A value of 1.0 will always load the columns, and 0.0 will never load any.
+	          [time_overlap_cutoff: <float64> | default = 0.2]
+
     # Registry configuration
     registry:
 
@@ -432,7 +474,7 @@ metrics_generator:
         [max_label_value_length: <int> | default = 2048]
 
     # Configuration block for the Write Ahead Log (WAL)
-    traces_storage: <WAL Config>
+    traces_storage: <WAL config>
 
       # Path to store the WAL files.
       # Must be set.
@@ -1058,7 +1100,7 @@ storage:
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         [cache: <string>]
 
         # Minimum compaction level of block to qualify for bloom filter caching. Default is 0 (disabled), meaning
@@ -1072,54 +1114,19 @@ storage:
         [cache_max_block_age: <duration>]
 
         # Configuration parameters that impact trace search
-        search:
-
-            # Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
-            # this value could positively impact trace search performance at the cost of more requests
-            # to object storage.
-            # Example: "chunk_size_bytes: 5_000_000"
-            [chunk_size_bytes: <int>]
-
-            # Number of traces to prefetch while scanning blocks. Default is 1000. Increasing this value
-            # can improve trace search performance at the cost of memory.
-            # Example: "prefetch_trace_count: 10000"
-            [prefetch_trace_count: <int>]
-
-            # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
-            # is the total amount of bytes used for buffering when performing search on a parquet block.
-            # Default: 1048576
-            [read_buffer_size_bytes: <int>]
-
-            # Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
-            # is the total amount of bytes used for buffering when performing search on a parquet block.
-            # Default: 32
-            [read_buffer_count: <int>]
-
-            # Granular cache control settings for parquet metadata objects
-            # Deprecated. See [cache](#cache) section below.
-            cache_control:
-
-                # Specifies if footer should be cached
-                [footer: <bool> | default = false]
-
-                # Specifies if column index should be cached
-                [column_index: <bool> | default = false]
-
-                # Specifies if offset index should be cached
-                [offset_index: <bool> | default = false]
-
+        search: <Search config>
 
         # Background cache configuration. Requires having a cache configured.
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         background_cache:
 
         # Memcached caching configuration block
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         memcached:
 
         # Redis configuration block
         # EXPERIMENTAL
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         redis:
 
         # the worker pool is used primarily when finding traces by id, but is also used by other
@@ -1131,51 +1138,15 @@ storage:
             # length of job queue. imporatant for querier as it queues a job for every block it has to search
             [queue_depth: <int> | default = 10000 ]
 
-        # Configuration block for the Write Ahead Log (WAL)
-        wal: <WAL Config>
+        # configuration block for the Write Ahead Log (WAL)
+        wal: <WAL config>
           [path: <string> | default = "/var/tempo/wal"]
           [v2_encoding: <string> | default = snappy]
           [search_encoding: <string> | default = none]
           [ingestion_time_range_slack: <duration> | default = 2m]
 
         # block configuration
-        block:
-            # block format version. options: v2, vParquet2, vParquet3, vParquet4
-            [version: <string> | default = vParquet3]
-
-            # bloom filter false positive rate. lower values create larger filters but fewer false positives
-            [bloom_filter_false_positive: <float> | default = 0.01]
-
-            # maximum size of each bloom filter shard
-            [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
-
-            # number of bytes per index record
-            [v2_index_downsample_bytes: <uint64> | default = 1MiB]
-
-            # block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [v2_encoding: <string> | default = zstd]
-
-            # search data encoding/compression. same options as block encoding.
-            [search_encoding: <string> | default = snappy]
-
-            # number of bytes per search page
-            [search_page_size_bytes: <int> | default = 1MiB]
-
-            # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
-            #  create larger footers but will be harder to shard when searching. It is difficult to calculate
-            #  this field directly and it may vary based on workload. This is roughly a lower bound.
-            [parquet_row_group_size_bytes: <int> | default = 100MB]
-
-            # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
-            # generic attribute key-value list. This allows for more efficient searching of these attributes.
-            # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-            # Requires vParquet3
-            parquet_dedicated_columns:
-                [
-                  name: <string>, # name of the attribute
-                  type: <string>, # type of the attribute. options: string
-                  scope: <string> # scope of the attribute. options: resource, span
-                ]
+        block: <Block config>
 ```
 
 ## Memberlist
@@ -1268,6 +1239,52 @@ memberlist:
 
 Defines re-used configuration blocks.
 
+### Block config
+
+```yaml
+# block format version. options: v2, vParquet2, vParquet3, vParquet4
+[version: <string> | default = vParquet3]
+
+# bloom filter false positive rate. lower values create larger filters but fewer false positives
+[bloom_filter_false_positive: <float> | default = 0.01]
+
+# maximum size of each bloom filter shard
+[bloom_filter_shard_size_bytes: <int> | default = 100KiB]
+
+# number of bytes per index record
+[v2_index_downsample_bytes: <uint64> | default = 1MiB]
+
+# block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+[v2_encoding: <string> | default = zstd]
+
+# search data encoding/compression. same options as block encoding.
+[search_encoding: <string> | default = snappy]
+
+# number of bytes per search page
+[search_page_size_bytes: <int> | default = 1MiB]
+
+# an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
+#  create larger footers but will be harder to shard when searching. It is difficult to calculate
+#  this field directly and it may vary based on workload. This is roughly a lower bound.
+[parquet_row_group_size_bytes: <int> | default = 100MB]
+
+# Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
+# generic attribute key-value list. This allows for more efficient searching of these attributes.
+# Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+# Requires vParquet3
+parquet_dedicated_columns: <list of columns>
+
+      # name of the attribute
+    - [name: <string>]
+
+      # type of the attribute. options: string
+      [type: <string>]
+
+      # scope of the attribute. 
+      # options: resource, span
+      [scope: <string>]
+```
+
 ### Filter policy config
 
 Span filter config block
@@ -1359,6 +1376,40 @@ multi:
   [secondary: <string> | default = ""]
   [mirror_enabled: <bool> | default = false]
   [mirror_timeout: <bool> | default = 2s]
+```
+
+### Search config
+
+```yaml
+# Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
+# this value could positively impact trace search performance at the cost of more requests
+# to object storage.
+[chunk_size_bytes: <uint32> | default = 1000000]
+
+# Number of traces to prefetch while scanning blocks. Default is 1000. Increasing this value
+# can improve trace search performance at the cost of memory.
+[prefetch_trace_count: <int> | default = 1000]
+
+# Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
+# is the total amount of bytes used for buffering when performing search on a parquet block.
+[read_buffer_count: <int> | default = 32]
+
+# Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
+# is the total amount of bytes used for buffering when performing search on a parquet block.
+[read_buffer_size_bytes: <int> | default = 1048576]
+
+# Granular cache control settings for parquet metadata objects
+# Deprecated. See [Cache](#cache) section.
+cache_control:
+
+    # Specifies if footer should be cached
+    [footer: <bool> | default = false]
+
+    # Specifies if column index should be cached
+    [column_index: <bool> | default = false]
+
+    # Specifies if offset index should be cached
+    [offset_index: <bool> | default = false]
 ```
 
 ### WAL config
