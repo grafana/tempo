@@ -873,7 +873,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicEventName: {intrinsicScopeEvent, traceql.TypeString, columnPathEventName}, // Not used in vparquet3, this entry is only used to assign default scope.
+	traceql.IntrinsicEventName: {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
@@ -1514,7 +1514,7 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 		eventIters = append(eventIters, primaryIter)
 	}
 
-	return parquetquery.NewJoinIterator(4, eventIters, &eventCollector{}, parquetquery.WithPool(pqEventPool)), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, eventIters, &eventCollector{}, parquetquery.WithPool(pqEventPool)), nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
