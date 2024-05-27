@@ -417,42 +417,42 @@ metrics_generator:
         local_blocks:
 
             # Block configuration
-	          block: <Block config>
+            block: <Block config>
 
             # Search configuration
-	          search: <Search config>
+            search: <Search config>
 
             # How often to run flush checks (??)
-	          [flush_check_period: <duration> | default = 10s]
+            [flush_check_period: <duration> | default = 10s]
 
             # After this idle period, a trace is closed. (??)
-	          [trace_idle_period: <duration> | default = 10s]
+            [trace_idle_period: <duration> | default = 10s]
 
             # Maximum (???) (lifespan for any given block?)
-	          [max_block_duration: <duration> | default = 1m]
+            [max_block_duration: <duration> | default = 1m]
 
             # Maximum block size before it is closed (?)
-	          [max_block_bytes: <uint64> | default = 500000000]
+            [max_block_bytes: <uint64> | default = 500000000]
 
             # Maximum (???)
-	          [complete_block_timeout: <duration> | default = 1h]
+            [complete_block_timeout: <duration> | default = 1h]
 
             # (Unused?)
             # Max number of "live" traces
-	          [max_live_traces: <uint64>]
+            [max_live_traces: <uint64>]
 
             # Whether server spans should be filtered in or not.
             # true means keep the server kinds (???)
             # false means drop the server kinds (???)
-	          [filter_server_spans: <bool> | default = true]
+            [filter_server_spans: <bool> | default = true]
 
             # Number of blocks that are allowed to be processed concurently
-	          [concurrent_blocks: <uint> | default = 10]
+            [concurrent_blocks: <uint> | default = 10]
 
             # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
             # If a block overlaps the time window by less than this ratio, then we skip the columns. 
             # A value of 1.0 will always load the columns, and 0.0 will never load any.
-	          [time_overlap_cutoff: <float64> | default = 0.2]
+            [time_overlap_cutoff: <float64> | default = 0.2]
 
     # Registry configuration
     registry:
