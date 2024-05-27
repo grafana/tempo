@@ -780,6 +780,11 @@ func checkConditions(conditions []traceql.Condition) error {
 			return fmt.Errorf("unknown operation. condition: %+v", cond)
 		}
 
+		// Check for conditions that are not supported in vParquet2
+		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName {
+			return fmt.Errorf("intrinsic not supported in vParquet2 '%v'", cond.Attribute.String())
+		}
+
 		// Verify all operands are of the same type
 		if opCount == 0 {
 			continue
