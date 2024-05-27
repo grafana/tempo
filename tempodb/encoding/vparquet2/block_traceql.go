@@ -782,7 +782,10 @@ func checkConditions(conditions []traceql.Condition) error {
 
 		// Check for conditions that are not supported in vParquet2
 		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName {
-			return fmt.Errorf("intrinsic not supported in vParquet2 '%v'", cond.Attribute.String())
+			return fmt.Errorf("intrinsic '%s' not supported in vParquet2: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
+		}
+		if cond.Attribute.Scope == traceql.AttributeScopeEvent {
+			return fmt.Errorf("scope '%s' not supported in vParquet2: %w", cond.Attribute.Scope, common.ErrUnsupported)
 		}
 
 		// Verify all operands are of the same type
