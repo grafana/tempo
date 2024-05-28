@@ -805,6 +805,7 @@ const (
 	// a fake intrinsic scope at the trace lvl
 	intrinsicScopeTrace = -1
 	intrinsicScopeSpan  = -2
+	intrinsicScopeEvent = -3
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -833,6 +834,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
+	traceql.IntrinsicEventName:    {intrinsicScopeEvent, traceql.TypeNil, ""}, // Not used in vparquet3, this entry is only used to assign default scope.
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not used in vparquet3, this entry is only used to assign default scope.
 }
 
@@ -917,6 +919,14 @@ func checkConditions(conditions []traceql.Condition) error {
 
 		default:
 			return fmt.Errorf("unknown operation. condition: %+v", cond)
+		}
+
+		// Check for conditions that are not supported in vParquet3
+		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName {
+			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
+		}
+		if cond.Attribute.Scope == traceql.AttributeScopeEvent {
+			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, common.ErrUnsupported)
 		}
 
 		// Verify all operands are of the same type

@@ -20,7 +20,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return errors.Wrap(err, "conditions invalid")
 	}
 
-	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	mingledConditions, _, _, _, _, err := categorizeConditions(req.Conditions)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func createDistinctIterator(
 	dc backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
 	// categorizeConditions conditions into span-level or resource-level
-	_, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	_, spanConditions, resourceConditions, traceConditions, _, err := categorizeConditions(conds)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func createDistinctSpanIterator(
 
 	// TODO: Potentially problematic when wanted attribute is also part of a condition
 	//     e.g. { span.foo =~ ".*" && span.foo = }
-	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
 		} else {
@@ -432,7 +432,7 @@ func createDistinctResourceIterator(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
 		} else {
