@@ -31,6 +31,7 @@ var (
 	pqSpansetPool = parquetquery.NewResultPool(1)
 	pqTracePool   = parquetquery.NewResultPool(1)
 	pqAttrPool    = parquetquery.NewResultPool(1)
+	pqEventPool   = parquetquery.NewResultPool(1)
 )
 
 type attrVal struct {
@@ -43,6 +44,7 @@ type span struct {
 	spanAttrs     []attrVal
 	resourceAttrs []attrVal
 	traceAttrs    []attrVal
+	eventAttrs    []attrVal
 
 	id                 []byte
 	startTimeUnixNanos uint64
@@ -58,7 +60,7 @@ type span struct {
 }
 
 func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
-	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs))
+	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs)+len(s.eventAttrs))
 	for _, st := range s.traceAttrs {
 		if st.s.Type == traceql.TypeNil {
 			continue
@@ -72,6 +74,12 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 		atts[st.a] = st.s
 	}
 	for _, st := range s.spanAttrs {
+		if st.s.Type == traceql.TypeNil {
+			continue
+		}
+		atts[st.a] = st.s
+	}
+	for _, st := range s.eventAttrs {
 		if st.s.Type == traceql.TypeNil {
 			continue
 		}
@@ -140,6 +148,13 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		return traceql.Static{}, false
 	}
 
+	if a.Scope == traceql.AttributeScopeEvent {
+		if attr := find(a, s.eventAttrs); attr != nil {
+			return *attr, true
+		}
+		return traceql.Static{}, false
+	}
+
 	if a.Intrinsic != traceql.IntrinsicNone {
 		if a.Intrinsic == traceql.IntrinsicNestedSetLeft {
 			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetLeft)}, true
@@ -151,7 +166,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetParent)}, true
 		}
 
-		// intrinsics are always on the span or trace ... for now
+		// intrinsics are always on the span, trace, or event ... for now
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
@@ -159,15 +174,23 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.traceAttrs); attr != nil {
 			return *attr, true
 		}
+
+		if attr := find(a, s.eventAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	// name search in span and then resource to give precedence to span
+	// name search in span, resource, and event to give precedence to span
 	// we don't need to do a name search at the trace level b/c it is intrinsics only
 	if attr := findName(a.Name, s.spanAttrs); attr != nil {
 		return *attr, true
 	}
 
 	if attr := findName(a.Name, s.resourceAttrs); attr != nil {
+		return *attr, true
+	}
+
+	if attr := findName(a.Name, s.eventAttrs); attr != nil {
 		return *attr, true
 	}
 
@@ -186,7 +209,7 @@ func (s *span) DurationNanos() uint64 {
 	return s.durationNanos
 }
 
-func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 && len(rhs) == 0 {
 		return nil
 	}
@@ -206,7 +229,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 	}
 	sort.Slice(lhs, sortFn)
 
-	descendantOf := func(a *span, b *span) bool {
+	descendantOf := func(a, b *span) bool {
 		if a.nestedSetLeft == 0 ||
 			b.nestedSetLeft == 0 ||
 			a.nestedSetRight == 0 ||
@@ -260,7 +283,7 @@ func (s *span) DescendantOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll 
 //   - at this point rSpan has the narrowest span (the leaf span) of the branch
 //   - iterate the lhs as long as its in the same branch as rSpan checking for ancestors
 //   - go back to rhs iteration and repeat until slices are exhausted
-func descendantOfUnion(lhs []traceql.Span, rhs []traceql.Span, invert bool, buffer []traceql.Span) []traceql.Span {
+func descendantOfUnion(lhs, rhs []traceql.Span, invert bool, buffer []traceql.Span) []traceql.Span {
 	// union is harder b/c we have to find all matches on both the left and rhs
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
 	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
@@ -338,7 +361,7 @@ func descendantOfUnion(lhs []traceql.Span, rhs []traceql.Span, invert bool, buff
 }
 
 // SiblingOf
-func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, union bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) SiblingOf(lhs, rhs []traceql.Span, falseForAll, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 && len(rhs) == 0 {
 		return nil
 	}
@@ -350,7 +373,7 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 			sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
 		}
 
-		siblingOf := func(a *span, b *span) bool {
+		siblingOf := func(a, b *span) bool {
 			return a.nestedSetParent == b.nestedSetParent &&
 				a.nestedSetParent != 0 &&
 				b.nestedSetParent != 0 &&
@@ -358,7 +381,7 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 		}
 
 		isValid := func(s *span) bool { return s.nestedSetParent != 0 }
-		isAfter := func(a *span, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
+		isAfter := func(a, b *span) bool { return b.nestedSetParent > a.nestedSetParent }
 
 		return nestedSetManyManyLoop(lhs, rhs, isValid, siblingOf, isAfter, falseForAll, false, union, buffer)
 	}
@@ -368,7 +391,7 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 		return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent
 	})
 
-	siblingOf := func(a *span, b *span) bool {
+	siblingOf := func(a, b *span) bool {
 		return a.nestedSetParent == b.nestedSetParent &&
 			a.nestedSetParent != 0 &&
 			b.nestedSetParent != 0
@@ -406,19 +429,19 @@ func (s *span) SiblingOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll boo
 }
 
 // {} > {}
-func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool, invert bool, union bool, buffer []traceql.Span) []traceql.Span {
+func (s *span) ChildOf(lhs, rhs []traceql.Span, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	if len(lhs) == 0 && len(rhs) == 0 {
 		return nil
 	}
 
 	if union {
-		childOf := func(p *span, c *span) bool {
+		childOf := func(p, c *span) bool {
 			return p.nestedSetLeft == c.nestedSetParent &&
 				p.nestedSetLeft != 0 &&
 				c.nestedSetParent != 0
 		}
 		isValid := func(s *span) bool { return s.nestedSetLeft != 0 }
-		isAfter := func(p *span, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
+		isAfter := func(p, c *span) bool { return c.nestedSetParent > p.nestedSetLeft }
 
 		// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
 		// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
@@ -445,7 +468,7 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 		sortFn = func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent }
 	}
 
-	childOf := func(a *span, b *span) bool {
+	childOf := func(a, b *span) bool {
 		return a.nestedSetLeft == b.nestedSetParent &&
 			a.nestedSetLeft != 0 &&
 			b.nestedSetParent != 0
@@ -479,7 +502,7 @@ func (s *span) ChildOf(lhs []traceql.Span, rhs []traceql.Span, falseForAll bool,
 
 // nestedSetOneManyLoop runs a standard one -> many loop to calculate nested set relationships. It handles all nested set relationships except
 // siblingOf and unioned descendantOf. It forward iterates the one and many slices and applies.
-func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+func nestedSetOneManyLoop(one, many []traceql.Span, isValid func(*span) bool, isMatch, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	var uniqueSpans map[*span]struct{}
 	if union {
 		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
@@ -576,7 +599,7 @@ func nestedSetOneManyLoop(one []traceql.Span, many []traceql.Span, isValid func(
 
 // nestedSetManyManyLoop handles the generic case when the lhs must be checked multiple times for each rhs. it is currently only
 // used for siblingOf
-func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(*span) bool, isMatch func(*span, *span) bool, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
+func nestedSetManyManyLoop(lhs, rhs []traceql.Span, isValid func(*span) bool, isMatch, isAfter func(*span, *span) bool, falseForAll, invert, union bool, buffer []traceql.Span) []traceql.Span {
 	var uniqueSpans map[*span]struct{}
 	if union {
 		uniqueSpans = make(map[*span]struct{}) // todo: consider a reusable map, like our buffer slice
@@ -646,6 +669,10 @@ func (s *span) setTraceAttrs(attrs []attrVal) {
 	s.traceAttrs = append(s.traceAttrs, attrs...)
 }
 
+func (s *span) setEventAttrs(attrs []attrVal) {
+	s.eventAttrs = append(s.eventAttrs, attrs...)
+}
+
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {
 	count := 0
@@ -661,6 +688,11 @@ func (s *span) attributesMatched() int {
 		}
 	}
 	for _, st := range s.traceAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+		}
+	}
+	for _, st := range s.eventAttrs {
 		if st.s.Type != traceql.TypeNil {
 			count++
 		}
@@ -708,6 +740,7 @@ func putSpan(s *span) {
 	s.spanAttrs = s.spanAttrs[:0]
 	s.resourceAttrs = s.resourceAttrs[:0]
 	s.traceAttrs = s.traceAttrs[:0]
+	s.eventAttrs = s.eventAttrs[:0]
 
 	spanPool.Put(s)
 }
@@ -802,13 +835,16 @@ const (
 	columnPathSpanNestedSetLeft  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
 	columnPathSpanNestedSetRight = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
 	columnPathSpanParentID       = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
+	columnPathEventName          = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
 
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
+	otherEntryEventKey   = "event"
 
 	// a fake intrinsic scope at the trace lvl
 	intrinsicScopeTrace = -1
 	intrinsicScopeSpan  = -2
+	intrinsicScopeEvent = -3
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -836,6 +872,8 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceDuration:    {intrinsicScopeTrace, traceql.TypeString, columnPathDurationNanos},
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
+
+	traceql.IntrinsicEventName: {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
@@ -1356,7 +1394,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 }
 
 // categorizeConditions conditions into span, resource, and trace level.
-func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanConditions, resourceConditions, traceConditions []traceql.Condition, err error) {
+func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanConditions, resourceConditions, traceConditions, eventConditions []traceql.Condition, err error) {
 	for _, cond := range conditions {
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
@@ -1382,22 +1420,26 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
+		case traceql.AttributeScopeEvent, intrinsicScopeEvent:
+			eventConditions = append(eventConditions, cond)
+			continue
+
 		case intrinsicScopeTrace:
 			traceConditions = append(traceConditions, cond)
 			continue
 
 		default:
-			return false, nil, nil, nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
+			return false, nil, nil, nil, nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
 		}
 	}
-	return mingled, spanConditions, resourceConditions, traceConditions, nil
+	return mingled, spanConditions, resourceConditions, traceConditions, eventConditions, nil
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64,
 	shardID, shardCount uint32, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
 	// categorizeConditions conditions into span-level or resource-level
-	mingledConditions, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	mingledConditions, spanConditions, resourceConditions, traceConditions, eventConditions, err := categorizeConditions(conds)
 	if err != nil {
 		return nil, err
 	}
@@ -1432,7 +1474,12 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dc)
+	eventIter, err := createEventIterator(makeIter, primaryIter, eventConditions)
+	if err != nil {
+		return nil, fmt.Errorf("creating event iterator: %w", err)
+	}
+
+	spanIter, err := createSpanIterator(makeIter, eventIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dc)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
@@ -1443,6 +1490,31 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	}
 
 	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, shardID, shardCount, allConditions)
+}
+
+func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+	if len(conditions) == 0 {
+		return primaryIter, nil
+	}
+
+	eventIters := make([]parquetquery.Iterator, 0, len(conditions))
+
+	for _, cond := range conditions {
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicEventName:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
+		}
+	}
+
+	if primaryIter != nil {
+		eventIters = append(eventIters, primaryIter)
+	}
+
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, eventIters, &eventCollector{}, parquetquery.WithPool(pqEventPool)), nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -2218,8 +2290,12 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	for _, e := range res.OtherEntries {
-		if v, ok := e.Value.(traceql.Static); ok {
+		switch v := e.Value.(type) {
+		case traceql.Static:
 			sp.addSpanAttr(newSpanAttr(e.Key), v)
+		case *event:
+			sp.setEventAttrs(v.attrs)
+			putEvent(v)
 		}
 	}
 
@@ -2569,6 +2645,67 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(key, val)
+
+	return true
+}
+
+type event struct {
+	attrs []attrVal
+}
+
+var eventPool = sync.Pool{
+	New: func() interface{} {
+		return &event{}
+	},
+}
+
+func putEvent(s *event) {
+	s.attrs = s.attrs[:0]
+	eventPool.Put(s)
+}
+
+func getEvent() *event {
+	return eventPool.Get().(*event)
+}
+
+// attributeCollector receives rows from the event columns and joins them together into
+// map[key]value entries with the right type.
+type eventCollector struct{}
+
+var _ parquetquery.GroupPredicate = (*eventCollector)(nil)
+
+func (c *eventCollector) String() string {
+	return "eventCollector{}"
+}
+
+func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	var ev *event
+
+	// look for existing event first
+	for _, e := range res.OtherEntries {
+		if v, ok := e.Value.(*event); ok {
+			ev = v
+			break
+		}
+	}
+
+	// if not found create a new one
+	if ev == nil {
+		ev = getEvent()
+	}
+
+	for _, e := range res.Entries {
+		switch e.Key {
+		case columnPathEventName:
+			ev.attrs = append(ev.attrs, attrVal{
+				a: traceql.NewIntrinsic(traceql.IntrinsicEventName),
+				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
+			})
+		}
+	}
+
+	res.Reset()
+	res.AppendOtherValue(otherEntryEventKey, ev)
 
 	return true
 }
