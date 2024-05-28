@@ -147,7 +147,8 @@ func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*ba
 	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
-			m.EndTime.Unix() >= start {
+			m.EndTime.Unix() >= start &&
+			m.ReplicationFactor != 1 { // TODO: hacky
 			metas = append(metas, m)
 		}
 	}

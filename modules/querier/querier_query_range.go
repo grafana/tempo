@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -22,6 +23,10 @@ import (
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	if req.QueryMode == QueryModeRecent {
 		return q.queryRangeRecent(ctx, req)
+	}
+
+	if req.ShardCount == 0 { // RF1 search
+		return q.queryBlock(ctx, req)
 	}
 
 	// Backend requests go here
@@ -57,6 +62,84 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	}
 
 	return c.Response(), nil
+}
+
+func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
+	}
+
+	blockID, err := uuid.Parse(req.BlockID)
+	if err != nil {
+		return nil, err
+	}
+
+	enc, err := backend.ParseEncoding(req.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
+	if err != nil {
+		return nil, err
+	}
+
+	meta := &backend.BlockMeta{
+		Version:   req.Version,
+		TenantID:  tenantID,
+		StartTime: time.Unix(0, int64(req.Start)),
+		EndTime:   time.Unix(0, int64(req.End)),
+		Encoding:  enc,
+		// IndexPageSize:    req.IndexPageSize,
+		// TotalRecords:     req.TotalRecords,
+		BlockID: blockID,
+		// DataEncoding:     req.DataEncoding,
+		Size:             req.Size_,
+		FooterSize:       req.FooterSize,
+		DedicatedColumns: dc,
+	}
+
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
+
+	unsafe := q.limits.UnsafeQueryHints(tenantID)
+
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	timeOverlapCutoff := q.cfg.Metrics.TimeOverlapCutoff
+	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
+		timeOverlapCutoff = v
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
+	if err != nil {
+		return nil, err
+	}
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return q.store.Fetch(ctx, meta, req, opts)
+	})
+	err = eval.Do(ctx, f, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	res := eval.Results()
+
+	inspectedBytes, spansTotal, _ := eval.Metrics()
+
+	return &tempopb.QueryRangeResponse{
+		Series: queryRangeTraceQLToProto(res, req),
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBytes: inspectedBytes,
+			InspectedSpans: spansTotal,
+		},
+	}, nil
 }
 
 func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {

@@ -573,7 +573,7 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd
 		return false
 	}
 
-	return true
+	return b.ReplicationFactor == 0 // TODO: hacky
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search

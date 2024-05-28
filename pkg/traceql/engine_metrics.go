@@ -591,6 +591,10 @@ func optimize(req *FetchSpansRequest) {
 			req.SecondPassConditions = nil
 		}
 	}
+
+	if len(req.SecondPassConditions) == 0 {
+		req.SecondPass = nil
+	}
 }
 
 func lookup(needles []Attribute, haystack Span) Static {
