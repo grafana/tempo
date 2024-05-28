@@ -381,7 +381,7 @@ func (g *GroupingAggregator[FV]) Observe(span Span) {
 func (g *GroupingAggregator[FV]) labelsFor(vals FV) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
-		if Static(vals[i]).Type == TypeNil {
+		if vals[i].Type == TypeNil {
 			continue
 		}
 		labels = append(labels, Label{g.by[i].String(), vals[i]})
