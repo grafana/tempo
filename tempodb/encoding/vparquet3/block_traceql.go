@@ -79,6 +79,18 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	return atts
 }
 
+func (s *span) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
+	for _, a := range s.traceAttrs {
+		cb(a.a, a.s)
+	}
+	for _, a := range s.resourceAttrs {
+		cb(a.a, a.s)
+	}
+	for _, a := range s.spanAttrs {
+		cb(a.a, a.s)
+	}
+}
+
 func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	find := func(a traceql.Attribute, attrs []attrVal) *traceql.Static {
 		if len(attrs) == 1 {

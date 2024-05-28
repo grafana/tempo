@@ -176,14 +176,13 @@ func NewGroupByEachAggregator(prefix Labels, topN int, innerAgg func() RangeAggr
 }
 
 func (g *GroupByEach) Observe(span Span) {
-	m := span.AllAttributes()
-	for a, v := range m {
+	span.AllAttributesFunc(func(a Attribute, v Static) {
 		// These attributes get pulled back by select all but we never
 		// group by them because I say so.
 		// TODO - can we check type instead?
 		switch a {
 		case IntrinsicSpanStartTimeAttribute, IntrinsicDurationAttribute:
-			continue
+			return
 		}
 
 		attrSeries, ok := g.series[a]
@@ -199,7 +198,7 @@ func (g *GroupByEach) Observe(span Span) {
 		}
 
 		agg.Observe(span)
-	}
+	})
 }
 
 func (g *GroupByEach) Series() SeriesSet {
