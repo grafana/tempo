@@ -18,7 +18,7 @@ TraceQL language provides metrics queries as an experimental feature.
 Metric queries extend trace queries by applying a function to trace query results.
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
-For more information about available queries, refer to [TraceQL metrics queries]({{< relref "../traceql/metrics-queries/" >}}).
+For more information about available queries, refer to [TraceQL metrics queries]({{< relref "../traceql/metrics-queries" >}}).
 
 ## Before you begin
 
