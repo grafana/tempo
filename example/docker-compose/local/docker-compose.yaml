@@ -29,7 +29,7 @@ services:
       - init
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:latest
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=tempo:4317
     restart: always

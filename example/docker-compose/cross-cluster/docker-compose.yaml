@@ -151,7 +151,7 @@ services:
       - mkdir -p /data/tempo && minio server /data --console-address ':9001'
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=distributor-a:4317
     restart: always
