@@ -241,6 +241,7 @@ const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 // the maximum number of values.
 
 type (
+	FastValues1 [1]Static
 	FastValues2 [2]Static
 	FastValues3 [3]Static
 	FastValues4 [4]Static
@@ -248,7 +249,7 @@ type (
 )
 
 // GroupingAggregator groups spans into series based on attribute values.
-type GroupingAggregator[FV FastValues2 | FastValues3 | FastValues4 | FastValues5] struct {
+type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5] struct {
 	// Config
 	by          []Attribute               // Original attributes: .foo
 	byLookups   [][]Attribute             // Lookups: span.foo resource.foo
@@ -287,21 +288,28 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 		}
 	}
 
-	switch len(lookups) {
+	aggNum := len(lookups)
+	if byFunc != nil {
+		aggNum++
+	}
+
+	switch aggNum {
 	case 1:
-		return newGroupingAggregator[FastValues2](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastValues1](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 2:
-		return newGroupingAggregator[FastValues3](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastValues2](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 3:
-		return newGroupingAggregator[FastValues4](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastValues3](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 4:
+		return newGroupingAggregator[FastValues4](innerAgg, by, byFunc, byFuncLabel, lookups)
+	case 5:
 		return newGroupingAggregator[FastValues5](innerAgg, by, byFunc, byFuncLabel, lookups)
 	default:
 		panic("unsupported number of group-bys")
 	}
 }
 
-func newGroupingAggregator[FV FastValues2 | FastValues3 | FastValues4 | FastValues5](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
+func newGroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
 	return &GroupingAggregator[FV]{
 		series:      map[FV]RangeAggregator{},
 		by:          by,
