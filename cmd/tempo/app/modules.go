@@ -263,6 +263,12 @@ func (t *App) initIngester() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
+	if t.cfg.Target == MetricsGenerator &&
+		t.cfg.StorageConfig.Trace.Backend != "" &&
+		t.cfg.Generator.Processor.LocalBlocks.FlushToStorage {
+		return nil, fmt.Errorf("generator.processor.local-blocks.flush-to-storage is enabled but no storage backend is configured")
+	}
+
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
@@ -441,11 +447,6 @@ func (t *App) initOptionalStore() (services.Service, error) {
 	// Used by the local-blocs processor to flush RF1 blocks to storage.
 	// Only initialize if it's configured.
 	if t.cfg.StorageConfig.Trace.Backend == "" {
-
-		if t.cfg.Target == MetricsGenerator && t.cfg.Generator.Processor.LocalBlocks.FlushToStorage {
-			return nil, fmt.Errorf("generator.processor.local-blocks.flush-to-storage is enabled but no storage backend is configured")
-		}
-
 		return services.NewIdleService(nil, nil), nil
 	}
 
