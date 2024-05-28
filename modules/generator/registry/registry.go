@@ -101,6 +101,10 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	hostname, _ := os.Hostname()
 	externalLabels["__metrics_gen_instance"] = hostname
 
+	if cfg.InjectTenantIDAs != "" {
+		externalLabels[cfg.InjectTenantIDAs] = tenant
+	}
+
 	r := &ManagedRegistry{
 		onShutdown: cancel,
 

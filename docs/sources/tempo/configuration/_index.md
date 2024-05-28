@@ -384,6 +384,9 @@ metrics_generator:
         # A list of labels that will be added to all generated metrics.
         [external_labels: <map>]
 
+        # If set, the tenant ID will added as label with the given label name to all generated metrics.
+        [inject_tenant_id_as: <string>]
+
         # The maximum length of label names. Label names exceeding this limit will be truncated.
         [max_label_name_length: <int> | default = 1024]
 
