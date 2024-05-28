@@ -91,6 +91,8 @@ type Client struct {
 	// default to Auto.
 	lookup BucketLookupType
 
+	mode UseDualStack
+
 	// Factory for MD5 hash functions.
 	md5Hasher    func() md5simd.Hasher
 	sha256Hasher func() md5simd.Hasher
@@ -108,6 +110,7 @@ type Options struct {
 	Trace        *httptrace.ClientTrace
 	Region       string
 	BucketLookup BucketLookupType
+	UseDualStack UseDualStack
 
 	// Allows setting a custom region lookup based on URL pattern
 	// not all URL patterns are covered by this library so if you
@@ -141,6 +144,7 @@ const (
 
 // BucketLookupType is type of url lookup supported by server.
 type BucketLookupType int
+type UseDualStack bool
 
 // Different types of url lookup supported by the server.Initialized to BucketLookupAuto
 const (
@@ -270,6 +274,8 @@ func privateNew(endpoint string, opts *Options) (*Client, error) {
 	// Sets bucket lookup style, whether server accepts DNS or Path lookup. Default is Auto - determined
 	// by the SDK. When Auto is specified, DNS lookup is used for Amazon/Google cloud endpoints and Path for all other endpoints.
 	clnt.lookup = opts.BucketLookup
+
+	clnt.mode = opts.UseDualStack
 
 	// healthcheck is not initialized
 	clnt.healthStatus = unknown
