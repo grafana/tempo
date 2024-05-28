@@ -714,8 +714,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		//blockID = uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
-		//path    = "/Users/joe/testblock/"
+		// blockID = uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
+		// path    = "/Users/joe/testblock/"
 		path = "/Users/mapno/workspace/testblock"
 	)
 

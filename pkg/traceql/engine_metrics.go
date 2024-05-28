@@ -240,11 +240,13 @@ const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 // collisions).  However, it means we have to arbitrarily set an upper limit on
 // the maximum number of values.
 
-type FastValues1 [1]Static
-type FastValues2 [2]Static
-type FastValues3 [3]Static
-type FastValues4 [4]Static
-type FastValues5 [5]Static
+type (
+	FastValues1 [1]Static
+	FastValues2 [2]Static
+	FastValues3 [3]Static
+	FastValues4 [4]Static
+	FastValues5 [5]Static
+)
 
 // GroupingAggregator groups spans into series based on attribute values.
 type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5] struct {
