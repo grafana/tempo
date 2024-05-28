@@ -655,6 +655,7 @@ storage:
             hedge_requests_up_to: 2
             signature_v2: false
             forcepathstyle: false
+            enabledualstack: false
             bucket_lookup_type: 0
             tags: {}
             storage_class: ""
@@ -736,6 +737,7 @@ overrides:
                 hedge_requests_up_to: 2
                 signature_v2: false
                 forcepathstyle: false
+                enabledualstack: false
                 bucket_lookup_type: 0
                 tags: {}
                 storage_class: ""

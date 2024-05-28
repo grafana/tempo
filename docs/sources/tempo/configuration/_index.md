@@ -873,6 +873,10 @@ storage:
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
 
+            # optional.
+            # enable to use dualstack endpoint for DNS resolution.
+            [enabledualstack: <bool>]
+
             # Optional. Default is 0
             # Example: "bucket_lookup_type: 0"
             # options: 0: BucketLookupAuto, 1: BucketLookupDNS, 2: BucketLookupPath

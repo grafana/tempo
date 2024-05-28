@@ -109,6 +109,7 @@ storage:
       endpoint: s3.us-east-1.amazonaws.com
       bucket: grafana-traces-data
       forcepathstyle: true
+      enabledualstack: false
       # set to false if endpoint is https
       insecure: true
       access_key: # TODO - Add S3 access key

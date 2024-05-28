@@ -27,6 +27,7 @@ type Config struct {
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
 	SignatureV2      bool              `yaml:"signature_v2"`
 	ForcePathStyle   bool              `yaml:"forcepathstyle"`
+	UseDualStack     bool              `yaml:"enabledualstack"`
 	BucketLookupType int               `yaml:"bucket_lookup_type"`
 	Tags             map[string]string `yaml:"tags"`
 	StorageClass     string            `yaml:"storage_class"`

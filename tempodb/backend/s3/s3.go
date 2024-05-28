@@ -20,6 +20,7 @@ import (
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/minio/minio-go/v7"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
@@ -658,6 +659,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		opts.BucketLookup = minio.BucketLookupPath
 	} else {
 		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
+	}
+
+	if cfg.UseDualStack {
+		opts.UseDualStack = cfg.UseDualStack
 	}
 
 	return minio.NewCore(cfg.Endpoint, opts)
