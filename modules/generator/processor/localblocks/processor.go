@@ -10,9 +10,13 @@ import (
 	"sync"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/pkg/flushqueues"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/atomic"
 
@@ -41,6 +45,7 @@ type ProcessorOverrides interface {
 
 type Processor struct {
 	tenant    string
+	logger    kitlog.Logger
 	Cfg       Config
 	wal       *wal.WAL
 	closeCh   chan struct{}
@@ -53,17 +58,21 @@ type Processor struct {
 	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
 	walBlocks      map[uuid.UUID]common.WALBlock
-	completeBlocks map[uuid.UUID]common.BackendBlock
+	completeBlocks map[uuid.UUID]*ingester.LocalBlock
 	lastCutTime    time.Time
+
+	flushqueue *flushqueues.PriorityQueue
 
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
 	traceSizes    *traceSizes
+
+	writer tempodb.Writer
 }
 
 var _ gen.Processor = (*Processor)(nil)
 
-func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) (p *Processor, err error) {
+func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrides ProcessorOverrides) (p *Processor, err error) {
 	if wal == nil {
 		return nil, errors.New("local blocks processor requires traces wal")
 	}
@@ -77,18 +86,21 @@ func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) 
 	}
 
 	p = &Processor{
-		Cfg:            cfg,
 		tenant:         tenant,
+		logger:         log.WithUserID(tenant, log.Logger),
+		Cfg:            cfg,
 		wal:            wal,
 		overrides:      overrides,
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
-		completeBlocks: map[uuid.UUID]common.BackendBlock{},
+		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
+		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
 		liveTraces:     newLiveTraces(),
 		traceSizes:     newTraceSizes(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
+		writer:         writer,
 	}
 
 	err = p.reloadBlocks()
@@ -97,10 +109,15 @@ func New(cfg Config, tenant string, wal *wal.WAL, overrides ProcessorOverrides) 
 	}
 
 	p.wg.Add(4)
-	go p.flushLoop()
-	go p.deleteLoop()
+	go p.cutLoop()
 	go p.completeLoop()
+	go p.deleteLoop()
 	go p.metricLoop()
+
+	if p.writer != nil && p.Cfg.FlushToStorage {
+		p.wg.Add(1)
+		go p.flushLoop()
+	}
 
 	return p, nil
 }
@@ -165,16 +182,16 @@ func (p *Processor) Shutdown(context.Context) {
 	// Immediately cut all traces from memory
 	err := p.cutIdleTraces(true)
 	if err != nil {
-		level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
+		level.Error(p.logger).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
 	}
 
 	err = p.cutBlocks(true)
 	if err != nil {
-		level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut head block on shutdown", "err", err)
+		level.Error(p.logger).Log("msg", "local blocks processor failed to cut head block on shutdown", "err", err)
 	}
 }
 
-func (p *Processor) flushLoop() {
+func (p *Processor) cutLoop() {
 	defer p.wg.Done()
 
 	flushTicker := time.NewTicker(p.Cfg.FlushCheckPeriod)
@@ -185,12 +202,12 @@ func (p *Processor) flushLoop() {
 		case <-flushTicker.C:
 			err := p.cutIdleTraces(false)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
 			}
 
 			err = p.cutBlocks(false)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut head block", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to cut head block", "err", err)
 			}
 
 		case <-p.closeCh:
@@ -210,7 +227,7 @@ func (p *Processor) deleteLoop() {
 		case <-ticker.C:
 			err := p.deleteOldBlocks()
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to delete old blocks", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to delete old blocks", "err", err)
 			}
 
 		case <-p.closeCh:
@@ -230,11 +247,41 @@ func (p *Processor) completeLoop() {
 		case <-ticker.C:
 			err := p.completeBlock()
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to complete a block", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to complete a block", "err", err)
 			}
 
 		case <-p.closeCh:
 			return
+		}
+	}
+}
+
+func (p *Processor) flushLoop() {
+	defer p.wg.Done()
+
+	go func() {
+		<-p.closeCh
+		p.flushqueue.Close()
+	}()
+
+	for {
+		o := p.flushqueue.Dequeue()
+		if o == nil {
+			return
+		}
+
+		op := o.(*flushOp)
+		op.attempts++
+		err := p.flushBlock(op.blockID)
+		if err != nil {
+			_ = level.Error(p.logger).Log("msg", "failed to flush a block", "err", err)
+
+			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
+			op.at = time.Now().Add(op.backoff())
+
+			if _, err := p.flushqueue.Enqueue(op); err != nil {
+				_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
+			}
 		}
 	}
 }
@@ -300,7 +347,13 @@ func (p *Processor) completeBlock() error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	p.completeBlocks[newMeta.BlockID] = newBlock
+	p.completeBlocks[newMeta.BlockID] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
+	metricCompletedBlocks.WithLabelValues(p.tenant).Inc()
+
+	// Queue for flushing
+	if _, err := p.flushqueue.Enqueue(newFlushOp(newMeta.BlockID)); err != nil {
+		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
+	}
 
 	err = b.Clear()
 	if err != nil {
@@ -308,6 +361,25 @@ func (p *Processor) completeBlock() error {
 	}
 	delete(p.walBlocks, b.BlockMeta().BlockID)
 
+	return nil
+}
+
+func (p *Processor) flushBlock(id uuid.UUID) error {
+	p.blocksMtx.RLock()
+	completeBlock := p.completeBlocks[id]
+	p.blocksMtx.RUnlock()
+
+	if completeBlock == nil {
+		return nil
+	}
+
+	ctx := context.Background()
+	err := p.writer.WriteBlock(ctx, completeBlock)
+	if err != nil {
+		return err
+	}
+	metricFlushedBlocks.WithLabelValues(p.tenant).Inc()
+	_ = level.Info(p.logger).Log("msg", "flushed block to storage", "block", id.String())
 	return nil
 }
 
@@ -550,6 +622,9 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 	for id, b := range p.walBlocks {
 		if b.BlockMeta().EndTime.Before(before) {
+			if _, ok := p.completeBlocks[id]; !ok {
+				level.Warn(p.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
+			}
 			err = b.Clear()
 			if err != nil {
 				return err
@@ -559,7 +634,12 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	}
 
 	for id, b := range p.completeBlocks {
-		if b.BlockMeta().EndTime.Before(before) {
+		flushedTime := b.FlushedTime()
+		if flushedTime.IsZero() {
+			continue
+		}
+
+		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
 				return err
@@ -668,6 +748,7 @@ func (p *Processor) cutBlocks(immediate bool) error {
 	}
 
 	p.walBlocks[p.headBlock.BlockMeta().BlockID] = p.headBlock
+	metricCutBlocks.WithLabelValues(p.tenant).Inc()
 
 	err = p.resetHeadBlock()
 	if err != nil {
@@ -733,7 +814,7 @@ func (p *Processor) reloadBlocks() error {
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to clear partially written block during replay", "err", err)
+				level.Error(p.logger).Log("msg", "local blocks processor failed to clear partially written block during replay", "err", err)
 			}
 			continue
 		}
@@ -747,7 +828,14 @@ func (p *Processor) reloadBlocks() error {
 			return err
 		}
 
-		p.completeBlocks[id] = blk
+		lb := ingester.NewLocalBlock(ctx, blk, l)
+		p.completeBlocks[id] = lb
+
+		if lb.FlushedTime().IsZero() {
+			if _, err := p.flushqueue.Enqueue(newFlushOp(id)); err != nil {
+				_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing during replay", "err", err)
+			}
+		}
 	}
 
 	return nil
@@ -829,4 +917,34 @@ func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
 	}
 
 	return keep
+}
+
+type flushOp struct {
+	blockID  uuid.UUID
+	at       time.Time // When to execute
+	attempts int
+	bo       time.Duration
+}
+
+func newFlushOp(blockID uuid.UUID) *flushOp {
+	return &flushOp{
+		blockID: blockID,
+		at:      time.Now(),
+		bo:      30 * time.Second,
+	}
+}
+
+func (f *flushOp) Key() string { return f.blockID.String() }
+
+func (f *flushOp) Priority() int64 { return -f.at.Unix() }
+
+const maxBackoff = 5 * time.Minute
+
+func (f *flushOp) backoff() time.Duration {
+	f.bo *= 2
+	if f.bo > maxBackoff {
+		f.bo = maxBackoff
+	}
+
+	return f.bo
 }
