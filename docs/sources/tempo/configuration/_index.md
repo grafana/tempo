@@ -875,7 +875,7 @@ storage:
 
             # optional.
             # enable to use dualstack endpoint for DNS resolution.
-            [enabledualstack: <bool>]
+            [enable_dual_stack: <bool>]
 
             # Optional. Default is 0
             # Example: "bucket_lookup_type: 0"
