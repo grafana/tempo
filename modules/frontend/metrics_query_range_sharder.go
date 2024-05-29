@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -24,11 +25,12 @@ import (
 )
 
 type queryRangeSharder struct {
-	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader    tempodb.Reader
-	overrides overrides.Interface
-	cfg       QueryRangeSharderConfig
-	logger    log.Logger
+	next              pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader            tempodb.Reader
+	overrides         overrides.Interface
+	cfg               QueryRangeSharderConfig
+	logger            log.Logger
+	replicationFactor uint32
 }
 
 type QueryRangeSharderConfig struct {
@@ -37,10 +39,15 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
+	QueryGeneratorBlocks  bool          `yaml:"query_generator_blocks,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
 func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	var replicationFactor uint32
+	if cfg.QueryGeneratorBlocks {
+		replicationFactor = 1
+	}
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
 			next:      next,
@@ -49,6 +56,8 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 
 			cfg:    cfg,
 			logger: logger,
+
+			replicationFactor: replicationFactor,
 		}
 	})
 }
@@ -109,7 +118,15 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		reqCh <- generatorReq
 	}
 
-	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh)
+	var (
+		totalJobs, totalBlocks uint32
+		totalBlockBytes        uint64
+	)
+	if s.cfg.QueryGeneratorBlocks {
+		totalJobs, totalBlocks, totalBlockBytes = s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh)
+	} else {
+		totalJobs, totalBlocks, totalBlockBytes = s.shardedBackendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, nil)
+	}
 
 	span.SetTag("totalJobs", totalJobs)
 	span.SetTag("totalBlocks", totalBlocks)
@@ -146,12 +163,144 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	for _, m := range allMetas {
 		if m.StartTime.UnixNano() <= end &&
 			m.EndTime.UnixNano() >= start &&
-			m.ReplicationFactor == 1 { // Only consider blocks with replication factor 1
+			m.ReplicationFactor == s.replicationFactor {
 			metas = append(metas, m)
 		}
 	}
 
 	return metas
+}
+
+func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, _ func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+	// request without start or end, search only in generator
+	if searchReq.Start == 0 || searchReq.End == 0 {
+		close(reqCh)
+		return
+	}
+
+	// Make a copy and limit to backend time range.
+	backendReq := searchReq
+	backendReq.Start, backendReq.End = s.backendRange(now, backendReq.Start, backendReq.End, s.cfg.QueryBackendAfter)
+	alignTimeRange(&backendReq)
+
+	// If empty window then no need to search backend
+	if backendReq.Start == backendReq.End {
+		close(reqCh)
+		return
+	}
+
+	// Blocks within overall time range. This is just for instrumentation, more precise time
+	// range is checked for each window.
+	blocks := s.blockMetas(int64(backendReq.Start), int64(backendReq.End), tenantID)
+	if len(blocks) == 0 {
+		// no need to search backend
+		close(reqCh)
+		return
+	}
+
+	// count blocks
+	totalBlocks = uint32(len(blocks))
+	for _, b := range blocks {
+		totalBlockBytes += b.Size
+	}
+
+	// count jobs. same loops as below
+	var (
+		start          = backendReq.Start
+		end            = backendReq.End
+		timeWindowSize = uint64(interval.Nanoseconds())
+	)
+
+	for start < end {
+		thisStart := start
+		thisEnd := start + timeWindowSize
+		if thisEnd > end {
+			thisEnd = end
+		}
+
+		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
+		if len(blocks) == 0 {
+			start = thisEnd
+			continue
+		}
+
+		totalBlockSize := uint64(0)
+		for _, b := range blocks {
+			totalBlockSize += b.Size
+		}
+
+		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
+
+		for i := uint32(1); i <= shards; i++ {
+			totalJobs++
+		}
+
+		start = thisEnd
+	}
+
+	go func() {
+		s.buildShardedBackendRequests(ctx, tenantID, parent, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh)
+	}()
+
+	return
+}
+
+func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request) {
+	defer close(reqCh)
+
+	var (
+		start          = searchReq.Start
+		end            = searchReq.End
+		timeWindowSize = uint64(interval.Nanoseconds())
+	)
+
+	for start < end {
+		thisStart := start
+		thisEnd := start + timeWindowSize
+		if thisEnd > end {
+			thisEnd = end
+		}
+
+		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
+		if len(blocks) == 0 {
+			start = thisEnd
+			continue
+		}
+
+		totalBlockSize := uint64(0)
+		for _, b := range blocks {
+			totalBlockSize += b.Size
+		}
+
+		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
+
+		for i := uint32(1); i <= shards; i++ {
+
+			shardR := searchReq
+			shardR.Start = thisStart
+			shardR.End = thisEnd
+			shardR.ShardID = i
+			shardR.ShardCount = shards
+			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
+			if samplingRate != 1.0 {
+				shardR.ShardID *= uint32(1.0 / samplingRate)
+				shardR.ShardCount *= uint32(1.0 / samplingRate)
+
+				// Set final sampling rate after integer rounding
+				samplingRate = float64(shards) / float64(shardR.ShardCount)
+
+				httpReq = pipeline.ContextAddAdditionalData(samplingRate, httpReq)
+			}
+
+			select {
+			case reqCh <- httpReq:
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		start = thisEnd
+	}
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan *http.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
@@ -285,13 +434,14 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 
 	searchReq.QueryMode = querier.QueryModeRecent
 
-	// TODO: No sharding with RF=1. Remove
-	//// No sharding on the generators (unnecessary), but we do apply sampling
-	//// rates.  In this case we execute a single arbitrary shard. Choosing
-	//// the last shard works. The first shard should be avoided because it is
-	//// weighted slightly off due to int63/128 sharding boundaries.
-	//searchReq.ShardID = uint32(1.0 / samplingRate)
-	//searchReq.ShardCount = uint32(1.0 / samplingRate)
+	if s.replicationFactor == backend.DefaultReplicationFactor {
+		// No sharding on the generators (unnecessary), but we do apply sampling
+		// rates.  In this case we execute a single arbitrary shard. Choosing
+		// the last shard works. The first shard should be avoided because it is
+		// weighted slightly off due to int63/128 sharding boundaries.
+		searchReq.ShardID = uint32(1.0 / samplingRate)
+		searchReq.ShardCount = uint32(1.0 / samplingRate)
+	}
 
 	return s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 }

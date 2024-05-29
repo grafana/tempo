@@ -302,13 +302,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
-		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd) {
+		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd, opts.BlockReplicationFactor) {
 			copiedBlocklist = append(copiedBlocklist, b)
 			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd, opts.BlockReplicationFactor) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}
@@ -552,7 +552,7 @@ func (rw *readerWriter) pollBlocklist() {
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
+func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64, replicationFactor int) bool {
 	// todo: restore this functionality once it works. min/max ids are currently not recorded
 	//    https://github.com/grafana/tempo/issues/1903
 	//  correctly in a block
@@ -573,16 +573,16 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd
 		return false
 	}
 
-	return b.ReplicationFactor == 0 // TODO: hacky
+	return b.ReplicationFactor == uint32(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
-func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart []byte, blockEnd []byte, poll time.Duration, timeStart int64, timeEnd int64) bool {
+func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart, blockEnd []byte, poll time.Duration, timeStart, timeEnd int64, replicationFactor int) bool {
 	lookback := time.Now().Add(-(2 * poll))
 	if c.CompactedTime.Before(lookback) {
 		return false
 	}
-	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd)
+	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd, replicationFactor)
 }
 
 // createLegacyCache uses the config to return a cache and a list of roles.

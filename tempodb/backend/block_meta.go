@@ -89,6 +89,11 @@ type CompactedBlockMeta struct {
 	CompactedTime time.Time `json:"compactedTime"`
 }
 
+const (
+	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
+	MetricsGeneratorReplicationFactor = 1
+)
+
 // The BlockMeta data that is stored for each individual block.
 type BlockMeta struct {
 	// A Version that indicates the block format. This includes specifics of how the indexes and data is stored.

@@ -715,7 +715,7 @@ func (p *Processor) resetHeadBlock() error {
 		BlockID:           uuid.New(),
 		TenantID:          p.tenant,
 		DedicatedColumns:  p.overrides.DedicatedColumns(p.tenant),
-		ReplicationFactor: 1,
+		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
 	}
 	block, err := p.wal.NewBlock(meta, model.CurrentEncoding)
 	if err != nil {

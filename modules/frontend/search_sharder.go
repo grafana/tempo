@@ -38,11 +38,6 @@ type SearchSharderConfig struct {
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 }
 
-type backendReqMsg struct {
-	req *http.Request
-	err error
-}
-
 type asyncSearchSharder struct {
 	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader    tempodb.Reader
@@ -148,7 +143,7 @@ func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*ba
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
 			m.EndTime.Unix() >= start &&
-			m.ReplicationFactor != 1 { // TODO: hacky
+			m.ReplicationFactor == backend.DefaultReplicationFactor { // This check skips generator blocks (RF=1)
 			metas = append(metas, m)
 		}
 	}
