@@ -2,11 +2,13 @@
 
 * [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
 * [FEATURE] Flush and query RF1 blocks for TraceQL metric queries [#3628](https://github.com/grafana/tempo/pull/3628) [#3691](https://github.com/grafana/tempo/pull/3691) [#3723](https://github.com/grafana/tempo/pull/3723) (@mapno)
+* [ENHANCEMENT] Improve use of OTEL semantic conventions on the service graph [#3711](https://github.com/grafana/tempo/pull/3711) (@zalegrala)
 
 ## v2.5.0-rc.1
 
 * [CHANGE] Update Alpine image version to 3.20 [#3710](https://github.com/grafana/tempo/pull/3710) (@joe-elliott)
 * [ENHANCEMENT] TraceQL - Add support for trace:id and span:id [#3670](https://github.com/grafana/tempo/pull/3670) (@ie-pham)
+* [ENHANCEMENT] Add toggle to inject the tenant ID to generated metrics [#3638](https://github.com/grafana/tempo/pull/3638) (@kvrhdn)
 * [BUGFIX] Fix TraceQL queries involving non boolean operations between statics and attributes. [#3698](https://github.com/grafana/tempo/pull/3698) (@joe-elliott)
 
 ## v2.5.0-rc.0
