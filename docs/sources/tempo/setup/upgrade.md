@@ -84,14 +84,8 @@ cache:
 <table>
   <tr>
    <td>Parameter
-   </td>
+   </td
    <td>Comments
-   </td>
-  </tr>
-  <tr>
-   <td><code>autocomplete_filtering_enabled</code>
-   </td>
-   <td>Set to <code>true</code> by default [PR <a href="https://github.com/grafana/tempo/pull/3178">3178</a>]
    </td>
   </tr>
   <tr>

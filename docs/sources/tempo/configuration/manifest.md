@@ -24,7 +24,6 @@ This manifest was generated on 2023-11-13.
 ```yaml
 target: all
 http_api_prefix: ""
-autocomplete_filtering_enabled: true
 server:
     http_listen_network: tcp
     http_listen_address: ""
